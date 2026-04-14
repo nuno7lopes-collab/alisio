@@ -1,4 +1,4 @@
-import { LitElement, html, nothing } from "lit";
+import { LitElement, html, nothing, svg } from "lit";
 import { property } from "lit/decorators.js";
 import {
   buildMemoryGraphViewModel,
@@ -9,6 +9,11 @@ import {
 import { icons } from "../icons.ts";
 import type { MemoryGraphBranch, MemoryGraphState } from "../types.ts";
 import { buildMemoryGraphLayout, type MemoryGraphLayout } from "./memory-graph-layout.ts";
+import {
+  createMemoryGraphSimulation,
+  stepMemoryGraphSimulation,
+  type MemoryGraphSimulationState,
+} from "./memory-graph-physics.ts";
 
 export type MemoryGraphViewText = {
   graphTitle: string;
@@ -326,17 +331,14 @@ export class AlisioMemoryGraphView extends LitElement {
   private panY = 0;
   private dragState: DragState | null = null;
   private showArrows = false;
-  private nodeScale = 1;
-  private linkThickness = 1;
-  private textFadeThreshold = 0.9;
-  private centerForce = 1;
-  private repelForce = 1;
-  private linkForce = 1;
-  private linkDistance = 1;
+  private nodeScale = 1.04;
+  private linkThickness = 1.08;
+  private textFadeThreshold = 0.82;
   private groupMode: GraphGroupMode = "folder";
   private contextMenu: GraphContextMenuState | null = null;
-  private targetLayout: MemoryGraphLayout = {};
-  private layoutFrame: number | null = null;
+  private simulationState: MemoryGraphSimulationState | null = null;
+  private simulationFrame: number | null = null;
+  private lastSimulationTs: number | null = null;
   private canvasWidth = 0;
   private canvasHeight = 0;
   private settingsOpen = false;
@@ -355,9 +357,9 @@ export class AlisioMemoryGraphView extends LitElement {
     window.removeEventListener("mouseup", this.handleGlobalMouseUp);
     window.removeEventListener("mousedown", this.handleGlobalMouseDown);
     window.removeEventListener("keydown", this.handleGlobalKeyDown);
-    if (this.layoutFrame !== null) {
-      window.cancelAnimationFrame(this.layoutFrame);
-      this.layoutFrame = null;
+    if (this.simulationFrame !== null) {
+      window.cancelAnimationFrame(this.simulationFrame);
+      this.simulationFrame = null;
     }
     super.disconnectedCallback();
   }
@@ -598,100 +600,89 @@ export class AlisioMemoryGraphView extends LitElement {
     );
   }
 
-  private applyTargetLayout(nextLayout: MemoryGraphLayout, focusNodeId: string | null) {
-    this.targetLayout = this.cloneLayout(nextLayout);
-    if (Object.keys(this.layout).length === 0) {
-      this.layout = this.cloneLayout(nextLayout);
+  private startSimulation() {
+    if (!this.simulationState || this.simulationFrame !== null) {
       return;
     }
-    const nextCurrent = this.cloneLayout(this.layout);
-    const focusPosition = (focusNodeId ? nextCurrent[focusNodeId] : null) ??
-      (focusNodeId ? nextLayout[focusNodeId] : null) ?? { x: 0, y: 0 };
-    for (const [id, target] of Object.entries(this.targetLayout)) {
-      if (!nextCurrent[id]) {
-        nextCurrent[id] = {
-          x: focusPosition.x + (target.x - focusPosition.x) * 0.16,
-          y: focusPosition.y + (target.y - focusPosition.y) * 0.16,
-        };
+    const tick = (timestamp: number) => {
+      this.simulationFrame = null;
+      if (!this.graph || !this.simulationState) {
+        this.lastSimulationTs = null;
+        return;
       }
-    }
-    this.layout = nextCurrent;
-    this.startLayoutAnimation();
-  }
-
-  private startLayoutAnimation() {
-    if (this.layoutFrame !== null) {
-      return;
-    }
-    const animate = () => {
-      const nextLayout: MemoryGraphLayout = {};
-      let moving = false;
-      for (const [id, target] of Object.entries(this.targetLayout)) {
-        const current = this.layout[id] ?? target;
-        const dx = target.x - current.x;
-        const dy = target.y - current.y;
-        if (Math.abs(dx) > 0.4 || Math.abs(dy) > 0.4) {
-          nextLayout[id] = {
-            x: current.x + dx * 0.18,
-            y: current.y + dy * 0.18,
-          };
-          moving = true;
-        } else {
-          nextLayout[id] = { x: target.x, y: target.y };
-        }
-      }
-      this.layout = nextLayout;
-      this.requestUpdate();
-      if (!moving) {
-        this.layout = this.cloneLayout(this.targetLayout);
-        this.layoutFrame = null;
+      const view = buildMemoryGraphViewModel(this.graph, this.activeFilters);
+      if (view.nodes.length === 0) {
+        this.layout = {};
+        this.simulationState = null;
+        this.lastSimulationTs = null;
         this.requestUpdate();
         return;
       }
-      this.layoutFrame = window.requestAnimationFrame(animate);
+      const result = stepMemoryGraphSimulation({
+        state: this.simulationState,
+        nodes: view.nodes,
+        edges: view.edges,
+        focusNodeId: view.focusNode?.id ?? null,
+        nodeGroups: buildNodeGroups(view, this.groupMode),
+        draggedNodeId: this.dragState?.kind === "node" ? this.dragState.nodeId : null,
+        dtMs: this.lastSimulationTs == null ? 16.6667 : timestamp - this.lastSimulationTs,
+        localScope: this.activeScope === "local",
+      });
+      this.lastSimulationTs = timestamp;
+      this.layout = this.cloneLayout(this.simulationState.positions);
+      if (this.pendingViewportFit && this.canvasWidth > 0 && this.canvasHeight > 0) {
+        this.fitGraphToViewport();
+      } else {
+        this.requestUpdate();
+      }
+      if (!result.settled || this.dragState?.kind === "node") {
+        this.simulationFrame = window.requestAnimationFrame(tick);
+        return;
+      }
+      this.lastSimulationTs = null;
     };
-    this.layoutFrame = window.requestAnimationFrame(animate);
+    this.simulationFrame = window.requestAnimationFrame(tick);
+  }
+
+  private resetSimulation(view: MemoryGraphViewModel) {
+    const nextLayout = buildMemoryGraphLayout({
+      nodes: view.nodes,
+      edges: view.edges,
+      focusNodeId: view.focusNode?.id ?? null,
+      previousLayout: this.simulationState?.positions ?? this.layout,
+      nodeGroups: buildNodeGroups(view, this.groupMode),
+    });
+    this.simulationState = createMemoryGraphSimulation({
+      layout: nextLayout,
+      previousState: this.simulationState,
+      nodes: view.nodes,
+    });
+    this.layout = this.cloneLayout(this.simulationState.positions);
+    this.lastSimulationTs = null;
+    this.pendingViewportFit = true;
+    this.startSimulation();
   }
 
   private ensureLayout() {
     const filters = this.activeFilters;
     const view = buildMemoryGraphViewModel(this.graph, filters);
     const signature = JSON.stringify({
+      scope: this.activeScope,
       focus: view.focusNode?.id ?? null,
       searchQuery: filters.searchQuery.trim(),
       relationTypes: [...filters.relationTypes].toSorted(),
       tags: [...filters.tags].toSorted(),
       neighbourhoodOnly: filters.neighbourhoodOnly,
       showOrphans: filters.showOrphans,
-      display: {
-        groupMode: this.groupMode,
-        nodeScale: this.nodeScale,
-        linkThickness: this.linkThickness,
-        textFadeThreshold: this.textFadeThreshold,
-        centerForce: this.centerForce,
-        repelForce: this.repelForce,
-        linkForce: this.linkForce,
-        linkDistance: this.linkDistance,
-      },
+      groupMode: this.groupMode,
       nodes: view.nodes.map((node) => node.id),
       edges: view.edges.map((edge) => edge.id),
     });
     if (signature !== this.layoutSignature) {
-      // Reuse the previous layout when possible so filter changes do not reshuffle the graph.
-      const nextLayout = buildMemoryGraphLayout({
-        nodes: view.nodes,
-        edges: view.edges,
-        focusNodeId: view.focusNode?.id ?? null,
-        previousLayout: this.layout,
-        nodeGroups: buildNodeGroups(view, this.groupMode),
-        centerForce: this.centerForce,
-        repelForce: this.repelForce,
-        linkForce: this.linkForce,
-        linkDistance: this.linkDistance,
-      });
-      this.applyTargetLayout(nextLayout, view.focusNode?.id ?? null);
       this.layoutSignature = signature;
-      this.pendingViewportFit = true;
+      this.resetSimulation(view);
+    } else if (!this.simulationState && view.nodes.length > 0) {
+      this.resetSimulation(view);
     }
     return view;
   }
@@ -714,10 +705,13 @@ export class AlisioMemoryGraphView extends LitElement {
     if (!nodePosition) {
       return;
     }
-    nodePosition.x += dx / this.zoom;
-    nodePosition.y += dy / this.zoom;
-    if (this.targetLayout[this.dragState.nodeId]) {
-      this.targetLayout[this.dragState.nodeId] = { ...nodePosition };
+    const nextDx = dx / this.zoom;
+    const nextDy = dy / this.zoom;
+    nodePosition.x += nextDx;
+    nodePosition.y += nextDy;
+    if (this.simulationState) {
+      this.simulationState.positions[this.dragState.nodeId] = { ...nodePosition };
+      this.simulationState.velocities[this.dragState.nodeId] = { x: nextDx, y: nextDy };
     }
     this.dragState = {
       kind: "node",
@@ -727,6 +721,7 @@ export class AlisioMemoryGraphView extends LitElement {
       moved: this.dragState.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2,
     };
     this.pendingViewportFit = false;
+    this.startSimulation();
     this.requestUpdate();
   };
 
@@ -734,10 +729,15 @@ export class AlisioMemoryGraphView extends LitElement {
     if (!this.dragState) {
       return;
     }
-    if (this.dragState.kind === "node" && !this.dragState.moved) {
-      this.dispatchNodeOpen(this.dragState.nodeId);
-    }
+    const dragState = this.dragState;
     this.dragState = null;
+    if (dragState.kind === "node") {
+      if (!dragState.moved) {
+        this.dispatchNodeOpen(dragState.nodeId);
+        return;
+      }
+      this.startSimulation();
+    }
   };
 
   private handleGlobalMouseDown = (event: MouseEvent) => {
@@ -930,6 +930,7 @@ export class AlisioMemoryGraphView extends LitElement {
           <button
             type="button"
             class="btn btn--sm ${this.activeScope === "global" ? "primary" : ""}"
+            title=${text.graphGlobal}
             @click=${() => this.dispatchScopeChange("global")}
           >
             ${text.graphGlobal}
@@ -938,6 +939,7 @@ export class AlisioMemoryGraphView extends LitElement {
             type="button"
             class="btn btn--sm ${this.activeScope === "local" ? "primary" : ""}"
             ?disabled=${!this.localAvailable}
+            title=${text.graphLocal}
             @click=${() => this.dispatchScopeChange("local")}
           >
             ${text.graphLocal}
@@ -949,9 +951,6 @@ export class AlisioMemoryGraphView extends LitElement {
           >
           <span class="alisio-memory-graph__pill"
             >${text.graphEdgesCount}: ${view.edges.length}</span
-          >
-          <span class="alisio-memory-graph__pill"
-            >${resolveGraphStateLabel(this.graph!, text)}</span
           >
         </div>
         <div class="alisio-memory-graph__toolbar">
@@ -983,8 +982,8 @@ export class AlisioMemoryGraphView extends LitElement {
           <button
             type="button"
             class="btn btn--icon ${this.settingsOpen ? "primary" : "btn--ghost"}"
-            title=${text.graphDisplay ?? text.graphTitle}
-            aria-label=${text.graphDisplay ?? text.graphTitle}
+            title=${text.graphTitle}
+            aria-label=${text.graphTitle}
             @click=${() => {
               this.settingsOpen = !this.settingsOpen;
               this.requestUpdate();
@@ -1004,7 +1003,6 @@ export class AlisioMemoryGraphView extends LitElement {
     return html`
       <aside class="alisio-memory-graph__settings">
         ${this.renderFiltersCard(view, text)} ${this.renderGroupsCard(view, text)}
-        ${this.renderDisplayCard(text)} ${this.renderForcesCard(text)}
       </aside>
     `;
   }
@@ -1066,9 +1064,9 @@ export class AlisioMemoryGraphView extends LitElement {
     `;
   }
 
-  private renderFiltersCard(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
-    const selectedRelationTypes = new Set(this.filters.relationTypes);
+  private renderFiltersCard(_view: MemoryGraphViewModel, text: MemoryGraphViewText) {
     const selectedTags = new Set(this.filters.tags);
+    const hasTagFilters = this.graph!.availableTags.length > 0;
     return html`
       <section class="alisio-memory-graph__card">
         <label class="field checkbox" style="margin: 0;">
@@ -1090,135 +1088,31 @@ export class AlisioMemoryGraphView extends LitElement {
               onInput: (value) => this.dispatchDepthChange(Math.round(value)),
             })
           : nothing}
-        <div class="alisio-memory-group__header"><h2>${text.graphFilterRelations}</h2></div>
-        <div class="alisio-memory-graph__chips">
-          ${this.graph!.availableRelationTypes.map(
-            (relationType) => html`
-              <button
-                type="button"
-                class="btn btn--sm ${selectedRelationTypes.has(relationType) ? "primary" : ""}"
-                aria-pressed=${selectedRelationTypes.has(relationType)}
-                @click=${() =>
-                  this.updateFilters({
-                    relationTypes: selectedRelationTypes.has(relationType)
-                      ? this.filters.relationTypes.filter((value) => value !== relationType)
-                      : [...this.filters.relationTypes, relationType],
-                    selectedEdgeId: null,
-                  })}
-              >
-                ${relationType}
-              </button>
-            `,
-          )}
-        </div>
-        <div class="alisio-memory-group__header"><h2>${text.graphFilterTags}</h2></div>
-        <div class="alisio-memory-graph__chips">
-          ${this.graph!.availableTags.map(
-            (tag) => html`
-              <button
-                type="button"
-                class="btn btn--sm ${selectedTags.has(tag) ? "primary" : ""}"
-                aria-pressed=${selectedTags.has(tag)}
-                @click=${() =>
-                  this.updateFilters({
-                    tags: selectedTags.has(tag)
-                      ? this.filters.tags.filter((value) => value !== tag)
-                      : [...this.filters.tags, tag],
-                    selectedEdgeId: null,
-                  })}
-              >
-                ${tag}
-              </button>
-            `,
-          )}
-        </div>
-        <label class="field checkbox" style="margin: 0;">
-          <input
-            type="checkbox"
-            .checked=${this.filters.neighbourhoodOnly}
-            @change=${(event: Event) =>
-              this.updateFilters({
-                neighbourhoodOnly: (event.currentTarget as HTMLInputElement).checked,
-                selectedEdgeId: null,
-              })}
-          />
-          <span class="field-checkbox__label">${text.graphNeighbourhood}</span>
-        </label>
-        <label class="field checkbox" style="margin: 0;">
-          <input
-            type="checkbox"
-            .checked=${this.filters.showOrphans}
-            @change=${(event: Event) =>
-              this.updateFilters({
-                showOrphans: (event.currentTarget as HTMLInputElement).checked,
-                selectedEdgeId: null,
-              })}
-          />
-          <span class="field-checkbox__label">${text.graphOrphans ?? "Show orphans"}</span>
-        </label>
-        ${this.activeFilters.searchQuery.trim()
+        ${hasTagFilters
           ? html`
-              <div class="alisio-memory-graph__search-indicator">
-                <strong>${text.searchPlaceholder ?? "Search"}</strong>
-                <span>${this.activeFilters.searchQuery.trim()}</span>
+              <div class="alisio-memory-group__header"><h2>${text.graphFilterTags}</h2></div>
+              <div class="alisio-memory-graph__chips">
+                ${this.graph!.availableTags.map(
+                  (tag) => html`
+                    <button
+                      type="button"
+                      class="btn btn--sm ${selectedTags.has(tag) ? "primary" : ""}"
+                      aria-pressed=${selectedTags.has(tag)}
+                      @click=${() =>
+                        this.updateFilters({
+                          tags: selectedTags.has(tag)
+                            ? this.filters.tags.filter((value) => value !== tag)
+                            : [...this.filters.tags, tag],
+                          selectedEdgeId: null,
+                        })}
+                    >
+                      ${tag}
+                    </button>
+                  `,
+                )}
               </div>
             `
           : nothing}
-        ${view.nodes.length === 0
-          ? html`<div class="alisio-memory-empty">${text.graphEmpty}</div>`
-          : nothing}
-      </section>
-    `;
-  }
-
-  private renderDisplayCard(text: MemoryGraphViewText) {
-    return html`
-      <section class="alisio-memory-graph__card">
-        <div class="alisio-memory-group__header"><h2>${text.graphDisplay ?? "Display"}</h2></div>
-        <label class="field checkbox" style="margin: 0;">
-          <input
-            type="checkbox"
-            .checked=${this.showArrows}
-            @change=${(event: Event) => {
-              this.showArrows = (event.currentTarget as HTMLInputElement).checked;
-              this.requestUpdate();
-            }}
-          />
-          <span class="field-checkbox__label">${text.graphArrows ?? "Arrows"}</span>
-        </label>
-        ${this.renderSliderRow({
-          label: text.graphNodeSize ?? "Node size",
-          value: this.nodeScale,
-          min: 0.7,
-          max: 1.8,
-          step: 0.05,
-          onInput: (value) => {
-            this.nodeScale = value;
-            this.requestUpdate();
-          },
-        })}
-        ${this.renderSliderRow({
-          label: text.graphLinkThickness ?? "Link thickness",
-          value: this.linkThickness,
-          min: 0.7,
-          max: 2.2,
-          step: 0.05,
-          onInput: (value) => {
-            this.linkThickness = value;
-            this.requestUpdate();
-          },
-        })}
-        ${this.renderSliderRow({
-          label: text.graphTextFadeThreshold ?? "Text fade",
-          value: this.textFadeThreshold,
-          min: 0.45,
-          max: 1.5,
-          step: 0.05,
-          onInput: (value) => {
-            this.textFadeThreshold = value;
-            this.requestUpdate();
-          },
-        })}
       </section>
     `;
   }
@@ -1309,62 +1203,6 @@ export class AlisioMemoryGraphView extends LitElement {
                 )}
               </div>
             `}
-      </section>
-    `;
-  }
-
-  private renderForcesCard(text: MemoryGraphViewText) {
-    return html`
-      <section class="alisio-memory-graph__card">
-        <div class="alisio-memory-group__header"><h2>${text.graphForces ?? "Forces"}</h2></div>
-        ${this.renderSliderRow({
-          label: text.graphCenterForce ?? "Center force",
-          value: this.centerForce,
-          min: 0.5,
-          max: 1.8,
-          step: 0.05,
-          onInput: (value) => {
-            this.centerForce = value;
-            this.layoutSignature = "";
-            this.requestUpdate();
-          },
-        })}
-        ${this.renderSliderRow({
-          label: text.graphRepelForce ?? "Repel force",
-          value: this.repelForce,
-          min: 0.55,
-          max: 2.25,
-          step: 0.05,
-          onInput: (value) => {
-            this.repelForce = value;
-            this.layoutSignature = "";
-            this.requestUpdate();
-          },
-        })}
-        ${this.renderSliderRow({
-          label: text.graphLinkForce ?? "Link force",
-          value: this.linkForce,
-          min: 0.55,
-          max: 1.9,
-          step: 0.05,
-          onInput: (value) => {
-            this.linkForce = value;
-            this.layoutSignature = "";
-            this.requestUpdate();
-          },
-        })}
-        ${this.renderSliderRow({
-          label: text.graphLinkDistance ?? "Link distance",
-          value: this.linkDistance,
-          min: 0.65,
-          max: 1.8,
-          step: 0.05,
-          onInput: (value) => {
-            this.linkDistance = value;
-            this.layoutSignature = "";
-            this.requestUpdate();
-          },
-        })}
       </section>
     `;
   }
@@ -1596,152 +1434,154 @@ export class AlisioMemoryGraphView extends LitElement {
     );
     return html`
       <section class="alisio-memory-graph__canvas" @wheel=${this.handleWheel}>
-        <svg
-          viewBox=${`${viewport.minX} ${viewport.minY} ${viewport.width} ${viewport.height}`}
-          role="img"
-          aria-label=${text.graphTitle}
-          preserveAspectRatio="xMidYMid meet"
-          @mousedown=${this.handleCanvasMouseDown}
-        >
-          <defs>
-            <marker
-              id="alisio-memory-graph-arrow"
-              markerWidth="10"
-              markerHeight="10"
-              refX="8"
-              refY="3"
-              orient="auto"
-              markerUnits="strokeWidth"
-            >
-              <path d="M0,0 L0,6 L9,3 z" fill="currentColor"></path>
-            </marker>
-          </defs>
-          <g class="alisio-memory-graph__grid">
-            ${verticalLines.map(
-              (offset) =>
-                html`<line x1=${offset} y1=${-gridHeight} x2=${offset} y2=${gridHeight}></line>`,
-            )}
-            ${horizontalLines.map(
-              (offset) =>
-                html`<line x1=${-gridWidth} y1=${offset} x2=${gridWidth} y2=${offset}></line>`,
-            )}
-          </g>
-          <g transform=${`translate(${this.panX} ${this.panY})`}>
-            <g transform=${`scale(${this.zoom})`}>
-              ${view.edges.map((edge) => {
-                const source = this.layout[edge.fromId];
-                const target = this.layout[edge.toId];
-                if (!source || !target) {
-                  return nothing;
-                }
-                const highlighted = view.highlightedEdgeIds.has(edge.id);
-                const attachmentEdge = edge.reason.kind === "attachment-reference";
-                const dimmed =
-                  view.highlightedNodeIds.size > 0 &&
-                  !highlighted &&
-                  !view.selectedEdge?.id &&
-                  !view.highlightedEdgeIds.has(edge.id);
-                const edgeColor = this.resolveEdgeColor({
-                  highlighted,
-                  attachmentEdge,
-                  dimmed,
-                });
-                return html`
-                  <line
-                    class="alisio-memory-graph__edge ${highlighted ? "is-highlighted" : ""} ${dimmed
-                      ? "is-dimmed"
-                      : ""} ${attachmentEdge ? "is-attachment" : ""}"
-                    x1=${source.x}
-                    y1=${source.y}
-                    x2=${target.x}
-                    y2=${target.y}
-                    style=${`stroke:${edgeColor};color:${edgeColor};stroke-width:${String(
-                      (highlighted ? 3 : 2) * this.linkThickness,
-                    )}`}
-                    marker-end=${this.showArrows ? "url(#alisio-memory-graph-arrow)" : nothing}
-                  ></line>
-                  <line
-                    class="alisio-memory-graph__edge-hit"
-                    x1=${source.x}
-                    y1=${source.y}
-                    x2=${target.x}
-                    y2=${target.y}
-                    @click=${() => this.updateFilters({ selectedEdgeId: edge.id })}
-                  ></line>
-                `;
-              })}
-              ${view.nodes.map((node) => {
-                const position = this.layout[node.id];
-                if (!position) {
-                  return nothing;
-                }
-                const groupId = nodeGroups[node.id] ?? null;
-                const tone = this.resolveNodeTone({
-                  groupId,
-                  kind: node.kind,
-                });
-                const highlighted = view.highlightedNodeIds.has(node.id);
-                const dimmed =
-                  view.highlightedNodeIds.size > 0 &&
-                  !highlighted &&
-                  node.id !== focusNode?.id &&
-                  !view.selectedEdge;
-                const focused = node.id === focusNode?.id;
-                const baseRadius =
-                  node.kind === "attachment"
-                    ? 11 + Math.min(node.degree * 1.5, 6)
-                    : 14 + Math.min(node.degree * 2, 12);
-                const radius = (focused ? Math.max(baseRadius, 28) : baseRadius) * this.nodeScale;
-                const showLabel =
-                  focused ||
-                  highlighted ||
-                  this.zoom >= this.textFadeThreshold ||
-                  view.nodes.length <= 12;
-                const labelOpacity = showLabel
-                  ? 1
-                  : clamp((this.zoom - this.textFadeThreshold + 0.25) / 0.35, 0, 0.72);
-                const fill = this.resolveNodeFill(tone, { focus: focused, dimmed });
-                const stroke = this.resolveNodeStroke(tone, {
-                  focus: focused,
-                  highlighted,
-                  dimmed,
-                });
-                const labelColor = dimmed ? withAlpha(GRAPH_TEXT_MUTED, 0.36) : GRAPH_TEXT;
-                return html`
-                  <g
-                    class="alisio-memory-graph__node ${focused ? "is-focus" : ""} ${highlighted
-                      ? "is-highlighted"
-                      : ""} ${dimmed ? "is-dimmed" : ""} ${node.kind === "attachment"
-                      ? "is-attachment"
-                      : "is-note"}"
-                    transform=${`translate(${position.x} ${position.y})`}
-                    @mouseenter=${() => this.updateFilters({ hoveredNodeId: node.id })}
-                    @mouseleave=${() => this.updateFilters({ hoveredNodeId: null })}
-                    @mousedown=${(event: MouseEvent) => this.handleNodeMouseDown(event, node.id)}
-                    @contextmenu=${(event: MouseEvent) =>
-                      this.handleNodeContextMenu(event, node.id)}
-                  >
-                    <circle
-                      r=${radius}
-                      fill=${fill}
-                      stroke=${stroke}
-                      stroke-width=${focused ? "3" : "2"}
-                    ></circle>
-                    <text
-                      class="alisio-memory-graph__label"
-                      y=${radius + 18}
-                      text-anchor="middle"
-                      fill=${labelColor}
-                      style=${`opacity:${String(labelOpacity)}`}
-                    >
-                      ${shortenGraphLabel(node.title)}
-                    </text>
-                  </g>
-                `;
-              })}
+        ${svg`
+          <svg
+            viewBox=${`${viewport.minX} ${viewport.minY} ${viewport.width} ${viewport.height}`}
+            role="img"
+            aria-label=${text.graphTitle}
+            preserveAspectRatio="xMidYMid meet"
+            @mousedown=${this.handleCanvasMouseDown}
+          >
+            <defs>
+              <marker
+                id="alisio-memory-graph-arrow"
+                markerWidth="10"
+                markerHeight="10"
+                refX="8"
+                refY="3"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <path d="M0,0 L0,6 L9,3 z" fill="currentColor"></path>
+              </marker>
+            </defs>
+            <g class="alisio-memory-graph__grid">
+              ${verticalLines.map(
+                (offset) =>
+                  svg`<line x1=${offset} y1=${-gridHeight} x2=${offset} y2=${gridHeight}></line>`,
+              )}
+              ${horizontalLines.map(
+                (offset) =>
+                  svg`<line x1=${-gridWidth} y1=${offset} x2=${gridWidth} y2=${offset}></line>`,
+              )}
             </g>
-          </g>
-        </svg>
+            <g transform=${`translate(${this.panX} ${this.panY})`}>
+              <g transform=${`scale(${this.zoom})`}>
+                ${view.edges.map((edge) => {
+                  const source = this.layout[edge.fromId];
+                  const target = this.layout[edge.toId];
+                  if (!source || !target) {
+                    return nothing;
+                  }
+                  const highlighted = view.highlightedEdgeIds.has(edge.id);
+                  const attachmentEdge = edge.reason.kind === "attachment-reference";
+                  const dimmed =
+                    view.highlightedNodeIds.size > 0 &&
+                    !highlighted &&
+                    !view.selectedEdge?.id &&
+                    !view.highlightedEdgeIds.has(edge.id);
+                  const edgeColor = this.resolveEdgeColor({
+                    highlighted,
+                    attachmentEdge,
+                    dimmed,
+                  });
+                  return svg`
+                    <line
+                      class="alisio-memory-graph__edge ${highlighted ? "is-highlighted" : ""} ${
+                        dimmed ? "is-dimmed" : ""
+                      } ${attachmentEdge ? "is-attachment" : ""}"
+                      x1=${source.x}
+                      y1=${source.y}
+                      x2=${target.x}
+                      y2=${target.y}
+                      style=${`stroke:${edgeColor};color:${edgeColor};stroke-width:${String(
+                        (highlighted ? 3 : 2) * this.linkThickness,
+                      )}`}
+                      marker-end=${this.showArrows ? "url(#alisio-memory-graph-arrow)" : nothing}
+                    ></line>
+                    <line
+                      class="alisio-memory-graph__edge-hit"
+                      x1=${source.x}
+                      y1=${source.y}
+                      x2=${target.x}
+                      y2=${target.y}
+                      @click=${() => this.updateFilters({ selectedEdgeId: edge.id })}
+                    ></line>
+                  `;
+                })}
+                ${view.nodes.map((node) => {
+                  const position = this.layout[node.id];
+                  if (!position) {
+                    return nothing;
+                  }
+                  const groupId = nodeGroups[node.id] ?? null;
+                  const tone = this.resolveNodeTone({
+                    groupId,
+                    kind: node.kind,
+                  });
+                  const highlighted = view.highlightedNodeIds.has(node.id);
+                  const dimmed =
+                    view.highlightedNodeIds.size > 0 &&
+                    !highlighted &&
+                    node.id !== focusNode?.id &&
+                    !view.selectedEdge;
+                  const focused = node.id === focusNode?.id;
+                  const baseRadius =
+                    node.kind === "attachment"
+                      ? 11 + Math.min(node.degree * 1.5, 6)
+                      : 14 + Math.min(node.degree * 2, 12);
+                  const radius = (focused ? Math.max(baseRadius, 28) : baseRadius) * this.nodeScale;
+                  const showLabel =
+                    focused ||
+                    highlighted ||
+                    this.zoom >= this.textFadeThreshold ||
+                    view.nodes.length <= 12;
+                  const labelOpacity = showLabel
+                    ? 1
+                    : clamp((this.zoom - this.textFadeThreshold + 0.25) / 0.35, 0, 0.72);
+                  const fill = this.resolveNodeFill(tone, { focus: focused, dimmed });
+                  const stroke = this.resolveNodeStroke(tone, {
+                    focus: focused,
+                    highlighted,
+                    dimmed,
+                  });
+                  const labelColor = dimmed ? withAlpha(GRAPH_TEXT_MUTED, 0.36) : GRAPH_TEXT;
+                  return svg`
+                    <g
+                      class="alisio-memory-graph__node ${focused ? "is-focus" : ""} ${
+                        highlighted ? "is-highlighted" : ""
+                      } ${dimmed ? "is-dimmed" : ""} ${
+                        node.kind === "attachment" ? "is-attachment" : "is-note"
+                      }"
+                      transform=${`translate(${position.x} ${position.y})`}
+                      @mouseenter=${() => this.updateFilters({ hoveredNodeId: node.id })}
+                      @mouseleave=${() => this.updateFilters({ hoveredNodeId: null })}
+                      @mousedown=${(event: MouseEvent) => this.handleNodeMouseDown(event, node.id)}
+                      @contextmenu=${(event: MouseEvent) =>
+                        this.handleNodeContextMenu(event, node.id)}
+                    >
+                      <circle
+                        r=${radius}
+                        fill=${fill}
+                        stroke=${stroke}
+                        stroke-width=${focused ? "3" : "2"}
+                      ></circle>
+                      <text
+                        class="alisio-memory-graph__label"
+                        y=${radius + 18}
+                        text-anchor="middle"
+                        fill=${labelColor}
+                        style=${`opacity:${String(labelOpacity)}`}
+                      >
+                        ${shortenGraphLabel(node.title)}
+                      </text>
+                    </g>
+                  `;
+                })}
+              </g>
+            </g>
+          </svg>
+        `}
       </section>
     `;
   }

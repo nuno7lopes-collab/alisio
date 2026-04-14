@@ -149,20 +149,22 @@ import {
   updateSkillEnvEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
+import { cancelTask, loadTasksOverview, updateTaskNotifyPolicy } from "./controllers/tasks.ts";
 import { icons } from "./icons.ts";
-import "./components/dashboard-header.ts";
 import {
   buildMemoryNoteName,
   humanizeMemoryNoteTitle,
   isMemoryNoteFileName,
   PRIMARY_MEMORY_FILE_NAME,
 } from "./memory-files.ts";
+import "./components/dashboard-header.ts";
 import { TAB_GROUPS, pathForTab, publicTabFor } from "./navigation.ts";
 import {
   closeReservedExternalPopup,
   openExternalTarget,
   reserveExternalPopup,
 } from "./open-external-url.ts";
+import { resolveDefaultPresentationSelection } from "./presentation-preferences.ts";
 import { agentLogoUrl } from "./views/agents-utils.ts";
 import { renderAuthentications } from "./views/authentications.ts";
 import { renderCapabilities } from "./views/capabilities.ts";
@@ -178,6 +180,7 @@ import { renderOrganization } from "./views/organization.ts";
 import { renderSecurity } from "./views/security.ts";
 import { renderSettingsHub } from "./views/settings.ts";
 import { renderSetup } from "./views/setup.ts";
+import { renderTasks } from "./views/tasks.ts";
 
 const UPDATE_BANNER_DISMISS_KEY = "alisio:workspace:update-banner-dismissed:v1";
 
@@ -502,6 +505,31 @@ export function renderApp(state: AppViewState) {
     typeof updatableState.requestUpdate === "function"
       ? () => updatableState.requestUpdate?.()
       : undefined;
+  const markPresentationSyncPending = () => {
+    if (state.settings.presentationSyncPending === true) {
+      return;
+    }
+    state.applySettings({
+      ...state.settings,
+      presentationSyncPending: true,
+    });
+  };
+  const flushPresentationPreferences = () => {
+    void state.flushPresentationPreferences?.();
+  };
+  const resetPresentationPreferences = () => {
+    const defaults = resolveDefaultPresentationSelection();
+    void i18n.setLocale(defaults.locale);
+    state.applySettings({
+      ...state.settings,
+      locale: defaults.locale,
+      themeFamily: defaults.themeFamily,
+      themeMode: defaults.themeMode,
+      themeAccents: defaults.themeAccents,
+      presentationSyncPending: true,
+    });
+    flushPresentationPreferences();
+  };
 
   const setupBlockedByBootstrap = alisioBootstrapBlocksChatAccess(state.alisioBootstrap);
   const shouldShowSetup = state.tab === "setup" || setupBlockedByBootstrap;
@@ -634,7 +662,7 @@ export function renderApp(state: AppViewState) {
     },
     onOpenSettingsMac: () => {
       state.setSettingsSection("mac");
-      void openNativeSettings();
+      void openNativeSettings("mac");
     },
     onSetLaunchAtLogin: (enabled) => {
       void setLaunchAtLogin(enabled).then(() => loadNativeShellState(state));
@@ -1541,6 +1569,50 @@ export function renderApp(state: AppViewState) {
               },
             })
           : nothing}
+        ${activeTab === "tasks"
+          ? renderTasks({
+              loading: state.tasksLoading,
+              busy: state.tasksBusy,
+              error: state.tasksError,
+              overview: state.tasksOverview,
+              selectedId: state.tasksSelectedId,
+              query: state.tasksQuery,
+              runtimeFilter: state.tasksRuntimeFilter,
+              statusFilter: state.tasksStatusFilter,
+              onRefresh: () => {
+                void loadTasksOverview(state);
+              },
+              onQueryChange: (value) => {
+                state.tasksQuery = value;
+                void loadTasksOverview(state, { quiet: true });
+              },
+              onRuntimeFilterChange: (value) => {
+                state.tasksRuntimeFilter = value;
+                void loadTasksOverview(state, { quiet: true });
+              },
+              onStatusFilterChange: (value) => {
+                state.tasksStatusFilter = value;
+                void loadTasksOverview(state, { quiet: true });
+              },
+              onSelectTask: (taskId) => {
+                state.tasksSelectedId = taskId;
+              },
+              onCancelTask: (taskId) => {
+                void cancelTask(state, taskId);
+              },
+              onNotifyPolicyChange: (taskId, notify) => {
+                void updateTaskNotifyPolicy(state, taskId, notify);
+              },
+              onOpenRequesterSession: (sessionKey) => {
+                state.sessionKey = sessionKey;
+                state.setTab?.("chat");
+              },
+              onOpenChildSession: (sessionKey) => {
+                state.sessionKey = sessionKey;
+                state.setTab?.("chat");
+              },
+            })
+          : nothing}
         ${activeTab === "organization"
           ? renderOrganization({
               connected: state.connected,
@@ -1654,7 +1726,7 @@ export function renderApp(state: AppViewState) {
                   onOpenNativeSettings:
                     state.nativeShellState || state.nativeShellLoading || state.nativeShellError
                       ? () => {
-                          void openNativeSettings();
+                          void openNativeSettings("mac");
                         }
                       : undefined,
                   onQueueRemove: (id) => state.removeQueuedMessage(id),
@@ -1937,36 +2009,29 @@ export function renderApp(state: AppViewState) {
               themeAccents: state.themeAccents,
               onLocaleChange: (locale) => {
                 void i18n.setLocale(locale);
-                state.applySettings({ ...state.settings, locale });
-                void saveAlisioAccount(state, { language: locale });
+                state.applySettings({
+                  ...state.settings,
+                  locale,
+                  presentationSyncPending: true,
+                });
+                flushPresentationPreferences();
               },
               onThemeFamilyChange: (themeFamily, context) => {
                 state.setThemeFamily(themeFamily, context);
-                void saveAlisioAccount(state, {
-                  themeFamily,
-                  themeMode: state.themeMode,
-                  themeAccents: state.themeAccents,
-                });
+                markPresentationSyncPending();
+                flushPresentationPreferences();
               },
               onThemeAccentChange: (themeFamily, accent) => {
                 state.setThemeAccent(themeFamily, accent);
-                void saveAlisioAccount(state, {
-                  themeFamily: state.themeFamily,
-                  themeMode: state.themeMode,
-                  themeAccents: {
-                    ...state.themeAccents,
-                    [themeFamily]: accent,
-                  },
-                });
+                markPresentationSyncPending();
+                flushPresentationPreferences();
               },
               onThemeModeChange: (themeMode) => {
                 state.setThemeMode(themeMode);
-                void saveAlisioAccount(state, {
-                  themeFamily: state.themeFamily,
-                  themeMode,
-                  themeAccents: state.themeAccents,
-                });
+                markPresentationSyncPending();
+                flushPresentationPreferences();
               },
+              onResetPresentation: resetPresentationPreferences,
               onSaveAccountField: (patch) => {
                 void saveAlisioAccount(state, patch);
               },
@@ -1986,7 +2051,7 @@ export function renderApp(state: AppViewState) {
                 void setVoiceWake(params).then(() => loadNativeShellState(state));
               },
               onOpenNativeSettings: () => {
-                void openNativeSettings();
+                void openNativeSettings("mac");
               },
               onRevealLogs: () => {
                 void revealLogs();

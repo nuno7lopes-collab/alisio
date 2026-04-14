@@ -1,6 +1,8 @@
 /* @vitest-environment jsdom */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildMemoryGraphLayout } from "./memory-graph-layout.ts";
+import { createMemoryGraphSimulation, stepMemoryGraphSimulation } from "./memory-graph-physics.ts";
 import "./memory-graph-view.ts";
 
 function makeGraph() {
@@ -117,7 +119,7 @@ describe("memory-graph-view", () => {
     await flushGraphView();
 
     const settingsButton = element.querySelector(
-      "button[aria-label='Display']",
+      "button[aria-label='Graph']",
     ) as HTMLButtonElement | null;
     expect(settingsButton).toBeTruthy();
     settingsButton?.click();
@@ -126,6 +128,8 @@ describe("memory-graph-view", () => {
     expect(element.textContent).toContain("Groups");
     expect(element.textContent).toContain("Folder");
     expect(element.textContent).toContain("Tag");
+    expect(element.textContent).not.toContain("Forces");
+    expect(element.textContent).not.toContain("Filter by relation");
   });
 
   it("opens a context menu on right click and emits local focus actions", async () => {
@@ -245,5 +249,67 @@ describe("memory-graph-view", () => {
     const circle = element.querySelector(".alisio-memory-graph__node circle");
     expect(circle?.getAttribute("fill")).toMatch(/rgb|rgba|#/);
     expect(circle?.getAttribute("stroke")).toMatch(/rgb|rgba|#/);
+    expect(circle?.namespaceURI).toBe("http://www.w3.org/2000/svg");
+  });
+
+  it("mantém a rede viva durante o arrasto e faz o nó regressar ao equilíbrio", () => {
+    const graph = makeGraph();
+    const layout = buildMemoryGraphLayout({
+      nodes: graph.nodes,
+      edges: graph.edges,
+      focusNodeId: graph.focus.nodeId,
+      nodeGroups: {
+        atlas: "folder:memory",
+        roadmap: "folder:memory",
+      },
+    });
+    const simulation = createMemoryGraphSimulation({
+      layout,
+      nodes: graph.nodes,
+    });
+
+    const roadmapBefore = { ...simulation.positions.roadmap };
+    simulation.positions.atlas.x += 140;
+    simulation.positions.atlas.y += 28;
+    simulation.velocities.atlas = { x: 8, y: 2 };
+
+    for (let index = 0; index < 12; index += 1) {
+      stepMemoryGraphSimulation({
+        state: simulation,
+        nodes: graph.nodes,
+        edges: graph.edges,
+        focusNodeId: graph.focus.nodeId,
+        nodeGroups: {
+          atlas: "folder:memory",
+          roadmap: "folder:memory",
+        },
+        draggedNodeId: "atlas",
+        dtMs: 16.6667,
+        localScope: true,
+      });
+    }
+
+    const roadmapDuringDrag = simulation.positions.roadmap.x;
+    expect(roadmapDuringDrag).not.toBe(roadmapBefore.x);
+
+    const releaseDistance = Math.hypot(simulation.positions.atlas.x, simulation.positions.atlas.y);
+    for (let index = 0; index < 90; index += 1) {
+      stepMemoryGraphSimulation({
+        state: simulation,
+        nodes: graph.nodes,
+        edges: graph.edges,
+        focusNodeId: graph.focus.nodeId,
+        nodeGroups: {
+          atlas: "folder:memory",
+          roadmap: "folder:memory",
+        },
+        draggedNodeId: null,
+        dtMs: 16.6667,
+        localScope: true,
+      });
+    }
+
+    const settledDistance = Math.hypot(simulation.positions.atlas.x, simulation.positions.atlas.y);
+    expect(settledDistance).toBeLessThan(releaseDistance);
   });
 });

@@ -5,6 +5,7 @@ import { loadDebug } from "./controllers/debug.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
 import { loadNodes } from "./controllers/nodes.ts";
+import { loadTasksOverview } from "./controllers/tasks.ts";
 import type { SessionsListResult } from "./types.ts";
 
 const CHAT_RECOVERY_POLL_INTERVAL_MS = 5_000;
@@ -12,6 +13,7 @@ const CHAT_RECOVERY_POLL_INTERVAL_MS = 5_000;
 type PollingHost = {
   nodesPollInterval: number | null;
   memoryPollInterval: number | null;
+  tasksPollInterval: number | null;
   logsPollInterval: number | null;
   debugPollInterval: number | null;
   chatRecoveryPollInterval: number | null;
@@ -64,6 +66,13 @@ function shouldPollMemory(host: PollingHost) {
   return host.tab === "memory";
 }
 
+function shouldPollTasks(host: PollingHost) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return false;
+  }
+  return host.tab === "tasks";
+}
+
 export function startMemoryPolling(host: PollingHost) {
   if (host.memoryPollInterval != null) {
     return;
@@ -91,6 +100,26 @@ export function stopMemoryPolling(host: PollingHost) {
   }
   clearInterval(host.memoryPollInterval);
   host.memoryPollInterval = null;
+}
+
+export function startTasksPolling(host: PollingHost) {
+  if (host.tasksPollInterval != null) {
+    return;
+  }
+  host.tasksPollInterval = window.setInterval(() => {
+    if (!shouldPollTasks(host)) {
+      return;
+    }
+    void loadTasksOverview(host as unknown as AlisioApp, { quiet: true });
+  }, 5000);
+}
+
+export function stopTasksPolling(host: PollingHost) {
+  if (host.tasksPollInterval == null) {
+    return;
+  }
+  clearInterval(host.tasksPollInterval);
+  host.tasksPollInterval = null;
 }
 
 export function startLogsPolling(host: PollingHost) {

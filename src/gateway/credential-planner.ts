@@ -51,6 +51,15 @@ export function trimToUndefined(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+const INSECURE_GATEWAY_CREDENTIAL_PLACEHOLDERS = new Set([
+  "change-me-to-a-long-random-token",
+  "change-me-to-a-strong-password",
+]);
+
+function isKnownPlaceholderCredential(value: string): boolean {
+  return INSECURE_GATEWAY_CREDENTIAL_PLACEHOLDERS.has(value.trim().toLowerCase());
+}
+
 /**
  * Like trimToUndefined but also rejects unresolved env var placeholders (e.g. `${VAR}`).
  * This prevents literal placeholder strings like `${ALISIO_GATEWAY_TOKEN}` from being
@@ -60,14 +69,14 @@ export function trimToUndefined(value: unknown): string | undefined {
  */
 export function trimCredentialToUndefined(value: unknown): string | undefined {
   const trimmed = trimToUndefined(value);
-  if (trimmed && containsEnvVarReference(trimmed)) {
+  if (trimmed && (containsEnvVarReference(trimmed) || isKnownPlaceholderCredential(trimmed))) {
     return undefined;
   }
   return trimmed;
 }
 
 export function readGatewayTokenEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return trimToUndefined(
+  return trimCredentialToUndefined(
     readEnv("ALISIO_GATEWAY_TOKEN", {
       env,
       fallback: runtimeEnvKey("GATEWAY_TOKEN"),
@@ -77,7 +86,7 @@ export function readGatewayTokenEnv(env: NodeJS.ProcessEnv = process.env): strin
 }
 
 export function readGatewayPasswordEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return trimToUndefined(
+  return trimCredentialToUndefined(
     readEnv("ALISIO_GATEWAY_PASSWORD", {
       env,
       fallback: runtimeEnvKey("GATEWAY_PASSWORD"),
@@ -106,7 +115,7 @@ function resolveConfiguredGatewayCredentialInput(params: {
   return {
     path: params.path,
     configured: hasConfiguredSecretInput(params.value, params.defaults),
-    value: ref ? undefined : trimToUndefined(params.value),
+    value: ref ? undefined : trimCredentialToUndefined(params.value),
     refPath: ref ? params.path : undefined,
     hasSecretRef: ref !== null,
   };

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { normalizeDeviceAuthScopes } from "../shared/device-auth.js";
 import { resolveMissingRequestedScope, roleScopesAllow } from "../shared/operator-scope-compat.js";
+import { isLocalComputerRemoteIp, resolveCurrentComputerIdentity } from "./local-computer.js";
 import {
   createAsyncLock,
   pruneExpiredPending,
@@ -15,6 +16,8 @@ export type DevicePairingPendingRequest = {
   requestId: string;
   deviceId: string;
   publicKey: string;
+  computerId?: string;
+  computerLabel?: string;
   displayName?: string;
   platform?: string;
   deviceFamily?: string;
@@ -60,6 +63,8 @@ export type RotateDeviceTokenResult =
 export type PairedDevice = {
   deviceId: string;
   publicKey: string;
+  computerId?: string;
+  computerLabel?: string;
   displayName?: string;
   platform?: string;
   deviceFamily?: string;
@@ -95,7 +100,146 @@ const OPERATOR_SCOPE_PREFIX = "operator.";
 
 const withLock = createAsyncLock();
 
-async function loadState(baseDir?: string): Promise<DevicePairingStateFile> {
+function normalizeOptionalText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function resolveFallbackComputerId(deviceId: string): string {
+  return `device:${deviceId}`;
+}
+
+function matchesCurrentHostPlatform(params: { platform?: string; deviceFamily?: string }): boolean {
+  const platform = normalizeOptionalText(params.platform)?.toLowerCase();
+  const deviceFamily = normalizeOptionalText(params.deviceFamily)?.toLowerCase();
+  switch (process.platform) {
+    case "darwin":
+      return (
+        (!platform && !deviceFamily) ||
+        platform?.includes("mac") === true ||
+        platform?.includes("darwin") === true ||
+        deviceFamily?.includes("mac") === true
+      );
+    case "win32":
+      return (
+        (!platform && !deviceFamily) ||
+        platform?.includes("win") === true ||
+        deviceFamily?.includes("win") === true
+      );
+    default:
+      return (
+        (!platform && !deviceFamily) ||
+        platform?.includes("linux") === true ||
+        deviceFamily?.includes("linux") === true
+      );
+  }
+}
+
+function resolveFallbackComputerLabel(
+  entry: Pick<
+    DevicePairingPendingRequest | PairedDevice,
+    "deviceId" | "displayName" | "platform" | "deviceFamily" | "clientId" | "clientMode"
+  >,
+): string {
+  return (
+    normalizeOptionalText(entry.displayName) ??
+    normalizeOptionalText(entry.platform) ??
+    normalizeOptionalText(entry.deviceFamily) ??
+    normalizeOptionalText(entry.clientId) ??
+    normalizeOptionalText(entry.clientMode) ??
+    entry.deviceId
+  );
+}
+
+function resolveCanonicalComputerFields(
+  entry: Pick<
+    DevicePairingPendingRequest | PairedDevice,
+    | "deviceId"
+    | "computerId"
+    | "computerLabel"
+    | "displayName"
+    | "platform"
+    | "deviceFamily"
+    | "clientId"
+    | "clientMode"
+    | "remoteIp"
+  >,
+  localComputer: Awaited<ReturnType<typeof resolveCurrentComputerIdentity>>,
+): { computerId: string; computerLabel: string } {
+  if (
+    isLocalComputerRemoteIp(entry.remoteIp) &&
+    matchesCurrentHostPlatform({
+      platform: entry.platform,
+      deviceFamily: entry.deviceFamily,
+    })
+  ) {
+    return {
+      computerId: localComputer.computerId,
+      computerLabel: localComputer.label,
+    };
+  }
+  return {
+    computerId:
+      normalizeOptionalText(entry.computerId) ?? resolveFallbackComputerId(entry.deviceId),
+    computerLabel:
+      normalizeOptionalText(entry.computerLabel) ?? resolveFallbackComputerLabel(entry),
+  };
+}
+
+function normalizePendingRequestEntry(
+  entry: DevicePairingPendingRequest,
+  localComputer: Awaited<ReturnType<typeof resolveCurrentComputerIdentity>>,
+): { entry: DevicePairingPendingRequest; changed: boolean } {
+  const { computerId, computerLabel } = resolveCanonicalComputerFields(entry, localComputer);
+  const next: DevicePairingPendingRequest = {
+    ...entry,
+    computerId,
+    computerLabel,
+  };
+  return {
+    entry: next,
+    changed: next.computerId !== entry.computerId || next.computerLabel !== entry.computerLabel,
+  };
+}
+
+function normalizePairedDeviceEntry(
+  entry: PairedDevice,
+  localComputer: Awaited<ReturnType<typeof resolveCurrentComputerIdentity>>,
+): { entry: PairedDevice; changed: boolean } {
+  const { computerId, computerLabel } = resolveCanonicalComputerFields(entry, localComputer);
+  const next: PairedDevice = {
+    ...entry,
+    computerId,
+    computerLabel,
+  };
+  return {
+    entry: next,
+    changed: next.computerId !== entry.computerId || next.computerLabel !== entry.computerLabel,
+  };
+}
+
+async function canonicalizeState(
+  state: DevicePairingStateFile,
+): Promise<{ state: DevicePairingStateFile; changed: boolean }> {
+  let changed = false;
+  const localComputer = await resolveCurrentComputerIdentity();
+  for (const [requestId, request] of Object.entries(state.pendingById)) {
+    const normalized = normalizePendingRequestEntry(request, localComputer);
+    state.pendingById[requestId] = normalized.entry;
+    changed ||= normalized.changed;
+  }
+  for (const [deviceId, device] of Object.entries(state.pairedByDeviceId)) {
+    const normalized = normalizePairedDeviceEntry(device, localComputer);
+    state.pairedByDeviceId[deviceId] = normalized.entry;
+    changed ||= normalized.changed;
+  }
+  return { state, changed };
+}
+
+async function loadState(
+  baseDir?: string,
+  opts?: { persistIfChanged?: boolean },
+): Promise<DevicePairingStateFile> {
   const { pendingPath, pairedPath } = resolvePairingPaths(baseDir, "devices");
   const [pending, paired] = await Promise.all([
     readJsonFile<Record<string, DevicePairingPendingRequest>>(pendingPath),
@@ -106,6 +250,10 @@ async function loadState(baseDir?: string): Promise<DevicePairingStateFile> {
     pairedByDeviceId: paired ?? {},
   };
   pruneExpiredPending(state.pendingById, Date.now(), PENDING_TTL_MS);
+  const normalized = await canonicalizeState(state);
+  if (normalized.changed && opts?.persistIfChanged) {
+    await persistState(state, baseDir);
+  }
   return state;
 }
 
@@ -252,6 +400,11 @@ function samePendingApprovalSnapshot(
   existing: DevicePairingPendingRequest,
   incoming: Omit<DevicePairingPendingRequest, "requestId" | "ts" | "isRepair">,
 ): boolean {
+  const sameOptionalField = (current: string | undefined, next: string | undefined) => {
+    const normalizedCurrent = normalizeOptionalText(current);
+    const normalizedNext = normalizeOptionalText(next) ?? normalizedCurrent;
+    return normalizedCurrent === normalizedNext;
+  };
   if (existing.publicKey !== incoming.publicKey) {
     return false;
   }
@@ -259,6 +412,14 @@ function samePendingApprovalSnapshot(
     return false;
   }
   if (
+    !sameOptionalField(existing.computerId, incoming.computerId) ||
+    !sameOptionalField(existing.computerLabel, incoming.computerLabel) ||
+    !sameOptionalField(existing.displayName, incoming.displayName) ||
+    !sameOptionalField(existing.platform, incoming.platform) ||
+    !sameOptionalField(existing.deviceFamily, incoming.deviceFamily) ||
+    !sameOptionalField(existing.clientId, incoming.clientId) ||
+    !sameOptionalField(existing.clientMode, incoming.clientMode) ||
+    !sameOptionalField(existing.remoteIp, incoming.remoteIp) ||
     !sameStringSet(resolveRequestedRoles(existing), resolveRequestedRoles(incoming)) ||
     !sameStringSet(resolveRequestedScopes(existing), resolveRequestedScopes(incoming))
   ) {
@@ -275,6 +436,8 @@ function refreshPendingDevicePairingRequest(
   return {
     ...existing,
     publicKey: incoming.publicKey,
+    computerId: incoming.computerId ?? existing.computerId,
+    computerLabel: incoming.computerLabel ?? existing.computerLabel,
     displayName: incoming.displayName ?? existing.displayName,
     platform: incoming.platform ?? existing.platform,
     deviceFamily: incoming.deviceFamily ?? existing.deviceFamily,
@@ -308,6 +471,8 @@ function buildPendingDevicePairingRequest(params: {
     requestId: params.requestId ?? randomUUID(),
     deviceId: params.deviceId,
     publicKey: params.req.publicKey,
+    computerId: normalizeOptionalText(params.req.computerId),
+    computerLabel: normalizeOptionalText(params.req.computerLabel),
     displayName: params.req.displayName,
     platform: params.req.platform,
     deviceFamily: params.req.deviceFamily,
@@ -419,28 +584,34 @@ function scopesWithinApprovedDeviceBaseline(params: {
 }
 
 export async function listDevicePairing(baseDir?: string): Promise<DevicePairingList> {
-  const state = await loadState(baseDir);
-  const pending = Object.values(state.pendingById).toSorted((a, b) => b.ts - a.ts);
-  const paired = Object.values(state.pairedByDeviceId).toSorted(
-    (a, b) => b.approvedAtMs - a.approvedAtMs,
-  );
-  return { pending, paired };
+  return await withLock(async () => {
+    const state = await loadState(baseDir, { persistIfChanged: true });
+    const pending = Object.values(state.pendingById).toSorted((a, b) => b.ts - a.ts);
+    const paired = Object.values(state.pairedByDeviceId).toSorted(
+      (a, b) => b.approvedAtMs - a.approvedAtMs,
+    );
+    return { pending, paired };
+  });
 }
 
 export async function getPairedDevice(
   deviceId: string,
   baseDir?: string,
 ): Promise<PairedDevice | null> {
-  const state = await loadState(baseDir);
-  return state.pairedByDeviceId[normalizeDeviceId(deviceId)] ?? null;
+  return await withLock(async () => {
+    const state = await loadState(baseDir, { persistIfChanged: true });
+    return state.pairedByDeviceId[normalizeDeviceId(deviceId)] ?? null;
+  });
 }
 
 export async function getPendingDevicePairing(
   requestId: string,
   baseDir?: string,
 ): Promise<DevicePairingPendingRequest | null> {
-  const state = await loadState(baseDir);
-  return state.pendingById[requestId] ?? null;
+  return await withLock(async () => {
+    const state = await loadState(baseDir, { persistIfChanged: true });
+    return state.pendingById[requestId] ?? null;
+  });
 }
 
 export async function requestDevicePairing(
@@ -592,6 +763,8 @@ export async function approveDevicePairing(
     const device: PairedDevice = {
       deviceId: pending.deviceId,
       publicKey: pending.publicKey,
+      computerId: pending.computerId,
+      computerLabel: pending.computerLabel,
       displayName: pending.displayName,
       platform: pending.platform,
       deviceFamily: pending.deviceFamily,
@@ -663,6 +836,14 @@ export async function updatePairedDeviceMetadata(
     }
     const roles = mergeRoles(existing.roles, existing.role, patch.role);
     const scopes = mergeScopes(existing.scopes, patch.scopes);
+    const nextComputerId =
+      patch.computerId === undefined
+        ? existing.computerId
+        : normalizeOptionalText(patch.computerId);
+    const nextComputerLabel =
+      patch.computerLabel === undefined
+        ? existing.computerLabel
+        : normalizeOptionalText(patch.computerLabel);
     state.pairedByDeviceId[deviceId] = {
       ...existing,
       ...patch,
@@ -670,6 +851,8 @@ export async function updatePairedDeviceMetadata(
       createdAtMs: existing.createdAtMs,
       approvedAtMs: existing.approvedAtMs,
       approvedScopes: existing.approvedScopes,
+      computerId: nextComputerId,
+      computerLabel: nextComputerLabel,
       role: patch.role ?? existing.role,
       roles,
       scopes,

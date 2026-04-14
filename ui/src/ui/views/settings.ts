@@ -14,6 +14,10 @@ import {
   type PublicSettingsSection,
   type SettingsSection,
 } from "../navigation.ts";
+import {
+  isPublicPresentationLocale,
+  type PublicPresentationLocale,
+} from "../presentation-preferences.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
 import type { ThemeAccents, ThemeFamily } from "../theme.ts";
 import type {
@@ -214,18 +218,14 @@ function languageOptions() {
   ] as const;
 }
 
-type PublicLanguageOption = ReturnType<typeof languageOptions>[number]["value"];
-
-function isPublicLanguageOption(value: string | undefined): value is PublicLanguageOption {
-  return value === "en" || value === "pt-PT" || value === "es";
-}
+type PublicLanguageOption = PublicPresentationLocale;
 
 function resolveSelectedLanguageOption(locale: string | undefined): PublicLanguageOption {
-  if (isPublicLanguageOption(locale)) {
+  if (isPublicPresentationLocale(locale)) {
     return locale;
   }
   const activeLocale = i18n.getLocale();
-  return isPublicLanguageOption(activeLocale) ? activeLocale : "en";
+  return isPublicPresentationLocale(activeLocale) ? activeLocale : "en";
 }
 
 const BILLING_SUPPORT_EMAIL = "support@alisio.pt";
@@ -453,6 +453,7 @@ function renderAppearanceSection(props: {
   onThemeFamilyChange: (value: ThemeFamily, context?: ThemeTransitionContext) => void;
   onThemeAccentChange: (themeFamily: ThemeFamily, accent: string) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
+  onResetPresentation: () => void;
 }) {
   return html`
     <div class="settings-appearance">
@@ -463,6 +464,7 @@ function renderAppearanceSection(props: {
         onThemeFamilyChange: props.onThemeFamilyChange,
         onThemeAccentChange: props.onThemeAccentChange,
         onThemeModeChange: props.onThemeModeChange,
+        onResetPresentation: props.onResetPresentation,
       })}
     </div>
   `;
@@ -956,6 +958,7 @@ export function renderSettingsHub(props: {
   onThemeFamilyChange: (value: ThemeFamily, context?: ThemeTransitionContext) => void;
   onThemeAccentChange: (themeFamily: ThemeFamily, accent: string) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
+  onResetPresentation: () => void;
   onSaveAccountField: (patch: {
     username?: string;
     displayName?: string;
@@ -1003,6 +1006,7 @@ export function renderSettingsHub(props: {
               onThemeFamilyChange: props.onThemeFamilyChange,
               onThemeAccentChange: props.onThemeAccentChange,
               onThemeModeChange: props.onThemeModeChange,
+              onResetPresentation: props.onResetPresentation,
             })}
             ${renderLanguageSection({
               locale: props.locale,

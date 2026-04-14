@@ -38,6 +38,7 @@ type SettingsHost = {
     navWidth: number;
     navGroupsCollapsed: Record<string, boolean>;
     locale?: string;
+    presentationSyncPending?: boolean;
   };
   themeFamily: ThemeFamily;
   themeMode: ThemeMode;
@@ -131,6 +132,7 @@ const createHost = (tab: Tab): SettingsHost => ({
     navWidth: 220,
     navGroupsCollapsed: {},
     locale: "en",
+    presentationSyncPending: false,
   },
   themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
   themeMode: DEFAULT_THEME_SELECTION.themeMode,
@@ -495,6 +497,55 @@ describe("setTabFromRoute", () => {
 
     expect(host.settings.themeMode).toBe("dark");
     expect(host.settings.locale).toBe("en");
+  });
+
+  it("does not let stale account preferences overwrite a pending local presentation change", async () => {
+    const host = createHost("chat");
+    host.settings.locale = "pt-PT";
+    host.settings.themeFamily = "noir";
+    host.settings.themeMode = "light";
+    host.settings.presentationSyncPending = true;
+    host.themeFamily = "noir";
+    host.themeMode = "light";
+    host.alisioAccount = {
+      ...createBootstrapAccount(),
+      preferences: {
+        language: "en",
+        themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+        themeMode: "dark",
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+      },
+    };
+
+    await syncAccountPreferences(host);
+
+    expect(host.settings.locale).toBe("pt-PT");
+    expect(host.settings.themeFamily).toBe("noir");
+    expect(host.settings.themeMode).toBe("light");
+    expect(host.settings.presentationSyncPending).toBe(true);
+  });
+
+  it("clears the pending presentation flag once the account confirms the same values", async () => {
+    const host = createHost("chat");
+    host.settings.locale = "pt-PT";
+    host.settings.themeFamily = "noir";
+    host.settings.themeMode = "light";
+    host.settings.presentationSyncPending = true;
+    host.alisioAccount = {
+      ...createBootstrapAccount(),
+      preferences: {
+        language: "pt-PT",
+        themeFamily: "noir",
+        themeMode: "light",
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+      },
+    };
+
+    await syncAccountPreferences(host);
+
+    expect(host.settings.presentationSyncPending).toBe(false);
+    expect(host.settings.locale).toBe("pt-PT");
+    expect(host.settings.themeFamily).toBe("noir");
   });
 });
 

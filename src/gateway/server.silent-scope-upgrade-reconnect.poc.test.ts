@@ -1,7 +1,11 @@
 import { describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import * as devicePairingModule from "../infra/device-pairing.js";
-import { getPairedDevice } from "../infra/device-pairing.js";
+import {
+  approveDevicePairing,
+  getPairedDevice,
+  requestDevicePairing,
+} from "../infra/device-pairing.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import {
   issueOperatorToken,
@@ -277,6 +281,73 @@ describe("gateway silent scope-upgrade reconnect", () => {
       expect(pending.pending.map((entry) => entry.requestId)).toContain(replacementRequestId);
     } finally {
       approveSpy.mockRestore();
+      ws?.close();
+      started.ws.close();
+      await started.server.close();
+      started.envSnapshot.restore();
+    }
+  });
+
+  test("auto-approves an existing local metadata repair for the current computer", async () => {
+    const started = await startServerWithClient("secret");
+    const loaded = loadDeviceIdentity("local-metadata-repair");
+    let ws: WebSocket | undefined;
+
+    try {
+      const seeded = await requestDevicePairing({
+        deviceId: loaded.identity.deviceId,
+        publicKey: loaded.publicKey,
+        role: "operator",
+        scopes: ["operator.admin"],
+        clientId: GATEWAY_CLIENT_NAMES.CONTROL_UI,
+        clientMode: GATEWAY_CLIENT_MODES.WEBCHAT,
+        displayName: "MacIntel",
+        platform: "MacIntel",
+      });
+      await approveDevicePairing(seeded.request.requestId, {
+        callerScopes: ["operator.admin"],
+      });
+      const repair = await requestDevicePairing({
+        deviceId: loaded.identity.deviceId,
+        publicKey: loaded.publicKey,
+        role: "operator",
+        scopes: ["operator.admin"],
+        clientId: GATEWAY_CLIENT_NAMES.MACOS_APP,
+        clientMode: GATEWAY_CLIENT_MODES.UI,
+        displayName: "Nuno’s MacBook Air",
+        platform: "macOS 26.0.1",
+        deviceFamily: "Mac",
+        silent: false,
+      });
+      expect(repair.request.isRepair).toBe(true);
+      expect(repair.request.silent).toBe(false);
+
+      ws = await openTrackedWs(started.port);
+      const reconnect = await connectReq(ws, {
+        token: "secret",
+        deviceIdentityPath: loaded.identityPath,
+        client: {
+          id: GATEWAY_CLIENT_NAMES.MACOS_APP,
+          displayName: "Nuno’s MacBook Air",
+          version: "1.0.0",
+          platform: "macOS 26.0.1",
+          mode: GATEWAY_CLIENT_MODES.UI,
+          deviceFamily: "Mac",
+        },
+        scopes: ["operator.admin"],
+      });
+
+      expect(reconnect.ok).toBe(true);
+      const pending = await devicePairingModule.listDevicePairing();
+      expect(pending.pending).toEqual([]);
+
+      const paired = await getPairedDevice(loaded.identity.deviceId);
+      expect(paired?.clientId).toBe(GATEWAY_CLIENT_NAMES.MACOS_APP);
+      expect(paired?.clientMode).toBe(GATEWAY_CLIENT_MODES.UI);
+      expect(paired?.platform).toBe("macOS 26.0.1");
+      expect(paired?.deviceFamily).toBe("Mac");
+      expect(paired?.computerId).toMatch(/^local:/);
+    } finally {
       ws?.close();
       started.ws.close();
       await started.server.close();

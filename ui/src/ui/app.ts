@@ -69,7 +69,7 @@ import {
   loadToolsEffective as loadToolsEffectiveInternal,
   refreshVisibleToolsEffectiveForCurrentSession as refreshVisibleToolsEffectiveForCurrentSessionInternal,
 } from "./controllers/agents.ts";
-import { completeAlisioAccountEmailLinkAuth } from "./controllers/alisio.ts";
+import { completeAlisioAccountEmailLinkAuth, saveAlisioAccount } from "./controllers/alisio.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
@@ -90,6 +90,7 @@ import { todayMemoryDate } from "./memory-files.ts";
 import type { ModelProviderId } from "./models-view-types.ts";
 import type { ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
+import { isPublicPresentationLocale } from "./presentation-preferences.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import type { ResolvedTheme, ThemeAccents, ThemeFamily, ThemeMode } from "./theme.ts";
 import type {
@@ -112,6 +113,7 @@ import type {
   SessionsListResult,
   SkillStatusReport,
   StatusSummary,
+  TasksOverviewResult,
   ToolsCatalogResult,
   ToolsEffectiveResult,
 } from "./types.ts";
@@ -130,6 +132,7 @@ const NATIVE_WORKSPACE_READY_EVENT = "alisio-ui-ready";
 
 export class AlisioApp extends LitElement {
   private i18nController = new I18nController(this);
+  private presentationPreferencesFlushInFlight = false;
   clientInstanceId = generateUUID();
   connectGeneration = 0;
   @state() settings: UiSettings = loadSettings();
@@ -250,6 +253,15 @@ export class AlisioApp extends LitElement {
   @state() chatQueue: ChatQueueItem[] = [];
   @state() chatAttachments: ChatAttachment[] = [];
   @state() chatManualRefreshInFlight = false;
+  @state() tasksLoading = false;
+  @state() tasksBusy = false;
+  @state() tasksError: string | null = null;
+  @state() tasksOverview: TasksOverviewResult | null = null;
+  @state() tasksSelectedId: string | null = null;
+  @state() tasksQuery = "";
+  @state() tasksRuntimeFilter: import("./controllers/tasks.ts").TaskRuntimeFilter = "all";
+  @state() tasksStatusFilter: import("./controllers/tasks.ts").TaskStatusFilter = "all";
+  @state() tasksLimit = 50;
   @state() navDrawerOpen = false;
   @state() modelsExpandedProfileId: string | null | undefined = undefined;
   @state() modelsSelectedProviderId: ModelProviderId | null | undefined = undefined;
@@ -582,6 +594,7 @@ export class AlisioApp extends LitElement {
   @state() chatNewMessagesBelow = false;
   private nodesPollInterval: number | null = null;
   private memoryPollInterval: number | null = null;
+  private tasksPollInterval: number | null = null;
   private logsPollInterval: number | null = null;
   private debugPollInterval: number | null = null;
   private chatRecoveryPollInterval: number | null = null;
@@ -914,6 +927,38 @@ export class AlisioApp extends LitElement {
       next,
       context,
     );
+  }
+
+  async flushPresentationPreferences() {
+    if (
+      this.presentationPreferencesFlushInFlight ||
+      this.settings.presentationSyncPending !== true
+    ) {
+      return;
+    }
+    const account = this.alisioAccount ?? this.alisioBootstrap?.account ?? null;
+    if (
+      !this.connected ||
+      !this.client ||
+      !account ||
+      account.session.state !== "signed_in" ||
+      !account.cloud?.available
+    ) {
+      return;
+    }
+    this.presentationPreferencesFlushInFlight = true;
+    try {
+      await saveAlisioAccount(this, {
+        ...(isPublicPresentationLocale(this.settings.locale)
+          ? { language: this.settings.locale }
+          : {}),
+        themeFamily: this.settings.themeFamily,
+        themeMode: this.settings.themeMode,
+        themeAccents: this.settings.themeAccents,
+      });
+    } finally {
+      this.presentationPreferencesFlushInFlight = false;
+    }
   }
 
   async loadOverview() {

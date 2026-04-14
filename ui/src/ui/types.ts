@@ -687,6 +687,21 @@ export type CronRunsResult = {
   hasMore?: boolean;
 };
 
+export type TaskRuntime = import("../../../src/gateway/protocol/index.js").TaskRuntime;
+export type TaskStatus = import("../../../src/gateway/protocol/index.js").TaskStatus;
+export type TaskDeliveryStatus =
+  import("../../../src/gateway/protocol/index.js").TaskDeliveryStatus;
+export type TaskNotifyPolicy = import("../../../src/gateway/protocol/index.js").TaskNotifyPolicy;
+export type TaskRegistrySummary =
+  import("../../../src/gateway/protocol/index.js").TaskRegistrySummary;
+export type TaskRecord = import("../../../src/gateway/protocol/index.js").TaskRecord;
+export type TaskAuditFinding = import("../../../src/gateway/protocol/index.js").TaskAuditFinding;
+export type TaskAuditSummary = import("../../../src/gateway/protocol/index.js").TaskAuditSummary;
+export type TaskMaintenanceSummary =
+  import("../../../src/gateway/protocol/index.js").TaskMaintenanceSummary;
+export type TasksOverviewResult =
+  import("../../../src/gateway/protocol/index.js").TasksOverviewResult;
+
 export type SkillsStatusConfigCheck = {
   path: string;
   satisfied: boolean;

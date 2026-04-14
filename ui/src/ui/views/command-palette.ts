@@ -53,6 +53,13 @@ const PALETTE_ITEMS: PaletteItem[] = [
     action: "nav:memory",
   },
   {
+    id: "nav-tasks",
+    label: "Tasks",
+    icon: "scrollText",
+    category: "navigation",
+    action: "nav:tasks",
+  },
+  {
     id: "nav-authentications",
     label: "Apps",
     icon: "link",

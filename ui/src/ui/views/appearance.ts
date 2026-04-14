@@ -29,6 +29,7 @@ export type AppearanceControlsProps = {
   onThemeFamilyChange: (themeFamily: ThemeFamily, context?: ThemeTransitionContext) => void;
   onThemeAccentChange: (themeFamily: ThemeFamily, accent: string) => void;
   onThemeModeChange: (mode: ThemeMode) => void;
+  onResetPresentation: () => void;
 };
 
 export function renderAppearanceControls(props: AppearanceControlsProps) {
@@ -49,7 +50,18 @@ export function renderAppearanceControls(props: AppearanceControlsProps) {
 
   return html`
     <div class="settings-appearance__section">
-      <h3 class="settings-appearance__heading">${t("alisio.settings.appearance.themeTitle")}</h3>
+      <div class="settings-appearance__head">
+        <h3 class="settings-appearance__heading">${t("alisio.settings.appearance.themeTitle")}</h3>
+        <button
+          type="button"
+          class="btn btn--icon btn--ghost settings-appearance__reset"
+          title=${t("alisio.settings.appearance.reset")}
+          aria-label=${t("alisio.settings.appearance.reset")}
+          @click=${props.onResetPresentation}
+        >
+          ${icons.refresh}
+        </button>
+      </div>
       <div
         class="settings-theme-grid"
         role="radiogroup"
@@ -60,65 +72,73 @@ export function renderAppearanceControls(props: AppearanceControlsProps) {
           const preview = THEME_PREVIEW_TONES[option.id];
           const accent = getThemeAccent(props.themeAccents, option.id);
           return html`
-            <button
-              type="button"
+            <article
               class="settings-theme-card settings-theme-card--${option.id} ${active
                 ? "settings-theme-card--active"
                 : ""}"
-              role="radio"
-              aria-checked=${active}
-              data-theme-option=${option.id}
               style=${`--theme-preview-bg:${preview.bg};--theme-preview-rail:${preview.rail};--theme-preview-panel:${preview.panel};--theme-preview-accent:${accent};--theme-preview-border:${preview.border};`}
-              @click=${(event: Event) => {
-                if (active) {
-                  return;
-                }
-                props.onThemeFamilyChange(option.id, {
-                  element: event.currentTarget as HTMLElement,
-                });
-              }}
             >
-              <span class="settings-theme-card__preview" aria-hidden="true">
-                <span class="settings-theme-card__preview-shell">
-                  <span class="settings-theme-card__preview-rail"></span>
-                  <span class="settings-theme-card__preview-panel"></span>
-                  <span class="settings-theme-card__preview-accent"></span>
+              <button
+                type="button"
+                class="settings-theme-card__select"
+                role="radio"
+                aria-checked=${active}
+                data-theme-option=${option.id}
+                @click=${(event: Event) => {
+                  if (active) {
+                    return;
+                  }
+                  props.onThemeFamilyChange(option.id, {
+                    element: event.currentTarget as HTMLElement,
+                  });
+                }}
+              >
+                <span class="settings-theme-card__preview" aria-hidden="true">
+                  <span class="settings-theme-card__preview-shell">
+                    <span class="settings-theme-card__preview-rail"></span>
+                    <span class="settings-theme-card__preview-panel"></span>
+                    <span class="settings-theme-card__preview-accent"></span>
+                  </span>
                 </span>
-              </span>
-              <span class="settings-theme-card__copy">
-                <span class="settings-theme-card__label">${t(option.labelKey)}</span>
-                <label class="settings-theme-card__accent-row">
-                  <span class="settings-theme-card__accent-label"
-                    >${t("alisio.settings.appearance.accentLabel")}</span
-                  >
+                <span class="settings-theme-card__copy">
+                  <span class="settings-theme-card__label">${t(option.labelKey)}</span>
+                </span>
+                <span class="settings-theme-card__icon" aria-hidden="true">${option.icon}</span>
+                <span class="settings-theme-card__check" aria-hidden="true"
+                  >${active ? icons.check : ""}</span
+                >
+              </button>
+              <label class="settings-theme-card__accent-row">
+                <span class="settings-theme-card__accent-label"
+                  >${t("alisio.settings.appearance.accentLabel")}</span
+                >
+                <span
+                  class="settings-theme-card__accent-control"
+                  style=${`--theme-preview-accent:${accent};`}
+                >
+                  <input
+                    class="settings-theme-card__accent-input"
+                    type="color"
+                    .value=${accent}
+                    aria-label=${t("alisio.settings.appearance.accentPicker", {
+                      theme: t(option.labelKey),
+                    })}
+                    @change=${(event: Event) => {
+                      props.onThemeAccentChange(
+                        option.id,
+                        (event.currentTarget as HTMLInputElement).value,
+                      );
+                    }}
+                  />
                   <span
-                    class="settings-theme-card__accent-chip"
+                    class="settings-theme-card__accent-swatch"
+                    aria-hidden="true"
                     style=${`--theme-preview-accent:${accent};`}
                   >
-                    <input
-                      class="settings-theme-card__accent-input"
-                      type="color"
-                      .value=${accent}
-                      aria-label=${t("alisio.settings.appearance.accentPicker", {
-                        theme: t(option.labelKey),
-                      })}
-                      @click=${(event: Event) => event.stopPropagation()}
-                      @change=${(event: Event) => {
-                        event.stopPropagation();
-                        props.onThemeAccentChange(
-                          option.id,
-                          (event.currentTarget as HTMLInputElement).value,
-                        );
-                      }}
-                    />
                   </span>
-                </label>
-              </span>
-              <span class="settings-theme-card__icon" aria-hidden="true">${option.icon}</span>
-              <span class="settings-theme-card__check" aria-hidden="true"
-                >${active ? icons.check : ""}</span
-              >
-            </button>
+                </span>
+              </label>
+            </article>
           `;
         })}
       </div>

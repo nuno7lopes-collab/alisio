@@ -163,6 +163,15 @@ export type AppViewState = {
   alisioModelOperations: ModelsOperationMap;
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;
+  tasksLoading: boolean;
+  tasksBusy: boolean;
+  tasksError: string | null;
+  tasksOverview: import("./types.ts").TasksOverviewResult | null;
+  tasksSelectedId: string | null;
+  tasksQuery: string;
+  tasksRuntimeFilter: import("./controllers/tasks.ts").TaskRuntimeFilter;
+  tasksStatusFilter: import("./controllers/tasks.ts").TaskStatusFilter;
+  tasksLimit: number;
   nodesLoading: boolean;
   nodesLoaded: boolean;
   nodes: NodeListNode[];
@@ -452,6 +461,7 @@ export type AppViewState = {
     setThemeFamily: (themeFamily: ThemeFamily, context?: ThemeTransitionContext) => void;
     setThemeAccent: (themeFamily: ThemeFamily, accent: string) => void;
     setThemeMode: (mode: ThemeMode, context?: ThemeTransitionContext) => void;
+    flushPresentationPreferences?: () => Promise<void>;
     applySettings: (next: UiSettings) => void;
     loadOverview: () => Promise<void>;
     loadAssistantIdentity: () => Promise<void>;

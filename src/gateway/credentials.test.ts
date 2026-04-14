@@ -3,6 +3,7 @@ import type { AlisioConfig } from "../config/config.js";
 import {
   resolveGatewayCredentialsFromConfig,
   resolveGatewayCredentialsFromValues,
+  trimCredentialToUndefined,
 } from "./credentials.js";
 
 function cfg(input: Partial<AlisioConfig>): AlisioConfig {
@@ -107,6 +108,12 @@ function expectUnresolvedLocalAuthSecretRefFailure(params: {
 }
 
 describe("resolveGatewayCredentialsFromConfig", () => {
+  it("ignores known placeholder credentials", () => {
+    expect(trimCredentialToUndefined("change-me-to-a-long-random-token")).toBeUndefined();
+    expect(trimCredentialToUndefined(" change-me-to-a-strong-password ")).toBeUndefined();
+    expect(trimCredentialToUndefined("actual-secret")).toBe("actual-secret");
+  });
+
   it("prefers explicit credentials over config and environment", () => {
     const resolved = resolveGatewayCredentialsFor(
       {

@@ -566,13 +566,13 @@
   }
 
   .agent-chat__toolbar {
-    padding: 4px 8px;
+    padding: 8px 10px 10px;
   }
 
   .agent-chat__input-btn,
   .agent-chat__toolbar .btn--ghost {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
 
   .agent-chat__input-btn svg,
@@ -628,35 +628,36 @@
 
   .alisio-chat .agent-chat__input.alisio-chat__composer {
     width: 100%;
-    margin: 0 auto calc(env(safe-area-inset-bottom, 0px) + 6px);
-    padding: 10px 10px 9px;
+    margin: 0;
+    padding: 0;
     border-radius: 24px;
   }
 
+  .alisio-chat__composer-shell {
+    width: 100%;
+    margin: 0 auto calc(env(safe-area-inset-bottom, 0px) + 6px);
+    padding: 0 8px;
+  }
+
   .alisio-chat__composer-field {
-    min-height: 44px;
-    padding: 6px 4px 10px;
+    min-height: 48px;
+    padding: 14px 14px 8px;
     font-size: 14px;
   }
 
   .alisio-chat__composer-toolbar {
     gap: 10px;
-    padding-top: 8px;
+    align-items: flex-end;
   }
 
   .alisio-chat__composer-model {
-    flex: 1 1 180px;
-    justify-content: flex-start;
+    flex: 1 1 156px;
+    min-width: 0;
   }
 
-  .alisio-chat__composer-model .chat-controls__model {
+  .alisio-chat__composer-model .chat-controls__model,
+  .alisio-chat__composer-model .chat-select-chip {
     width: 100%;
-  }
-
-  .alisio-chat__composer-model .chat-controls__model select {
-    height: 34px;
-    font-size: 12px;
-    padding: 0 12px;
   }
 
   .alisio-chat .agent-chat__input-btn,
@@ -672,10 +673,36 @@
     padding-bottom: 2px;
   }
 
-  .alisio-chat__attachment-thumb {
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
+  .alisio-chat__attachment-pill {
+    max-width: min(100%, 220px);
+  }
+
+  .chat-select-chip--session {
+    min-width: min(220px, 100%);
+  }
+
+  .chat-select-chip--model select {
+    font-size: 12px;
+  }
+
+  .alisio-chat__recording-wave {
+    gap: 8px;
+  }
+
+  .alisio-chat__recording-wave-track {
+    gap: 3px;
+  }
+
+  .alisio-chat__recording-wave-bar {
+    width: 2px;
+  }
+
+  .alisio-chat__composer-footer {
+    padding: 0 4px;
+  }
+
+  .alisio-chat__composer-footer .alisio-chat__access-strip {
+    gap: 10px;
   }
 
   /* Log stream */

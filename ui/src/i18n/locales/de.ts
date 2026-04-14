@@ -31,6 +31,7 @@ export const de: TranslationMap = {
     sessions: "Sitzungen",
     automations: "Automationen",
     chat: "Chat",
+    tasks: "Aufgaben",
     settings: "Einstellungen",
   },
   subtitles: {
@@ -41,6 +42,7 @@ export const de: TranslationMap = {
     sessions: "Aktive Sitzungen inspizieren und Standardeinstellungen pro Sitzung anpassen.",
     automations: "Aufweckzeiten und wiederkehrende Agent-Läufe planen.",
     chat: "Direkte Alisio-Chat-Sitzung für schnelle Eingriffe.",
+    tasks: "Hintergrundläufe, Zustellung und Operator-Nachverfolgung in einer Ansicht.",
     settings: "Workspace-Konfiguration, native Shell und Diagnose.",
   },
   overview: {

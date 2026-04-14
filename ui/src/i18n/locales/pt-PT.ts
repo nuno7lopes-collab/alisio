@@ -30,6 +30,7 @@ export const pt_PT: TranslationMap = {
     security: "Segurança",
     organization: "Organização",
     memory: "Memória",
+    tasks: "Tarefas",
     settings: "Definições",
   },
   subtitles: {
@@ -45,6 +46,7 @@ export const pt_PT: TranslationMap = {
       "Aprovações, policy subjacente e auditoria das ferramentas de runtime. O chat é a superfície principal.",
     organization: "Criar ou juntar-se a uma organização.",
     memory: "Memória de longo prazo, notas diárias e contexto editável num só lugar.",
+    tasks: "Execuções em segundo plano, entrega e follow-up do operador num só lugar.",
     settings: "Geral, conta e controlos nativos.",
   },
   chat: {
@@ -976,6 +978,7 @@ export const pt_PT: TranslationMap = {
         subtitle: "Escolhe como o Alisio aparece neste dispositivo.",
         themeTitle: "Tema",
         modeTitle: "Modo",
+        reset: "Restaurar predefinições",
         accentLabel: "Cor",
         accentPicker: "Cor de destaque de {theme}",
         options: {
@@ -1251,6 +1254,7 @@ export const pt_PT: TranslationMap = {
         sms: "SMS",
       },
       sessions: {
+        session: "Sessão",
         main: "Sessão principal",
         subagentPrefix: "Subagente",
         cronPrefix: "Cron",

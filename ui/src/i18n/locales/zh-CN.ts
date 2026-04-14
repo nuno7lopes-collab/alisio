@@ -33,6 +33,7 @@ export const zh_CN: TranslationMap = {
     sessions: "会话",
     automations: "自动化",
     chat: "聊天",
+    tasks: "任务",
     settings: "设置",
   },
   subtitles: {
@@ -43,6 +44,7 @@ export const zh_CN: TranslationMap = {
     sessions: "活动会话和默认设置。",
     automations: "唤醒与重复运行。",
     chat: "网关聊天，快速干预。",
+    tasks: "在一个视图中查看后台运行、交付状态与操作员跟进。",
     settings: "工作区配置、原生壳层与诊断。",
   },
   overview: {

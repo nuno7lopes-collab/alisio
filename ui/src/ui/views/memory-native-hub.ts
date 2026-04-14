@@ -269,11 +269,35 @@ function formatBytes(value: number | null | undefined) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function isMemoryBusyError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("memória está temporariamente ocupada") ||
+    normalized.includes("database is locked") ||
+    normalized.includes("sqlite_busy") ||
+    normalized.includes("err_sqlite_error") ||
+    normalized.includes("database busy")
+  );
+}
+
 function describeMemoryError(err: unknown) {
   if (err instanceof MemoryEndpointUnavailableError) {
     return err.message;
   }
-  return err instanceof Error ? err.message : String(err);
+  if (isMemoryBusyError(err)) {
+    return "A memória está temporariamente ocupada.";
+  }
+  const message = err instanceof Error ? err.message : String(err);
+  return message.replace(/^Error:\s*/i, "").trim();
+}
+
+function sanitizeMemoryNotice(message: string | null | undefined) {
+  if (!message) {
+    return null;
+  }
+  const normalized = describeMemoryError(message).trim();
+  return normalized || null;
 }
 
 function emitMemoryTelemetry(event: string, detail: Record<string, unknown> = {}) {
@@ -463,18 +487,6 @@ function resolveSyncInvalidationMarker(
   return `${state}:${lamport}:${detail}`;
 }
 
-function formatSyncStateLabel(value: string | null | undefined) {
-  const normalized = value?.trim();
-  if (!normalized) {
-    return null;
-  }
-  return normalized
-    .split(/[-_]+/)
-    .filter(Boolean)
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-    .join(" ");
-}
-
 function downloadText(filename: string, content: string, mediaType: string) {
   const blob = new Blob([content], { type: `${mediaType};charset=utf-8` });
   const url = URL.createObjectURL(blob);
@@ -564,10 +576,6 @@ function renderExplorerSkeleton() {
   `;
 }
 
-function hasProvenanceRows(rows: Array<{ label: string; value: string }> | null | undefined) {
-  return rows?.some((row) => row.label.trim().length > 0 && row.value.trim().length > 0) ?? false;
-}
-
 function renderNoteSkeleton() {
   return html`
     <article class="alisio-memory-note alisio-memory-note--skeleton" aria-hidden="true">
@@ -608,34 +616,13 @@ function renderSyncCard(params: {
   onExportFormat: (value: MemoryExportFormat) => void;
   onExport: () => void;
 }) {
-  const provider =
-    params.status?.runtime?.provider ?? params.status?.config?.provider ?? params.text.unavailable;
-  const lamport = params.sync?.lastSyncedLamport ?? params.text.na;
-  const syncState = formatSyncStateLabel(params.sync?.state) ?? params.text.na;
-  const e2eeRequired =
-    params.sync?.e2eeRequired === false ? params.text.na : params.text.syncE2eeRequired;
   const syncDetail = params.sync?.detail?.trim() ?? "";
-  const showCard =
-    params.syncing ||
-    params.exportBusy ||
-    Boolean(params.exportMessage) ||
-    (params.noteCount > 0 &&
-      (params.canSync || Boolean(params.sync) || params.status?.enabled === true));
+  const showCard = params.noteCount > 0 && (params.canSync || params.exportFormats.length > 0);
   if (!showCard) {
     return nothing;
   }
-  const pills = [
-    lamport !== params.text.na ? `L ${String(lamport)}` : null,
-    e2eeRequired !== params.text.na ? "E2EE" : null,
-    syncState !== params.text.na ? syncState : null,
-    params.status?.backend?.backend?.trim() || null,
-    provider !== params.text.unavailable ? provider : null,
-  ].filter((value): value is string => Boolean(value));
   return html`
     <section class="alisio-memory-utilitybar">
-      <div class="alisio-memory-utilitybar__meta">
-        ${pills.map((pill) => html`<span class="alisio-memory-utilitybar__pill">${pill}</span>`)}
-      </div>
       <div class="alisio-memory-utilitybar__actions">
         <button
           class="btn btn--sm btn--ghost"
@@ -671,9 +658,11 @@ function renderSyncCard(params: {
       </div>
       ${params.exportMessage
         ? html`<div class="alisio-memory-utilitybar__message">${params.exportMessage}</div>`
-        : syncDetail
-          ? html`<div class="alisio-memory-utilitybar__message">${syncDetail}</div>`
-          : nothing}
+        : params.syncing
+          ? html`<div class="alisio-memory-utilitybar__message">${params.text.syncing}</div>`
+          : syncDetail
+            ? html`<div class="alisio-memory-utilitybar__message">${syncDetail}</div>`
+            : nothing}
     </section>
   `;
 }
@@ -1015,6 +1004,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       return;
     }
     const token = ++this.notesListToken;
+    const hadVisibleState = Boolean(this.notesList || this.note);
     this.notesLoading = true;
     this.notesError = null;
     try {
@@ -1054,12 +1044,15 @@ export class AlisioMemoryNativeHub extends LitElement {
         return;
       }
       this.notesError = describeMemoryError(err);
-      this.notesList = null;
-      this.note = null;
-      this.noteSync = null;
-      this.history = [];
-      this.attachmentDetail = null;
-      this.attachmentError = null;
+      if (!hadVisibleState) {
+        this.notesList = null;
+        this.selectedNoteId = null;
+        this.note = null;
+        this.noteSync = null;
+        this.history = [];
+        this.attachmentDetail = null;
+        this.attachmentError = null;
+      }
     } finally {
       if (token === this.notesListToken) {
         this.notesLoading = false;
@@ -1613,15 +1606,19 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private renderHeader(text: ReturnType<typeof memoryText>) {
     const agents = this.props?.agentsList?.agents ?? [];
-    const visibleNotes = this.notesList?.notes.length ?? 0;
+    const visibleNotes = this.notesList ? this.notesList.notes.length : null;
     return html`
       <section class="alisio-memory-toolbar">
         <div class="alisio-memory-toolbar__copy">
           <div class="alisio-memory-toolbar__title-row">
             <h2>${text.views.wiki}</h2>
-            <span class="alisio-memory-toolbar__count">
-              ${String(visibleNotes)} ${text.notesListTitle.toLowerCase()}
-            </span>
+            ${visibleNotes == null
+              ? nothing
+              : html`
+                  <span class="alisio-memory-toolbar__count">
+                    ${String(visibleNotes)} ${text.notesListTitle.toLowerCase()}
+                  </span>
+                `}
           </div>
           <div class="alisio-memory-toolbar__tabs">
             <button
@@ -1745,6 +1742,10 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private renderExplorer(text: ReturnType<typeof memoryText>) {
     const tree = buildNoteExplorerTree(this.notesList?.notes ?? []);
+    const explorerError =
+      this.notesError && !(this.notesList && isMemoryBusyError(this.notesError))
+        ? this.notesError
+        : null;
     const emptyAction = html`
       <button class="btn btn--sm primary" @click=${() => (this.createOpen = true)}>
         ${text.notesCreate}
@@ -1791,23 +1792,22 @@ export class AlisioMemoryNativeHub extends LitElement {
                 </div>
               `
             : nothing}
-          ${this.notesError
-            ? renderMemoryNotice(this.notesError)
-            : this.notesLoading && !this.notesList
-              ? renderExplorerSkeleton()
-              : (this.notesList?.notes.length ?? 0) === 0
-                ? renderMemoryPlaceholder({
-                    icon: icons.folder,
-                    label: text.notesListTitle,
-                    action: emptyAction,
-                    compact: true,
-                  })
-                : html`
-                    <div class="alisio-memory-tree">
-                      ${tree.folders.map((node) => this.renderExplorerFolderNode(node, text))}
-                      ${tree.notes.map((note) => this.renderExplorerNote(note, text, 0))}
-                    </div>
-                  `}
+          ${explorerError ? renderMemoryNotice(explorerError) : nothing}
+          ${this.notesLoading && !this.notesList
+            ? renderExplorerSkeleton()
+            : (this.notesList?.notes.length ?? 0) === 0
+              ? renderMemoryPlaceholder({
+                  icon: icons.folder,
+                  label: text.notesListTitle,
+                  action: emptyAction,
+                  compact: true,
+                })
+              : html`
+                  <div class="alisio-memory-tree">
+                    ${tree.folders.map((node) => this.renderExplorerFolderNode(node, text))}
+                    ${tree.notes.map((note) => this.renderExplorerNote(note, text, 0))}
+                  </div>
+                `}
         </section>
       </aside>
     `;
@@ -2141,10 +2141,6 @@ export class AlisioMemoryNativeHub extends LitElement {
                 ${formatBytes(detail.size) ?? text.na}
               </strong>
             </div>
-            <div class="alisio-memory-stat">
-              <span class="alisio-memory-stat__label">${text.filesHash}</span>
-              <strong class="alisio-memory-stat__value">${detail.sha256}</strong>
-            </div>
           </div>
           <div class="alisio-memory-preview">
             <span class="alisio-memory-preview__label">${text.preview}</span>
@@ -2209,10 +2205,6 @@ export class AlisioMemoryNativeHub extends LitElement {
                   </div>
                 `}
           </section>
-          <section class="alisio-memory-group">
-            <div class="alisio-memory-group__header"><h2>${text.filesProvenance}</h2></div>
-            ${renderProvenanceRows(detail.provenance, text.noteProvenanceEmpty)}
-          </section>
         </article>
       </section>
     `;
@@ -2232,8 +2224,6 @@ export class AlisioMemoryNativeHub extends LitElement {
       });
     }
     const revisionTime = formatTimestamp(this.note.revision?.updatedAt);
-    const attachmentCount = this.note.attachments?.length ?? 0;
-    const backlinkCount = this.note.backlinks?.length ?? 0;
     return html`
       <article class="alisio-memory-note">
         <header class="alisio-memory-note__header">
@@ -2257,15 +2247,7 @@ export class AlisioMemoryNativeHub extends LitElement {
               }}
             />
             <div class="alisio-memory-note__meta">
-              ${[
-                revisionTime ? `${text.noteUpdated}: ${revisionTime}` : null,
-                attachmentCount > 0
-                  ? `${String(attachmentCount)} ${text.filesTitle.toLowerCase()}`
-                  : null,
-                backlinkCount > 0
-                  ? `${String(backlinkCount)} ${text.noteBacklinks.toLowerCase()}`
-                  : null,
-              ]
+              ${[revisionTime ? `${text.noteUpdated}: ${revisionTime}` : null]
                 .filter(Boolean)
                 .map((item) => html`<span>${item}</span>`)}
             </div>
@@ -2301,13 +2283,6 @@ export class AlisioMemoryNativeHub extends LitElement {
               >
                 ${text.views.graph}
               </button>
-              ${this.renderTraceAction(text, {
-                label: this.note.title,
-                traceId: this.note.traceId,
-                trace: this.note.trace,
-                summary: this.note.traceSummary,
-                reasonTags: this.note.reasonTags,
-              })}
               <button
                 class="btn btn--sm"
                 ?disabled=${!this.noteDirty || this.noteSaving}
@@ -2377,22 +2352,10 @@ export class AlisioMemoryNativeHub extends LitElement {
     if (!this.note && !this.attachmentDetail && !this.attachmentLoading && !this.attachmentError) {
       return nothing;
     }
-    const hasProvenance = hasProvenanceRows(this.note?.provenance);
     return html`
       <div class="alisio-memory-sidebar__stack">
         ${this.renderAttachments(text, this.note?.attachments)}
         ${this.renderAttachmentPreview(text)} ${this.renderBacklinks(text, this.note?.backlinks)}
-        ${this.renderContext(text)} ${this.renderRevision(text)} ${this.renderHistory(text)}
-        ${this.renderClaims(text, this.note?.claims)}
-        ${this.renderEvidence(text, this.note?.evidence)}
-        ${hasProvenance
-          ? html`
-              <section class="alisio-memory-group alisio-memory-sidebar__group">
-                <div class="alisio-memory-group__header"><h2>${text.noteProvenance}</h2></div>
-                ${renderProvenanceRows(this.note?.provenance, text.noteProvenanceEmpty)}
-              </section>
-            `
-          : nothing}
       </div>
     `;
   }
@@ -2401,7 +2364,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     const resolvedGraph = this.graphData ?? this.props?.memoryGraph ?? null;
     const resolvedError = resolvedGraph
       ? null
-      : (this.graphError ?? this.props?.memoryGraphError ?? null);
+      : sanitizeMemoryNotice(this.graphError ?? this.props?.memoryGraphError ?? null);
     const resolvedLoading =
       !resolvedGraph && (this.graphLoading || this.props?.memoryGraphLoading || false);
     const resolvedScope = resolvedGraph?.scope ?? this.graphScope;
@@ -2542,21 +2505,8 @@ export class AlisioMemoryNativeHub extends LitElement {
   }
 
   private renderGraphWorkspace(text: ReturnType<typeof memoryText>) {
-    const focusLabel = this.note?.title?.trim() || this.selectedNoteId || text.views.graph;
     return html`
-      <section class="alisio-memory-graph-workspace">
-        <div class="alisio-memory-graph-workspace__toolbar">
-          <div class="alisio-memory-graph-workspace__copy">
-            <h3>${focusLabel}</h3>
-          </div>
-          <div class="alisio-memory-graph-workspace__controls">
-            <button class="btn btn--sm" @click=${() => (this.mainPaneMode = "note")}>
-              ${text.views.wiki}
-            </button>
-          </div>
-        </div>
-        ${this.renderGraphView(text)}
-      </section>
+      <section class="alisio-memory-graph-workspace">${this.renderGraphView(text)}</section>
     `;
   }
 
@@ -2566,15 +2516,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       Boolean(this.attachmentError) ||
       Boolean(this.attachmentDetail) ||
       (this.note?.attachments?.length ?? 0) > 0 ||
-      (this.note?.backlinks?.length ?? 0) > 0 ||
-      Boolean(this.note?.contextPreview) ||
-      Boolean(this.note?.revision) ||
-      this.historyLoading ||
-      Boolean(this.historyError) ||
-      this.history.length > 0 ||
-      (this.note?.claims?.length ?? 0) > 0 ||
-      (this.note?.evidence?.length ?? 0) > 0 ||
-      hasProvenanceRows(this.note?.provenance)
+      (this.note?.backlinks?.length ?? 0) > 0
     );
   }
 
@@ -2584,32 +2526,6 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
     return html`
       <aside class="alisio-memory-sidebar">
-        <div class="alisio-memory-sidebar__toolbar">
-          <button
-            type="button"
-            class="btn btn--sm ${this.mainPaneMode === "note" ? "primary" : ""}"
-            @click=${() => {
-              this.mainPaneMode = "note";
-            }}
-          >
-            ${text.workspaceInspector}
-          </button>
-          <button
-            type="button"
-            class="btn btn--sm ${this.mainPaneMode === "graph" ? "primary" : ""}"
-            @click=${() => {
-              this.mainPaneMode = "graph";
-              void this.loadGraph({
-                scope: this.graphScope,
-                focusNoteId: this.note?.id ?? this.selectedNoteId,
-                includeAttachments: this.graphIncludeAttachments,
-                depth: this.graphDepth,
-              });
-            }}
-          >
-            ${text.workspaceGraphPane}
-          </button>
-        </div>
         <div class="alisio-memory-sidebar__body">${this.renderNoteMeta(text)}</div>
       </aside>
     `;
@@ -2674,6 +2590,15 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
     if (!props) {
       return nothing;
     }
+    const agentsError = sanitizeMemoryNotice(props.agentsError);
+    const memoryError = sanitizeMemoryNotice(props.memoryError);
+    const memoryStatusError = sanitizeMemoryNotice(props.memoryStatusError);
+    const hasVisibleMemoryContent =
+      (this.notesList?.notes.length ?? 0) > 0 ||
+      Boolean(this.note) ||
+      Boolean(this.graphData ?? props.memoryGraph);
+    const showMemoryError =
+      Boolean(memoryError) && (!hasVisibleMemoryContent || !isMemoryBusyError(props.memoryError));
 
     return html`
       <style>
@@ -2832,44 +2757,32 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           min-height: 360px;
         }
         .alisio-memory-utilitybar {
-          display: grid;
-          grid-template-columns: 1fr auto;
-          gap: 12px;
+          display: flex;
           align-items: center;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+          gap: 12px;
           margin-top: 16px;
           padding: 10px 12px;
           border-radius: 16px;
           border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
           background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
         }
-        .alisio-memory-utilitybar__meta,
         .alisio-memory-utilitybar__actions {
           display: flex;
           align-items: center;
           gap: 8px;
           flex-wrap: wrap;
         }
-        .alisio-memory-utilitybar__pill {
-          display: inline-flex;
-          align-items: center;
-          min-height: 28px;
-          padding: 0 10px;
-          border-radius: 999px;
-          background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
-          color: var(--text-muted);
-          font-size: 0.76rem;
-          font-weight: 700;
-          letter-spacing: 0.03em;
-          text-transform: uppercase;
-        }
         .alisio-memory-utilitybar__select {
           min-width: 92px;
         }
         .alisio-memory-utilitybar__message {
-          grid-column: 1 / -1;
+          width: 100%;
           color: var(--text-muted);
           font-size: 0.82rem;
           line-height: 1.4;
+          text-align: right;
         }
         .alisio-memory-toolbar {
           display: flex;
@@ -3080,34 +2993,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           gap: 12px;
           min-width: 0;
         }
-        .alisio-memory-graph-workspace__toolbar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-          padding: 12px 14px;
-          border-radius: 18px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
-        }
-        .alisio-memory-graph-workspace__copy {
-          display: grid;
-          gap: 4px;
-        }
-        .alisio-memory-graph-workspace__copy h3 {
-          margin: 0;
-          font-size: 1rem;
-        }
-        .alisio-memory-graph-workspace__controls {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          flex-wrap: wrap;
-        }
-        .alisio-memory-graph-workspace__depth {
-          min-width: 180px;
-        }
         .alisio-memory-sidebar {
           position: sticky;
           top: 12px;
@@ -3270,9 +3155,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
             margin-left: 0;
             display: grid;
           }
-          .alisio-memory-graph-workspace__toolbar {
-            padding: 16px;
-          }
           .alisio-memory-native__trace-grid {
             grid-template-columns: 1fr;
           }
@@ -3292,9 +3174,9 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
       </style>
       <section class="alisio-page alisio-memory-page">
         ${this.renderHeader(text)}
-        ${props.agentsError ? renderMemoryNotice(props.agentsError, "danger") : nothing}
-        ${props.memoryError ? renderMemoryNotice(props.memoryError, "danger") : nothing}
-        ${props.memoryStatusError ? renderMemoryNotice(props.memoryStatusError) : nothing}
+        ${agentsError ? renderMemoryNotice(agentsError, "danger") : nothing}
+        ${showMemoryError ? renderMemoryNotice(memoryError, "danger") : nothing}
+        ${memoryStatusError ? renderMemoryNotice(memoryStatusError) : nothing}
         <div
           class="alisio-memory-layout ${this.mainPaneMode === "graph"
             ? "is-graph-mode"
@@ -3328,7 +3210,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           },
           onExport: () => void this.exportMemory(),
         })}
-        ${this.renderTraceDrawer(text)}
       </section>
     `;
   }

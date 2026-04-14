@@ -505,8 +505,11 @@ function renderFocusIcon() {
 function renderChatSessionField(state: AppViewState) {
   const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
   return html`
-    <label class="field chat-controls__session">
+    <label class="chat-select-chip chat-select-chip--session chat-controls__session">
+      <span class="chat-select-chip__icon" aria-hidden="true">${icons.brain}</span>
       <select
+        data-chat-session-select="true"
+        aria-label=${t("alisio.shell.sessions.session")}
         .value=${state.sessionKey}
         ?disabled=${!state.connected || sessionGroups.length === 0}
         @change=${(e: Event) => {
@@ -531,6 +534,7 @@ function renderChatSessionField(state: AppViewState) {
             </optgroup>`,
         )}
       </select>
+      <span class="chat-select-chip__chevron" aria-hidden="true">${icons.chevronDown}</span>
     </label>
   `;
 }
@@ -635,7 +639,7 @@ function renderChatModelSelect(
     !state.connected || busy || (state.chatModelsLoading && options.length === 0) || !state.client;
   return html`
     <label
-      class="field chat-controls__session chat-controls__model chat-controls__model--${variant}"
+      class="chat-select-chip chat-select-chip--model chat-controls__model chat-controls__model--${variant}"
     >
       <select
         data-chat-model-select="true"
@@ -656,6 +660,7 @@ function renderChatModelSelect(
             </option>`,
         )}
       </select>
+      <span class="chat-select-chip__chevron" aria-hidden="true">${icons.chevronDown}</span>
     </label>
   `;
 }

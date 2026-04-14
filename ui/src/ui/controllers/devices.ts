@@ -15,6 +15,8 @@ export type DeviceTokenSummary = {
 export type PendingDevice = {
   requestId: string;
   deviceId: string;
+  computerId?: string;
+  computerLabel?: string;
   displayName?: string;
   platform?: string;
   deviceFamily?: string;
@@ -30,6 +32,8 @@ export type PendingDevice = {
 
 export type PairedDevice = {
   deviceId: string;
+  computerId?: string;
+  computerLabel?: string;
   displayName?: string;
   platform?: string;
   deviceFamily?: string;
@@ -49,6 +53,7 @@ export type PairedComputerToken = DeviceTokenSummary & {
 
 export type PairedComputer = {
   key: string;
+  computerId: string;
   label: string;
   platform?: string;
   deviceFamily?: string;
@@ -125,9 +130,13 @@ function normalizeComputerKeyPart(value: string | null | undefined) {
 }
 
 export function resolveComputerLabel(
-  device: Pick<PairedDevice, "displayName" | "platform" | "clientId" | "clientMode" | "deviceFamily">,
+  device: Pick<
+    PairedDevice,
+    "computerLabel" | "displayName" | "platform" | "clientId" | "clientMode" | "deviceFamily"
+  >,
 ): string {
   return (
+    device.computerLabel?.trim() ||
     device.displayName?.trim() ||
     device.platform?.trim() ||
     device.clientId?.trim() ||
@@ -138,19 +147,7 @@ export function resolveComputerLabel(
 }
 
 function resolveComputerKey(device: PairedDevice) {
-  const displayName = normalizeComputerKeyPart(device.displayName);
-  const platform = normalizeComputerKeyPart(device.platform);
-  const deviceFamily = normalizeComputerKeyPart(device.deviceFamily);
-  const clientId = normalizeComputerKeyPart(device.clientId);
-  const clientMode = normalizeComputerKeyPart(device.clientMode);
-
-  if (displayName) {
-    return `display:${displayName}|${platform}|${deviceFamily}`;
-  }
-  if (platform || deviceFamily || clientId || clientMode) {
-    return `meta:${platform}|${deviceFamily}|${clientId}|${clientMode}`;
-  }
-  return `device:${device.deviceId}`;
+  return normalizeComputerKeyPart(device.computerId) || `device:${device.deviceId}`;
 }
 
 function comparePairedDeviceRecency(a: PairedDevice, b: PairedDevice) {
@@ -178,9 +175,8 @@ export function groupPairedDevicesByComputer(
   return [...groups.entries()]
     .map(([key, devices]) => {
       const sorted = [...devices].toSorted(comparePairedDeviceRecency);
-      const currentDevice =
-        currentDeviceId ?
-          sorted.find((device) => device.deviceId === currentDeviceId) ?? null
+      const currentDevice = currentDeviceId
+        ? (sorted.find((device) => device.deviceId === currentDeviceId) ?? null)
         : null;
       const primary = currentDevice ?? sorted[0];
       const roles = new Set<string>();
@@ -197,6 +193,7 @@ export function groupPairedDevicesByComputer(
 
       return {
         key,
+        computerId: primary.computerId?.trim() || key,
         label: resolveComputerLabel(primary),
         platform: primary.platform,
         deviceFamily: primary.deviceFamily,
@@ -229,7 +226,8 @@ async function clearLocalTokensForDevice(state: DevicesState, deviceId: string) 
   if (state.currentDeviceId !== deviceId) {
     return;
   }
-  const pairedDevice = state.devicesList?.paired.find((entry) => entry.deviceId === deviceId) ?? null;
+  const pairedDevice =
+    state.devicesList?.paired.find((entry) => entry.deviceId === deviceId) ?? null;
   for (const role of collectPairedDeviceRoles(pairedDevice)) {
     clearDeviceAuthToken({ deviceId, role });
   }
@@ -245,7 +243,9 @@ async function removeDevicePairings(
   if (!state.client || !state.connected) {
     return;
   }
-  const deviceIds = [...new Set(params.deviceIds.map((deviceId) => deviceId.trim()).filter(Boolean))];
+  const deviceIds = [
+    ...new Set(params.deviceIds.map((deviceId) => deviceId.trim()).filter(Boolean)),
+  ];
   if (deviceIds.length === 0) {
     return;
   }

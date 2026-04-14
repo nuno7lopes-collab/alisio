@@ -41,6 +41,7 @@ export const es: TranslationMap = {
     automations: "Automatizaciones",
     chat: "Chat",
     memory: "Memoria",
+    tasks: "Tareas",
     settings: "Ajustes",
   },
   subtitles: {
@@ -58,6 +59,7 @@ export const es: TranslationMap = {
     automations: "Programar despertares y ejecuciones recurrentes de agentes.",
     chat: "Chat directo con Alisio para intervenciones rápidas.",
     memory: "Memoria a largo plazo, notas diarias y contexto editable en un solo lugar.",
+    tasks: "Ejecuciones en segundo plano, entrega y seguimiento del operador en una sola vista.",
     settings: "Configuración del workspace, cuenta y shell nativa.",
   },
   alisio: {
@@ -890,6 +892,7 @@ export const es: TranslationMap = {
         subtitle: "Elige cómo se ve Alisio en este dispositivo.",
         themeTitle: "Tema",
         modeTitle: "Modo",
+        reset: "Restablecer predefiniciones",
         accentLabel: "Acento",
         accentPicker: "Color de acento de {theme}",
         options: {

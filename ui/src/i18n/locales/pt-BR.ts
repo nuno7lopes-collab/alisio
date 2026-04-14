@@ -35,6 +35,7 @@ export const pt_BR: TranslationMap = {
     automations: "Automações",
     chat: "Chat",
     memory: "Memória",
+    tasks: "Tarefas",
     settings: "Configurações",
   },
   subtitles: {
@@ -46,6 +47,7 @@ export const pt_BR: TranslationMap = {
     automations: "Despertares e execuções recorrentes.",
     chat: "Chat direto com o Alisio para intervenções rápidas.",
     memory: "Memória de longo prazo, notas diárias e contexto editável em um só lugar.",
+    tasks: "Execuções em segundo plano, entrega e acompanhamento do operador em uma visão.",
     settings: "Configuração do workspace, shell nativo e diagnósticos.",
   },
   overview: {

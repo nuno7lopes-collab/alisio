@@ -592,6 +592,10 @@ describe("renderMemoryHub", () => {
     expect(text).toContain("Backlinks");
     expect(text).toContain("Attachments");
     expect(text).toContain("product-brief.pdf");
+    expect(text).not.toContain("Context");
+    expect(text).not.toContain("Revision");
+    expect(text).not.toContain("History");
+    expect(text).not.toContain("Provenance");
     expect(text).not.toContain("Memory views");
   });
 
@@ -636,15 +640,11 @@ describe("renderMemoryHub", () => {
       ),
     ).toBe(false);
 
-    const graphTab = container.querySelector(
-      ".alisio-memory-sidebar__toolbar button:last-child",
-    ) as HTMLButtonElement | null;
-    expect(graphTab).toBeTruthy();
-    graphTab?.click();
+    clickButton(container, "Graph");
     await flushMemoryHub();
 
     const settingsButton = container.querySelector(
-      ".alisio-memory-graph button[aria-label='Display']",
+      ".alisio-memory-graph button[aria-label='Graph']",
     ) as HTMLButtonElement | null;
     expect(settingsButton).toBeTruthy();
     settingsButton?.click();
@@ -702,6 +702,19 @@ describe("renderMemoryHub", () => {
     expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
     expect(container.querySelector(".alisio-memory-graph__canvas")).toBeTruthy();
     expect(container.querySelector(".alisio-memory-sidebar")).toBeTruthy();
+  });
+
+  it("não mostra erros SQLite crus quando já existe conteúdo visível", async () => {
+    const { container } = await mountNativeHub(
+      createProps({
+        memoryError: "database is locked: code=ERR_SQLITE_ERROR",
+      }),
+    );
+
+    const text = cleanText(container);
+    expect(text).not.toContain("database is locked");
+    expect(text).not.toContain("ERR_SQLITE_ERROR");
+    expect(text).toContain("Project Atlas");
   });
 
   it("can refocus the graph into a local graph from a node action", async () => {

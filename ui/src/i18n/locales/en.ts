@@ -45,6 +45,7 @@ export const en: TranslationMap = {
     automations: "Automations",
     chat: "Chat",
     memory: "Memory",
+    tasks: "Tasks",
     settings: "Settings",
   },
   subtitles: {
@@ -63,6 +64,7 @@ export const en: TranslationMap = {
     automations: "Wakeups and recurring runs.",
     chat: "Conversations, files, and tool calls in one clean workspace.",
     memory: "Long-term memory, daily notes, and editable context in one place.",
+    tasks: "Background runs, delivery state, and operator follow-up in one view.",
     settings: "General, account, and native controls.",
   },
   alisio: {
@@ -985,6 +987,7 @@ export const en: TranslationMap = {
         subtitle: "Choose how Alisio looks on this device.",
         themeTitle: "Theme",
         modeTitle: "Mode",
+        reset: "Restore defaults",
         accentLabel: "Accent",
         accentPicker: "{theme} accent color",
         options: {
@@ -1258,6 +1261,7 @@ export const en: TranslationMap = {
         sms: "SMS",
       },
       sessions: {
+        session: "Session",
         main: "Main Session",
         subagentPrefix: "Subagent",
         cronPrefix: "Cron",

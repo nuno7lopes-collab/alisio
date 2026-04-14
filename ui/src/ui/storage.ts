@@ -28,6 +28,7 @@ import { inferBasePathFromPathname } from "./navigation.ts";
 import {
   DEFAULT_THEME_SELECTION,
   parseThemeSelection,
+  themeAccentMapsEqual,
   type ThemeAccents,
   type ThemeFamily,
   type ThemeMode,
@@ -49,7 +50,23 @@ export type UiSettings = {
   navWidth: number; // Sidebar width when expanded (240–400px)
   navGroupsCollapsed: Record<string, boolean>; // Which nav groups are collapsed
   locale?: string;
+  presentationSyncPending?: boolean;
 };
+
+function hasStoredPresentationOverrides(params: {
+  locale: string | undefined;
+  themeFamily: ThemeFamily;
+  themeMode: ThemeMode;
+  themeAccents: ThemeAccents;
+  defaults: UiSettings;
+}): boolean {
+  return (
+    params.locale !== params.defaults.locale ||
+    params.themeFamily !== params.defaults.themeFamily ||
+    params.themeMode !== params.defaults.themeMode ||
+    !themeAccentMapsEqual(params.themeAccents, params.defaults.themeAccents)
+  );
+}
 
 function isViteDevPage(): boolean {
   if (typeof document === "undefined") {
@@ -194,6 +211,7 @@ export function loadSettings(): UiSettings {
     navWidth: 220,
     navGroupsCollapsed: {},
     locale: defaultLocale,
+    presentationSyncPending: false,
   };
 
   try {
@@ -229,6 +247,16 @@ export function loadSettings(): UiSettings {
       "theme" in (parsed as Record<string, unknown>) ||
       !("themeFamily" in (parsed as Record<string, unknown>)) ||
       !("themeAccents" in (parsed as Record<string, unknown>));
+    const presentationSyncPending =
+      typeof parsed.presentationSyncPending === "boolean"
+        ? parsed.presentationSyncPending
+        : hasStoredPresentationOverrides({
+            locale,
+            themeFamily,
+            themeMode,
+            themeAccents,
+            defaults,
+          });
     const settings = {
       gatewayUrl,
       // Gateway auth is intentionally in-memory only; scrub any legacy persisted token on load.
@@ -266,12 +294,14 @@ export function loadSettings(): UiSettings {
           ? parsed.navGroupsCollapsed
           : defaults.navGroupsCollapsed,
       locale,
+      presentationSyncPending,
     };
     if (
       "token" in parsed ||
       shouldMigrateChatPresentation ||
       shouldMigrateLocale ||
-      shouldMigrateAppearance
+      shouldMigrateAppearance ||
+      typeof parsed.presentationSyncPending !== "boolean"
     ) {
       persistSettings(settings);
     }
@@ -327,6 +357,7 @@ function persistSettings(next: UiSettings) {
     navCollapsed: next.navCollapsed,
     navWidth: next.navWidth,
     navGroupsCollapsed: next.navGroupsCollapsed,
+    presentationSyncPending: next.presentationSyncPending === true,
     sessionsByGateway,
     ...(next.locale ? { locale: next.locale } : {}),
   };

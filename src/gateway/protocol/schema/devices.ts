@@ -129,6 +129,8 @@ export const DevicePairRequestedEventSchema = Type.Object(
     requestId: NonEmptyString,
     deviceId: NonEmptyString,
     publicKey: NonEmptyString,
+    computerId: Type.Optional(NonEmptyString),
+    computerLabel: Type.Optional(NonEmptyString),
     displayName: Type.Optional(NonEmptyString),
     platform: Type.Optional(NonEmptyString),
     deviceFamily: Type.Optional(NonEmptyString),

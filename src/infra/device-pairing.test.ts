@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "vitest";
@@ -19,6 +19,7 @@ import {
   type PairedDevice,
   type RotateDeviceTokenResult,
 } from "./device-pairing.js";
+import { resolveCurrentComputerId } from "./local-computer.js";
 import { resolvePairingPaths } from "./pairing-files.js";
 
 async function setupPairedOperatorDevice(baseDir: string, scopes: string[]) {
@@ -349,6 +350,56 @@ describe("device pairing tokens", () => {
     ]);
   });
 
+  test("migrates legacy local pairings onto the current computer id and keeps remote records distinct", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
+    const { pairedPath } = resolvePairingPaths(baseDir, "devices");
+    const legacyState = {
+      "device-local-old": {
+        deviceId: "device-local-old",
+        publicKey: "public-key-local-old",
+        displayName: "MacIntel",
+        clientId: "alisio-control-ui",
+        clientMode: "webchat",
+        roles: ["operator"],
+        scopes: ["operator.read"],
+        approvedScopes: ["operator.read"],
+        createdAtMs: 10,
+        approvedAtMs: 20,
+      },
+      "device-remote-1": {
+        deviceId: "device-remote-1",
+        publicKey: "public-key-remote-1",
+        displayName: "Office PC",
+        clientId: "node-host",
+        clientMode: "node",
+        remoteIp: "10.0.0.7",
+        roles: ["node"],
+        scopes: [],
+        approvedScopes: [],
+        createdAtMs: 30,
+        approvedAtMs: 40,
+      },
+    } satisfies Record<string, Partial<PairedDevice>>;
+    await mkdir(join(baseDir, "devices"), { recursive: true });
+    await writeFile(pairedPath, JSON.stringify(legacyState, null, 2));
+
+    const list = await listDevicePairing(baseDir);
+    const local = list.paired.find((entry) => entry.deviceId === "device-local-old");
+    const remote = list.paired.find((entry) => entry.deviceId === "device-remote-1");
+
+    expect(local?.computerId).toBe(resolveCurrentComputerId());
+    expect(local?.computerLabel).toBeTruthy();
+    expect(remote?.computerId).toBe("device:device-remote-1");
+    expect(remote?.computerLabel).toBe("Office PC");
+
+    const persisted = JSON.parse(await readFile(pairedPath, "utf8")) as Record<
+      string,
+      PairedDevice
+    >;
+    expect(persisted["device-local-old"]?.computerId).toBe(resolveCurrentComputerId());
+    expect(persisted["device-remote-1"]?.computerId).toBe("device:device-remote-1");
+  });
+
   test("rejects scope escalation when rotating a token and leaves state unchanged", async () => {
     const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.read"]);
@@ -588,7 +639,9 @@ describe("device pairing tokens", () => {
       throw new Error("expected paired node device");
     }
     expect(paired.roles).toContain("node");
-    expect(paired.approvedScopes).toEqual(expect.arrayContaining(["operator.read", "operator.write"]));
+    expect(paired.approvedScopes).toEqual(
+      expect.arrayContaining(["operator.read", "operator.write"]),
+    );
     expect(listEffectivePairedDeviceRoles(paired)).toEqual(["operator", "node"]);
     expect(hasEffectivePairedDeviceRole(paired, "node")).toBe(true);
 

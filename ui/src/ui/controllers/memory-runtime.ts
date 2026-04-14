@@ -375,19 +375,43 @@ function isUnknownMethodError(err: unknown, method: string) {
   return err instanceof GatewayRequestError && err.message.includes(`unknown method: ${method}`);
 }
 
+function isRetriableMemoryError(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("database is locked") ||
+    normalized.includes("sqlite_busy") ||
+    normalized.includes("err_sqlite_error") ||
+    normalized.includes("database busy")
+  );
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 async function requestMemoryEndpoint<T>(
   client: GatewayBrowserClient,
   method: string,
   params: unknown,
   unavailableMessage: string,
 ): Promise<T> {
-  try {
-    return await client.request<T>(method, params);
-  } catch (err) {
-    if (isUnknownMethodError(err, method)) {
-      throw new MemoryEndpointUnavailableError(method, unavailableMessage);
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await client.request<T>(method, params);
+    } catch (err) {
+      if (isUnknownMethodError(err, method)) {
+        throw new MemoryEndpointUnavailableError(method, unavailableMessage);
+      }
+      if (!isRetriableMemoryError(err) || attempt >= 2) {
+        throw err;
+      }
+      attempt += 1;
+      await delay(80 * attempt);
     }
-    throw err;
   }
 }
 

@@ -100,6 +100,7 @@ import {
 } from "./alisio-sharing-cloud.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
+import { resolveCurrentComputerFallbackLabel, resolveCurrentComputerId } from "./local-computer.js";
 import { autoMigrateLegacyStateDir } from "./state-migrations.js";
 
 export type AlisioConnectorCategory = "social" | "google" | "productivity" | "development";
@@ -2913,9 +2914,9 @@ async function persistState(state: AlisioStoredState, env?: NodeJS.ProcessEnv) {
 }
 
 function currentDevice(): AlisioLocalDeviceSession {
-  const hostname = os.hostname().trim() || "This device";
+  const hostname = resolveCurrentComputerFallbackLabel();
   return {
-    id: `local:${hostname.toLowerCase()}`,
+    id: resolveCurrentComputerId(),
     label: hostname,
     platform: resolvePlatformLabel(),
     current: true,

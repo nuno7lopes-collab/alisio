@@ -42,6 +42,7 @@ import { loadPresence } from "./controllers/presence.ts";
 import { loadGatewayAccessMode } from "./controllers/security-access.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
+import { loadTasksOverview } from "./controllers/tasks.ts";
 import { loadUsage } from "./controllers/usage.ts";
 import {
   humanizeMemoryNoteTitle,
@@ -58,6 +59,7 @@ import {
   type SettingsSection,
   type Tab,
 } from "./navigation.ts";
+import { presentationSelectionsEqual } from "./presentation-preferences.ts";
 import { saveSettings, type UiSettings } from "./storage.ts";
 import { startThemeTransition, type ThemeTransitionContext } from "./theme-transition.ts";
 import {
@@ -105,6 +107,7 @@ type SettingsHost = {
   systemThemeCleanup?: (() => void) | null;
   pendingGatewayToken?: string | null;
   client?: import("./gateway.ts").GatewayBrowserClient | null;
+  flushPresentationPreferences?: () => Promise<void>;
   nativeShellLoading?: boolean;
   nativeShellError?: string | null;
   nativeShellState?: import("./types.ts").NativeShellState | null;
@@ -180,6 +183,7 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
     ...next,
     token: shouldClearToken ? "" : next.token,
     lastActiveSessionKey: next.lastActiveSessionKey?.trim() || next.sessionKey.trim() || "main",
+    presentationSyncPending: next.presentationSyncPending === true,
   };
   host.settings = normalized;
   saveSettings(normalized);
@@ -422,6 +426,9 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       });
     }
   }
+  if (host.tab === "tasks") {
+    await loadTasksOverview(host as unknown as Parameters<typeof loadTasksOverview>[0]);
+  }
   if (host.tab === "capabilities") {
     await Promise.allSettled([
       loadSkills(host as unknown as AlisioApp),
@@ -516,6 +523,25 @@ function resolveSignedInPreferences(host: SettingsHost) {
   return account.preferences;
 }
 
+function resolveLocalPresentationSelection(host: SettingsHost) {
+  return {
+    locale: host.settings.locale,
+    themeFamily: host.settings.themeFamily,
+    themeMode: host.settings.themeMode,
+    themeAccents: host.settings.themeAccents,
+  };
+}
+
+function clearPendingPresentationSync(host: SettingsHost) {
+  if (host.settings.presentationSyncPending !== true) {
+    return;
+  }
+  applySettings(host, {
+    ...host.settings,
+    presentationSyncPending: false,
+  });
+}
+
 export async function syncAccountPreferences(host: SettingsHost) {
   const preferences = resolveSignedInPreferences(host);
   if (!preferences) {
@@ -528,6 +554,20 @@ export async function syncAccountPreferences(host: SettingsHost) {
   const nextThemeFamily = preferences.themeFamily;
   const nextThemeMode = preferences.themeMode;
   const nextThemeAccents = preferences.themeAccents;
+  const localPresentation = resolveLocalPresentationSelection(host);
+  const remotePresentation = {
+    locale: nextLocale,
+    themeFamily: nextThemeFamily,
+    themeMode: nextThemeMode,
+    themeAccents: nextThemeAccents,
+  };
+
+  if (host.settings.presentationSyncPending === true) {
+    if (presentationSelectionsEqual(localPresentation, remotePresentation)) {
+      clearPendingPresentationSync(host);
+    }
+    return;
+  }
 
   if (
     nextLocale === host.settings.locale &&
@@ -552,6 +592,25 @@ export async function syncAccountPreferences(host: SettingsHost) {
   });
 
   await localeSync;
+}
+
+export async function flushPendingPresentationPreferences(host: SettingsHost) {
+  const preferences = resolveSignedInPreferences(host);
+  if (!preferences || host.settings.presentationSyncPending !== true) {
+    return;
+  }
+  if (
+    presentationSelectionsEqual(resolveLocalPresentationSelection(host), {
+      locale: preferences.language,
+      themeFamily: preferences.themeFamily,
+      themeMode: preferences.themeMode,
+      themeAccents: preferences.themeAccents,
+    })
+  ) {
+    clearPendingPresentationSync(host);
+    return;
+  }
+  await host.flushPresentationPreferences?.();
 }
 
 export function attachThemeListener(host: SettingsHost) {

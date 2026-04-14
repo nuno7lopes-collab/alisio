@@ -4,10 +4,12 @@ import {
   startLogsPolling,
   startMemoryPolling,
   startNodesPolling,
+  startTasksPolling,
   stopChatRecoveryPolling,
   stopLogsPolling,
   stopMemoryPolling,
   stopNodesPolling,
+  stopTasksPolling,
   startDebugPolling,
   stopDebugPolling,
 } from "./app-polling.ts";
@@ -16,6 +18,7 @@ import {
   applySettingsFromUrl,
   attachThemeListener,
   detachThemeListener,
+  flushPendingPresentationPreferences,
   inferBasePath,
   syncAccountPreferences,
   syncTabWithLocation,
@@ -31,6 +34,7 @@ type LifecycleHost = {
   connectGeneration: number;
   connected?: boolean;
   memoryPollInterval?: number | null;
+  tasksPollInterval?: number | null;
   chatRecoveryPollInterval?: number | null;
   settings?: { token: string };
   password?: string;
@@ -93,6 +97,7 @@ export function handleConnected(host: LifecycleHost) {
   });
   startNodesPolling(host as unknown as Parameters<typeof startNodesPolling>[0]);
   startMemoryPolling(host as unknown as Parameters<typeof startMemoryPolling>[0]);
+  startTasksPolling(host as unknown as Parameters<typeof startTasksPolling>[0]);
   startChatRecoveryPolling(host as unknown as Parameters<typeof startChatRecoveryPolling>[0]);
   if (host.tab === "settings" && host.settingsSection === "logs") {
     startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);
@@ -111,6 +116,7 @@ export function handleDisconnected(host: LifecycleHost) {
   window.removeEventListener("popstate", host.popStateHandler);
   stopNodesPolling(host as unknown as Parameters<typeof stopNodesPolling>[0]);
   stopMemoryPolling(host as unknown as Parameters<typeof stopMemoryPolling>[0]);
+  stopTasksPolling(host as unknown as Parameters<typeof stopTasksPolling>[0]);
   stopChatRecoveryPolling(host as unknown as Parameters<typeof stopChatRecoveryPolling>[0]);
   stopLogsPolling(host as unknown as Parameters<typeof stopLogsPolling>[0]);
   stopDebugPolling(host as unknown as Parameters<typeof stopDebugPolling>[0]);
@@ -127,7 +133,14 @@ export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unk
     // Defer reactive preference sync out of Lit's updated() lifecycle so it
     // does not schedule a second update from inside the current one.
     queueMicrotask(() => {
-      void syncAccountPreferences(host as unknown as Parameters<typeof syncAccountPreferences>[0]);
+      void (async () => {
+        await syncAccountPreferences(
+          host as unknown as Parameters<typeof syncAccountPreferences>[0],
+        );
+        await flushPendingPresentationPreferences(
+          host as unknown as Parameters<typeof flushPendingPresentationPreferences>[0],
+        );
+      })();
     });
   }
   if (changed.has("alisioAccount")) {

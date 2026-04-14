@@ -284,6 +284,25 @@ describe("memory-runtime controller", () => {
     expect(request).toHaveBeenCalledWith("memory.wiki.list", { agentId: "main" });
   });
 
+  it("retries transient sqlite lock errors before failing a memory request", async () => {
+    const { request } = createState();
+
+    request
+      .mockRejectedValueOnce(new Error("database is locked: code=ERR_SQLITE_ERROR"))
+      .mockResolvedValueOnce({
+        agentId: "main",
+        notes: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
+      });
+
+    const result = await requestMemoryNotesList(
+      { request } as unknown as Parameters<typeof requestMemoryNotesList>[0],
+      { agentId: "main" },
+    );
+
+    expect(result.notes.map((note) => note.id)).toEqual(["atlas"]);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("surfaces a friendly native-wiki message when memory.wiki.list is unavailable", async () => {
     const { request } = createState();
 
@@ -372,10 +391,11 @@ describe("memory-runtime controller", () => {
       },
     });
 
-    await requestMemoryFile(
-      { request } as unknown as Parameters<typeof requestMemoryFile>[0],
-      { agentId: "main", fileId: "brief", query: "pdf" },
-    );
+    await requestMemoryFile({ request } as unknown as Parameters<typeof requestMemoryFile>[0], {
+      agentId: "main",
+      fileId: "brief",
+      query: "pdf",
+    });
 
     expect(request).toHaveBeenCalledWith("memory.files.get", {
       agentId: "main",
@@ -383,5 +403,4 @@ describe("memory-runtime controller", () => {
       query: "pdf",
     });
   });
-
 });

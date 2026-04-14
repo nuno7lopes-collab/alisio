@@ -110,6 +110,7 @@ function createProps(
     onThemeFamilyChange: vi.fn(),
     onThemeAccentChange: vi.fn(),
     onThemeModeChange: vi.fn(),
+    onResetPresentation: vi.fn(),
     onSaveAccountField: vi.fn(),
     nativeShellLoading: false,
     nativeShellError: null,
@@ -194,6 +195,24 @@ describe("renderSettingsHub", () => {
     expect(onThemeFamilyChange.mock.calls[0]?.[0]).toBe("noir");
     expect(onThemeModeChange).toHaveBeenCalledWith("light");
     expect(container.querySelectorAll("[data-radius-option]")).toHaveLength(0);
+  });
+
+  it("renders a reset control for presentation defaults", () => {
+    const container = document.createElement("div");
+    const onResetPresentation = vi.fn();
+
+    render(
+      renderSettingsHub(
+        createProps({
+          onResetPresentation,
+        }),
+      ),
+      container,
+    );
+
+    container.querySelector<HTMLElement>(".settings-appearance__reset")?.click();
+
+    expect(onResetPresentation).toHaveBeenCalledTimes(1);
   });
 
   it("opens billing as a focused subsection with honest support CTA copy", () => {

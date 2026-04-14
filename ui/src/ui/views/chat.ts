@@ -39,7 +39,7 @@ import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
 import type { ChatItem, ChatRunActivity, MessageGroup } from "../types/chat-types.ts";
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { agentLogoUrl, resolveAgentAvatarUrl } from "./agents-utils.ts";
-import { renderChatSecurityConsole } from "./chat-security.ts";
+import { renderChatSecurityAccessStrip, renderChatSecurityQueue } from "./chat-security.ts";
 import { renderSkeletonLines, renderSkeletonPill } from "./loading-skeleton.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
 import "../components/resizable-divider.ts";
@@ -186,6 +186,7 @@ function getDeletedMessages(sessionKey: string): DeletedMessages {
 interface ChatEphemeralState {
   sttRecording: boolean;
   sttInterimText: string;
+  sttStartedAt: number | null;
   composerNotice: string | null;
   slashMenuOpen: boolean;
   slashMenuItems: SlashCommandDef[];
@@ -202,6 +203,7 @@ function createChatEphemeralState(): ChatEphemeralState {
   return {
     sttRecording: false,
     sttInterimText: "",
+    sttStartedAt: null,
     composerNotice: null,
     slashMenuOpen: false,
     slashMenuItems: [],
@@ -217,6 +219,33 @@ function createChatEphemeralState(): ChatEphemeralState {
 
 const vs = createChatEphemeralState();
 let activeEphemeralSessionKey: string | null = null;
+let sttTicker: ReturnType<typeof setInterval> | null = null;
+let sttTickerRequestUpdate: (() => void) | null = null;
+
+function stopSttTicker() {
+  if (sttTicker !== null) {
+    clearInterval(sttTicker);
+    sttTicker = null;
+  }
+  sttTickerRequestUpdate = null;
+}
+
+function startSttTicker(requestUpdate: () => void) {
+  sttTickerRequestUpdate = requestUpdate;
+  if (sttTicker !== null) {
+    return;
+  }
+  sttTicker = setInterval(() => {
+    sttTickerRequestUpdate?.();
+  }, 250);
+}
+
+function clearSttComposerState() {
+  vs.sttRecording = false;
+  vs.sttInterimText = "";
+  vs.sttStartedAt = null;
+  stopSttTicker();
+}
 
 /**
  * Reset chat view ephemeral state when navigating away.
@@ -226,6 +255,7 @@ export function resetChatViewState() {
   if (vs.sttRecording) {
     stopStt();
   }
+  clearSttComposerState();
   activeEphemeralSessionKey = null;
   Object.assign(vs, createChatEphemeralState());
 }
@@ -239,6 +269,7 @@ function syncChatViewStateForSession(sessionKey: string) {
   if (vs.sttRecording) {
     stopStt();
   }
+  clearSttComposerState();
   activeEphemeralSessionKey = sessionKey;
   Object.assign(vs, createChatEphemeralState());
 }
@@ -257,6 +288,16 @@ function buildUnsupportedAttachmentsNotice(count: number): string | null {
     return null;
   }
   return chatText("compose.unsupportedAttachments", { count: String(count) });
+}
+
+function formatRecordingElapsed(startedAt: number | null): string {
+  if (!startedAt) {
+    return "0:00";
+  }
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function renderCompactionIndicator(status: CompactionIndicatorStatus | null | undefined) {
@@ -549,6 +590,19 @@ function handleDrop(e: DragEvent, props: ChatProps, requestUpdate: () => void) {
   }
 }
 
+function resolveAttachmentPreviewLabel(att: ChatAttachment): string {
+  if (att.fileName?.trim()) {
+    return att.fileName.trim();
+  }
+  if (att.mimeType.startsWith("image/")) {
+    return chatText("attachments.preview");
+  }
+  if (att.mimeType.startsWith("audio/")) {
+    return chatText("compose.voiceInput");
+  }
+  return att.mimeType;
+}
+
 function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof nothing {
   const attachments = props.attachments ?? [];
   if (attachments.length === 0) {
@@ -558,18 +612,22 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
     <div class="chat-attachments-preview alisio-chat__attachments">
       ${attachments.map(
         (att) => html`
-          <div class="chat-attachment-thumb alisio-chat__attachment-thumb">
-            ${isImageChatAttachmentMimeType(att.mimeType)
-              ? html`<img src=${att.dataUrl} alt=${chatText("attachments.preview")} />`
-              : att.mimeType.startsWith("audio/")
-                ? html`<audio controls src=${att.dataUrl}></audio>`
-                : html`
-                    <div class="chat-attachment-file" title=${att.fileName ?? att.mimeType}>
-                      <span>${att.fileName ?? att.mimeType}</span>
-                    </div>
-                  `}
+          <div class="alisio-chat__attachment-pill">
+            <span class="alisio-chat__attachment-pill-media" aria-hidden="true">
+              ${isImageChatAttachmentMimeType(att.mimeType)
+                ? html`<img src=${att.dataUrl} alt=${chatText("attachments.preview")} />`
+                : att.mimeType.startsWith("audio/")
+                  ? icons.radio
+                  : icons.fileText}
+            </span>
+            <span
+              class="alisio-chat__attachment-pill-label"
+              title=${resolveAttachmentPreviewLabel(att)}
+            >
+              ${resolveAttachmentPreviewLabel(att)}
+            </span>
             <button
-              class="chat-attachment-remove alisio-chat__attachment-remove"
+              class="alisio-chat__attachment-pill-remove"
               type="button"
               aria-label=${chatText("attachments.remove")}
               @click=${() => {
@@ -577,11 +635,33 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
                 props.onAttachmentsChange?.(next);
               }}
             >
-              &times;
+              ${icons.x}
             </button>
           </div>
         `,
       )}
+    </div>
+  `;
+}
+
+const RECORDING_WAVE_PATTERN = [12, 22, 34, 18, 28, 16, 30, 14, 26, 20, 32, 18] as const;
+
+function renderRecordingWaveform(): TemplateResult {
+  return html`
+    <div class="alisio-chat__recording-wave" role="status" aria-live="polite">
+      <div class="alisio-chat__recording-wave-track" aria-hidden="true">
+        ${RECORDING_WAVE_PATTERN.map(
+          (height, index) => html`
+            <span
+              class="alisio-chat__recording-wave-bar"
+              style=${`--wave-height:${height}px;--wave-delay:${index * 90}ms;`}
+            ></span>
+          `,
+        )}
+      </div>
+      <span class="alisio-chat__recording-wave-time"
+        >${formatRecordingElapsed(vs.sttStartedAt)}</span
+      >
     </div>
   `;
 }
@@ -1288,6 +1368,87 @@ export function renderChat(props: ChatProps) {
       `
     : nothing;
 
+  const securityConsoleProps = {
+    assistantName: props.assistantName,
+    assistantAgentId: props.assistantAgentId ?? null,
+    accessMode: props.accessMode,
+    accessModeLoading: props.accessModeLoading,
+    accessModeBusy: props.accessModeBusy,
+    securityDiagnostics: props.securityDiagnostics ?? null,
+    connected: props.connected,
+    approvalQueue: props.approvalQueue ?? [],
+    approvalAuditTrail: props.approvalAuditTrail ?? [],
+    approvalBusy: props.approvalBusy,
+    nativeShellLoading: props.nativeShellLoading,
+    nativeShellError: props.nativeShellError ?? null,
+    nativeShellState: props.nativeShellState ?? null,
+    onApplyAccessMode: props.onApplyAccessMode,
+    onResolveApproval: props.onResolveApproval,
+    onOpenNativeSettings: props.onOpenNativeSettings,
+  } satisfies Parameters<typeof renderChatSecurityAccessStrip>[0];
+  const securityQueue = renderChatSecurityQueue(securityConsoleProps);
+  const securityAccessStrip = renderChatSecurityAccessStrip(securityConsoleProps);
+  const hasComposerFooter = Boolean(tokens) || securityAccessStrip !== nothing;
+
+  const stopRecording = () => {
+    stopStt();
+    clearSttComposerState();
+    requestUpdate();
+  };
+
+  const toggleRecording = () => {
+    if (vs.sttRecording) {
+      stopRecording();
+      return;
+    }
+    const started = startStt({
+      onTranscript: (text, isFinal) => {
+        if (isFinal) {
+          const current = getDraft();
+          const sep = current && !current.endsWith(" ") ? " " : "";
+          props.onDraftChange(current + sep + text);
+          vs.sttInterimText = "";
+        } else {
+          vs.sttInterimText = text;
+        }
+        requestUpdate();
+      },
+      onStart: () => {
+        setComposerNotice(null);
+        vs.sttRecording = true;
+        vs.sttStartedAt ??= Date.now();
+        startSttTicker(requestUpdate);
+        requestUpdate();
+      },
+      onEnd: () => {
+        clearSttComposerState();
+        requestUpdate();
+      },
+      onError: (error) => {
+        clearSttComposerState();
+        setComposerNotice(
+          error === "not-allowed" || error === "service-not-allowed"
+            ? chatText("compose.voiceInputBlocked")
+            : chatText("compose.voiceInputFailed"),
+        );
+        requestUpdate();
+      },
+    });
+    if (started) {
+      vs.sttRecording = true;
+      vs.sttStartedAt = Date.now();
+      startSttTicker(requestUpdate);
+      requestUpdate();
+    }
+  };
+
+  const handleSendClick = () => {
+    if (props.draft.trim()) {
+      inputHistory.push(props.draft);
+    }
+    props.onSend();
+  };
+
   const handleInput = (e: Event) => {
     const target = e.target as HTMLTextAreaElement;
     adjustTextareaHeight(target);
@@ -1417,170 +1578,129 @@ export function renderChat(props: ChatProps) {
         : nothing}
 
       <!-- Input bar -->
-      <div class="agent-chat__input alisio-chat__composer">
-        ${renderSlashMenu(requestUpdate, props)} ${renderAttachmentPreview(props)}
-        ${renderChatSecurityConsole({
-          assistantName: props.assistantName,
-          assistantAgentId: props.assistantAgentId ?? null,
-          accessMode: props.accessMode,
-          accessModeLoading: props.accessModeLoading,
-          accessModeBusy: props.accessModeBusy,
-          securityDiagnostics: props.securityDiagnostics ?? null,
-          connected: props.connected,
-          approvalQueue: props.approvalQueue ?? [],
-          approvalAuditTrail: props.approvalAuditTrail ?? [],
-          approvalBusy: props.approvalBusy,
-          nativeShellLoading: props.nativeShellLoading,
-          nativeShellError: props.nativeShellError ?? null,
-          nativeShellState: props.nativeShellState ?? null,
-          onApplyAccessMode: props.onApplyAccessMode,
-          onResolveApproval: props.onResolveApproval,
-          onOpenNativeSettings: props.onOpenNativeSettings,
-        })}
+      <div class="alisio-chat__composer-shell">
+        ${securityQueue}
+        <div class="agent-chat__input alisio-chat__composer">
+          ${renderSlashMenu(requestUpdate, props)} ${renderAttachmentPreview(props)}
 
-        <input
-          type="file"
-          accept=${CHAT_ATTACHMENT_ACCEPT}
-          multiple
-          class="agent-chat__file-input"
-          ${ref((el) => {
-            fileInputEl = el as HTMLInputElement | null;
-          })}
-          @change=${(e: Event) => handleFileSelect(e, props, requestUpdate)}
-        />
+          <input
+            type="file"
+            accept=${CHAT_ATTACHMENT_ACCEPT}
+            multiple
+            class="agent-chat__file-input"
+            ${ref((el) => {
+              fileInputEl = el as HTMLInputElement | null;
+            })}
+            @change=${(e: Event) => handleFileSelect(e, props, requestUpdate)}
+          />
 
-        ${vs.sttRecording && vs.sttInterimText
-          ? html`<div class="agent-chat__stt-interim">${vs.sttInterimText}</div>`
-          : nothing}
-
-        <textarea
-          class="alisio-chat__composer-field"
-          ${ref((el) => el && adjustTextareaHeight(el as HTMLTextAreaElement))}
-          .value=${props.draft}
-          dir=${detectTextDirection(props.draft)}
-          ?disabled=${!props.connected}
-          @keydown=${handleKeyDown}
-          @input=${handleInput}
-          @paste=${(e: ClipboardEvent) => handlePaste(e, props, requestUpdate)}
-          placeholder=${vs.sttRecording ? chatText("compose.listening") : placeholder}
-          rows="1"
-        ></textarea>
-
-        <div class="agent-chat__toolbar alisio-chat__composer-toolbar">
-          <div class="agent-chat__toolbar-left alisio-chat__composer-tools">
-            <button
-              class="agent-chat__input-btn"
-              @click=${() => {
-                fileInputEl?.click();
-              }}
-              title=${chatText("compose.attachFile")}
-              aria-label=${chatText("compose.attachFile")}
-              ?disabled=${!props.connected}
-            >
-              ${icons.paperclip}
-            </button>
-
-            ${isSttSupported()
-              ? html`
-                  <button
-                    class="agent-chat__input-btn ${vs.sttRecording
-                      ? "agent-chat__input-btn--recording"
-                      : ""}"
-                    @click=${() => {
-                      if (vs.sttRecording) {
-                        stopStt();
-                        vs.sttRecording = false;
-                        vs.sttInterimText = "";
-                        requestUpdate();
-                      } else {
-                        const started = startStt({
-                          onTranscript: (text, isFinal) => {
-                            if (isFinal) {
-                              const current = getDraft();
-                              const sep = current && !current.endsWith(" ") ? " " : "";
-                              props.onDraftChange(current + sep + text);
-                              vs.sttInterimText = "";
-                            } else {
-                              vs.sttInterimText = text;
-                            }
-                            requestUpdate();
-                          },
-                          onStart: () => {
-                            setComposerNotice(null);
-                            vs.sttRecording = true;
-                            requestUpdate();
-                          },
-                          onEnd: () => {
-                            vs.sttRecording = false;
-                            vs.sttInterimText = "";
-                            requestUpdate();
-                          },
-                          onError: (error) => {
-                            vs.sttRecording = false;
-                            vs.sttInterimText = "";
-                            setComposerNotice(
-                              error === "not-allowed" || error === "service-not-allowed"
-                                ? chatText("compose.voiceInputBlocked")
-                                : chatText("compose.voiceInputFailed"),
-                            );
-                            requestUpdate();
-                          },
-                        });
-                        if (started) {
-                          vs.sttRecording = true;
-                          requestUpdate();
-                        }
-                      }
-                    }}
-                    title=${vs.sttRecording
-                      ? chatText("compose.stopRecording")
-                      : chatText("compose.voiceInput")}
-                    ?disabled=${!props.connected}
-                  >
-                    ${vs.sttRecording ? icons.micOff : icons.mic}
-                  </button>
-                `
-              : nothing}
-            ${tokens ? html`<span class="agent-chat__token-count">${tokens}</span>` : nothing}
-          </div>
-
-          ${props.composerModelSelect !== undefined
-            ? html` <div class="alisio-chat__composer-model">${props.composerModelSelect}</div> `
+          ${vs.sttRecording && vs.sttInterimText
+            ? html`<div class="agent-chat__stt-interim">${vs.sttInterimText}</div>`
             : nothing}
 
-          <div class="agent-chat__toolbar-right alisio-chat__composer-actions">
-            ${nothing /* search hidden for now */}
-            ${canAbort && (isBusy || props.sending)
-              ? html`
-                  <button
-                    class="chat-send-btn chat-send-btn--stop"
-                    @click=${props.onAbort}
-                    title=${chatText("compose.stop")}
-                    aria-label=${chatText("compose.stopGenerating")}
-                  >
-                    ${icons.stop}
-                  </button>
-                `
-              : html`
-                  <button
-                    class="chat-send-btn"
-                    @click=${() => {
-                      if (props.draft.trim()) {
-                        inputHistory.push(props.draft);
-                      }
-                      props.onSend();
-                    }}
-                    ?disabled=${!canSendMessage || props.sending}
-                    title=${isBusy ? chatText("compose.queue") : chatText("compose.send")}
-                    aria-label=${isBusy
-                      ? chatText("compose.queueMessage")
-                      : chatText("compose.sendMessage")}
-                  >
-                    ${icons.send}
-                  </button>
-                `}
+          <textarea
+            class="alisio-chat__composer-field"
+            ${ref((el) => el && adjustTextareaHeight(el as HTMLTextAreaElement))}
+            .value=${props.draft}
+            dir=${detectTextDirection(props.draft)}
+            ?disabled=${!props.connected}
+            @keydown=${handleKeyDown}
+            @input=${handleInput}
+            @paste=${(e: ClipboardEvent) => handlePaste(e, props, requestUpdate)}
+            placeholder=${vs.sttRecording ? chatText("compose.listening") : placeholder}
+            rows="1"
+          ></textarea>
+
+          <div
+            class="agent-chat__toolbar alisio-chat__composer-toolbar ${vs.sttRecording
+              ? "alisio-chat__composer-toolbar--recording"
+              : ""}"
+          >
+            <div class="agent-chat__toolbar-left alisio-chat__composer-tools">
+              <button
+                class="agent-chat__input-btn agent-chat__input-btn--attach"
+                @click=${() => {
+                  fileInputEl?.click();
+                }}
+                title=${chatText("compose.attachFile")}
+                aria-label=${chatText("compose.attachFile")}
+                ?disabled=${!props.connected}
+              >
+                ${icons.plus}
+              </button>
+
+              ${vs.sttRecording
+                ? renderRecordingWaveform()
+                : props.composerModelSelect !== undefined
+                  ? html`
+                      <div class="alisio-chat__composer-model">${props.composerModelSelect}</div>
+                    `
+                  : nothing}
+            </div>
+
+            <div class="agent-chat__toolbar-right alisio-chat__composer-actions">
+              ${vs.sttRecording
+                ? html`
+                    <button
+                      class="chat-send-btn chat-send-btn--stop"
+                      @click=${stopRecording}
+                      title=${chatText("compose.stopRecording")}
+                      aria-label=${chatText("compose.stopRecording")}
+                    >
+                      ${icons.stop}
+                    </button>
+                  `
+                : isSttSupported()
+                  ? html`
+                      <button
+                        class="agent-chat__input-btn"
+                        @click=${toggleRecording}
+                        title=${chatText("compose.voiceInput")}
+                        aria-label=${chatText("compose.voiceInput")}
+                        ?disabled=${!props.connected}
+                      >
+                        ${icons.mic}
+                      </button>
+                    `
+                  : nothing}
+              ${!vs.sttRecording && canAbort && (isBusy || props.sending)
+                ? html`
+                    <button
+                      class="chat-send-btn chat-send-btn--stop"
+                      @click=${props.onAbort}
+                      title=${chatText("compose.stop")}
+                      aria-label=${chatText("compose.stopGenerating")}
+                    >
+                      ${icons.stop}
+                    </button>
+                  `
+                : html`
+                    <button
+                      class="chat-send-btn"
+                      @click=${handleSendClick}
+                      ?disabled=${!canSendMessage || props.sending}
+                      title=${isBusy ? chatText("compose.queue") : chatText("compose.send")}
+                      aria-label=${isBusy
+                        ? chatText("compose.queueMessage")
+                        : chatText("compose.sendMessage")}
+                    >
+                      ${icons.send}
+                    </button>
+                  `}
+            </div>
           </div>
         </div>
+
+        ${hasComposerFooter
+          ? html`
+              <div class="alisio-chat__composer-footer">
+                <div class="alisio-chat__composer-footer-left">
+                  ${tokens ? html`<span class="agent-chat__token-count">${tokens}</span>` : nothing}
+                </div>
+                <div class="alisio-chat__composer-footer-right">${securityAccessStrip}</div>
+              </div>
+            `
+          : nothing}
       </div>
     </section>
   `;

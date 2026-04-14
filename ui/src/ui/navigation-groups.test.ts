@@ -22,6 +22,7 @@ describe("TAB_GROUPS", () => {
     expect(product?.tabs).toEqual([
       "chat",
       "memory",
+      "tasks",
       "models",
       "channels",
       "authentications",

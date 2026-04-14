@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { loadChatHistoryMock, loadMemoryStatusMock, loadNodesMock } = vi.hoisted(() => ({
-  loadChatHistoryMock: vi.fn(),
-  loadMemoryStatusMock: vi.fn(),
-  loadNodesMock: vi.fn(),
-}));
+const { loadChatHistoryMock, loadMemoryStatusMock, loadNodesMock, loadTasksOverviewMock } =
+  vi.hoisted(() => ({
+    loadChatHistoryMock: vi.fn(),
+    loadMemoryStatusMock: vi.fn(),
+    loadNodesMock: vi.fn(),
+    loadTasksOverviewMock: vi.fn(),
+  }));
 
 vi.mock("./controllers/chat.ts", () => ({
   loadChatHistory: loadChatHistoryMock,
@@ -18,13 +20,19 @@ vi.mock("./controllers/memory-runtime.ts", () => ({
   loadMemoryStatus: loadMemoryStatusMock,
 }));
 
+vi.mock("./controllers/tasks.ts", () => ({
+  loadTasksOverview: loadTasksOverviewMock,
+}));
+
 import {
   startChatRecoveryPolling,
   startMemoryPolling,
   startNodesPolling,
+  startTasksPolling,
   stopChatRecoveryPolling,
   stopMemoryPolling,
   stopNodesPolling,
+  stopTasksPolling,
 } from "./app-polling.ts";
 
 type MockRequest = ReturnType<typeof vi.fn> &
@@ -37,6 +45,7 @@ type MockClient = {
 type PollingHost = {
   nodesPollInterval: number | null;
   memoryPollInterval: number | null;
+  tasksPollInterval: number | null;
   logsPollInterval: number | null;
   debugPollInterval: number | null;
   chatRecoveryPollInterval: number | null;
@@ -60,6 +69,7 @@ function createHost(tab: string, overrides: Partial<PollingHost> = {}): PollingH
   return {
     nodesPollInterval: null,
     memoryPollInterval: null,
+    tasksPollInterval: null,
     logsPollInterval: null,
     debugPollInterval: null,
     chatRecoveryPollInterval: null,
@@ -102,6 +112,7 @@ describe("startNodesPolling", () => {
     vi.useFakeTimers();
     loadNodesMock.mockReset();
     loadMemoryStatusMock.mockReset();
+    loadTasksOverviewMock.mockReset();
     loadChatHistoryMock.mockReset();
     setVisibilityState("visible");
   });
@@ -201,6 +212,61 @@ describe("startMemoryPolling", () => {
 
     expect(loadMemoryStatusMock).not.toHaveBeenCalled();
     stopMemoryPolling(host);
+  });
+});
+
+describe("startTasksPolling", () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: globalThis,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {},
+    });
+    vi.useFakeTimers();
+    loadTasksOverviewMock.mockReset();
+    setVisibilityState("visible");
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    delete (globalThis as { document?: unknown }).document;
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it("ignores tabs outside the tasks view", () => {
+    const host = createHost("chat");
+
+    startTasksPolling(host);
+    vi.advanceTimersByTime(5_000);
+
+    expect(loadTasksOverviewMock).not.toHaveBeenCalled();
+    stopTasksPolling(host);
+  });
+
+  it("polls the overview from the Tasks tab", () => {
+    const host = createHost("tasks");
+
+    startTasksPolling(host);
+    vi.advanceTimersByTime(5_000);
+
+    expect(loadTasksOverviewMock).toHaveBeenCalledTimes(1);
+    expect(loadTasksOverviewMock).toHaveBeenCalledWith(host, { quiet: true });
+    stopTasksPolling(host);
+  });
+
+  it("suspends polling when the document is hidden", () => {
+    const host = createHost("tasks");
+    setVisibilityState("hidden");
+
+    startTasksPolling(host);
+    vi.advanceTimersByTime(5_000);
+
+    expect(loadTasksOverviewMock).not.toHaveBeenCalled();
+    stopTasksPolling(host);
   });
 });
 

@@ -18,6 +18,10 @@ import {
   updatePairedDeviceMetadata,
   verifyDeviceToken,
 } from "../../../infra/device-pairing.js";
+import {
+  isLocalComputerRemoteIp,
+  resolveCurrentComputerIdentity,
+} from "../../../infra/local-computer.js";
 import { getPairedNode, updatePairedNodeMetadata } from "../../../infra/node-pairing.js";
 import { recordRemoteNodeInfo, refreshRemoteNodeBins } from "../../../infra/skills-remote.js";
 import { upsertPresence } from "../../../infra/system-presence.js";
@@ -133,6 +137,32 @@ function resolvePinnedClientMetadata(params: {
     pinnedPlatform: hasPinnedPlatform ? params.pairedPlatform : undefined,
     pinnedDeviceFamily: hasPinnedDeviceFamily ? params.pairedDeviceFamily : undefined,
   };
+}
+
+function shouldAutoApproveCurrentComputerMetadataRepair(params: {
+  reason: "not-paired" | "role-upgrade" | "scope-upgrade" | "metadata-upgrade";
+  isLocalClient: boolean;
+  paired: Awaited<ReturnType<typeof getPairedDevice>> | null;
+  devicePublicKey: string;
+  currentComputerId?: string;
+}): boolean {
+  if (params.reason !== "metadata-upgrade" || !params.isLocalClient) {
+    return false;
+  }
+  if (!params.paired || params.paired.publicKey !== params.devicePublicKey) {
+    return false;
+  }
+  if (!isLocalComputerRemoteIp(params.paired.remoteIp)) {
+    return false;
+  }
+  if (
+    params.currentComputerId &&
+    params.paired.computerId &&
+    params.paired.computerId !== params.currentComputerId
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function filterDeclaredNodeCapabilities(params: {
@@ -749,6 +779,9 @@ export function attachGatewayWsMessageHandler(params: {
           resolvedAuth.mode,
         );
         if (device && devicePublicKey && !skipPairing) {
+          const currentLocalComputer = isLocalClient
+            ? await resolveCurrentComputerIdentity()
+            : null;
           const formatAuditList = (items: string[] | undefined): string => {
             if (!items || items.length === 0) {
               return "<none>";
@@ -775,6 +808,12 @@ export function attachGatewayWsMessageHandler(params: {
             );
           };
           const clientPairingMetadata = {
+            ...(currentLocalComputer
+              ? {
+                  computerId: currentLocalComputer.computerId,
+                  computerLabel: currentLocalComputer.label,
+                }
+              : {}),
             displayName: connectParams.client.displayName,
             platform: connectParams.client.platform,
             deviceFamily: connectParams.client.deviceFamily,
@@ -785,6 +824,12 @@ export function attachGatewayWsMessageHandler(params: {
             remoteIp: reportedClientIp,
           };
           const clientAccessMetadata = {
+            ...(currentLocalComputer
+              ? {
+                  computerId: currentLocalComputer.computerId,
+                  computerLabel: currentLocalComputer.label,
+                }
+              : {}),
             displayName: connectParams.client.displayName,
             clientId: connectParams.client.id,
             clientMode: connectParams.client.mode,
@@ -792,6 +837,7 @@ export function attachGatewayWsMessageHandler(params: {
             scopes,
             remoteIp: reportedClientIp,
           };
+          let paired: Awaited<ReturnType<typeof getPairedDevice>> | null = null;
           const requirePairing = async (
             reason: "not-paired" | "role-upgrade" | "scope-upgrade" | "metadata-upgrade",
           ) => {
@@ -828,11 +874,19 @@ export function attachGatewayWsMessageHandler(params: {
               isWebchat,
               reason,
             });
+            const allowAutomaticLocalMetadataRepair =
+              shouldAutoApproveCurrentComputerMetadataRepair({
+                reason,
+                isLocalClient,
+                paired,
+                devicePublicKey,
+                currentComputerId: currentLocalComputer?.computerId,
+              });
             const pairing = await requestDevicePairing({
               deviceId: device.id,
               publicKey: devicePublicKey,
               ...clientPairingMetadata,
-              silent: allowSilentLocalPairing,
+              silent: allowSilentLocalPairing || allowAutomaticLocalMetadataRepair,
             });
             const context = buildRequestContext();
             let approved: Awaited<ReturnType<typeof approveDevicePairing>> | undefined;
@@ -852,7 +906,9 @@ export function attachGatewayWsMessageHandler(params: {
               );
               return replacementPending?.requestId;
             };
-            if (pairing.request.silent === true) {
+            const shouldAutoApprovePairing =
+              pairing.request.silent === true || allowAutomaticLocalMetadataRepair;
+            if (shouldAutoApprovePairing) {
               approved = await approveDevicePairing(pairing.request.requestId, {
                 callerScopes: scopes,
               });
@@ -890,7 +946,7 @@ export function attachGatewayWsMessageHandler(params: {
             recoveryRequestId = await resolveLivePendingRequestId();
             if (
               !(
-                pairing.request.silent === true &&
+                shouldAutoApprovePairing &&
                 (approved?.status === "approved" || resolvedByConcurrentApproval)
               )
             ) {
@@ -918,7 +974,7 @@ export function attachGatewayWsMessageHandler(params: {
             return true;
           };
 
-          const paired = await getPairedDevice(device.id);
+          paired = await getPairedDevice(device.id);
           const isPaired = paired?.publicKey === devicePublicKey;
           if (!isPaired) {
             const ok = await requirePairing("not-paired");

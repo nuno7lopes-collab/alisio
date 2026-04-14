@@ -257,6 +257,7 @@ describe("loadSettings default gateway URL derivation", () => {
       themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
       themeMode: DEFAULT_THEME_SELECTION.themeMode,
       themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+      presentationSyncPending: false,
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,
@@ -325,6 +326,7 @@ describe("loadSettings default gateway URL derivation", () => {
       themeFamily: "matte",
       themeMode: "light",
       themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+      presentationSyncPending: false,
       navWidth: 320,
     });
   });
@@ -440,6 +442,49 @@ describe("loadSettings default gateway URL derivation", () => {
       themeFamily: "noir",
       themeMode: "light",
       themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+    });
+  });
+
+  it("marca preferências locais personalizadas para re-sincronização quando a flag ainda não existe", async () => {
+    setTestLocation({
+      protocol: "https:",
+      host: "gateway.example:8443",
+      pathname: "/",
+    });
+
+    const gwUrl = expectedGatewayUrl("");
+    localStorage.setItem(
+      `alisio.control.settings.v2:${gwUrl}`,
+      JSON.stringify({
+        gatewayUrl: gwUrl,
+        locale: "pt-PT",
+        themeFamily: "noir",
+        themeMode: "light",
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+        chatFocusMode: false,
+        chatShowThinking: true,
+        chatShowToolCalls: true,
+        chatPresentationModeVersion: 2,
+        splitRatio: 0.6,
+        navCollapsed: false,
+        navWidth: 220,
+        navGroupsCollapsed: {},
+        sessionsByGateway: {
+          [gwUrl]: {
+            sessionKey: "main",
+            lastActiveSessionKey: "main",
+          },
+        },
+      }),
+    );
+
+    const { loadSettings } = await import("./storage.ts");
+
+    expect(loadSettings()).toMatchObject({
+      locale: "pt-PT",
+      themeFamily: "noir",
+      themeMode: "light",
+      presentationSyncPending: true,
     });
   });
 });

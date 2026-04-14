@@ -1835,6 +1835,9 @@ describe("chat view", () => {
 
     expect(container.querySelector(".alisio-chat-toolbar")).not.toBeNull();
     expect(container.querySelector(".chat-controls__session")).not.toBeNull();
+    expect(
+      container.querySelector('.chat-select-chip--session select[data-chat-session-select="true"]'),
+    ).not.toBeNull();
     expect(container.querySelector('select[data-chat-model-select="true"]')).toBeNull();
     expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
   });
@@ -1863,6 +1866,7 @@ describe("chat view", () => {
     expect(container.querySelector(".alisio-chat__composer")).not.toBeNull();
     expect(container.querySelector(".alisio-chat__composer-toolbar")).not.toBeNull();
     expect(container.querySelector(".alisio-chat__composer-model")).not.toBeNull();
+    expect(container.querySelector(".agent-chat__input-btn--attach")).not.toBeNull();
     expect(
       container.querySelector('.alisio-chat__composer-model select[data-chat-model-select="true"]'),
     ).not.toBeNull();

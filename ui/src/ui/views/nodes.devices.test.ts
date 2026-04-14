@@ -366,8 +366,10 @@ describe("nodes devices pending rendering", () => {
             paired: [
               {
                 deviceId: "device-1",
-                displayName: "Studio Mac",
-                platform: "macOS",
+                computerId: "local:studio-mac",
+                computerLabel: "Studio Mac",
+                displayName: "MacIntel",
+                platform: "MacIntel",
                 roles: ["operator"],
                 scopes: ["operator.read"],
                 tokens: [],
@@ -375,8 +377,11 @@ describe("nodes devices pending rendering", () => {
               },
               {
                 deviceId: "device-2",
-                displayName: "Studio Mac",
-                platform: "macOS",
+                computerId: "local:studio-mac",
+                computerLabel: "Studio Mac",
+                displayName: "Nuno’s MacBook Air",
+                platform: "macOS 26.0.1",
+                deviceFamily: "Mac",
                 roles: ["operator"],
                 scopes: ["operator.read"],
                 tokens: [],
