@@ -60,15 +60,26 @@ import {
 } from "./navigation.ts";
 import { saveSettings, type UiSettings } from "./storage.ts";
 import { startThemeTransition, type ThemeTransitionContext } from "./theme-transition.ts";
-import { resolveTheme, type ResolvedTheme, type ThemeMode, type ThemeName } from "./theme.ts";
+import {
+  buildResolvedThemeAccentVariables,
+  resolveTheme,
+  resolveThemeFamilyFromResolved,
+  resolveThemeModeFromResolved,
+  setThemeAccent as setThemeAccentMapValue,
+  themeAccentMapsEqual,
+  type ResolvedTheme,
+  type ThemeFamily,
+  type ThemeMode,
+} from "./theme.ts";
 import type { AgentsListResult, AttentionItem } from "./types.ts";
 import { resetChatViewState } from "./views/chat.ts";
 
 type SettingsHost = {
   settings: UiSettings;
   password?: string;
-  theme: ThemeName;
+  themeFamily: ThemeFamily;
   themeMode: ThemeMode;
+  themeAccents: UiSettings["themeAccents"];
   themeResolved: ResolvedTheme;
   applySessionKey: string;
   sessionKey: string;
@@ -172,10 +183,15 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
   };
   host.settings = normalized;
   saveSettings(normalized);
-  if (next.theme !== host.theme || next.themeMode !== host.themeMode) {
-    host.theme = next.theme;
+  if (
+    next.themeFamily !== host.themeFamily ||
+    next.themeMode !== host.themeMode ||
+    !themeAccentMapsEqual(next.themeAccents, previous.themeAccents)
+  ) {
+    host.themeFamily = next.themeFamily;
     host.themeMode = next.themeMode;
-    applyResolvedTheme(host, resolveTheme(next.theme, next.themeMode));
+    host.themeAccents = next.themeAccents;
+    applyResolvedTheme(host, resolveTheme(next.themeFamily, next.themeMode));
     syncSystemThemeListener(host);
   }
   applyBorderRadius();
@@ -303,10 +319,14 @@ export function setSettingsSection(host: SettingsHost, next: SettingsSection) {
   void refreshSettingsSectionState(host);
 }
 
-export function setTheme(host: SettingsHost, next: ThemeName, context?: ThemeTransitionContext) {
+export function setThemeFamily(
+  host: SettingsHost,
+  next: ThemeFamily,
+  context?: ThemeTransitionContext,
+) {
   const resolved = resolveTheme(next, host.themeMode);
   const applyTheme = () => {
-    applySettings(host, { ...host.settings, theme: next });
+    applySettings(host, { ...host.settings, themeFamily: next });
   };
   startThemeTransition({
     nextTheme: resolved,
@@ -317,12 +337,19 @@ export function setTheme(host: SettingsHost, next: ThemeName, context?: ThemeTra
   syncSystemThemeListener(host);
 }
 
+export function setThemeAccent(host: SettingsHost, family: ThemeFamily, accent: string) {
+  applySettings(host, {
+    ...host.settings,
+    themeAccents: setThemeAccentMapValue(host.settings.themeAccents, family, accent),
+  });
+}
+
 export function setThemeMode(
   host: SettingsHost,
   next: ThemeMode,
   context?: ThemeTransitionContext,
 ) {
-  const resolved = resolveTheme(host.theme, next);
+  const resolved = resolveTheme(host.themeFamily, next);
   const applyMode = () => {
     applySettings(host, { ...host.settings, themeMode: next });
   };
@@ -473,9 +500,10 @@ export function inferBasePath() {
 }
 
 export function syncThemeWithSettings(host: SettingsHost) {
-  host.theme = host.settings.theme ?? "claw";
+  host.themeFamily = host.settings.themeFamily;
   host.themeMode = host.settings.themeMode ?? "system";
-  applyResolvedTheme(host, resolveTheme(host.theme, host.themeMode));
+  host.themeAccents = host.settings.themeAccents;
+  applyResolvedTheme(host, resolveTheme(host.themeFamily, host.themeMode));
   applyBorderRadius();
   syncSystemThemeListener(host);
 }
@@ -497,9 +525,16 @@ export async function syncAccountPreferences(host: SettingsHost) {
   const nextLocale = isSupportedLocale(preferences.language)
     ? preferences.language
     : host.settings.locale;
-  const nextThemeMode = preferences.theme;
+  const nextThemeFamily = preferences.themeFamily;
+  const nextThemeMode = preferences.themeMode;
+  const nextThemeAccents = preferences.themeAccents;
 
-  if (nextLocale === host.settings.locale && nextThemeMode === host.settings.themeMode) {
+  if (
+    nextLocale === host.settings.locale &&
+    nextThemeFamily === host.settings.themeFamily &&
+    nextThemeMode === host.settings.themeMode &&
+    themeAccentMapsEqual(nextThemeAccents, host.settings.themeAccents)
+  ) {
     return;
   }
 
@@ -511,7 +546,9 @@ export async function syncAccountPreferences(host: SettingsHost) {
   applySettings(host, {
     ...host.settings,
     locale: nextLocale,
+    themeFamily: nextThemeFamily,
     themeMode: nextThemeMode,
+    themeAccents: nextThemeAccents,
   });
 
   await localeSync;
@@ -547,10 +584,19 @@ export function applyResolvedTheme(host: SettingsHost, resolved: ResolvedTheme) 
     return;
   }
   const root = document.documentElement;
-  const themeMode = resolved.endsWith("light") ? "light" : "dark";
+  const themeMode = resolveThemeModeFromResolved(resolved);
+  const themeFamily = resolveThemeFamilyFromResolved(resolved);
   root.dataset.theme = resolved;
+  root.dataset.themeFamily = themeFamily;
   root.dataset.themeMode = themeMode;
   root.style.colorScheme = themeMode;
+  const accentVariables = buildResolvedThemeAccentVariables({
+    resolvedTheme: resolved,
+    themeAccents: host.settings.themeAccents,
+  });
+  for (const [key, value] of Object.entries(accentVariables)) {
+    root.style.setProperty(key, value);
+  }
 }
 
 function syncSystemThemeListener(host: SettingsHost) {
@@ -575,7 +621,7 @@ function syncSystemThemeListener(host: SettingsHost) {
     if (host.themeMode !== "system") {
       return;
     }
-    applyResolvedTheme(host, resolveTheme(host.theme, event.matches ? "light" : "dark"));
+    applyResolvedTheme(host, resolveTheme(host.themeFamily, event.matches ? "light" : "dark"));
   };
   if (typeof mql.addEventListener === "function") {
     mql.addEventListener("change", onChange);

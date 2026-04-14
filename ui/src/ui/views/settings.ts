@@ -15,7 +15,7 @@ import {
   type SettingsSection,
 } from "../navigation.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
-import type { ThemeName } from "../theme.ts";
+import type { ThemeAccents, ThemeFamily } from "../theme.ts";
 import type {
   AlisioAccountState,
   AlisioDoctorSummaryState,
@@ -214,7 +214,7 @@ function languageOptions() {
   ] as const;
 }
 
-type PublicLanguageOption = (ReturnType<typeof languageOptions>)[number]["value"];
+type PublicLanguageOption = ReturnType<typeof languageOptions>[number]["value"];
 
 function isPublicLanguageOption(value: string | undefined): value is PublicLanguageOption {
   return value === "en" || value === "pt-PT" || value === "es";
@@ -447,17 +447,21 @@ function renderMacSection(props: {
 }
 
 function renderAppearanceSection(props: {
-  theme: ThemeName;
+  themeFamily: ThemeFamily;
   themeMode: "system" | "light" | "dark";
-  onThemeChange: (value: ThemeName, context?: ThemeTransitionContext) => void;
+  themeAccents: ThemeAccents;
+  onThemeFamilyChange: (value: ThemeFamily, context?: ThemeTransitionContext) => void;
+  onThemeAccentChange: (themeFamily: ThemeFamily, accent: string) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
 }) {
   return html`
     <div class="settings-appearance">
       ${renderAppearanceControls({
-        theme: props.theme,
+        themeFamily: props.themeFamily,
         themeMode: props.themeMode,
-        onThemeChange: props.onThemeChange,
+        themeAccents: props.themeAccents,
+        onThemeFamilyChange: props.onThemeFamilyChange,
+        onThemeAccentChange: props.onThemeAccentChange,
         onThemeModeChange: props.onThemeModeChange,
       })}
     </div>
@@ -945,10 +949,12 @@ export function renderSettingsHub(props: {
   doctorError: string | null;
   doctor: AlisioDoctorSummaryState | null;
   locale: string | undefined;
-  theme: ThemeName;
+  themeFamily: ThemeFamily;
   themeMode: "system" | "light" | "dark";
+  themeAccents: ThemeAccents;
   onLocaleChange: (value: "en" | "pt-PT" | "es") => void;
-  onThemeChange: (value: ThemeName, context?: ThemeTransitionContext) => void;
+  onThemeFamilyChange: (value: ThemeFamily, context?: ThemeTransitionContext) => void;
+  onThemeAccentChange: (themeFamily: ThemeFamily, accent: string) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
   onSaveAccountField: (patch: {
     username?: string;
@@ -991,9 +997,11 @@ export function renderSettingsHub(props: {
           settingsSectionLabel("general"),
           html`
             ${renderAppearanceSection({
-              theme: props.theme,
+              themeFamily: props.themeFamily,
               themeMode: props.themeMode,
-              onThemeChange: props.onThemeChange,
+              themeAccents: props.themeAccents,
+              onThemeFamilyChange: props.onThemeFamilyChange,
+              onThemeAccentChange: props.onThemeAccentChange,
               onThemeModeChange: props.onThemeModeChange,
             })}
             ${renderLanguageSection({

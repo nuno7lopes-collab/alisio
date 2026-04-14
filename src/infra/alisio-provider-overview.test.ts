@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { resolveProviderAuthOverview } from "../commands/models/list.auth-overview.js";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../shared/alisio-appearance.js";
 import { loadAlisioProviderOverview } from "./alisio-provider-overview.js";
 
 describe("loadAlisioProviderOverview", () => {
@@ -60,7 +61,9 @@ describe("loadAlisioProviderOverview", () => {
             },
             preferences: {
               language: "en",
-              theme: "system",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "system",
+              themeAccents: DEFAULT_THEME_ACCENTS,
             },
             session: {
               state: "signed_in",

@@ -106,9 +106,94 @@ Paid skill
       installed: true,
       installable: false,
       access: {
-        allowed: false,
+        allowed: true,
         currentPlan: "free",
       },
+    });
+  });
+
+  it("keeps bundled ready skills installed in the marketplace catalog", async () => {
+    const entry: SkillEntry = {
+      skill: createFixtureSkill({
+        name: "bundled-ready",
+        description: "Bundled ready skill",
+        filePath: "/tmp/bundled-ready/SKILL.md",
+        baseDir: "/tmp/bundled-ready",
+        source: "alisio-bundled",
+      }),
+      frontmatter: {},
+      manifest: {
+        schemaVersion: 1,
+        name: "bundled-ready",
+        version: "1.0.0",
+        description: "Bundled ready skill",
+        permissions: {
+          consent: "explicit",
+          sandbox: {
+            mode: "isolated",
+            filesystem: "read-only",
+            network: "off",
+          },
+        },
+        outputs: {
+          primary: "instructions",
+          formats: ["text/markdown"],
+        },
+        compat: {
+          runtimes: ["alisio"],
+        },
+      },
+      manifestValidation: {
+        valid: true,
+        explicit: true,
+        source: "manifest",
+        issues: [],
+      },
+    };
+
+    const localReport = buildWorkspaceSkillStatus("/tmp/ws", { entries: [entry] });
+    const catalog = await resolveWorkspaceMarketplaceCatalogStatus("/tmp/ws", {
+      entries: [entry],
+      localReport,
+    });
+    const bundledSkill = catalog.find((catalogEntry) => catalogEntry.name === "bundled-ready");
+
+    expect(bundledSkill).toMatchObject({
+      name: "bundled-ready",
+      installed: true,
+      installable: true,
+      removable: false,
+      eligible: true,
+      source: "alisio-bundled",
+    });
+  });
+
+  it("preserves local readiness when installed skills are not marketplace-ready", async () => {
+    const entry: SkillEntry = {
+      skill: createFixtureSkill({
+        name: "bundled-inferred",
+        description: "Bundled inferred skill",
+        filePath: "/tmp/bundled-inferred/SKILL.md",
+        baseDir: "/tmp/bundled-inferred",
+        source: "alisio-bundled",
+      }),
+      frontmatter: {},
+      metadata: {},
+    };
+
+    const localReport = buildWorkspaceSkillStatus("/tmp/ws", { entries: [entry] });
+    const catalog = await resolveWorkspaceMarketplaceCatalogStatus("/tmp/ws", {
+      entries: [entry],
+      localReport,
+    });
+    const bundledSkill = catalog.find((catalogEntry) => catalogEntry.name === "bundled-inferred");
+
+    expect(bundledSkill).toMatchObject({
+      name: "bundled-inferred",
+      installed: true,
+      eligible: true,
+      marketplaceReady: false,
+      source: "alisio-bundled",
     });
   });
 });

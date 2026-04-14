@@ -1,5 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStorageMock } from "../test-helpers/storage.ts";
+import { DEFAULT_THEME_SELECTION } from "./theme.ts";
+
+function createStoredSettings(
+  overrides: Partial<import("./storage.ts").UiSettings>,
+): import("./storage.ts").UiSettings {
+  return {
+    gatewayUrl: "",
+    token: "",
+    sessionKey: "main",
+    lastActiveSessionKey: "main",
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+    themeMode: DEFAULT_THEME_SELECTION.themeMode,
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+    chatFocusMode: false,
+    chatShowThinking: true,
+    chatShowToolCalls: true,
+    splitRatio: 0.6,
+    navCollapsed: false,
+    navWidth: 220,
+    navGroupsCollapsed: {},
+    ...overrides,
+  };
+}
 
 function setTestLocation(params: { protocol: string; host: string; pathname: string }) {
   vi.stubGlobal("location", {
@@ -165,21 +188,12 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const gwUrl = expectedGatewayUrl("");
     const { loadSettings, saveSettings } = await import("./storage.ts");
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "session-token",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "session-token",
+      }),
+    );
 
     expect(loadSettings()).toMatchObject({
       gatewayUrl: gwUrl,
@@ -197,37 +211,19 @@ describe("loadSettings default gateway URL derivation", () => {
     const gwUrl = expectedGatewayUrl("");
     const otherUrl = "wss://other-gateway.example:8443";
     const { loadSettings, saveSettings } = await import("./storage.ts");
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "gateway-a-token",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "gateway-a-token",
+      }),
+    );
 
-    saveSettings({
-      gatewayUrl: otherUrl,
-      token: "",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: otherUrl,
+        token: "",
+      }),
+    );
 
     expect(loadSettings()).toMatchObject({
       gatewayUrl: gwUrl,
@@ -244,21 +240,12 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const gwUrl = expectedGatewayUrl("");
     const { loadSettings, saveSettings } = await import("./storage.ts");
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "memory-only-token",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "memory-only-token",
+      }),
+    );
     expect(loadSettings()).toMatchObject({
       gatewayUrl: gwUrl,
       token: "memory-only-token",
@@ -267,8 +254,9 @@ describe("loadSettings default gateway URL derivation", () => {
     const scopedKey = `alisio.control.settings.v2:${gwUrl}`;
     expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toEqual({
       gatewayUrl: gwUrl,
-      theme: "claw",
-      themeMode: "system",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: DEFAULT_THEME_SELECTION.themeMode,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,
@@ -296,36 +284,18 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const gwUrl = expectedGatewayUrl("");
     const { loadSettings, saveSettings } = await import("./storage.ts");
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "stale-token",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "stale-token",
+      }),
+    );
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "",
+      }),
+    );
 
     expect(loadSettings().token).toBe("");
     expect(sessionStorage.length).toBe(0);
@@ -340,26 +310,21 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const gwUrl = expectedGatewayUrl("");
     const { saveSettings } = await import("./storage.ts");
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "dash",
-      themeMode: "light",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 320,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "",
+        themeFamily: "matte",
+        themeMode: "light",
+        navWidth: 320,
+      }),
+    );
 
     const scopedKey = `alisio.control.settings.v2:${gwUrl}`;
     expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toMatchObject({
-      theme: "dash",
+      themeFamily: "matte",
       themeMode: "light",
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       navWidth: 320,
     });
   });
@@ -374,21 +339,14 @@ describe("loadSettings default gateway URL derivation", () => {
     const gwUrl = expectedGatewayUrl("");
     const { loadSettings, saveSettings } = await import("./storage.ts");
 
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "",
-      sessionKey: "agent:test_old:main",
-      lastActiveSessionKey: "agent:test_old:main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "",
+        sessionKey: "agent:test_old:main",
+        lastActiveSessionKey: "agent:test_old:main",
+      }),
+    );
 
     expect(loadSettings()).toMatchObject({
       gatewayUrl: gwUrl,
@@ -419,21 +377,14 @@ describe("loadSettings default gateway URL derivation", () => {
     }
     localStorage.setItem(scopedKey, JSON.stringify({ sessionsByGateway: staleEntries }));
 
-    saveSettings({
-      gatewayUrl: gwUrl,
-      token: "",
-      sessionKey: "agent:current:main",
-      lastActiveSessionKey: "agent:current:main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-    });
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        token: "",
+        sessionKey: "agent:current:main",
+        lastActiveSessionKey: "agent:current:main",
+      }),
+    );
 
     const persisted = JSON.parse(localStorage.getItem(scopedKey) ?? "{}");
 
@@ -449,6 +400,46 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(persisted.sessionsByGateway["wss://gateway.example:8443"]).toEqual({
       sessionKey: "agent:current:main",
       lastActiveSessionKey: "agent:current:main",
+    });
+  });
+
+  it("migra themes legacy persistidos para família e acentos canónicos", async () => {
+    setTestLocation({
+      protocol: "https:",
+      host: "gateway.example:8443",
+      pathname: "/",
+    });
+
+    const gwUrl = expectedGatewayUrl("");
+    localStorage.setItem(
+      `alisio.control.settings.v2:${gwUrl}`,
+      JSON.stringify({
+        gatewayUrl: gwUrl,
+        theme: "knot",
+        themeMode: "light",
+        chatFocusMode: false,
+        chatShowThinking: true,
+        chatShowToolCalls: true,
+        splitRatio: 0.6,
+        navCollapsed: false,
+        navWidth: 220,
+        navGroupsCollapsed: {},
+        sessionsByGateway: {
+          [gwUrl]: {
+            sessionKey: "main",
+            lastActiveSessionKey: "main",
+          },
+        },
+      }),
+    );
+
+    const { loadSettings } = await import("./storage.ts");
+
+    expect(loadSettings()).toMatchObject({
+      gatewayUrl: gwUrl,
+      themeFamily: "noir",
+      themeMode: "light",
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     });
   });
 });

@@ -2473,7 +2473,7 @@ svg[data-ui-icon] {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 16px;
+  margin-bottom: 18px;
 }
 
 .channel-feedback {
@@ -2501,6 +2501,49 @@ svg[data-ui-icon] {
   color: color-mix(in srgb, var(--danger) 76%, var(--text-strong));
 }
 
+.channel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.channel-toolbar__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.channel-toolbar__timestamp {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.channel-meta-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.channel-meta-line__separator {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 68%, transparent);
+  flex: 0 0 auto;
+}
+
 .channel-hero__top {
   justify-content: space-between;
   align-items: flex-start;
@@ -2516,7 +2559,24 @@ svg[data-ui-icon] {
 .channel-card {
   position: relative;
   display: grid;
+  gap: 16px;
   align-content: start;
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 24px;
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--accent) 8%, transparent),
+      transparent 38%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card) 96%, var(--bg-elevated)),
+      color-mix(in srgb, var(--bg-elevated) 92%, var(--card))
+    );
+  box-shadow: var(--shadow-sm);
 }
 
 .channel-card__header,
@@ -2529,8 +2589,8 @@ svg[data-ui-icon] {
 
 .channel-card__identity {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -2538,24 +2598,58 @@ svg[data-ui-icon] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
-  border-radius: 14px;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--connector-border, color-mix(in srgb, var(--border) 64%, transparent));
+  border-radius: 16px;
   background:
     radial-gradient(
       circle at top,
-      color-mix(in srgb, var(--accent) 14%, transparent),
+      color-mix(in srgb, var(--connector-accent, var(--accent)) 14%, transparent),
       transparent 60%
     ),
-    color-mix(in srgb, var(--bg-elevated) 76%, transparent);
-  color: var(--text-strong);
+    var(--connector-surface, color-mix(in srgb, var(--bg-elevated) 84%, transparent));
+  color: var(--connector-accent, var(--text-strong));
   flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.channel-card__icon:not(.channel-card__icon--brand).channel-card__icon--telegram {
+  border-color: transparent;
+  background: linear-gradient(180deg, #36b8f2, #229ed9);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(34, 158, 217, 0.22);
+}
+
+.channel-card__icon:not(.channel-card__icon--brand).channel-card__icon--whatsapp {
+  border-color: transparent;
+  background: linear-gradient(180deg, #3add7b, #25d366);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 24px rgba(37, 211, 102, 0.2);
+}
+
+.channel-card__icon:not(.channel-card__icon--brand).channel-card__icon--discord {
+  border-color: transparent;
+  background: linear-gradient(180deg, #6b78ff, #5865f2);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 10px 24px rgba(88, 101, 242, 0.2);
+}
+
+.channel-card__icon img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
 }
 
 .channel-card__icon svg {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   stroke: currentColor;
   fill: none;
   stroke-width: 1.75px;
@@ -2563,64 +2657,64 @@ svg[data-ui-icon] {
   stroke-linejoin: round;
 }
 
+.channel-card__icon svg[data-brand-icon] {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+  stroke: none;
+}
+
 .channel-card__title-wrap {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.channel-card__eyebrow {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  line-height: 1.35;
-}
-
-.channel-card__description {
-  max-width: 56ch;
-  margin-top: 12px;
-  line-height: 1.6;
-}
-
-.channel-card__summary {
-  margin-top: 14px;
-}
-
-.channel-card__accounts {
-  display: grid;
-  gap: 14px;
-  margin-top: 18px;
-}
-
-.channel-card__footer {
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 18px;
-  align-items: center;
-}
-
-.channel-account {
-  display: grid;
-  gap: 14px;
-  padding: 16px 18px;
-  border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--bg-elevated) 58%, transparent);
-}
-
-.channel-account__title-wrap {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-.channel-account__eyebrow {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  line-height: 1.35;
+.channel-card__title-wrap .card-title {
+  line-height: 1.15;
+}
+
+.channel-card__description {
+  max-width: 42ch;
+  margin-top: 0;
+  color: color-mix(in srgb, var(--text) 84%, var(--muted));
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.channel-card__accounts {
+  display: grid;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.channel-card__footer {
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 0;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  align-items: center;
+}
+
+.channel-account {
+  display: grid;
+  gap: 12px;
+  padding: 14px 0 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 0;
+  background: transparent;
+}
+
+.channel-card__accounts > .channel-account:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.channel-account__title-wrap {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
 .channel-account__title {
@@ -2629,6 +2723,14 @@ svg[data-ui-icon] {
   font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.channel-account__meta {
+  color: var(--muted);
+}
+
+.channel-account__note {
+  margin-top: -2px;
 }
 
 .channel-account__actions {
@@ -2713,7 +2815,11 @@ svg[data-ui-icon] {
   display: grid;
   justify-items: start;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 2px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, var(--border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent-subtle) 22%, var(--bg-elevated));
 }
 
 .channel-qr__help {
@@ -3000,9 +3106,25 @@ svg[data-ui-icon] {
   font-size: 12px;
 }
 
+.channel-card .channel-steps-block {
+  margin-top: 0;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg-elevated) 72%, var(--card));
+}
+
 @media (max-width: 900px) {
   .channel-setup-panel__body {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .channel-toolbar {
+    align-items: stretch;
+  }
+
+  .channel-toolbar__meta {
+    margin-right: 0;
   }
 
   .channel-hero__top,
@@ -4886,6 +5008,10 @@ td.data-table-key-col {
   cursor: default;
 }
 
+.alisio-chat__access-pill--interactive {
+  cursor: pointer;
+}
+
 .alisio-chat__access-pill--status:disabled {
   color: inherit;
 }
@@ -5364,12 +5490,45 @@ td.data-table-key-col {
   min-width: 0;
 }
 
+.alisio-connections-subsection--collapsible {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .alisio-connections-subsection__title {
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.alisio-connections-subsection__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.alisio-connections-subsection__summary::-webkit-details-marker {
+  display: none;
+}
+
+.alisio-connections-subsection__summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alisio-connections-subsection__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 11px 11px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
 }
 
 .alisio-connections-subsection__count {
@@ -5445,6 +5604,12 @@ td.data-table-key-col {
   padding: 9px 10px;
 }
 
+.alisio-connections-entry--collapsible {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+}
+
 .alisio-connections-entry--compact {
   gap: 7px;
   padding: 9px 10px;
@@ -5473,6 +5638,26 @@ td.data-table-key-col {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.alisio-connections-entry__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.alisio-connections-entry__summary::-webkit-details-marker {
+  display: none;
+}
+
+.alisio-connections-entry__details {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
 }
 
 .alisio-connections-entry__stack {
@@ -5513,6 +5698,31 @@ td.data-table-key-col {
   display: flex;
   justify-content: flex-end;
   margin-top: 8px;
+}
+
+.alisio-connections-disclosure-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.alisio-connections-disclosure-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+details[open] > .alisio-connections-subsection__summary .alisio-connections-disclosure-icon,
+details[open] > .alisio-connections-entry__summary .alisio-connections-disclosure-icon {
+  transform: rotate(180deg);
 }
 
 .alisio-connections-entry__actions {

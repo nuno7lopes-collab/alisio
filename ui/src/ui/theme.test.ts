@@ -1,16 +1,21 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { parseThemeSelection, resolveSystemTheme, resolveTheme } from "./theme.ts";
+import {
+  DEFAULT_THEME_SELECTION,
+  parseThemeSelection,
+  resolveSystemTheme,
+  resolveTheme,
+} from "./theme.ts";
 
 describe("resolveTheme", () => {
   it("resolves named theme families when mode is provided", () => {
-    expect(resolveTheme("knot", "dark")).toBe("openknot");
-    expect(resolveTheme("dash", "light")).toBe("dash-light");
+    expect(resolveTheme("noir", "dark")).toBe("noir-dark");
+    expect(resolveTheme("matte", "light")).toBe("matte-light");
   });
 
   it("uses system preference when mode is system", () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
-    expect(resolveTheme("knot", "system")).toBe("openknot-light");
+    expect(resolveTheme("noir", "system")).toBe("noir-light");
     vi.unstubAllGlobals();
   });
 });
@@ -24,14 +29,17 @@ describe("resolveSystemTheme", () => {
 });
 
 describe("parseThemeSelection", () => {
-  it("falls back to defaults for retired stored aliases", () => {
+  it("falls back to defaults for retired stored aliases and migrates legacy families", () => {
     expect(parseThemeSelection("system", undefined)).toEqual({
-      theme: "claw",
-      mode: "system",
+      ...DEFAULT_THEME_SELECTION,
     });
     expect(parseThemeSelection("fieldmanual", undefined)).toEqual({
-      theme: "claw",
-      mode: "system",
+      ...DEFAULT_THEME_SELECTION,
+    });
+    expect(parseThemeSelection("knot", "dark")).toEqual({
+      themeFamily: "noir",
+      themeMode: "dark",
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     });
   });
 });

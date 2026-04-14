@@ -161,7 +161,7 @@ describe("models-config merge helpers", () => {
         "alisio-local-current-llama": {
           api: "alisio:alisio-local-current-llama",
           models: [{ id: "qwen3-4b-q4-k-m", api: "alisio:alisio-local-current-llama" }],
-        } as ExistingProviderConfig,
+        } as unknown as ExistingProviderConfig,
         custom: {
           apiKey: preservedApiKey,
           models: [{ id: "model", api: "openai-responses" }],

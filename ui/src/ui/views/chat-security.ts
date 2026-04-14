@@ -16,9 +16,9 @@ import {
 } from "./approval-summary.ts";
 import { formatApprovalRemaining } from "./exec-approval.ts";
 import {
-  nativeShellPermissionLabel,
-  NATIVE_SHELL_PERMISSION_ORDER,
-} from "./native-shell-permissions.ts";
+  buildNativeShellAccessTitle,
+  summarizeNativeShellAccess,
+} from "./native-shell-access-summary.ts";
 
 type ApprovalDecision = "allow-once" | "allow-always" | "deny";
 
@@ -75,28 +75,6 @@ function renderApprovalMeta(
       </span>
     </div>
   `;
-}
-
-function summarizeNativeShellAccess(state: NativeShellState | null | undefined) {
-  if (!state) {
-    return null;
-  }
-  const missing = NATIVE_SHELL_PERMISSION_ORDER.filter(
-    (permission) => !state.permissions[permission],
-  );
-  return {
-    total: NATIVE_SHELL_PERMISSION_ORDER.length,
-    granted: NATIVE_SHELL_PERMISSION_ORDER.length - missing.length,
-    missingLabels: missing.map((permission) => nativeShellPermissionLabel(permission)),
-  };
-}
-
-function formatMissingPermissions(labels: string[]) {
-  const visible = labels.slice(0, 2);
-  if (labels.length <= 2) {
-    return visible.join(", ");
-  }
-  return `${visible.join(", ")} +${labels.length - visible.length}`;
 }
 
 function renderPendingApproval(
@@ -218,6 +196,7 @@ export function renderChatSecurityConsole(
         }),
       ].join("\n")
     : undefined;
+  const canOpenNativeSettings = Boolean(props.onOpenNativeSettings && nativeShellSummary);
   const computerStatus =
     props.nativeShellLoading && !nativeShellSummary
       ? {
@@ -237,12 +216,7 @@ export function renderChatSecurityConsole(
                 granted: String(nativeShellSummary.granted),
                 total: String(nativeShellSummary.total),
               }),
-              title:
-                nativeShellSummary.missingLabels.length > 0
-                  ? t("alisio.chat.access.computerNeedsReview", {
-                      value: formatMissingPermissions(nativeShellSummary.missingLabels),
-                    })
-                  : t("alisio.chat.access.computerAllGranted"),
+              title: buildNativeShellAccessTitle(nativeShellSummary),
               tone:
                 nativeShellSummary.missingLabels.length > 0
                   ? ("warn" as const)
@@ -253,6 +227,7 @@ export function renderChatSecurityConsole(
               title: t("alisio.chat.access.computerUnavailable"),
               tone: "muted" as const,
             };
+  const computerStatusAria = `${t("alisio.chat.access.computerTitle")}: ${computerStatus.title}`;
   const selectAccessMode = (event: Event, mode: Exclude<SecurityAccessMode, "custom">) => {
     (event.currentTarget as HTMLElement | null)?.closest("details")?.removeAttribute("open");
     props.onApplyAccessMode?.(mode);
@@ -329,9 +304,12 @@ export function renderChatSecurityConsole(
 
         <button
           type="button"
-          class="alisio-chat__access-pill alisio-chat__access-pill--status alisio-chat__access-pill--${computerStatus.tone}"
+          class="alisio-chat__access-pill alisio-chat__access-pill--status alisio-chat__access-pill--${computerStatus.tone} ${canOpenNativeSettings
+            ? "alisio-chat__access-pill--interactive"
+            : ""}"
           title=${computerStatus.title}
-          ?disabled=${!props.onOpenNativeSettings || !nativeShellSummary}
+          aria-label=${computerStatusAria}
+          ?disabled=${!canOpenNativeSettings}
           @click=${() => props.onOpenNativeSettings?.()}
         >
           <span class="alisio-chat__access-pill-icon">${icons.monitor}</span>

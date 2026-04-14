@@ -50,8 +50,9 @@ import {
   loadCron as loadCronInternal,
   loadOverview as loadOverviewInternal,
   setSettingsSection as setSettingsSectionInternal,
+  setThemeAccent as setThemeAccentInternal,
+  setThemeFamily as setThemeFamilyInternal,
   setTab as setTabInternal,
-  setTheme as setThemeInternal,
   setThemeMode as setThemeModeInternal,
   onPopState as onPopStateInternal,
 } from "./app-settings.ts";
@@ -90,7 +91,7 @@ import type { ModelProviderId } from "./models-view-types.ts";
 import type { ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
-import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
+import type { ResolvedTheme, ThemeAccents, ThemeFamily, ThemeMode } from "./theme.ts";
 import type {
   AgentsListResult,
   AgentsFilesListResult,
@@ -142,9 +143,10 @@ export class AlisioApp extends LitElement {
   @state() tab: Tab = "chat";
   @state() settingsSection: SettingsSection = "general";
   @state() connected = false;
-  @state() theme: ThemeName = this.settings.theme ?? "claw";
+  @state() themeFamily: ThemeFamily = this.settings.themeFamily;
   @state() themeMode: ThemeMode = this.settings.themeMode ?? "system";
-  @state() themeResolved: ResolvedTheme = "dark";
+  @state() themeAccents: ThemeAccents = this.settings.themeAccents;
+  @state() themeResolved: ResolvedTheme = "mood-dark";
   @state() hello: GatewayHelloOk | null = null;
   @state() lastError: string | null = null;
   @state() lastErrorCode: string | null = null;
@@ -890,8 +892,20 @@ export class AlisioApp extends LitElement {
     this.navDrawerOpen = false;
   }
 
-  setTheme(next: ThemeName, context?: Parameters<typeof setThemeInternal>[2]) {
-    setThemeInternal(this as unknown as Parameters<typeof setThemeInternal>[0], next, context);
+  setThemeFamily(next: ThemeFamily, context?: Parameters<typeof setThemeFamilyInternal>[2]) {
+    setThemeFamilyInternal(
+      this as unknown as Parameters<typeof setThemeFamilyInternal>[0],
+      next,
+      context,
+    );
+  }
+
+  setThemeAccent(nextFamily: ThemeFamily, accent: string) {
+    setThemeAccentInternal(
+      this as unknown as Parameters<typeof setThemeAccentInternal>[0],
+      nextFamily,
+      accent,
+    );
   }
 
   setThemeMode(next: ThemeMode, context?: Parameters<typeof setThemeModeInternal>[2]) {

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveDisplayedSetupStep } from "../../ui/src/ui/alisio-setup-state.ts";
 import { syncUrlWithTab } from "../../ui/src/ui/app-settings.ts";
+import { DEFAULT_THEME_SELECTION } from "../../ui/src/ui/theme.ts";
 
 function createRoutingHost(): Parameters<typeof syncUrlWithTab>[0] {
   return {
@@ -11,8 +12,9 @@ function createRoutingHost(): Parameters<typeof syncUrlWithTab>[0] {
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: DEFAULT_THEME_SELECTION.themeMode,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,
@@ -21,9 +23,10 @@ function createRoutingHost(): Parameters<typeof syncUrlWithTab>[0] {
       navWidth: 220,
       navGroupsCollapsed: {},
     },
-    theme: "claw",
-    themeMode: "system",
-    themeResolved: "dark",
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+    themeMode: DEFAULT_THEME_SELECTION.themeMode,
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+    themeResolved: "mood-dark",
     applySessionKey: "main",
     sessionKey: "main",
     basePath: "",
@@ -64,7 +67,9 @@ function createRoutingHost(): Parameters<typeof syncUrlWithTab>[0] {
         },
         preferences: {
           language: "pt-PT",
-          theme: "dark",
+          themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+          themeMode: "dark",
+          themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
         },
         session: {
           state: "signed_in",

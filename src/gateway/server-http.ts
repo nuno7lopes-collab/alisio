@@ -35,6 +35,7 @@ import {
   handleAlisioBootstrapHttpRequest,
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
+  handleControlUiLocalDeviceRequest,
   type ControlUiRootState,
 } from "./control-ui.js";
 import { applyHookMappings } from "./hooks-mapping.js";
@@ -1096,6 +1097,13 @@ export function createGatewayHttpServer(opts: {
                     : {}),
                   env: process.env,
                 }),
+            }),
+        });
+        requestStages.push({
+          name: "control-ui-local-device",
+          run: () =>
+            handleControlUiLocalDeviceRequest(req, res, {
+              basePath: controlUiBasePath,
             }),
         });
         requestStages.push({

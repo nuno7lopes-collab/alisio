@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { handleAlisioOAuthHttpRequest } from "../src/gateway/alisio-oauth-http.js";
 import { makeMockHttpResponse } from "../src/gateway/test-http-response.js";
 import { beginAlisioConnectorSetup } from "../src/infra/alisio-store.js";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../src/shared/alisio-appearance.js";
 import { withTempDir } from "../src/test-helpers/temp-dir.js";
 
 const CONNECTOR_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
@@ -47,7 +48,9 @@ async function createReadyAlisioAccountEnv(
           },
           preferences: {
             language: "pt-PT",
-            theme: "dark",
+            themeFamily: DEFAULT_THEME_FAMILY,
+            themeMode: "dark",
+            themeAccents: DEFAULT_THEME_ACCENTS,
           },
           session: {
             state: "signed_in",

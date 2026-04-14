@@ -13,7 +13,11 @@ import type {
   AlisioProviderOverviewItem,
   AlisioProvidersState,
 } from "../types.ts";
-import { connectorBrandStyle, getConnectorBranding } from "./connector-branding.ts";
+import {
+  getConnectorActionBranding,
+  getConnectorBranding,
+  type ConnectorBranding,
+} from "./connector-branding.ts";
 import { buildConnectorRows, type ConnectorRow } from "./connector-state.ts";
 import {
   renderSkeletonButton,
@@ -101,9 +105,27 @@ function renderConnectorIcon(definition: AlisioConnectorDefinition) {
   const branding = getConnectorBranding(definition.id, definition.providerLabel);
 
   return html`
-    <span class="alisio-auth-card__icon" style=${connectorBrandStyle(branding)}>
+    <span class="alisio-auth-card__icon">
       <img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />
     </span>
+  `;
+}
+
+function renderConnectorStatusBadge(status: AlisioProviderOverviewItem["status"]) {
+  if (status === "connected" || status === "ready") {
+    return nothing;
+  }
+  return html`<span class="pill ${statusClass(status)} alisio-auth-card__status"
+    >${statusLabel(status)}</span
+  >`;
+}
+
+function renderConnectorActionContent(label: string, branding: ConnectorBranding | null) {
+  return html`
+    ${branding
+      ? html`<img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />`
+      : nothing}
+    <span>${label}</span>
   `;
 }
 
@@ -123,6 +145,10 @@ function renderConnectorAction(
   status: ConnectorRow["status"],
   connectLabel?: string,
 ) {
+  const actionBranding =
+    status === "connected"
+      ? null
+      : getConnectorActionBranding(row.definition.id, row.definition.providerLabel);
   if (status === "connected") {
     return html`
       <button class="btn btn--sm danger" @click=${() => props.onRevokeConnector(row.definition.id)}>
@@ -134,7 +160,7 @@ function renderConnectorAction(
     const disabled = props.planBlocksNewConnections === true;
     return html`
       <button
-        class="btn btn--sm primary"
+        class="btn btn--sm alisio-auth-card__connect-btn"
         ?disabled=${disabled}
         title=${disabled ? (props.planLimitMessage ?? "") : ""}
         @click=${() => {
@@ -144,21 +170,27 @@ function renderConnectorAction(
           props.onBeginConnector(row.definition.id);
         }}
       >
-        ${connectLabel ?? row.definition.connectLabel}
+        ${renderConnectorActionContent(connectLabel ?? row.definition.connectLabel, actionBranding)}
       </button>
     `;
   }
   if (status === "needs_reconnect") {
     return html`
-      <button class="btn btn--sm primary" @click=${() => props.onBeginConnector(row.definition.id)}>
-        ${text.reconnect}
+      <button
+        class="btn btn--sm alisio-auth-card__connect-btn"
+        @click=${() => props.onBeginConnector(row.definition.id)}
+      >
+        ${renderConnectorActionContent(text.reconnect, actionBranding)}
       </button>
     `;
   }
   if (status === "setup_required") {
     return html`
-      <button class="btn btn--sm primary" @click=${() => props.onBeginConnector(row.definition.id)}>
-        ${text.reviewSetup}
+      <button
+        class="btn btn--sm alisio-auth-card__connect-btn"
+        @click=${() => props.onBeginConnector(row.definition.id)}
+      >
+        ${renderConnectorActionContent(text.reviewSetup, actionBranding)}
       </button>
     `;
   }
@@ -223,7 +255,7 @@ function renderConnectorCard(
               <div class="list-sub">${summary}</div>
             </div>
           </div>
-          <span class="pill ${statusClass(status)}">${statusLabel(status)}</span>
+          ${renderConnectorStatusBadge(status)}
         </div>
         <div class="chip-row" style="margin-top: 12px;">
           <span class="chip">${row.definition.providerLabel}</span>
@@ -388,8 +420,9 @@ export function renderAuthentications(props: {
   );
   const appOrderByConnectorId = new Map(
     (overview?.apps ?? [])
-      .filter((item): item is AlisioProviderOverviewItem & { connectorId: string } =>
-        typeof item.connectorId === "string" && item.connectorId.trim().length > 0,
+      .filter(
+        (item): item is AlisioProviderOverviewItem & { connectorId: string } =>
+          typeof item.connectorId === "string" && item.connectorId.trim().length > 0,
       )
       .map((item, index) => [item.connectorId, index]),
   );
@@ -410,15 +443,13 @@ export function renderAuthentications(props: {
       const rightOrder = appOrderByConnectorId.get(right.row.definition.id);
       if (leftOrder != null || rightOrder != null) {
         return (
-          (leftOrder ?? Number.MAX_SAFE_INTEGER) -
-            (rightOrder ?? Number.MAX_SAFE_INTEGER) ||
+          (leftOrder ?? Number.MAX_SAFE_INTEGER) - (rightOrder ?? Number.MAX_SAFE_INTEGER) ||
           left.row.definition.title.localeCompare(right.row.definition.title) ||
           left.row.definition.id.localeCompare(right.row.definition.id)
         );
       }
       return (
-        connectorStatusOrder(left.state.status) -
-          connectorStatusOrder(right.state.status) ||
+        connectorStatusOrder(left.state.status) - connectorStatusOrder(right.state.status) ||
         left.row.definition.title.localeCompare(right.row.definition.title) ||
         left.row.definition.id.localeCompare(right.row.definition.id)
       );

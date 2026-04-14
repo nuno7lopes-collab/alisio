@@ -23,9 +23,9 @@ import {
   resolveChannelIdentifier,
   resolveChannelIssues,
   resolveChannelRows,
-  summarizeChannelsSnapshot,
   type ResolvedChannelRow,
 } from "./channel-display.ts";
+import { connectorBrandStyle, getChannelBranding } from "./connector-branding.ts";
 
 type WizardAnswer = {
   stepId: string;
@@ -127,45 +127,81 @@ function resolveLocalizedChannelDescription(row: ResolvedChannelRow): string | n
   return localized !== `alisio.channels.descriptions.${row.id}` ? localized : null;
 }
 
-function resolveLocalizedChannelDetailLabel(row: ResolvedChannelRow): string {
-  const localized = channelText(`detailLabels.${row.id}`);
-  if (localized !== `alisio.channels.detailLabels.${row.id}`) {
-    return localized;
-  }
-  return row.meta.detailLabel;
-}
-
 function resolveChannelIcon(row: ResolvedChannelRow) {
   switch (row.id) {
     case "telegram":
-      return icons.paperPlane;
+      return icons.telegramBrand;
     case "discord":
-      return icons.chatBubbles;
+      return icons.discordBrand;
     case "whatsapp":
-      return icons.messageSquare;
+      return icons.whatsappBrand;
     default:
       return icons.link;
   }
 }
 
 function renderChannelIcon(row: ResolvedChannelRow) {
-  return html`<span class="channel-card__icon" aria-hidden="true"
+  const branding = getChannelBranding(row.id);
+  if (branding) {
+    return html`<span
+      class="channel-card__icon channel-card__icon--brand channel-card__icon--${row.id}"
+      style=${connectorBrandStyle(branding)}
+      aria-hidden="true"
+    >
+      <img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />
+    </span>`;
+  }
+  return html`<span class="channel-card__icon channel-card__icon--${row.id}" aria-hidden="true"
     >${resolveChannelIcon(row)}</span
   >`;
 }
 
-function renderSummaryTimestamp(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-  const [date, time] = value.split(",");
-  if (!time) {
-    return value;
+function renderMetaLine(items: Array<string | null | undefined>, className = "channel-meta-line") {
+  const visibleItems = [...new Set(items.map((item) => item?.trim()).filter(Boolean))];
+  if (visibleItems.length === 0) {
+    return nothing;
   }
   return html`
-    <span class="channel-summary-card__date">${date.trim()}</span>
-    <span class="channel-summary-card__time">${time.trim()}</span>
+    <div class=${className}>
+      ${visibleItems.map(
+        (item, index) => html`
+          ${index > 0
+            ? html`<span class="channel-meta-line__separator" aria-hidden="true"></span>`
+            : nothing}
+          <span class="channel-meta-line__item">${item}</span>
+        `,
+      )}
+    </div>
   `;
+}
+
+function resolveAccountTitle(row: ResolvedChannelRow, account: ChannelAccountSnapshot) {
+  const identifier = resolveAccountIdentifier(row, account);
+  const accountLabel =
+    account.name?.trim() ||
+    (account.accountId.trim() === "default" ? channelText("noAccount") : account.accountId.trim());
+  if (row.accounts.length === 1 && identifier) {
+    return {
+      title: identifier,
+      metaItems: [
+        accountLabel !== channelText("noAccount") && accountLabel !== identifier
+          ? accountLabel
+          : null,
+      ],
+    };
+  }
+  return {
+    title: accountLabel,
+    metaItems: [identifier],
+  };
+}
+
+function shouldRenderAccountStatus(
+  row: ResolvedChannelRow,
+  channelStatus: ChannelVisualStatus,
+  accountStatus: ChannelVisualStatus,
+) {
+  return row.accounts.length > 1 || channelStatus.key !== accountStatus.key;
 }
 
 function resolveVisualStatus(flags: ReturnType<typeof resolveChannelFlags>): ChannelVisualStatus {
@@ -838,9 +874,9 @@ function renderAccountBlock(
   row: ResolvedChannelRow,
   account: ChannelAccountSnapshot,
   props: ChannelsProps,
+  channelStatus: ChannelVisualStatus,
 ) {
   const status = resolveAccountStatus(row, account);
-  const identifier = resolveAccountIdentifier(row, account);
   const lastActivity = formatLastActivity(account);
   const flags = resolveAccountFlags(row, account);
   const issues = resolveChannelIssues(row, account.accountId).filter(
@@ -849,26 +885,23 @@ function renderAccountBlock(
   const whatsappLinkState = resolveWhatsAppLinkState(row, account, props);
   const canLogout =
     flags.logoutAvailable && (flags.linked || flags.connected) && Boolean(account.accountId);
-  const accountLabel =
-    account.name?.trim() ||
-    (account.accountId.trim() === "default" ? channelText("noAccount") : account.accountId.trim());
   const dmOnboardingCopy = resolveTelegramDmOnboardingCopy(account, flags);
+  const accountHeading = resolveAccountTitle(row, account);
+  const accountMeta = [
+    ...accountHeading.metaItems,
+    lastActivity ? `${channelText("lastActivity")}: ${lastActivity}` : null,
+  ];
 
   return html`
     <section class="channel-account">
       <div class="channel-account__head">
         <div class="channel-account__title-wrap">
-          <div class="channel-account__eyebrow">${channelText("channelAccount")}</div>
-          <div class="channel-account__title">${accountLabel}</div>
+          <div class="channel-account__title">${accountHeading.title}</div>
+          ${renderMetaLine(accountMeta, "channel-meta-line channel-account__meta")}
         </div>
-        <span class=${status.className}>${status.label}</span>
-      </div>
-
-      <div class="chip-row">
-        ${identifier ? html`<span class="chip">${identifier}</span>` : nothing}
-        ${lastActivity
-          ? html`<span class="chip">${channelText("lastActivity")}: ${lastActivity}</span>`
-          : html`<span class="chip">${channelText("activityNone")}</span>`}
+        ${shouldRenderAccountStatus(row, channelStatus, status)
+          ? html`<span class=${status.className}>${status.label}</span>`
+          : nothing}
       </div>
 
       ${dmOnboardingCopy
@@ -919,46 +952,41 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
   const docsUrl = buildChannelDocsUrl(row.meta.docsPath);
   const setupAction = resolveSetupAction(row, props);
   const flags = resolveChannelFlags(row);
-  const identifier = resolveChannelIdentifier(row);
-  const lastActivity = formatChannelLastActivity(row);
   const requirements = resolveChannelRequirements(row);
   const description =
     resolveLocalizedChannelDescription(row) ??
     row.meta.blurb?.trim() ??
     row.meta.detailLabel ??
     channelText("noDetails");
-  const detailLabel = resolveLocalizedChannelDetailLabel(row);
-  const eyebrow =
-    detailLabel.trim().toLowerCase() === row.meta.label.trim().toLowerCase() ? null : detailLabel;
   const showCompactRequirements =
     requirements && props.setupChannelId !== row.id && (!flags.connected || row.issues.length > 0);
+  const emptyMetaLine =
+    row.accounts.length === 0
+      ? [
+          resolveChannelIdentifier(row),
+          formatChannelLastActivity(row)
+            ? `${channelText("lastActivity")}: ${formatChannelLastActivity(row)}`
+            : null,
+        ]
+      : [];
 
   return html`
-    <article class="card channel-card">
+    <article class="card channel-card channel-card--${row.id}">
       <div class="channel-card__header">
         <div class="channel-card__identity">
           ${renderChannelIcon(row)}
           <div class="channel-card__title-wrap">
-            ${eyebrow ? html`<div class="channel-card__eyebrow">${eyebrow}</div>` : nothing}
             <div class="card-title">${row.meta.label}</div>
           </div>
         </div>
         <span class=${status.className}>${status.label}</span>
       </div>
       <div class="card-sub channel-card__description">${description}</div>
-      ${(identifier || lastActivity) &&
-      html`
-        <div class="chip-row channel-card__summary">
-          ${identifier ? html`<span class="chip">${identifier}</span>` : nothing}
-          ${lastActivity
-            ? html`<span class="chip">${channelText("lastActivity")}: ${lastActivity}</span>`
-            : nothing}
-        </div>
-      `}
+      ${renderMetaLine(emptyMetaLine, "channel-meta-line channel-card__meta")}
       ${showCompactRequirements ? renderChannelSteps(requirements, { compact: true }) : nothing}
 
       <div class="channel-card__accounts">
-        ${row.accounts.map((account) => renderAccountBlock(row, account, props))}
+        ${row.accounts.map((account) => renderAccountBlock(row, account, props, status))}
       </div>
 
       <div class="row channel-card__footer">
@@ -992,66 +1020,41 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
 
 export function renderChannels(props: ChannelsProps) {
   const rows = resolveChannelRows(props.snapshot);
-  const summary = summarizeChannelsSnapshot(props.snapshot);
   const lastChecked = formatTimestamp(props.lastSuccess ?? props.snapshot?.ts ?? null);
   const hasVisibleWhatsAppQr = Boolean(props.loginQrDataUrl);
   const shouldShowActionMessage = Boolean(props.actionMessage) && !hasVisibleWhatsAppQr;
 
   return html`
     <section class="alisio-page">
-      <section class="card channel-hero">
-        <div class="alisio-page__eyebrow">${channelText("eyebrow")}</div>
-        <div class="row channel-hero__top">
-          <div>
-            <div class="card-title">${channelText("title")}</div>
-            <div class="card-sub">${channelText("subtitle")}</div>
-          </div>
-          <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? channelText("refreshing") : channelText("refresh")}
-          </button>
+      <section class="channel-toolbar">
+        <div class="channel-toolbar__meta">
+          ${lastChecked
+            ? html`
+                <div class="channel-toolbar__timestamp">
+                  ${channelText("lastChecked")}: ${lastChecked}
+                </div>
+              `
+            : nothing}
         </div>
-
-        <div class="channel-summary-grid">
-          <article class="channel-summary-card">
-            <div class="channel-summary-card__value">${summary.totalChannels}</div>
-            <div class="channel-summary-card__label">${channelText("availableChannels")}</div>
-          </article>
-          <article class="channel-summary-card">
-            <div class="channel-summary-card__value">${summary.connectedChannels}</div>
-            <div class="channel-summary-card__label">${channelText("connectedChannels")}</div>
-          </article>
-          <article class="channel-summary-card">
-            <div class="channel-summary-card__value">${summary.attentionChannels}</div>
-            <div class="channel-summary-card__label">${channelText("attentionChannels")}</div>
-          </article>
-          <article class="channel-summary-card">
-            <div class="channel-summary-card__value channel-summary-card__value--timestamp">
-              ${renderSummaryTimestamp(lastChecked)}
-            </div>
-            <div class="channel-summary-card__label">${channelText("lastChecked")}</div>
-          </article>
-        </div>
-
-        ${shouldShowActionMessage || props.error
-          ? html`
-              <div class="channel-feedback-stack">
-                ${shouldShowActionMessage
-                  ? html`
-                      <div class="channel-feedback channel-feedback--ok">
-                        ${props.actionMessage}
-                      </div>
-                    `
-                  : nothing}
-                ${props.error
-                  ? html`
-                      <div class="channel-feedback channel-feedback--danger">${props.error}</div>
-                    `
-                  : nothing}
-              </div>
-            `
-          : nothing}
+        <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
+          ${props.loading ? channelText("refreshing") : channelText("refresh")}
+        </button>
       </section>
 
+      ${shouldShowActionMessage || props.error
+        ? html`
+            <div class="channel-feedback-stack">
+              ${shouldShowActionMessage
+                ? html`
+                    <div class="channel-feedback channel-feedback--ok">${props.actionMessage}</div>
+                  `
+                : nothing}
+              ${props.error
+                ? html`<div class="channel-feedback channel-feedback--danger">${props.error}</div>`
+                : nothing}
+            </div>
+          `
+        : nothing}
       ${!props.connected
         ? html`
             <section class="card">
@@ -1071,7 +1074,6 @@ export function renderChannels(props: ChannelsProps) {
               <div class="card-sub">${channelText("empty")}</div>
             </section>
           `}
-
     </section>
   `;
 }

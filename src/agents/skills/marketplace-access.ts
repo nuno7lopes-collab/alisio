@@ -124,20 +124,9 @@ function evaluatePlanRequirement(params: {
     ];
   }
 
-  if (plan === "free") {
-    return [];
-  }
-
-  if (params.currentPlan === "plus") {
-    return [];
-  }
-
-  return [
-    {
-      code: "subscription_plan_required",
-      message: `this skill requires Alisio ${plan}.`,
-    },
-  ];
+  void params.currentPlan;
+  // Plan ids remain valid metadata, but access is temporarily identical on Free and Plus.
+  return [];
 }
 
 export function evaluateSkillMarketplaceAccess(params: {

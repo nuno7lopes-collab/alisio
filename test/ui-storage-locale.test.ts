@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStorageMock } from "../ui/src/test-helpers/storage.ts";
+import { DEFAULT_THEME_SELECTION } from "../ui/src/ui/theme.ts";
 
 function setTestLocation(params: { protocol: string; host: string; pathname: string }) {
   vi.stubGlobal("location", {
@@ -43,8 +44,9 @@ describe("ui settings locale hydration", () => {
       `alisio.control.settings.v2:${gwUrl}`,
       JSON.stringify({
         gatewayUrl: gwUrl,
-        theme: "claw",
-        themeMode: "system",
+        themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+        themeMode: DEFAULT_THEME_SELECTION.themeMode,
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
         chatFocusMode: false,
         chatShowThinking: true,
         chatShowToolCalls: true,

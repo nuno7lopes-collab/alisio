@@ -16,6 +16,7 @@ import {
   type ModelsOperationIntent,
   type ModelsOperationMap,
 } from "../models-view-types.ts";
+import type { ThemeAccents, ThemeFamily, ThemeMode } from "../theme.ts";
 import type {
   AlisioAccountState,
   AlisioAiState,
@@ -1194,7 +1195,9 @@ export async function saveAlisioAccount(
     marketingOptIn?: boolean;
     birthdate?: string;
     language?: "en" | "pt-PT" | "es";
-    theme?: "system" | "light" | "dark";
+    themeFamily?: ThemeFamily;
+    themeMode?: ThemeMode;
+    themeAccents?: ThemeAccents;
   },
 ) {
   if (!state.client || !state.connected) {
@@ -1223,7 +1226,9 @@ export async function saveAlisioAccount(
       ...("marketingOptIn" in patch ? { marketingOptIn: patch.marketingOptIn === true } : {}),
       ...(typeof patch.birthdate === "string" ? { birthdate: patch.birthdate } : {}),
       ...(patch.language ? { language: patch.language } : {}),
-      ...(patch.theme ? { theme: patch.theme } : {}),
+      ...(patch.themeFamily ? { themeFamily: patch.themeFamily } : {}),
+      ...(patch.themeMode ? { themeMode: patch.themeMode } : {}),
+      ...(patch.themeAccents ? { themeAccents: patch.themeAccents } : {}),
     });
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
       return;

@@ -429,6 +429,147 @@ describe("authentications view", () => {
     expect(onBeginConnector).toHaveBeenCalledWith("github");
   });
 
+  it("uses provider logos inside connect buttons and hides ready status pills", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 0,
+            ready: 1,
+            attention: 0,
+            total: 1,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [],
+            authorizations: [],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:gmail-send",
+              title: "Gmail Send",
+              subtitle: "Send outbound email drafts.",
+              status: "ready",
+              authSource: "connector",
+              connectorId: "gmail-send",
+              connectLabel: "Connect with Google",
+              chips: ["Google"],
+              usageWindows: [],
+              current: false,
+              active: false,
+            },
+          ],
+        },
+        connectorCatalog: [
+          {
+            id: "gmail-send",
+            title: "Gmail Send",
+            providerLabel: "Google",
+            category: "google",
+            connectLabel: "Connect with Google",
+            summary: "Send outbound email drafts.",
+            availability: "ready",
+            scopes: ["https://www.googleapis.com/auth/gmail.send"],
+          },
+        ],
+        connectorAuthorizations: [],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+        onOpenConnections: vi.fn(),
+      }),
+      container,
+    );
+
+    const availableSection = container.querySelector('[data-section="available"]');
+    const connectButton = availableSection?.querySelector<HTMLButtonElement>(
+      ".alisio-auth-card__connect-btn",
+    );
+
+    expect(availableSection?.querySelector(".pill--ready")).toBeNull();
+    expect(connectButton?.textContent).toContain("Connect with Google");
+    expect(connectButton?.querySelector('img[src="brand-icons/google.svg"]')).not.toBeNull();
+  });
+
+  it("keeps coming soon badges visible when an app is not ready yet", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 0,
+            ready: 0,
+            attention: 0,
+            total: 1,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [],
+            authorizations: [],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:instagram",
+              title: "Instagram",
+              subtitle: "Professional Instagram account access.",
+              status: "coming_soon",
+              authSource: "connector",
+              connectorId: "instagram",
+              connectLabel: "Connect with Instagram",
+              chips: ["Meta"],
+              usageWindows: [],
+              current: false,
+              active: false,
+            },
+          ],
+        },
+        connectorCatalog: [
+          {
+            id: "instagram",
+            title: "Instagram",
+            providerLabel: "Meta",
+            category: "social",
+            connectLabel: "Connect with Instagram",
+            summary: "Professional Instagram account access.",
+            availability: "in_review",
+            scopes: ["instagram_basic"],
+          },
+        ],
+        connectorAuthorizations: [],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+        onOpenConnections: vi.fn(),
+      }),
+      container,
+    );
+
+    const availableSection = container.querySelector('[data-section="available"]');
+    expect(availableSection?.textContent).toContain("Coming soon");
+    expect(availableSection?.querySelector(".alisio-auth-card__connect-btn")).toBeNull();
+  });
+
   it("renders loading skeletons while the provider overview is still loading", () => {
     const container = document.createElement("div");
 

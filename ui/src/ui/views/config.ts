@@ -1,7 +1,7 @@
 import { html, nothing } from "lit";
 import { icons } from "../icons.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
-import type { ThemeMode, ThemeName } from "../theme.ts";
+import type { ThemeAccents, ThemeFamily, ThemeMode } from "../theme.ts";
 import type { ConfigUiHints } from "../types.ts";
 import { renderAppearanceControls } from "./appearance.ts";
 import {
@@ -47,9 +47,11 @@ export type ConfigProps = {
   onUpdate: () => void;
   onOpenFile?: () => void;
   version: string;
-  theme: ThemeName;
+  themeFamily: ThemeFamily;
   themeMode: ThemeMode;
-  setTheme: (theme: ThemeName, context?: ThemeTransitionContext) => void;
+  themeAccents: ThemeAccents;
+  setThemeFamily: (themeFamily: ThemeFamily, context?: ThemeTransitionContext) => void;
+  setThemeAccent: (themeFamily: ThemeFamily, accent: string) => void;
   setThemeMode: (mode: ThemeMode, context?: ThemeTransitionContext) => void;
   gatewayUrl: string;
   assistantName: string;
@@ -555,9 +557,11 @@ function renderAppearanceSection(props: ConfigProps) {
   return html`
     <div class="settings-appearance">
       ${renderAppearanceControls({
-        theme: props.theme,
+        themeFamily: props.themeFamily,
         themeMode: props.themeMode,
-        onThemeChange: props.setTheme,
+        themeAccents: props.themeAccents,
+        onThemeFamilyChange: props.setThemeFamily,
+        onThemeAccentChange: props.setThemeAccent,
         onThemeModeChange: props.setThemeMode,
       })}
 

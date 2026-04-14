@@ -1,5 +1,7 @@
 export const CONTROL_UI_BOOTSTRAP_CONFIG_PATH = "/__alisio/control-ui-config.json";
 export const ALISIO_BOOTSTRAP_HTTP_PATH = "/__alisio/bootstrap";
+export const CONTROL_UI_DEVICE_IDENTITY_PATH = "/__alisio/device-identity";
+export const CONTROL_UI_DEVICE_SIGN_PATH = "/__alisio/device-sign";
 
 export type ControlUiBootstrapConfig = {
   basePath: string;
@@ -40,4 +42,17 @@ export type AlisioHttpBootstrap = {
   accountCloud: AlisioHttpBootstrapAccountCloud;
   ai: AlisioHttpBootstrapAi;
   bootstrapToken?: string;
+};
+
+export type ControlUiLocalDeviceIdentity = {
+  deviceId: string;
+  publicKey: string;
+};
+
+export type ControlUiLocalDeviceSignRequest = {
+  payload: string;
+};
+
+export type ControlUiLocalDeviceSignResponse = {
+  signature: string;
 };

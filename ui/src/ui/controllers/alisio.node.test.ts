@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_THEME_ACCENTS,
+  DEFAULT_THEME_FAMILY,
+  type AlisioThemeMode,
+} from "../../../../src/shared/alisio-appearance.js";
+import {
   beginAlisioAccountEmailAuth,
   beginAlisioAccountGoogleAuth,
   changeAlisioAccountEmail,
@@ -40,6 +45,15 @@ function deferred<T>() {
 
 function createClient(request: ReturnType<typeof vi.fn>) {
   return { request } as unknown as AlisioState["client"];
+}
+
+function createThemePreferences(language: "en" | "pt-PT" | "es", themeMode: AlisioThemeMode) {
+  return {
+    language,
+    themeFamily: DEFAULT_THEME_FAMILY,
+    themeMode,
+    themeAccents: DEFAULT_THEME_ACCENTS,
+  };
 }
 
 function createState(overrides: Partial<AlisioState> = {}): AlisioState {
@@ -118,8 +132,7 @@ function createBootstrapSnapshot(
         email: "",
       },
       preferences: {
-        language: "en",
-        theme: "system",
+        ...createThemePreferences("en", "system"),
       },
       session: {
         state: "signed_out",
@@ -339,8 +352,7 @@ describe("alisio controller reconnect safety", () => {
           plan: "free",
         },
         preferences: {
-          language: "pt-PT",
-          theme: "dark",
+          ...createThemePreferences("pt-PT", "dark"),
         },
         session: {
           state: "signed_in",
@@ -377,8 +389,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -537,8 +548,7 @@ describe("alisio controller reconnect safety", () => {
             email: "signed-out@example.com",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_out",
@@ -678,8 +688,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -702,8 +711,7 @@ describe("alisio controller reconnect safety", () => {
           plan: "free",
         },
         preferences: {
-          language: "en",
-          theme: "system",
+          ...createThemePreferences("en", "system"),
         },
         session: {
           state: "signed_in",
@@ -730,8 +738,7 @@ describe("alisio controller reconnect safety", () => {
               plan: "free",
             },
             preferences: {
-              language: "en",
-              theme: "system",
+              ...createThemePreferences("en", "system"),
             },
             session: {
               state: "signed_in",
@@ -753,8 +760,7 @@ describe("alisio controller reconnect safety", () => {
                 plan: "free",
               },
               preferences: {
-                language: "en",
-                theme: "system",
+                ...createThemePreferences("en", "system"),
               },
               session: {
                 state: "signed_in",
@@ -799,8 +805,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -839,8 +844,7 @@ describe("alisio controller reconnect safety", () => {
           plan: "free",
         },
         preferences: {
-          language: "pt-PT",
-          theme: "dark",
+          ...createThemePreferences("pt-PT", "dark"),
         },
         session: {
           state: "signed_in",
@@ -936,8 +940,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -997,8 +1000,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -1085,8 +1087,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_out",
@@ -1131,8 +1132,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_out",
@@ -1181,8 +1181,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -1247,8 +1246,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -1306,8 +1304,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_in",
@@ -1365,8 +1362,7 @@ describe("alisio controller reconnect safety", () => {
             plan: "free",
           },
           preferences: {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           session: {
             state: "signed_out",

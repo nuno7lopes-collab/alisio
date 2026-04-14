@@ -21,7 +21,7 @@ import type { ModelProviderId, ModelsOperationMap } from "./models-view-types.ts
 import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
-import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
+import type { ResolvedTheme, ThemeAccents, ThemeFamily, ThemeMode } from "./theme.ts";
 import type { ProviderUsageSummary } from "./types.ts";
 import type {
   AlisioAccountState,
@@ -60,8 +60,9 @@ export type AppViewState = {
   settingsSection: SettingsSection;
   basePath: string;
   connected: boolean;
-  theme: ThemeName;
+  themeFamily: ThemeFamily;
   themeMode: ThemeMode;
+  themeAccents: ThemeAccents;
   themeResolved: ResolvedTheme;
   hello: GatewayHelloOk | null;
   lastError: string | null;
@@ -448,7 +449,8 @@ export type AppViewState = {
     connect: () => void;
     setTab: (tab: Tab) => void;
     setSettingsSection: (section: SettingsSection) => void;
-    setTheme: (theme: ThemeName, context?: ThemeTransitionContext) => void;
+    setThemeFamily: (themeFamily: ThemeFamily, context?: ThemeTransitionContext) => void;
+    setThemeAccent: (themeFamily: ThemeFamily, accent: string) => void;
     setThemeMode: (mode: ThemeMode, context?: ThemeTransitionContext) => void;
     applySettings: (next: UiSettings) => void;
     loadOverview: () => Promise<void>;

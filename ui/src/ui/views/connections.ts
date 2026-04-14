@@ -1,11 +1,15 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
-import { groupPairedDevicesByComputer } from "../controllers/devices.ts";
 import { icons } from "../icons.ts";
+import {
+  countAccountComputers,
+  countOnlineComputers,
+  countPendingComputerAccess,
+  renderComputersPanel,
+} from "./connections-computers.ts";
 import { renderSkeletonLines } from "./loading-skeleton.ts";
-import { countConnectedNodes, countReadyExecNodes } from "./nodes-shared.ts";
+import { countReadyExecNodes } from "./nodes-shared.ts";
 import { renderNodes, type NodesProps } from "./nodes.ts";
-import { renderRemoteComputers } from "./remote-computers.ts";
 import {
   expandSharingScopeSelection,
   SHARING_POLICY_MODE_ORDER,
@@ -18,25 +22,10 @@ import {
 
 type SharingListTarget = NonNullable<NodesProps["sharing"]>["devices"]["available"][number];
 
-function countPendingDevices(props: NodesProps) {
-  return props.devicesList?.pending?.length ?? 0;
-}
-
-function countPairedDevices(props: NodesProps) {
-  return groupPairedDevicesByComputer(
-    props.devicesList?.paired ?? [],
-    props.currentDeviceId ?? null,
-  ).length;
-}
-
-function countPendingNodeRequests(props: NodesProps) {
-  return props.nodePairingsList?.pending?.length ?? 0;
-}
-
 function renderOverviewCard(params: {
   label: string;
   value: number | string;
-  detail: string;
+  detail?: string | null;
   icon: unknown;
 }) {
   return html`
@@ -44,7 +33,9 @@ function renderOverviewCard(params: {
       <span class="alisio-connections-overview-card__icon" aria-hidden="true">${params.icon}</span>
       <span class="alisio-connections-overview-card__label">${params.label}</span>
       <strong>${params.value}</strong>
-      <div class="alisio-connections-overview-card__detail">${params.detail}</div>
+      ${params.detail
+        ? html`<div class="alisio-connections-overview-card__detail">${params.detail}</div>`
+        : nothing}
     </article>
   `;
 }
@@ -66,15 +57,6 @@ function renderOverviewSkeletonCard(icon: unknown) {
 
 function renderPanelCount(value: number) {
   return html`<span class="alisio-connections-subsection__count">${value}</span>`;
-}
-
-function renderHeroMetaItem(label: string, value: number) {
-  return html`
-    <span class="alisio-connections-meta-chip">
-      <strong>${value}</strong>
-      <span>${label}</span>
-    </span>
-  `;
 }
 
 function resolveSharingScopeLabel(scope: string) {
@@ -748,14 +730,10 @@ function renderSharing(props: NodesProps) {
 }
 
 export function renderConnections(props: NodesProps) {
-  const pendingDevices = countPendingDevices(props);
-  const pairedDevices = countPairedDevices(props);
-  const connectedNodes = countConnectedNodes(props.nodes);
+  const accountComputers = countAccountComputers(props);
+  const pendingAccess = countPendingComputerAccess(props);
+  const onlineComputers = countOnlineComputers(props);
   const execReadyNodes = countReadyExecNodes(props.nodes);
-  const pendingNodes = countPendingNodeRequests(props);
-  const sharingAvailableCount = props.sharing?.devices.available?.length ?? 0;
-  const sharingSharedCount = props.sharing?.devices.sharedWithMe?.length ?? 0;
-  const sharingIncomingCount = props.sharing?.incomingRequests?.length ?? 0;
   const refreshing =
     props.nodesLoading ||
     props.devicesLoading ||
@@ -771,28 +749,22 @@ export function renderConnections(props: NodesProps) {
     (!props.nodesLoaded && Boolean(props.nodesError)) ||
     (!props.nodePairingsList && Boolean(props.nodePairingsError));
   const text = {
-    eyebrow: t("alisio.connections.eyebrow"),
     title: t("alisio.connections.title"),
-    subtitle: t("alisio.connections.subtitle"),
     refreshing: t("alisio.connections.refreshing"),
     refreshAll: t("alisio.connections.refreshAll"),
-    devicesTitle: t("alisio.connections.devices.title"),
-    runtimeTitle: t("alisio.connections.runtimeTitle"),
-    pendingDevices: t("alisio.connections.pendingDevices"),
-    pairedDevices: t("alisio.connections.pairedDevices"),
-    liveNodes: t("alisio.connections.liveNodes"),
+    accountComputers: t("alisio.connections.accountComputers"),
+    onlineComputers: t("alisio.connections.onlineComputers"),
+    pendingAccess: t("alisio.connections.pendingAccess"),
     execReady: t("alisio.connections.nodes.execReady"),
-    pendingNodes: t("alisio.connections.pendingNodes"),
     na: t("common.na"),
+    advanced: t("alisio.connections.advanced"),
   };
   return html`
     <section class="alisio-page alisio-connections-page">
       <div class="card alisio-connections-hero" aria-busy=${refreshing ? "true" : "false"}>
-        <div class="alisio-page__eyebrow">${text.eyebrow}</div>
         <div class="alisio-connections-hero__head">
           <div>
             <div class="card-title">${text.title}</div>
-            <div class="card-sub">${text.subtitle}</div>
           </div>
           <button class="btn" ?disabled=${refreshing} @click=${props.onRefresh}>
             ${refreshing ? text.refreshing : text.refreshAll}
@@ -802,25 +774,22 @@ export function renderConnections(props: NodesProps) {
           ${devicesInitialLoading
             ? renderOverviewSkeletonCard(icons.smartphone)
             : renderOverviewCard({
-                label: text.pairedDevices,
-                value: devicesUnavailable ? text.na : pairedDevices,
-                detail: text.devicesTitle,
+                label: text.accountComputers,
+                value: devicesUnavailable ? text.na : accountComputers,
                 icon: icons.smartphone,
               })}
           ${devicesInitialLoading
             ? renderOverviewSkeletonCard(icons.radio)
             : renderOverviewCard({
-                label: text.pendingDevices,
-                value: devicesUnavailable ? text.na : pendingDevices,
-                detail: text.devicesTitle,
+                label: text.pendingAccess,
+                value: devicesUnavailable ? text.na : pendingAccess,
                 icon: icons.radio,
               })}
           ${runtimeInitialLoading
             ? renderOverviewSkeletonCard(icons.monitor)
             : renderOverviewCard({
-                label: text.liveNodes,
-                value: runtimeUnavailable ? text.na : connectedNodes,
-                detail: text.runtimeTitle,
+                label: text.onlineComputers,
+                value: runtimeUnavailable ? text.na : onlineComputers,
                 icon: icons.monitor,
               })}
           ${runtimeInitialLoading
@@ -828,36 +797,35 @@ export function renderConnections(props: NodesProps) {
             : renderOverviewCard({
                 label: text.execReady,
                 value: runtimeUnavailable ? text.na : execReadyNodes,
-                detail:
-                  runtimeUnavailable || pendingNodes === 0
-                    ? text.runtimeTitle
-                    : `${pendingNodes} ${text.pendingNodes}`,
                 icon: icons.zap,
               })}
         </div>
-        ${props.sharing &&
-        (sharingAvailableCount > 0 || sharingSharedCount > 0 || sharingIncomingCount > 0)
-          ? html`
-              <div class="alisio-connections-meta-strip">
-                ${renderHeroMetaItem(
-                  t("alisio.connections.sharing.availableTitle"),
-                  sharingAvailableCount,
-                )}
-                ${renderHeroMetaItem(
-                  t("alisio.connections.sharing.sharedTitle"),
-                  sharingSharedCount,
-                )}
-                ${renderHeroMetaItem(
-                  t("alisio.connections.sharing.incomingTitle"),
-                  sharingIncomingCount,
-                )}
-              </div>
-            `
-          : nothing}
       </div>
       <div class="alisio-connections-stack">
-        ${renderRemoteComputers(props)} ${renderSharing(props)}
-        ${renderNodes(props, { includeExecApprovals: false })}
+        ${renderComputersPanel(props)}
+        ${(props.sharing?.devices.available?.length ?? 0) > 0 ||
+        (props.sharing?.devices.sharedWithMe?.length ?? 0) > 0 ||
+        (props.sharing?.incomingRequests?.length ?? 0) > 0 ||
+        (props.sharing?.suggestions?.length ?? 0) > 0 ||
+        props.sharing?.policy.resourcesEditable
+          ? html`
+              <details class="card alisio-connections-panel alisio-connections-panel--sharing">
+                <summary class="alisio-connections-panel__head">
+                  <div class="alisio-connections-panel__identity">
+                    <span class="alisio-connections-panel__icon" aria-hidden="true"
+                      >${icons.link}</span
+                    >
+                    <div>
+                      <div class="card-title">${text.advanced}</div>
+                      <div class="card-sub">${t("alisio.connections.sharing.subtitle")}</div>
+                    </div>
+                  </div>
+                </summary>
+                ${renderSharing(props)}
+              </details>
+            `
+          : nothing}
+        ${renderNodes(props, { includeExecApprovals: false, showDevices: false })}
       </div>
     </section>
   `;

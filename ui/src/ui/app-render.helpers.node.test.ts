@@ -5,6 +5,7 @@ import {
   resolveAlisioOpenAiCallbackUrl,
   resolveSessionDisplayName,
 } from "./app-render.helpers.ts";
+import { DEFAULT_THEME_SELECTION } from "./theme.ts";
 import type { SessionsListResult } from "./types.ts";
 
 type SessionRow = SessionsListResult["sessions"][number];
@@ -69,8 +70,9 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
             token: "",
             sessionKey: "main",
             lastActiveSessionKey: "main",
-            theme: "claw",
-            themeMode: "system",
+            themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+            themeMode: DEFAULT_THEME_SELECTION.themeMode,
+            themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
             chatFocusMode: false,
             chatShowThinking: true,
             chatShowToolCalls: true,

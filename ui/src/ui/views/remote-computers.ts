@@ -11,9 +11,7 @@ import { icons } from "../icons.ts";
 import { renderSkeletonListItem, renderSkeletonPill } from "./loading-skeleton.ts";
 import type { NodesProps } from "./nodes.ts";
 
-function resolveAccessLabel(
-  access: RemoteComputerRecord["deviceAccess"]  ,
-) {
+function resolveAccessLabel(access: RemoteComputerRecord["deviceAccess"]) {
   switch (access) {
     case "owner":
     case "shared":
@@ -140,9 +138,9 @@ function renderTask(task: RemoteComputerTaskRecord) {
         <div class="alisio-connections-entry__pills">
           <span class=${badge.className}>${badge.label}</span>
           ${task.timedOut
-            ? html`<span class="pill pill--unavailable">${t(
-                "alisio.connections.remote.timedOut",
-              )}</span>`
+            ? html`<span class="pill pill--unavailable"
+                >${t("alisio.connections.remote.timedOut")}</span
+              >`
             : nothing}
           ${exitLabel ? html`<span class="pill pill--in-review">${exitLabel}</span>` : nothing}
         </div>
@@ -257,7 +255,9 @@ function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
           ?disabled=${busy}
           @click=${() => props.onRemoteComputerRun?.(computer.id, computer.nodeId!)}
         >
-          ${busy ? t("alisio.connections.remote.runningAction") : t("alisio.connections.remote.run")}
+          ${busy
+            ? t("alisio.connections.remote.runningAction")
+            : t("alisio.connections.remote.run")}
         </button>
       </div>
       ${tasks.length > 0
@@ -274,7 +274,11 @@ function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
   `;
 }
 
-function renderComputer(computer: RemoteComputerRecord, props: NodesProps) {
+export function renderRemoteComputerCard(
+  computer: RemoteComputerRecord,
+  props: NodesProps,
+  opts?: { compact?: boolean },
+) {
   const badge = resolveComputerPhaseBadge(computer);
   const summaryParts = [
     `${t("alisio.connections.sharing.models")}: ${resolveAccessLabel(computer.modelAccess)}`,
@@ -282,6 +286,68 @@ function renderComputer(computer: RemoteComputerRecord, props: NodesProps) {
     computer.trusted ? t("alisio.connections.remote.trusted") : null,
     computer.pairingPending ? t("alisio.connections.remote.pairingPending") : null,
   ].filter((value): value is string => Boolean(value));
+  const compact = opts?.compact === true;
+  const showActions =
+    (props.onSharingRequest && computer.execAccess === "requestable") ||
+    (props.onSharingRevoke && computer.grantId && computer.execAccess === "shared");
+
+  if (compact) {
+    return html`
+      <details
+        class="list-item alisio-connections-entry alisio-remote-computers__card alisio-connections-entry--collapsible"
+      >
+        <summary class="alisio-connections-entry__summary">
+          <div class="list-main">
+            <div class="alisio-connections-entry__head">
+              <div class="alisio-connections-entry__stack">
+                <div class="list-title">${computer.label}</div>
+                <div class="alisio-connections-entry__note">
+                  ${[
+                    computer.platform,
+                    computer.sameAccount
+                      ? t("alisio.connections.sharing.sameAccount")
+                      : computer.ownerLabel,
+                    computer.connected
+                      ? t("alisio.connections.remote.connected")
+                      : t("alisio.connections.remote.disconnected"),
+                  ]
+                    .filter((value): value is string => Boolean(value?.trim?.() ?? value))
+                    .join(" · ")}
+                </div>
+              </div>
+              <div class="alisio-connections-entry__pills">
+                <span
+                  class=${computer.connected ? "pill pill--connected" : "pill pill--unavailable"}
+                >
+                  ${computer.connected
+                    ? t("alisio.connections.remote.connected")
+                    : t("alisio.connections.remote.disconnected")}
+                </span>
+                <span class=${badge.className}>${badge.label}</span>
+                <span class="pill">${t("alisio.connections.computers.details")}</span>
+                <span class="alisio-connections-disclosure-icon" aria-hidden="true"
+                  >${icons.chevronDown}</span
+                >
+              </div>
+            </div>
+          </div>
+        </summary>
+        <div class="alisio-connections-entry__details">
+          ${summaryParts.length > 0
+            ? html`<div class="alisio-remote-computers__summary">${summaryParts.join(" · ")}</div>`
+            : nothing}
+          ${renderRunner(computer, props)}
+          ${showActions
+            ? html`
+                <div class="row alisio-connections-action-row">
+                  ${renderRequestAction(computer, props)} ${renderRevokeAction(computer, props)}
+                </div>
+              `
+            : nothing}
+        </div>
+      </details>
+    `;
+  }
 
   return html`
     <article class="list-item alisio-connections-entry alisio-remote-computers__card">
@@ -370,7 +436,9 @@ export function renderRemoteComputers(props: NodesProps) {
           </button>
         </div>
       </div>
-      ${props.sharingError ? html`<div class="callout danger">${props.sharingError}</div>` : nothing}
+      ${props.sharingError
+        ? html`<div class="callout danger">${props.sharingError}</div>`
+        : nothing}
       ${initialLoading
         ? html`
             <div class="loading-state__list" role="status" aria-label=${text.loading}>
@@ -380,7 +448,9 @@ export function renderRemoteComputers(props: NodesProps) {
           `
         : computers.length === 0
           ? html`<div class="alisio-connections-empty">${text.empty}</div>`
-          : html`<div class="list">${computers.map((computer) => renderComputer(computer, props))}</div>`}
+          : html`<div class="list">
+              ${computers.map((computer) => renderRemoteComputerCard(computer, props))}
+            </div>`}
     </section>
   `;
 }

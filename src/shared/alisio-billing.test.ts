@@ -42,8 +42,8 @@ describe("alisio-billing", () => {
   it("exposes the Free and Plus entitlement matrix", () => {
     expect(getAlisioPlanEntitlements("free")).toEqual({
       connectors: { maxConnected: null },
-      organizations: false,
-      sharing: false,
+      organizations: true,
+      sharing: true,
     });
     expect(getAlisioPlanEntitlements("plus")).toEqual({
       connectors: { maxConnected: null },
@@ -55,9 +55,9 @@ describe("alisio-billing", () => {
   it("derives plan-specific feature helpers and upgrade copy", () => {
     expect(alisioConnectorLimit("free")).toBeNull();
     expect(alisioConnectorLimit("plus")).toBeNull();
-    expect(alisioSupportsOrganizations("free")).toBe(false);
+    expect(alisioSupportsOrganizations("free")).toBe(true);
     expect(alisioSupportsOrganizations("plus")).toBe(true);
-    expect(alisioSupportsSharing("free")).toBe(false);
+    expect(alisioSupportsSharing("free")).toBe(true);
     expect(alisioSupportsSharing("plus")).toBe(true);
     expect(alisioConnectorUpgradeMessage("free")).toBe("Free includes all connected apps.");
     expect(alisioOrganizationsUpgradeMessage()).toContain("Plus");

@@ -1305,6 +1305,7 @@ export function renderApp(state: AppViewState) {
           ? renderConnections({
               assistantName: state.assistantName,
               assistantAgentId: state.assistantAgentId,
+              account: state.alisioAccount,
               nodesLoading: state.nodesLoading,
               nodesLoaded: state.nodesLoaded,
               nodes: state.nodes,
@@ -1931,19 +1932,40 @@ export function renderApp(state: AppViewState) {
               doctorError: state.alisioDoctorError,
               doctor: state.alisioDoctor,
               locale: state.settings.locale,
-              theme: state.theme,
+              themeFamily: state.themeFamily,
               themeMode: state.themeMode,
+              themeAccents: state.themeAccents,
               onLocaleChange: (locale) => {
                 void i18n.setLocale(locale);
                 state.applySettings({ ...state.settings, locale });
                 void saveAlisioAccount(state, { language: locale });
               },
-              onThemeChange: (theme, context) => {
-                state.setTheme(theme, context);
+              onThemeFamilyChange: (themeFamily, context) => {
+                state.setThemeFamily(themeFamily, context);
+                void saveAlisioAccount(state, {
+                  themeFamily,
+                  themeMode: state.themeMode,
+                  themeAccents: state.themeAccents,
+                });
+              },
+              onThemeAccentChange: (themeFamily, accent) => {
+                state.setThemeAccent(themeFamily, accent);
+                void saveAlisioAccount(state, {
+                  themeFamily: state.themeFamily,
+                  themeMode: state.themeMode,
+                  themeAccents: {
+                    ...state.themeAccents,
+                    [themeFamily]: accent,
+                  },
+                });
               },
               onThemeModeChange: (themeMode) => {
                 state.setThemeMode(themeMode);
-                void saveAlisioAccount(state, { theme: themeMode });
+                void saveAlisioAccount(state, {
+                  themeFamily: state.themeFamily,
+                  themeMode,
+                  themeAccents: state.themeAccents,
+                });
               },
               onSaveAccountField: (patch) => {
                 void saveAlisioAccount(state, patch);

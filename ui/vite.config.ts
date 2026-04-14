@@ -2,7 +2,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { resolveGatewayPort } from "../src/config/paths.js";
-import { CONTROL_UI_BOOTSTRAP_CONFIG_PATH } from "../src/gateway/control-ui-contract.js";
+import {
+  CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
+  CONTROL_UI_DEVICE_IDENTITY_PATH,
+  CONTROL_UI_DEVICE_SIGN_PATH,
+} from "../src/gateway/control-ui-contract.js";
 import { DEFAULT_LOCAL_GATEWAY_HOST } from "../src/shared/gateway-defaults.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -124,6 +128,14 @@ export default defineConfig(() => {
           changeOrigin: true,
         },
         [CONTROL_UI_BOOTSTRAP_CONFIG_PATH]: {
+          target: devGatewayOrigin,
+          changeOrigin: true,
+        },
+        [CONTROL_UI_DEVICE_IDENTITY_PATH]: {
+          target: devGatewayOrigin,
+          changeOrigin: true,
+        },
+        [CONTROL_UI_DEVICE_SIGN_PATH]: {
           target: devGatewayOrigin,
           changeOrigin: true,
         },

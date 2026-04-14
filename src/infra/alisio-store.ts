@@ -18,6 +18,16 @@ import {
   validateAlisioAccountDraft,
   validateAlisioEmail,
 } from "../shared/alisio-account.js";
+import {
+  DEFAULT_THEME_ACCENTS,
+  DEFAULT_THEME_FAMILY,
+  DEFAULT_THEME_MODE,
+  normalizeThemeAccents,
+  normalizeThemeSelection,
+  type AlisioThemeAccents,
+  type AlisioThemeFamily,
+  type AlisioThemeMode,
+} from "../shared/alisio-appearance.js";
 import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.js";
 import { summarizeAlisioConnectorUiStatuses } from "../shared/alisio-connector-status.js";
 import {
@@ -111,7 +121,6 @@ export type AlisioConnectorBeginReason =
   | "unavailable";
 export type AlisioOAuthProvider = "google" | "github" | "notion" | "vercel";
 export type AlisioPreferredLanguage = "en" | "pt-PT" | "es";
-export type AlisioPreferredTheme = "system" | "light" | "dark";
 export type AlisioAccountSessionState = "signed_out" | "signed_in";
 export type AlisioStartupState = "signed_out" | "needs_profile" | "needs_ai" | "ready";
 export type AlisioBootstrapStep =
@@ -215,7 +224,9 @@ export type AlisioLocalAccountProfile = {
 
 export type AlisioLocalUserPreferences = {
   language: AlisioPreferredLanguage;
-  theme: AlisioPreferredTheme;
+  themeFamily: AlisioThemeFamily;
+  themeMode: AlisioThemeMode;
+  themeAccents: AlisioThemeAccents;
 };
 
 export type AlisioAccountSession = {
@@ -1413,7 +1424,9 @@ function buildDefaultState(): AlisioStoredState {
       },
       preferences: {
         language: "pt-PT",
-        theme: "dark",
+        themeFamily: DEFAULT_THEME_FAMILY,
+        themeMode: DEFAULT_THEME_MODE,
+        themeAccents: DEFAULT_THEME_ACCENTS,
       },
       session: {
         state: "signed_out",
@@ -1443,6 +1456,31 @@ function resolveDefaultUsername(env: NodeJS.ProcessEnv = process.env) {
   const candidate = normalizeAlisioUsername(env.USER || env.LOGNAME || "nuno");
   const sanitized = candidate.replace(/[^a-z0-9._]+/g, "");
   return sanitized || "nuno";
+}
+
+function normalizeStoredUserPreferences(
+  value: unknown,
+  defaults: AlisioLocalUserPreferences,
+): AlisioLocalUserPreferences {
+  const raw =
+    typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const normalized = normalizeThemeSelection({
+    themeFamily: raw.themeFamily,
+    themeMode: raw.themeMode,
+    themeAccents: raw.themeAccents,
+    legacyTheme: raw.theme,
+  });
+  return {
+    language:
+      raw.language === "en" || raw.language === "pt-PT" || raw.language === "es"
+        ? raw.language
+        : defaults.language,
+    themeFamily: normalized.themeFamily,
+    themeMode: normalized.themeMode,
+    themeAccents: normalized.themeAccents,
+  };
 }
 
 function resolveDefaultAccountSeed(env: NodeJS.ProcessEnv = process.env) {
@@ -1552,10 +1590,10 @@ function migrateLegacyLocalDevAccountState(
         marketingOptIn: loaded.account?.profile?.marketingOptIn === true,
         backend: "supabase",
       },
-      preferences: {
-        ...defaults.account.preferences,
-        ...loaded.account?.preferences,
-      },
+      preferences: normalizeStoredUserPreferences(
+        loaded.account?.preferences,
+        defaults.account.preferences,
+      ),
       session: {
         state: "signed_out",
         profileCompleted: false,
@@ -1686,9 +1724,7 @@ function assertAlisioAccountSetupAccess(
   }
 }
 
-function toLocalAccountProfile(
-  profile: AlisioCloudAccountProfile,
-): AlisioLocalAccountProfile {
+function toLocalAccountProfile(profile: AlisioCloudAccountProfile): AlisioLocalAccountProfile {
   return {
     ...(profile.userId ? { userId: profile.userId } : {}),
     username: profile.username,
@@ -2724,10 +2760,10 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
       ...defaults.account,
       ...loadedAccountWithoutSecrets,
       profile: normalizedProfile,
-      preferences: {
-        ...defaults.account.preferences,
-        ...loaded.account?.preferences,
-      },
+      preferences: normalizeStoredUserPreferences(
+        loaded.account?.preferences,
+        defaults.account.preferences,
+      ),
       session: mergedSession,
       ...(loadedCloudSession ? { cloudSession: loadedCloudSession } : {}),
     },
@@ -4233,7 +4269,9 @@ export async function updateAlisioAccountProfile(
       | "birthdate"
     >
   > &
-    Partial<AlisioLocalUserPreferences>,
+    Partial<
+      Pick<AlisioLocalUserPreferences, "language" | "themeFamily" | "themeMode" | "themeAccents">
+    >,
   env?: NodeJS.ProcessEnv,
 ): Promise<AlisioAccountState> {
   return withLock(async () => {
@@ -4353,7 +4391,16 @@ export async function updateAlisioAccountProfile(
     state.account.preferences = {
       ...state.account.preferences,
       ...(patch.language ? { language: patch.language } : {}),
-      ...(patch.theme ? { theme: patch.theme } : {}),
+      ...(patch.themeFamily ? { themeFamily: patch.themeFamily } : {}),
+      ...(patch.themeMode ? { themeMode: patch.themeMode } : {}),
+      ...(patch.themeAccents
+        ? {
+            themeAccents: {
+              ...state.account.preferences.themeAccents,
+              ...normalizeThemeAccents(patch.themeAccents),
+            },
+          }
+        : {}),
     };
     await persistState(state, env);
     return {

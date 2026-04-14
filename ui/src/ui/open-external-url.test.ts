@@ -204,15 +204,14 @@ describe("openExternalTarget", () => {
       throw new Error("bridge failed");
     });
     const locationAssign = vi.fn();
+    const originalOpen = window.open;
     vi.spyOn(window, "open").mockReturnValue(null);
     vi.stubGlobal("window", {
-      ...window,
       location: {
-        ...window.location,
         href: "https://openclaw.ai/chat",
         assign: locationAssign,
       },
-      open: window.open,
+      open: originalOpen,
     });
 
     const result = await openExternalTarget("https://example.com/oauth", {

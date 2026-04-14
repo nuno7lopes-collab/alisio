@@ -156,11 +156,12 @@ describe("nodes devices pending rendering", () => {
     );
 
     expect(container.querySelectorAll(".alisio-connections-overview-card")).toHaveLength(4);
-    expect(container.querySelectorAll(".alisio-connections-panel")).toHaveLength(3);
+    expect(container.querySelectorAll(".alisio-connections-panel")).toHaveLength(2);
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Remote computers");
     expect(text).toContain("Computers");
+    expect(text).toContain("More on this account");
+    expect(text).not.toContain("Other accounts");
     expect(text).toContain("Alisio nodes and execution");
     expect(text).toContain("Execution");
     expect(text).toContain("Alisio nodes");
@@ -307,8 +308,8 @@ describe("nodes devices pending rendering", () => {
       container,
     );
 
-    const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((entry) =>
-      entry.textContent?.includes("Request control"),
+    const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (entry) => entry.textContent?.includes("Request control"),
     );
     expect(button).toBeTruthy();
 

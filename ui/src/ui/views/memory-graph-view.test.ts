@@ -116,6 +116,13 @@ describe("memory-graph-view", () => {
 
     await flushGraphView();
 
+    const settingsButton = element.querySelector(
+      "button[aria-label='Display']",
+    ) as HTMLButtonElement | null;
+    expect(settingsButton).toBeTruthy();
+    settingsButton?.click();
+    await flushGraphView();
+
     expect(element.textContent).toContain("Groups");
     expect(element.textContent).toContain("Folder");
     expect(element.textContent).toContain("Tag");
@@ -159,5 +166,84 @@ describe("memory-graph-view", () => {
       nodeId: "atlas",
       pageId: "atlas",
     });
+  });
+
+  it("permite arrastar um nó no canvas", async () => {
+    const element = document.createElement("alisio-memory-graph-view") as HTMLElement & {
+      graph: ReturnType<typeof makeGraph>;
+    };
+    element.graph = makeGraph();
+    document.body.appendChild(element);
+
+    await flushGraphView();
+
+    const node = element.querySelector(".alisio-memory-graph__node") as SVGGElement | null;
+    expect(node).toBeTruthy();
+    const before = node?.getAttribute("transform");
+
+    node?.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 120,
+        clientY: 140,
+      }),
+    );
+    window.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 170,
+        clientY: 190,
+      }),
+    );
+    window.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 170,
+        clientY: 190,
+      }),
+    );
+    await flushGraphView();
+
+    const after = node?.getAttribute("transform");
+    expect(after).not.toBe(before);
+  });
+
+  it("renderiza o canvas do grafo com viewport e paints explícitos", async () => {
+    const element = document.createElement("alisio-memory-graph-view") as HTMLElement & {
+      graph: ReturnType<typeof makeGraph>;
+    };
+    element.graph = makeGraph();
+    document.body.appendChild(element);
+
+    await flushGraphView();
+
+    const canvas = element.querySelector(".alisio-memory-graph__canvas") as HTMLElement | null;
+    expect(canvas).toBeTruthy();
+    Object.defineProperty(canvas, "getBoundingClientRect", {
+      value: () => ({
+        x: 0,
+        y: 0,
+        left: 0,
+        top: 0,
+        right: 960,
+        bottom: 640,
+        width: 960,
+        height: 640,
+        toJSON() {},
+      }),
+    });
+    (element as unknown as { requestUpdate: () => void }).requestUpdate();
+    await flushGraphView();
+
+    const svg = element.querySelector(".alisio-memory-graph__canvas svg");
+    expect(svg?.getAttribute("viewBox")).toBe("-480 -320 960 640");
+
+    const circle = element.querySelector(".alisio-memory-graph__node circle");
+    expect(circle?.getAttribute("fill")).toMatch(/rgb|rgba|#/);
+    expect(circle?.getAttribute("stroke")).toMatch(/rgb|rgba|#/);
   });
 });

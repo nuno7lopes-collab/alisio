@@ -3,6 +3,7 @@ import { GATEWAY_EVENT_UPDATE_AVAILABLE } from "../../../src/gateway/events.js";
 import { ConnectErrorDetailCodes } from "../../../src/gateway/protocol/connect-error-details.js";
 import { connectGateway, resolveControlUiClientVersion } from "./app-gateway.ts";
 import type { GatewayHelloOk } from "./gateway.ts";
+import { DEFAULT_THEME_SELECTION } from "./theme.ts";
 
 const loadChatHistoryMock = vi.hoisted(() => vi.fn(async () => undefined));
 const refreshActiveTabMock = vi.hoisted(() => vi.fn());
@@ -187,8 +188,9 @@ function createHost(): GatewayTestHost {
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: DEFAULT_THEME_SELECTION.themeMode,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,

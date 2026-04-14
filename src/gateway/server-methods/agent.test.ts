@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BARE_SESSION_RESET_PROMPT } from "../../auto-reply/reply/session-reset-prompt.js";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../../shared/alisio-appearance.js";
 import { findTaskByRunId, resetTaskRegistryForTests } from "../../tasks/task-registry.js";
 import { withTempDir } from "../../test-helpers/temp-dir.js";
 import { agentHandlers } from "./agent.js";
@@ -9,6 +10,8 @@ import { expectSubagentFollowupReactivation } from "./subagent-followup.test-hel
 import type { GatewayRequestContext } from "./types.js";
 
 const ORIGINAL_STATE_DIR = process.env.ALISIO_STATE_DIR;
+const ORIGINAL_SUPABASE_URL = process.env.ALISIO_SUPABASE_URL;
+const ORIGINAL_SUPABASE_ANON_KEY = process.env.ALISIO_SUPABASE_ANON_KEY;
 
 const mocks = vi.hoisted(() => ({
   loadSessionEntry: vi.fn(),
@@ -319,6 +322,16 @@ describe("gateway agent handler", () => {
       delete process.env.ALISIO_STATE_DIR;
     } else {
       process.env.ALISIO_STATE_DIR = ORIGINAL_STATE_DIR;
+    }
+    if (ORIGINAL_SUPABASE_URL === undefined) {
+      delete process.env.ALISIO_SUPABASE_URL;
+    } else {
+      process.env.ALISIO_SUPABASE_URL = ORIGINAL_SUPABASE_URL;
+    }
+    if (ORIGINAL_SUPABASE_ANON_KEY === undefined) {
+      delete process.env.ALISIO_SUPABASE_ANON_KEY;
+    } else {
+      process.env.ALISIO_SUPABASE_ANON_KEY = ORIGINAL_SUPABASE_ANON_KEY;
     }
     resetTaskRegistryForTests();
   });
@@ -1081,6 +1094,8 @@ describe("gateway agent handler", () => {
   it("uses the Alisio account agent name as the identity fallback", async () => {
     await withTempDir({ prefix: "alisio-gateway-agent-identity-" }, async (root) => {
       process.env.ALISIO_STATE_DIR = root;
+      process.env.ALISIO_SUPABASE_URL = "https://example.supabase.co";
+      process.env.ALISIO_SUPABASE_ANON_KEY = "anon-key";
       const statePath = path.join(root, "alisio", "state.json");
       await fs.mkdir(path.dirname(statePath), { recursive: true });
       await fs.writeFile(
@@ -1102,7 +1117,9 @@ describe("gateway agent handler", () => {
               },
               preferences: {
                 language: "pt-PT",
-                theme: "dark",
+                themeFamily: DEFAULT_THEME_FAMILY,
+                themeMode: "dark",
+                themeAccents: DEFAULT_THEME_ACCENTS,
               },
               session: {
                 state: "signed_in",

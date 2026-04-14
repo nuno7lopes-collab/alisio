@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "lit";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
 import { renderMemoryHub } from "./memory.ts";
 
@@ -132,8 +132,7 @@ function makeGraphResult(
           pageId: focusNoteId,
           entityId: focusNoteId,
           title: focusNoteId === "atlas" ? "Project Atlas" : "Roadmap",
-          sourcePath:
-            focusNoteId === "atlas" ? "memory/project-atlas.md" : "memory/roadmap.md",
+          sourcePath: focusNoteId === "atlas" ? "memory/project-atlas.md" : "memory/roadmap.md",
         }
       : undefined,
     nodes,
@@ -577,13 +576,14 @@ describe("renderMemoryHub", () => {
     expect(text).toContain("Notes");
     expect(text).toContain("Attachments");
     expect(text).toContain("Graph");
-    expect(text).toContain("State and export");
   });
 
   it("opens the selected note in Markdown mode by default and keeps attachments secondary", async () => {
     const { container } = await mountNativeHub(createProps());
     const titleInput = container.querySelector(".alisio-memory-note input") as HTMLInputElement;
-    const markdown = container.querySelector(".alisio-memory-note__textarea") as HTMLTextAreaElement;
+    const markdown = container.querySelector(
+      ".alisio-memory-note__textarea",
+    ) as HTMLTextAreaElement;
     const text = cleanText(container);
 
     expect(titleInput).toBeTruthy();
@@ -601,7 +601,9 @@ describe("renderMemoryHub", () => {
     clickButton(container, "Reading");
     await flushMemoryHub();
 
-    const title = container.querySelector(".alisio-memory-note__title-input") as HTMLInputElement | null;
+    const title = container.querySelector(
+      ".alisio-memory-note__title-input",
+    ) as HTMLInputElement | null;
     const article = container.querySelector(".memory-note__article-markdown");
     expect(title?.value).toBe("Project Atlas");
     expect(article?.textContent).toContain("Project Atlas keeps the launch blockers in one place.");
@@ -629,15 +631,23 @@ describe("renderMemoryHub", () => {
     expect(
       client.request.mock.calls.some(
         ([method, params]) =>
-          method === "memory.graph" && (params as Record<string, unknown>).includeAttachments === true,
+          method === "memory.graph" &&
+          (params as Record<string, unknown>).includeAttachments === true,
       ),
     ).toBe(false);
 
-    const graphTab = container.querySelector(".alisio-memory-sidebar__toolbar button:last-child") as
-      | HTMLButtonElement
-      | null;
+    const graphTab = container.querySelector(
+      ".alisio-memory-sidebar__toolbar button:last-child",
+    ) as HTMLButtonElement | null;
     expect(graphTab).toBeTruthy();
     graphTab?.click();
+    await flushMemoryHub();
+
+    const settingsButton = container.querySelector(
+      ".alisio-memory-graph button[aria-label='Display']",
+    ) as HTMLButtonElement | null;
+    expect(settingsButton).toBeTruthy();
+    settingsButton?.click();
     await flushMemoryHub();
 
     const toggle = Array.from(container.querySelectorAll("label")).find((entry) =>
@@ -651,7 +661,8 @@ describe("renderMemoryHub", () => {
     expect(
       client.request.mock.calls.some(
         ([method, params]) =>
-          method === "memory.graph" && (params as Record<string, unknown>).includeAttachments === true,
+          method === "memory.graph" &&
+          (params as Record<string, unknown>).includeAttachments === true,
       ),
     ).toBe(true);
 
@@ -725,6 +736,7 @@ describe("renderMemoryHub", () => {
 
   it("uses the injected graph when a native graph refresh fails", async () => {
     const request = vi.fn((method: string, params?: Record<string, unknown>) => {
+      const noteId = typeof params?.noteId === "string" ? params.noteId : "atlas";
       if (method === "memory.notes.list") {
         return Promise.resolve({
           agentId: "main",
@@ -735,7 +747,7 @@ describe("renderMemoryHub", () => {
         return Promise.resolve({
           agentId: "main",
           note: {
-            id: String(params?.noteId ?? "atlas"),
+            id: noteId,
             title: "Project Atlas",
             path: "memory/project-atlas.md",
             content: "# Project Atlas",
@@ -746,7 +758,7 @@ describe("renderMemoryHub", () => {
       if (method === "memory.notes.history") {
         return Promise.resolve({
           agentId: "main",
-          noteId: String(params?.noteId ?? "atlas"),
+          noteId,
           history: [],
         });
       }
@@ -763,14 +775,13 @@ describe("renderMemoryHub", () => {
       }),
     );
 
-    const graphTab = container.querySelector(".alisio-memory-sidebar__toolbar button:last-child") as
-      | HTMLButtonElement
-      | null;
-    graphTab?.click();
+    clickButton(container, "Graph");
     await flushMemoryHub();
 
+    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-graph__canvas")).toBeTruthy();
     expect(cleanText(container)).toContain("Project Atlas");
-    expect(cleanText(container)).toContain("Roadmap");
+    expect(cleanText(container)).not.toContain("temporary graph fetch failure");
   });
 
   it("reloads notes and graph data when the sync marker changes", async () => {

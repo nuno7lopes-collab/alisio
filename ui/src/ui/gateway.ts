@@ -18,7 +18,10 @@ import {
 } from "../../../src/shared/control-ui-operator.js";
 import { clearDeviceAuthToken, loadDeviceAuthToken, storeDeviceAuthToken } from "./device-auth.ts";
 import {
+  canUseBrowserGeneratedIdentity,
+  loadOrCreateBrowserDeviceIdentity,
   loadManagedDeviceIdentity,
+  loadStoredBrowserDeviceIdentity,
   signDevicePayloadWithIdentity,
   type DeviceIdentity,
 } from "./device-identity.ts";
@@ -285,6 +288,8 @@ export class GatewayBrowserClient {
   private pendingConnectError: GatewayErrorInfo | undefined;
   private pendingDeviceTokenRetry = false;
   private deviceTokenRetryBudgetUsed = false;
+  private preferBrowserIdentityOnNextConnect = false;
+  private browserIdentityRetryBudgetUsed = false;
 
   constructor(private opts: GatewayBrowserClientOptions) {}
 
@@ -294,6 +299,8 @@ export class GatewayBrowserClient {
     this.connectNonce = null;
     this.connectSent = false;
     this.pendingConnectError = undefined;
+    this.preferBrowserIdentityOnNextConnect = false;
+    this.browserIdentityRetryBudgetUsed = false;
     this.connect();
   }
 
@@ -312,6 +319,8 @@ export class GatewayBrowserClient {
     this.pendingConnectError = undefined;
     this.pendingDeviceTokenRetry = false;
     this.deviceTokenRetryBudgetUsed = false;
+    this.preferBrowserIdentityOnNextConnect = false;
+    this.browserIdentityRetryBudgetUsed = false;
     this.flushPending(new Error("gateway client stopped"));
   }
 
@@ -347,6 +356,10 @@ export class GatewayBrowserClient {
         this.deviceTokenRetryBudgetUsed &&
         !this.pendingDeviceTokenRetry
       ) {
+        return;
+      }
+      if (this.preferBrowserIdentityOnNextConnect) {
+        this.scheduleReconnect();
         return;
       }
       if (!isNonRecoverableAuthError(connectError)) {
@@ -421,9 +434,16 @@ export class GatewayBrowserClient {
       canFallbackToShared: false,
     };
 
-    // External browsers should not invent their own identity. Only use the
-    // machine identity when a native host bridge manages it for this computer.
-    deviceIdentity = await loadManagedDeviceIdentity();
+    if (this.preferBrowserIdentityOnNextConnect && canUseBrowserGeneratedIdentity()) {
+      deviceIdentity = await loadStoredBrowserDeviceIdentity();
+      this.preferBrowserIdentityOnNextConnect = false;
+    }
+    if (!deviceIdentity) {
+      deviceIdentity = await loadManagedDeviceIdentity();
+    }
+    if (!deviceIdentity && canUseBrowserGeneratedIdentity()) {
+      deviceIdentity = await loadOrCreateBrowserDeviceIdentity();
+    }
     if (deviceIdentity) {
       selectedAuth = this.selectConnectAuth({
         role,
@@ -456,6 +476,8 @@ export class GatewayBrowserClient {
   private handleConnectHello(hello: GatewayHelloOk, plan: ConnectPlan) {
     this.pendingDeviceTokenRetry = false;
     this.deviceTokenRetryBudgetUsed = false;
+    this.preferBrowserIdentityOnNextConnect = false;
+    this.browserIdentityRetryBudgetUsed = false;
     this.lastSeq = null;
     if (hello?.auth?.deviceToken && plan.deviceIdentity) {
       storeDeviceAuthToken({
@@ -494,6 +516,16 @@ export class GatewayBrowserClient {
     ) {
       this.pendingDeviceTokenRetry = true;
       this.deviceTokenRetryBudgetUsed = true;
+    }
+    if (
+      plan.deviceIdentity?.source === "host" &&
+      !this.browserIdentityRetryBudgetUsed &&
+      canUseBrowserGeneratedIdentity() &&
+      (connectErrorCode === ConnectErrorDetailCodes.PAIRING_REQUIRED ||
+        connectErrorCode === ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED)
+    ) {
+      this.preferBrowserIdentityOnNextConnect = true;
+      this.browserIdentityRetryBudgetUsed = true;
     }
     if (err instanceof GatewayRequestError) {
       this.pendingConnectError = {

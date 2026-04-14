@@ -1058,6 +1058,58 @@ describe("channels view", () => {
     });
   });
 
+  it("remove o hero grande e evita duplicar o mesmo estado no único account card", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Telegram" },
+            channelMeta: [{ id: "telegram", label: "Telegram", detailLabel: "Telegram" }],
+            channelIssues: {},
+            channels: {
+              telegram: {
+                configured: true,
+                linked: true,
+                connected: true,
+                setupAvailable: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  linked: true,
+                  connected: true,
+                  probe: {
+                    ok: true,
+                    bot: {
+                      username: "alisio_bot",
+                    },
+                  },
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".channel-hero")).toBeNull();
+    expect(container.querySelector(".channel-toolbar")).not.toBeNull();
+    expect(container.querySelectorAll(".chip-ok")).toHaveLength(1);
+    expect(container.textContent?.match(/@alisio_bot/g) ?? []).toHaveLength(1);
+  });
+
   it("esconde canais fora da shortlist do produto em snapshots legados", () => {
     const snapshot = {
       ts: Date.now(),

@@ -209,7 +209,6 @@ export const es: TranslationMap = {
     memory: {
       agent: "Agente",
       loading: "Cargando memoria",
-      workspace: "Workspace",
       longTerm: "Memoria a largo plazo",
       notes: "Notas",
       noteCount: "Notas",
@@ -891,15 +890,17 @@ export const es: TranslationMap = {
         subtitle: "Elige cómo se ve Alisio en este dispositivo.",
         themeTitle: "Tema",
         modeTitle: "Modo",
+        accentLabel: "Acento",
+        accentPicker: "Color de acento de {theme}",
         options: {
           system: "Sistema",
           light: "Claro",
           dark: "Oscuro",
         },
         themes: {
-          claw: "Amber",
-          knot: "Violet",
-          dash: "Bronze",
+          mood: "Mood",
+          noir: "Noir",
+          matte: "Matte",
         },
       },
       language: {
@@ -1187,7 +1188,7 @@ export const es: TranslationMap = {
     connections: {
       eyebrow: "Runtime",
       title: "Conexiones",
-      subtitle: "Ordenadores autorizados, nodos disponibles y dónde corre la ejecución.",
+      subtitle: "Ordenadores, accesos y ejecución.",
       refreshing: "Actualizando…",
       refreshAll: "Actualizar todo",
       runtimeTitle: "Nodos y ejecución",
@@ -1196,12 +1197,39 @@ export const es: TranslationMap = {
       pendingNodes: "nodos pendientes",
       pairedDevices: "ordenadores autorizados",
       liveNodes: "nodos activos",
+      accountComputers: "en esta cuenta",
+      onlineComputers: "online",
+      pendingAccess: "pendientes",
+      advanced: "Compartición avanzada",
       unsaved: "Sin guardar",
       synced: "Sincronizado",
       bindingState: "estado de la ejecución",
       loading: "Cargando…",
       saving: "Guardando…",
       save: "Guardar",
+      computers: {
+        title: "Ordenadores",
+        subtitle: "Esta cuenta, este ordenador y los demás ordenadores a los que puedes acceder.",
+        accountLabel: "Cuenta",
+        accountUnknown: "Sin cuenta conectada",
+        computersLabel: "En esta cuenta",
+        externalLabel: "Otras cuentas",
+        onlineLabel: "Online ahora",
+        currentTitle: "Este ordenador",
+        pendingTitle: "Accesos pendientes",
+        pendingEmpty: "No hay accesos pendientes ahora mismo.",
+        accountTitle: "Más en esta cuenta",
+        accountEmpty: "Todavía no hay otros ordenadores asociados a esta cuenta.",
+        externalTitle: "Otras cuentas",
+        externalEmpty: "No hay ordenadores externos visibles ahora mismo.",
+        details: "Detalles",
+        pendingBadge: "pendiente",
+        requestReceived: "solicitud recibida {value}",
+        requestSent: "solicitud enviada {value}",
+        currentSeen: "última actividad {value}",
+        externalHint:
+          "Controla si otros usuarios pueden pedir acceso a los ordenadores de esta cuenta.",
+      },
       nodes: {
         title: "Nodos",
         subtitle: "Cada nodo disponible para ejecutar el runtime.",
@@ -1224,7 +1252,8 @@ export const es: TranslationMap = {
       },
       devices: {
         title: "Ordenadores",
-        subtitle: "Cada ordenador aparece aquí una vez. Las identidades internas quedan en el backend.",
+        subtitle:
+          "Cada ordenador aparece aquí una vez. Las identidades internas quedan en el backend.",
         pending: "Solicitudes pendientes",
         paired: "Ordenadores autorizados",
         pendingEmpty: "No hay solicitudes pendientes.",
@@ -1365,7 +1394,8 @@ export const es: TranslationMap = {
       },
       remote: {
         title: "Ordenadores remotos",
-        subtitle: "Autoriza el control una vez y luego ejecuta comandos en los equipos enlazados desde aquí.",
+        subtitle:
+          "Autoriza el control una vez y luego ejecuta comandos en los equipos enlazados desde aquí.",
         empty: "Todavía no hay ordenadores enlazados listos para control remoto.",
         command: "Comando",
         commandPlaceholder: "uname -a",
@@ -1408,8 +1438,7 @@ export const es: TranslationMap = {
             "El descubrimiento ya está hecho. Solicita ejecución una vez para activar el control remoto.",
           offline:
             "El acceso de ejecución ya fue concedido, pero el ordenador no está conectado ahora.",
-          limited:
-            "El ordenador está conectado, pero ahora mismo no anuncia exec.shell.v1.",
+          limited: "El ordenador está conectado, pero ahora mismo no anuncia exec.shell.v1.",
           available:
             "El ordenador es conocido, pero todavía no está listo para ejecutar comandos remotos.",
         },

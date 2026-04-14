@@ -293,14 +293,6 @@ function toMemoryNote(page: MemoryWikiPage): MemoryNote {
   };
 }
 
-function toMemoryWikiPage(note: MemoryNote): MemoryWikiPage {
-  const { attachments, ...rest } = note;
-  return {
-    ...rest,
-    ...(attachments ? { relatedFiles: attachments } : {}),
-  };
-}
-
 function toMemoryNotesListResult(result: MemoryWikiListResult): MemoryNotesListResult {
   return {
     agentId: result.agentId,

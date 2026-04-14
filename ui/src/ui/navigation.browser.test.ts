@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import "../styles.css";
 import type { AlisioApp } from "./app.ts";
 import { mountApp as mountTestApp, registerAppMountHooks } from "./test-helpers/app-mount.ts";
+import { DEFAULT_THEME_SELECTION } from "./theme.ts";
 
 registerAppMountHooks();
 
@@ -72,7 +73,9 @@ function createBlockingBootstrap(): AlisioApp["alisioBootstrap"] {
       },
       preferences: {
         language: "pt-PT",
-        theme: "dark",
+        themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+        themeMode: "dark",
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       },
       session: {
         state: "signed_in",

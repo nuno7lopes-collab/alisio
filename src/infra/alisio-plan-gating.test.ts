@@ -50,7 +50,7 @@ describe("alisio-plan-gating", () => {
     ).toEqual({ ok: true });
   });
 
-  it("keeps organizations behind Plus while allowing personal mode", () => {
+  it("allows organizations on both Free and Plus while keeping personal mode valid", () => {
     expect(gateAlisioOrganizationMembership({ plan: "free", mode: "none" })).toEqual({
       ok: true,
     });
@@ -59,10 +59,7 @@ describe("alisio-plan-gating", () => {
         plan: "free",
         mode: "owner",
       }),
-    ).toMatchObject({
-      ok: false,
-      code: "organizations_plus_required",
-    });
+    ).toEqual({ ok: true });
     expect(
       gateAlisioOrganizationMembership({
         plan: "plus",

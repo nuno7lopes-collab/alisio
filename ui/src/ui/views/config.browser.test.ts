@@ -1,6 +1,6 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ThemeMode, ThemeName } from "../theme.ts";
+import { DEFAULT_THEME_SELECTION } from "../theme.ts";
 import { renderConfig, type ConfigProps } from "./config.ts";
 
 describe("config view", () => {
@@ -38,9 +38,11 @@ describe("config view", () => {
     onUpdate: vi.fn(),
     onSubsectionChange: vi.fn(),
     version: "2026.3.11",
-    theme: "claw" as ThemeName,
-    themeMode: "system" as ThemeMode,
-    setTheme: vi.fn(),
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+    themeMode: DEFAULT_THEME_SELECTION.themeMode,
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+    setThemeFamily: vi.fn(),
+    setThemeAccent: vi.fn(),
     setThemeMode: vi.fn(),
     gatewayUrl: "",
     assistantName: "Alisio",

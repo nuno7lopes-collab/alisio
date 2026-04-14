@@ -12,6 +12,7 @@ import {
   DEFAULT_CHAT_MODEL_CATALOG,
 } from "../chat-model.test-helpers.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
+import { DEFAULT_THEME_SELECTION } from "../theme.ts";
 import type { ModelCatalogEntry } from "../types.ts";
 import type { SessionsListResult } from "../types.ts";
 import { cleanupChatModuleState, renderChat, type ChatProps } from "./chat.ts";
@@ -123,8 +124,9 @@ function createChatHeaderState(
       locale: "en",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "claw",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
       themeMode: "dark",
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       splitRatio: 0.6,
       navCollapsed: false,
       navGroupsCollapsed: {},
@@ -243,6 +245,7 @@ describe("chat view", () => {
   it("renders the chat security console as a compact control strip with approval actions", () => {
     const container = document.createElement("div");
     const onResolveApproval = vi.fn();
+    const onOpenNativeSettings = vi.fn();
     render(
       renderChat(
         createProps({
@@ -319,14 +322,14 @@ describe("chat view", () => {
             },
             logsPath: null,
           },
-          onOpenNativeSettings: () => undefined,
+          onOpenNativeSettings,
         }),
       ),
       container,
     );
 
     expect(container.textContent).toContain("Custom");
-    expect(container.textContent).toContain("6/8 system");
+    expect(container.textContent).toContain("Permissions 6/8");
     expect(container.textContent).toContain("1 pending");
     expect(container.textContent).not.toContain("Security in chat");
     expect(container.textContent).not.toContain("Policy plane");
@@ -334,6 +337,18 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("Recent decisions");
 
     expect(container.textContent).not.toContain("Details");
+
+    const computerAccessButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill--status"),
+    ).find((button) => button.textContent?.includes("Permissions 6/8"));
+    expect(computerAccessButton).not.toBeUndefined();
+    expect(computerAccessButton?.className).toContain("alisio-chat__access-pill--interactive");
+    expect(computerAccessButton?.title).toContain("6/8 system permissions ready");
+    expect(computerAccessButton?.title).toContain("Needs review:");
+    expect(computerAccessButton?.title).toContain("Accessibility");
+    expect(computerAccessButton?.getAttribute("aria-label")).toContain("Computer access:");
+    computerAccessButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onOpenNativeSettings).toHaveBeenCalledTimes(1);
 
     const allowOnceButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".exec-approval-actions .btn"),

@@ -2,6 +2,7 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_THEME_SELECTION } from "../theme.ts";
 import { renderSettingsHub } from "./settings.ts";
 
 function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["account"]> {
@@ -16,7 +17,9 @@ function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["a
     },
     preferences: {
       language: "en",
-      theme: "dark",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: "dark",
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     },
     session: {
       state: "signed_in",
@@ -100,10 +103,12 @@ function createProps(
     doctorError: null,
     doctor: null,
     locale: "en",
-    theme: "claw",
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
     themeMode: "system",
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     onLocaleChange: vi.fn(),
-    onThemeChange: vi.fn(),
+    onThemeFamilyChange: vi.fn(),
+    onThemeAccentChange: vi.fn(),
     onThemeModeChange: vi.fn(),
     onSaveAccountField: vi.fn(),
     nativeShellLoading: false,
@@ -158,9 +163,9 @@ describe("renderSettingsHub", () => {
 
     expect(container.textContent).toContain("Theme");
     expect(container.textContent).toContain("Language");
-    expect(container.textContent).toContain("Amber");
-    expect(container.textContent).toContain("Violet");
-    expect(container.textContent).toContain("Bronze");
+    expect(container.textContent).toContain("Mood");
+    expect(container.textContent).toContain("Noir");
+    expect(container.textContent).toContain("Matte");
     expect(container.textContent).not.toContain("None");
     expect(container.textContent).not.toContain("Slight");
     expect(container.textContent).not.toContain("Default");
@@ -170,23 +175,23 @@ describe("renderSettingsHub", () => {
 
   it("wires theme family and mode controls through the general section", () => {
     const container = document.createElement("div");
-    const onThemeChange = vi.fn();
+    const onThemeFamilyChange = vi.fn();
     const onThemeModeChange = vi.fn();
 
     render(
       renderSettingsHub(
         createProps({
-          onThemeChange,
+          onThemeFamilyChange,
           onThemeModeChange,
         }),
       ),
       container,
     );
 
-    container.querySelector<HTMLElement>('[data-theme-option="knot"]')?.click();
+    container.querySelector<HTMLElement>('[data-theme-option="noir"]')?.click();
     container.querySelector<HTMLElement>('[data-theme-mode="light"]')?.click();
 
-    expect(onThemeChange.mock.calls[0]?.[0]).toBe("knot");
+    expect(onThemeFamilyChange.mock.calls[0]?.[0]).toBe("noir");
     expect(onThemeModeChange).toHaveBeenCalledWith("light");
     expect(container.querySelectorAll("[data-radius-option]")).toHaveLength(0);
   });
@@ -286,7 +291,9 @@ describe("renderSettingsHub", () => {
       container,
     );
 
-    const usernameInput = container.querySelector<HTMLInputElement>('input[autocomplete="username"]');
+    const usernameInput = container.querySelector<HTMLInputElement>(
+      'input[autocomplete="username"]',
+    );
     expect(usernameInput?.getAttribute("pattern")).toBe("^[A-Za-z0-9._]+$");
     expect(usernameInput?.getAttribute("autocapitalize")).toBe("off");
     expect(usernameInput?.getAttribute("spellcheck")).toBe("false");

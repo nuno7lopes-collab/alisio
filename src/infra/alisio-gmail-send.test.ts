@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../shared/alisio-appearance.js";
 import { withTempDir } from "../test-helpers/temp-dir.js";
 import {
   beginAlisioConnectorSetup,
@@ -47,7 +48,9 @@ async function createReadyAlisioAccountEnv(root: string) {
           },
           preferences: {
             language: "pt-PT",
-            theme: "dark",
+            themeFamily: DEFAULT_THEME_FAMILY,
+            themeMode: "dark",
+            themeAccents: DEFAULT_THEME_ACCENTS,
           },
           session: {
             state: "signed_in",

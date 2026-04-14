@@ -110,8 +110,8 @@
   color-scheme: dark;
 }
 
-/* Light theme tokens apply to every light-mode family. */
-:root[data-theme-mode="light"] {
+/* Mood light tokens are the canonical light baseline. */
+:root[data-theme="mood-light"] {
   --bg: #f4f5f6;
   --bg-accent: #eeeff1;
   --bg-elevated: #ffffff;
@@ -200,7 +200,7 @@
 }
 
 /* Theme families override accent tokens while keeping shared surfaces/layout. */
-:root[data-theme="openknot"] {
+:root[data-theme="noir-dark"] {
   /* Accent — vivid violet on true black */
   --ring: #8b5cf6;
   --accent: #8b5cf6;
@@ -262,7 +262,7 @@
   --grid-line: rgba(255, 255, 255, 0.025);
 }
 
-:root[data-theme="openknot-light"] {
+:root[data-theme="noir-light"] {
   /* Accent — deep violet on cool white */
   --ring: #6d28d9;
   --accent: #6d28d9;
@@ -320,7 +320,7 @@
   --grid-line: rgba(0, 0, 0, 0.04);
 }
 
-:root[data-theme="dash"] {
+:root[data-theme="matte-dark"] {
   /*
    * Accent — chocolate brown on deep cocoa
    *
@@ -388,7 +388,7 @@
   --grid-line: rgba(255, 240, 225, 0.03);
 }
 
-:root[data-theme="dash-light"] {
+:root[data-theme="matte-light"] {
   /*
    * Accent — deep chocolate on warm parchment
    *

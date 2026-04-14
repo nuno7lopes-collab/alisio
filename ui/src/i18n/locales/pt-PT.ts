@@ -179,7 +179,7 @@ export const pt_PT: TranslationMap = {
         computerUnavailable: "O acesso nativo ao computador não está disponível nesta superfície.",
         computerUnavailableShort: "Sem acesso local",
         computerGranted: "{granted}/{total} permissões do sistema prontas",
-        computerGrantedShort: "{granted}/{total} sistema",
+        computerGrantedShort: "Permissões {granted}/{total}",
         computerAllGranted: "Não foram detectadas permissões do sistema bloqueadas.",
         computerNeedsReview: "Precisa de revisão: {value}",
         openComputerSettings: "Definições do sistema",
@@ -221,7 +221,6 @@ export const pt_PT: TranslationMap = {
     memory: {
       agent: "Agente",
       loading: "A carregar memória",
-      workspace: "Workspace",
       longTerm: "Memória de longo prazo",
       notes: "Notas",
       noteCount: "Notas",
@@ -306,8 +305,7 @@ export const pt_PT: TranslationMap = {
         graph: "Grafo",
         wikiDescription:
           "Explora notas Markdown locais, agrupadas por pasta, com a nota seleccionada aberta no mesmo painel.",
-        filesDescription:
-          "Inspecciona anexos da nota seleccionada sem perder contexto.",
+        filesDescription: "Inspecciona anexos da nota seleccionada sem perder contexto.",
         graphDescription:
           "Vê como as notas locais se ligam, com anexos disponíveis como overlay opcional.",
       },
@@ -978,15 +976,17 @@ export const pt_PT: TranslationMap = {
         subtitle: "Escolhe como o Alisio aparece neste dispositivo.",
         themeTitle: "Tema",
         modeTitle: "Modo",
+        accentLabel: "Cor",
+        accentPicker: "Cor de destaque de {theme}",
         options: {
           system: "Sistema",
           light: "Claro",
           dark: "Escuro",
         },
         themes: {
-          claw: "Amber",
-          knot: "Violet",
-          dash: "Bronze",
+          mood: "Mood",
+          noir: "Noir",
+          matte: "Matte",
         },
       },
       language: {
@@ -1282,7 +1282,7 @@ export const pt_PT: TranslationMap = {
     connections: {
       eyebrow: "Dispositivos e nós",
       title: "Ligações",
-      subtitle: "Computadores autorizados, nós Alisio e onde a execução corre.",
+      subtitle: "Computadores, acessos e execução.",
       refreshing: "A actualizar…",
       refreshAll: "Actualizar tudo",
       runtimeTitle: "Nós Alisio e execução",
@@ -1291,12 +1291,39 @@ export const pt_PT: TranslationMap = {
       pendingNodes: "nós pendentes",
       pairedDevices: "computadores autorizados",
       liveNodes: "nós activos",
+      accountComputers: "nesta conta",
+      onlineComputers: "online",
+      pendingAccess: "pendentes",
+      advanced: "Partilha avançada",
       unsaved: "Por guardar",
       synced: "Sincronizado",
       bindingState: "estado da execução",
       loading: "A carregar…",
       saving: "A guardar…",
       save: "Guardar",
+      computers: {
+        title: "Computadores",
+        subtitle: "Esta conta, este computador e os restantes computadores a que tens acesso.",
+        accountLabel: "Conta",
+        accountUnknown: "Sem conta ligada",
+        computersLabel: "Nesta conta",
+        externalLabel: "Outras contas",
+        onlineLabel: "Online agora",
+        currentTitle: "Este computador",
+        pendingTitle: "Acessos pendentes",
+        pendingEmpty: "Não há acessos pendentes.",
+        accountTitle: "Mais nesta conta",
+        accountEmpty: "Ainda não há outros computadores associados a esta conta.",
+        externalTitle: "Outras contas",
+        externalEmpty: "Não há computadores externos visíveis neste momento.",
+        details: "Detalhes",
+        pendingBadge: "pendente",
+        requestReceived: "pedido recebido {value}",
+        requestSent: "pedido enviado {value}",
+        currentSeen: "última actividade {value}",
+        externalHint:
+          "Controla se outros utilizadores podem pedir acesso aos computadores desta conta.",
+      },
       nodes: {
         title: "Nós Alisio",
         subtitle: "Cada nó ligado actualmente disponível para execução.",
@@ -1462,7 +1489,8 @@ export const pt_PT: TranslationMap = {
       },
       remote: {
         title: "Computadores remotos",
-        subtitle: "Autoriza o controlo uma vez e depois corre comandos nos computadores ligados aqui.",
+        subtitle:
+          "Autoriza o controlo uma vez e depois corre comandos nos computadores ligados aqui.",
         empty: "Ainda não há computadores ligados prontos para controlo remoto.",
         command: "Comando",
         commandPlaceholder: "uname -a",
@@ -1504,8 +1532,7 @@ export const pt_PT: TranslationMap = {
           needsApproval:
             "A descoberta já está feita. Pede execução uma vez para activar o controlo remoto.",
           offline: "O acesso de execução já foi concedido, mas o computador não está ligado agora.",
-          limited:
-            "O computador está ligado, mas neste momento não anuncia exec.shell.v1.",
+          limited: "O computador está ligado, mas neste momento não anuncia exec.shell.v1.",
           available:
             "O computador é conhecido, mas ainda não está pronto para execução remota de comandos.",
         },

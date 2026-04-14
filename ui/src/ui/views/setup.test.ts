@@ -2,6 +2,7 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_THEME_SELECTION } from "../theme.ts";
 import type { AlisioBootstrapState, NativeShellState } from "../types.ts";
 import { renderOrganization } from "./organization.ts";
 import { renderSetup } from "./setup.ts";
@@ -44,7 +45,9 @@ function createBootstrapAccount(): NonNullable<AlisioBootstrapState["account"]> 
     },
     preferences: {
       language: "pt-PT" as const,
-      theme: "dark" as const,
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: "dark" as const,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     },
     session: {
       state: "signed_in" as const,
@@ -317,7 +320,7 @@ describe("setup view", () => {
     expect(action?.disabled).toBe(true);
   });
 
-  it("shows the Plus upgrade path before creating an organization on Free", () => {
+  it("allows creating an organization on Free", () => {
     const container = document.createElement("div");
 
     render(
@@ -332,9 +335,9 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Organizations require Plus");
+    expect(container.textContent).not.toContain("Organizations require Plus");
     const action = container.querySelector<HTMLButtonElement>(".btn.primary");
-    expect(action?.disabled).toBe(true);
+    expect(action?.disabled).toBe(false);
   });
 
   it("keeps the organization page focused on membership only", () => {
@@ -505,7 +508,9 @@ describe("setup view", () => {
             },
             preferences: {
               language: "pt-PT",
-              theme: "dark",
+              themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+              themeMode: "dark",
+              themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
             },
             session: {
               state: "signed_in",
@@ -573,7 +578,9 @@ describe("setup view", () => {
             },
             preferences: {
               language: "pt-PT",
-              theme: "dark",
+              themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+              themeMode: "dark",
+              themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
             },
             session: {
               state: "signed_in",

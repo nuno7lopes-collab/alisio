@@ -5,6 +5,7 @@ import {
   ALISIO_USERNAME_MAX_LENGTH,
   ALISIO_USERNAME_MIN_LENGTH,
 } from "../../../shared/alisio-account.js";
+import { ALISIO_THEME_FAMILIES, ALISIO_THEME_MODES } from "../../../shared/alisio-appearance.js";
 import { ALISIO_PLAN_VALUES } from "../../../shared/alisio-billing.js";
 import { ALISIO_LOCAL_MODEL_BACKEND } from "../../../shared/alisio-local-models.js";
 import { NonEmptyString } from "./primitives.js";
@@ -59,11 +60,17 @@ const PreferredLanguageSchema = Type.Union([
   Type.Literal("es"),
 ]);
 
-const PreferredThemeSchema = Type.Union([
-  Type.Literal("system"),
-  Type.Literal("light"),
-  Type.Literal("dark"),
-]);
+const ThemeFamilySchema = Type.Union(ALISIO_THEME_FAMILIES.map((entry) => Type.Literal(entry)));
+const ThemeModeSchema = Type.Union(ALISIO_THEME_MODES.map((entry) => Type.Literal(entry)));
+const ThemeAccentHexSchema = Type.String({ pattern: "^#[0-9A-Fa-f]{6}$" });
+const ThemeAccentsSchema = Type.Object(
+  {
+    mood: ThemeAccentHexSchema,
+    noir: ThemeAccentHexSchema,
+    matte: ThemeAccentHexSchema,
+  },
+  { additionalProperties: false },
+);
 
 const AccountSessionStateSchema = Type.Union([
   Type.Literal("signed_out"),
@@ -263,7 +270,9 @@ export const AlisioLocalAccountProfileSchema = Type.Object(
 export const AlisioLocalUserPreferencesSchema = Type.Object(
   {
     language: PreferredLanguageSchema,
-    theme: PreferredThemeSchema,
+    themeFamily: ThemeFamilySchema,
+    themeMode: ThemeModeSchema,
+    themeAccents: ThemeAccentsSchema,
   },
   { additionalProperties: false },
 );
@@ -459,7 +468,9 @@ export const AlisioAccountUpdateParamsSchema = Type.Object(
     marketingOptIn: Type.Optional(Type.Boolean()),
     birthdate: Type.Optional(Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" })),
     language: Type.Optional(PreferredLanguageSchema),
-    theme: Type.Optional(PreferredThemeSchema),
+    themeFamily: Type.Optional(ThemeFamilySchema),
+    themeMode: Type.Optional(ThemeModeSchema),
+    themeAccents: Type.Optional(ThemeAccentsSchema),
   },
   { additionalProperties: false },
 );
@@ -480,7 +491,9 @@ export const AlisioAccountCompleteProfileParamsSchema = Type.Object(
     marketingOptIn: Type.Optional(Type.Boolean()),
     birthdate: Type.Optional(Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" })),
     language: Type.Optional(PreferredLanguageSchema),
-    theme: Type.Optional(PreferredThemeSchema),
+    themeFamily: Type.Optional(ThemeFamilySchema),
+    themeMode: Type.Optional(ThemeModeSchema),
+    themeAccents: Type.Optional(ThemeAccentsSchema),
   },
   { additionalProperties: false },
 );

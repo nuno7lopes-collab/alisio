@@ -178,9 +178,10 @@ function promoteConnectorAuthorizationAfterOAuth(
   host: ConnectorOAuthRefreshHost,
   connectorId: string,
 ): void {
+  const providerConnectorCatalog = host.alisioProviders?.connectors.catalog;
   const connectorCatalog =
-    host.alisioProviders?.connectors.catalog?.length > 0
-      ? host.alisioProviders.connectors.catalog
+    providerConnectorCatalog && providerConnectorCatalog.length > 0
+      ? providerConnectorCatalog
       : host.alisioConnectorCatalog;
   const existingAuthorization = host.alisioConnectorAuthorizations.find(
     (entry) => entry.connectorId === connectorId,
@@ -192,7 +193,7 @@ function promoteConnectorAuthorizationAfterOAuth(
     health: "healthy" as const,
     scopes: existingAuthorization?.scopes?.length
       ? existingAuthorization.scopes
-      : connectorDefinition?.scopes ?? [],
+      : (connectorDefinition?.scopes ?? []),
     connectedAt: existingAuthorization?.connectedAt,
     connectedAccount: existingAuthorization?.connectedAccount,
   };

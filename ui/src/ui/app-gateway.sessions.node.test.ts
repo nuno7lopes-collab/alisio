@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_THEME_SELECTION } from "./theme.ts";
 
 const loadSessionsMock = vi.fn();
 
@@ -66,8 +67,9 @@ function createHost() {
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: DEFAULT_THEME_SELECTION.themeMode,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,

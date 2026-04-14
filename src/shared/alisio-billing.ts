@@ -16,8 +16,8 @@ const ALISIO_PLAN_ENTITLEMENTS: Record<AlisioPlan, AlisioPlanEntitlements> = {
     connectors: {
       maxConnected: null,
     },
-    organizations: false,
-    sharing: false,
+    organizations: true,
+    sharing: true,
   },
   plus: {
     connectors: {

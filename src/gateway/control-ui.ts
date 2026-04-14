@@ -3,9 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { AlisioConfig } from "../config/config.js";
 import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
-import {
-  type AlisioRuntimeSetupState,
-} from "../infra/alisio-runtime.js";
+import { type AlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
 import {
   hasRestorableAlisioAccount,
   loadStoredAlisioBootstrapState,
@@ -16,6 +14,11 @@ import {
   resolveControlUiRootSync,
 } from "../infra/control-ui-assets.js";
 import { issueDeviceBootstrapToken } from "../infra/device-bootstrap.js";
+import {
+  loadOrCreateDeviceIdentity,
+  publicKeyRawBase64UrlFromPem,
+  signDevicePayload,
+} from "../infra/device-identity.js";
 import { isWithinDir } from "../infra/path-safety.js";
 import { openVerifiedFileSync } from "../infra/safe-open-sync.js";
 import { AVATAR_MAX_BYTES } from "../shared/avatar-policy.js";
@@ -24,8 +27,13 @@ import { resolveRuntimeServiceVersion } from "../version.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "./assistant-identity.js";
 import {
   ALISIO_BOOTSTRAP_HTTP_PATH,
+  CONTROL_UI_DEVICE_IDENTITY_PATH,
+  CONTROL_UI_DEVICE_SIGN_PATH,
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
   type AlisioHttpBootstrap,
+  type ControlUiLocalDeviceIdentity,
+  type ControlUiLocalDeviceSignRequest,
+  type ControlUiLocalDeviceSignResponse,
   type ControlUiBootstrapConfig,
 } from "./control-ui-contract.js";
 import { buildControlUiCspHeader, computeInlineScriptHashes } from "./control-ui-csp.js";
@@ -41,8 +49,10 @@ import {
   normalizeControlUiBasePath,
   resolveAssistantAvatarUrl,
 } from "./control-ui-shared.js";
+import { isLoopbackAddress, isLoopbackHost, resolveHostName } from "./net.js";
 
 const ROOT_PREFIX = "/";
+const MAX_LOCAL_DEVICE_SIGN_BODY_BYTES = 16 * 1024;
 const CONTROL_UI_ASSETS_MISSING_MESSAGE =
   "Control UI assets not found. Build them with `pnpm ui:build` (auto-installs UI deps), or run `pnpm ui:dev` during development.";
 export type ControlUiRequestOptions = {
@@ -145,6 +155,74 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 
+function resolveScopedControlUiPath(basePath: string, routePath: string) {
+  return basePath ? `${basePath}${routePath}` : routePath;
+}
+
+function isLoopbackControlUiDeviceRequest(req: IncomingMessage) {
+  const remoteAddress = req.socket?.remoteAddress?.trim();
+  if (!isLoopbackAddress(remoteAddress)) {
+    return false;
+  }
+  const hostName = resolveHostName(req.headers.host);
+  if (!hostName) {
+    return true;
+  }
+  return isLoopbackHost(hostName);
+}
+
+function readRequestText(req: IncomingMessage, maxBytes: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let totalBytes = 0;
+    const chunks: Buffer[] = [];
+
+    const cleanup = () => {
+      req.off("data", handleData);
+      req.off("end", handleEnd);
+      req.off("error", handleError);
+    };
+
+    const settleReject = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    const handleError = (error: Error) => {
+      settleReject(error);
+    };
+
+    const handleEnd = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    };
+
+    const handleData = (chunk: string | Buffer) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      totalBytes += buffer.length;
+      if (totalBytes > maxBytes) {
+        const error = new Error("request body too large");
+        error.name = "PayloadTooLargeError";
+        settleReject(error);
+        return;
+      }
+      chunks.push(buffer);
+    };
+
+    req.on("data", handleData);
+    req.on("end", handleEnd);
+    req.on("error", handleError);
+  });
+}
+
 function resolveHttpOrigin(req: IncomingMessage): string {
   const defaultHost = `127.0.0.1:${DEFAULT_GATEWAY_PORT}`;
   const host = String(req.headers.host ?? defaultHost).trim() || defaultHost;
@@ -234,6 +312,87 @@ export async function handleAlisioBootstrapHttpRequest(
     ).token,
   };
   sendJson(res, 200, body);
+  return true;
+}
+
+export async function handleControlUiLocalDeviceRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts?: Pick<ControlUiRequestOptions, "basePath">,
+): Promise<boolean> {
+  const urlRaw = req.url;
+  if (!urlRaw) {
+    return false;
+  }
+  const url = new URL(urlRaw, "http://localhost");
+  const basePath = normalizeControlUiBasePath(opts?.basePath);
+  const identityPath = resolveScopedControlUiPath(basePath, CONTROL_UI_DEVICE_IDENTITY_PATH);
+  const signPath = resolveScopedControlUiPath(basePath, CONTROL_UI_DEVICE_SIGN_PATH);
+  const pathname = url.pathname;
+
+  if (pathname !== identityPath && pathname !== signPath) {
+    return false;
+  }
+
+  applyControlUiSecurityHeaders(res);
+  if (!isLoopbackControlUiDeviceRequest(req)) {
+    respondControlUiNotFound(res);
+    return true;
+  }
+
+  const identity = loadOrCreateDeviceIdentity();
+  if (pathname === identityPath) {
+    if (!isReadHttpMethod(req.method)) {
+      respondControlUiNotFound(res);
+      return true;
+    }
+    if (req.method === "HEAD") {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache");
+      res.end();
+      return true;
+    }
+    sendJson(res, 200, {
+      deviceId: identity.deviceId,
+      publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+    } satisfies ControlUiLocalDeviceIdentity);
+    return true;
+  }
+
+  if (req.method !== "POST") {
+    respondControlUiNotFound(res);
+    return true;
+  }
+
+  let bodyText = "";
+  try {
+    bodyText = await readRequestText(req, MAX_LOCAL_DEVICE_SIGN_BODY_BYTES);
+  } catch (error) {
+    respondPlainText(
+      res,
+      error instanceof Error && error.name === "PayloadTooLargeError" ? 413 : 400,
+      "Invalid device signing request.",
+    );
+    return true;
+  }
+
+  let body: ControlUiLocalDeviceSignRequest;
+  try {
+    body = JSON.parse(bodyText) as ControlUiLocalDeviceSignRequest;
+  } catch {
+    respondPlainText(res, 400, "Invalid device signing request.");
+    return true;
+  }
+
+  if (typeof body.payload !== "string") {
+    respondPlainText(res, 400, "Invalid device signing request.");
+    return true;
+  }
+
+  sendJson(res, 200, {
+    signature: signDevicePayload(identity.privateKeyPem, body.payload),
+  } satisfies ControlUiLocalDeviceSignResponse);
   return true;
 }
 

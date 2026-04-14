@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GatewayBrowserClient } from "../ui/src/ui/gateway.ts";
+import { DEFAULT_THEME_SELECTION } from "../ui/src/ui/theme.ts";
 
 const loadAlisioBootstrapMock = vi.hoisted(() => vi.fn(async () => undefined));
 const loadAlisioModelsMock = vi.hoisted(() => vi.fn(async () => undefined));
@@ -52,8 +53,9 @@ function createHost(): Parameters<typeof refreshActiveTab>[0] {
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: DEFAULT_THEME_SELECTION.themeMode,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,
@@ -62,9 +64,10 @@ function createHost(): Parameters<typeof refreshActiveTab>[0] {
       navWidth: 220,
       navGroupsCollapsed: {},
     },
-    theme: "claw",
-    themeMode: "system",
-    themeResolved: "dark",
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+    themeMode: DEFAULT_THEME_SELECTION.themeMode,
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+    themeResolved: "mood-dark",
     applySessionKey: "main",
     sessionKey: "main",
     settingsSection: "general",
@@ -97,15 +100,9 @@ describe("refreshActiveTab (models)", () => {
       includeGlobal: true,
       includeUnknown: true,
     });
-    expect(loadModelCatalogPairMock).toHaveBeenCalledTimes(1);
-    expect(loadModelCatalogPairMock).toHaveBeenCalledWith(host.client);
-    expect(host.chatModelCatalog).toEqual([
-      { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" },
-    ]);
-    expect(host.modelManagementCatalog).toEqual([
-      { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" },
-      { id: "gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "openai-codex" },
-    ]);
+    expect(loadModelCatalogPairMock).not.toHaveBeenCalled();
+    expect(host.chatModelCatalog).toEqual([]);
+    expect(host.modelManagementCatalog).toEqual([]);
     expect(host.chatModelsLoading).toBe(false);
     expect(host.modelManagementLoading).toBe(false);
   });

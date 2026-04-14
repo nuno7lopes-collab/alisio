@@ -308,7 +308,7 @@ describe("skills marketplace", () => {
     expect(accepted.instructions).toContain("Resources (1)");
   });
 
-  it("enforces subscription access in catalog, install, and execute flows", async () => {
+  it("allows subscription-tagged skills in catalog, install, and execute flows on free", async () => {
     const workspaceDir = await makeTempDir("alisio-marketplace-paid-");
     const targetWorkspace = await makeTempDir("alisio-marketplace-paid-target-");
     await writeMarketplaceSkill({
@@ -328,10 +328,10 @@ describe("skills marketplace", () => {
       },
     });
     const plusSkill = catalog.find((entry) => entry.name === "plus-skill");
-    expect(plusSkill?.access.allowed).toBe(false);
+    expect(plusSkill?.access.allowed).toBe(true);
     expect(plusSkill?.access.currentPlan).toBe("free");
 
-    const deniedInstall = await installMarketplaceSkill({
+    const freeInstall = await installMarketplaceSkill({
       catalogWorkspaceDir: workspaceDir,
       targetWorkspaceDir: targetWorkspace,
       skillName: "plus-skill",
@@ -339,9 +339,9 @@ describe("skills marketplace", () => {
         currentPlan: "free",
       },
     });
-    expect(deniedInstall.ok).toBe(false);
+    expect(freeInstall.ok).toBe(true);
 
-    const deniedExecution = await executeMarketplaceSkill({
+    const freeExecution = await executeMarketplaceSkill({
       workspaceDir,
       skillName: "plus-skill",
       consent: true,
@@ -349,7 +349,7 @@ describe("skills marketplace", () => {
         currentPlan: "free",
       },
     });
-    expect(deniedExecution.ok).toBe(false);
+    expect(freeExecution.ok).toBe(true);
 
     const allowedExecution = await executeMarketplaceSkill({
       workspaceDir,

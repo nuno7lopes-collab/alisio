@@ -38,6 +38,7 @@ import type {
 } from "./skills/marketplace-access.js";
 import {
   isBundledRuntimeSkillSource,
+  isTrustedMarketplaceInstallSource,
   normalizeRuntimeSkillSource,
   resolveSkillSource,
 } from "./skills/source.js";
@@ -324,17 +325,6 @@ export function buildWorkspaceSkillStatus(
   };
 }
 
-function isInstalledMarketplaceSource(source: string): boolean {
-  const normalizedSource = normalizeRuntimeSkillSource(source);
-  return (
-    normalizedSource === "alisio-workspace" ||
-    normalizedSource === "agents-skills-project" ||
-    normalizedSource === "agents-skills-personal" ||
-    normalizedSource === "alisio-managed" ||
-    normalizedSource === "alisio-mcp"
-  );
-}
-
 function isPathWithin(parentDir: string, targetPath: string): boolean {
   const relative = path.relative(path.resolve(parentDir), path.resolve(targetPath));
   return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
@@ -346,17 +336,24 @@ function resolveMarketplaceInstallState(params: {
   managedSkillsDir: string;
   catalog: ResolvedSkillCatalogEntry;
 }): Pick<SkillStatusEntry, "installed" | "installable" | "removable" | "executable"> {
-  const installed = isInstalledMarketplaceSource(params.entry.source);
+  const normalizedSource = normalizeRuntimeSkillSource(params.entry.source);
+  const installed = true;
   const removable =
     params.catalog.kind === "local-skill" &&
     Boolean(params.entry.baseDir) &&
     (isPathWithin(path.join(path.resolve(params.workspaceDir), "skills"), params.entry.baseDir) ||
       isPathWithin(params.managedSkillsDir, params.entry.baseDir));
+  // Bundled/managed/extra skills are already usable locally, but can still be copied into the
+  // workspace for local customization.
+  const copyInstallable =
+    params.catalog.kind === "local-skill" &&
+    !removable &&
+    isTrustedMarketplaceInstallSource(normalizedSource);
   return {
     installed,
     installable:
       params.catalog.kind === "local-skill" &&
-      !installed &&
+      (!installed || copyInstallable) &&
       params.catalog.marketplaceReady &&
       params.catalog.access.allowed,
     removable,
@@ -504,11 +501,11 @@ export async function resolveWorkspaceMarketplaceCatalogStatus(
         managedSkillsDir,
         catalog: catalogEntry,
       });
-      const readyForUse =
-        installState.installed === true &&
-        localEntry.eligible &&
-        catalogEntry.marketplaceReady &&
-        catalogEntry.access.allowed;
+      // Marketplace metadata can enrich an installed skill, but it should not
+      // downgrade the local readiness state shown in Capabilities. A bundled
+      // or workspace skill can already be usable even when its manifest is not
+      // explicit enough for marketplace actions.
+      const readyForUse = installState.installed === true && localEntry.eligible;
 
       return {
         ...localEntry,

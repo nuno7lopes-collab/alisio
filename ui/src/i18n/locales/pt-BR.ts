@@ -178,7 +178,7 @@ export const pt_BR: TranslationMap = {
         computerUnavailable: "O acesso nativo ao computador não está disponível nesta superfície.",
         computerUnavailableShort: "Sem acesso local",
         computerGranted: "{granted}/{total} permissões do sistema prontas",
-        computerGrantedShort: "{granted}/{total} sistema",
+        computerGrantedShort: "Permissões {granted}/{total}",
         computerAllGranted: "Nenhuma permissão do sistema bloqueada foi detectada.",
         computerNeedsReview: "Precisa de revisão: {value}",
         openComputerSettings: "Ajustes do sistema",

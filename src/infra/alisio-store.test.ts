@@ -3,6 +3,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_THEME_ACCENTS,
+  DEFAULT_THEME_FAMILY,
+  type AlisioThemeMode,
+} from "../shared/alisio-appearance.js";
 import { withTempDir } from "../test-helpers/temp-dir.js";
 import {
   __testing,
@@ -78,6 +83,15 @@ function createJwt(payload: Record<string, unknown>) {
   return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.signature`;
 }
 
+function createThemePreferences(language: "en" | "pt-PT" | "es", themeMode: AlisioThemeMode) {
+  return {
+    language,
+    themeFamily: DEFAULT_THEME_FAMILY,
+    themeMode,
+    themeAccents: DEFAULT_THEME_ACCENTS,
+  };
+}
+
 function createEncryptedStoredToken(plaintext: string) {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", Buffer.from(CONNECTOR_ENCRYPTION_KEY, "base64"), iv);
@@ -120,8 +134,7 @@ async function createReadyAlisioAccountEnv(
             backend: "supabase",
           },
           preferences: {
-            language: "pt-PT",
-            theme: "dark",
+            ...createThemePreferences("pt-PT", "dark"),
           },
           session: {
             state: "signed_in",
@@ -340,8 +353,7 @@ describe("Alisio state-dir loading", () => {
                 plan: "Free Plan",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "system",
+                ...createThemePreferences("pt-PT", "system"),
               },
               session: {
                 state: "signed_in",
@@ -423,7 +435,7 @@ describe("Alisio organization state", () => {
     });
   });
 
-  it("keeps organization membership behind Plus", async () => {
+  it("allows organization membership on the Free plan", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
 
@@ -435,7 +447,10 @@ describe("Alisio organization state", () => {
           },
           env,
         ),
-      ).rejects.toThrow("Organizations currently require Plus");
+      ).resolves.toMatchObject({
+        mode: "owner",
+        organizationName: "Alisio",
+      });
     });
   });
 });
@@ -2420,8 +2435,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_in",
@@ -2507,8 +2521,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_in",
@@ -2596,16 +2609,14 @@ describe("beginAlisioConnectorSetup", () => {
       try {
         const account = await updateAlisioAccountProfile(
           {
-            language: "en",
-            theme: "system",
+            ...createThemePreferences("en", "system"),
           },
           env,
         );
 
         expect(fetchMock).not.toHaveBeenCalled();
         expect(account.preferences).toMatchObject({
-          language: "en",
-          theme: "system",
+          ...createThemePreferences("en", "system"),
         });
         expect(account.profile.displayName).toBe("Nuno Lopes");
       } finally {
@@ -2867,8 +2878,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_out",
@@ -2918,8 +2928,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_in",
@@ -3028,8 +3037,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_in",
@@ -3212,8 +3220,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "local-dev",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "system",
+                ...createThemePreferences("pt-PT", "system"),
               },
               session: {
                 state: "signed_in",
@@ -3331,8 +3338,7 @@ describe("beginAlisioConnectorSetup", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_in",
@@ -3649,8 +3655,7 @@ describe("Alisio OpenAI profiles", () => {
                 backend: "supabase",
               },
               preferences: {
-                language: "pt-PT",
-                theme: "dark",
+                ...createThemePreferences("pt-PT", "dark"),
               },
               session: {
                 state: "signed_in",

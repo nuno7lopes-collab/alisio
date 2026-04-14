@@ -6,6 +6,7 @@ import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
 import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
 import { createAuthTestLifecycle, setupAuthTestEnv } from "../commands/test-wizard-helpers.js";
 import { resolveConfigPath } from "../config/paths.js";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../shared/alisio-appearance.js";
 import { withTempDir } from "../test-helpers/temp-dir.js";
 import {
   applyAlisioOpenAiRuntime,
@@ -63,7 +64,9 @@ async function createReadyAlisioAccountEnv(root: string): Promise<NodeJS.Process
           },
           preferences: {
             language: "pt-PT",
-            theme: "dark",
+            themeFamily: DEFAULT_THEME_FAMILY,
+            themeMode: "dark",
+            themeAccents: DEFAULT_THEME_ACCENTS,
           },
           session: {
             state: "signed_in",

@@ -4,7 +4,23 @@ import { loadDeviceAuthToken, storeDeviceAuthToken } from "./device-auth.ts";
 import type { DeviceIdentity } from "./device-identity.ts";
 
 const wsInstances = vi.hoisted((): MockWebSocket[] => []);
-const loadManagedDeviceIdentityMock = vi.hoisted(() => vi.fn(async (): Promise<DeviceIdentity | null> => null));
+const canUseBrowserGeneratedIdentityMock = vi.hoisted(() => vi.fn(() => true));
+const loadManagedDeviceIdentityMock = vi.hoisted(() =>
+  vi.fn(async (): Promise<DeviceIdentity | null> => null),
+);
+const loadStoredBrowserDeviceIdentityMock = vi.hoisted(() =>
+  vi.fn(async (): Promise<DeviceIdentity | null> => null),
+);
+const loadOrCreateBrowserDeviceIdentityMock = vi.hoisted(() =>
+  vi.fn(
+    async (): Promise<DeviceIdentity> => ({
+      deviceId: "browser-device-1",
+      privateKey: "browser-private-key", // pragma: allowlist secret
+      publicKey: "browser-public-key", // pragma: allowlist secret
+      source: "browser",
+    }),
+  ),
+);
 const signDevicePayloadWithIdentityMock = vi.hoisted(() =>
   vi.fn(async (_privateKeyBase64Url: string, _payload: string) => "signature"),
 );
@@ -68,7 +84,10 @@ class MockWebSocket {
 }
 
 vi.mock("./device-identity.ts", () => ({
+  canUseBrowserGeneratedIdentity: canUseBrowserGeneratedIdentityMock,
   loadManagedDeviceIdentity: loadManagedDeviceIdentityMock,
+  loadStoredBrowserDeviceIdentity: loadStoredBrowserDeviceIdentityMock,
+  loadOrCreateBrowserDeviceIdentity: loadOrCreateBrowserDeviceIdentityMock,
   signDevicePayloadWithIdentity: signDevicePayloadWithIdentityMock,
 }));
 
@@ -118,6 +137,7 @@ function stubInsecureCrypto() {
   vi.stubGlobal("crypto", {
     randomUUID: () => "req-insecure",
   });
+  canUseBrowserGeneratedIdentityMock.mockReturnValue(false);
 }
 
 function parseLatestConnectFrame(ws: MockWebSocket): ConnectFrame {
@@ -188,9 +208,20 @@ describe("GatewayBrowserClient", () => {
   beforeEach(() => {
     const storage = createStorageMock();
     wsInstances.length = 0;
+    canUseBrowserGeneratedIdentityMock.mockReset();
     loadManagedDeviceIdentityMock.mockReset();
+    loadStoredBrowserDeviceIdentityMock.mockReset();
+    loadOrCreateBrowserDeviceIdentityMock.mockReset();
     signDevicePayloadWithIdentityMock.mockClear();
+    canUseBrowserGeneratedIdentityMock.mockReturnValue(true);
     loadManagedDeviceIdentityMock.mockResolvedValue(null);
+    loadStoredBrowserDeviceIdentityMock.mockResolvedValue(null);
+    loadOrCreateBrowserDeviceIdentityMock.mockResolvedValue({
+      deviceId: "browser-device-1",
+      privateKey: "browser-private-key", // pragma: allowlist secret
+      publicKey: "browser-public-key", // pragma: allowlist secret
+      source: "browser",
+    });
 
     vi.stubGlobal("localStorage", storage);
     stubWindowGlobals(storage);
@@ -302,6 +333,23 @@ describe("GatewayBrowserClient", () => {
     expect(loadManagedDeviceIdentityMock).toHaveBeenCalledOnce();
     expect(signDevicePayloadWithIdentityMock).toHaveBeenCalledWith(
       expect.objectContaining({ deviceId: "host-device-1", source: "host" }),
+      expect.any(String),
+    );
+  });
+
+  it("uses a browser identity on localhost when no native host bridge is available", async () => {
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:40705",
+      token: "shared-auth-token",
+    });
+
+    const { connectFrame } = await startConnect(client);
+
+    expect(connectFrame.method).toBe("connect");
+    expect(loadManagedDeviceIdentityMock).toHaveBeenCalledOnce();
+    expect(loadOrCreateBrowserDeviceIdentityMock).toHaveBeenCalledOnce();
+    expect(signDevicePayloadWithIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "browser-device-1", source: "browser" }),
       expect.any(String),
     );
   });
@@ -449,6 +497,60 @@ describe("GatewayBrowserClient", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(wsInstances).toHaveLength(2);
 
+    vi.useRealTimers();
+  });
+
+  it("retries once with a stored browser identity when the host identity needs pairing", async () => {
+    vi.useFakeTimers();
+    enableHostManagedIdentity({
+      deviceId: "host-device-1",
+      publicKey: "host-public-key",
+      source: "host",
+    });
+    loadStoredBrowserDeviceIdentityMock.mockResolvedValue({
+      deviceId: "browser-device-1",
+      privateKey: "browser-private-key", // pragma: allowlist secret
+      publicKey: "browser-public-key", // pragma: allowlist secret
+      source: "browser",
+    });
+
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:40705",
+      token: "shared-auth-token",
+    });
+
+    const { ws: firstWs, connectFrame: firstConnect } = await startConnect(client);
+    expect(signDevicePayloadWithIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "host-device-1", source: "host" }),
+      expect.any(String),
+    );
+
+    firstWs.emitMessage({
+      type: "res",
+      id: firstConnect.id,
+      ok: false,
+      error: {
+        code: "INVALID_REQUEST",
+        message: "pairing required",
+        details: { code: "PAIRING_REQUIRED" },
+      },
+    });
+    await vi.waitFor(() => expect(firstWs.readyState).toBe(3));
+    firstWs.emitClose(4008, "connect failed");
+
+    await vi.advanceTimersByTimeAsync(800);
+    const secondWs = getLatestWebSocket();
+    expect(secondWs).not.toBe(firstWs);
+    await continueConnect(secondWs, "nonce-2");
+
+    expect(loadStoredBrowserDeviceIdentityMock).toHaveBeenCalledOnce();
+    expect(loadOrCreateBrowserDeviceIdentityMock).not.toHaveBeenCalled();
+    expect(signDevicePayloadWithIdentityMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deviceId: "browser-device-1", source: "browser" }),
+      expect.any(String),
+    );
+
+    client.stop();
     vi.useRealTimers();
   });
 

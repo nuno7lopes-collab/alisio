@@ -1,6 +1,19 @@
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
-import { getHostDeviceIdentity, hasAlisioHostBridge, signHostDevicePayload } from "./alisio-host.ts";
+import {
+  CONTROL_UI_DEVICE_IDENTITY_PATH,
+  CONTROL_UI_DEVICE_SIGN_PATH,
+  type ControlUiLocalDeviceIdentity,
+  type ControlUiLocalDeviceSignRequest,
+  type ControlUiLocalDeviceSignResponse,
+} from "../../../src/gateway/control-ui-contract.js";
 import { getSafeLocalStorage } from "../local-storage.ts";
+import {
+  getHostDeviceIdentity,
+  hasAlisioHostBridge,
+  signHostDevicePayload,
+} from "./alisio-host.ts";
+import { normalizeBasePath } from "./base-path.ts";
+import { inferBasePathFromPathname } from "./navigation.ts";
 
 type StoredIdentity = {
   version: 1;
@@ -14,7 +27,7 @@ export type DeviceIdentity = {
   deviceId: string;
   publicKey: string;
   privateKey?: string;
-  source?: "browser" | "host";
+  source?: "browser" | "host" | "gateway";
 };
 
 type BrowserDeviceIdentity = DeviceIdentity & {
@@ -81,15 +94,92 @@ async function loadHostIdentity(): Promise<DeviceIdentity | null> {
   };
 }
 
-export async function loadManagedDeviceIdentity(): Promise<DeviceIdentity | null> {
-  return await loadHostIdentity().catch(() => null);
+function resolveControlUiBasePath() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  const configured = window.__ALISIO_CONTROL_UI_BASE_PATH__;
+  if (typeof configured === "string" && configured.trim()) {
+    return normalizeBasePath(configured);
+  }
+  return inferBasePathFromPathname(window.location.pathname);
 }
 
-export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
-  const hostIdentity = await loadManagedDeviceIdentity();
+function resolveControlUiGatewayUrl(routePath: string) {
+  const basePath = resolveControlUiBasePath();
+  return basePath ? `${basePath}${routePath}` : routePath;
+}
+
+async function loadGatewayIdentity(): Promise<DeviceIdentity | null> {
+  if (typeof window === "undefined" || typeof fetch !== "function") {
+    return null;
+  }
+  try {
+    const res = await fetch(resolveControlUiGatewayUrl(CONTROL_UI_DEVICE_IDENTITY_PATH), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const parsed = (await res.json()) as ControlUiLocalDeviceIdentity;
+    if (
+      typeof parsed?.deviceId !== "string" ||
+      !parsed.deviceId.trim() ||
+      typeof parsed?.publicKey !== "string" ||
+      !parsed.publicKey.trim()
+    ) {
+      return null;
+    }
+    return {
+      deviceId: parsed.deviceId,
+      publicKey: parsed.publicKey,
+      source: "gateway",
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function signGatewayDevicePayload(payload: string) {
+  if (typeof fetch !== "function") {
+    throw new Error("Gateway signer unavailable");
+  }
+  const res = await fetch(resolveControlUiGatewayUrl(CONTROL_UI_DEVICE_SIGN_PATH), {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      payload,
+    } satisfies ControlUiLocalDeviceSignRequest),
+  });
+  if (!res.ok) {
+    throw new Error(`Gateway signer failed (${res.status})`);
+  }
+  const parsed = (await res.json()) as ControlUiLocalDeviceSignResponse;
+  if (typeof parsed?.signature !== "string" || !parsed.signature.trim()) {
+    throw new Error("Gateway signer returned an invalid signature");
+  }
+  return parsed.signature;
+}
+
+export async function loadManagedDeviceIdentity(): Promise<DeviceIdentity | null> {
+  const hostIdentity = await loadHostIdentity().catch(() => null);
   if (hostIdentity) {
     return hostIdentity;
   }
+  return await loadGatewayIdentity();
+}
+
+export function canUseBrowserGeneratedIdentity(): boolean {
+  return typeof crypto !== "undefined" && typeof crypto.subtle !== "undefined";
+}
+
+export async function loadStoredBrowserDeviceIdentity(): Promise<BrowserDeviceIdentity | null> {
   const storage = getSafeLocalStorage();
   try {
     const raw = storage?.getItem(STORAGE_KEY);
@@ -112,6 +202,7 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
             deviceId: derivedId,
             publicKey: parsed.publicKey,
             privateKey: parsed.privateKey,
+            source: "browser",
           };
         }
         return {
@@ -123,9 +214,18 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
       }
     }
   } catch {
-    // fall through to regenerate
+    return null;
+  }
+  return null;
+}
+
+export async function loadOrCreateBrowserDeviceIdentity(): Promise<BrowserDeviceIdentity> {
+  const storedIdentity = await loadStoredBrowserDeviceIdentity();
+  if (storedIdentity) {
+    return storedIdentity;
   }
 
+  const storage = getSafeLocalStorage();
   const identity = await generateIdentity();
   const stored: StoredIdentity = {
     version: 1,
@@ -138,6 +238,14 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
   return identity;
 }
 
+export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
+  const hostIdentity = await loadManagedDeviceIdentity();
+  if (hostIdentity) {
+    return hostIdentity;
+  }
+  return await loadOrCreateBrowserDeviceIdentity();
+}
+
 export async function signDevicePayload(privateKeyBase64Url: string, payload: string) {
   const key = base64UrlDecode(privateKeyBase64Url);
   const data = new TextEncoder().encode(payload);
@@ -148,6 +256,9 @@ export async function signDevicePayload(privateKeyBase64Url: string, payload: st
 export async function signDevicePayloadWithIdentity(identity: DeviceIdentity, payload: string) {
   if (identity.privateKey) {
     return await signDevicePayload(identity.privateKey, payload);
+  }
+  if (identity.source === "gateway") {
+    return await signGatewayDevicePayload(payload);
   }
   return await signHostDevicePayload(payload);
 }

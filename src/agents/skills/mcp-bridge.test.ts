@@ -466,13 +466,13 @@ describe("skills MCP bridge", () => {
       name: "skills_catalog",
       arguments: {},
     });
-    expect(JSON.stringify(freeCatalog.structuredContent)).toContain('"allowed":false');
+    expect(JSON.stringify(freeCatalog.structuredContent)).toContain('"allowed":true');
 
-    const denied = await freeClient.callTool({
+    const acceptedOnFree = await freeClient.callTool({
       name: "skill_plus_skill",
       arguments: { consent: "true" },
     });
-    expect(denied.isError).toBe(true);
+    expect(acceptedOnFree.isError).not.toBe(true);
 
     const plusClient = await connectClient({
       workspaceDir,

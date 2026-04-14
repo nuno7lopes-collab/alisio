@@ -1,9 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { refreshAfterAlisioConnectorOAuth } from "./alisio-connector-oauth.ts";
 
-const loadAlisioConnectorsMock = vi.hoisted(() => vi.fn(async () => undefined));
-const loadAlisioDoctorSummaryMock = vi.hoisted(() => vi.fn(async () => undefined));
-const loadAlisioProviderOverviewMock = vi.hoisted(() => vi.fn(async () => undefined));
+const loadAlisioConnectorsMock = vi.hoisted(() =>
+  vi.fn(async (_target?: unknown, _opts?: unknown) => undefined),
+);
+const loadAlisioDoctorSummaryMock = vi.hoisted(() =>
+  vi.fn(async (_target?: unknown, _opts?: unknown) => undefined),
+);
+const loadAlisioProviderOverviewMock = vi.hoisted(() =>
+  vi.fn(async (_target?: unknown, _opts?: unknown) => undefined),
+);
 
 vi.mock("./controllers/alisio.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./controllers/alisio.ts")>();

@@ -3,6 +3,7 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../ui/src/i18n/index.ts";
+import { DEFAULT_THEME_SELECTION } from "../ui/src/ui/theme.ts";
 import type { AlisioBootstrapState, AlisioModelsState } from "../ui/src/ui/types.ts";
 import { renderModelsHub } from "../ui/src/ui/views/models.ts";
 
@@ -18,7 +19,9 @@ function createBootstrapAccount() {
     },
     preferences: {
       language: "en" as const,
-      theme: "dark" as const,
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: "dark" as const,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     },
     session: {
       state: "signed_in" as const,

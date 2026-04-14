@@ -17,7 +17,7 @@ import {
   syncUrlWithTab,
   syncThemeWithSettings,
 } from "./app-settings.ts";
-import type { ThemeMode, ThemeName } from "./theme.ts";
+import { DEFAULT_THEME_SELECTION, type ThemeFamily, type ThemeMode } from "./theme.ts";
 
 type Tab = "setup" | "authentications" | "organization" | "chat" | "memory" | "models" | "settings";
 
@@ -27,8 +27,9 @@ type SettingsHost = {
     token: string;
     sessionKey: string;
     lastActiveSessionKey: string;
-    theme: ThemeName;
+    themeFamily: ThemeFamily;
     themeMode: ThemeMode;
+    themeAccents: import("./theme.ts").ThemeAccents;
     chatFocusMode: boolean;
     chatShowThinking: boolean;
     chatShowToolCalls: boolean;
@@ -38,8 +39,9 @@ type SettingsHost = {
     navGroupsCollapsed: Record<string, boolean>;
     locale?: string;
   };
-  theme: ThemeName & ThemeMode;
+  themeFamily: ThemeFamily;
   themeMode: ThemeMode;
+  themeAccents: import("./theme.ts").ThemeAccents;
   themeResolved: import("./theme.ts").ResolvedTheme;
   applySessionKey: string;
   sessionKey: string;
@@ -65,15 +67,21 @@ type SettingsHost = {
 
 function setTestWindowUrl(urlString: string) {
   const current = new URL(urlString);
+  const navigate = (nextUrl: string | URL) => {
+    const next = new URL(String(nextUrl), current.toString());
+    current.href = next.toString();
+    current.protocol = next.protocol;
+    current.host = next.host;
+    current.pathname = next.pathname;
+    current.search = next.search;
+    current.hash = next.hash;
+  };
   const history = {
     replaceState: vi.fn((_state: unknown, _title: string, nextUrl: string | URL) => {
-      const next = new URL(String(nextUrl), current.toString());
-      current.href = next.toString();
-      current.protocol = next.protocol;
-      current.host = next.host;
-      current.pathname = next.pathname;
-      current.search = next.search;
-      current.hash = next.hash;
+      navigate(nextUrl);
+    }),
+    pushState: vi.fn((_state: unknown, _title: string, nextUrl: string | URL) => {
+      navigate(nextUrl);
     }),
   };
   const locationLike = {
@@ -112,8 +120,9 @@ const createHost = (tab: Tab): SettingsHost => ({
     token: "",
     sessionKey: "main",
     lastActiveSessionKey: "main",
-    theme: "claw",
-    themeMode: "system",
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+    themeMode: DEFAULT_THEME_SELECTION.themeMode,
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     chatFocusMode: false,
     chatShowThinking: true,
     chatShowToolCalls: true,
@@ -123,9 +132,10 @@ const createHost = (tab: Tab): SettingsHost => ({
     navGroupsCollapsed: {},
     locale: "en",
   },
-  theme: "claw" as unknown as ThemeName & ThemeMode,
-  themeMode: "system",
-  themeResolved: "dark",
+  themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+  themeMode: DEFAULT_THEME_SELECTION.themeMode,
+  themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+  themeResolved: "mood-dark",
   applySessionKey: "main",
   sessionKey: "main",
   tab,
@@ -162,7 +172,9 @@ function createBootstrapAccount(): NonNullable<
     },
     preferences: {
       language: "pt-PT" as const,
-      theme: "dark" as const,
+      themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+      themeMode: "dark" as const,
+      themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     },
     session: {
       state: "signed_in" as const,
@@ -331,20 +343,20 @@ describe("setTabFromRoute", () => {
 
   it("re-resolves the active palette when only themeMode changes", () => {
     const host = createHost("chat");
-    host.settings.theme = "knot";
+    host.settings.themeFamily = "noir";
     host.settings.themeMode = "dark";
-    host.theme = "knot" as unknown as ThemeName & ThemeMode;
+    host.themeFamily = "noir";
     host.themeMode = "dark";
-    host.themeResolved = "openknot";
+    host.themeResolved = "noir-dark";
 
     applySettings(host, {
       ...host.settings,
       themeMode: "light",
     });
 
-    expect(host.theme).toBe("knot");
+    expect(host.themeFamily).toBe("noir");
     expect(host.themeMode).toBe("light");
-    expect(host.themeResolved).toBe("openknot-light");
+    expect(host.themeResolved).toBe("noir-light");
   });
 
   it("re-syncs the system theme listener when applySettings changes themeMode", () => {
@@ -365,14 +377,14 @@ describe("setTabFromRoute", () => {
 
   it("syncs both theme family and mode from persisted settings", () => {
     const host = createHost("chat");
-    host.settings.theme = "dash";
+    host.settings.themeFamily = "matte";
     host.settings.themeMode = "light";
 
     syncThemeWithSettings(host);
 
-    expect(host.theme).toBe("dash");
+    expect(host.themeFamily).toBe("matte");
     expect(host.themeMode).toBe("light");
-    expect(host.themeResolved).toBe("dash-light");
+    expect(host.themeResolved).toBe("matte-light");
   });
 
   it("applies named system themes on OS preference changes", () => {
@@ -391,30 +403,37 @@ describe("setTabFromRoute", () => {
     });
 
     const host = createHost("chat");
-    host.theme = "knot" as unknown as ThemeName & ThemeMode;
+    host.themeFamily = "noir";
     host.themeMode = "system";
 
     attachThemeListener(host);
     listeners[0]?.({ matches: true } as MediaQueryListEvent);
-    expect(host.themeResolved).toBe("openknot-light");
+    expect(host.themeResolved).toBe("noir-light");
 
     listeners[0]?.({ matches: false } as MediaQueryListEvent);
-    expect(host.themeResolved).toBe("openknot");
+    expect(host.themeResolved).toBe("noir-dark");
   });
 
   it("normalizes light family themes to the shared light CSS token", () => {
+    const cssVars = new Map<string, string>();
     const root = {
       dataset: {} as DOMStringMap,
-      style: { colorScheme: "" } as CSSStyleDeclaration & { colorScheme: string },
+      style: {
+        colorScheme: "",
+        setProperty: (name: string, value: string) => {
+          cssVars.set(name, value);
+        },
+      } as CSSStyleDeclaration & { colorScheme: string },
     };
     vi.stubGlobal("document", { documentElement: root } as Document);
 
     const host = createHost("chat");
-    applyResolvedTheme(host, "dash-light");
+    applyResolvedTheme(host, "matte-light");
 
-    expect(host.themeResolved).toBe("dash-light");
-    expect(root.dataset.theme).toBe("dash-light");
+    expect(host.themeResolved).toBe("matte-light");
+    expect(root.dataset.theme).toBe("matte-light");
     expect(root.style.colorScheme).toBe("light");
+    expect(cssVars.get("--accent")).toBeTruthy();
   });
 
   it("fixes the border radius tokens to the round preset", () => {
@@ -437,7 +456,9 @@ describe("setTabFromRoute", () => {
       ...createBootstrapAccount(),
       preferences: {
         language: "pt-PT",
-        theme: "light",
+        themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+        themeMode: "light",
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       },
     };
 
@@ -445,7 +466,7 @@ describe("setTabFromRoute", () => {
 
     expect(host.settings.themeMode).toBe("light");
     expect(host.themeMode).toBe("light");
-    expect(host.themeResolved).toBe("light");
+    expect(host.themeResolved).toBe("mood-light");
     expect(host.settings.locale).toBe("pt-PT");
     expect(document.documentElement.dataset.themeMode).toBe("light");
     expect(document.documentElement.lang).toBe("pt-PT");
@@ -460,7 +481,9 @@ describe("setTabFromRoute", () => {
       ...createBootstrapAccount(),
       preferences: {
         language: "pt-PT",
-        theme: "light",
+        themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+        themeMode: "light",
+        themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
       },
       session: {
         state: "signed_out",
@@ -555,7 +578,9 @@ describe("applySettingsFromUrl", () => {
         },
         preferences: {
           language: "pt-PT",
-          theme: "dark",
+          themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+          themeMode: "dark",
+          themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
         },
         session: {
           state: "signed_in",

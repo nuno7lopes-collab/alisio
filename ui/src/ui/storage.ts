@@ -25,15 +25,22 @@ import { isSupportedLocale, resolvePreferredLocale } from "../i18n/index.ts";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../local-storage.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import { inferBasePathFromPathname } from "./navigation.ts";
-import { parseThemeSelection, type ThemeMode, type ThemeName } from "./theme.ts";
+import {
+  DEFAULT_THEME_SELECTION,
+  parseThemeSelection,
+  type ThemeAccents,
+  type ThemeFamily,
+  type ThemeMode,
+} from "./theme.ts";
 
 export type UiSettings = {
   gatewayUrl: string;
   token: string;
   sessionKey: string;
   lastActiveSessionKey: string;
-  theme: ThemeName;
+  themeFamily: ThemeFamily;
   themeMode: ThemeMode;
+  themeAccents: ThemeAccents;
   chatFocusMode: boolean;
   chatShowThinking: boolean;
   chatShowToolCalls: boolean;
@@ -176,8 +183,9 @@ export function loadSettings(): UiSettings {
     token: "",
     sessionKey: "main",
     lastActiveSessionKey: "main",
-    theme: "claw",
-    themeMode: "system",
+    themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
+    themeMode: DEFAULT_THEME_SELECTION.themeMode,
+    themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
     chatFocusMode: false,
     chatShowThinking: true,
     chatShowToolCalls: true,
@@ -204,9 +212,11 @@ export function loadSettings(): UiSettings {
         : defaults.gatewayUrl;
     const gatewayUrl = parsedGatewayUrl === pageDerivedUrl ? defaultUrl : parsedGatewayUrl;
     const scopedSessionSelection = resolveScopedSessionSelection(gatewayUrl, parsed, defaults);
-    const { theme, mode } = parseThemeSelection(
-      (parsed as { theme?: unknown }).theme,
+    const { themeFamily, themeMode, themeAccents } = parseThemeSelection(
+      (parsed as { themeFamily?: unknown; theme?: unknown }).themeFamily ??
+        (parsed as { theme?: unknown }).theme,
       (parsed as { themeMode?: unknown }).themeMode,
+      (parsed as { themeAccents?: unknown }).themeAccents,
     );
     const locale = isSupportedLocale(parsed.locale) ? parsed.locale : defaultLocale;
     const chatPresentationModeVersion =
@@ -215,14 +225,19 @@ export function loadSettings(): UiSettings {
         : 0;
     const shouldMigrateChatPresentation = chatPresentationModeVersion < 2;
     const shouldMigrateLocale = !isSupportedLocale(parsed.locale);
+    const shouldMigrateAppearance =
+      "theme" in (parsed as Record<string, unknown>) ||
+      !("themeFamily" in (parsed as Record<string, unknown>)) ||
+      !("themeAccents" in (parsed as Record<string, unknown>));
     const settings = {
       gatewayUrl,
       // Gateway auth is intentionally in-memory only; scrub any legacy persisted token on load.
       token: loadSessionToken(gatewayUrl),
       sessionKey: scopedSessionSelection.sessionKey,
       lastActiveSessionKey: scopedSessionSelection.lastActiveSessionKey,
-      theme,
-      themeMode: mode,
+      themeFamily,
+      themeMode,
+      themeAccents,
       chatFocusMode:
         typeof parsed.chatFocusMode === "boolean" ? parsed.chatFocusMode : defaults.chatFocusMode,
       chatShowThinking:
@@ -252,7 +267,12 @@ export function loadSettings(): UiSettings {
           : defaults.navGroupsCollapsed,
       locale,
     };
-    if ("token" in parsed || shouldMigrateChatPresentation || shouldMigrateLocale) {
+    if (
+      "token" in parsed ||
+      shouldMigrateChatPresentation ||
+      shouldMigrateLocale ||
+      shouldMigrateAppearance
+    ) {
       persistSettings(settings);
     }
     return settings;
@@ -296,8 +316,9 @@ function persistSettings(next: UiSettings) {
   );
   const persisted: PersistedUiSettings = {
     gatewayUrl: next.gatewayUrl,
-    theme: next.theme,
+    themeFamily: next.themeFamily,
     themeMode: next.themeMode,
+    themeAccents: next.themeAccents,
     chatFocusMode: next.chatFocusMode,
     chatShowThinking: next.chatShowThinking,
     chatShowToolCalls: next.chatShowToolCalls,

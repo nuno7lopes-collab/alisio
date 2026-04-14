@@ -36,9 +36,9 @@ import {
 } from "./views/approval-summary.ts";
 import { formatApprovalRemaining } from "./views/exec-approval.ts";
 import {
-  nativeShellPermissionLabel,
-  NATIVE_SHELL_PERMISSION_ORDER,
-} from "./views/native-shell-permissions.ts";
+  formatMissingPermissions,
+  summarizeNativeShellAccess,
+} from "./views/native-shell-access-summary.ts";
 
 export type ChatHost = {
   client: GatewayBrowserClient | null;
@@ -277,28 +277,6 @@ function resolveGuardrailLabel(security?: string | null) {
     command: "policy",
     security,
   });
-}
-
-function summarizeNativeShellAccess(state: NativeShellState | null | undefined) {
-  if (!state) {
-    return null;
-  }
-  const missing = NATIVE_SHELL_PERMISSION_ORDER.filter(
-    (permission) => !state.permissions[permission],
-  );
-  return {
-    total: NATIVE_SHELL_PERMISSION_ORDER.length,
-    granted: NATIVE_SHELL_PERMISSION_ORDER.length - missing.length,
-    missingLabels: missing.map((permission) => nativeShellPermissionLabel(permission)),
-  };
-}
-
-function formatMissingPermissions(labels: string[]) {
-  const visible = labels.slice(0, 2);
-  if (labels.length <= 2) {
-    return visible.join(", ");
-  }
-  return `${visible.join(", ")} +${labels.length - visible.length}`;
 }
 
 function buildSecuritySummaryMessage(host: ChatHost): string {

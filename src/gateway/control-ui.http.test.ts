@@ -3,16 +3,24 @@ import fs from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
+import { verifyDeviceSignature } from "../infra/device-identity.js";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../shared/alisio-appearance.js";
 import {
   ALISIO_BOOTSTRAP_HTTP_PATH,
   type AlisioHttpBootstrap,
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
+  CONTROL_UI_DEVICE_IDENTITY_PATH,
+  CONTROL_UI_DEVICE_SIGN_PATH,
+  type ControlUiLocalDeviceIdentity,
+  type ControlUiLocalDeviceSignResponse,
 } from "./control-ui-contract.js";
 import {
   handleAlisioBootstrapHttpRequest,
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
+  handleControlUiLocalDeviceRequest,
 } from "./control-ui.js";
 import { makeMockHttpResponse } from "./test-http-response.js";
 
@@ -38,7 +46,9 @@ describe("handleControlUiHttpRequest", () => {
             },
             preferences: {
               language: "pt-PT",
-              theme: "dark",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "dark",
+              themeAccents: DEFAULT_THEME_ACCENTS,
             },
             session: {
               state: "signed_in",
@@ -87,6 +97,16 @@ describe("handleControlUiHttpRequest", () => {
     return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as AlisioHttpBootstrap;
   }
 
+  function parseControlUiLocalDevicePayload(end: ReturnType<typeof makeMockHttpResponse>["end"]) {
+    return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as ControlUiLocalDeviceIdentity;
+  }
+
+  function parseControlUiLocalDeviceSignPayload(
+    end: ReturnType<typeof makeMockHttpResponse>["end"],
+  ) {
+    return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as ControlUiLocalDeviceSignResponse;
+  }
+
   function expectNotFoundResponse(params: {
     handled: boolean;
     res: ReturnType<typeof makeMockHttpResponse>["res"];
@@ -132,6 +152,47 @@ describe("handleControlUiHttpRequest", () => {
       },
     );
     return { res, end, handled };
+  }
+
+  async function runLocalDeviceRequest(params: {
+    url: string;
+    method: "GET" | "HEAD" | "POST";
+    basePath?: string;
+    body?: string;
+    remoteAddress?: string;
+    host?: string;
+  }) {
+    const { res, end } = makeMockHttpResponse();
+    const req = Object.assign(Readable.from(params.body ? [params.body] : []), {
+      url: params.url,
+      method: params.method,
+      headers: {
+        host: params.host ?? "127.0.0.1:40705",
+      },
+      socket: {
+        remoteAddress: params.remoteAddress ?? "127.0.0.1",
+      },
+    }) as IncomingMessage;
+    const handled = await handleControlUiLocalDeviceRequest(req, res, {
+      basePath: params.basePath,
+    });
+    return { res, end, handled };
+  }
+
+  async function withStateDir<T>(fn: (stateDir: string) => Promise<T>) {
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-state-"));
+    const previous = process.env.ALISIO_STATE_DIR;
+    process.env.ALISIO_STATE_DIR = tmp;
+    try {
+      return await fn(tmp);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.ALISIO_STATE_DIR;
+      } else {
+        process.env.ALISIO_STATE_DIR = previous;
+      }
+      await fs.rm(tmp, { recursive: true, force: true });
+    }
   }
 
   async function writeAssetFile(rootPath: string, filename: string, contents: string) {
@@ -258,6 +319,40 @@ describe("handleControlUiHttpRequest", () => {
         expect(parsed.assistantAvatar).toBe("/avatar/main");
         expect(parsed.assistantAgentId).toBe("main");
       },
+    });
+  });
+
+  it("serves the local computer identity on loopback", async () => {
+    await withStateDir(async () => {
+      const { res, end, handled } = await runLocalDeviceRequest({
+        url: CONTROL_UI_DEVICE_IDENTITY_PATH,
+        method: "GET",
+      });
+      expect(handled).toBe(true);
+      expect(res.statusCode).toBe(200);
+      const parsed = parseControlUiLocalDevicePayload(end);
+      expect(parsed.deviceId).toMatch(/^[a-f0-9]{64}$/);
+      expect(parsed.publicKey).toMatch(/^[A-Za-z0-9_-]+$/);
+    });
+  });
+
+  it("signs payloads with the shared local computer identity", async () => {
+    await withStateDir(async () => {
+      const identityResponse = await runLocalDeviceRequest({
+        url: CONTROL_UI_DEVICE_IDENTITY_PATH,
+        method: "GET",
+      });
+      const identity = parseControlUiLocalDevicePayload(identityResponse.end);
+      const payload = "device-auth-payload";
+      const signResponse = await runLocalDeviceRequest({
+        url: CONTROL_UI_DEVICE_SIGN_PATH,
+        method: "POST",
+        body: JSON.stringify({ payload }),
+      });
+      expect(signResponse.handled).toBe(true);
+      expect(signResponse.res.statusCode).toBe(200);
+      const signed = parseControlUiLocalDeviceSignPayload(signResponse.end);
+      expect(verifyDeviceSignature(identity.publicKey, payload, signed.signature)).toBe(true);
     });
   });
 
@@ -392,7 +487,7 @@ describe("handleControlUiHttpRequest", () => {
       expect(res.statusCode).toBe(200);
       const parsed = parseAlisioBootstrapPayload(end);
       expect(parsed.startupState).toBe("signed_out");
-      expect(parsed.providerReady).toBe(true);
+      expect(parsed.providerReady).toBe(false);
       expect(parsed.accountReady).toBe(false);
       expect(parsed.nextStep).toBe("account");
     } finally {

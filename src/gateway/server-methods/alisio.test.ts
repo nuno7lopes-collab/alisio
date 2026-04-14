@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../../shared/alisio-appearance.js";
 import {
   buildAlisioCurrentProviderId,
   buildAlisioTargetProviderId,
@@ -53,7 +54,9 @@ const {
     },
     preferences: {
       language: "pt-PT",
-      theme: "dark",
+      themeFamily: DEFAULT_THEME_FAMILY,
+      themeMode: "dark",
+      themeAccents: DEFAULT_THEME_ACCENTS,
     },
     session: {
       state: "signed_out" as const,
@@ -139,8 +142,8 @@ vi.mock("../../infra/alisio-local-llama-runtime.js", async (importOriginal) => {
   };
 });
 
-import { NodeRegistry } from "../node-registry.js";
 import { setAlisioSharingPolicy } from "../../infra/alisio-store.js";
+import { NodeRegistry } from "../node-registry.js";
 import { alisioHandlers } from "./alisio.js";
 import type { GatewayRequestContext } from "./types.js";
 
@@ -195,7 +198,9 @@ async function withReadyLocalAccountEnv<T>(run: () => Promise<T>): Promise<T> {
             },
             preferences: {
               language: "pt-PT",
-              theme: "dark",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "dark",
+              themeAccents: DEFAULT_THEME_ACCENTS,
             },
             session: {
               state: "signed_in",
@@ -584,7 +589,7 @@ describe("alisio gateway methods", () => {
     });
   });
 
-  it("surfaces organization plan gating as a validation error", async () => {
+  it("allows organization membership on Free", async () => {
     await withReadyLocalAccountEnv(async () => {
       const context = makeContext();
       const { calls, respond } = makeRespond();
@@ -602,10 +607,10 @@ describe("alisio gateway methods", () => {
       });
 
       expect(calls).toHaveLength(1);
-      expect(calls[0]?.ok).toBe(false);
-      expect(calls[0]?.error).toMatchObject({
-        code: "INVALID_REQUEST",
-        message: expect.stringContaining("require Plus"),
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        mode: "owner",
+        organizationName: "Alisio",
       });
     });
   });

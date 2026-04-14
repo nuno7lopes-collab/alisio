@@ -5,7 +5,7 @@ import {
 } from "./marketplace-access.js";
 
 describe("marketplace-access", () => {
-  it("blocks plus-only skills on the free plan", () => {
+  it("allows plus-only skills on the free plan while plan distinctions are disabled", () => {
     const access = evaluateSkillMarketplaceAccess({
       subscription: {
         required: true,
@@ -14,12 +14,8 @@ describe("marketplace-access", () => {
       currentPlan: "free",
     });
 
-    expect(access.allowed).toBe(false);
-    expect(access.issues).toEqual([
-      expect.objectContaining({
-        code: "subscription_plan_required",
-      }),
-    ]);
+    expect(access.allowed).toBe(true);
+    expect(access.issues).toEqual([]);
   });
 
   it("allows plus-only skills on the plus plan", () => {
