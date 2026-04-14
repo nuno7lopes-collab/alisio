@@ -5,10 +5,15 @@ import {
   isAlisioPaidPlan,
   normalizeAlisioPlan,
 } from "../../../../src/shared/alisio-billing.js";
-import { t } from "../../i18n/index.ts";
+import { i18n, t } from "../../i18n/index.ts";
 import { alisioSetupStepLabel } from "../alisio-setup-step-label.ts";
 import { icons } from "../icons.ts";
-import type { SettingsSection } from "../navigation.ts";
+import {
+  PUBLIC_SETTINGS_SECTIONS,
+  publicSettingsSectionFor,
+  type PublicSettingsSection,
+  type SettingsSection,
+} from "../navigation.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
 import type { ThemeName } from "../theme.ts";
 import type {
@@ -30,10 +35,6 @@ import {
   nativeShellPermissionLabel,
   NATIVE_SHELL_PERMISSION_ORDER,
 } from "./native-shell-permissions.ts";
-
-const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
-
-type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
 
 const SETTINGS_SECTION_ICONS = {
   general: icons.sun,
@@ -58,33 +59,6 @@ function settingsSectionLabel(section: PublicSettingsSection) {
 
 function settingsSectionIcon(section: PublicSettingsSection) {
   return SETTINGS_SECTION_ICONS[section] ?? icons.settings;
-}
-
-function resolveVisibleSection(section: SettingsSection): PublicSettingsSection {
-  switch (section) {
-    case "general":
-    case "appearance":
-    case "language":
-      return "general";
-    case "account":
-    case "security":
-    case "devices":
-    case "billing":
-    case "advanced":
-    case "workspace":
-    case "automation":
-    case "debug":
-    case "logs":
-      return "account";
-    case "mac":
-    case "infrastructure":
-      return "mac";
-    case "support":
-    case "communications":
-      return "support";
-    default:
-      return "general";
-  }
 }
 
 function renderDoctorCard(props: {
@@ -123,7 +97,7 @@ function renderDoctorCard(props: {
   if (props.doctorError) {
     return html`<div class="callout danger">${props.doctorError}</div>`;
   }
-  if (props.doctorLoading) {
+  if (props.doctorLoading && !props.doctor) {
     return html`
       <section class="alisio-settings-doctor" role="status" aria-label=${text.loading}>
         <div class="loading-state__header">
@@ -152,6 +126,7 @@ function renderDoctorCard(props: {
       class="alisio-settings-doctor ${props.doctor.ok ? "is-ok" : "is-attention"} ${compact
         ? "alisio-settings-doctor--compact"
         : ""}"
+      aria-busy=${props.doctorLoading ? "true" : "false"}
     >
       <div class="alisio-settings-doctor__head">
         <div>
@@ -239,6 +214,20 @@ function languageOptions() {
   ] as const;
 }
 
+type PublicLanguageOption = (ReturnType<typeof languageOptions>)[number]["value"];
+
+function isPublicLanguageOption(value: string | undefined): value is PublicLanguageOption {
+  return value === "en" || value === "pt-PT" || value === "es";
+}
+
+function resolveSelectedLanguageOption(locale: string | undefined): PublicLanguageOption {
+  if (isPublicLanguageOption(locale)) {
+    return locale;
+  }
+  const activeLocale = i18n.getLocale();
+  return isPublicLanguageOption(activeLocale) ? activeLocale : "en";
+}
+
 const BILLING_SUPPORT_EMAIL = "support@alisio.pt";
 const BILLING_SUPPORT_HREF = `mailto:${BILLING_SUPPORT_EMAIL}?subject=Alisio%20Billing`;
 
@@ -309,7 +298,7 @@ function renderMacSection(props: {
     request: t("alisio.settings.mac.request"),
     refresh: t("alisio.settings.mac.refresh"),
   };
-  if (props.nativeShellLoading) {
+  if (props.nativeShellLoading && !props.nativeShellState && !props.nativeShellError) {
     return html`
       <div class="card alisio-settings-card" role="status" aria-label=${text.loading}>
         <div class="loading-state__header">
@@ -328,35 +317,39 @@ function renderMacSection(props: {
     `;
   }
 
-  if (props.nativeShellError) {
-    return html`
-      <div class="card alisio-settings-card">
-        <div class="card-title">${text.title}</div>
-        <div class="callout danger" style="margin-top: 16px;">${props.nativeShellError}</div>
-      </div>
-    `;
-  }
-
   if (!props.nativeShellState) {
     return html`
       <div class="card alisio-settings-card">
         <div class="card-title">${text.title}</div>
-        <div class="card-sub">${text.unavailable}</div>
+        ${props.nativeShellError
+          ? html`<div class="callout danger" style="margin-top: 16px;">
+              ${props.nativeShellError}
+            </div>`
+          : html`<div class="card-sub">${text.unavailable}</div>`}
       </div>
     `;
   }
 
   const state = props.nativeShellState;
   return html`
-    <div class="card alisio-settings-card">
+    <div class="card alisio-settings-card" aria-busy=${props.nativeShellLoading ? "true" : "false"}>
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.bridge}</div>
+      ${props.nativeShellError
+        ? html`<div class="callout danger" style="margin-top: 16px;">
+            ${props.nativeShellError}
+          </div>`
+        : nothing}
       <div class="agents-overview-grid" style="margin-top: 16px;">
         <div class="agent-kv">
           <div class="label">${text.launchAtLogin}</div>
           <div>${state.launchAtLogin ? text.enabled : text.disabled}</div>
           <div class="row" style="margin-top: 10px;">
-            <button class="btn" @click=${() => props.onSetLaunchAtLogin(!state.launchAtLogin)}>
+            <button
+              class="btn"
+              ?disabled=${props.nativeShellLoading}
+              @click=${() => props.onSetLaunchAtLogin(!state.launchAtLogin)}
+            >
               ${state.launchAtLogin ? text.launchDisable : text.launchEnable}
             </button>
           </div>
@@ -374,12 +367,14 @@ function renderMacSection(props: {
                 <div class="row" style="margin-top: 10px;">
                   <button
                     class="btn"
+                    ?disabled=${props.nativeShellLoading}
                     @click=${() => props.onSetVoiceWake({ enabled: !state.voiceWake.enabled })}
                   >
                     ${state.voiceWake.enabled ? text.disableWake : text.enableWake}
                   </button>
                   <button
                     class="btn"
+                    ?disabled=${props.nativeShellLoading}
                     @click=${() =>
                       props.onSetVoiceWake({ talkEnabled: !state.voiceWake.talkEnabled })}
                   >
@@ -393,8 +388,14 @@ function renderMacSection(props: {
           <div class="label">${text.logs}</div>
           <div class="mono">${state.logsPath ?? text.unavailableValue}</div>
           <div class="row" style="margin-top: 10px;">
-            <button class="btn" @click=${props.onRevealLogs}>${text.revealLogs}</button>
-            <button class="btn" @click=${props.onOpenNativeSettings}>
+            <button class="btn" ?disabled=${props.nativeShellLoading} @click=${props.onRevealLogs}>
+              ${text.revealLogs}
+            </button>
+            <button
+              class="btn"
+              ?disabled=${props.nativeShellLoading}
+              @click=${props.onOpenNativeSettings}
+            >
               ${text.openNativeSettings}
             </button>
           </div>
@@ -424,6 +425,7 @@ function renderMacSection(props: {
                       <div class="row" style="margin-top: 12px;">
                         <button
                           class="btn btn--sm"
+                          ?disabled=${props.nativeShellLoading}
                           @click=${() => props.onRequestPermission(permission)}
                         >
                           ${text.request}
@@ -436,7 +438,9 @@ function renderMacSection(props: {
         </div>
       </div>
       <div class="row" style="margin-top: 16px;">
-        <button class="btn" @click=${props.onRefreshNative}>${text.refresh}</button>
+        <button class="btn" ?disabled=${props.nativeShellLoading} @click=${props.onRefreshNative}>
+          ${text.refresh}
+        </button>
       </div>
     </div>
   `;
@@ -462,7 +466,7 @@ function renderAppearanceSection(props: {
 
 function renderLanguageSection(props: {
   locale: string | undefined;
-  onLocaleChange: (value: "en" | "pt-PT" | "es") => void;
+  onLocaleChange: (value: PublicLanguageOption) => void;
 }) {
   const text = {
     title: t("alisio.settings.language.title"),
@@ -480,10 +484,10 @@ function renderLanguageSection(props: {
         <label class="field alisio-settings-field--inline">
           <span>${text.displayLanguage}</span>
           <select
-            .value=${props.locale ?? "en"}
+            .value=${resolveSelectedLanguageOption(props.locale)}
             @change=${(event: Event) =>
               props.onLocaleChange(
-                (event.target as HTMLSelectElement).value as "en" | "pt-PT" | "es",
+                (event.target as HTMLSelectElement).value as PublicLanguageOption,
               )}
           >
             ${languageOptions().map(
@@ -528,6 +532,14 @@ function renderAccountSection(props: {
     localModeNotice: t("alisio.settings.account.localModeNotice"),
     recoveryEmail: t("alisio.settings.account.recoveryEmail"),
     signOut: t("alisio.settings.account.signOut"),
+    changeEmail: t("alisio.settings.account.changeEmail"),
+    changeEmailPlaceholder: t("alisio.settings.account.changeEmailPlaceholder"),
+    changeEmailHint: t("alisio.settings.account.changeEmailHint"),
+    changeEmailAction: t("alisio.settings.account.changeEmailAction"),
+    updatePassword: t("alisio.settings.account.updatePassword"),
+    updatePasswordPlaceholder: t("alisio.settings.account.updatePasswordPlaceholder"),
+    updatePasswordHint: t("alisio.settings.account.updatePasswordHint"),
+    updatePasswordAction: t("alisio.settings.account.updatePasswordAction"),
   };
   const joinedFormatter = new Intl.DateTimeFormat(props.locale);
   const account = props.account;
@@ -668,23 +680,21 @@ function renderAccountSection(props: {
                         ?disabled=${props.accountLoading}
                       >
                         <label class="field">
-                          <span>Change email</span>
+                          <span>${text.changeEmail}</span>
                           <input
                             name="alisio-next-email"
                             type="email"
                             autocomplete="email"
                             required
-                            placeholder=${props.account?.profile.email ?? "new@email.com"}
+                            placeholder=${props.account?.profile.email ??
+                            text.changeEmailPlaceholder}
                           />
-                          <small class="field-note">
-                            The current address stays active until you confirm the new email from
-                            your inbox.
-                          </small>
+                          <small class="field-note"> ${text.changeEmailHint} </small>
                         </label>
                       </fieldset>
                       <div class="row" style="margin-top: 12px;">
                         <button class="btn" type="submit" ?disabled=${props.accountLoading}>
-                          Send email change link
+                          ${text.changeEmailAction}
                         </button>
                       </div>
                     </form>
@@ -694,24 +704,21 @@ function renderAccountSection(props: {
                         ?disabled=${props.accountLoading}
                       >
                         <label class="field">
-                          <span>Update password</span>
+                          <span>${text.updatePassword}</span>
                           <input
                             name="alisio-next-password"
                             type="password"
                             autocomplete="new-password"
                             minlength="8"
                             required
-                            placeholder="Use at least 8 characters"
+                            placeholder=${text.updatePasswordPlaceholder}
                           />
-                          <small class="field-note">
-                            Use this if you want direct Alisio email and password sign-in on this
-                            account.
-                          </small>
+                          <small class="field-note">${text.updatePasswordHint}</small>
                         </label>
                       </fieldset>
                       <div class="row" style="margin-top: 12px;">
                         <button class="btn" type="submit" ?disabled=${props.accountLoading}>
-                          Save new password
+                          ${text.updatePasswordAction}
                         </button>
                       </div>
                     </form>
@@ -756,7 +763,7 @@ function renderDevicesSection(props: { account: AlisioAccountState | null; loadi
     active: t("alisio.settings.devices.active"),
     empty: t("alisio.settings.devices.empty"),
   };
-  if (props.loading) {
+  if (props.loading && !props.account) {
     return renderSettingsCardSkeleton({
       title: text.title,
       subtitle: text.subtitle,
@@ -767,7 +774,7 @@ function renderDevicesSection(props: { account: AlisioAccountState | null; loadi
     return nothing;
   }
   return html`
-    <div class="card alisio-settings-card">
+    <div class="card alisio-settings-card" aria-busy=${props.loading ? "true" : "false"}>
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       ${(props.account.devices ?? []).length === 0
@@ -810,7 +817,7 @@ function renderBillingSection(props: {
     freePlan: t("alisio.settings.billing.freePlan"),
     plusPlan: t("alisio.settings.billing.plusPlan"),
   };
-  if (props.loading) {
+  if (props.loading && !props.account) {
     return renderSettingsCardSkeleton({
       title: text.title,
       subtitle: text.subtitle,
@@ -825,7 +832,10 @@ function renderBillingSection(props: {
   const planLabel = t(alisioPlanTranslationKey(currentPlan));
   const isPlusActive = isAlisioPaidPlan(currentPlan);
   return html`
-    <div class="card alisio-settings-card ${props.focused ? "alisio-settings-card--focused" : ""}">
+    <div
+      class="card alisio-settings-card ${props.focused ? "alisio-settings-card--focused" : ""}"
+      aria-busy=${props.loading ? "true" : "false"}
+    >
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       <div class="alisio-settings-billing">
@@ -968,12 +978,12 @@ export function renderSettingsHub(props: {
   nativeRebuildError: string | null;
   onRebuildNativeApp: () => void;
 }) {
-  const activeSection = resolveVisibleSection(props.section);
+  const activeSection = publicSettingsSectionFor(props.section);
   const billingFocused = props.section === "billing";
   const showDoctor =
-    props.doctorLoading ||
+    activeSection === "mac" ||
     props.doctorError != null ||
-    (props.doctor != null && (!props.doctor.ok || activeSection === "mac"));
+    (props.doctor != null && !props.doctor.ok);
   const sectionContent = (() => {
     switch (activeSection) {
       case "general":
@@ -1098,7 +1108,7 @@ export function renderSettingsHub(props: {
                 doctor: props.doctor,
                 onReconnectRuntime: props.onReconnectRuntime,
                 onOpenSetup: props.onOpenSetup,
-                rebuildAvailable: activeSection === "mac" && props.nativeRebuildAvailable,
+                rebuildAvailable: props.nativeRebuildAvailable,
                 rebuildInFlight: props.nativeRebuildInFlight,
                 rebuildStatus: props.nativeRebuildStatus,
                 rebuildError: props.nativeRebuildError,

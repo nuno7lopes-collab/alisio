@@ -19,6 +19,7 @@ const EVENT_SCOPE_GUARDS: Record<string, string[]> = {
   "node.pair.requested": [PAIRING_SCOPE],
   "node.pair.resolved": [PAIRING_SCOPE],
   "node.task.updated": [WRITE_SCOPE],
+  "devices.changed": [READ_SCOPE],
   "alisio.models.operation": [WRITE_SCOPE],
   "sessions.changed": [READ_SCOPE],
   "session.message": [READ_SCOPE],

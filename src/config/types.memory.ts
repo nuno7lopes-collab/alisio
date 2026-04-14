@@ -23,12 +23,36 @@ export type MemoryCrdtConfig = {
   pages?: MemoryCrdtPagesConfig;
 };
 
+export type MemoryE2eeConfig = {
+  /**
+   * Canonical memory E2EE is a hard requirement for sync and relay transport.
+   * Only `true` is currently supported.
+   */
+  required?: true;
+};
+
+export type MemorySyncUiConfig = {
+  /** Enable the memory sync UI entrypoint (default: true). */
+  enabled?: boolean;
+};
+
+export type MemorySyncConfig = {
+  /** Memory sync transport mode (default: off). */
+  mode?: "cloud" | "direct" | "off";
+  /** Base URL for the ciphertext-only relay transport. */
+  relayBaseUrl?: string;
+  /** UI rollout guard for sync setup surfaces. */
+  ui?: MemorySyncUiConfig;
+};
+
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
   ledger?: MemoryLedgerConfig;
   legacyMarkdownProjection?: MemoryLegacyMarkdownProjectionConfig;
   crdt?: MemoryCrdtConfig;
+  e2ee?: MemoryE2eeConfig;
+  sync?: MemorySyncConfig;
   qmd?: MemoryQmdConfig;
 };
 

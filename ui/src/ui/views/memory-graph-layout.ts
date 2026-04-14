@@ -25,6 +25,11 @@ export function buildMemoryGraphLayout(params: {
   edges: MemoryGraphEdge[];
   focusNodeId?: string | null;
   previousLayout?: MemoryGraphLayout | null;
+  nodeGroups?: Record<string, string | null | undefined>;
+  centerForce?: number;
+  repelForce?: number;
+  linkForce?: number;
+  linkDistance?: number;
 }): MemoryGraphLayout {
   if (params.nodes.length === 0) {
     return {};
@@ -34,7 +39,15 @@ export function buildMemoryGraphLayout(params: {
   const velocity: Record<string, MemoryGraphPoint> = {};
   const previousLayout = params.previousLayout ?? {};
   const focusNodeId = params.focusNodeId ?? null;
-  const ringRadius = 180 + params.nodes.length * 6;
+  const nodeGroups = params.nodeGroups ?? {};
+  const groupIds = Array.from(
+    new Set(
+      params.nodes
+        .map((node) => nodeGroups[node.id] ?? null)
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    ),
+  ).toSorted((left, right) => left.localeCompare(right));
+  const groupAnchors = buildGroupAnchors(groupIds, focusNodeId);
 
   params.nodes.forEach((node, index) => {
     if (previousLayout[node.id]) {
@@ -42,12 +55,14 @@ export function buildMemoryGraphLayout(params: {
       velocity[node.id] = { x: 0, y: 0 };
       return;
     }
+    const groupId = nodeGroups[node.id] ?? null;
+    const anchor = groupId ? (groupAnchors[groupId] ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
     const seed = seedFromId(node.id);
-    const angle = seed * Math.PI * 2 + index * 0.41;
-    const radius = ringRadius * (0.45 + seed * 0.55);
+    const angle = seed * Math.PI * 2 + index * 0.37;
+    const radius = (focusNodeId ? 72 : 112) * (0.56 + seed * 0.84);
     positions[node.id] = {
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
+      x: anchor.x + Math.cos(angle) * radius,
+      y: anchor.y + Math.sin(angle) * radius,
     };
     velocity[node.id] = { x: 0, y: 0 };
   });
@@ -56,21 +71,27 @@ export function buildMemoryGraphLayout(params: {
     positions[focusNodeId] = { x: 0, y: 0 };
   }
 
-  const repulsionStrength = 38_000;
-  const springLength = focusNodeId ? 150 : 190;
-  const springStrength = 0.018;
-  const gravityStrength = focusNodeId ? 0.001 : 0.003;
+  const centerForceScale = params.centerForce ?? 1;
+  const repelForceScale = params.repelForce ?? 1;
+  const linkForceScale = params.linkForce ?? 1;
+  const linkDistanceScale = params.linkDistance ?? 1;
 
-  for (let iteration = 0; iteration < 80; iteration += 1) {
+  const repulsionStrength = 42_000 * repelForceScale;
+  const springLength = (focusNodeId ? 138 : 176) * linkDistanceScale;
+  const springStrength = 0.02 * linkForceScale;
+  const gravityStrength = (focusNodeId ? 0.0012 : 0.0022) * centerForceScale;
+  const groupStrength = (focusNodeId ? 0.0135 : 0.0085) * centerForceScale;
+
+  for (let iteration = 0; iteration < 110; iteration += 1) {
     const forces: Record<string, MemoryGraphPoint> = {};
     params.nodes.forEach((node) => {
       forces[node.id] = { x: 0, y: 0 };
     });
 
     for (let leftIndex = 0; leftIndex < params.nodes.length; leftIndex += 1) {
-      const leftNode = params.nodes[leftIndex]!;
+      const leftNode = params.nodes[leftIndex];
       for (let rightIndex = leftIndex + 1; rightIndex < params.nodes.length; rightIndex += 1) {
-        const rightNode = params.nodes[rightIndex]!;
+        const rightNode = params.nodes[rightIndex];
         const dx = positions[rightNode.id].x - positions[leftNode.id].x;
         const dy = positions[rightNode.id].y - positions[leftNode.id].y;
         const distanceSquared = Math.max(dx * dx + dy * dy, 0.01);
@@ -112,6 +133,10 @@ export function buildMemoryGraphLayout(params: {
       }
       const position = positions[node.id];
       const force = forces[node.id];
+      const groupId = nodeGroups[node.id] ?? null;
+      const anchor = groupId ? (groupAnchors[groupId] ?? { x: 0, y: 0 }) : { x: 0, y: 0 };
+      force.x += (anchor.x - position.x) * groupStrength;
+      force.y += (anchor.y - position.y) * groupStrength;
       force.x += -position.x * gravityStrength;
       force.y += -position.y * gravityStrength;
       const nextVelocity = velocity[node.id];
@@ -140,4 +165,23 @@ export function buildMemoryGraphLayout(params: {
   }
 
   return positions;
+}
+
+function buildGroupAnchors(groupIds: string[], focusNodeId: string | null) {
+  const anchors: Record<string, MemoryGraphPoint> = {};
+  if (groupIds.length === 0) {
+    return anchors;
+  }
+  const baseRadius = focusNodeId ? 250 : 304;
+  const step = (Math.PI * 2) / groupIds.length;
+  groupIds.forEach((groupId, index) => {
+    const seed = seedFromId(groupId);
+    const angle = -Math.PI / 2 + index * step + (seed - 0.5) * 0.28;
+    const radius = baseRadius * (0.82 + seed * 0.22);
+    anchors[groupId] = {
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    };
+  });
+  return anchors;
 }

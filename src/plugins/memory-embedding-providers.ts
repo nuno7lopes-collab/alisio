@@ -30,6 +30,7 @@ export type MemoryEmbeddingProvider = {
   embedQuery: (text: string) => Promise<number[]>;
   embedBatch: (texts: string[]) => Promise<number[][]>;
   embedBatchInputs?: (inputs: EmbeddingInput[]) => Promise<number[][]>;
+  dispose?: () => Promise<void> | void;
 };
 
 export type MemoryEmbeddingProviderCreateOptions = {

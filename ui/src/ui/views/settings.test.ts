@@ -40,6 +40,52 @@ function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["a
   };
 }
 
+function createDoctor(
+  overrides: Partial<NonNullable<Parameters<typeof renderSettingsHub>[0]["doctor"]>> = {},
+): NonNullable<Parameters<typeof renderSettingsHub>[0]["doctor"]> {
+  return {
+    ok: true,
+    bootstrap: {} as never,
+    issues: [],
+    checks: {
+      gateway: true,
+      runtime: true,
+      account: true,
+      organization: true,
+      connectors: true,
+      permissions: true,
+    },
+    ...overrides,
+  };
+}
+
+function createNativeShellState(): NonNullable<
+  Parameters<typeof renderSettingsHub>[0]["nativeShellState"]
+> {
+  return {
+    platform: "macos",
+    launchAtLogin: true,
+    permissions: {
+      notifications: true,
+      appleScript: true,
+      accessibility: false,
+      screenRecording: false,
+      microphone: true,
+      speechRecognition: true,
+      camera: false,
+      location: false,
+    },
+    voiceWake: {
+      supported: true,
+      enabled: true,
+      talkEnabled: false,
+      triggers: ["alisio"],
+    },
+    logsPath: "/tmp/alisio.log",
+    developerCheckoutAvailable: true,
+  };
+}
+
 function createProps(
   overrides: Partial<Parameters<typeof renderSettingsHub>[0]> = {},
 ): Parameters<typeof renderSettingsHub>[0] {
@@ -187,6 +233,25 @@ describe("renderSettingsHub", () => {
     expect(container.querySelector('a[href^="mailto:support@alisio.pt"]')).toBeNull();
   });
 
+  it("keeps account-derived cards visible while the account refresh is in flight", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "account",
+          accountLoading: true,
+          account: createAccount(),
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Nuno's Mac");
+    expect(container.textContent).toContain("Free Plan");
+    expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(0);
+  });
+
   it("renders the agent name field in the account section", () => {
     const container = document.createElement("div");
     const account = createAccount();
@@ -206,6 +271,82 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).toContain("Muse");
     expect(container.textContent).toContain("Change email");
     expect(container.textContent).toContain("Update password");
+  });
+
+  it("applies the shared username validation pattern in the account section", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "account",
+          account: createAccount(),
+        }),
+      ),
+      container,
+    );
+
+    const usernameInput = container.querySelector<HTMLInputElement>('input[autocomplete="username"]');
+    expect(usernameInput?.getAttribute("pattern")).toBe("^[A-Za-z0-9._]+$");
+    expect(usernameInput?.getAttribute("autocapitalize")).toBe("off");
+    expect(usernameInput?.getAttribute("spellcheck")).toBe("false");
+  });
+
+  it("keeps the Mac controls visible while the native shell refresh is in flight", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "mac",
+          nativeShellLoading: true,
+          nativeShellState: createNativeShellState(),
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Launch at login");
+    expect(container.textContent).toContain("/tmp/alisio.log");
+    expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(0);
+  });
+
+  it("keeps current doctor details visible while health checks refresh", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "mac",
+          doctorLoading: true,
+          doctor: createDoctor({
+            ok: false,
+            issues: [
+              {
+                code: "gateway_unhealthy",
+                severity: "error",
+                title: "Runtime needs a restart",
+                message: "Gateway probe failed.",
+                step: "gateway",
+              },
+            ],
+            checks: {
+              gateway: false,
+              runtime: true,
+              account: true,
+              organization: true,
+              connectors: true,
+              permissions: true,
+            },
+          }),
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Runtime needs a restart");
+    expect(container.textContent).toContain("Reconnect Alisio");
+    expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(0);
   });
 
   it("hides the recovery action for Google accounts", () => {
@@ -264,20 +405,46 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).not.toContain("gateway");
   });
 
-  it("shows a single refresh action in the Mac section when a local checkout is available", () => {
+  it("does not show a temporary healthy doctor card while account sections refresh", () => {
     const container = document.createElement("div");
 
     render(
       renderSettingsHub(
         createProps({
-          section: "mac",
+          section: "account",
+          doctorLoading: true,
+          doctor: createDoctor(),
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).not.toContain("System health");
+    expect(container.querySelector(".alisio-settings-doctor")).toBeNull();
+  });
+
+  it("shows the sync action outside the Mac section when a local checkout is available", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "account",
           nativeRebuildAvailable: true,
           doctor: {
-            ok: true,
+            ok: false,
             bootstrap: {} as never,
-            issues: [],
+            issues: [
+              {
+                code: "gateway_unhealthy",
+                severity: "error",
+                title: "Runtime needs a restart",
+                message: "Gateway probe failed.",
+                step: "gateway",
+              },
+            ],
             checks: {
-              gateway: true,
+              gateway: false,
               runtime: true,
               account: true,
               organization: true,
@@ -290,11 +457,11 @@ describe("renderSettingsHub", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Refresh app + runtime");
+    expect(container.textContent).toContain("Sync app + UI");
     expect(container.textContent).not.toContain("Restart runtime");
   });
 
-  it("prefers the refresh action over runtime restart in the Mac doctor state", () => {
+  it("prefers the sync action over runtime restart in the Mac doctor state", () => {
     const container = document.createElement("div");
 
     render(
@@ -328,7 +495,7 @@ describe("renderSettingsHub", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Refresh app + runtime");
+    expect(container.textContent).toContain("Sync app + UI");
     expect(container.textContent).not.toContain("Restart runtime");
   });
 });

@@ -114,6 +114,22 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(loadSettings().gatewayUrl).toBe("ws://gateway.example:19001");
   });
 
+  it("derives the default locale from the effective i18n locale on first load", async () => {
+    vi.stubGlobal("navigator", { language: "pt-PT" } as Navigator);
+    setTestLocation({
+      protocol: "https:",
+      host: "gateway.example:8443",
+      pathname: "/",
+    });
+
+    const { loadSettings } = await import("./storage.ts");
+
+    expect(loadSettings()).toMatchObject({
+      gatewayUrl: expectedGatewayUrl(""),
+      locale: "pt-PT",
+    });
+  });
+
   it("skips node sessionStorage accessors that warn without a storage file", async () => {
     vi.resetModules();
     vi.unstubAllGlobals();

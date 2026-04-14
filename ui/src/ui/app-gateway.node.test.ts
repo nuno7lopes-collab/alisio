@@ -19,7 +19,7 @@ const loadControlUiBootstrapConfigMock = vi.hoisted(() =>
   ),
 );
 const clearDeviceAuthTokenMock = vi.hoisted(() => vi.fn());
-const loadOrCreateDeviceIdentityMock = vi.hoisted(() =>
+const loadManagedDeviceIdentityMock = vi.hoisted(() =>
   vi.fn(async () => ({ deviceId: "device-1", publicKey: "pk", privateKey: "sk" })),
 );
 
@@ -156,7 +156,7 @@ vi.mock("./device-auth.ts", () => ({
 }));
 
 vi.mock("./device-identity.ts", () => ({
-  loadOrCreateDeviceIdentity: loadOrCreateDeviceIdentityMock,
+  loadManagedDeviceIdentity: loadManagedDeviceIdentityMock,
 }));
 
 type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
@@ -283,7 +283,7 @@ describe("connectGateway", () => {
     loadAlisioDoctorSummaryMock.mockClear();
     loadControlUiBootstrapConfigMock.mockClear();
     clearDeviceAuthTokenMock.mockClear();
-    loadOrCreateDeviceIdentityMock.mockClear();
+    loadManagedDeviceIdentityMock.mockClear();
   });
 
   it("ignores stale client onGap callbacks after reconnect", () => {
@@ -663,7 +663,7 @@ describe("connectGateway", () => {
     });
 
     await vi.waitFor(() => {
-      expect(loadOrCreateDeviceIdentityMock).toHaveBeenCalledTimes(1);
+      expect(loadManagedDeviceIdentityMock).toHaveBeenCalledTimes(1);
       expect(clearDeviceAuthTokenMock).toHaveBeenCalledWith({
         deviceId: "device-1",
         role: "operator",

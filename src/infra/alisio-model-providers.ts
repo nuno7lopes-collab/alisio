@@ -2,6 +2,8 @@ import type { Api } from "@mariozechner/pi-ai";
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
 import type { ModelDefinitionConfig } from "../config/types.js";
 import type { NodeTaskEvent, NodeTaskResult } from "../gateway/node-registry.js";
+import { inspectManagedLocalModelRuntime } from "./alisio-local-llama-runtime.js";
+import type { AlisioLocalModelRuntimeInspection } from "./alisio-local-model-runtime.js";
 import {
   buildAlisioCurrentProviderId,
   buildAlisioTargetProviderId,
@@ -10,6 +12,7 @@ import {
 import { findAlisioLocalModelCatalogEntry } from "../shared/alisio-local-models.js";
 
 const ALISIO_DYNAMIC_API_PREFIX = "alisio:";
+const ALISIO_DYNAMIC_PROVIDER_API_KEY = "alisio-dynamic-runtime";
 const DEFAULT_CONTEXT_WINDOW = 32_768;
 const DEFAULT_MAX_TOKENS = 8_192;
 
@@ -165,6 +168,31 @@ function mergeCatalogEntries(
   });
 }
 
+function buildManagedLocalCurrentSource(params: {
+  inspection: AlisioLocalModelRuntimeInspection;
+  providerLabel?: string;
+}): AlisioDynamicProviderSource | null {
+  if (params.inspection.status !== "ready" || params.inspection.models.length === 0) {
+    return null;
+  }
+  const providerId = buildAlisioCurrentProviderId();
+  const providerLabel = params.providerLabel?.trim() || "This device";
+  return {
+    kind: "managed-local",
+    location: "current",
+    providerId,
+    providerLabel,
+    targetId: "current::llama.cpp",
+    catalogEntries: params.inspection.models.map((model) => ({
+      id: model.id,
+      name: model.name,
+      provider: providerId,
+      providerLabel,
+      input: ["text"],
+    })),
+  };
+}
+
 export function buildAlisioDynamicProviderApi(providerId: string): Api {
   return `${ALISIO_DYNAMIC_API_PREFIX}${providerId.trim()}` as Api;
 }
@@ -204,12 +232,48 @@ export function resolveAlisioDynamicProviderConfig(
     return undefined;
   }
   const api = buildAlisioDynamicProviderApi(source.providerId);
+  const baseUrl =
+    source.kind === "managed-local"
+      ? `http://127.0.0.1/alisio-dynamic/${source.providerId}`
+      : `https://alisio-dynamic.invalid/${source.providerId}`;
   return {
     provider: source.providerId,
     providerLabel: source.providerLabel,
     api,
+    baseUrl,
+    apiKey: ALISIO_DYNAMIC_PROVIDER_API_KEY,
     models: source.catalogEntries.map((entry) => buildDynamicModelDefinition(entry, api)),
   };
+}
+
+export async function ensureAlisioDynamicProviderSource(providerId: string): Promise<boolean> {
+  const normalizedProviderId = providerId.trim().toLowerCase();
+  if (!normalizedProviderId) {
+    return false;
+  }
+  if (alisioDynamicProviderState.sources.has(normalizedProviderId)) {
+    return true;
+  }
+
+  const currentProviderId = buildAlisioCurrentProviderId();
+  if (normalizedProviderId !== currentProviderId.toLowerCase()) {
+    return false;
+  }
+
+  const source = buildManagedLocalCurrentSource({
+    inspection: await inspectManagedLocalModelRuntime(process.env),
+  });
+  if (!source) {
+    return false;
+  }
+
+  setAlisioDynamicModelProviders([
+    ...[...alisioDynamicProviderState.sources.values()].filter(
+      (entry) => entry.providerId.toLowerCase() !== normalizedProviderId,
+    ),
+    source,
+  ]);
+  return true;
 }
 
 export { buildAlisioCurrentProviderId, buildAlisioTargetProviderId, isAlisioDynamicProvider };

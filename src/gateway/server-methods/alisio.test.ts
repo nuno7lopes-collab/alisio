@@ -20,7 +20,8 @@ const { scheduleGatewaySigusr1RestartMock, startAlisioDeveloperRebuildMock } = v
   })),
   startAlisioDeveloperRebuildMock: vi.fn(() => ({
     ok: true as const,
-    message: "Rebuild started. The app will close and reopen. Log: /tmp/alisio-dev-rebuild.log",
+    message:
+      "Sync started. The app will close, rebuild the Control UI, restart the local runtime, and reopen. Log: /tmp/alisio-dev-rebuild.log",
     logPath: "/tmp/alisio-dev-rebuild.log",
   })),
 }));

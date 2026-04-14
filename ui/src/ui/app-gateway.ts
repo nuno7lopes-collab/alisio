@@ -27,6 +27,7 @@ import {
   applyAlisioModelOperation,
   loadAlisioDoctorSummary,
   loadAlisioModels,
+  loadAlisioSharing,
 } from "./controllers/alisio.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
@@ -47,9 +48,10 @@ import {
 import { loadHealthState } from "./controllers/health.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
+import { applyRemoteComputerTaskUpdate } from "./controllers/remote-computers.ts";
 import { loadSessions, subscribeSessions } from "./controllers/sessions.ts";
 import { clearDeviceAuthToken } from "./device-auth.ts";
-import { loadOrCreateDeviceIdentity } from "./device-identity.ts";
+import { loadManagedDeviceIdentity } from "./device-identity.ts";
 import {
   resolveGatewayErrorDetailCode,
   type GatewayEventFrame,
@@ -184,7 +186,7 @@ function shouldRefreshControlUiBootstrap(
 }
 
 async function clearStoredBrowserDeviceAuth() {
-  const identity = await loadOrCreateDeviceIdentity().catch(() => null);
+  const identity = await loadManagedDeviceIdentity();
   if (!identity?.deviceId) {
     return;
   }
@@ -708,8 +710,17 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     void loadCron(host as unknown as Parameters<typeof loadCron>[0]);
   }
 
-  if (evt.event === "device.pair.requested" || evt.event === "device.pair.resolved") {
+  if (evt.event === "device.pair.requested") {
     void loadDevices(host as unknown as AlisioApp, { quiet: true });
+    return;
+  }
+
+  if (evt.event === "device.pair.resolved") {
+    void Promise.allSettled([
+      loadDevices(host as unknown as AlisioApp, { quiet: true }),
+      loadAlisioSharing(host as unknown as AlisioApp, { quiet: true }),
+    ]);
+    return;
   }
 
   if (evt.event === "node.pair.requested") {
@@ -721,7 +732,21 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     void Promise.allSettled([
       loadNodePairings(host as unknown as AlisioApp, { quiet: true }),
       loadNodes(host as unknown as AlisioApp, { quiet: true }),
+      loadAlisioSharing(host as unknown as AlisioApp, { quiet: true }),
     ]);
+    return;
+  }
+
+  if (evt.event === "node.task.updated") {
+    applyRemoteComputerTaskUpdate(host as unknown as AlisioApp, evt.payload);
+    return;
+  }
+
+  if (evt.event === "devices.changed") {
+    void loadAlisioSharing(host as unknown as AlisioApp, { quiet: true });
+    if (publicTabFor(host.tab) === "models") {
+      void loadAlisioModels(host as unknown as AlisioApp);
+    }
     return;
   }
 

@@ -20,6 +20,7 @@ let registerAdapter: MemoryEmbeddingProvidersModule["registerMemoryEmbeddingProv
 let embedBatchCalls = 0;
 let embedBatchInputCalls = 0;
 let providerCalls: Array<{ provider?: string; model?: string; outputDimensionality?: number }> = [];
+let providerDisposeSpies: ReturnType<typeof vi.fn>[] = [];
 let forceNoProvider = false;
 
 vi.mock("./embeddings.js", () => {
@@ -51,6 +52,8 @@ vi.mock("./embeddings.js", () => {
       }
       const providerId = options.provider === "gemini" ? "gemini" : "mock";
       const model = options.model ?? "mock-embed";
+      const disposeSpy = vi.fn();
+      providerDisposeSpies.push(disposeSpy);
       return {
         requestedProvider: options.provider ?? "openai",
         provider: {
@@ -91,6 +94,7 @@ vi.mock("./embeddings.js", () => {
                 },
               }
             : {}),
+          dispose: disposeSpy,
         },
         ...(providerId === "gemini"
           ? {
@@ -193,6 +197,7 @@ describe("memory index", () => {
     embedBatchCalls = 0;
     embedBatchInputCalls = 0;
     providerCalls = [];
+    providerDisposeSpies = [];
     forceNoProvider = false;
 
     mkdirSync(memoryDir, { recursive: true });
@@ -480,6 +485,26 @@ describe("memory index", () => {
 
     await firstManager.close?.();
     await secondManager.close?.();
+  });
+
+  it("disposes initialized status-only providers on close", async () => {
+    const cfg = createCfg({
+      storePath: path.join(workspaceDir, `index-status-dispose-${randomUUID()}.sqlite`),
+    });
+
+    const result = await getMemorySearchManager({
+      cfg,
+      agentId: "main",
+      purpose: "status",
+    });
+    const manager = requireManager(result, "status manager missing");
+
+    await manager.probeEmbeddingAvailability();
+    expect(providerDisposeSpies).toHaveLength(1);
+
+    await manager.close?.();
+
+    expect(providerDisposeSpies[0]).toHaveBeenCalledTimes(1);
   });
 
   it("reindexes sessions when source config adds sessions to an existing index", async () => {

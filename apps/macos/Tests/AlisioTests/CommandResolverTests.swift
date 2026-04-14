@@ -262,6 +262,42 @@ import AlisioSupport
         #expect(resolved?.path == bundledRoot.path)
     }
 
+    @Test func `developer checkout root resolves run app back to repo root`() throws {
+        let bundledRoot = try makeTempDirForTests()
+        try "{}".write(to: bundledRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("src"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("ui"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("apps/macos"),
+            withIntermediateDirectories: true)
+
+        let bundleURL = bundledRoot.appendingPathComponent(".run/Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/alisio-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"alisio"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let resolved = CommandResolver.developerCheckoutRoot(
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(resolved?.path == bundledRoot.path)
+    }
+
     @Test func `prefers packaged runtime root over stored project root`() throws {
         let defaults = self.makeDefaults()
         let stale = try makeTempDirForTests()

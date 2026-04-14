@@ -2,10 +2,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { discoverModels } from "../pi-model-discovery.js";
 import { createProviderRuntimeTestMock } from "./model.provider-runtime.test-support.js";
 
+const { inspectManagedLocalModelRuntimeMock } = vi.hoisted(() => ({
+  inspectManagedLocalModelRuntimeMock: vi.fn(),
+}));
+
 vi.mock("../pi-model-discovery.js", () => ({
   discoverAuthStorage: vi.fn(() => ({ mocked: true })),
   discoverModels: vi.fn(() => ({ find: vi.fn(() => null) })),
 }));
+
+vi.mock("../../infra/alisio-local-llama-runtime.js", async () => {
+  const actual = await vi.importActual<typeof import("../../infra/alisio-local-llama-runtime.js")>(
+    "../../infra/alisio-local-llama-runtime.js",
+  );
+  return {
+    ...actual,
+    inspectManagedLocalModelRuntime: inspectManagedLocalModelRuntimeMock,
+  };
+});
 
 import type { OpenRouterModelCapabilities } from "./openrouter-model-capabilities.js";
 
@@ -22,6 +36,11 @@ vi.mock("./openrouter-model-capabilities.js", () => ({
 }));
 
 import type { AlisioConfig } from "../../config/config.js";
+import {
+  buildAlisioCurrentProviderId,
+  clearAlisioDynamicModelProviders,
+  setAlisioDynamicModelProviders,
+} from "../../infra/alisio-model-providers.js";
 import { buildForwardCompatTemplate } from "./model.forward-compat.test-support.js";
 import { buildInlineProviderModels, resolveModel, resolveModelAsync } from "./model.js";
 import {
@@ -38,6 +57,8 @@ beforeEach(() => {
   mockGetOpenRouterModelCapabilities.mockReturnValue(undefined);
   mockLoadOpenRouterModelCapabilities.mockReset();
   mockLoadOpenRouterModelCapabilities.mockResolvedValue();
+  inspectManagedLocalModelRuntimeMock.mockReset();
+  clearAlisioDynamicModelProviders();
 });
 
 function createRuntimeHooks() {
@@ -77,14 +98,17 @@ function resolveModelAsyncForTest(
   modelId: string,
   agentDir?: string,
   cfg?: AlisioConfig,
-  options?: { retryTransientProviderRuntimeMiss?: boolean },
+  options?: {
+    retryTransientProviderRuntimeMiss?: boolean;
+    runtimeHooks?: ReturnType<typeof createRuntimeHooks>;
+  },
 ) {
   const resolvedAgentDir = agentDir ?? "/tmp/agent";
   return resolveModelAsync(provider, modelId, agentDir, cfg, {
     authStorage: { mocked: true } as never,
     modelRegistry: discoverModels({ mocked: true } as never, resolvedAgentDir),
     ...options,
-    runtimeHooks: createRuntimeHooks(),
+    runtimeHooks: options?.runtimeHooks ?? createRuntimeHooks(),
   });
 }
 
@@ -735,6 +759,40 @@ describe("resolveModel", () => {
     });
   });
 
+  it("resolves the current local dynamic provider without models.providers config", () => {
+    const provider = buildAlisioCurrentProviderId();
+    setAlisioDynamicModelProviders([
+      {
+        kind: "managed-local",
+        location: "current",
+        providerId: provider,
+        providerLabel: "This device",
+        targetId: "current::llama.cpp",
+        catalogEntries: [
+          {
+            id: "qwen3-4b-q4-k-m",
+            name: "Qwen3 4B",
+            provider,
+            input: ["text"],
+          },
+        ],
+      },
+    ]);
+
+    const result = resolveModelForTest(provider, "qwen3-4b-q4-k-m", "/tmp/agent");
+
+    expect(result.error).toBeUndefined();
+    expect(result.model).toMatchObject({
+      provider,
+      id: "qwen3-4b-q4-k-m",
+      api: `alisio:${provider}`,
+      reasoning: false,
+      input: ["text"],
+      contextWindow: 32_768,
+      maxTokens: 8_192,
+    });
+  });
+
   it("prefers exact provider config over normalized alias match when both keys exist", () => {
     mockDiscoveredModel(discoverModels, {
       provider: "bedrock",
@@ -792,6 +850,52 @@ describe("resolveModel", () => {
       contextWindow: 262144,
       maxTokens: 32768,
       headers: { "X-Provider": "alias" },
+    });
+  });
+
+  it("resolves the current local dynamic provider after async hydration", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    const runtimeHooks = createRuntimeHooks();
+    runtimeHooks.prepareProviderDynamicModel = async (params) => {
+      if (params.provider !== provider) {
+        return;
+      }
+      setAlisioDynamicModelProviders([
+        {
+          kind: "managed-local",
+          location: "current",
+          providerId: provider,
+          providerLabel: "This device",
+          targetId: "current::llama.cpp",
+          catalogEntries: [
+            {
+              id: "qwen3-4b-q4-k-m",
+              name: "Qwen3 4B",
+              provider,
+              input: ["text"],
+            },
+          ],
+        },
+      ]);
+    };
+
+    const result = await resolveModelAsyncForTest(
+      provider,
+      "qwen3-4b-q4-k-m",
+      "/tmp/agent",
+      undefined,
+      { runtimeHooks },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.model).toMatchObject({
+      provider,
+      id: "qwen3-4b-q4-k-m",
+      api: `alisio:${provider}`,
+      reasoning: false,
+      input: ["text"],
+      contextWindow: 32_768,
+      maxTokens: 8_192,
     });
   });
 

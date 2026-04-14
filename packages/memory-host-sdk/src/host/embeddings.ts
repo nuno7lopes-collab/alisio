@@ -31,6 +31,7 @@ export type EmbeddingProvider = {
   embedQuery: (text: string) => Promise<number[]>;
   embedBatch: (texts: string[]) => Promise<number[][]>;
   embedBatchInputs?: (inputs: EmbeddingInput[]) => Promise<number[][]>;
+  dispose?: () => Promise<void> | void;
 };
 
 export type EmbeddingProviderId = "openai" | "local" | "gemini" | "voyage" | "mistral";
@@ -72,6 +73,10 @@ export type EmbeddingProviderOptions = {
   taskType?: GeminiTaskType;
 };
 
+type DisposableEmbeddingResource = {
+  dispose?: () => Promise<void> | void;
+};
+
 export const DEFAULT_LOCAL_MODEL =
   "hf:ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/embeddinggemma-300m-qat-Q8_0.gguf";
 
@@ -109,8 +114,13 @@ export async function createLocalEmbeddingProvider(
   let embeddingModel: LlamaModel | null = null;
   let embeddingContext: LlamaEmbeddingContext | null = null;
   let initPromise: Promise<LlamaEmbeddingContext> | null = null;
+  let disposePromise: Promise<void> | null = null;
+  let disposed = false;
 
   const ensureContext = async (): Promise<LlamaEmbeddingContext> => {
+    if (disposed) {
+      throw new Error("Local embedding provider has been disposed");
+    }
     if (embeddingContext) {
       return embeddingContext;
     }
@@ -138,6 +148,34 @@ export async function createLocalEmbeddingProvider(
     return initPromise;
   };
 
+  const dispose = async (): Promise<void> => {
+    if (disposePromise) {
+      return await disposePromise;
+    }
+    disposed = true;
+    disposePromise = (async () => {
+      const pendingInit = initPromise;
+      if (pendingInit) {
+        try {
+          await pendingInit;
+        } catch {}
+      }
+      initPromise = null;
+      const currentContext = embeddingContext;
+      const currentModel = embeddingModel;
+      const currentLlama = llama;
+      embeddingContext = null;
+      embeddingModel = null;
+      llama = null;
+      await Promise.allSettled([
+        (currentContext as DisposableEmbeddingResource | null)?.dispose?.(),
+        (currentModel as DisposableEmbeddingResource | null)?.dispose?.(),
+        (currentLlama as DisposableEmbeddingResource | null)?.dispose?.(),
+      ]);
+    })();
+    await disposePromise;
+  };
+
   return {
     id: "local",
     model: modelPath,
@@ -156,6 +194,7 @@ export async function createLocalEmbeddingProvider(
       );
       return embeddings;
     },
+    dispose,
   };
 }
 

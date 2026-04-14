@@ -136,18 +136,6 @@ const MemoryCrdtSchema = z
   })
   .strict();
 
-const MemorySchema = z
-  .object({
-    backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
-    citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
-    ledger: MemoryLedgerSchema.optional(),
-    legacyMarkdownProjection: MemoryLegacyMarkdownProjectionSchema.optional(),
-    crdt: MemoryCrdtSchema.optional(),
-    qmd: MemoryQmdSchema.optional(),
-  })
-  .strict()
-  .optional();
-
 const HttpUrlSchema = z
   .string()
   .url()
@@ -155,6 +143,43 @@ const HttpUrlSchema = z
     const protocol = new URL(value).protocol;
     return protocol === "http:" || protocol === "https:";
   }, "Expected http:// or https:// URL");
+
+const MemoryE2eeSchema = z
+  .object({
+    required: z.literal(true).optional().default(true),
+  })
+  .strict();
+
+const MemorySyncUiSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true),
+  })
+  .strict();
+
+const MemorySyncSchema = z
+  .object({
+    mode: z
+      .union([z.literal("cloud"), z.literal("direct"), z.literal("off")])
+      .optional()
+      .default("off"),
+    relayBaseUrl: HttpUrlSchema.optional(),
+    ui: MemorySyncUiSchema.optional(),
+  })
+  .strict();
+
+const MemorySchema = z
+  .object({
+    backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
+    citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
+    ledger: MemoryLedgerSchema.optional(),
+    legacyMarkdownProjection: MemoryLegacyMarkdownProjectionSchema.optional(),
+    crdt: MemoryCrdtSchema.optional(),
+    e2ee: MemoryE2eeSchema.optional(),
+    sync: MemorySyncSchema.optional(),
+    qmd: MemoryQmdSchema.optional(),
+  })
+  .strict()
+  .optional();
 
 const ResponsesEndpointUrlFetchShape = {
   allowUrl: z.boolean().optional(),

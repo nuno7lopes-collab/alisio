@@ -1,8 +1,5 @@
 import { html, nothing } from "lit";
-import {
-  buildAgentMainSessionKey,
-  parseAgentSessionKey,
-} from "../../../src/routing/session-key.js";
+import { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 import {
   alisioPlanTranslationKey,
   normalizeAlisioPlan,
@@ -27,20 +24,18 @@ import {
   setVoiceWake,
 } from "./alisio-host.ts";
 import { alisioBootstrapBlocksChatAccess } from "./alisio-setup-state.ts";
-import { refreshChatAvatar } from "./app-chat.ts";
 import {
   resolveEffectiveAlisioAiState,
+  renderChatComposerModelSelect,
   renderChatDesktopToolbar,
   renderChatMobileToggle,
   resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
   isChatModelSwitchPending,
   renderTab,
-  setDefaultChatModel,
-  switchChatSession,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import { buildChatModelOptions, resolveChatModelSelectState } from "./chat-model-select-state.ts";
+import { buildChatModelOptions } from "./chat-model-select-state.ts";
 import {
   loadAgentMemoryFiles,
   loadAgentMemoryFileContent,
@@ -97,7 +92,6 @@ import {
   waitWebChannelLogin,
 } from "./controllers/channels.ts";
 import type { ChatRuntimeSetupHint } from "./controllers/chat.ts";
-import { loadChatHistory } from "./controllers/chat.ts";
 import {
   ensureAgentConfigEntry,
   loadConfig,
@@ -108,8 +102,9 @@ import {
 } from "./controllers/config.ts";
 import {
   approveDevicePairing,
+  cleanupComputerPairings,
   loadDevices,
-  removeDevicePairing,
+  removeComputerPairings,
   rejectDevicePairing,
   revokeDeviceToken,
   rotateDeviceToken,
@@ -129,6 +124,10 @@ import {
   rejectNodePairing,
 } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
+import {
+  runRemoteComputerCommand,
+  updateRemoteComputerDraft,
+} from "./controllers/remote-computers.ts";
 import {
   applyGatewayAccessMode,
   loadGatewayAccessMode,
@@ -161,9 +160,8 @@ import {
 import { TAB_GROUPS, pathForTab, publicTabFor } from "./navigation.ts";
 import {
   closeReservedExternalPopup,
-  navigateReservedExternalPopup,
+  openExternalTarget,
   reserveExternalPopup,
-  resolveSafeExternalUrl,
 } from "./open-external-url.ts";
 import { agentLogoUrl } from "./views/agents-utils.ts";
 import { renderAuthentications } from "./views/authentications.ts";
@@ -358,18 +356,12 @@ function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
         return;
       }
       scheduleOpenAiRefresh(state);
-      if (typeof window.alisioHost?.request === "function") {
-        void openExternal(targetUrl);
-        return;
-      }
-      if (navigateReservedExternalPopup(popup, targetUrl)) {
-        return;
-      }
-      closeReservedExternalPopup(popup);
-      const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
-      if (safeTargetUrl) {
-        window.location.assign(safeTargetUrl);
-      }
+      void openExternalTarget(targetUrl, {
+        popup,
+        openViaHost:
+          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
+        preferNewTab: typeof window.alisioHost?.request === "function",
+      });
     })
     .catch(() => {
       closeReservedExternalPopup(popup);
@@ -386,18 +378,12 @@ function beginAccountGoogleConnectFlow(state: AppViewState, callbackUrl: string)
         return;
       }
       scheduleAccountRefresh(state);
-      if (typeof window.alisioHost?.request === "function") {
-        void openExternal(targetUrl);
-        return;
-      }
-      if (navigateReservedExternalPopup(popup, targetUrl)) {
-        return;
-      }
-      closeReservedExternalPopup(popup);
-      const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
-      if (safeTargetUrl) {
-        window.location.assign(safeTargetUrl);
-      }
+      void openExternalTarget(targetUrl, {
+        popup,
+        openViaHost:
+          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
+        preferNewTab: typeof window.alisioHost?.request === "function",
+      });
     })
     .catch(() => {
       closeReservedExternalPopup(popup);
@@ -492,20 +478,16 @@ function beginConnectorFlow(
         return;
       }
       scheduleConnectorAuthorizationRefresh(state, connectorId);
-      if (typeof window.alisioHost?.request === "function") {
-        void openExternal(targetUrl);
-        return;
-      }
-      if (navigateReservedExternalPopup(popup, targetUrl)) {
-        return;
-      }
-      closeReservedExternalPopup(popup);
-      const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
-      if (!safeTargetUrl) {
-        state.alisioConnectorsError = t("alisio.authentications.errors.invalidUrl");
-        return;
-      }
-      window.location.assign(safeTargetUrl);
+      void openExternalTarget(targetUrl, {
+        popup,
+        openViaHost:
+          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
+        preferNewTab: typeof window.alisioHost?.request === "function",
+      }).then((navigationResult) => {
+        if (navigationResult === "invalid") {
+          state.alisioConnectorsError = t("alisio.authentications.errors.invalidUrl");
+        }
+      });
     })
     .catch((error) => {
       closeReservedExternalPopup(popup);
@@ -565,7 +547,11 @@ export function renderApp(state: AppViewState) {
       state.alisioConnectorSetupGuide = null;
     },
     onOpenSupportUrl: (targetUrl) => {
-      void openExternal(targetUrl);
+      void openExternalTarget(targetUrl, {
+        openViaHost:
+          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
+        preferNewTab: true,
+      });
     },
     organizationLoading: state.alisioOrganizationLoading,
     organizationError: state.alisioOrganizationError,
@@ -647,8 +633,7 @@ export function renderApp(state: AppViewState) {
       state.setTab("models" as import("./navigation.ts").Tab);
     },
     onOpenSettingsMac: () => {
-      state.settingsSection = "mac";
-      state.setTab("settings" as import("./navigation.ts").Tab);
+      state.setSettingsSection("mac");
       void openNativeSettings();
     },
     onSetLaunchAtLogin: (enabled) => {
@@ -745,18 +730,12 @@ export function renderApp(state: AppViewState) {
             return;
           }
           scheduleOpenAiRefresh(state);
-          if (typeof window.alisioHost?.request === "function") {
-            void openExternal(targetUrl);
-            return;
-          }
-          if (navigateReservedExternalPopup(popup, targetUrl)) {
-            return;
-          }
-          closeReservedExternalPopup(popup);
-          const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
-          if (safeTargetUrl) {
-            window.location.assign(safeTargetUrl);
-          }
+          void openExternalTarget(targetUrl, {
+            popup,
+            openViaHost:
+              typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
+            preferNewTab: typeof window.alisioHost?.request === "function",
+          });
         })
         .catch(() => {
           closeReservedExternalPopup(popup);
@@ -802,15 +781,7 @@ export function renderApp(state: AppViewState) {
     });
   const managementModelCatalog =
     state.modelManagementCatalog.length > 0 ? state.modelManagementCatalog : state.chatModelCatalog;
-  const modelsPageModelSelectState = resolveChatModelSelectState({
-    sessionKey: state.sessionKey,
-    chatModelOverrides: state.chatModelOverrides,
-    chatModelCatalog: managementModelCatalog,
-    sessionsResult: state.sessionsResult,
-  });
-  const modelsPageModelOptions = buildChatModelOptions(managementModelCatalog, [
-    modelsPageModelSelectState.defaultModel,
-  ]);
+  const modelsPageModelOptions = buildChatModelOptions(managementModelCatalog);
   const isChat = activeTab === "chat";
   const chatFocus = isChat && state.settings.chatFocusMode;
   const navDrawerOpen = Boolean(state.navDrawerOpen && !chatFocus);
@@ -855,17 +826,11 @@ export function renderApp(state: AppViewState) {
     }
   };
   const openSettingsSection = (section: import("./navigation.ts").SettingsSection) => {
-    state.settingsSection = section;
-    state.setTab("settings" as import("./navigation.ts").Tab);
+    state.setSettingsSection(section);
   };
   const chatRuntimeSetupHint =
     (state as AppViewState & { chatRuntimeSetupHint?: ChatRuntimeSetupHint | null })
       .chatRuntimeSetupHint ?? null;
-  const resolvedAgentId =
-    state.agentsSelectedId ??
-    state.agentsList?.defaultId ??
-    state.agentsList?.agents?.[0]?.id ??
-    null;
   const resolvedMemoryAgentId = resolvePreferredMemoryAgentId({
     agentsList: state.agentsList,
     memorySelectedAgentId: state.memorySelectedAgentId,
@@ -886,13 +851,7 @@ export function renderApp(state: AppViewState) {
         return;
       }
       state.memorySelectedAgentId = agentId;
-      await Promise.allSettled([
-        loadAgentMemoryFiles(state, agentId, {
-          preferredName: state.memoryActive,
-        }),
-        loadMemoryStatus(state, agentId, { reset: true }),
-      ]);
-      await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
+      await loadMemoryStatus(state, agentId, { reset: true });
     })();
   };
   if (shouldShowSetup) {
@@ -1240,7 +1199,13 @@ export function renderApp(state: AppViewState) {
                 void rejectChannelPairingRequest(state, { channelId, accountId, requestId });
               },
               onOpenSupportUrl: (targetUrl) => {
-                void openExternal(targetUrl);
+                void openExternalTarget(targetUrl, {
+                  openViaHost:
+                    typeof window.alisioHost?.request === "function"
+                      ? (url) => openExternal(url)
+                      : null,
+                  preferNewTab: true,
+                });
               },
             })
           : nothing}
@@ -1274,7 +1239,6 @@ export function renderApp(state: AppViewState) {
                 void Promise.allSettled([
                   loadChannels(state, false),
                   loadAlisioProviderOverview(state),
-                  refreshAlisioAi(state),
                   loadSkills(state),
                 ]);
               },
@@ -1333,8 +1297,7 @@ export function renderApp(state: AppViewState) {
                 state.setTab("authentications" as import("./navigation.ts").Tab);
               },
               onOpenSettings: () => {
-                state.settingsSection = "account";
-                state.setTab("settings" as import("./navigation.ts").Tab);
+                state.setSettingsSection("account");
               },
             })
           : nothing}
@@ -1342,18 +1305,25 @@ export function renderApp(state: AppViewState) {
           ? renderConnections({
               assistantName: state.assistantName,
               assistantAgentId: state.assistantAgentId,
-              loading: state.nodesLoading,
+              nodesLoading: state.nodesLoading,
+              nodesLoaded: state.nodesLoaded,
               nodes: state.nodes,
               nodesError: state.nodesError,
               devicesLoading: state.devicesLoading,
               devicesError: state.devicesError,
               devicesList: state.devicesList,
+              currentDeviceId: state.currentDeviceId,
               sharingLoading: state.alisioSharingLoading,
               sharingError: state.alisioSharingError,
               sharing: state.alisioSharing,
+              sessionKey: state.sessionKey,
               nodePairingsLoading: state.nodePairingsLoading,
               nodePairingsError: state.nodePairingsError,
               nodePairingsList: state.nodePairingsList,
+              remoteComputerDrafts: state.remoteComputerDrafts,
+              remoteComputerBusy: state.remoteComputerBusy,
+              remoteComputerErrors: state.remoteComputerErrors,
+              remoteComputerTasks: state.remoteComputerTasks,
               configForm: state.configForm,
               configLoading: state.configLoading,
               configSaving: state.configSaving,
@@ -1374,7 +1344,6 @@ export function renderApp(state: AppViewState) {
                   loadAlisioSharing(state),
                   loadNodePairings(state),
                   loadConfig(state),
-                  loadSelectedExecApprovals(state),
                 ]);
               },
               onDevicesRefresh: () => {
@@ -1392,8 +1361,11 @@ export function renderApp(state: AppViewState) {
               onDeviceReject: (requestId) => {
                 void rejectDevicePairing(state, requestId);
               },
-              onDeviceRemove: (deviceId) => {
-                void removeDevicePairing(state, deviceId);
+              onDeviceRemoveComputer: (label, deviceIds) => {
+                void removeComputerPairings(state, { label, deviceIds });
+              },
+              onDeviceCleanupComputer: (label, staleDeviceIds) => {
+                void cleanupComputerPairings(state, { label, staleDeviceIds });
               },
               onSharingRequest: (targetId, scopes) => {
                 void requestAlisioSharedDeviceAccess(state, targetId, scopes);
@@ -1417,17 +1389,26 @@ export function renderApp(state: AppViewState) {
                   },
                 });
               },
+              onRemoteComputerCommandChange: (computerId, value) => {
+                updateRemoteComputerDraft(state, { computerId, command: value });
+              },
+              onRemoteComputerCwdChange: (computerId, value) => {
+                updateRemoteComputerDraft(state, { computerId, cwd: value });
+              },
+              onRemoteComputerRun: (computerId, nodeId) => {
+                void runRemoteComputerCommand(state, { computerId, nodeId });
+              },
               onNodeApprove: (requestId) => {
                 void Promise.allSettled([approveNodePairing(state, requestId), loadNodes(state)]);
               },
               onNodeReject: (requestId) => {
                 void Promise.allSettled([rejectNodePairing(state, requestId), loadNodes(state)]);
               },
-              onDeviceRotate: (deviceId, role, scopes) => {
-                void rotateDeviceToken(state, { deviceId, role, scopes });
+              onDeviceRotate: (deviceId, role, scopes, label) => {
+                void rotateDeviceToken(state, { deviceId, role, scopes, label });
               },
-              onDeviceRevoke: (deviceId, role) => {
-                void revokeDeviceToken(state, { deviceId, role });
+              onDeviceRevoke: (deviceId, role, label) => {
+                void revokeDeviceToken(state, { deviceId, role, label });
               },
               onLoadConfig: () => {
                 void loadConfig(state);
@@ -1608,27 +1589,6 @@ export function renderApp(state: AppViewState) {
                 ${renderChatDesktopToolbar(state)}
                 ${renderChat({
                   sessionKey: state.sessionKey,
-                  onSessionKeyChange: (next) => {
-                    state.sessionKey = next;
-                    state.chatMessage = "";
-                    state.chatAttachments = [];
-                    state.chatStream = null;
-                    state.chatStreamStartedAt = null;
-                    state.chatRunId = null;
-                    state.chatFinalizing = false;
-                    state.chatQueue = [];
-                    state.resetToolStream();
-                    state.resetChatScroll();
-                    state.applySettings({
-                      ...state.settings,
-                      sessionKey: next,
-                      lastActiveSessionKey: next,
-                    });
-                    void state.loadAssistantIdentity();
-                    void loadChatHistory(state);
-                    void refreshChatAvatar(state);
-                  },
-                  thinkingLevel: state.chatThinkingLevel,
                   showThinking,
                   showToolCalls,
                   loading: state.chatLoading,
@@ -1654,16 +1614,6 @@ export function renderApp(state: AppViewState) {
                   runtimeSetupHint: chatRuntimeSetupHint,
                   sessions: state.sessionsResult,
                   focusMode: chatFocus,
-                  onRefresh: () => {
-                    return Promise.all([
-                      loadChatHistory(state, {
-                        preserveEphemeral: Boolean(state.chatRunId || state.chatFinalizing),
-                      }),
-                      refreshChatAvatar(state),
-                      loadGatewayAccessMode(state),
-                      loadNativeShellState(state),
-                    ]);
-                  },
                   onToggleFocusMode: () => {
                     state.applySettings({
                       ...state.settings,
@@ -1693,14 +1643,12 @@ export function renderApp(state: AppViewState) {
                   nativeShellState: state.nativeShellState,
                   attachments: state.chatAttachments,
                   onAttachmentsChange: (next) => (state.chatAttachments = next),
+                  composerModelSelect: renderChatComposerModelSelect(state),
                   onSend: () => state.handleSendChat(),
                   canAbort: Boolean(state.chatRunId),
                   onAbort: () => void state.handleAbortChat(),
                   onResolveApproval: (entry, decision) => {
                     void resolveApprovalDecision(entry, decision);
-                  },
-                  onOpenAdvancedSecurity: () => {
-                    state.setTab("security");
                   },
                   onOpenNativeSettings:
                     state.nativeShellState || state.nativeShellLoading || state.nativeShellError
@@ -1709,52 +1657,8 @@ export function renderApp(state: AppViewState) {
                         }
                       : undefined,
                   onQueueRemove: (id) => state.removeQueuedMessage(id),
-                  onNewSession: () => state.handleSendChat("/new", { restoreDraft: true }),
-                  onClearHistory: async () => {
-                    if (!state.client || !state.connected) {
-                      return;
-                    }
-                    try {
-                      await state.client.request("sessions.reset", { key: state.sessionKey });
-                      state.chatMessages = [];
-                      state.chatStream = null;
-                      state.chatRunId = null;
-                      state.chatFinalizing = false;
-                      await loadChatHistory(state);
-                    } catch (err) {
-                      state.lastError = String(err);
-                    }
-                  },
-                  agentsList: state.agentsList,
-                  currentAgentId: resolvedAgentId ?? "main",
-                  onAgentChange: (agentId: string) => {
-                    state.sessionKey = buildAgentMainSessionKey({ agentId });
-                    state.chatMessages = [];
-                    state.chatAttachments = [];
-                    state.chatStream = null;
-                    state.chatRunId = null;
-                    state.chatFinalizing = false;
-                    state.chatQueue = [];
-                    state.chatStreamStartedAt = null;
-                    state.resetToolStream();
-                    state.applySettings({
-                      ...state.settings,
-                      sessionKey: state.sessionKey,
-                      lastActiveSessionKey: state.sessionKey,
-                    });
-                    void loadChatHistory(state);
-                    void state.loadAssistantIdentity();
-                  },
-                  onNavigateToAgent: () => {
-                    state.settingsSection = "account";
-                    state.setTab("settings" as import("./navigation.ts").Tab);
-                  },
-                  onSessionSelect: (key: string) => {
-                    switchChatSession(state, key);
-                  },
                   showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
                   onScrollToBottom: () => state.scrollToBottom(),
-                  // Sidebar props for tool output viewing
                   sidebarOpen: state.sidebarOpen,
                   sidebarContent: state.sidebarContent,
                   sidebarError: state.sidebarError,
@@ -1796,11 +1700,6 @@ export function renderApp(state: AppViewState) {
               memoryGraphError: state.memoryGraphError,
               memoryGraph: state.memoryGraph,
               memoryGraphQuery,
-              configLoading: state.configLoading || state.configSchemaLoading,
-              configSaving: state.configSaving,
-              configDirty: state.configFormDirty,
-              configSchema: state.configSchema,
-              configUiHints: state.configUiHints,
               configForm: state.configForm,
               searchQuery: state.memorySearchQuery,
               composerOpen: state.memoryComposerOpen,
@@ -1810,13 +1709,10 @@ export function renderApp(state: AppViewState) {
                 state.memorySelectedAgentId = agentId;
                 state.memoryComposerOpen = false;
                 state.memoryComposerTitle = "";
-                void Promise.allSettled([
-                  loadAgentMemoryFiles(state, agentId, {
-                    preferredName: PRIMARY_MEMORY_FILE_NAME,
-                  }),
-                  loadMemoryStatus(state, agentId, { reset: true }),
-                ]);
-                void reloadMemoryGraphForSelection(state, agentId, PRIMARY_MEMORY_FILE_NAME);
+                state.memoryGraph = null;
+                state.memoryGraphError = null;
+                state.memoryGraphLoading = false;
+                void loadMemoryStatus(state, agentId, { reset: true });
               },
               onRefresh: refreshMemory,
               onSearchChange: (value) => {
@@ -1918,55 +1814,7 @@ export function renderApp(state: AppViewState) {
                 }
                 void (async () => {
                   await syncMemoryNow(state, agentId);
-                  const preferredName = state.memoryActive ?? PRIMARY_MEMORY_FILE_NAME;
-                  await loadAgentMemoryFiles(state, agentId, {
-                    preferredName,
-                  });
-                  await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
-                })();
-              },
-              onUseLocalEmbeddings: () => {
-                updateConfigFormValue(
-                  state,
-                  ["agents", "defaults", "memorySearch", "provider"],
-                  "local",
-                );
-                const agentId = resolvedMemoryAgentId;
-                void (async () => {
-                  await saveConfig(state);
-                  if (agentId) {
-                    await loadMemoryStatus(state, agentId, { reset: true });
-                    await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
-                  }
-                })();
-              },
-              onConfigPatch: (path, value) => {
-                if (path[0] === "agent") {
-                  const agentId = resolvedMemoryAgentId;
-                  if (!agentId) {
-                    return;
-                  }
-                  const targetIndex = ensureAgentConfigEntry(state, agentId);
-                  if (targetIndex < 0) {
-                    return;
-                  }
-                  updateConfigFormValue(
-                    state,
-                    ["agents", "list", targetIndex, "memorySearch", ...path.slice(1)],
-                    value,
-                  );
-                  return;
-                }
-                updateConfigFormValue(state, path, value);
-              },
-              onSaveSettings: () => {
-                const agentId = resolvedMemoryAgentId;
-                void (async () => {
-                  await saveConfig(state);
-                  if (agentId) {
-                    await loadMemoryStatus(state, agentId, { reset: true });
-                    await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
-                  }
+                  await loadMemoryStatus(state, agentId, { reset: true });
                 })();
               },
             })
@@ -2010,13 +1858,6 @@ export function renderApp(state: AppViewState) {
                 void renameAlisioAiProfile(state, profileId, label);
               },
               modelOptions: modelsPageModelOptions,
-              defaultChatModelValue: modelsPageModelSelectState.defaultModel,
-              defaultChatModelDisplay: modelsPageModelSelectState.defaultDisplay,
-              defaultChatModelLabel: modelsPageModelSelectState.defaultLabel,
-              modelPickerBusy: state.modelManagementLoading || state.sessionsLoading,
-              onSelectDefaultChatModel: (modelValue) => {
-                void setDefaultChatModel(state, modelValue);
-              },
               onInstallModel: (targetId, modelId) => {
                 const target = state.alisioModels?.targets.find(
                   (entry) => entry.targetId === targetId,
@@ -2080,8 +1921,7 @@ export function renderApp(state: AppViewState) {
           ? renderSettingsHub({
               section: state.settingsSection,
               onSectionChange: (section) => {
-                state.settingsSection = section;
-                state.setTab("settings" as import("./navigation.ts").Tab);
+                state.setSettingsSection(section);
               },
               accountLoading: state.alisioAccountLoading,
               accountError: state.alisioAccountError,

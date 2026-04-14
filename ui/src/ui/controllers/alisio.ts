@@ -7,12 +7,13 @@ import {
   resolveBlockingSetupStep,
 } from "../alisio-setup-state.ts";
 import { clearDeviceAuthToken } from "../device-auth.ts";
-import { loadOrCreateDeviceIdentity } from "../device-identity.ts";
+import { loadManagedDeviceIdentity } from "../device-identity.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import {
   makeModelsOperationKey,
   type ModelProviderId,
   type ModelsOperation,
+  type ModelsOperationIntent,
   type ModelsOperationMap,
 } from "../models-view-types.ts";
 import type {
@@ -147,10 +148,35 @@ function isUnknownMethodError(error: unknown, method: string) {
   return String(error).includes(`unknown method: ${method}`);
 }
 
+function normalizeModelsOperationIntent(
+  state: AlisioState,
+  operation: Pick<ModelsOperation, "targetId" | "modelId" | "action" | "intent">,
+): ModelsOperationIntent {
+  if (operation.intent) {
+    return operation.intent;
+  }
+  if (operation.action === "uninstall") {
+    return "uninstall";
+  }
+  const key = makeModelsOperationKey(operation.targetId, operation.modelId);
+  const existingIntent = state.alisioModelOperations[key]?.intent;
+  if (existingIntent === "install" || existingIntent === "update") {
+    return existingIntent;
+  }
+  const target = state.alisioModels?.targets.find((entry) => entry.targetId === operation.targetId);
+  const installed = target?.installedModels.some(
+    (model) => model.id.trim().toLowerCase() === operation.modelId.trim().toLowerCase(),
+  );
+  return installed ? "update" : "install";
+}
+
 function setModelOperation(state: AlisioState, operation: ModelsOperation) {
   state.alisioModelOperations = {
     ...state.alisioModelOperations,
-    [makeModelsOperationKey(operation.targetId, operation.modelId)]: operation,
+    [makeModelsOperationKey(operation.targetId, operation.modelId)]: {
+      ...operation,
+      intent: normalizeModelsOperationIntent(state, operation),
+    },
   };
 }
 
@@ -193,6 +219,52 @@ function syncModelOperationsWithSnapshot(state: AlisioState, models: AlisioModel
   });
 
   state.alisioModelOperations = nextEntries.length > 0 ? Object.fromEntries(nextEntries) : {};
+}
+
+function normalizeModelIdList(models: readonly { id: string }[] | null | undefined) {
+  return [...(models ?? [])]
+    .map((model) => model.id.trim().toLowerCase())
+    .filter(Boolean)
+    .toSorted()
+    .join("|");
+}
+
+function buildModelsCatalogRefreshSignature(models: AlisioModelsState | null) {
+  if (!models) {
+    return "";
+  }
+  const targetSignature = models.targets
+    .map((target) =>
+      [
+        target.targetId.trim().toLowerCase(),
+        target.chatProviderId?.trim().toLowerCase() ?? "",
+        target.current ? "current" : "linked",
+        target.supportsInstall ? "install" : "display",
+        normalizeModelIdList(target.installedModels),
+        normalizeModelIdList(target.availableModels),
+      ].join("::"),
+    )
+    .toSorted()
+    .join("||");
+  return `${models.backend}::${targetSignature}`;
+}
+
+function shouldRefreshModelCatalogs(
+  state: AlisioState,
+  previousModels: AlisioModelsState | null,
+  nextModels: AlisioModelsState,
+) {
+  const missingChatCatalog =
+    Array.isArray(state.chatModelCatalog) && state.chatModelCatalog.length === 0;
+  const missingManagementCatalog =
+    Array.isArray(state.modelManagementCatalog) && state.modelManagementCatalog.length === 0;
+  if (missingChatCatalog || missingManagementCatalog) {
+    return true;
+  }
+  return (
+    buildModelsCatalogRefreshSignature(previousModels) !==
+    buildModelsCatalogRefreshSignature(nextModels)
+  );
 }
 
 async function refreshModelCatalogs(state: AlisioState) {
@@ -749,13 +821,16 @@ export async function loadAlisioModels(state: AlisioState) {
   state.alisioModelsLoading = true;
   state.alisioModelsError = null;
   try {
+    const previousModels = state.alisioModels;
     const result = await request.client.request<AlisioModelsState>("alisio.models.get", {});
     if (!isTrackedRequestCurrent(state, modelsRequests, request)) {
       return;
     }
     state.alisioModels = result;
     syncModelOperationsWithSnapshot(state, result);
-    await refreshModelCatalogs(state);
+    if (shouldRefreshModelCatalogs(state, previousModels, result)) {
+      await refreshModelCatalogs(state);
+    }
   } catch (error) {
     if (!isTrackedRequestCurrent(state, modelsRequests, request)) {
       return;
@@ -793,15 +868,23 @@ export async function installAlisioModel(
     targetId: params.targetId,
     modelId: params.modelId,
     action: "install",
+    intent: normalizeModelsOperationIntent(state, {
+      targetId: params.targetId,
+      modelId: params.modelId,
+      action: "install",
+    }),
     phase: "started",
     updatedAt: Date.now(),
   });
   try {
+    const previousModels = state.alisioModels;
     await state.client.request<AlisioModelsInstallResult>("alisio.models.install", params);
     const result = await state.client.request<AlisioModelsState>("alisio.models.get", {});
     state.alisioModels = result;
     syncModelOperationsWithSnapshot(state, result);
-    await refreshModelCatalogs(state);
+    if (shouldRefreshModelCatalogs(state, previousModels, result)) {
+      await refreshModelCatalogs(state);
+    }
   } catch (error) {
     clearModelOperation(state, params.targetId, params.modelId);
     state.alisioModelsError = String(error);
@@ -832,11 +915,14 @@ export async function uninstallAlisioModel(
     updatedAt: Date.now(),
   });
   try {
+    const previousModels = state.alisioModels;
     await state.client.request<AlisioModelsUninstallResult>("alisio.models.uninstall", params);
     const result = await state.client.request<AlisioModelsState>("alisio.models.get", {});
     state.alisioModels = result;
     syncModelOperationsWithSnapshot(state, result);
-    await refreshModelCatalogs(state);
+    if (shouldRefreshModelCatalogs(state, previousModels, result)) {
+      await refreshModelCatalogs(state);
+    }
   } catch (error) {
     clearModelOperation(state, params.targetId, params.modelId);
     state.alisioModelsError = String(error);
@@ -1175,7 +1261,7 @@ export async function signOutAlisioAccount(state: AlisioState) {
       return;
     }
     state.alisioAccount = account;
-    const identity = await loadOrCreateDeviceIdentity().catch(() => null);
+    const identity = await loadManagedDeviceIdentity();
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
       return;
     }
@@ -1577,13 +1663,15 @@ export async function loadAlisioOrganization(state: AlisioState) {
   }
 }
 
-export async function loadAlisioSharing(state: AlisioState) {
+export async function loadAlisioSharing(state: AlisioState, opts?: { quiet?: boolean }) {
   const request = beginTrackedRequest(state, sharingRequests, state.alisioSharingLoading);
   if (!request) {
     return;
   }
   state.alisioSharingLoading = true;
-  state.alisioSharingError = null;
+  if (!opts?.quiet) {
+    state.alisioSharingError = null;
+  }
   try {
     const result = await request.client.request<AlisioSharingState>("devices.list", {});
     if (!isTrackedRequestCurrent(state, sharingRequests, request)) {
@@ -1594,7 +1682,9 @@ export async function loadAlisioSharing(state: AlisioState) {
     if (!isTrackedRequestCurrent(state, sharingRequests, request)) {
       return;
     }
-    state.alisioSharingError = String(error);
+    if (!opts?.quiet) {
+      state.alisioSharingError = String(error);
+    }
   } finally {
     if (isTrackedRequestCurrent(state, sharingRequests, request)) {
       state.alisioSharingLoading = false;

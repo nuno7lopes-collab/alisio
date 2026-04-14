@@ -1,10 +1,60 @@
 import type { Server as HttpServer } from "node:http";
-import type { WebSocketServer } from "ws";
+import { WebSocket, type WebSocketServer } from "ws";
 import type { CanvasHostHandler, CanvasHostServer } from "../canvas-host/server.js";
 import { type ChannelId, listChannelPlugins } from "../channels/plugins/index.js";
 import { stopGmailWatcher } from "../hooks/gmail-watcher.js";
 import type { HeartbeatRunner } from "../infra/heartbeat-runner.js";
 import type { PluginServicesHandle } from "../plugins/services.js";
+import type { GatewayWsClient } from "./server/ws-types.js";
+
+const WS_SHUTDOWN_GRACE_MS = 1_000;
+const HTTP_SHUTDOWN_GRACE_MS = 1_000;
+
+type CloseableHttpServer = HttpServer & {
+  closeIdleConnections?: () => void;
+  closeAllConnections?: () => void;
+};
+
+async function closeWithForceFallback(params: {
+  close: () => Promise<void>;
+  forceAfterMs: number;
+  onForce: () => void;
+}): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    timer = setTimeout(() => {
+      try {
+        params.onForce();
+      } catch {
+        /* ignore */
+      }
+    }, params.forceAfterMs);
+    await params.close();
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+function closeTrackedWebSocket(socket: WebSocket): void {
+  try {
+    socket.close(1012, "service restart");
+  } catch {
+    /* ignore */
+  }
+}
+
+function terminateTrackedWebSocket(socket: WebSocket): void {
+  if (socket.readyState === WebSocket.CLOSED) {
+    return;
+  }
+  try {
+    socket.terminate();
+  } catch {
+    /* ignore */
+  }
+}
 
 export function createGatewayCloseHandler(params: {
   bonjourStop: (() => Promise<void>) | null;
@@ -28,7 +78,7 @@ export function createGatewayCloseHandler(params: {
   transcriptUnsub: (() => void) | null;
   lifecycleUnsub: (() => void) | null;
   chatRunState: { clear: () => void };
-  clients: Set<{ socket: { close: (code: number, reason: string) => void } }>;
+  clients: Set<GatewayWsClient>;
   configReloader: { stop: () => Promise<void> };
   wss: WebSocketServer;
   httpServer: HttpServer;
@@ -123,30 +173,46 @@ export function createGatewayCloseHandler(params: {
         }
       }
       params.chatRunState.clear();
+      const trackedSockets = new Set<WebSocket>();
       for (const c of params.clients) {
-        try {
-          c.socket.close(1012, "service restart");
-        } catch {
-          /* ignore */
-        }
+        trackedSockets.add(c.socket);
+      }
+      for (const socket of params.wss.clients) {
+        trackedSockets.add(socket);
+      }
+      for (const socket of trackedSockets) {
+        closeTrackedWebSocket(socket);
       }
       params.clients.clear();
       await params.configReloader.stop().catch(() => {});
-      await new Promise<void>((resolve) => params.wss.close(() => resolve()));
+      await closeWithForceFallback({
+        forceAfterMs: WS_SHUTDOWN_GRACE_MS,
+        onForce: () => {
+          for (const socket of trackedSockets) {
+            terminateTrackedWebSocket(socket);
+          }
+        },
+        close: async () => await new Promise<void>((resolve) => params.wss.close(() => resolve())),
+      });
       const servers =
         params.httpServers && params.httpServers.length > 0
           ? params.httpServers
           : [params.httpServer];
       for (const server of servers) {
-        const httpServer = server as HttpServer & {
-          closeIdleConnections?: () => void;
-        };
+        const httpServer = server as CloseableHttpServer;
         if (typeof httpServer.closeIdleConnections === "function") {
           httpServer.closeIdleConnections();
         }
-        await new Promise<void>((resolve, reject) =>
-          httpServer.close((err) => (err ? reject(err) : resolve())),
-        );
+        await closeWithForceFallback({
+          forceAfterMs: HTTP_SHUTDOWN_GRACE_MS,
+          onForce: () => {
+            httpServer.closeAllConnections?.();
+          },
+          close: async () =>
+            await new Promise<void>((resolve, reject) =>
+              httpServer.close((err) => (err ? reject(err) : resolve())),
+            ),
+        });
       }
     } finally {
       try {

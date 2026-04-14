@@ -16,6 +16,8 @@ import type {
   LoadDeviceKeyParams,
   LoadProfileRootKeyParams,
   MemoryCryptoTelemetry,
+  SetupProfileRootKeyParams,
+  SetupProfileRootKeyResult,
   StoreDeviceKeyParams,
   StoreProfileRootKeyParams,
   StoreProfileRootKeyResult,
@@ -312,6 +314,70 @@ export async function storeProfileRootKey(
     path: filePath,
     status: storedIn,
     deviceKeyStoredIn: storedIn,
+  };
+}
+
+export async function setupProfileRootKey(
+  params: SetupProfileRootKeyParams,
+): Promise<SetupProfileRootKeyResult> {
+  const env = params.env ?? process.env;
+  const stateDir = params.stateDir ?? resolveMemoryStateDir(env);
+  const wrappedPath = resolveWrappedProfileRootKeyPath(params.profileId, stateDir);
+  const wrapped = await readJsonFile<StoredRootKeyFile>(wrappedPath);
+
+  if (wrapped) {
+    let profileRootKey: Uint8Array | null = null;
+    try {
+      profileRootKey =
+        (await loadProfileRootKey({
+          profileId: params.profileId,
+          passphrase: params.passphrase,
+          stateDir,
+          env,
+          telemetry: params.telemetry,
+        })) ?? null;
+    } catch {
+      profileRootKey = null;
+    }
+    if (!profileRootKey) {
+      profileRootKey =
+        (await loadProfileRootKey({
+          profileId: params.profileId,
+          stateDir,
+          env,
+          telemetry: params.telemetry,
+        })) ?? null;
+    }
+    if (!profileRootKey) {
+      throw new Error(
+        `stored profile root key exists for ${params.profileId} but could not be loaded locally`,
+      );
+    }
+    return {
+      profileId: params.profileId,
+      profileRootKey,
+      action: "loaded",
+      storedIn: wrapped.storedWith,
+      path: wrappedPath,
+    };
+  }
+
+  const profileRootKey = await deriveProfileRootKey({
+    profileId: params.profileId,
+    passphrase: params.passphrase,
+  });
+  const stored = await storeProfileRootKey({
+    profileId: params.profileId,
+    profileRootKey,
+    stateDir,
+    env,
+  });
+  return {
+    profileId: params.profileId,
+    profileRootKey,
+    action: "created",
+    storedIn: stored.status,
+    path: stored.path,
   };
 }
 

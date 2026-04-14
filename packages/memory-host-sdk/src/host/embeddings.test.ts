@@ -547,6 +547,41 @@ describe("local embedding normalization", () => {
       expect(magnitude).toBeCloseTo(1.0, 5);
     }
   });
+
+  it("disposes local llama resources and prevents reuse", async () => {
+    const disposeContextSpy = vi.fn().mockResolvedValue(undefined);
+    const disposeModelSpy = vi.fn().mockResolvedValue(undefined);
+    const disposeLlamaSpy = vi.fn().mockResolvedValue(undefined);
+
+    vi.mocked(nodeLlamaModule.importNodeLlamaCpp).mockResolvedValue({
+      getLlama: async () => ({
+        dispose: disposeLlamaSpy,
+        loadModel: vi.fn().mockResolvedValue({
+          dispose: disposeModelSpy,
+          createEmbeddingContext: vi.fn().mockResolvedValue({
+            dispose: disposeContextSpy,
+            getEmbeddingFor: vi.fn().mockResolvedValue({
+              vector: new Float32Array([1, 0, 0, 0]),
+            }),
+          }),
+        }),
+      }),
+      resolveModelFile: async () => "/fake/model.gguf",
+      LlamaLogLevel: { error: 0 },
+    } as never);
+
+    const result = await createLocalProviderForTest();
+    const provider = requireProvider(result);
+
+    await provider.embedQuery("hello");
+    await provider.dispose?.();
+    await provider.dispose?.();
+
+    expect(disposeContextSpy).toHaveBeenCalledTimes(1);
+    expect(disposeModelSpy).toHaveBeenCalledTimes(1);
+    expect(disposeLlamaSpy).toHaveBeenCalledTimes(1);
+    await expect(provider.embedQuery("again")).rejects.toThrow(/disposed/i);
+  });
 });
 
 describe("local embedding ensureContext concurrency", () => {

@@ -882,6 +882,17 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         await pendingProviderInit;
       } catch {}
     }
+    const provider = this.provider;
+    this.provider = null;
+    this.providerRuntime = undefined;
+    this.providerInitialized = false;
+    if (provider?.dispose) {
+      try {
+        await provider.dispose();
+      } catch (err) {
+        log.warn(`failed to dispose memory embedding provider: ${String(err)}`);
+      }
+    }
     this.db.close();
     INDEX_CACHE.delete(this.cacheKey);
   }

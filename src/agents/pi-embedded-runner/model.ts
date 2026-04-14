@@ -2,7 +2,10 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import type { AlisioConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.js";
-import { resolveAlisioDynamicProviderConfig } from "../../infra/alisio-model-providers.js";
+import {
+  ensureAlisioDynamicProviderSource,
+  resolveAlisioDynamicProviderConfig,
+} from "../../infra/alisio-model-providers.js";
 import {
   applyProviderResolvedModelCompatWithPlugins,
   applyProviderResolvedTransportWithPlugin,
@@ -301,7 +304,7 @@ function resolveConfiguredProviderConfig(
 ): InlineProviderConfig | undefined {
   const configuredProviders = cfg?.models?.providers;
   if (!configuredProviders) {
-    return undefined;
+    return resolveAlisioDynamicProviderConfig(provider);
   }
   const exactProviderConfig = configuredProviders[provider];
   if (exactProviderConfig) {
@@ -706,11 +709,12 @@ export async function resolveModelAsync(
       modelRegistry,
     };
   }
-  const providerConfig = resolveConfiguredProviderConfig(cfg, provider);
   const resolveDynamicAttempt = async (attemptOptions?: { clearHookCache?: boolean }) => {
     if (attemptOptions?.clearHookCache) {
       clearProviderRuntimeHookCache();
     }
+    await ensureAlisioDynamicProviderSource(provider);
+    const providerConfig = resolveConfiguredProviderConfig(cfg, provider);
     await runtimeHooks.prepareProviderDynamicModel({
       provider,
       config: cfg,

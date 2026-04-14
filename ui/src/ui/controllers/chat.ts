@@ -69,6 +69,226 @@ function dedupeAdjacentChatMessages(messages: unknown[]): unknown[] {
   return deduped;
 }
 
+function normalizeComparableRole(message: unknown): string {
+  if (!message || typeof message !== "object") {
+    return "unknown";
+  }
+  const entry = message as Record<string, unknown>;
+  const role = typeof entry.role === "string" ? entry.role.toLowerCase() : "unknown";
+  if (role === "toolresult" || role === "tool_result" || role === "tool" || role === "function") {
+    return "tool";
+  }
+  return role;
+}
+
+function extractComparableMessageText(message: unknown): string {
+  const role = normalizeComparableRole(message);
+  const text = extractText(message)?.trim() ?? "";
+  if (!text || role !== "user") {
+    return text;
+  }
+  // Optimistic local sends append attachment summaries that the persisted
+  // transcript may not mirror verbatim. Strip those for semantic matching.
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => !/^attachments?:\s/i.test(line))
+    .join("\n")
+    .trim();
+}
+
+function resolveComparableMediaCount(message: unknown): number {
+  if (!message || typeof message !== "object") {
+    return 0;
+  }
+  const entry = message as Record<string, unknown>;
+  const mediaPaths = Array.isArray(entry.MediaPaths)
+    ? entry.MediaPaths.filter((value) => typeof value === "string" && value.trim().length > 0)
+        .length
+    : 0;
+  if (mediaPaths > 0) {
+    return mediaPaths;
+  }
+  if (typeof entry.MediaPath === "string" && entry.MediaPath.trim()) {
+    return 1;
+  }
+  const previewImages = Array.isArray(entry.MediaPreviewImages)
+    ? entry.MediaPreviewImages.length
+    : 0;
+  if (previewImages > 0) {
+    return previewImages;
+  }
+  const content = entry.content;
+  if (!Array.isArray(content)) {
+    return 0;
+  }
+  return content.filter((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+    const type = (item as { type?: unknown }).type;
+    return type === "image" || type === "image_url";
+  }).length;
+}
+
+function resolveComparableStableId(message: unknown): string | null {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  const entry = message as Record<string, unknown>;
+  const id =
+    (typeof entry.id === "string" && entry.id.trim()) ||
+    (typeof entry.messageId === "string" && entry.messageId.trim()) ||
+    (typeof entry.toolCallId === "string" && entry.toolCallId.trim()) ||
+    (typeof entry.tool_call_id === "string" && entry.tool_call_id.trim()) ||
+    (typeof entry.idempotencyKey === "string" && entry.idempotencyKey.trim()) ||
+    null;
+  return id;
+}
+
+function getMessageTimestamp(message: unknown): number | null {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  const timestamp = (message as { timestamp?: unknown }).timestamp;
+  return typeof timestamp === "number" ? timestamp : null;
+}
+
+function areSemanticallyEquivalentMessages(left: unknown, right: unknown): boolean {
+  const leftId = resolveComparableStableId(left);
+  const rightId = resolveComparableStableId(right);
+  if (leftId && rightId) {
+    return leftId === rightId;
+  }
+
+  const leftRole = normalizeComparableRole(left);
+  const rightRole = normalizeComparableRole(right);
+  if (leftRole !== rightRole) {
+    return false;
+  }
+
+  const leftText = extractComparableMessageText(left);
+  const rightText = extractComparableMessageText(right);
+  const leftMediaCount = resolveComparableMediaCount(left);
+  const rightMediaCount = resolveComparableMediaCount(right);
+
+  if (leftText && rightText && leftText === rightText) {
+    return leftMediaCount === rightMediaCount || leftMediaCount === 0 || rightMediaCount === 0;
+  }
+
+  if (!leftText && !rightText && leftMediaCount > 0 && rightMediaCount > 0) {
+    return leftMediaCount === rightMediaCount;
+  }
+
+  return false;
+}
+
+function mergeUnmatchedMessageSlices(localSlice: unknown[], historySlice: unknown[]): unknown[] {
+  if (localSlice.length === 0) {
+    return historySlice;
+  }
+  if (historySlice.length === 0) {
+    return localSlice;
+  }
+
+  return [
+    ...localSlice.map((message, index) => ({ index, message, origin: "local" as const })),
+    ...historySlice.map((message, index) => ({ index, message, origin: "history" as const })),
+  ]
+    .toSorted((left, right) => {
+      const leftTimestamp = getMessageTimestamp(left.message);
+      const rightTimestamp = getMessageTimestamp(right.message);
+      if (
+        typeof leftTimestamp === "number" &&
+        typeof rightTimestamp === "number" &&
+        leftTimestamp !== rightTimestamp
+      ) {
+        return leftTimestamp - rightTimestamp;
+      }
+      if (typeof leftTimestamp === "number" && typeof rightTimestamp !== "number") {
+        return -1;
+      }
+      if (typeof leftTimestamp !== "number" && typeof rightTimestamp === "number") {
+        return 1;
+      }
+
+      const leftRole = normalizeComparableRole(left.message);
+      const rightRole = normalizeComparableRole(right.message);
+      if (leftRole !== rightRole) {
+        if (leftRole === "user") {
+          return -1;
+        }
+        if (rightRole === "user") {
+          return 1;
+        }
+      }
+
+      if (left.origin !== right.origin) {
+        return left.origin === "local" ? -1 : 1;
+      }
+      return left.index - right.index;
+    })
+    .map((entry) => entry.message);
+}
+
+function mergeLocalPendingMessagesIntoHistory(
+  localMessages: unknown[],
+  historyMessages: unknown[],
+) {
+  if (localMessages.length === 0 || historyMessages.length === 0) {
+    return dedupeAdjacentChatMessages(mergeUnmatchedMessageSlices(localMessages, historyMessages));
+  }
+
+  const localLen = localMessages.length;
+  const historyLen = historyMessages.length;
+  const dp = Array.from({ length: localLen + 1 }, () =>
+    Array.from({ length: historyLen + 1 }, () => 0),
+  );
+
+  for (let localIndex = localLen - 1; localIndex >= 0; localIndex--) {
+    for (let historyIndex = historyLen - 1; historyIndex >= 0; historyIndex--) {
+      dp[localIndex][historyIndex] = areSemanticallyEquivalentMessages(
+        localMessages[localIndex],
+        historyMessages[historyIndex],
+      )
+        ? dp[localIndex + 1][historyIndex + 1] + 1
+        : Math.max(dp[localIndex + 1][historyIndex], dp[localIndex][historyIndex + 1]);
+    }
+  }
+
+  const merged: unknown[] = [];
+  let localIndex = 0;
+  let historyIndex = 0;
+  while (localIndex < localLen && historyIndex < historyLen) {
+    if (
+      areSemanticallyEquivalentMessages(localMessages[localIndex], historyMessages[historyIndex])
+    ) {
+      merged.push(historyMessages[historyIndex]);
+      localIndex += 1;
+      historyIndex += 1;
+      continue;
+    }
+    if (dp[localIndex + 1][historyIndex] >= dp[localIndex][historyIndex + 1]) {
+      merged.push(localMessages[localIndex]);
+      localIndex += 1;
+      continue;
+    }
+    merged.push(historyMessages[historyIndex]);
+    historyIndex += 1;
+  }
+
+  if (localIndex < localLen || historyIndex < historyLen) {
+    merged.push(
+      ...mergeUnmatchedMessageSlices(
+        localMessages.slice(localIndex),
+        historyMessages.slice(historyIndex),
+      ),
+    );
+  }
+
+  return dedupeAdjacentChatMessages(merged);
+}
+
 function appendChatMessageIfDistinct(state: ChatState, message: unknown): void {
   const previous = state.chatMessages.at(-1);
   if (previous && isDuplicateAdjacentMessage(previous, message)) {
@@ -204,9 +424,15 @@ export async function loadChatHistory(
       },
     );
     const messages = Array.isArray(res.messages) ? res.messages : [];
-    state.chatMessages = dedupeAdjacentChatMessages(
+    const historyMessages = dedupeAdjacentChatMessages(
       messages.filter((message) => !isAssistantSilentReply(message)),
     );
+    const shouldMergeLocalPendingMessages = Boolean(
+      opts?.preserveEphemeral || state.chatRunId || state.chatFinalizing,
+    );
+    state.chatMessages = shouldMergeLocalPendingMessages
+      ? mergeLocalPendingMessagesIntoHistory(state.chatMessages, historyMessages)
+      : historyMessages;
     state.chatThinkingLevel = res.thinkingLevel ?? null;
     if (!preserveEphemeral) {
       // Clear all streaming state — history includes tool results and text

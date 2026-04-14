@@ -178,6 +178,7 @@ describe("memory graph gateway handler", () => {
         agentId: "main",
         scope: "global",
         nodeLimit: 32,
+        includeAttachments: true,
       },
       client: null,
       isWebchatConnect: () => false,
@@ -189,6 +190,7 @@ describe("memory graph gateway handler", () => {
       expect.objectContaining({
         scope: "global",
         nodeLimit: 32,
+        includeAttachments: true,
       }),
     );
     expect(respond).toHaveBeenCalledWith(

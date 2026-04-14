@@ -3,6 +3,7 @@ import {
   ALISIO_AGENT_NAME_MAX_LENGTH,
   ALISIO_USERNAME_MAX_LENGTH,
   ALISIO_USERNAME_MIN_LENGTH,
+  ALISIO_USERNAME_ALLOWED_PATTERN_SOURCE,
   resolveAlisioAgentName,
 } from "../../../../src/shared/alisio-account.js";
 
@@ -105,6 +106,9 @@ export function renderAccountProfileFields(props: AccountProfileFieldsProps) {
               autocomplete="username"
               minlength=${String(ALISIO_USERNAME_MIN_LENGTH)}
               maxlength=${String(ALISIO_USERNAME_MAX_LENGTH)}
+              pattern=${ALISIO_USERNAME_ALLOWED_PATTERN_SOURCE}
+              spellcheck="false"
+              autocapitalize="off"
               .value=${props.profile?.username ?? ""}
               @input=${(event: Event) => handleFieldChange(props, "username", event)}
             />
@@ -115,6 +119,9 @@ export function renderAccountProfileFields(props: AccountProfileFieldsProps) {
               autocomplete="username"
               minlength=${String(ALISIO_USERNAME_MIN_LENGTH)}
               maxlength=${String(ALISIO_USERNAME_MAX_LENGTH)}
+              pattern=${ALISIO_USERNAME_ALLOWED_PATTERN_SOURCE}
+              spellcheck="false"
+              autocapitalize="off"
               .value=${props.profile?.username ?? ""}
               @change=${(event: Event) => handleFieldChange(props, "username", event)}
             />

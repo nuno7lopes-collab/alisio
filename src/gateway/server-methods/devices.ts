@@ -137,6 +137,22 @@ function rememberIdempotencyResult(params: {
   });
 }
 
+function broadcastDevicesChanged(params: {
+  context: Parameters<GatewayRequestHandlers[string]>[0]["context"];
+  reason: "share.request" | "share.approve" | "share.revoke" | "policy.set";
+  targetId?: string;
+}) {
+  params.context.broadcast?.(
+    "devices.changed",
+    {
+      reason: params.reason,
+      targetId: params.targetId ?? null,
+      ts: Date.now(),
+    },
+    { dropIfSlow: true },
+  );
+}
+
 export const deviceHandlers: GatewayRequestHandlers = {
   "device.pair.list": async ({ params, respond }) => {
     if (!validateDevicePairListParams(params)) {
@@ -232,6 +248,11 @@ export const deviceHandlers: GatewayRequestHandlers = {
         return;
       }
       rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      broadcastDevicesChanged({
+        context,
+        reason: "share.request",
+        targetId: requestParams.targetId,
+      });
       respond(true, result, undefined);
     } catch (err) {
       const error =
@@ -303,6 +324,10 @@ export const deviceHandlers: GatewayRequestHandlers = {
         clearAlisioModelProviderSnapshotCache();
       }
       rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      broadcastDevicesChanged({
+        context,
+        reason: "share.approve",
+      });
       respond(true, result, undefined);
     } catch (err) {
       const error =
@@ -360,6 +385,11 @@ export const deviceHandlers: GatewayRequestHandlers = {
       }
       clearAlisioModelProviderSnapshotCache();
       rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      broadcastDevicesChanged({
+        context,
+        reason: "share.revoke",
+        targetId: revoked.targetId,
+      });
       respond(true, result, undefined);
     } catch (err) {
       const error =
@@ -415,6 +445,10 @@ export const deviceHandlers: GatewayRequestHandlers = {
       }
       clearAlisioModelProviderSnapshotCache();
       rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      broadcastDevicesChanged({
+        context,
+        reason: "policy.set",
+      });
       respond(true, result, undefined);
     } catch (err) {
       const error =

@@ -497,6 +497,114 @@ describe("agent event handler", () => {
     nowSpy?.mockRestore();
   });
 
+  it("waits out transient lifecycle errors and cancels the terminal chat error when the run resumes", async () => {
+    vi.useFakeTimers();
+    try {
+      const { broadcast, nodeSendToSession, chatRunState, handler } = createHarness();
+      chatRunState.registry.add("run-retry", {
+        sessionKey: "session-retry",
+        clientRunId: "client-retry",
+      });
+
+      handler({
+        runId: "run-retry",
+        seq: 1,
+        stream: "lifecycle",
+        ts: 1_000,
+        data: { phase: "error", error: "usage limit" },
+      });
+
+      expect(chatBroadcastCalls(broadcast)).toHaveLength(0);
+      expect(sessionChatCalls(nodeSendToSession)).toHaveLength(0);
+      expect(chatRunState.pendingErrors.has("client-retry")).toBe(true);
+      expect(chatRunState.registry.peek("run-retry")).toEqual({
+        sessionKey: "session-retry",
+        clientRunId: "client-retry",
+      });
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      handler({
+        runId: "run-retry",
+        seq: 2,
+        stream: "lifecycle",
+        ts: 11_000,
+        data: { phase: "start", startedAt: 11_000 },
+      });
+      handler({
+        runId: "run-retry",
+        seq: 3,
+        stream: "assistant",
+        ts: 11_100,
+        data: { text: "Recuperado" },
+      });
+      handler({
+        runId: "run-retry",
+        seq: 4,
+        stream: "lifecycle",
+        ts: 11_200,
+        data: { phase: "end", endedAt: 11_200 },
+      });
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      const chatCalls = chatBroadcastCalls(broadcast);
+      expect(chatCalls.map(([, payload]) => (payload as { state?: string }).state)).toEqual([
+        "delta",
+        "final",
+      ]);
+      const finalPayload = chatCalls[1]?.[1] as {
+        message?: { content?: Array<{ text?: string }> };
+      };
+      expect(finalPayload.message?.content?.[0]?.text).toBe("Recuperado");
+      expect(sessionChatCalls(nodeSendToSession)).toHaveLength(2);
+      expect(chatRunState.pendingErrors.has("client-retry")).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("emits chat error only after the lifecycle error grace period expires", async () => {
+    vi.useFakeTimers();
+    try {
+      const { broadcast, nodeSendToSession, chatRunState, handler } = createHarness();
+      chatRunState.registry.add("run-terminal-error", {
+        sessionKey: "session-terminal-error",
+        clientRunId: "client-terminal-error",
+      });
+
+      handler({
+        runId: "run-terminal-error",
+        seq: 1,
+        stream: "lifecycle",
+        ts: 2_000,
+        data: { phase: "error", error: "usage limit" },
+      });
+
+      expect(chatBroadcastCalls(broadcast)).toHaveLength(0);
+      expect(sessionChatCalls(nodeSendToSession)).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(chatBroadcastCalls(broadcast)).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(1);
+
+      const chatCalls = chatBroadcastCalls(broadcast);
+      expect(chatCalls).toHaveLength(1);
+      const payload = chatCalls[0]?.[1] as {
+        state?: string;
+        errorMessage?: string;
+      };
+      expect(payload.state).toBe("error");
+      expect(payload.errorMessage).toContain("usage limit");
+      expect(sessionChatCalls(nodeSendToSession)).toHaveLength(1);
+      expect(chatRunState.pendingErrors.has("client-terminal-error")).toBe(false);
+      expect(chatRunState.registry.peek("run-terminal-error")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("drops stale events that arrive after lifecycle completion", () => {
     const { broadcast, nodeSendToSession, chatRunState, handler, nowSpy } = createHarness({
       now: 2_500,

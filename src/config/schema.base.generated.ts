@@ -10972,6 +10972,57 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
             },
             additionalProperties: false,
           },
+          e2ee: {
+            type: "object",
+            properties: {
+              required: {
+                default: true,
+                type: "boolean",
+                const: true,
+              },
+            },
+            required: ["required"],
+            additionalProperties: false,
+          },
+          sync: {
+            type: "object",
+            properties: {
+              mode: {
+                default: "off",
+                anyOf: [
+                  {
+                    type: "string",
+                    const: "cloud",
+                  },
+                  {
+                    type: "string",
+                    const: "direct",
+                  },
+                  {
+                    type: "string",
+                    const: "off",
+                  },
+                ],
+              },
+              relayBaseUrl: {
+                type: "string",
+                format: "uri",
+              },
+              ui: {
+                type: "object",
+                properties: {
+                  enabled: {
+                    default: true,
+                    type: "boolean",
+                  },
+                },
+                required: ["enabled"],
+                additionalProperties: false,
+              },
+            },
+            required: ["mode"],
+            additionalProperties: false,
+          },
           qmd: {
             type: "object",
             properties: {
@@ -13716,6 +13767,41 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "memory.citations": {
       label: "Memory Citations Mode",
       help: 'Controls citation visibility in replies: "auto" shows citations when useful, "on" always shows them, and "off" hides them. Keep "auto" for a balanced signal-to-noise default.',
+      tags: ["storage"],
+    },
+    "memory.e2ee": {
+      label: "Memory E2EE",
+      help: "End-to-end encryption policy for canonical memory sync. Canonical memory remains E2EE-only; this group exists so UI and config tooling can inspect that requirement explicitly.",
+      tags: ["storage"],
+    },
+    "memory.e2ee.required": {
+      label: "Memory E2EE Required",
+      help: "Hard requirement flag for canonical memory E2EE (default: true). Plaintext relay sync is not supported.",
+      tags: ["storage"],
+    },
+    "memory.sync": {
+      label: "Memory Sync",
+      help: "Canonical memory sync transport configuration. Keep mode off until a local profile root key exists on the device.",
+      tags: ["storage"],
+    },
+    "memory.sync.mode": {
+      label: "Memory Sync Mode",
+      help: 'Selects the sync transport mode: "off" (default), "cloud", or "direct". Config values take precedence over legacy env vars.',
+      tags: ["storage"],
+    },
+    "memory.sync.relayBaseUrl": {
+      label: "Memory Sync Relay URL",
+      help: "Base URL for the ciphertext-only memory relay when sync mode is cloud. This does not auto-enable sync; set memory.sync.mode explicitly.",
+      tags: ["storage"],
+    },
+    "memory.sync.ui": {
+      label: "Memory Sync UI",
+      help: "UI rollout guard for memory sync setup and pairing entrypoints.",
+      tags: ["storage"],
+    },
+    "memory.sync.ui.enabled": {
+      label: "Memory Sync UI Enabled",
+      help: "Enable the memory sync setup UI entrypoint (default: true). Set false for rollback while keeping backend support available.",
       tags: ["storage"],
     },
     "memory.ledger": {

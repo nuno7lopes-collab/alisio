@@ -220,7 +220,109 @@ describe("authentications view", () => {
     expect(onRevokeConnector).toHaveBeenCalledWith("gmail-send");
   });
 
-  it("disables new external app connections when the free plan slot is already occupied", () => {
+  it("shows connected external apps in the top connected section", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 1,
+            ready: 1,
+            attention: 0,
+            total: 2,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [],
+            authorizations: [],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:google-docs",
+              title: "Google Docs",
+              subtitle: "Read and create document workflows in Google Docs.",
+              status: "connected",
+              authSource: "connector",
+              connectorId: "google-docs",
+              connectLabel: "Connect with Google",
+              chips: ["Google"],
+              usageWindows: [],
+              current: false,
+              active: true,
+            },
+            {
+              id: "connector:google-sheets",
+              title: "Google Sheets",
+              subtitle: "Spreadsheet automation, reporting, and data sync workflows.",
+              status: "ready",
+              authSource: "connector",
+              connectorId: "google-sheets",
+              connectLabel: "Connect with Google",
+              chips: ["Google"],
+              usageWindows: [],
+              current: false,
+              active: false,
+            },
+          ],
+        },
+        connectorCatalog: [
+          {
+            id: "google-docs",
+            title: "Google Docs",
+            providerLabel: "Google",
+            category: "google",
+            connectLabel: "Connect with Google",
+            summary: "Read and create document workflows in Google Docs.",
+            availability: "ready",
+            scopes: ["https://www.googleapis.com/auth/documents"],
+          },
+          {
+            id: "google-sheets",
+            title: "Google Sheets",
+            providerLabel: "Google",
+            category: "google",
+            connectLabel: "Connect with Google",
+            summary: "Spreadsheet automation, reporting, and data sync workflows.",
+            availability: "ready",
+            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+          },
+        ],
+        connectorAuthorizations: [
+          {
+            connectorId: "google-docs",
+            state: "connected",
+            health: "healthy",
+            scopes: ["https://www.googleapis.com/auth/documents"],
+          },
+        ],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+        onOpenConnections: vi.fn(),
+      }),
+      container,
+    );
+
+    const connectedSection = container.querySelector('[data-section="connected"]');
+    const availableSection = container.querySelector('[data-section="available"]');
+    expect(connectedSection?.textContent).toContain("Already connected");
+    expect(connectedSection?.textContent).toContain("Google Docs");
+    expect(connectedSection?.textContent).not.toContain("Google Sheets");
+    expect(availableSection?.textContent).toContain("Available apps");
+    expect(availableSection?.textContent).toContain("Google Sheets");
+  });
+
+  it("keeps new external app connections available on the free plan", () => {
     const container = document.createElement("div");
     const onBeginConnector = vi.fn();
 
@@ -318,13 +420,13 @@ describe("authentications view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Free includes 1 connected app.");
+    expect(container.textContent).not.toContain("Free includes 1 connected app.");
     const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
       (candidate) => candidate.textContent?.includes("Connect with GitHub"),
     );
-    expect(button?.disabled).toBe(true);
+    expect(button?.disabled).toBe(false);
     button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onBeginConnector).not.toHaveBeenCalled();
+    expect(onBeginConnector).toHaveBeenCalledWith("github");
   });
 
   it("renders loading skeletons while the provider overview is still loading", () => {

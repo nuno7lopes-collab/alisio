@@ -8,7 +8,7 @@ export type MemoryReasonTag = {
   detail?: string;
 };
 
-export type MemoryWikiTaxonomyFields = {
+export type MemoryNoteTaxonomyFields = {
   summary?: string | null;
   tags?: string[] | null;
   categories?: string[] | null;
@@ -28,7 +28,7 @@ export type MemorySyncSurface = {
   detail?: string | null;
 };
 
-export type MemoryWikiListPage = MemoryWikiTaxonomyFields & {
+export type MemoryNoteListEntry = MemoryNoteTaxonomyFields & {
   id: string;
   title: string;
   slug?: string | null;
@@ -44,14 +44,14 @@ export type MemoryWikiListPage = MemoryWikiTaxonomyFields & {
   evidence?: number | null;
 };
 
-export type MemoryWikiListResult = {
+export type MemoryNotesListResult = {
   agentId: string;
-  pages: MemoryWikiListPage[];
+  notes: MemoryNoteListEntry[];
   sync?: MemorySyncSurface | null;
   exportFormats?: string[] | null;
 };
 
-export type MemoryWikiBacklink = {
+export type MemoryNoteBacklink = {
   id?: string | null;
   title: string;
   path?: string | null;
@@ -73,7 +73,7 @@ export type MemoryClaimItem = {
   evidence?: MemoryEvidenceItem[] | null;
 };
 
-export type MemoryWikiRelatedFile = {
+export type MemoryNoteAttachment = {
   id?: string | null;
   name: string;
   mediaType?: string | null;
@@ -81,16 +81,16 @@ export type MemoryWikiRelatedFile = {
   provenanceSummary?: string | null;
 };
 
-export type MemoryWikiPage = MemoryWikiTaxonomyFields & {
+export type MemoryNote = MemoryNoteTaxonomyFields & {
   id: string;
   title: string;
   slug?: string | null;
   path?: string | null;
   content: string;
-  backlinks?: MemoryWikiBacklink[] | null;
+  backlinks?: MemoryNoteBacklink[] | null;
   claims?: MemoryClaimItem[] | null;
   evidence?: MemoryEvidenceItem[] | null;
-  relatedFiles?: MemoryWikiRelatedFile[] | null;
+  attachments?: MemoryNoteAttachment[] | null;
   provenance?: Array<{ label: string; value: string }> | null;
   reasonTags?: MemoryReasonTag[] | null;
   traceId?: string | null;
@@ -112,13 +112,13 @@ export type MemoryWikiPage = MemoryWikiTaxonomyFields & {
   } | null;
 };
 
-export type MemoryWikiGetResult = {
+export type MemoryNotesGetResult = {
   agentId: string;
-  page: MemoryWikiPage;
+  note: MemoryNote;
   sync?: MemorySyncSurface | null;
 };
 
-export type MemoryWikiHistoryEntry = {
+export type MemoryNoteHistoryEntry = {
   eventId: string;
   lamport?: string | number | null;
   at?: string | null;
@@ -128,12 +128,44 @@ export type MemoryWikiHistoryEntry = {
   diffSummary?: string | null;
 };
 
+export type MemoryNotesHistoryResult = {
+  agentId: string;
+  noteId: string;
+  history: MemoryNoteHistoryEntry[];
+};
+
+export type MemoryNotesUpdateResult = {
+  ok: boolean;
+  agentId: string;
+  note?: MemoryNote | null;
+  revision?: MemoryNote["revision"] | null;
+  sync?: MemorySyncSurface | null;
+};
+
+export type MemoryWikiTaxonomyFields = MemoryNoteTaxonomyFields;
+export type MemoryWikiListPage = MemoryNoteListEntry;
+export type MemoryWikiListResult = {
+  agentId: string;
+  pages: MemoryWikiListPage[];
+  sync?: MemorySyncSurface | null;
+  exportFormats?: string[] | null;
+};
+export type MemoryWikiBacklink = MemoryNoteBacklink;
+export type MemoryWikiRelatedFile = MemoryNoteAttachment;
+export type MemoryWikiPage = Omit<MemoryNote, "attachments"> & {
+  relatedFiles?: MemoryWikiRelatedFile[] | null;
+};
+export type MemoryWikiGetResult = {
+  agentId: string;
+  page: MemoryWikiPage;
+  sync?: MemorySyncSurface | null;
+};
+export type MemoryWikiHistoryEntry = MemoryNoteHistoryEntry;
 export type MemoryWikiHistoryResult = {
   agentId: string;
   pageId: string;
   history: MemoryWikiHistoryEntry[];
 };
-
 export type MemoryWikiUpdateResult = {
   ok: boolean;
   agentId: string;
@@ -253,6 +285,31 @@ export class MemoryEndpointUnavailableError extends Error {
   }
 }
 
+function toMemoryNote(page: MemoryWikiPage): MemoryNote {
+  const { relatedFiles, ...rest } = page;
+  return {
+    ...rest,
+    ...(relatedFiles ? { attachments: relatedFiles } : {}),
+  };
+}
+
+function toMemoryWikiPage(note: MemoryNote): MemoryWikiPage {
+  const { attachments, ...rest } = note;
+  return {
+    ...rest,
+    ...(attachments ? { relatedFiles: attachments } : {}),
+  };
+}
+
+function toMemoryNotesListResult(result: MemoryWikiListResult): MemoryNotesListResult {
+  return {
+    agentId: result.agentId,
+    notes: result.pages,
+    ...(result.sync ? { sync: result.sync } : {}),
+    ...(result.exportFormats ? { exportFormats: result.exportFormats } : {}),
+  };
+}
+
 export type MemoryRuntimeState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -346,6 +403,157 @@ export function isMemoryEndpointUnavailableError(
   err: unknown,
 ): err is MemoryEndpointUnavailableError {
   return err instanceof MemoryEndpointUnavailableError;
+}
+
+export async function requestMemoryNotesList(
+  client: GatewayBrowserClient,
+  params: { agentId: string; query?: string },
+) {
+  try {
+    return await requestMemoryEndpoint<MemoryNotesListResult>(
+      client,
+      "memory.notes.list",
+      params,
+      "This version of Alisio does not expose native memory notes yet.",
+    );
+  } catch (err) {
+    if (!isMemoryEndpointUnavailableError(err)) {
+      throw err;
+    }
+    try {
+      return toMemoryNotesListResult(await requestMemoryWikiList(client, params));
+    } catch (fallbackErr) {
+      if (isMemoryEndpointUnavailableError(fallbackErr)) {
+        throw new MemoryEndpointUnavailableError(
+          "memory.notes.list",
+          "This version of Alisio does not expose native memory notes yet.",
+        );
+      }
+      throw fallbackErr;
+    }
+  }
+}
+
+export async function requestMemoryNote(
+  client: GatewayBrowserClient,
+  params: { agentId: string; noteId: string; query?: string },
+) {
+  try {
+    return await requestMemoryEndpoint<MemoryNotesGetResult>(
+      client,
+      "memory.notes.get",
+      params,
+      "This version of Alisio does not expose native memory note loading yet.",
+    );
+  } catch (err) {
+    if (!isMemoryEndpointUnavailableError(err)) {
+      throw err;
+    }
+    try {
+      const legacy = await requestMemoryWikiPage(client, {
+        agentId: params.agentId,
+        pageId: params.noteId,
+        ...(params.query ? { query: params.query } : {}),
+      });
+      return {
+        agentId: legacy.agentId,
+        note: toMemoryNote(legacy.page),
+        ...(legacy.sync ? { sync: legacy.sync } : {}),
+      } satisfies MemoryNotesGetResult;
+    } catch (fallbackErr) {
+      if (isMemoryEndpointUnavailableError(fallbackErr)) {
+        throw new MemoryEndpointUnavailableError(
+          "memory.notes.get",
+          "This version of Alisio does not expose native memory note loading yet.",
+        );
+      }
+      throw fallbackErr;
+    }
+  }
+}
+
+export async function requestMemoryNoteUpdate(
+  client: GatewayBrowserClient,
+  params: {
+    agentId: string;
+    noteId?: string;
+    title: string;
+    content: string;
+    query?: string;
+  },
+) {
+  try {
+    return await requestMemoryEndpoint<MemoryNotesUpdateResult>(
+      client,
+      "memory.notes.update",
+      params,
+      "This version of Alisio does not expose native memory note editing yet.",
+    );
+  } catch (err) {
+    if (!isMemoryEndpointUnavailableError(err)) {
+      throw err;
+    }
+    try {
+      const legacy = await requestMemoryWikiUpdate(client, {
+        agentId: params.agentId,
+        ...(params.noteId ? { pageId: params.noteId } : {}),
+        title: params.title,
+        content: params.content,
+      });
+      return {
+        ok: legacy.ok,
+        agentId: legacy.agentId,
+        ...(legacy.page ? { note: toMemoryNote(legacy.page) } : {}),
+        ...(legacy.revision ? { revision: legacy.revision } : {}),
+        ...(legacy.sync ? { sync: legacy.sync } : {}),
+      } satisfies MemoryNotesUpdateResult;
+    } catch (fallbackErr) {
+      if (isMemoryEndpointUnavailableError(fallbackErr)) {
+        throw new MemoryEndpointUnavailableError(
+          "memory.notes.update",
+          "This version of Alisio does not expose native memory note editing yet.",
+        );
+      }
+      throw fallbackErr;
+    }
+  }
+}
+
+export async function requestMemoryNoteHistory(
+  client: GatewayBrowserClient,
+  params: { agentId: string; noteId: string },
+) {
+  try {
+    return await requestMemoryEndpoint<MemoryNotesHistoryResult>(
+      client,
+      "memory.notes.history",
+      params,
+      "This version of Alisio does not expose ledger-backed memory history yet.",
+    );
+  } catch (err) {
+    if (!isMemoryEndpointUnavailableError(err)) {
+      throw err;
+    }
+    try {
+      const legacy = await requestMemoryWikiHistory(client, {
+        agentId: params.agentId,
+        pageId: params.noteId,
+      });
+      return {
+        agentId: legacy.agentId,
+        noteId: legacy.pageId,
+        history: legacy.history,
+      } satisfies MemoryNotesHistoryResult;
+    } catch (fallbackErr) {
+      if (isMemoryEndpointUnavailableError(fallbackErr)) {
+        throw new MemoryEndpointUnavailableError(
+          "memory.notes.history",
+          "This version of Alisio does not expose ledger-backed memory history for notes yet.",
+        );
+      }
+      throw fallbackErr;
+    }
+  }
 }
 
 export async function requestMemoryWikiList(
@@ -463,6 +671,7 @@ export async function requestMemoryGraph(
     relationLimit?: number;
     nodeLimit?: number;
     edgeLimit?: number;
+    includeAttachments?: boolean;
   },
 ) {
   return requestMemoryEndpoint<MemoryGraphState>(
@@ -579,6 +788,7 @@ export async function loadMemoryGraph(
     relationLimit?: number;
     nodeLimit?: number;
     edgeLimit?: number;
+    includeAttachments?: boolean;
   },
 ) {
   const agentId = params.agentId.trim();
@@ -613,6 +823,7 @@ export async function loadMemoryGraph(
       ...(typeof params.depth === "number" ? { depth: params.depth } : {}),
       ...(typeof params.nodeLimit === "number" ? { nodeLimit: params.nodeLimit } : {}),
       ...(typeof params.edgeLimit === "number" ? { edgeLimit: params.edgeLimit } : {}),
+      ...(params.includeAttachments === true ? { includeAttachments: true } : {}),
     });
     if (
       !res ||

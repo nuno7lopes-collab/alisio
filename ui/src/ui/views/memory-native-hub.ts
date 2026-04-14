@@ -1,7 +1,12 @@
 import { LitElement, html, nothing, type PropertyValues } from "lit";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { property, state } from "lit/decorators.js";
 import { t } from "../../i18n/index.ts";
-import { buildMemoryFileActionModel } from "../controllers/memory-files-preview.ts";
+import { toSanitizedMarkdownHtml } from "../markdown.ts";
+import {
+  buildMemoryFileActionModel,
+  buildMemoryFilePreviewModel,
+} from "../controllers/memory-files-preview.ts";
 import {
   MemoryEndpointUnavailableError,
   type MemoryClaimItem,
@@ -9,39 +14,33 @@ import {
   type MemoryExportFormat,
   type MemoryExportResult,
   type MemoryFileDetail,
-  type MemoryFilesListResult,
+  type MemoryNote,
+  type MemoryNoteAttachment,
+  type MemoryNoteBacklink,
+  type MemoryNoteHistoryEntry,
+  type MemoryNoteListEntry,
+  type MemoryNotesListResult,
   type MemoryReasonTag,
   type MemorySyncSurface,
   type MemoryTraceResult,
-  type MemoryWikiBacklink,
-  type MemoryWikiHistoryEntry,
-  type MemoryWikiListResult,
-  type MemoryWikiPage,
   requestMemoryExport,
   requestMemoryFile,
-  requestMemoryFilesList,
   requestMemoryGraph,
+  requestMemoryNote,
+  requestMemoryNoteHistory,
+  requestMemoryNotesList,
+  requestMemoryNoteUpdate,
   requestMemoryTrace,
-  requestMemoryWikiHistory,
-  requestMemoryWikiList,
-  requestMemoryWikiPage,
-  requestMemoryWikiUpdate,
 } from "../controllers/memory-runtime.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import { icons } from "../icons.ts";
 import type { MemoryGraphState } from "../types.ts";
-import {
-  renderSkeletonButton,
-  renderSkeletonLines,
-  renderSkeletonListItem,
-} from "./loading-skeleton.ts";
+import { renderMemoryFilePreview } from "./memory/files-preview.ts";
 import "./memory-graph-view.ts";
-import { renderMemoryFilesView } from "./memory/files-view.ts";
-import { renderMemoryWikiView } from "./memory/wiki-view.ts";
 
 type MemoryHubProps = import("./memory.ts").MemoryHubProps;
-type MemoryView = "wiki" | "files" | "graph";
+type NoteMode = "markdown" | "reading";
 
 function memoryText() {
   return {
@@ -61,10 +60,16 @@ function memoryText() {
     runtimeUnavailable: t("alisio.memory.runtimeUnavailable"),
     runtimeTitle: t("alisio.memory.runtimeTitle"),
     backend: t("alisio.memory.backend"),
+    builtin: t("alisio.memory.builtin"),
     provider: t("alisio.memory.provider"),
     embedding: t("alisio.memory.embedding"),
     ready: t("alisio.memory.ready"),
     unavailable: t("alisio.memory.unavailable"),
+    localFirst: t("alisio.memory.localFirst"),
+    localOnly: t("alisio.memory.localOnly"),
+    cloudSyncEnabled: t("alisio.memory.cloudSyncEnabled"),
+    cloudSyncUnavailable: t("alisio.memory.cloudSyncUnavailable"),
+    cloudSyncError: t("alisio.memory.cloudSyncError"),
     syncNow: t("alisio.memory.syncNow"),
     syncing: t("alisio.memory.syncing"),
     graphTitle: t("alisio.memory.graphTitle"),
@@ -78,44 +83,37 @@ function memoryText() {
     na: t("common.na"),
     views: {
       wiki: t("alisio.memory.views.wiki"),
-      files: t("alisio.memory.views.files"),
       graph: t("alisio.memory.views.graph"),
     },
     viewDescriptions: {
       wiki: t("alisio.memory.views.wikiDescription"),
-      files: t("alisio.memory.views.filesDescription"),
       graph: t("alisio.memory.views.graphDescription"),
     },
-    viewsLabel: t("alisio.memory.views.label"),
-    shellTitle: t("alisio.memory.shell.title"),
-    shellSubtitle: t("alisio.memory.shell.subtitle"),
-    wikiListTitle: t("alisio.memory.wiki.listTitle"),
-    wikiPages: t("alisio.memory.wiki.pages"),
-    wikiEmpty: t("alisio.memory.wiki.empty"),
-    wikiUnavailable: t("alisio.memory.wiki.unavailable"),
-    wikiCreate: t("alisio.memory.wiki.create"),
-    wikiCreatePlaceholder: t("alisio.memory.wiki.createPlaceholder"),
-    wikiCreateConfirm: t("alisio.memory.wiki.createConfirm"),
-    wikiEditorTitle: t("alisio.memory.wiki.editorTitle"),
-    wikiBacklinks: t("alisio.memory.wiki.backlinks"),
-    wikiClaims: t("alisio.memory.wiki.claims"),
-    wikiEvidence: t("alisio.memory.wiki.evidence"),
-    wikiProvenance: t("alisio.memory.wiki.provenance"),
-    wikiHistory: t("alisio.memory.wiki.history"),
-    wikiContext: t("alisio.memory.wiki.context"),
-    wikiRevision: t("alisio.memory.wiki.revision"),
-    wikiOpenPage: t("alisio.memory.wiki.openPage"),
-    wikiNoSelection: t("alisio.memory.wiki.noSelection"),
-    wikiHistoryEmpty: t("alisio.memory.wiki.historyEmpty"),
-    wikiBacklinksEmpty: t("alisio.memory.wiki.backlinksEmpty"),
-    wikiClaimsEmpty: t("alisio.memory.wiki.claimsEmpty"),
-    wikiEvidenceEmpty: t("alisio.memory.wiki.evidenceEmpty"),
-    wikiProvenanceEmpty: t("alisio.memory.wiki.provenanceEmpty"),
-    wikiUpdated: t("alisio.memory.wiki.updated"),
-    wikiPath: t("alisio.memory.wiki.path"),
+    notesListTitle: t("alisio.memory.wiki.listTitle"),
+    notesEmpty: t("alisio.memory.wiki.empty"),
+    notesCreate: t("alisio.memory.wiki.create"),
+    notesCreatePlaceholder: t("alisio.memory.wiki.createPlaceholder"),
+    notesCreateConfirm: t("alisio.memory.wiki.createConfirm"),
+    noteMarkdown: t("alisio.memory.wiki.editorTitle"),
+    noteReading: t("alisio.memory.wiki.readMode"),
+    noteBacklinks: t("alisio.memory.wiki.backlinks"),
+    noteClaims: t("alisio.memory.wiki.claims"),
+    noteEvidence: t("alisio.memory.wiki.evidence"),
+    noteProvenance: t("alisio.memory.wiki.provenance"),
+    noteHistory: t("alisio.memory.wiki.history"),
+    noteContext: t("alisio.memory.wiki.context"),
+    noteRevision: t("alisio.memory.wiki.revision"),
+    noteOpen: t("alisio.memory.wiki.openPage"),
+    noteNoSelection: t("alisio.memory.wiki.noSelection"),
+    noteHistoryEmpty: t("alisio.memory.wiki.historyEmpty"),
+    noteBacklinksEmpty: t("alisio.memory.wiki.backlinksEmpty"),
+    noteClaimsEmpty: t("alisio.memory.wiki.claimsEmpty"),
+    noteEvidenceEmpty: t("alisio.memory.wiki.evidenceEmpty"),
+    noteProvenanceEmpty: t("alisio.memory.wiki.provenanceEmpty"),
+    noteUpdated: t("alisio.memory.wiki.updated"),
+    notePath: t("alisio.memory.wiki.path"),
     filesTitle: t("alisio.memory.files.title"),
     filesEmpty: t("alisio.memory.files.empty"),
-    filesUnavailable: t("alisio.memory.files.unavailable"),
     filesProvenance: t("alisio.memory.files.provenance"),
     filesRelatedPages: t("alisio.memory.files.relatedPages"),
     filesMediaType: t("alisio.memory.files.mediaType"),
@@ -131,6 +129,9 @@ function memoryText() {
     filesPreviewUnavailable: t("alisio.memory.files.previewUnavailable"),
     filesPreviewTruncated: t("alisio.memory.files.previewTruncated"),
     filesNoSelection: t("alisio.memory.files.noSelection"),
+    filesAttached: t("alisio.memory.files.attached"),
+    filesMentioned: t("alisio.memory.files.mentioned"),
+    filesUnlinked: t("alisio.memory.files.unlinked"),
     exportLabel: t("alisio.memory.export.label"),
     exportFormats: {
       zip: t("alisio.memory.export.zip"),
@@ -155,23 +156,66 @@ function memoryText() {
     traceClose: t("alisio.memory.trace.close"),
     traceUnavailable: t("alisio.memory.trace.unavailable"),
     confidenceLabel: t("alisio.memory.claims.confidence"),
+    graphHint: t("alisio.memory.graph.hint"),
     graphFocus: t("alisio.memory.graph.focus"),
     graphGlobal: t("alisio.memory.graph.global"),
     graphLocal: t("alisio.memory.graph.local"),
+    graphDepth: t("alisio.memory.graph.depth"),
     graphResetView: t("alisio.memory.graph.resetView"),
     graphNeighbourhood: t("alisio.memory.graph.neighbourhood"),
+    graphOrphans: t("alisio.memory.graph.orphans"),
     graphBranches: t("alisio.memory.graph.branches"),
     graphBranchesEmpty: t("alisio.memory.graph.branchesEmpty"),
     graphEdgeReason: t("alisio.memory.graph.edgeReason"),
     graphEdgeReasonEmpty: t("alisio.memory.graph.edgeReasonEmpty"),
     graphFilterRelations: t("alisio.memory.graph.filterRelations"),
     graphFilterTags: t("alisio.memory.graph.filterTags"),
+    graphGroups: t("alisio.memory.graph.groups"),
+    graphColorBy: t("alisio.memory.graph.colorBy"),
+    graphGroupNone: t("alisio.memory.graph.groupNone"),
+    graphGroupFolder: t("alisio.memory.graph.groupFolder"),
+    graphGroupTag: t("alisio.memory.graph.groupTag"),
+    graphGroupKind: t("alisio.memory.graph.groupKind"),
+    graphGroupSource: t("alisio.memory.graph.groupSource"),
+    graphGroupNote: t("alisio.memory.graph.groupNote"),
+    graphGroupAttachment: t("alisio.memory.graph.groupAttachment"),
+    graphContextMenuOpen: t("alisio.memory.graph.contextMenuOpen"),
+    graphContextMenuCenter: t("alisio.memory.graph.contextMenuCenter"),
+    graphContextMenuLocal: t("alisio.memory.graph.contextMenuLocal"),
+    graphDisplay: t("alisio.memory.graph.display"),
+    graphArrows: t("alisio.memory.graph.arrows"),
+    graphTextFadeThreshold: t("alisio.memory.graph.textFadeThreshold"),
+    graphNodeSize: t("alisio.memory.graph.nodeSize"),
+    graphLinkThickness: t("alisio.memory.graph.linkThickness"),
+    graphForces: t("alisio.memory.graph.forces"),
+    graphCenterForce: t("alisio.memory.graph.centerForce"),
+    graphRepelForce: t("alisio.memory.graph.repelForce"),
+    graphLinkForce: t("alisio.memory.graph.linkForce"),
+    graphLinkDistance: t("alisio.memory.graph.linkDistance"),
     graphNodesCount: t("alisio.memory.graph.nodesCount"),
     graphEdgesCount: t("alisio.memory.graph.edgesCount"),
     graphTruncated: t("alisio.memory.graph.truncated"),
     graphSource: t("alisio.memory.graph.source"),
     graphTarget: t("alisio.memory.graph.target"),
     graphRelationType: t("alisio.memory.graph.relationType"),
+    graphClusters: t("alisio.memory.graph.clusters"),
+    graphSuggestions: t("alisio.memory.graph.suggestions"),
+    graphSpotlight: t("alisio.memory.graph.spotlight"),
+    graphIncoming: t("alisio.memory.graph.incoming"),
+    graphOutgoing: t("alisio.memory.graph.outgoing"),
+    graphDegree: t("alisio.memory.graph.degree"),
+    graphZoomIn: t("alisio.memory.graph.zoomIn"),
+    graphZoomOut: t("alisio.memory.graph.zoomOut"),
+    graphCenterFocus: t("alisio.memory.graph.centerFocus"),
+    graphCanvasHint: t("alisio.memory.graph.canvasHint"),
+    graphShowAttachments: t("alisio.memory.graph.showAttachments"),
+    cancelCreate: t("alisio.memory.cancelCreate"),
+    shellTitle: t("alisio.memory.shell.title"),
+    shellSubtitle: t("alisio.memory.shell.subtitle"),
+    workspaceExplorer: t("alisio.memory.workspace.explorer"),
+    workspaceInspector: t("alisio.memory.workspace.inspector"),
+    workspaceGraphPane: t("alisio.memory.workspace.graphPane"),
+    workspaceVault: t("alisio.memory.workspace.vault"),
   };
 }
 
@@ -289,21 +333,21 @@ function buildTraceSummary(
 
 function buildContextPreviewSummary(
   text: Pick<ReturnType<typeof memoryText>, "na">,
-  page: MemoryWikiPage | null,
+  note: MemoryNote | null,
   summary?: string | null,
 ) {
   const explicit = typeof summary === "string" ? summary.trim() : "";
   if (explicit) {
     return explicit;
   }
-  const traceSummary = page?.contextPreview?.traceSummary?.find(
+  const traceSummary = note?.contextPreview?.traceSummary?.find(
     (entry) => typeof entry === "string" && entry.trim(),
   );
   if (traceSummary) {
     return traceSummary;
   }
-  const pageSummary = typeof page?.summary === "string" ? page.summary.trim() : "";
-  return pageSummary || text.na;
+  const noteSummary = typeof note?.summary === "string" ? note.summary.trim() : "";
+  return noteSummary || text.na;
 }
 
 function mergeSyncSurfaces(
@@ -483,12 +527,14 @@ function renderProvenanceRows(
   `;
 }
 
-function resolveAllowedExportFormats(wiki: MemoryWikiListResult | null): MemoryExportFormat[] {
+function resolveAllowedExportFormats(
+  list: { exportFormats?: string[] | null } | null,
+): MemoryExportFormat[] {
   const allowed = new Set<MemoryExportFormat>(["zip", "json", "markdown"]);
-  if (!wiki?.exportFormats?.length) {
+  if (!list?.exportFormats?.length) {
     return [...allowed];
   }
-  return wiki.exportFormats
+  return list.exportFormats
     .map((entry) => entry.trim().toLowerCase())
     .filter((entry): entry is MemoryExportFormat => allowed.has(entry as MemoryExportFormat));
 }
@@ -593,6 +639,119 @@ function renderSyncCard(params: {
   `;
 }
 
+type NoteExplorerTreeNode = {
+  label: string;
+  path: string;
+  folders: NoteExplorerTreeNode[];
+  notes: MemoryNoteListEntry[];
+  noteCount: number;
+};
+
+function normalizeNoteFolder(pathValue: string | null | undefined) {
+  const normalized = typeof pathValue === "string" ? pathValue.replace(/\\/g, "/").trim() : "";
+  if (!normalized.includes("/")) {
+    return "/";
+  }
+  const folder = normalized.split("/").slice(0, -1).join("/");
+  return folder || "/";
+}
+
+function buildNoteExplorerTree(notes: MemoryNoteListEntry[]) {
+  type MutableNode = {
+    label: string;
+    path: string;
+    folders: Map<string, MutableNode>;
+    notes: MemoryNoteListEntry[];
+  };
+
+  const createNode = (path: string, label: string): MutableNode => ({
+    label,
+    path,
+    folders: new Map(),
+    notes: [],
+  });
+
+  const root = createNode("/", "/");
+  for (const note of notes) {
+    const folder = normalizeNoteFolder(note.path);
+    const segments = folder === "/" ? [] : folder.split("/").filter(Boolean);
+    let current = root;
+    let currentPath = "";
+    for (const segment of segments) {
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+      let child = current.folders.get(currentPath);
+      if (!child) {
+        child = createNode(currentPath, segment);
+        current.folders.set(currentPath, child);
+      }
+      current = child;
+    }
+    current.notes.push(note);
+  }
+
+  const finalize = (node: MutableNode): NoteExplorerTreeNode => {
+    const folders = [...node.folders.values()]
+      .map((child) => finalize(child))
+      .toSorted((left, right) => left.label.localeCompare(right.label));
+    const orderedNotes = [...node.notes].toSorted((left, right) => left.title.localeCompare(right.title));
+    return {
+      label: node.label,
+      path: node.path,
+      folders,
+      notes: orderedNotes,
+      noteCount: orderedNotes.length + folders.reduce((sum, entry) => sum + entry.noteCount, 0),
+    };
+  };
+
+  return finalize(root);
+}
+
+function stripFrontmatter(markdown: string) {
+  if (!markdown.startsWith("---\n")) {
+    return markdown;
+  }
+  const end = markdown.indexOf("\n---\n", 4);
+  if (end < 0) {
+    return markdown;
+  }
+  return markdown.slice(end + 5);
+}
+
+function convertWikiLinks(markdown: string) {
+  return markdown.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_match, rawTarget, rawLabel) => {
+    const target = String(rawTarget ?? "").trim();
+    const fallbackLabel = target.split("/").at(-1) ?? target;
+    const label = String(rawLabel ?? fallbackLabel).trim() || fallbackLabel;
+    return `[${label}](memory-note://${encodeURIComponent(target)})`;
+  });
+}
+
+function renderMarkdownPreview(markdown: string) {
+  return unsafeHTML(toSanitizedMarkdownHtml(convertWikiLinks(stripFrontmatter(markdown))));
+}
+
+function normalizeLookupKey(value: string) {
+  return value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.?\//, "")
+    .replace(/\.md$/i, "")
+    .replace(/\/+/g, "/")
+    .toLowerCase();
+}
+
+function formatNoteSubtitle(
+  text: Pick<ReturnType<typeof memoryText>, "na">,
+  note: Pick<MemoryNoteListEntry, "path" | "excerpt" | "updatedAt">,
+) {
+  return (
+    note.excerpt?.trim() ||
+    note.path?.trim() ||
+    formatTimestamp(note.updatedAt) ||
+    text.na
+  );
+}
+
 export class AlisioMemoryNativeHub extends LitElement {
   createRenderRoot() {
     return this;
@@ -601,32 +760,27 @@ export class AlisioMemoryNativeHub extends LitElement {
   @property({ attribute: false })
   props: MemoryHubProps | null = null;
 
-  @state() private activeView: MemoryView = "wiki";
-  @state() private wikiLoading = false;
-  @state() private wikiError: string | null = null;
-  @state() private wikiList: MemoryWikiListResult | null = null;
-  @state() private selectedPageId: string | null = null;
-  @state() private pageLoading = false;
-  @state() private pageError: string | null = null;
-  @state() private page: MemoryWikiPage | null = null;
+  @state() private notesLoading = false;
+  @state() private notesError: string | null = null;
+  @state() private notesList: MemoryNotesListResult | null = null;
+  @state() private selectedNoteId: string | null = null;
+  @state() private noteLoading = false;
+  @state() private noteError: string | null = null;
+  @state() private note: MemoryNote | null = null;
+  @state() private noteMode: NoteMode = "markdown";
+  @state() private noteSaving = false;
+  @state() private noteSync: MemorySyncSurface | null = null;
+  @state() private noteDrafts: Record<string, string> = {};
+  @state() private noteTitleDrafts: Record<string, string> = {};
   @state() private historyLoading = false;
   @state() private historyError: string | null = null;
-  @state() private history: MemoryWikiHistoryEntry[] = [];
-  @state() private pageSync: MemorySyncSurface | null = null;
-  @state() private pageDrafts: Record<string, string> = {};
-  @state() private pageTitleDrafts: Record<string, string> = {};
-  @state() private pageSaving = false;
-  @state() private wikiEditorOpen = false;
+  @state() private history: MemoryNoteHistoryEntry[] = [];
   @state() private createOpen = false;
   @state() private createTitle = "";
-  @state() private filesLoading = false;
-  @state() private filesError: string | null = null;
-  @state() private filesList: MemoryFilesListResult | null = null;
-  @state() private selectedFileId: string | null = null;
-  @state() private fileSync: MemorySyncSurface | null = null;
-  @state() private fileLoading = false;
-  @state() private fileError: string | null = null;
-  @state() private fileDetail: MemoryFileDetail | null = null;
+  @state() private selectedAttachmentId: string | null = null;
+  @state() private attachmentLoading = false;
+  @state() private attachmentError: string | null = null;
+  @state() private attachmentDetail: MemoryFileDetail | null = null;
   @state() private traceOpen = false;
   @state() private traceLoading = false;
   @state() private traceError: string | null = null;
@@ -640,14 +794,23 @@ export class AlisioMemoryNativeHub extends LitElement {
   @state() private graphError: string | null = null;
   @state() private graphData: MemoryGraphState | null = null;
   @state() private graphScope: "global" | "local" = "global";
+  @state() private graphIncludeAttachments = false;
+  @state() private graphDepth = 2;
+  @state() private mainPaneMode: "note" | "graph" = "note";
 
-  private wikiListToken = 0;
-  private pageToken = 0;
+  private notesListToken = 0;
+  private noteToken = 0;
   private historyToken = 0;
-  private filesListToken = 0;
-  private fileToken = 0;
+  private attachmentToken = 0;
   private traceToken = 0;
   private graphToken = 0;
+  private searchReloadTimer: number | null = null;
+
+  disconnectedCallback() {
+    this.clearSearchReloadTimer();
+    this.invalidatePendingRequests();
+    super.disconnectedCallback();
+  }
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (!changed.has("props") || !this.props) {
@@ -673,60 +836,96 @@ export class AlisioMemoryNativeHub extends LitElement {
       previous?.client !== this.props.client || previous?.connected !== this.props.connected;
     const syncChanged =
       resolveSyncInvalidationMarker(previous) !== resolveSyncInvalidationMarker(this.props);
+
     if (clientChanged || agentChanged) {
       if (this.props.connected && this.props.client && this.props.selectedAgentId) {
-        void this.reloadNativeLists();
+        void this.reloadAll();
       }
-    } else if (
+      return;
+    }
+    if (
       queryChanged &&
       this.props.connected &&
       this.props.client &&
       this.props.selectedAgentId
     ) {
-      void this.reloadNativeLists();
-    } else if (
+      this.scheduleSearchReload();
+      return;
+    }
+    if (
       syncChanged &&
       this.props.connected &&
       this.props.client &&
       this.props.selectedAgentId
     ) {
-      void this.reloadNativeLists();
+      void this.reloadAll();
     }
   }
 
   private resetNativeState() {
-    this.wikiLoading = false;
-    this.wikiError = null;
-    this.wikiList = null;
-    this.selectedPageId = null;
-    this.pageLoading = false;
-    this.pageError = null;
-    this.page = null;
+    this.clearSearchReloadTimer();
+    this.invalidatePendingRequests();
+    this.notesLoading = false;
+    this.notesError = null;
+    this.notesList = null;
+    this.selectedNoteId = null;
+    this.noteLoading = false;
+    this.noteError = null;
+    this.note = null;
+    this.noteMode = "markdown";
+    this.noteSaving = false;
+    this.noteSync = null;
+    this.noteDrafts = {};
+    this.noteTitleDrafts = {};
     this.historyLoading = false;
     this.historyError = null;
     this.history = [];
-    this.pageSync = null;
-    this.pageDrafts = {};
-    this.pageTitleDrafts = {};
-    this.wikiEditorOpen = false;
-    this.filesLoading = false;
-    this.filesError = null;
-    this.filesList = null;
-    this.selectedFileId = null;
-    this.fileSync = null;
-    this.fileLoading = false;
-    this.fileError = null;
-    this.fileDetail = null;
+    this.createOpen = false;
+    this.createTitle = "";
+    this.selectedAttachmentId = null;
+    this.attachmentLoading = false;
+    this.attachmentError = null;
+    this.attachmentDetail = null;
     this.traceOpen = false;
     this.traceLoading = false;
     this.traceError = null;
+    this.traceTitle = "";
     this.traceData = null;
+    this.exportBusy = false;
     this.exportMessage = null;
     this.mutationSync = null;
     this.graphLoading = false;
     this.graphError = null;
     this.graphData = null;
     this.graphScope = "global";
+    this.graphIncludeAttachments = false;
+    this.graphDepth = 2;
+    this.mainPaneMode = "note";
+  }
+
+  private invalidatePendingRequests() {
+    this.notesListToken += 1;
+    this.noteToken += 1;
+    this.historyToken += 1;
+    this.attachmentToken += 1;
+    this.traceToken += 1;
+    this.graphToken += 1;
+  }
+
+  private clearSearchReloadTimer() {
+    if (this.searchReloadTimer == null) {
+      return;
+    }
+    window.clearTimeout(this.searchReloadTimer);
+    this.searchReloadTimer = null;
+  }
+
+  private scheduleSearchReload() {
+    this.clearSearchReloadTimer();
+    this.searchReloadTimer = window.setTimeout(() => {
+      this.searchReloadTimer = null;
+      void this.reloadAll();
+    }, 180);
   }
 
   private get client(): GatewayBrowserClient | null {
@@ -744,10 +943,8 @@ export class AlisioMemoryNativeHub extends LitElement {
   private get syncSurface(): MemorySyncSurface | null {
     return mergeSyncSurfaces(
       this.mutationSync,
-      this.pageSync,
-      this.fileSync,
-      this.wikiList?.sync,
-      this.filesList?.sync,
+      this.noteSync,
+      this.notesList?.sync,
       deriveStatusSyncSurface(
         this.props?.memoryStatus,
         this.graphData ?? this.props?.memoryGraph ?? null,
@@ -755,130 +952,152 @@ export class AlisioMemoryNativeHub extends LitElement {
     );
   }
 
-  private get currentPageDraft() {
-    if (!this.page?.id) {
+  private get currentNoteDraft() {
+    if (!this.note?.id) {
       return "";
     }
-    return this.pageDrafts[this.page.id] ?? this.page.content;
+    return this.noteDrafts[this.note.id] ?? this.note.content;
   }
 
-  private get currentPageTitleDraft() {
-    if (!this.page?.id) {
+  private get currentNoteTitleDraft() {
+    if (!this.note?.id) {
       return "";
     }
-    return this.pageTitleDrafts[this.page.id] ?? this.page.title;
+    return this.noteTitleDrafts[this.note.id] ?? this.note.title;
   }
 
-  private get pageDirty() {
-    if (!this.page) {
+  private get noteDirty() {
+    if (!this.note) {
       return false;
     }
     return (
-      this.currentPageDraft !== this.page.content || this.currentPageTitleDraft !== this.page.title
+      this.currentNoteDraft !== this.note.content || this.currentNoteTitleDraft !== this.note.title
     );
   }
 
-  private async reloadNativeLists() {
-    await Promise.allSettled([this.loadWikiList(), this.loadFilesList()]);
-    await this.loadGraph();
+  private async reloadAll() {
+    await this.loadNotesList();
+    await this.loadGraph({
+      scope: this.graphScope,
+      focusNoteId: this.selectedNoteId,
+      includeAttachments: this.graphIncludeAttachments,
+    });
   }
 
-  private async loadWikiList() {
+  private async loadNotesList() {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
-    const token = ++this.wikiListToken;
-    this.wikiLoading = true;
-    this.wikiError = null;
+    const token = ++this.notesListToken;
+    this.notesLoading = true;
+    this.notesError = null;
     try {
-      const result = await requestMemoryWikiList(this.client, {
+      const result = await requestMemoryNotesList(this.client, {
         agentId: this.selectedAgentId,
         query: this.props?.searchQuery.trim() || undefined,
       });
-      if (token !== this.wikiListToken) {
+      if (token !== this.notesListToken) {
         return;
       }
-      this.wikiList = result;
+      this.notesList = result;
       const allowedFormats = resolveAllowedExportFormats(result);
       if (!allowedFormats.includes(this.exportFormat)) {
         this.exportFormat = allowedFormats[0] ?? "zip";
       }
-      const nextPageId = result.pages.some((page) => page.id === this.selectedPageId)
-        ? this.selectedPageId
-        : this.props?.searchQuery.trim()
-          ? (result.pages[0]?.id ?? null)
-          : null;
-      this.selectedPageId = nextPageId;
-      if (nextPageId) {
-        await Promise.allSettled([
-          this.loadWikiPage(nextPageId, { preserveDraft: true }),
-          this.loadWikiHistory(nextPageId),
-        ]);
-      } else {
-        this.page = null;
+      const nextNoteId = result.notes.some((note) => note.id === this.selectedNoteId)
+        ? this.selectedNoteId
+        : (result.notes[0]?.id ?? null);
+      this.selectedNoteId = nextNoteId;
+      if (!nextNoteId) {
+        this.note = null;
+        this.noteSync = null;
+        this.noteError = null;
         this.history = [];
-        this.pageSync = null;
-      }
-    } catch (err) {
-      if (token !== this.wikiListToken) {
+        this.historyError = null;
+        this.selectedAttachmentId = null;
+        this.attachmentDetail = null;
+        this.attachmentError = null;
         return;
       }
-      this.wikiError = describeMemoryError(err);
-      this.wikiList = null;
-      this.page = null;
+      await Promise.allSettled([
+        this.loadNote(nextNoteId, { preserveDraft: true }),
+        this.loadNoteHistory(nextNoteId),
+      ]);
+    } catch (err) {
+      if (token !== this.notesListToken) {
+        return;
+      }
+      this.notesError = describeMemoryError(err);
+      this.notesList = null;
+      this.note = null;
+      this.noteSync = null;
       this.history = [];
+      this.attachmentDetail = null;
+      this.attachmentError = null;
     } finally {
-      if (token === this.wikiListToken) {
-        this.wikiLoading = false;
+      if (token === this.notesListToken) {
+        this.notesLoading = false;
       }
     }
   }
 
-  private async loadWikiPage(pageId: string, options?: { preserveDraft?: boolean }) {
+  private async loadNote(noteId: string, options?: { preserveDraft?: boolean }) {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
-    const token = ++this.pageToken;
-    this.pageLoading = true;
-    this.pageError = null;
+    const token = ++this.noteToken;
+    this.noteLoading = true;
+    this.noteError = null;
     try {
-      const result = await requestMemoryWikiPage(this.client, {
+      const result = await requestMemoryNote(this.client, {
         agentId: this.selectedAgentId,
-        pageId,
+        noteId,
         query: this.props?.searchQuery.trim() || undefined,
       });
-      if (token !== this.pageToken) {
+      if (token !== this.noteToken) {
         return;
       }
       const preserveDraft =
-        options?.preserveDraft && this.page?.id === result.page.id && this.pageDirty;
-      this.page = result.page;
-      this.pageSync = result.sync ?? null;
+        options?.preserveDraft && this.note?.id === result.note.id && this.noteDirty;
+      this.note = result.note;
+      this.noteSync = result.sync ?? null;
       if (!preserveDraft) {
-        this.pageDrafts = {
-          ...this.pageDrafts,
-          [result.page.id]: result.page.content,
+        this.noteDrafts = {
+          ...this.noteDrafts,
+          [result.note.id]: result.note.content,
         };
-        this.pageTitleDrafts = {
-          ...this.pageTitleDrafts,
-          [result.page.id]: result.page.title,
+        this.noteTitleDrafts = {
+          ...this.noteTitleDrafts,
+          [result.note.id]: result.note.title,
         };
+      }
+      const visibleAttachmentIds = new Set(
+        (result.note.attachments ?? []).map((attachment) => attachment.id ?? attachment.name),
+      );
+      if (
+        this.selectedAttachmentId &&
+        !visibleAttachmentIds.has(this.selectedAttachmentId) &&
+        visibleAttachmentIds.size > 0
+      ) {
+        this.selectedAttachmentId = null;
+        this.attachmentDetail = null;
+        this.attachmentError = null;
       }
     } catch (err) {
-      if (token !== this.pageToken) {
+      if (token !== this.noteToken) {
         return;
       }
-      this.pageError = describeMemoryError(err);
-      this.page = null;
-      this.pageSync = null;
+      this.noteError = describeMemoryError(err);
+      this.note = null;
+      this.noteSync = null;
     } finally {
-      if (token === this.pageToken) {
-        this.pageLoading = false;
+      if (token === this.noteToken) {
+        this.noteLoading = false;
       }
     }
   }
 
-  private async loadWikiHistory(pageId: string) {
+  private async loadNoteHistory(noteId: string) {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
@@ -886,9 +1105,9 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.historyLoading = true;
     this.historyError = null;
     try {
-      const result = await requestMemoryWikiHistory(this.client, {
+      const result = await requestMemoryNoteHistory(this.client, {
         agentId: this.selectedAgentId,
-        pageId,
+        noteId,
       });
       if (token !== this.historyToken) {
         return;
@@ -907,76 +1126,43 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
-  private async loadFilesList() {
+  private async loadAttachment(fileId: string) {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
-    const token = ++this.filesListToken;
-    this.filesLoading = true;
-    this.filesError = null;
-    try {
-      const result = await requestMemoryFilesList(this.client, {
-        agentId: this.selectedAgentId,
-        query: this.props?.searchQuery.trim() || undefined,
-      });
-      if (token !== this.filesListToken) {
-        return;
-      }
-      this.filesList = result;
-      const nextFileId = result.files.some((file) => file.id === this.selectedFileId)
-        ? this.selectedFileId
-        : (result.files[0]?.id ?? null);
-      this.selectedFileId = nextFileId;
-      if (nextFileId && this.activeView === "files") {
-        await this.loadFileDetail(nextFileId);
-      }
-    } catch (err) {
-      if (token !== this.filesListToken) {
-        return;
-      }
-      this.filesError = describeMemoryError(err);
-      this.filesList = null;
-      this.fileDetail = null;
-    } finally {
-      if (token === this.filesListToken) {
-        this.filesLoading = false;
-      }
-    }
-  }
-
-  private async loadFileDetail(fileId: string) {
-    if (!this.client || !this.selectedAgentId) {
-      return;
-    }
-    const token = ++this.fileToken;
-    this.fileLoading = true;
-    this.fileError = null;
+    const token = ++this.attachmentToken;
+    this.selectedAttachmentId = fileId;
+    this.attachmentLoading = true;
+    this.attachmentError = null;
     try {
       const result = await requestMemoryFile(this.client, {
         agentId: this.selectedAgentId,
         fileId,
         query: this.props?.searchQuery.trim() || undefined,
       });
-      if (token !== this.fileToken) {
+      if (token !== this.attachmentToken) {
         return;
       }
-      this.fileDetail = result.file;
-      this.fileSync = result.sync ?? null;
+      this.attachmentDetail = result.file;
     } catch (err) {
-      if (token !== this.fileToken) {
+      if (token !== this.attachmentToken) {
         return;
       }
-      this.fileError = describeMemoryError(err);
-      this.fileDetail = null;
-      this.fileSync = null;
+      this.attachmentError = describeMemoryError(err);
+      this.attachmentDetail = null;
     } finally {
-      if (token === this.fileToken) {
-        this.fileLoading = false;
+      if (token === this.attachmentToken) {
+        this.attachmentLoading = false;
       }
     }
   }
 
-  private async loadGraph(options?: { scope?: "global" | "local"; focusPageId?: string | null }) {
+  private async loadGraph(options?: {
+    scope?: "global" | "local";
+    focusNoteId?: string | null;
+    includeAttachments?: boolean;
+    depth?: number;
+  }) {
     if (!this.client || !this.selectedAgentId) {
       this.graphData = null;
       this.graphError = null;
@@ -984,21 +1170,29 @@ export class AlisioMemoryNativeHub extends LitElement {
       return;
     }
     const requestedScope = options?.scope ?? this.graphScope;
-    const focusPageId = options?.focusPageId ?? this.page?.id ?? this.selectedPageId ?? null;
-    const scope = requestedScope === "local" && focusPageId ? "local" : "global";
+    const focusNoteId = options?.focusNoteId ?? this.note?.id ?? this.selectedNoteId ?? null;
+    const scope = requestedScope === "local" && focusNoteId ? "local" : "global";
+    const includeAttachments = options?.includeAttachments ?? this.graphIncludeAttachments;
+    const depth =
+      scope === "local" ? Math.max(1, Math.round(options?.depth ?? this.graphDepth)) : 1;
     const token = ++this.graphToken;
     this.graphScope = scope;
+    if (scope === "local") {
+      this.graphDepth = depth;
+    }
     this.graphLoading = true;
     this.graphError = null;
     try {
       const result = await requestMemoryGraph(this.client, {
         agentId: this.selectedAgentId,
         scope,
-        ...(focusPageId ? { pageId: focusPageId } : {}),
+        query: this.props?.searchQuery.trim() || undefined,
+        ...(focusNoteId ? { pageId: focusNoteId } : {}),
         direction: "both",
-        depth: scope === "local" ? 2 : 1,
+        depth,
         nodeLimit: scope === "local" ? 48 : 140,
         edgeLimit: scope === "local" ? 120 : 280,
+        ...(includeAttachments ? { includeAttachments: true } : {}),
       });
       if (token !== this.graphToken) {
         return;
@@ -1008,7 +1202,6 @@ export class AlisioMemoryNativeHub extends LitElement {
       if (token !== this.graphToken) {
         return;
       }
-      this.graphData = null;
       this.graphError = describeMemoryError(err);
     } finally {
       if (token === this.graphToken) {
@@ -1017,76 +1210,76 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
-  private async selectPage(pageId: string) {
-    this.selectedPageId = pageId;
-    this.activeView = "wiki";
-    this.wikiEditorOpen = false;
-    emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
-    void this.loadGraph({ scope: this.graphScope, focusPageId: pageId });
+  private async selectNote(noteId: string, options?: { preserveMode?: boolean; preservePane?: boolean }) {
+    this.selectedNoteId = noteId;
+    if (!options?.preserveMode) {
+      this.noteMode = "markdown";
+    }
+    if (!options?.preservePane) {
+      this.mainPaneMode = "note";
+    }
+    emitMemoryTelemetry("ui_memory_note_opened", { noteId });
     await Promise.allSettled([
-      this.loadWikiPage(pageId, { preserveDraft: true }),
-      this.loadWikiHistory(pageId),
+      this.loadNote(noteId, { preserveDraft: true }),
+      this.loadNoteHistory(noteId),
+      this.loadGraph({
+        scope: this.graphScope,
+        focusNoteId: noteId,
+        includeAttachments: this.graphIncludeAttachments,
+      }),
     ]);
   }
 
-  private openWikiHome() {
-    this.activeView = "wiki";
-    this.selectedPageId = null;
-    this.page = null;
-    this.pageError = null;
-    this.pageSync = null;
-    this.history = [];
-    this.historyError = null;
-    this.wikiEditorOpen = false;
-    emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
-    void this.loadGraph({ scope: this.graphScope, focusPageId: null });
-  }
-
-  private async savePage() {
-    if (!this.client || !this.selectedAgentId || !this.page) {
+  private async saveNote() {
+    if (!this.client || !this.selectedAgentId || !this.note) {
       return;
     }
-    this.pageSaving = true;
-    this.pageError = null;
+    this.noteSaving = true;
+    this.noteError = null;
     try {
-      const result = await requestMemoryWikiUpdate(this.client, {
+      const result = await requestMemoryNoteUpdate(this.client, {
         agentId: this.selectedAgentId,
-        pageId: this.page.id,
-        title: this.currentPageTitleDraft,
-        content: this.currentPageDraft,
+        noteId: this.note.id,
+        title: this.currentNoteTitleDraft,
+        content: this.currentNoteDraft,
       });
+      const savedNoteId = result.note?.id ?? this.note.id;
       this.mutationSync = result.sync ?? null;
-      const pageId = result.page?.id ?? this.page.id;
-      this.pageDrafts = {
-        ...this.pageDrafts,
-        [pageId]: this.currentPageDraft,
+      this.noteDrafts = {
+        ...this.noteDrafts,
+        [savedNoteId]: this.currentNoteDraft,
       };
-      this.pageTitleDrafts = {
-        ...this.pageTitleDrafts,
-        [pageId]: this.currentPageTitleDraft,
+      this.noteTitleDrafts = {
+        ...this.noteTitleDrafts,
+        [savedNoteId]: this.currentNoteTitleDraft,
       };
       await Promise.allSettled([
-        this.loadWikiList(),
-        this.loadWikiPage(pageId, { preserveDraft: false }),
-        this.loadWikiHistory(pageId),
+        this.loadNotesList(),
+        this.loadNote(savedNoteId, { preserveDraft: false }),
+        this.loadNoteHistory(savedNoteId),
+        this.loadGraph({
+          scope: this.graphScope,
+          focusNoteId: savedNoteId,
+          includeAttachments: this.graphIncludeAttachments,
+        }),
       ]);
       this.props?.onRefresh();
     } catch (err) {
-      this.pageError = describeMemoryError(err);
+      this.noteError = describeMemoryError(err);
     } finally {
-      this.pageSaving = false;
+      this.noteSaving = false;
     }
   }
 
-  private async createPage() {
+  private async createNote() {
     if (!this.client || !this.selectedAgentId || !this.createTitle.trim()) {
       return;
     }
-    this.pageSaving = true;
-    this.pageError = null;
+    this.noteSaving = true;
+    this.noteError = null;
     try {
       const title = this.createTitle.trim();
-      const result = await requestMemoryWikiUpdate(this.client, {
+      const result = await requestMemoryNoteUpdate(this.client, {
         agentId: this.selectedAgentId,
         title,
         content: `# ${title}\n\n`,
@@ -1094,20 +1287,19 @@ export class AlisioMemoryNativeHub extends LitElement {
       this.mutationSync = result.sync ?? null;
       this.createOpen = false;
       this.createTitle = "";
-      await this.loadWikiList();
+      await this.loadNotesList();
       const nextId =
-        result.page?.id ??
-        this.wikiList?.pages.find((page) => page.title.trim() === title)?.id ??
+        result.note?.id ??
+        this.notesList?.notes.find((note) => note.title.trim() === title)?.id ??
         null;
       if (nextId) {
-        await this.selectPage(nextId);
-        this.wikiEditorOpen = true;
+        await this.selectNote(nextId);
       }
       this.props?.onRefresh();
     } catch (err) {
-      this.pageError = describeMemoryError(err);
+      this.noteError = describeMemoryError(err);
     } finally {
-      this.pageSaving = false;
+      this.noteSaving = false;
     }
   }
 
@@ -1241,40 +1433,28 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.exportMessage = result.savedPath ?? result.message ?? fileName;
   }
 
-  private normalizeWikiLookupKey(value: string) {
-    return value
-      .replace(/\\/g, "/")
-      .trim()
-      .replace(/^\.?\//, "")
-      .replace(/\.md$/i, "")
-      .replace(/\/+/g, "/")
-      .toLowerCase();
-  }
-
-  private findMatchingWikiPage(
-    pages: ReadonlyArray<{ id: string; title: string; slug?: string | null; path?: string | null }>,
+  private findMatchingNote(
+    notes: ReadonlyArray<{ id: string; title: string; slug?: string | null; path?: string | null }>,
     target: string,
   ) {
-    const normalizedTarget = this.normalizeWikiLookupKey(target);
+    const normalizedTarget = normalizeLookupKey(target);
     return (
-      pages.find((page) => {
+      notes.find((note) => {
         const candidates = [
-          page.id,
-          page.title,
-          page.slug ?? "",
-          page.path ?? "",
-          page.path ? page.path.replace(/^memory\//, "") : "",
-          page.path ? (page.path.split("/").at(-1)?.replace(/\.md$/i, "") ?? "") : "",
+          note.id,
+          note.title,
+          note.slug ?? "",
+          note.path ?? "",
+          note.path ? note.path.replace(/^memory\//, "") : "",
+          note.path ? (note.path.split("/").at(-1)?.replace(/\.md$/i, "") ?? "") : "",
         ];
-        return candidates.some(
-          (candidate) => this.normalizeWikiLookupKey(candidate) === normalizedTarget,
-        );
+        return candidates.some((candidate) => normalizeLookupKey(candidate) === normalizedTarget);
       }) ?? null
     );
   }
 
-  private async findPageIdByTarget(target: string) {
-    const directMatch = this.findMatchingWikiPage(this.wikiList?.pages ?? [], target);
+  private async findNoteIdByTarget(target: string) {
+    const directMatch = this.findMatchingNote(this.notesList?.notes ?? [], target);
     if (directMatch) {
       return directMatch.id;
     }
@@ -1282,38 +1462,82 @@ export class AlisioMemoryNativeHub extends LitElement {
       return null;
     }
     try {
-      const result = await requestMemoryWikiList(this.client, {
+      const result = await requestMemoryNotesList(this.client, {
         agentId: this.selectedAgentId,
       });
-      return this.findMatchingWikiPage(result.pages, target)?.id ?? null;
+      return this.findMatchingNote(result.notes, target)?.id ?? null;
     } catch {
       return null;
     }
   }
 
-  private async openWikiTarget(target: string) {
-    const pageId = await this.findPageIdByTarget(target);
-    if (pageId) {
-      await this.selectPage(pageId);
+  private async openNoteTarget(target: string) {
+    const noteId = await this.findNoteIdByTarget(target);
+    if (noteId) {
+      await this.selectNote(noteId, {
+        preserveMode: true,
+        preservePane: this.mainPaneMode === "graph",
+      });
     }
   }
 
-  private async openGraphTarget(path: string | null | undefined) {
-    if (!path) {
+  private async openGraphNode(nodeId: string) {
+    const graph = this.graphData ?? this.props?.memoryGraph ?? null;
+    const node = graph?.nodes.find((entry) => entry.id === nodeId) ?? null;
+    if (!node) {
       return;
     }
-    await this.openWikiTarget(path);
+    if (node.kind === "attachment" && node.attachmentId) {
+      await this.selectNote(node.pageId, {
+        preserveMode: true,
+        preservePane: true,
+      });
+      await this.loadAttachment(node.attachmentId);
+      return;
+    }
+    await this.selectNote(node.pageId, {
+      preserveMode: true,
+      preservePane: true,
+    });
   }
 
-  private openRelatedFile(fileId: string) {
-    this.activeView = "files";
-    this.selectedFileId = fileId;
-    emitMemoryTelemetry("ui_memory_view_opened", { view: "files" });
-    void this.loadFileDetail(fileId);
+  private async focusGraphNode(nodeId: string) {
+    const graph = this.graphData ?? this.props?.memoryGraph ?? null;
+    const node = graph?.nodes.find((entry) => entry.id === nodeId) ?? null;
+    if (!node) {
+      return;
+    }
+    await this.selectNote(node.pageId, {
+      preserveMode: true,
+      preservePane: true,
+    });
+    this.mainPaneMode = "graph";
+    await this.loadGraph({
+      scope: "local",
+      focusNoteId: node.pageId,
+      includeAttachments: this.graphIncludeAttachments,
+      depth: this.graphDepth,
+    });
   }
 
-  private openFileAttachment() {
-    const target = buildMemoryFileActionModel(this.fileDetail).openHref;
+  private handlePreviewClick = (event: Event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    const anchor = target.closest("a");
+    const href = anchor?.getAttribute("href")?.trim() ?? "";
+    if (!href.startsWith("memory-note://")) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const targetNote = decodeURIComponent(href.slice("memory-note://".length));
+    void this.openNoteTarget(targetNote);
+  };
+
+  private openAttachment() {
+    const target = buildMemoryFileActionModel(this.attachmentDetail).openHref;
     if (!target) {
       return;
     }
@@ -1324,35 +1548,38 @@ export class AlisioMemoryNativeHub extends LitElement {
     link.click();
   }
 
-  private downloadFileAttachment() {
-    const download = buildMemoryFileActionModel(this.fileDetail).download;
+  private downloadAttachment() {
+    const download = buildMemoryFileActionModel(this.attachmentDetail).download;
     if (!download) {
       return;
     }
     downloadBase64(download.fileName, download.bytesBase64, download.mediaType);
   }
 
-  private openFileWikiPage(pageId: string) {
-    void this.selectPage(pageId);
+  private async openAttachmentPrimaryNote() {
+    const pageId = buildMemoryFileActionModel(this.attachmentDetail).primaryPage?.pageId;
+    if (!pageId) {
+      return;
+    }
+    await this.selectNote(pageId, {
+      preserveMode: true,
+      preservePane: this.mainPaneMode === "graph",
+    });
   }
 
-  private focusGraphPage(pageId: string) {
-    void (async () => {
-      await this.selectPage(pageId);
-      this.activeView = "graph";
-      emitMemoryTelemetry("ui_memory_view_opened", { view: "graph" });
-    })();
-  }
-
-  private setView(view: MemoryView) {
-    this.activeView = view;
-    emitMemoryTelemetry("ui_memory_view_opened", { view });
-    if (view === "files" && this.selectedFileId) {
-      void this.loadFileDetail(this.selectedFileId);
+  private async focusAttachmentPrimaryNote() {
+    const pageId = buildMemoryFileActionModel(this.attachmentDetail).primaryPage?.pageId;
+    if (!pageId) {
+      return;
     }
-    if (view === "graph") {
-      void this.loadGraph();
-    }
+    await this.selectNote(pageId, { preserveMode: true });
+    this.mainPaneMode = "graph";
+    await this.loadGraph({
+      scope: "local",
+      focusNoteId: pageId,
+      includeAttachments: this.graphIncludeAttachments,
+      depth: this.graphDepth,
+    });
   }
 
   private resolveSelectedAgentLabel(text: ReturnType<typeof memoryText>) {
@@ -1365,53 +1592,47 @@ export class AlisioMemoryNativeHub extends LitElement {
     return selectedAgent?.name?.trim() || selectedAgentId;
   }
 
-  private resolveViewCards(text: ReturnType<typeof memoryText>) {
-    const graphNodes =
-      this.graphData?.stats.totalNodes ?? this.props?.memoryGraph?.stats.totalNodes ?? 0;
-    return [
-      {
-        view: "wiki" as const,
-        icon: icons.book,
-        title: text.views.wiki,
-        description: text.viewDescriptions.wiki,
-        count: this.wikiList?.pages.length ?? 0,
-        label: text.wikiPages,
-      },
-      {
-        view: "files" as const,
-        icon: icons.folder,
-        title: text.views.files,
-        description: text.viewDescriptions.files,
-        count: this.filesList?.files.length ?? 0,
-        label: text.filesTitle,
-      },
-      {
-        view: "graph" as const,
-        icon: icons.link,
-        title: text.views.graph,
-        description: text.viewDescriptions.graph,
-        count: graphNodes,
-        label: text.graphNodesCount,
-      },
-    ];
-  }
-
   private renderHeader(text: ReturnType<typeof memoryText>) {
     const agents = this.props?.agentsList?.agents ?? [];
     const selectedAgentLabel = this.resolveSelectedAgentLabel(text);
-    const viewCards = this.resolveViewCards(text);
+    const visibleNotes = this.notesList?.notes.length ?? 0;
     return html`
-      <section class="alisio-memory-workspace">
-        <div class="alisio-memory-workspace__top">
-          <div class="alisio-memory-workspace__copy">
-            <span class="alisio-memory-workspace__eyebrow"
-              >${text.agent} · ${selectedAgentLabel}</span
+      <section class="alisio-memory-toolbar">
+        <div class="alisio-memory-toolbar__copy">
+          <span class="alisio-memory-toolbar__eyebrow">${text.agent} · ${selectedAgentLabel}</span>
+          <div class="alisio-memory-toolbar__title-row">
+            <h2>${text.views.wiki}</h2>
+            <span class="alisio-memory-toolbar__count">
+              ${String(visibleNotes)} ${text.notesListTitle.toLowerCase()}
+            </span>
+          </div>
+          <p>${text.workspaceVault}</p>
+          <div class="alisio-memory-toolbar__tabs">
+            <button
+              type="button"
+              class="btn btn--sm ${this.mainPaneMode === "note" ? "primary" : ""}"
+              @click=${() => (this.mainPaneMode = "note")}
             >
-            <h2>${text.views[this.activeView]}</h2>
-            <p>${text.viewDescriptions[this.activeView]}</p>
+              ${text.views.wiki}
+            </button>
+            <button
+              type="button"
+              class="btn btn--sm ${this.mainPaneMode === "graph" ? "primary" : ""}"
+              @click=${() => {
+                this.mainPaneMode = "graph";
+                void this.loadGraph({
+                  scope: this.graphScope,
+                  focusNoteId: this.note?.id ?? this.selectedNoteId,
+                  includeAttachments: this.graphIncludeAttachments,
+                  depth: this.graphDepth,
+                });
+              }}
+            >
+              ${text.views.graph}
+            </button>
           </div>
         </div>
-        <div class="alisio-memory-workspace__controls">
+        <div class="alisio-memory-toolbar__controls">
           <label class="field field--inline">
             <span>${text.agent}</span>
             <select
@@ -1443,143 +1664,133 @@ export class AlisioMemoryNativeHub extends LitElement {
             aria-label=${text.refresh}
             @click=${() => {
               this.props?.onRefresh();
-              void this.reloadNativeLists();
+              void this.reloadAll();
             }}
           >
             ${icons.refresh}
           </button>
         </div>
-        <div class="alisio-memory-view-switcher" role="tablist" aria-label=${text.viewsLabel}>
-          ${viewCards.map(
-            (view) => html`
-              <button
-                type="button"
-                class="alisio-memory-view-tab ${this.activeView === view.view ? "is-active" : ""}"
-                role="tab"
-                aria-selected=${this.activeView === view.view ? "true" : "false"}
-                aria-current=${this.activeView === view.view ? "page" : "false"}
-                @click=${() => this.setView(view.view)}
-              >
-                <span class="alisio-memory-view-tab__icon" aria-hidden="true">${view.icon}</span>
-                <span class="alisio-memory-view-tab__copy">
-                  <strong>${view.title}</strong>
-                  <span>${view.description}</span>
-                </span>
-                <span class="alisio-memory-view-tab__metric">
-                  <strong>${String(view.count)}</strong>
-                  <span>${view.label}</span>
-                </span>
-              </button>
-            `,
-          )}
-        </div>
       </section>
     `;
   }
 
-  private renderWikiSidebar(text: ReturnType<typeof memoryText>) {
-    if (this.wikiLoading && !this.wikiList) {
-      return html`
-        <section class="alisio-memory-group">
-          <div class="loading-state__list">
-            ${renderSkeletonListItem({ lines: ["short", "medium"] })}
-            ${renderSkeletonListItem({ lines: ["short", "medium"] })}
-            ${renderSkeletonListItem({ lines: ["short", "medium"] })}
-          </div>
-        </section>
-      `;
-    }
+  private renderExplorerNote(
+    note: MemoryNoteListEntry,
+    text: ReturnType<typeof memoryText>,
+    depth: number,
+  ) {
+    const isActive = this.selectedNoteId === note.id;
+    const subtitle = note.path?.trim()?.split("/").at(-1) ?? formatNoteSubtitle(text, note);
     return html`
-      <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header">
-          <h2>${text.wikiListTitle}</h2>
-          <button class="btn btn--sm primary" @click=${() => (this.createOpen = !this.createOpen)}>
-            ${icons.plus} ${text.wikiCreate}
-          </button>
+      <button
+        type="button"
+        class="alisio-memory-tree__note ${isActive ? "is-active" : ""}"
+        aria-current=${isActive ? "true" : "false"}
+        style=${`--tree-depth:${String(depth)}`}
+        @click=${() => void this.selectNote(note.id)}
+      >
+        <span class="alisio-memory-tree__glyph">${icons.fileText}</span>
+        <span class="alisio-memory-tree__note-copy">
+          <strong>${note.title}</strong>
+          <span>${subtitle}</span>
+        </span>
+        <span class="alisio-memory-tree__note-meta">
+          ${typeof note.backlinks === "number" ? `${note.backlinks}` : ""}
+        </span>
+      </button>
+    `;
+  }
+
+  private renderExplorerFolderNode(
+    node: NoteExplorerTreeNode,
+    text: ReturnType<typeof memoryText>,
+    depth = 0,
+  ) {
+    return html`
+      <details class="alisio-memory-tree__folder" open>
+        <summary class="alisio-memory-tree__folder-summary" style=${`--tree-depth:${String(depth)}`}>
+          <span class="alisio-memory-tree__chevron">${icons.chevronRight}</span>
+          <span class="alisio-memory-tree__glyph">${icons.folder}</span>
+          <span class="alisio-memory-tree__folder-label">${node.label}</span>
+          <span class="alisio-memory-tree__folder-meta">${String(node.noteCount)}</span>
+        </summary>
+        <div class="alisio-memory-tree__children">
+          ${node.folders.map((child) => this.renderExplorerFolderNode(child, text, depth + 1))}
+          ${node.notes.map((note) => this.renderExplorerNote(note, text, depth + 1))}
         </div>
-        ${this.createOpen
-          ? html`
-              <div class="alisio-memory-native__composer">
-                <label class="field">
-                  <span>${text.wikiCreate}</span>
-                  <input
-                    .value=${this.createTitle}
-                    placeholder=${text.wikiCreatePlaceholder}
-                    @input=${(event: Event) =>
-                      (this.createTitle = (event.target as HTMLInputElement).value)}
-                  />
-                </label>
-                <div class="alisio-memory-runtime__actions">
-                  <button class="btn btn--sm" @click=${() => (this.createOpen = false)}>
-                    ${t("alisio.memory.cancelCreate")}
-                  </button>
-                  <button
-                    class="btn btn--sm primary"
-                    ?disabled=${!this.createTitle.trim() || this.pageSaving}
-                    @click=${() => void this.createPage()}
-                  >
-                    ${text.wikiCreateConfirm}
-                  </button>
+      </details>
+    `;
+  }
+
+  private renderExplorer(text: ReturnType<typeof memoryText>) {
+    const tree = buildNoteExplorerTree(this.notesList?.notes ?? []);
+    return html`
+      <aside class="alisio-memory-notes__explorer">
+        <section class="alisio-memory-vault">
+          <div class="alisio-memory-vault__header">
+            <div>
+              <span class="alisio-memory-vault__eyebrow">${text.workspaceExplorer}</span>
+              <h3>${text.notesListTitle}</h3>
+              <p>${text.viewDescriptions.wiki}</p>
+            </div>
+            <button class="btn btn--sm primary" @click=${() => (this.createOpen = !this.createOpen)}>
+              ${icons.plus} ${text.notesCreate}
+            </button>
+          </div>
+          ${this.createOpen
+            ? html`
+                <div class="alisio-memory-native__composer alisio-memory-vault__composer">
+                  <label class="field">
+                    <span>${text.notesCreate}</span>
+                    <input
+                      .value=${this.createTitle}
+                      placeholder=${text.notesCreatePlaceholder}
+                      @input=${(event: Event) =>
+                        (this.createTitle = (event.target as HTMLInputElement).value)}
+                    />
+                  </label>
+                  <div class="alisio-memory-runtime__actions">
+                    <button class="btn btn--sm" @click=${() => (this.createOpen = false)}>
+                      ${text.cancelCreate}
+                    </button>
+                    <button
+                      class="btn btn--sm primary"
+                      ?disabled=${!this.createTitle.trim() || this.noteSaving}
+                      @click=${() => void this.createNote()}
+                    >
+                      ${text.notesCreateConfirm}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            `
-          : nothing}
-        ${this.wikiError
-          ? html`<div class="callout info">${this.wikiError}</div>`
-          : this.wikiList && this.wikiList.pages.length === 0
-            ? html`<div class="alisio-memory-empty">${text.wikiEmpty}</div>`
-            : html`
-                <div class="alisio-memory-file-list">
-                  ${(this.wikiList?.pages ?? []).map(
-                    (page) => html`
-                      <article class="alisio-memory-native__result-card">
-                        <button
-                          type="button"
-                          class="alisio-memory-file ${this.selectedPageId === page.id
-                            ? "is-active"
-                            : ""}"
-                          aria-current=${this.selectedPageId === page.id ? "true" : "false"}
-                          @click=${() => void this.selectPage(page.id)}
-                        >
-                          <span class="alisio-memory-file__copy">
-                            <span class="alisio-memory-file__title">${page.title}</span>
-                            <span class="alisio-memory-file__meta">
-                              ${page.excerpt?.trim() || page.path?.trim() || text.na}
-                            </span>
-                            ${renderReasonTags(page.reasonTags)}
-                          </span>
-                          <span class="alisio-memory-file__status">
-                            ${typeof page.backlinks === "number"
-                              ? `${page.backlinks} ↩`
-                              : (formatTimestamp(page.updatedAt) ?? text.na)}
-                          </span>
-                        </button>
-                        ${this.renderTraceAction(text, {
-                          label: page.title,
-                          traceId: page.traceId,
-                          trace: page.trace,
-                          summary: page.traceSummary,
-                          reasonTags: page.reasonTags,
-                        })}
-                      </article>
-                    `,
-                  )}
-                </div>
-              `}
-      </section>
+              `
+            : nothing}
+          ${this.notesError
+            ? html`<div class="callout info">${this.notesError}</div>`
+            : this.notesLoading && !this.notesList
+              ? html`<div class="alisio-memory-empty">${text.loading}</div>`
+              : (this.notesList?.notes.length ?? 0) === 0
+                ? html`<div class="alisio-memory-empty">${text.notesEmpty}</div>`
+                : html`
+                    <div class="alisio-memory-tree">
+                      ${tree.folders.map((node) => this.renderExplorerFolderNode(node, text))}
+                      ${tree.notes.map((note) => this.renderExplorerNote(note, text, 0))}
+                    </div>
+                  `}
+        </section>
+      </aside>
     `;
   }
 
   private renderBacklinks(
     text: ReturnType<typeof memoryText>,
-    backlinks: MemoryWikiBacklink[] | null | undefined,
+    backlinks: MemoryNoteBacklink[] | null | undefined,
   ) {
     const items = backlinks ?? [];
     return html`
       <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.wikiBacklinks}</h2></div>
+        <div class="alisio-memory-group__header"><h2>${text.noteBacklinks}</h2></div>
         ${items.length === 0
-          ? html`<div class="alisio-memory-empty">${text.wikiBacklinksEmpty}</div>`
+          ? html`<div class="alisio-memory-empty">${text.noteBacklinksEmpty}</div>`
           : html`
               <div class="alisio-memory-file-list">
                 ${items.map(
@@ -1588,7 +1799,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                       type="button"
                       class="alisio-memory-file"
                       @click=${() =>
-                        item.id ? void this.selectPage(item.id) : this.openGraphTarget(item.path)}
+                        item.id ? void this.selectNote(item.id, { preserveMode: true }) : this.openNoteTarget(item.path ?? item.title)}
                     >
                       <span class="alisio-memory-file__copy">
                         <span class="alisio-memory-file__title">${item.title}</span>
@@ -1605,6 +1816,48 @@ export class AlisioMemoryNativeHub extends LitElement {
     `;
   }
 
+  private renderAttachments(
+    text: ReturnType<typeof memoryText>,
+    attachments: MemoryNoteAttachment[] | null | undefined,
+  ) {
+    const items = attachments ?? [];
+    return html`
+      <section class="alisio-memory-group">
+        <div class="alisio-memory-group__header"><h2>${text.filesTitle}</h2></div>
+        ${items.length === 0
+          ? html`<div class="alisio-memory-empty">${text.filesEmpty}</div>`
+          : html`
+              <div class="alisio-memory-file-list">
+                ${items.map((attachment) => {
+                  const attachmentId = attachment.id ?? attachment.name;
+                  return html`
+                    <button
+                      type="button"
+                      class="alisio-memory-file ${this.selectedAttachmentId === attachmentId
+                        ? "is-active"
+                        : ""}"
+                      @click=${() => void this.loadAttachment(attachmentId)}
+                    >
+                      <span class="alisio-memory-file__copy">
+                        <span class="alisio-memory-file__title">${attachment.name}</span>
+                        <span class="alisio-memory-file__meta">
+                          ${attachment.provenanceSummary?.trim() ||
+                          attachment.mediaType?.trim() ||
+                          text.na}
+                        </span>
+                      </span>
+                      <span class="alisio-memory-file__status">
+                        ${formatTimestamp(attachment.updatedAt) ?? text.na}
+                      </span>
+                    </button>
+                  `;
+                })}
+              </div>
+            `}
+      </section>
+    `;
+  }
+
   private renderClaims(
     text: ReturnType<typeof memoryText>,
     claims: MemoryClaimItem[] | null | undefined,
@@ -1612,9 +1865,9 @@ export class AlisioMemoryNativeHub extends LitElement {
     const items = claims ?? [];
     return html`
       <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.wikiClaims}</h2></div>
+        <div class="alisio-memory-group__header"><h2>${text.noteClaims}</h2></div>
         ${items.length === 0
-          ? html`<div class="alisio-memory-empty">${text.wikiClaimsEmpty}</div>`
+          ? html`<div class="alisio-memory-empty">${text.noteClaimsEmpty}</div>`
           : html`
               <div class="alisio-memory-native__stack">
                 ${items.map(
@@ -1637,7 +1890,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                                     <span class="alisio-memory-runtime__meta-label">
                                       ${item.title?.trim() ||
                                       item.source?.trim() ||
-                                      text.wikiEvidence}
+                                      text.noteEvidence}
                                     </span>
                                     <span class="alisio-memory-runtime__meta-detail">
                                       ${item.excerpt?.trim() || text.na}
@@ -1664,27 +1917,27 @@ export class AlisioMemoryNativeHub extends LitElement {
     const items = evidence ?? [];
     return html`
       <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.wikiEvidence}</h2></div>
+        <div class="alisio-memory-group__header"><h2>${text.noteEvidence}</h2></div>
         ${items.length === 0
-          ? html`<div class="alisio-memory-empty">${text.wikiEvidenceEmpty}</div>`
+          ? html`<div class="alisio-memory-empty">${text.noteEvidenceEmpty}</div>`
           : html`
               <div class="alisio-memory-native__stack">
                 ${items.map(
                   (item) => html`
                     <article class="alisio-memory-runtime">
                       <strong>
-                        ${item.title?.trim() || item.source?.trim() || text.wikiEvidence}
+                        ${item.title?.trim() || item.source?.trim() || text.noteEvidence}
                       </strong>
                       <span class="alisio-memory-runtime__meta-detail">
                         ${item.excerpt?.trim() || text.na}
                       </span>
                       ${item.source?.trim() && item.source !== item.title?.trim()
                         ? html`
-                            <span class="alisio-memory-runtime__meta-detail"> ${item.source} </span>
+                            <span class="alisio-memory-runtime__meta-detail">${item.source}</span>
                           `
                         : nothing}
                       ${item.provenance?.length
-                        ? renderProvenanceRows(item.provenance, text.wikiProvenanceEmpty)
+                        ? renderProvenanceRows(item.provenance, text.noteProvenanceEmpty)
                         : nothing}
                     </article>
                   `,
@@ -1696,16 +1949,16 @@ export class AlisioMemoryNativeHub extends LitElement {
   }
 
   private renderRevision(text: ReturnType<typeof memoryText>) {
-    const revision = this.page?.revision ?? null;
+    const revision = this.note?.revision ?? null;
     return html`
       <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.wikiRevision}</h2></div>
+        <div class="alisio-memory-group__header"><h2>${text.noteRevision}</h2></div>
         ${!revision
           ? html`<div class="alisio-memory-empty">${text.na}</div>`
           : html`
               <article class="alisio-memory-runtime__meta-item">
                 <span class="alisio-memory-runtime__meta-label">
-                  ${revision.summary?.trim() || revision.eventId || text.wikiRevision}
+                  ${revision.summary?.trim() || revision.eventId || text.noteRevision}
                 </span>
                 <strong class="alisio-memory-runtime__meta-value">
                   ${String(revision.lamport ?? text.na)}
@@ -1717,7 +1970,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                 </span>
                 ${revision.eventId
                   ? html`
-                      <span class="alisio-memory-runtime__meta-detail"> ${revision.eventId} </span>
+                      <span class="alisio-memory-runtime__meta-detail">${revision.eventId}</span>
                     `
                   : nothing}
               </article>
@@ -1727,59 +1980,52 @@ export class AlisioMemoryNativeHub extends LitElement {
   }
 
   private renderHistory(text: ReturnType<typeof memoryText>) {
-    if (this.historyLoading && this.history.length === 0) {
-      return html`
-        <section class="alisio-memory-group">
-          <div class="alisio-memory-group__header"><h2>${text.wikiHistory}</h2></div>
-          <div class="alisio-memory-empty">
-            ${renderSkeletonLines(["short", "medium"], { compact: true })}
-          </div>
-        </section>
-      `;
-    }
     return html`
       <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.wikiHistory}</h2></div>
-        ${this.historyError
-          ? html`<div class="callout info">${this.historyError}</div>`
-          : this.history.length === 0
-            ? html`<div class="alisio-memory-empty">${text.wikiHistoryEmpty}</div>`
-            : html`
-                <div class="alisio-memory-native__stack">
-                  ${this.history.map(
-                    (entry) => html`
-                      <article class="alisio-memory-runtime__meta-item">
-                        <span class="alisio-memory-runtime__meta-label">
-                          ${entry.summary?.trim() || entry.operation?.trim() || entry.eventId}
-                        </span>
-                        <strong class="alisio-memory-runtime__meta-value">
-                          ${String(entry.lamport ?? text.na)}
-                        </strong>
-                        <span class="alisio-memory-runtime__meta-detail">
-                          ${[formatTimestamp(entry.at), entry.author].filter(Boolean).join(" · ") ||
-                          text.na}
-                        </span>
-                        ${entry.diffSummary
-                          ? html`
-                              <span class="alisio-memory-runtime__meta-detail">
-                                ${entry.diffSummary}
-                              </span>
-                            `
-                          : nothing}
-                      </article>
-                    `,
-                  )}
-                </div>
-              `}
+        <div class="alisio-memory-group__header"><h2>${text.noteHistory}</h2></div>
+        ${this.historyLoading && this.history.length === 0
+          ? html`<div class="alisio-memory-empty">${text.loading}</div>`
+          : this.historyError
+            ? html`<div class="callout info">${this.historyError}</div>`
+            : this.history.length === 0
+              ? html`<div class="alisio-memory-empty">${text.noteHistoryEmpty}</div>`
+              : html`
+                  <div class="alisio-memory-native__stack">
+                    ${this.history.map(
+                      (entry) => html`
+                        <article class="alisio-memory-runtime__meta-item">
+                          <span class="alisio-memory-runtime__meta-label">
+                            ${entry.summary?.trim() || entry.operation?.trim() || entry.eventId}
+                          </span>
+                          <strong class="alisio-memory-runtime__meta-value">
+                            ${String(entry.lamport ?? text.na)}
+                          </strong>
+                          <span class="alisio-memory-runtime__meta-detail">
+                            ${[formatTimestamp(entry.at), entry.author]
+                              .filter(Boolean)
+                              .join(" · ") || text.na}
+                          </span>
+                          ${entry.diffSummary
+                            ? html`
+                                <span class="alisio-memory-runtime__meta-detail">
+                                  ${entry.diffSummary}
+                                </span>
+                              `
+                            : nothing}
+                        </article>
+                      `,
+                    )}
+                  </div>
+                `}
       </section>
     `;
   }
 
   private renderContext(text: ReturnType<typeof memoryText>) {
-    const preview = this.page?.contextPreview ?? null;
+    const preview = this.note?.contextPreview ?? null;
     return html`
       <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.wikiContext}</h2></div>
+        <div class="alisio-memory-group__header"><h2>${text.noteContext}</h2></div>
         ${!preview
           ? html`<div class="alisio-memory-empty">${text.na}</div>`
           : html`
@@ -1787,7 +2033,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                 <div class="alisio-memory-runtime__meta-item">
                   <span class="alisio-memory-runtime__meta-label">${text.whySurfaced}</span>
                   <span class="alisio-memory-runtime__meta-detail">
-                    ${buildContextPreviewSummary(text, this.page, preview.summary)}
+                    ${buildContextPreviewSummary(text, this.note, preview.summary)}
                   </span>
                   ${renderReasonTags(preview.reasonTags)}
                   ${this.tracesEnabled && (preview.traceId || preview.trace)
@@ -1797,7 +2043,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                             class="btn btn--sm"
                             @click=${() =>
                               void this.openTrace({
-                                label: this.page?.title ?? text.traceTitle,
+                                label: this.note?.title ?? text.traceTitle,
                                 traceId: preview.traceId,
                                 trace: preview.trace,
                                 summary: preview.traceSummary,
@@ -1816,133 +2062,392 @@ export class AlisioMemoryNativeHub extends LitElement {
     `;
   }
 
-  private renderWikiView(text: ReturnType<typeof memoryText>) {
-    return renderMemoryWikiView({
-      text,
-      searchQuery: this.props?.searchQuery ?? "",
-      wikiLoading: this.wikiLoading,
-      wikiError: this.wikiError,
-      wikiList: this.wikiList,
-      selectedPageId: this.selectedPageId,
-      pageLoading: this.pageLoading,
-      pageError: this.pageError,
-      page: this.page,
-      historyLoading: this.historyLoading,
-      historyError: this.historyError,
-      history: this.history,
-      tracesEnabled: this.tracesEnabled,
-      createOpen: this.createOpen,
-      createTitle: this.createTitle,
-      pageSaving: this.pageSaving,
-      pageDirty: this.pageDirty,
-      currentPageDraft: this.currentPageDraft,
-      currentPageTitleDraft: this.currentPageTitleDraft,
-      editorOpen: this.wikiEditorOpen,
-      onGoHome: () => this.openWikiHome(),
-      onSelectPage: (pageId) => void this.selectPage(pageId),
-      onSelectFile: (fileId) => this.openRelatedFile(fileId),
-      onOpenTrace: (params) => void this.openTrace(params),
-      onOpenWikiTarget: (target) => void this.openWikiTarget(target),
-      onToggleCreate: (open) => {
-        this.createOpen = open;
-      },
-      onCreateTitle: (value) => {
-        this.createTitle = value;
-      },
-      onCreatePage: () => void this.createPage(),
-      onToggleEditor: (open) => {
-        this.wikiEditorOpen = open;
-      },
-      onSetPageDraft: (value) => {
-        if (!this.page?.id) {
-          return;
-        }
-        this.pageDrafts = {
-          ...this.pageDrafts,
-          [this.page.id]: value,
-        };
-      },
-      onSetPageTitleDraft: (value) => {
-        if (!this.page?.id) {
-          return;
-        }
-        this.pageTitleDrafts = {
-          ...this.pageTitleDrafts,
-          [this.page.id]: value,
-        };
-      },
-      onResetPage: () => {
-        if (!this.page?.id) {
-          return;
-        }
-        this.pageDrafts = { ...this.pageDrafts, [this.page.id]: this.page.content };
-        this.pageTitleDrafts = { ...this.pageTitleDrafts, [this.page.id]: this.page.title };
-      },
-      onSavePage: () => void this.savePage(),
-    });
+  private renderAttachmentPreview(text: ReturnType<typeof memoryText>) {
+    const detail = this.attachmentDetail;
+    const preview = buildMemoryFilePreviewModel(detail);
+    const primaryPage = buildMemoryFileActionModel(detail).primaryPage;
+    return html`
+      <section class="alisio-memory-group">
+        <div class="alisio-memory-group__header"><h2>${text.filesTitle}</h2></div>
+        ${this.attachmentLoading
+          ? html`<div class="alisio-memory-empty">${text.loading}</div>`
+          : this.attachmentError
+            ? html`<div class="callout info">${this.attachmentError}</div>`
+            : !detail
+              ? html`<div class="alisio-memory-empty">${text.filesNoSelection}</div>`
+              : html`
+                  <article class="alisio-memory-runtime">
+                    <div class="alisio-memory-runtime__header">
+                      <div class="alisio-memory-runtime__copy">
+                        <h3>${detail.name}</h3>
+                        <p>${detail.summary?.trim() || detail.provenanceSummary?.trim() || text.na}</p>
+                      </div>
+                      <div class="alisio-memory-runtime__actions">
+                        <button class="btn btn--sm" @click=${() => this.openAttachment()}>
+                          ${text.filesOpen}
+                        </button>
+                        <button class="btn btn--sm" @click=${() => this.downloadAttachment()}>
+                          ${text.filesDownload}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="alisio-memory-runtime__stats">
+                      <div class="alisio-memory-stat">
+                        <span class="alisio-memory-stat__label">${text.filesMediaType}</span>
+                        <strong class="alisio-memory-stat__value">${detail.mediaType}</strong>
+                      </div>
+                      <div class="alisio-memory-stat">
+                        <span class="alisio-memory-stat__label">${text.filesSize}</span>
+                        <strong class="alisio-memory-stat__value">
+                          ${formatBytes(detail.size) ?? text.na}
+                        </strong>
+                      </div>
+                      <div class="alisio-memory-stat">
+                        <span class="alisio-memory-stat__label">${text.filesHash}</span>
+                        <strong class="alisio-memory-stat__value">${detail.sha256}</strong>
+                      </div>
+                    </div>
+                    <div class="alisio-memory-preview">
+                      <span class="alisio-memory-preview__label">${text.preview}</span>
+                      ${renderMemoryFilePreview({
+                        preview,
+                        text: {
+                          previewLabel: text.preview,
+                          previewEmpty: text.previewEmpty,
+                          previewUnavailable: text.filesPreviewUnavailable,
+                          previewTruncated: text.filesPreviewTruncated,
+                        },
+                      })}
+                    </div>
+                    ${primaryPage
+                      ? html`
+                          <div class="alisio-memory-runtime__actions">
+                            <button
+                              class="btn btn--sm"
+                              @click=${() => void this.openAttachmentPrimaryNote()}
+                            >
+                              ${text.filesOpenPage}
+                            </button>
+                            <button
+                              class="btn btn--sm"
+                              @click=${() => void this.focusAttachmentPrimaryNote()}
+                            >
+                              ${text.filesFocusGraph}
+                            </button>
+                          </div>
+                        `
+                      : nothing}
+                    <section class="alisio-memory-group">
+                      <div class="alisio-memory-group__header"><h2>${text.filesRelatedPages}</h2></div>
+                      ${(detail.relatedPages?.length ?? 0) === 0
+                        ? html`<div class="alisio-memory-empty">${text.none}</div>`
+                        : html`
+                            <div class="alisio-memory-file-list">
+                              ${detail.relatedPages.map(
+                                (page) => html`
+                                  <button
+                                    type="button"
+                                    class="alisio-memory-file"
+                                    @click=${() =>
+                                      void this.selectNote(page.pageId, {
+                                        preserveMode: true,
+                                        preservePane: this.mainPaneMode === "graph",
+                                      })}
+                                  >
+                                    <span class="alisio-memory-file__copy">
+                                      <span class="alisio-memory-file__title">${page.title}</span>
+                                      <span class="alisio-memory-file__meta">
+                                        ${page.path || page.pageId}
+                                      </span>
+                                    </span>
+                                    <span class="alisio-memory-file__status">
+                                      ${page.relation === "attached"
+                                        ? text.filesAttached
+                                        : page.relation === "mentioned"
+                                          ? text.filesMentioned
+                                          : text.filesUnlinked}
+                                    </span>
+                                  </button>
+                                `,
+                              )}
+                            </div>
+                          `}
+                    </section>
+                    <section class="alisio-memory-group">
+                      <div class="alisio-memory-group__header"><h2>${text.filesProvenance}</h2></div>
+                      ${renderProvenanceRows(detail.provenance, text.noteProvenanceEmpty)}
+                    </section>
+                  </article>
+                `}
+      </section>
+    `;
   }
 
-  private renderFilesView(text: ReturnType<typeof memoryText>) {
-    return renderMemoryFilesView({
-      text,
-      filesLoading: this.filesLoading,
-      filesError: this.filesError,
-      filesList: this.filesList,
-      selectedFileId: this.selectedFileId,
-      fileLoading: this.fileLoading,
-      fileError: this.fileError,
-      fileDetail: this.fileDetail,
-      renderReasonTags,
-      renderProvenance: renderProvenanceRows,
-      renderTraceAction: (params) => this.renderTraceAction(text, params),
-      formatBytes,
-      formatTimestamp,
-      onSelectFile: (fileId) => {
-        this.selectedFileId = fileId;
-        void this.loadFileDetail(fileId);
-      },
-      onOpenAttachment: () => this.openFileAttachment(),
-      onDownloadAttachment: () => this.downloadFileAttachment(),
-      onOpenWikiPage: (pageId) => this.openFileWikiPage(pageId),
-      onFocusGraphPage: (pageId) => this.focusGraphPage(pageId),
-    });
+  private renderNoteBody(text: ReturnType<typeof memoryText>) {
+    if (this.noteLoading && !this.note) {
+      return html`<div class="alisio-memory-empty">${text.loading}</div>`;
+    }
+    if (this.noteError) {
+      return html`<div class="callout info">${this.noteError}</div>`;
+    }
+    if (!this.note) {
+      return html`<div class="alisio-memory-empty">${text.noteNoSelection}</div>`;
+    }
+    const revisionTime = formatTimestamp(this.note.revision?.updatedAt);
+    const attachmentCount = this.note.attachments?.length ?? 0;
+    const backlinkCount = this.note.backlinks?.length ?? 0;
+    return html`
+      <article class="alisio-memory-note">
+        <header class="alisio-memory-note__header">
+          <div class="alisio-memory-note__copy">
+            <div class="alisio-memory-note__eyebrow">${this.note.path?.trim() || text.notePath}</div>
+            <label class="sr-only" for="memory-note-title">${text.notesCreatePlaceholder}</label>
+            <input
+              id="memory-note-title"
+              class="alisio-memory-note__title-input"
+              .value=${this.currentNoteTitleDraft}
+              @input=${(event: Event) => {
+                if (!this.note?.id) {
+                  return;
+                }
+                this.noteTitleDrafts = {
+                  ...this.noteTitleDrafts,
+                  [this.note.id]: (event.target as HTMLInputElement).value,
+                };
+              }}
+            />
+            <div class="alisio-memory-note__meta">
+              ${[
+                revisionTime ? `${text.noteUpdated}: ${revisionTime}` : null,
+                attachmentCount > 0 ? `${String(attachmentCount)} ${text.filesTitle.toLowerCase()}` : null,
+                backlinkCount > 0 ? `${String(backlinkCount)} ${text.noteBacklinks.toLowerCase()}` : null,
+              ]
+                .filter(Boolean)
+                .map((item) => html`<span>${item}</span>`)}
+            </div>
+            ${renderReasonTags(this.note.reasonTags)}
+          </div>
+          <div class="alisio-memory-note__actions">
+            <div class="alisio-memory-note__mode-switch">
+              <button
+                class="btn btn--sm ${this.noteMode === "markdown" ? "primary" : ""}"
+                @click=${() => (this.noteMode = "markdown")}
+              >
+                ${text.noteMarkdown}
+              </button>
+              <button
+                class="btn btn--sm ${this.noteMode === "reading" ? "primary" : ""}"
+                @click=${() => (this.noteMode = "reading")}
+              >
+                ${text.noteReading}
+              </button>
+            </div>
+            <div class="alisio-memory-note__utility-actions">
+              <button
+                class="btn btn--sm"
+                @click=${() => {
+                  this.mainPaneMode = "graph";
+                  void this.loadGraph({
+                    scope: "local",
+                    focusNoteId: this.note?.id ?? this.selectedNoteId,
+                    includeAttachments: this.graphIncludeAttachments,
+                    depth: this.graphDepth,
+                  });
+                }}
+              >
+                ${text.views.graph}
+              </button>
+              ${this.renderTraceAction(text, {
+                label: this.note.title,
+                traceId: this.note.traceId,
+                trace: this.note.trace,
+                summary: this.note.traceSummary,
+                reasonTags: this.note.reasonTags,
+              })}
+              <button
+                class="btn btn--sm"
+                ?disabled=${!this.noteDirty || this.noteSaving}
+                @click=${() => {
+                  if (!this.note?.id) {
+                    return;
+                  }
+                  this.noteDrafts = { ...this.noteDrafts, [this.note.id]: this.note.content };
+                  this.noteTitleDrafts = { ...this.noteTitleDrafts, [this.note.id]: this.note.title };
+                }}
+              >
+                ${text.reset}
+              </button>
+              <button
+                class="btn btn--sm primary"
+                ?disabled=${!this.noteDirty || this.noteSaving}
+                @click=${() => void this.saveNote()}
+              >
+                ${this.noteSaving ? text.saving : text.save}
+              </button>
+            </div>
+          </div>
+        </header>
+
+        ${this.noteMode === "markdown"
+          ? html`
+              <div class="alisio-memory-native__editor">
+                <label class="sr-only" for="memory-note-markdown">${text.noteMarkdown}</label>
+                <textarea
+                  id="memory-note-markdown"
+                  class="alisio-memory-note__textarea"
+                  .value=${this.currentNoteDraft}
+                  @input=${(event: Event) => {
+                    if (!this.note?.id) {
+                      return;
+                    }
+                    this.noteDrafts = {
+                      ...this.noteDrafts,
+                      [this.note.id]: (event.target as HTMLTextAreaElement).value,
+                    };
+                  }}
+                ></textarea>
+                ${this.noteDirty
+                  ? html`<div class="alisio-memory-note__dirty">${text.unsaved}</div>`
+                  : nothing}
+              </div>
+            `
+          : html`
+              <div class="alisio-memory-preview">
+                <span class="alisio-memory-preview__label">${text.noteReading}</span>
+                <div
+                  class="alisio-memory-preview__body sidebar-markdown memory-note__article-markdown"
+                  @click=${this.handlePreviewClick}
+                >
+                  ${renderMarkdownPreview(this.note.content)}
+                </div>
+              </div>
+            `}
+      </article>
+    `;
   }
 
-  private renderGraphView(text: ReturnType<typeof memoryText>) {
+  private renderNoteMeta(text: ReturnType<typeof memoryText>) {
+    if (!this.note && !this.attachmentDetail && !this.attachmentLoading && !this.attachmentError) {
+      return nothing;
+    }
+    return html`
+      <div class="alisio-memory-sidebar__stack">
+        ${this.renderAttachments(text, this.note?.attachments)}
+        ${this.renderAttachmentPreview(text)}
+        ${this.renderBacklinks(text, this.note?.backlinks)}
+        ${this.renderContext(text)}
+        ${this.renderRevision(text)}
+        ${this.renderHistory(text)}
+        ${this.renderClaims(text, this.note?.claims)}
+        ${this.renderEvidence(text, this.note?.evidence)}
+        <section class="alisio-memory-group alisio-memory-sidebar__group">
+          <div class="alisio-memory-group__header"><h2>${text.noteProvenance}</h2></div>
+          ${renderProvenanceRows(this.note?.provenance, text.noteProvenanceEmpty)}
+        </section>
+      </div>
+    `;
+  }
+
+  private renderGraphView(text: ReturnType<typeof memoryText>, options?: { compact?: boolean }) {
+    const resolvedGraph = this.graphData ?? this.props?.memoryGraph ?? null;
+    const resolvedError = resolvedGraph
+      ? null
+      : (this.graphError ?? this.props?.memoryGraphError ?? null);
+    const resolvedLoading =
+      !resolvedGraph && (this.graphLoading || this.props?.memoryGraphLoading || false);
+    const resolvedScope = resolvedGraph?.scope ?? this.graphScope;
     return html`
       <alisio-memory-graph-view
-        .graph=${this.graphData}
-        .loading=${this.graphLoading}
-        .error=${this.graphError}
-        .activeScope=${this.graphScope}
-        .localAvailable=${Boolean(this.page?.id ?? this.selectedPageId)}
+        .graph=${resolvedGraph}
+        .loading=${resolvedLoading}
+        .error=${resolvedError}
+        .compact=${options?.compact ?? false}
+        .activeScope=${resolvedScope}
+        .localAvailable=${Boolean(
+          this.note?.id ?? this.selectedNoteId ?? resolvedGraph?.focus?.pageId,
+        )}
         .text=${{
           graphTitle: text.graphTitle,
+          graphDescription: text.viewDescriptions.graph,
           graphLoading: text.graphLoading,
           graphUnavailable: text.graphUnavailable,
           graphEmpty: text.graphEmpty,
           graphFocus: text.graphFocus,
           graphGlobal: text.graphGlobal,
           graphLocal: text.graphLocal,
+          graphDepth: text.graphDepth,
           graphResetView: text.graphResetView,
           graphNeighbourhood: text.graphNeighbourhood,
+          graphOrphans: text.graphOrphans,
           graphBranches: text.graphBranches,
           graphBranchesEmpty: text.graphBranchesEmpty,
           graphEdgeReason: text.graphEdgeReason,
           graphEdgeReasonEmpty: text.graphEdgeReasonEmpty,
           graphFilterRelations: text.graphFilterRelations,
           graphFilterTags: text.graphFilterTags,
+          graphGroups: text.graphGroups,
+          graphColorBy: text.graphColorBy,
+          graphGroupNone: text.graphGroupNone,
+          graphGroupFolder: text.graphGroupFolder,
+          graphGroupTag: text.graphGroupTag,
+          graphGroupKind: text.graphGroupKind,
+          graphGroupSource: text.graphGroupSource,
+          graphGroupNote: text.graphGroupNote,
+          graphGroupAttachment: text.graphGroupAttachment,
+          graphContextMenuOpen: text.graphContextMenuOpen,
+          graphContextMenuCenter: text.graphContextMenuCenter,
+          graphContextMenuLocal: text.graphContextMenuLocal,
+          graphDisplay: text.graphDisplay,
+          graphArrows: text.graphArrows,
+          graphTextFadeThreshold: text.graphTextFadeThreshold,
+          graphNodeSize: text.graphNodeSize,
+          graphLinkThickness: text.graphLinkThickness,
+          graphForces: text.graphForces,
+          graphCenterForce: text.graphCenterForce,
+          graphRepelForce: text.graphRepelForce,
+          graphLinkForce: text.graphLinkForce,
+          graphLinkDistance: text.graphLinkDistance,
           graphNodesCount: text.graphNodesCount,
           graphEdgesCount: text.graphEdgesCount,
           graphTruncated: text.graphTruncated,
           graphSource: text.graphSource,
           graphTarget: text.graphTarget,
           graphRelationType: text.graphRelationType,
+          graphClusters: text.graphClusters,
+          graphSuggestions: text.graphSuggestions,
+          graphSpotlight: text.graphSpotlight,
+          graphIncoming: text.graphIncoming,
+          graphOutgoing: text.graphOutgoing,
+          graphDegree: text.graphDegree,
+          graphZoomIn: text.graphZoomIn,
+          graphZoomOut: text.graphZoomOut,
+          graphCenterFocus: text.graphCenterFocus,
+          graphCanvasHint: text.graphCanvasHint,
+          graphAliases: text.graphAliases,
+          graphTags: text.graphTags,
+          graphRelations: text.graphRelations,
+          searchPlaceholder: text.searchPlaceholder,
+          wikiOpenPage: text.noteOpen,
+          none: text.none,
+          ready: text.ready,
+          unavailable: text.unavailable,
+          builtin: text.builtin,
+          localFirst: text.localFirst,
+          localOnly: text.localOnly,
+          cloudSyncEnabled: text.cloudSyncEnabled,
+          cloudSyncUnavailable: text.cloudSyncUnavailable,
+          cloudSyncError: text.cloudSyncError,
         }}
-        @alisio-memory-graph-open-node=${(event: CustomEvent<{ pageId: string }>) => {
-          const pageId = event.detail?.pageId?.trim();
-          if (pageId) {
-            void this.selectPage(pageId);
+        @alisio-memory-graph-open-node=${(event: CustomEvent<{ nodeId: string }>) => {
+          const nodeId = event.detail?.nodeId?.trim();
+          if (nodeId) {
+            void this.openGraphNode(nodeId);
+          }
+        }}
+        @alisio-memory-graph-focus-node=${(event: CustomEvent<{ nodeId: string }>) => {
+          const nodeId = event.detail?.nodeId?.trim();
+          if (nodeId) {
+            void this.focusGraphNode(nodeId);
           }
         }}
         @alisio-memory-graph-scope-change=${(event: CustomEvent<{ scope: "global" | "local" }>) => {
@@ -1950,9 +2455,110 @@ export class AlisioMemoryNativeHub extends LitElement {
           if (!scope) {
             return;
           }
-          void this.loadGraph({ scope });
+          void this.loadGraph({
+            scope,
+            focusNoteId: this.note?.id ?? this.selectedNoteId,
+            includeAttachments: this.graphIncludeAttachments,
+          });
         }}
       ></alisio-memory-graph-view>
+    `;
+  }
+
+  private renderGraphWorkspace(text: ReturnType<typeof memoryText>) {
+    const focusLabel = this.note?.title?.trim() || this.selectedNoteId || text.views.graph;
+    return html`
+      <section class="alisio-memory-graph-workspace">
+        <div class="alisio-memory-graph-workspace__toolbar">
+          <div class="alisio-memory-graph-workspace__copy">
+            <span class="alisio-memory-note__eyebrow">${text.views.graph}</span>
+            <h3>${focusLabel}</h3>
+            <p>${text.graphHint}</p>
+          </div>
+          <div class="alisio-memory-graph-workspace__controls">
+            <label class="field checkbox">
+              <input
+                type="checkbox"
+                .checked=${this.graphIncludeAttachments}
+                @change=${(event: Event) => {
+                  this.graphIncludeAttachments = (event.currentTarget as HTMLInputElement).checked;
+                  void this.loadGraph({
+                    scope: this.graphScope,
+                    focusNoteId: this.note?.id ?? this.selectedNoteId,
+                    includeAttachments: this.graphIncludeAttachments,
+                    depth: this.graphDepth,
+                  });
+                }}
+              />
+              <span class="field-checkbox__label">${text.graphShowAttachments}</span>
+            </label>
+            ${this.graphScope === "local"
+              ? html`
+                  <label class="field field--inline alisio-memory-graph-workspace__depth">
+                    <span>${text.graphDepth}</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="4"
+                      step="1"
+                      .value=${String(this.graphDepth)}
+                      @input=${(event: Event) => {
+                        const nextDepth = Number((event.currentTarget as HTMLInputElement).value);
+                        this.graphDepth = nextDepth;
+                        void this.loadGraph({
+                          scope: "local",
+                          focusNoteId: this.note?.id ?? this.selectedNoteId,
+                          includeAttachments: this.graphIncludeAttachments,
+                          depth: nextDepth,
+                        });
+                      }}
+                    />
+                  </label>
+                `
+              : nothing}
+            <button class="btn btn--sm" @click=${() => (this.mainPaneMode = "note")}>
+              ${text.views.wiki}
+            </button>
+          </div>
+        </div>
+        ${this.renderGraphView(text)}
+      </section>
+    `;
+  }
+
+  private renderSidePane(text: ReturnType<typeof memoryText>) {
+    return html`
+      <aside class="alisio-memory-sidebar">
+        <div class="alisio-memory-sidebar__toolbar">
+          <button
+            type="button"
+            class="btn btn--sm ${this.mainPaneMode === "note" ? "primary" : ""}"
+            @click=${() => {
+              this.mainPaneMode = "note";
+            }}
+          >
+            ${text.workspaceInspector}
+          </button>
+          <button
+            type="button"
+            class="btn btn--sm ${this.mainPaneMode === "graph" ? "primary" : ""}"
+            @click=${() => {
+              this.mainPaneMode = "graph";
+              void this.loadGraph({
+                scope: this.graphScope,
+                focusNoteId: this.note?.id ?? this.selectedNoteId,
+                includeAttachments: this.graphIncludeAttachments,
+                depth: this.graphDepth,
+              });
+            }}
+          >
+            ${text.workspaceGraphPane}
+          </button>
+        </div>
+        <div class="alisio-memory-sidebar__body">
+          ${this.renderNoteMeta(text)}
+        </div>
+      </aside>
     `;
   }
 
@@ -2011,25 +2617,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
     if (!props) {
       return nothing;
     }
-    if (props.agentsLoading && !(props.agentsList?.agents.length ?? 0)) {
-      return html`
-        <section class="alisio-page alisio-memory-page" aria-label=${text.loading}>
-          <div class="alisio-memory-skeleton">
-            <div class="loading-state__header">
-              <div class="loading-state__header-copy">
-                <div class="skeleton loading-state__title"></div>
-                <div class="skeleton skeleton-line loading-state__subtitle"></div>
-              </div>
-              ${renderSkeletonButton()}
-            </div>
-            <div class="loading-state__list" style="margin-top: 18px;">
-              ${renderSkeletonListItem({ lines: ["short", "medium"] })}
-              ${renderSkeletonListItem({ lines: ["short", "medium"] })}
-            </div>
-          </div>
-        </section>
-      `;
-    }
 
     return html`
       <style>
@@ -2045,12 +2632,7 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
         }
         .alisio-memory-native__editor {
           display: grid;
-          gap: 16px;
-        }
-        .alisio-memory-native__panels {
-          display: grid;
-          gap: 18px;
-          margin-top: 18px;
+          gap: 12px;
         }
         .alisio-memory-native__composer {
           display: grid;
@@ -2079,6 +2661,7 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
         }
         .alisio-memory-native__result-actions {
           display: flex;
+          gap: 8px;
           justify-content: flex-end;
         }
         .alisio-memory-preview {
@@ -2134,35 +2717,439 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           padding: 14px;
           background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
         }
-        .alisio-memory-native__graph {
+        .alisio-memory-toolbar {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 18px;
+          flex-wrap: wrap;
+          margin-bottom: 18px;
+          padding: 18px 20px;
+          border-radius: 22px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+          background:
+            linear-gradient(
+              180deg,
+              color-mix(in srgb, var(--surface-elevated) 92%, transparent),
+              color-mix(in srgb, var(--surface-panel) 98%, transparent)
+            );
+        }
+        .alisio-memory-toolbar__copy {
+          display: grid;
+          gap: 6px;
+          min-width: min(100%, 340px);
+        }
+        .alisio-memory-toolbar__eyebrow,
+        .alisio-memory-vault__eyebrow,
+        .alisio-memory-note__eyebrow {
+          color: var(--text-muted);
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .alisio-memory-toolbar__title-row {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .alisio-memory-toolbar__title-row h2,
+        .alisio-memory-vault__header h3 {
+          margin: 0;
+        }
+        .alisio-memory-toolbar__copy p,
+        .alisio-memory-vault__header p,
+        .alisio-memory-sidebar__pane-head p {
+          margin: 0;
+          color: var(--text-muted);
+          line-height: 1.55;
+        }
+        .alisio-memory-toolbar__count {
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
+          color: var(--text-muted);
+          font-size: 0.82rem;
+          font-weight: 600;
+        }
+        .alisio-memory-toolbar__controls {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+          margin-left: auto;
+        }
+        .alisio-memory-toolbar__tabs {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .alisio-memory-group__lede {
+          margin: 6px 0 0;
+          color: var(--text-muted);
+          line-height: 1.55;
+        }
+        .alisio-memory-layout {
+          display: grid;
+          grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(320px, 380px);
+          gap: 18px;
+          align-items: start;
+        }
+        .alisio-memory-layout.is-graph-mode {
+          grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 360px);
+        }
+        .alisio-memory-notes__explorer {
+          position: sticky;
+          top: 12px;
+        }
+        .alisio-memory-vault {
+          display: grid;
+          gap: 14px;
+          padding: 16px;
+          border-radius: 20px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
+        }
+        .alisio-memory-vault__header {
+          display: grid;
+          gap: 14px;
+        }
+        .alisio-memory-vault__composer {
+          padding-top: 6px;
+          border-top: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
+        }
+        .alisio-memory-tree {
+          display: grid;
+          gap: 4px;
+        }
+        .alisio-memory-tree__folder {
+          display: grid;
+          gap: 4px;
+        }
+        .alisio-memory-tree__folder > summary {
+          list-style: none;
+        }
+        .alisio-memory-tree__folder > summary::-webkit-details-marker {
+          display: none;
+        }
+        .alisio-memory-tree__folder-summary,
+        .alisio-memory-tree__note {
+          display: flex;
+          align-items: center;
+          gap: 10px;
           width: 100%;
+          padding: 8px 10px;
+          padding-left: calc(10px + var(--tree-depth, 0) * 14px);
+          border-radius: 12px;
+          border: 0;
+          background: transparent;
+          color: inherit;
+          text-align: left;
+        }
+        .alisio-memory-tree__folder-summary {
+          cursor: pointer;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+          font-weight: 600;
+        }
+        .alisio-memory-tree__folder[open]
+          > .alisio-memory-tree__folder-summary
+          .alisio-memory-tree__chevron {
+          transform: rotate(90deg);
+        }
+        .alisio-memory-tree__children {
+          display: grid;
+          gap: 4px;
+        }
+        .alisio-memory-tree__chevron,
+        .alisio-memory-tree__glyph {
+          display: inline-flex;
+          width: 16px;
+          height: 16px;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-muted);
+          flex: none;
+        }
+        .alisio-memory-tree__chevron {
+          transition: transform 140ms ease;
+        }
+        .alisio-memory-tree__folder-label,
+        .alisio-memory-tree__note-copy {
+          min-width: 0;
+          flex: 1 1 auto;
+        }
+        .alisio-memory-tree__folder-meta,
+        .alisio-memory-tree__note-meta {
+          color: var(--text-muted);
+          font-size: 0.78rem;
+          flex: none;
+        }
+        .alisio-memory-tree__note {
+          cursor: pointer;
+          transition:
+            background 140ms ease,
+            color 140ms ease;
+        }
+        .alisio-memory-tree__note:hover,
+        .alisio-memory-tree__folder-summary:hover {
+          background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+        }
+        .alisio-memory-tree__note.is-active {
+          background: color-mix(in srgb, var(--accent-primary) 18%, var(--surface-panel));
+          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 34%, transparent);
+        }
+        .alisio-memory-tree__note-copy {
+          display: grid;
+          gap: 2px;
+        }
+        .alisio-memory-tree__note-copy strong {
+          font-size: 0.94rem;
+          font-weight: 600;
+        }
+        .alisio-memory-tree__note-copy span {
+          color: var(--text-muted);
+          font-size: 0.8rem;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .alisio-memory-note-area {
+          display: grid;
+          gap: 18px;
+          min-width: 0;
+        }
+        .alisio-memory-graph-workspace {
+          display: grid;
+          gap: 14px;
+          min-width: 0;
+        }
+        .alisio-memory-graph-workspace__toolbar {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 16px;
+          flex-wrap: wrap;
+          padding: 14px 16px;
+          border-radius: 20px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
+        }
+        .alisio-memory-graph-workspace__copy {
+          display: grid;
+          gap: 6px;
+        }
+        .alisio-memory-graph-workspace__copy h3 {
+          margin: 0;
+          font-size: 1.1rem;
+        }
+        .alisio-memory-graph-workspace__copy p {
+          margin: 0;
+          color: var(--text-muted);
+          line-height: 1.55;
+        }
+        .alisio-memory-graph-workspace__controls {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+        .alisio-memory-graph-workspace__depth {
+          min-width: 180px;
+        }
+        .alisio-memory-sidebar {
+          position: sticky;
+          top: 12px;
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+        }
+        .alisio-memory-sidebar__toolbar {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          padding: 10px;
+          border-radius: 18px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
+        }
+        .alisio-memory-sidebar__body {
+          display: grid;
+          gap: 12px;
+          min-width: 0;
+        }
+        .alisio-memory-sidebar__stack,
+        .alisio-memory-sidebar__pane {
+          display: grid;
+          gap: 12px;
+        }
+        .alisio-memory-sidebar__group,
+        .alisio-memory-sidebar__stack .alisio-memory-group {
+          padding: 14px 16px;
+          border-radius: 18px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
+          box-shadow: none;
+        }
+        .alisio-memory-sidebar__stack .alisio-memory-group__header h2,
+        .alisio-memory-sidebar__pane-head h3 {
+          margin: 0;
+          font-size: 0.82rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .alisio-memory-sidebar__pane-head {
+          display: grid;
+          gap: 10px;
+        }
+        .alisio-memory-note {
+          display: grid;
+          gap: 16px;
+          min-width: 0;
+          padding: 18px 22px 22px;
+          border-radius: 20px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+          background:
+            linear-gradient(
+              180deg,
+              color-mix(in srgb, var(--surface-elevated) 94%, transparent),
+              color-mix(in srgb, var(--surface-panel) 99%, transparent)
+            );
+          box-shadow: 0 10px 26px rgba(10, 18, 30, 0.07);
+        }
+        .alisio-memory-note__header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 18px;
+          flex-wrap: wrap;
+        }
+        .alisio-memory-note__copy {
+          display: grid;
+          gap: 10px;
+          min-width: min(100%, 460px);
+          flex: 1 1 auto;
+        }
+        .alisio-memory-note__title-input {
+          width: 100%;
+          border: 0;
+          padding: 0;
+          margin: 0;
+          background: transparent;
+          color: inherit;
+          font: 600 clamp(1.65rem, 2vw, 2.1rem) / 1.15 "Iowan Old Style", "Palatino Linotype",
+            "Book Antiqua", Palatino, Georgia, serif;
+        }
+        .alisio-memory-note__meta {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .alisio-memory-note__meta span {
+          display: inline-flex;
+          align-items: center;
+          padding: 4px 10px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--surface-elevated) 86%, transparent);
+          color: var(--text-muted);
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+        .alisio-memory-note__actions {
+          display: grid;
+          gap: 10px;
+        }
+        .alisio-memory-note__mode-switch,
+        .alisio-memory-note__utility-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .alisio-memory-note__utility-actions .alisio-memory-native__result-actions {
+          justify-content: flex-start;
+        }
+        .alisio-memory-note__textarea {
+          min-height: 560px;
+          width: 100%;
+          resize: vertical;
+          padding: 0;
+          border: 0;
+          background: transparent;
+          color: inherit;
+          font: 500 0.98rem / 1.75 "SF Mono", "Monaco", "Cascadia Code", "Roboto Mono",
+            "Courier New", monospace;
+        }
+        .alisio-memory-note__textarea:focus,
+        .alisio-memory-note__title-input:focus {
+          outline: none;
+        }
+        .alisio-memory-note__dirty {
+          color: var(--text-muted);
+          font-size: 0.92rem;
+        }
+        .alisio-memory-preview__body {
+          line-height: 1.75;
+          font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia,
+            serif;
+        }
+        .alisio-memory-files-preview__frame {
           min-height: 360px;
         }
-        .alisio-memory-native__graph-node {
-          cursor: pointer;
+        @media (max-width: 980px) {
+          .alisio-memory-layout {
+            grid-template-columns: 1fr;
+          }
+          .alisio-memory-notes__explorer,
+          .alisio-memory-sidebar {
+            position: static;
+          }
         }
-        .alisio-memory-native__graph-node circle {
-          fill: color-mix(in srgb, var(--accent-primary) 14%, var(--surface-panel));
-          stroke: color-mix(in srgb, var(--accent-primary) 38%, var(--border-subtle));
-          stroke-width: 2;
-        }
-        .alisio-memory-native__graph-node.is-active circle {
-          fill: color-mix(in srgb, var(--accent-primary) 22%, var(--surface-panel));
-          stroke-width: 3;
-        }
-        .alisio-memory-native__graph-node text,
-        .alisio-memory-native__edge-label {
-          fill: currentColor;
-          font-size: 13px;
-        }
-        @media (max-width: 900px) {
+        @media (max-width: 720px) {
+          .alisio-memory-toolbar {
+            padding: 16px;
+          }
+          .alisio-memory-toolbar__controls {
+            width: 100%;
+            margin-left: 0;
+            display: grid;
+          }
+          .alisio-memory-graph-workspace__toolbar {
+            padding: 16px;
+          }
           .alisio-memory-native__trace-grid {
             grid-template-columns: 1fr;
+          }
+          .alisio-memory-note__header {
+            flex-direction: column;
+          }
+          .alisio-memory-note {
+            padding: 16px;
+          }
+          .alisio-memory-note__textarea {
+            min-height: 420px;
           }
         }
       </style>
       <section class="alisio-page alisio-memory-page">
         ${this.renderHeader(text)}
+        ${props.agentsError ? html`<div class="callout danger">${props.agentsError}</div>` : nothing}
+        ${props.memoryError ? html`<div class="callout danger">${props.memoryError}</div>` : nothing}
+        ${props.memoryStatusError
+          ? html`<div class="callout info">${props.memoryStatusError}</div>`
+          : nothing}
+        <div class="alisio-memory-layout ${this.mainPaneMode === "graph" ? "is-graph-mode" : ""}">
+          ${this.renderExplorer(text)}
+          <section class="alisio-memory-note-area">
+            ${this.mainPaneMode === "graph"
+              ? this.renderGraphWorkspace(text)
+              : this.renderNoteBody(text)}
+          </section>
+          ${this.renderSidePane(text)}
+        </div>
         ${renderSyncCard({
           text,
           sync: this.syncSurface,
@@ -2171,28 +3158,17 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           canSync: props.memorySyncAvailable && Boolean(props.memoryStatus?.enabled),
           exportBusy: this.exportBusy,
           exportFormat: this.exportFormat,
-          exportFormats: resolveAllowedExportFormats(this.wikiList),
+          exportFormats: resolveAllowedExportFormats(this.notesList),
           exportMessage: this.exportMessage,
-          onSync: props.onSync,
+          onSync: () => {
+            props.onSync();
+            void this.reloadAll();
+          },
           onExportFormat: (value) => {
             this.exportFormat = value;
           },
           onExport: () => void this.exportMemory(),
         })}
-        ${props.agentsError
-          ? html`<div class="callout danger">${props.agentsError}</div>`
-          : nothing}
-        ${props.memoryError
-          ? html`<div class="callout danger">${props.memoryError}</div>`
-          : nothing}
-        ${props.memoryStatusError
-          ? html`<div class="callout info">${props.memoryStatusError}</div>`
-          : nothing}
-        ${this.activeView === "wiki"
-          ? this.renderWikiView(text)
-          : this.activeView === "files"
-            ? this.renderFilesView(text)
-            : this.renderGraphView(text)}
         ${this.renderTraceDrawer(text)}
       </section>
     `;

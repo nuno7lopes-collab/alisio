@@ -638,6 +638,99 @@ describe("loadChatHistory", () => {
     expect(state.chatFinalizing).toBe(true);
   });
 
+  it("keeps an optimistic user turn visible when a finalizing history reload omits it", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "consegues abrir o browser?" }],
+      timestamp: 20,
+    };
+    const localAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Sim — posso abrir o browser." }],
+      timestamp: 30,
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        previousMessage,
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Sim — posso abrir o browser." }],
+          timestamp: 31,
+        },
+      ],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, optimisticUserTurn, localAssistantReply],
+      chatFinalizing: true,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: false });
+
+    expect(state.chatMessages).toEqual([
+      previousMessage,
+      optimisticUserTurn,
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Sim — posso abrir o browser." }],
+        timestamp: 31,
+      },
+    ]);
+  });
+
+  it("replaces optimistic turns with canonical history entries once they arrive", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "consegues abrir o browser?" }],
+      timestamp: 20,
+    };
+    const localAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Sim — posso abrir o browser." }],
+      timestamp: 30,
+    };
+    const canonicalUserTurn = {
+      role: "user",
+      content: "consegues abrir o browser?",
+      timestamp: 21,
+    };
+    const canonicalAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Sim — posso abrir o browser." }],
+      timestamp: 31,
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [previousMessage, canonicalUserTurn, canonicalAssistantReply],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, optimisticUserTurn, localAssistantReply],
+      chatFinalizing: true,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: false });
+
+    expect(state.chatMessages).toEqual([
+      previousMessage,
+      canonicalUserTurn,
+      canonicalAssistantReply,
+    ]);
+  });
+
   it("does not toggle chatLoading for silent history refreshes", async () => {
     let resolveRequest!: (value: { messages: unknown[] }) => void;
     const request = vi.fn(

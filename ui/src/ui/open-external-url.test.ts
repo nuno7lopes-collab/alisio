@@ -5,6 +5,7 @@ import {
   closeReservedExternalPopup,
   navigateReservedExternalPopup,
   openExternalUrlSafe,
+  openExternalTarget,
   reserveExternalPopup,
   resolveSafeExternalUrl,
 } from "./open-external-url.ts";
@@ -173,5 +174,53 @@ describe("closeReservedExternalPopup", () => {
     const close = vi.fn();
     closeReservedExternalPopup({ close } as unknown as WindowProxy);
     expect(close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("openExternalTarget", () => {
+  it("falls back to a new tab when the host bridge fails", async () => {
+    const openViaHost = vi.fn(async () => {
+      throw new Error("bridge failed");
+    });
+    const windowOpenMock = vi.spyOn(window, "open").mockImplementation(() => ({}) as Window);
+
+    const result = await openExternalTarget("https://example.com/oauth", {
+      baseHref: "https://openclaw.ai/chat",
+      openViaHost,
+      preferNewTab: true,
+    });
+
+    expect(result).toBe("new-tab");
+    expect(openViaHost).toHaveBeenCalledWith("https://example.com/oauth");
+    expect(windowOpenMock).toHaveBeenCalledWith(
+      "https://example.com/oauth",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("falls back to same-tab navigation when neither host nor new tab launch works", async () => {
+    const openViaHost = vi.fn(async () => {
+      throw new Error("bridge failed");
+    });
+    const locationAssign = vi.fn();
+    vi.spyOn(window, "open").mockReturnValue(null);
+    vi.stubGlobal("window", {
+      ...window,
+      location: {
+        ...window.location,
+        href: "https://openclaw.ai/chat",
+        assign: locationAssign,
+      },
+      open: window.open,
+    });
+
+    const result = await openExternalTarget("https://example.com/oauth", {
+      openViaHost,
+      preferNewTab: true,
+    });
+
+    expect(result).toBe("same-tab");
+    expect(locationAssign).toHaveBeenCalledWith("https://example.com/oauth");
   });
 });

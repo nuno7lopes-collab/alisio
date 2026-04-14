@@ -879,6 +879,19 @@ export const FIELD_HELP: Record<string, string> = {
     'Selects the global memory engine: "builtin" uses Alisio memory internals, while "qmd" uses the QMD sidecar pipeline. Keep "builtin" unless you intentionally operate QMD.',
   "memory.citations":
     'Controls citation visibility in replies: "auto" shows citations when useful, "on" always shows them, and "off" hides them. Keep "auto" for a balanced signal-to-noise default.',
+  "memory.e2ee":
+    "End-to-end encryption policy for canonical memory sync. Canonical memory remains E2EE-only; this group exists so UI and config tooling can inspect that requirement explicitly.",
+  "memory.e2ee.required":
+    "Hard requirement flag for canonical memory E2EE (default: true). Plaintext relay sync is not supported.",
+  "memory.sync":
+    "Canonical memory sync transport configuration. Keep mode off until a local profile root key exists on the device.",
+  "memory.sync.mode":
+    'Selects the sync transport mode: "off" (default), "cloud", or "direct". Config values take precedence over legacy env vars.',
+  "memory.sync.relayBaseUrl":
+    "Base URL for the ciphertext-only memory relay when sync mode is cloud. This does not auto-enable sync; set memory.sync.mode explicitly.",
+  "memory.sync.ui": "UI rollout guard for memory sync setup and pairing entrypoints.",
+  "memory.sync.ui.enabled":
+    "Enable the memory sync setup UI entrypoint (default: true). Set false for rollback while keeping backend support available.",
   "memory.ledger":
     "Ledger-derived state controls for canonical memory. Keep this enabled in normal operation so local state is rebuilt from auditable events instead of trusting projections as source of truth.",
   "memory.ledger.enabled":

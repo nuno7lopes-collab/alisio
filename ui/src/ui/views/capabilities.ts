@@ -6,6 +6,7 @@ import type {
   SkillMessageMap,
 } from "../controllers/skills.ts";
 import { clampText } from "../format.ts";
+import { mergeSkillStatusEntries } from "../skills-report.ts";
 import type {
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
@@ -13,12 +14,8 @@ import type {
   SkillStatusEntry,
   SkillStatusReport,
 } from "../types.ts";
-import { summarizeChannelsSnapshot } from "./channel-display.ts";
 import {
-  renderSkeletonButton,
-  renderSkeletonLines,
   renderSkeletonPill,
-  renderSkeletonStatCards,
   renderSkeletonListItem,
 } from "./loading-skeleton.ts";
 import {
@@ -30,15 +27,14 @@ import {
   skillStatusLabel,
   type SkillsStatusFilter,
 } from "./skills-shared.ts";
+
 type CapabilityStatus = "ready" | "partial" | "not-installed" | "needs-setup" | "not-exposed";
 
-type CapabilityCard = {
-  id: string;
+type CapabilitySkillSection = {
+  id: "local" | "catalog";
   title: string;
-  body: string;
-  status: CapabilityStatus;
-  actionLabel?: string;
-  action?: () => void;
+  subtitle: string;
+  skills: SkillStatusEntry[];
 };
 
 export type CapabilitiesProps = {
@@ -80,46 +76,6 @@ export type CapabilitiesProps = {
   onOpenSettings: () => void;
 };
 
-const FAMILY_DEFINITIONS = [
-  {
-    id: "research",
-    titleKey: "alisio.capabilities.cards.researchTitle",
-    bodyKey: "alisio.capabilities.cards.researchBody",
-    patterns: ["web", "search", "browser", "research", "docs"],
-  },
-  {
-    id: "documents",
-    titleKey: "alisio.capabilities.cards.documentsTitle",
-    bodyKey: "alisio.capabilities.cards.documentsBody",
-    patterns: ["pdf", "document", "file", "canvas", "notes"],
-  },
-  {
-    id: "images",
-    titleKey: "alisio.capabilities.cards.imagesTitle",
-    bodyKey: "alisio.capabilities.cards.imagesBody",
-    patterns: ["image", "photo", "vision", "sora", "art"],
-  },
-  {
-    id: "automation",
-    titleKey: "alisio.capabilities.cards.automationTitle",
-    bodyKey: "alisio.capabilities.cards.automationBody",
-    patterns: ["cron", "automation", "schedule", "routine", "workflow"],
-  },
-] as const;
-
-function channelSignals(snapshot: ChannelsStatusSnapshot | null) {
-  const summary = summarizeChannelsSnapshot(snapshot);
-  return {
-    total: summary.totalChannels,
-    connected: summary.connectedChannels,
-    active: summary.activeChannels,
-  };
-}
-
-function connectedAppsCount(authorizations: AlisioConnectorAuthorization[]) {
-  return authorizations.filter((entry) => entry.state === "connected").length;
-}
-
 function statusFilterLabel(status: SkillsStatusFilter) {
   switch (status) {
     case "ready":
@@ -133,22 +89,6 @@ function statusFilterLabel(status: SkillsStatusFilter) {
     case "all":
     default:
       return t("alisio.capabilities.filters.all");
-  }
-}
-
-function capabilityStatusLabel(status: CapabilityStatus) {
-  switch (status) {
-    case "ready":
-      return t("alisio.capabilities.status.ready");
-    case "partial":
-      return t("alisio.capabilities.status.partial");
-    case "not-installed":
-      return t("alisio.capabilities.status.notInstalled");
-    case "needs-setup":
-      return t("alisio.capabilities.status.needsSetup");
-    case "not-exposed":
-    default:
-      return t("alisio.capabilities.status.notExposed");
   }
 }
 
@@ -168,112 +108,47 @@ function capabilityStatusClass(status: CapabilityStatus) {
   }
 }
 
-function matchFamilySkills(skills: SkillStatusEntry[], patterns: readonly string[]) {
-  return skills.filter((skill) => {
-    const haystack = [skill.skillKey, skill.name, skill.description, skill.source]
-      .join(" ")
-      .toLowerCase();
-    return patterns.some((pattern) => haystack.includes(pattern));
-  });
-}
+function buildSkillSections(skills: SkillStatusEntry[]): CapabilitySkillSection[] {
+  const localSkills = skills.filter((skill) => !isSkillNotInstalled(skill));
+  const catalogSkills = skills.filter((skill) => isSkillNotInstalled(skill));
+  const sections: CapabilitySkillSection[] = [];
 
-function resolveSkillFamilyStatus(skills: SkillStatusEntry[]): CapabilityStatus {
-  if (skills.length === 0) {
-    return "not-exposed";
-  }
-  const readyCount = skills.filter((skill) => !skill.disabled && skill.eligible).length;
-  if (readyCount === 0) {
-    if (skills.every((skill) => !skill.disabled && isSkillNotInstalled(skill))) {
-      return "not-installed";
-    }
-    return "needs-setup";
-  }
-  if (readyCount === skills.length) {
-    return "ready";
-  }
-  return "partial";
-}
-
-function buildCapabilityCards(props: CapabilitiesProps): CapabilityCard[] {
-  const skills = props.report?.marketplaceCatalog ?? props.report?.skills ?? [];
-  const channels = channelSignals(props.channelsSnapshot);
-  const connectedApps = connectedAppsCount(props.connectorAuthorizations);
-
-  const cards: CapabilityCard[] = [
-    {
-      id: "channels",
-      title: t("alisio.capabilities.cards.channelsTitle"),
-      body: t("alisio.capabilities.cards.channelsBody"),
-      status:
-        channels.connected > 0
-          ? "ready"
-          : channels.active > 0
-            ? "partial"
-            : channels.total > 0
-              ? "needs-setup"
-              : "not-exposed",
-      actionLabel: t("alisio.capabilities.cards.openChannels"),
-      action: props.onOpenChannels,
-    },
-    {
-      id: "apps",
-      title: t("alisio.capabilities.cards.appsTitle"),
-      body: t("alisio.capabilities.cards.appsBody"),
-      status:
-        connectedApps > 0
-          ? "ready"
-          : props.connectorCatalog.length > 0
-            ? "needs-setup"
-            : "not-exposed",
-      actionLabel: t("alisio.capabilities.cards.openApps"),
-      action: props.onOpenAuthentications,
-    },
-  ];
-
-  for (const family of FAMILY_DEFINITIONS) {
-    const familySkills = matchFamilySkills(skills, family.patterns);
-    cards.push({
-      id: family.id,
-      title: t(family.titleKey),
-      body: t(family.bodyKey),
-      status: resolveSkillFamilyStatus(familySkills),
+  if (localSkills.length > 0) {
+    sections.push({
+      id: "local",
+      title: t("alisio.capabilities.list.localTitle"),
+      subtitle: t("alisio.capabilities.list.localSubtitle", {
+        count: String(localSkills.length),
+      }),
+      skills: localSkills,
     });
   }
-  return cards;
+
+  if (catalogSkills.length > 0) {
+    sections.push({
+      id: "catalog",
+      title: t("alisio.capabilities.list.catalogTitle"),
+      subtitle: t("alisio.capabilities.list.catalogSubtitle", {
+        count: String(catalogSkills.length),
+      }),
+      skills: catalogSkills,
+    });
+  }
+
+  return sections;
 }
 
-function renderCapabilityCard(card: CapabilityCard) {
+function renderCapabilitiesFiltersSkeleton() {
   return html`
-    <article class="card capability-card">
-      <div class="row capability-card__header">
-        <div class="card-title">${card.title}</div>
-        <span class=${capabilityStatusClass(card.status)}
-          >${capabilityStatusLabel(card.status)}</span
-        >
+    <div class="capabilities-filter-skeleton" aria-hidden="true">
+      <div class="capabilities-filter-skeleton__tabs">
+        ${Array.from({ length: 5 }, () => renderSkeletonPill({ small: true }))}
       </div>
-      <div class="card-sub capability-card__body">${card.body}</div>
-      ${card.action && card.actionLabel
-        ? html`
-            <div class="capability-card__action">
-              <button class="btn btn--sm" @click=${card.action}>${card.actionLabel}</button>
-            </div>
-          `
-        : nothing}
-    </article>
-  `;
-}
-
-function renderCapabilitySkeletonCard() {
-  return html`
-    <article class="card capability-card capability-card--loading" aria-hidden="true">
-      <div class="row capability-card__header">
-        ${renderSkeletonLines(["medium"], { compact: true })} ${renderSkeletonPill({ small: true })}
+      <div class="capabilities-filter-skeleton__row">
+        <div class="skeleton capabilities-filter-skeleton__search"></div>
+        <div class="skeleton capabilities-filter-skeleton__count"></div>
       </div>
-      <div class="capability-card__body">
-        ${renderSkeletonLines(["full", "long"], { compact: true })}
-      </div>
-      <div class="capability-card__action">${renderSkeletonButton({ small: true })}</div>
-    </article>
+    </div>
   `;
 }
 
@@ -308,13 +183,27 @@ function renderSkillCard(skill: SkillStatusEntry, props: CapabilitiesProps) {
   `;
 }
 
+function renderSkillSection(section: CapabilitySkillSection, props: CapabilitiesProps) {
+  return html`
+    <section class="capabilities-skill-section capabilities-skill-section--${section.id}">
+      <div class="capabilities-skill-section__header">
+        <div class="capabilities-skill-section__title">${section.title}</div>
+        <div class="capabilities-skill-section__subtitle">${section.subtitle}</div>
+      </div>
+      <div class="list capabilities-skill-list">
+        ${section.skills.map((skill) => renderSkillCard(skill, props))}
+      </div>
+    </section>
+  `;
+}
+
 function renderSkillDetail(skill: SkillStatusEntry, props: CapabilitiesProps) {
   return renderSkillDetailDialog(skill, props);
 }
 
 export function renderCapabilities(props: CapabilitiesProps) {
   const showInitialLoading = props.loading && props.connected && !props.report;
-  const skills = props.report?.marketplaceCatalog ?? props.report?.skills ?? [];
+  const skills = mergeSkillStatusEntries(props.report);
   const statusCounts = buildSkillStatusCounts(skills);
 
   const filteredByStatus =
@@ -334,119 +223,61 @@ export function renderCapabilities(props: CapabilitiesProps) {
     props.detailKey != null
       ? (skills.find((skill) => skill.skillKey === props.detailKey) ?? null)
       : null;
-  const capabilityCards = buildCapabilityCards(props);
-  const channels = channelSignals(props.channelsSnapshot);
-  const connectedApps = connectedAppsCount(props.connectorAuthorizations);
-
-  const installedSkills = filteredSkills.filter((skill) => skill.installed);
-  const catalogSkills = filteredSkills.filter((skill) => !skill.installed);
+  const skillSections = buildSkillSections(filteredSkills);
 
   return html`
     <section class="alisio-page" style="display: grid; gap: 16px;">
-      <div class="card">
-        <div class="alisio-page__eyebrow">${t("alisio.capabilities.eyebrow")}</div>
-        <div class="row capabilities-hero">
-          <div>
-            <div class="card-title">${t("alisio.capabilities.title")}</div>
-            <div class="card-sub">${t("alisio.capabilities.subtitle")}</div>
-          </div>
-          <button
-            class="btn"
-            ?disabled=${props.loading || !props.connected}
-            @click=${props.onRefresh}
-          >
-            ${props.loading
-              ? t("alisio.capabilities.refreshing")
-              : t("alisio.capabilities.refresh")}
-          </button>
-        </div>
-
-        <div class="alisio-summary-grid alisio-summary-grid--spacious">
-          ${showInitialLoading
-            ? renderSkeletonStatCards(5)
-            : html`
-                <article class="list-item capabilities-summary-card">
-                  <div class="list-title">${statusCounts.ready}</div>
-                  <div class="list-sub">${t("alisio.capabilities.summary.readyNow")}</div>
-                </article>
-                <article class="list-item capabilities-summary-card">
-                  <div class="list-title">${statusCounts["not-installed"]}</div>
-                  <div class="list-sub">${t("alisio.capabilities.summary.notInstalled")}</div>
-                </article>
-                <article class="list-item capabilities-summary-card">
-                  <div class="list-title">${statusCounts["needs-setup"]}</div>
-                  <div class="list-sub">${t("alisio.capabilities.summary.needsSetup")}</div>
-                </article>
-                <article class="list-item capabilities-summary-card">
-                  <div class="list-title">${connectedApps}</div>
-                  <div class="list-sub">${t("alisio.capabilities.summary.connectedApps")}</div>
-                </article>
-                <article class="list-item capabilities-summary-card">
-                  <div class="list-title">${channels.connected}</div>
-                  <div class="list-sub">${t("alisio.capabilities.summary.liveChannels")}</div>
-                </article>
-              `}
-        </div>
-
+      <section class="card" aria-busy=${showInitialLoading ? "true" : "false"}>
         ${props.error
-          ? html`<div class="callout danger" style="margin-top: 16px;">${props.error}</div>`
+          ? html`<div class="callout danger" style="margin-bottom: 16px;">${props.error}</div>`
           : nothing}
-      </div>
 
-      <div class="capabilities-card-grid">
         ${showInitialLoading
-          ? Array.from({ length: 6 }, () => renderCapabilitySkeletonCard())
-          : capabilityCards.map((card) => renderCapabilityCard(card))}
-      </div>
+          ? renderCapabilitiesFiltersSkeleton()
+          : html`
+              <div class="agent-tabs">
+                ${(
+                  [
+                    "all",
+                    "ready",
+                    "not-installed",
+                    "needs-setup",
+                    "disabled",
+                  ] as SkillsStatusFilter[]
+                ).map(
+                  (status) => html`
+                    <button
+                      class="agent-tab ${props.statusFilter === status ? "active" : ""}"
+                      @click=${() => props.onStatusFilterChange(status)}
+                    >
+                      ${statusFilterLabel(status)}
+                      <span class="agent-tab-count">${statusCounts[status]}</span>
+                    </button>
+                  `,
+                )}
+              </div>
 
-      <section class="card">
-        <div class="row capabilities-advanced-header">
-          <div>
-            <div class="card-title">${t("alisio.capabilities.advancedTitle")}</div>
-            <div class="card-sub">${t("alisio.capabilities.advancedSubtitle")}</div>
-          </div>
-          <a class="btn btn--sm" href="https://clawhub.com" target="_blank" rel="noreferrer">
-            ${t("alisio.capabilities.browseStore")}
-          </a>
-        </div>
-
-        <div class="agent-tabs" style="margin-top: 14px;">
-          ${(
-            ["all", "ready", "not-installed", "needs-setup", "disabled"] as SkillsStatusFilter[]
-          ).map(
-            (status) => html`
-              <button
-                class="agent-tab ${props.statusFilter === status ? "active" : ""}"
-                @click=${() => props.onStatusFilterChange(status)}
-              >
-                ${statusFilterLabel(status)}
-                <span class="agent-tab-count">${statusCounts[status]}</span>
-              </button>
-            `,
-          )}
-        </div>
-
-        <div class="filters capabilities-filters">
-          <label class="field" style="flex: 1; min-width: 220px;">
-            <input
-              .value=${props.filter}
-              @input=${(event: Event) =>
-                props.onFilterChange((event.target as HTMLInputElement).value)}
-              placeholder=${t("alisio.capabilities.searchPlaceholder")}
-              autocomplete="off"
-            />
-          </label>
-          <div class="muted">
-            ${t("alisio.capabilities.shown", { count: String(filteredSkills.length) })}
-          </div>
-        </div>
-
+              <div class="filters capabilities-filters">
+                <label class="field" style="flex: 1; min-width: 220px;">
+                  <input
+                    .value=${props.filter}
+                    @input=${(event: Event) =>
+                      props.onFilterChange((event.target as HTMLInputElement).value)}
+                    placeholder=${t("alisio.capabilities.searchPlaceholder")}
+                    autocomplete="off"
+                  />
+                </label>
+                <div class="muted">
+                  ${t("alisio.capabilities.shown", { count: String(filteredSkills.length) })}
+                </div>
+              </div>
+            `}
         ${showInitialLoading
           ? html`
               <div
                 class="capabilities-skeleton-list"
                 role="status"
-                aria-label="Loading capabilities"
+                aria-label=${t("alisio.capabilities.loading")}
               >
                 ${renderSkeletonListItem({ lines: ["medium", "long"], aside: "pill" })}
                 ${renderSkeletonListItem({ lines: ["long", "medium"], aside: "pill" })}
@@ -461,32 +292,7 @@ export function renderCapabilities(props: CapabilitiesProps) {
                     : t("alisio.capabilities.empty")}
                 </div>
               `
-            : html`
-                <div class="list capabilities-skill-list">
-                  ${installedSkills.length > 0
-                    ? html`
-                        <div class="list-item">
-                          <div class="list-title">Installed</div>
-                          <div class="list-sub">
-                            ${installedSkills.length} ready on this computer
-                          </div>
-                        </div>
-                        ${installedSkills.map((skill) => renderSkillCard(skill, props))}
-                      `
-                    : nothing}
-                  ${catalogSkills.length > 0
-                    ? html`
-                        <div class="list-item">
-                          <div class="list-title">Catalog</div>
-                          <div class="list-sub">
-                            ${catalogSkills.length} available skills and MCP surfaces
-                          </div>
-                        </div>
-                        ${catalogSkills.map((skill) => renderSkillCard(skill, props))}
-                      `
-                    : nothing}
-                </div>
-              `}
+            : html`${skillSections.map((section) => renderSkillSection(section, props))}`}
       </section>
 
       ${detailSkill ? renderSkillDetail(detailSkill, props) : nothing}

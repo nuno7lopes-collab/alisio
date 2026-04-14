@@ -460,24 +460,29 @@ export async function resolveWorkspaceMarketplaceCatalogStatus(
     entries?: SkillEntry[];
     eligibility?: SkillEligibilityContext;
     access?: SkillMarketplaceAccessContext;
+    localReport?: SkillStatusReport;
   },
 ): Promise<SkillStatusEntry[]> {
-  const localReport = buildWorkspaceSkillStatus(workspaceDir, opts);
-  const catalog = await resolveSkillMarketplaceCatalog({
-    workspaceDir,
-    config: opts?.config,
-    entries: opts?.entries,
-    access: opts?.access,
-  });
-  const auditEntries = await listSkillAuditEntries({
-    workspaceDir,
-    limit: 200,
-  });
-  const grants = await listSkillConsentGrants({ workspaceDir });
+  const localReport = opts?.localReport ?? buildWorkspaceSkillStatus(workspaceDir, opts);
+  const [catalog, auditEntries, grants] = await Promise.all([
+    resolveSkillMarketplaceCatalog({
+      workspaceDir,
+      config: opts?.config,
+      entries: opts?.entries,
+      access: opts?.access,
+    }),
+    listSkillAuditEntries({
+      workspaceDir,
+      limit: 200,
+    }),
+    listSkillConsentGrants({ workspaceDir }),
+  ]);
   const auditBySkill = groupSkillAuditEntries(auditEntries);
   const grantsBySkill = groupSkillConsentGrants(grants);
   const localByName = new Map(localReport.skills.map((entry) => [entry.name, entry] as const));
-  const managedSkillsDir = path.resolve(opts?.managedSkillsDir ?? path.join(CONFIG_DIR, "skills"));
+  const managedSkillsDir = path.resolve(
+    opts?.managedSkillsDir ?? localReport.managedSkillsDir ?? path.join(CONFIG_DIR, "skills"),
+  );
 
   return catalog.map((catalogEntry) => {
     const local = localByName.get(catalogEntry.name);

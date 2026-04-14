@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  applyEventToDerivedState,
   applyDocUpdateToState,
   captureMemoryStateCheckpoint,
   createDocStateFromMarkdown,
@@ -132,5 +133,84 @@ describe("memory-state", () => {
       update: leftUpdate,
     });
     expect(first.markdown).toBe(second.markdown);
+  });
+
+  it("revives a tombstoned page when metadata is re-imported", () => {
+    const db = createTestDb();
+    try {
+      applyEventToDerivedState({
+        db,
+        migrationVersion: 1,
+        event: {
+          schemaVersion: 1,
+          eventId: "event-page-created",
+          lamport: 1,
+          actorId: "gaia",
+          createdAtMs: 1,
+          type: "PAGE_CREATED",
+          payload: {
+            pageId: "page-1",
+            title: "Alpha",
+            slug: "alpha",
+            aliases: ["alpha"],
+            tags: ["project"],
+          },
+        },
+      });
+      applyEventToDerivedState({
+        db,
+        migrationVersion: 1,
+        event: {
+          schemaVersion: 1,
+          eventId: "event-page-tombstoned",
+          lamport: 2,
+          actorId: "gaia",
+          createdAtMs: 2,
+          type: "PAGE_TOMBSTONED",
+          payload: {
+            pageId: "page-1",
+            tombstoned: true,
+            updatedAtMs: 2,
+          },
+        },
+      });
+      applyEventToDerivedState({
+        db,
+        migrationVersion: 1,
+        event: {
+          schemaVersion: 1,
+          eventId: "event-page-metadata-updated",
+          lamport: 3,
+          actorId: "gaia",
+          createdAtMs: 3,
+          type: "PAGE_METADATA_UPDATED",
+          payload: {
+            pageId: "page-1",
+            title: "Alpha",
+            slug: "alpha",
+            aliases: ["alpha"],
+            tags: ["project", "revived"],
+            updatedAtMs: 3,
+          },
+        },
+      });
+
+      const page = db
+        .prepare(
+          `SELECT tombstoned, updated_at_ms
+           FROM pages
+           WHERE page_id = ?`,
+        )
+        .get("page-1") as
+        | {
+            tombstoned: number;
+            updated_at_ms: number;
+          }
+        | undefined;
+      expect(page?.tombstoned).toBe(0);
+      expect(page?.updated_at_ms).toBe(3);
+    } finally {
+      db.close();
+    }
   });
 });

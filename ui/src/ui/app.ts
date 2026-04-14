@@ -49,6 +49,7 @@ import {
   applySettings as applySettingsInternal,
   loadCron as loadCronInternal,
   loadOverview as loadOverviewInternal,
+  setSettingsSection as setSettingsSectionInternal,
   setTab as setTabInternal,
   setTheme as setThemeInternal,
   setThemeMode as setThemeModeInternal,
@@ -73,6 +74,10 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
+import type {
+  RemoteComputerDraft,
+  RemoteComputerTaskRecord,
+} from "./controllers/remote-computers.ts";
 import type {
   SecurityAccessDiagnostics,
   SecurityAccessMode,
@@ -257,14 +262,20 @@ export class AlisioApp extends LitElement {
   @state() splitRatio = this.settings.splitRatio;
 
   @state() nodesLoading = false;
+  @state() nodesLoaded = false;
   @state() nodes: NodeListNode[] = [];
   @state() nodesError: string | null = null;
   @state() devicesLoading = false;
   @state() devicesError: string | null = null;
   @state() devicesList: DevicePairingList | null = null;
+  @state() currentDeviceId: string | null = null;
   @state() nodePairingsLoading = false;
   @state() nodePairingsError: string | null = null;
   @state() nodePairingsList: RuntimeNodePairingList | null = null;
+  @state() remoteComputerDrafts: Record<string, RemoteComputerDraft> = {};
+  @state() remoteComputerBusy: Record<string, boolean> = {};
+  @state() remoteComputerErrors: Record<string, string | null> = {};
+  @state() remoteComputerTasks: Record<string, RemoteComputerTaskRecord[]> = {};
   @state() execApprovalsLoading = false;
   @state() execApprovalsSaving = false;
   @state() execApprovalsDirty = false;
@@ -780,6 +791,7 @@ export class AlisioApp extends LitElement {
     try {
       await refreshAfterAlisioConnectorOAuth(
         this as unknown as Parameters<typeof refreshAfterAlisioConnectorOAuth>[0],
+        signal,
       );
       await this.retryPendingConnectorChatResume(signal);
     } catch (error) {
@@ -867,6 +879,14 @@ export class AlisioApp extends LitElement {
 
   setTab(next: Tab) {
     setTabInternal(this as unknown as Parameters<typeof setTabInternal>[0], next);
+    this.navDrawerOpen = false;
+  }
+
+  setSettingsSection(next: SettingsSection) {
+    setSettingsSectionInternal(
+      this as unknown as Parameters<typeof setSettingsSectionInternal>[0],
+      next,
+    );
     this.navDrawerOpen = false;
   }
 

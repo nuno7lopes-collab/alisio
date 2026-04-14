@@ -21,7 +21,7 @@ type PersistedUiSettings = Omit<UiSettings, "token" | "sessionKey" | "lastActive
 };
 
 import { DEFAULT_GATEWAY_PORT_TEXT } from "../../../src/shared/gateway-defaults.js";
-import { isSupportedLocale, loadPersistedLocale } from "../i18n/index.ts";
+import { isSupportedLocale, resolvePreferredLocale } from "../i18n/index.ts";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../local-storage.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import { inferBasePathFromPathname } from "./navigation.ts";
@@ -169,6 +169,7 @@ function persistSessionToken(gatewayUrl: string, token: string) {
 export function loadSettings(): UiSettings {
   const { pageUrl: pageDerivedUrl, effectiveUrl: defaultUrl } = deriveDefaultGatewayUrl();
   const storage = getSafeLocalStorage();
+  const defaultLocale = resolvePreferredLocale();
 
   const defaults: UiSettings = {
     gatewayUrl: defaultUrl,
@@ -184,6 +185,7 @@ export function loadSettings(): UiSettings {
     navCollapsed: false,
     navWidth: 220,
     navGroupsCollapsed: {},
+    locale: defaultLocale,
   };
 
   try {
@@ -206,15 +208,13 @@ export function loadSettings(): UiSettings {
       (parsed as { theme?: unknown }).theme,
       (parsed as { themeMode?: unknown }).themeMode,
     );
-    const locale = isSupportedLocale(parsed.locale)
-      ? parsed.locale
-      : (loadPersistedLocale() ?? undefined);
+    const locale = isSupportedLocale(parsed.locale) ? parsed.locale : defaultLocale;
     const chatPresentationModeVersion =
       typeof parsed.chatPresentationModeVersion === "number"
         ? parsed.chatPresentationModeVersion
         : 0;
     const shouldMigrateChatPresentation = chatPresentationModeVersion < 2;
-    const shouldMigrateLocale = !isSupportedLocale(parsed.locale) && locale !== undefined;
+    const shouldMigrateLocale = !isSupportedLocale(parsed.locale);
     const settings = {
       gatewayUrl,
       // Gateway auth is intentionally in-memory only; scrub any legacy persisted token on load.

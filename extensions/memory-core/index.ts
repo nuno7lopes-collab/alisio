@@ -9,6 +9,10 @@ import {
 import { handleMemoryGraphGatewayRequest } from "./src/gateway.js";
 import {
   handleMemoryExportGatewayRequest,
+  handleMemoryNotesGetGatewayRequest,
+  handleMemoryNotesHistoryGatewayRequest,
+  handleMemoryNotesListGatewayRequest,
+  handleMemoryNotesUpdateGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
   handleMemoryWikiGetGatewayRequest,
   handleMemoryWikiHistoryGatewayRequest,
@@ -52,6 +56,34 @@ export default definePluginEntry({
     api.registerGatewayMethod(
       "memory.graph",
       withMemoryJobsGatewayActivity(handleMemoryGraphGatewayRequest),
+      {
+        scope: "operator.read",
+      },
+    );
+    api.registerGatewayMethod(
+      "memory.notes.list",
+      withMemoryJobsGatewayActivity(handleMemoryNotesListGatewayRequest),
+      {
+        scope: "operator.read",
+      },
+    );
+    api.registerGatewayMethod(
+      "memory.notes.get",
+      withMemoryJobsGatewayActivity(handleMemoryNotesGetGatewayRequest),
+      {
+        scope: "operator.read",
+      },
+    );
+    api.registerGatewayMethod(
+      "memory.notes.update",
+      withMemoryJobsGatewayActivity(handleMemoryNotesUpdateGatewayRequest),
+      {
+        scope: "operator.write",
+      },
+    );
+    api.registerGatewayMethod(
+      "memory.notes.history",
+      withMemoryJobsGatewayActivity(handleMemoryNotesHistoryGatewayRequest),
       {
         scope: "operator.read",
       },

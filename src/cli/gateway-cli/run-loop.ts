@@ -3,6 +3,7 @@ import {
   getActiveEmbeddedRunCount,
   waitForActiveEmbeddedRuns,
 } from "../../agents/pi-embedded-runner/runs.js";
+import { clearRuntimeConfigSnapshot } from "../../config/config.js";
 import type { startGatewayServer } from "../../gateway/server.js";
 import { acquireGatewayLock } from "../../infra/gateway-lock.js";
 import { restartGatewayProcessWithFreshPid } from "../../infra/process-respawn.js";
@@ -214,6 +215,9 @@ export async function runGatewayLoop(params: {
 
   try {
     const onIteration = createRestartIterationHook(() => {
+      // In-process restarts must drop the process-local config snapshot so the
+      // next start() call re-reads alisio.json instead of reusing stale config.
+      clearRuntimeConfigSnapshot();
       // After an in-process restart (SIGUSR1), reset command-queue lane state.
       // Interrupted tasks from the previous lifecycle may have left `active`
       // counts elevated (their finally blocks never ran), permanently blocking

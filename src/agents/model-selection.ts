@@ -8,6 +8,7 @@ import {
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { normalizeGoogleModelId } from "../plugin-sdk/google.js";
 import { normalizeXaiModelId } from "../plugin-sdk/xai.js";
+import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
 import { sanitizeForLog } from "../terminal/ansi.js";
 import {
   resolveAgentConfig,
@@ -488,6 +489,8 @@ export function buildAllowedModelSet(params: {
       : null;
   const defaultKey = defaultRef ? modelKey(defaultRef.provider, defaultRef.model) : undefined;
   const catalogKeys = new Set(params.catalog.map((entry) => modelKey(entry.provider, entry.id)));
+  const isMissingDynamicModelRef = (ref: ModelRef, key: string) =>
+    isAlisioDynamicProvider(ref.provider) && !catalogKeys.has(key);
 
   if (allowAny) {
     if (defaultKey) {
@@ -508,6 +511,9 @@ export function buildAllowedModelSet(params: {
       continue;
     }
     const key = modelKey(parsed.provider, parsed.model);
+    if (isMissingDynamicModelRef(parsed, key)) {
+      continue;
+    }
     // Explicit allowlist entries are always trusted, even when bundled catalog
     // data is stale and does not include the configured model yet.
     allowedKeys.add(key);
@@ -528,6 +534,9 @@ export function buildAllowedModelSet(params: {
     const parsed = parseModelRef(String(fallback), params.defaultProvider);
     if (parsed) {
       const key = modelKey(parsed.provider, parsed.model);
+      if (isMissingDynamicModelRef(parsed, key)) {
+        continue;
+      }
       allowedKeys.add(key);
 
       if (!catalogKeys.has(key) && !syntheticCatalogEntries.has(key)) {
@@ -540,7 +549,7 @@ export function buildAllowedModelSet(params: {
     }
   }
 
-  if (defaultKey) {
+  if (defaultKey && !(defaultRef && isMissingDynamicModelRef(defaultRef, defaultKey))) {
     allowedKeys.add(defaultKey);
   }
 
@@ -668,6 +677,9 @@ export function resolveAllowedModelRef(params: {
   });
   if (!status.allowed) {
     return { error: `model not allowed: ${status.key}` };
+  }
+  if (isAlisioDynamicProvider(resolved.ref.provider) && !status.inCatalog) {
+    return { error: `model unavailable: ${status.key}` };
   }
 
   return { ref: resolved.ref, key: status.key };

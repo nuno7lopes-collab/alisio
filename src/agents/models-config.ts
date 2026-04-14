@@ -7,6 +7,7 @@ import {
   loadConfig,
 } from "../config/config.js";
 import { createConfigRuntimeEnv } from "../config/env-vars.js";
+import { listInstalledAlisioLocalModels } from "../infra/alisio-local-llama-runtime.js";
 import { resolveAlisioAgentDir } from "./agent-paths.js";
 import { planAlisioModelsJson } from "./models-config.plan.js";
 
@@ -50,12 +51,18 @@ async function buildModelsJsonFingerprint(params: {
   );
   const modelsFileMtimeMs = await readFileMtimeMs(path.join(params.agentDir, "models.json"));
   const envShape = createConfigRuntimeEnv(params.config, {});
+  const managedLocalInstalledModelIds = await listInstalledAlisioLocalModels(
+    createConfigRuntimeEnv(params.config),
+  )
+    .then((models) => models.map((model) => model.id))
+    .catch(() => []);
   return stableStringify({
     config: params.config,
     sourceConfigForSecrets: params.sourceConfigForSecrets,
     envShape,
     authProfilesMtimeMs,
     modelsFileMtimeMs,
+    managedLocalInstalledModelIds,
   });
 }
 

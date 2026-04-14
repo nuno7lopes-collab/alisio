@@ -77,6 +77,9 @@ const filesViewText = {
   filesPreviewUnavailable: "Preview unavailable",
   filesPreviewTruncated: "Preview truncated",
   filesNoSelection: "Choose an attachment",
+  filesAttached: "Attached",
+  filesMentioned: "Mentioned",
+  filesUnlinked: "Unlinked",
 };
 
 function createFilesList(): MemoryFilesListResult {

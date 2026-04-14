@@ -1,15 +1,118 @@
 /* @vitest-environment jsdom */
 
-import { render } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render } from "lit";
 import { i18n } from "../../i18n/index.ts";
-import { GatewayRequestError } from "../gateway.ts";
 import { renderMemoryHub } from "./memory.ts";
 
 function makeGraphResult(
-  scope: "global" | "local" = "local",
-  focusPageId: string | null = "atlas",
+  scope: "global" | "local" = "global",
+  focusNoteId: string | null = "atlas",
+  includeAttachments = false,
 ) {
+  const nodes = [
+    {
+      id: "atlas",
+      pageId: "atlas",
+      entityId: "atlas",
+      kind: "note" as const,
+      title: "Project Atlas",
+      slug: "project-atlas",
+      sourcePath: "memory/project-atlas.md",
+      sourceKind: "workspace-memory" as const,
+      aliases: ["Atlas"],
+      tags: ["launch"],
+      incoming: 0,
+      outgoing: includeAttachments ? 2 : 1,
+      degree: includeAttachments ? 2 : 1,
+    },
+    {
+      id: "roadmap",
+      pageId: "roadmap",
+      entityId: "roadmap",
+      kind: "note" as const,
+      title: "Roadmap",
+      slug: "roadmap",
+      sourcePath: "memory/roadmap.md",
+      sourceKind: "workspace-memory" as const,
+      aliases: [],
+      tags: ["planning"],
+      incoming: 1,
+      outgoing: 0,
+      degree: 1,
+    },
+    ...(includeAttachments
+      ? [
+          {
+            id: "attachment:product-brief.pdf",
+            pageId: "attachment:product-brief.pdf",
+            entityId: "attachment:product-brief.pdf",
+            kind: "attachment" as const,
+            title: "product-brief.pdf",
+            slug: "product-brief.pdf",
+            sourcePath: "attachments/product-brief.pdf",
+            sourceKind: "workspace-memory" as const,
+            aliases: ["product-brief.pdf"],
+            tags: ["application/pdf"],
+            attachmentId: "product-brief.pdf",
+            fileName: "product-brief.pdf",
+            mediaType: "application/pdf",
+            incoming: 1,
+            outgoing: 0,
+            degree: 1,
+          },
+        ]
+      : []),
+  ];
+  const edges = [
+    {
+      id: "edge-atlas-roadmap",
+      fromId: "atlas",
+      toId: "roadmap",
+      fromPageId: "atlas",
+      toPageId: "roadmap",
+      relationType: "depends-on",
+      ordinal: 0,
+      reason: {
+        kind: "canonical-link" as const,
+        sourcePageId: "atlas",
+        targetPageId: "roadmap",
+        sourceTitle: "Project Atlas",
+        targetTitle: "Roadmap",
+        sourcePath: "memory/project-atlas.md",
+        targetPath: "memory/roadmap.md",
+        relationType: "depends-on",
+        ordinal: 0,
+      },
+    },
+    ...(includeAttachments
+      ? [
+          {
+            id: "edge-atlas-brief",
+            fromId: "atlas",
+            toId: "attachment:product-brief.pdf",
+            fromPageId: "atlas",
+            toPageId: "attachment:product-brief.pdf",
+            relationType: "references-attachment",
+            ordinal: 1,
+            reason: {
+              kind: "attachment-reference" as const,
+              sourcePageId: "atlas",
+              targetPageId: "attachment:product-brief.pdf",
+              sourceTitle: "Project Atlas",
+              targetTitle: "product-brief.pdf",
+              sourcePath: "memory/project-atlas.md",
+              targetPath: "attachments/product-brief.pdf",
+              relationType: "references-attachment",
+              ordinal: 1,
+              attachmentId: "product-brief.pdf",
+              fileName: "product-brief.pdf",
+              mediaType: "application/pdf",
+            },
+          },
+        ]
+      : []),
+  ];
   return {
     query: "",
     profileId: "local-main",
@@ -23,122 +126,36 @@ function makeGraphResult(
     lastSyncedLamport: 5,
     e2eeRequired: true as const,
     scope,
-    focus: focusPageId
+    focus: focusNoteId
       ? {
-          nodeId: focusPageId,
-          pageId: focusPageId,
-          entityId: focusPageId,
-          title: focusPageId === "atlas" ? "Project Atlas" : "Roadmap",
-          sourcePath: focusPageId === "atlas" ? "memory/project-atlas.md" : "memory/roadmap.md",
+          nodeId: focusNoteId,
+          pageId: focusNoteId,
+          entityId: focusNoteId,
+          title: focusNoteId === "atlas" ? "Project Atlas" : "Roadmap",
+          sourcePath:
+            focusNoteId === "atlas" ? "memory/project-atlas.md" : "memory/roadmap.md",
         }
       : undefined,
-    nodes: [
-      {
-        id: "atlas",
-        pageId: "atlas",
-        entityId: "atlas",
-        title: "Project Atlas",
-        slug: "project-atlas",
-        sourcePath: "memory/project-atlas.md",
-        sourceKind: "workspace-memory" as const,
-        aliases: ["Atlas"],
-        tags: ["launch"],
-        incoming: 1,
-        outgoing: 1,
-        degree: 2,
-      },
-      {
-        id: "roadmap",
-        pageId: "roadmap",
-        entityId: "roadmap",
-        title: "Roadmap",
-        slug: "roadmap",
-        sourcePath: "memory/roadmap.md",
-        sourceKind: "workspace-memory" as const,
-        aliases: [],
-        tags: ["planning"],
-        incoming: 1,
-        outgoing: 0,
-        degree: 1,
-      },
-    ],
-    edges: [
-      {
-        id: "edge-atlas-roadmap",
-        fromId: "atlas",
-        toId: "roadmap",
-        fromPageId: "atlas",
-        toPageId: "roadmap",
-        relationType: "depends-on",
-        ordinal: 0,
-        reason: {
-          kind: "canonical-link" as const,
-          sourcePageId: "atlas",
-          targetPageId: "roadmap",
-          sourceTitle: "Project Atlas",
-          targetTitle: "Roadmap",
-          sourcePath: "memory/project-atlas.md",
-          targetPath: "memory/roadmap.md",
-          relationType: "depends-on",
-          ordinal: 0,
-        },
-      },
-    ],
-    branches: [
-      {
-        id: "outgoing:depends-on",
-        direction: "outgoing" as const,
-        relationType: "depends-on",
-        nodeIds: ["roadmap"],
-      },
-    ],
-    availableRelationTypes: ["depends-on"],
-    availableTags: ["launch", "planning"],
+    nodes,
+    edges,
+    branches: [],
+    availableRelationTypes: includeAttachments
+      ? ["depends-on", "references-attachment"]
+      : ["depends-on"],
+    availableTags: includeAttachments
+      ? ["application/pdf", "launch", "planning"]
+      : ["launch", "planning"],
     stats: {
-      totalNodes: 2,
-      totalEdges: 1,
-      visibleNodes: 2,
-      visibleEdges: 1,
+      totalNodes: nodes.length,
+      totalEdges: edges.length,
+      visibleNodes: nodes.length,
+      visibleEdges: edges.length,
     },
     truncated: {
       nodes: false,
       edges: false,
     },
-    matches: [
-      {
-        entityId: "atlas",
-        title: "Project Atlas",
-        slug: "project-atlas",
-        sourcePath: "memory/project-atlas.md",
-        sourceKind: "workspace-memory" as const,
-        aliases: ["Atlas"],
-        tags: ["launch"],
-        score: 1,
-        projections: [
-          {
-            projectionId: "projection-atlas",
-            path: "memory/project-atlas.md",
-            sourceKind: "workspace-memory" as const,
-            editable: true,
-          },
-        ],
-        relations: [
-          {
-            direction: "outgoing" as const,
-            relationType: "depends-on",
-            ordinal: 0,
-            metadata: {},
-            relatedEntity: {
-              entityId: "roadmap",
-              title: "Roadmap",
-              slug: "roadmap",
-              sourcePath: "memory/roadmap.md",
-              sourceKind: "workspace-memory" as const,
-            },
-          },
-        ],
-      },
-    ],
+    matches: [],
   };
 }
 
@@ -146,6 +163,12 @@ async function flushMemoryHub() {
   for (let index = 0; index < 8; index += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, 0));
   }
+}
+
+function cleanText(node: ParentNode) {
+  const clone = node.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll("style").forEach((entry) => entry.remove());
+  return clone.textContent?.replace(/\s+/g, " ").trim() ?? "";
 }
 
 async function mountNativeHub(
@@ -162,15 +185,21 @@ async function mountNativeHub(
   return { container, hub };
 }
 
+function clickButton(container: ParentNode, label: string) {
+  const button = Array.from(container.querySelectorAll("button")).find((entry) =>
+    entry.textContent?.includes(label),
+  );
+  expect(button).toBeTruthy();
+  button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 function makeRequestMock() {
   return vi.fn((method: string, params?: Record<string, unknown>) => {
-    const pageId = typeof params?.pageId === "string" ? params.pageId : "";
-    const traceId = typeof params?.traceId === "string" ? params.traceId : "";
-    const format = typeof params?.format === "string" ? params.format : "json";
-    const query = typeof params?.query === "string" ? params.query : "";
-    const scope = params?.scope === "global" || params?.scope === "local" ? params.scope : "global";
-    if (method === "memory.wiki.list") {
-      const pages = [
+    const noteId = typeof params?.noteId === "string" ? params.noteId : "atlas";
+    const includeAttachments = params?.includeAttachments === true;
+    const query = typeof params?.query === "string" ? params.query.trim().toLowerCase() : "";
+    if (method === "memory.notes.list") {
+      const notes = [
         {
           id: "atlas",
           title: "Project Atlas",
@@ -180,9 +209,6 @@ function makeRequestMock() {
           backlinks: 1,
           claims: 1,
           evidence: 1,
-          categories: ["Operations"],
-          collections: ["Featured"],
-          featured: true,
           traceId: "trace-atlas",
           reasonTags: [{ code: "recent", label: "Recent change" }],
         },
@@ -195,7 +221,6 @@ function makeRequestMock() {
           backlinks: 1,
           claims: 0,
           evidence: 0,
-          categories: ["Planning"],
         },
       ];
       return Promise.resolve({
@@ -205,29 +230,23 @@ function makeRequestMock() {
           e2eeRequired: true,
         },
         exportFormats: ["zip", "json", "markdown"],
-        pages:
-          query.trim().toLowerCase() === "atlas"
-            ? pages.filter((page) => page.id === "atlas")
-            : pages,
+        notes: query === "roadmap" ? notes.filter((note) => note.id === "roadmap") : notes,
       });
     }
-    if (method === "memory.wiki.get" && params?.pageId === "atlas") {
+    if (method === "memory.notes.get" && noteId === "atlas") {
       return Promise.resolve({
         agentId: "main",
         sync: {
           lastSyncedLamport: "42",
           e2eeRequired: true,
         },
-        page: {
+        note: {
           id: "atlas",
           title: "Project Atlas",
           path: "memory/project-atlas.md",
           content: [
             "---",
             'summary: "Launch blockers and delivery plan."',
-            "categories: [Operations]",
-            "collections: [Featured]",
-            "featured: true",
             "---",
             "# Project Atlas",
             "",
@@ -268,12 +287,12 @@ function makeRequestMock() {
               provenance: [{ label: "Chunk", value: "roadmap:14-18" }],
             },
           ],
-          relatedFiles: [
+          attachments: [
             {
-              id: "brief",
+              id: "product-brief.pdf",
               name: "product-brief.pdf",
               mediaType: "application/pdf",
-              provenanceSummary: "Blob brief",
+              provenanceSummary: "Imported from product brief",
             },
           ],
           provenance: [{ label: "Ledger", value: "evt-1" }],
@@ -289,38 +308,40 @@ function makeRequestMock() {
             lamport: "42",
             updatedAt: "2026-04-11T10:00:00Z",
             author: "atlas",
-            summary: "Updated page",
+            summary: "Updated note",
           },
         },
       });
     }
-    if (method === "memory.wiki.get" && params?.pageId === "roadmap") {
+    if (method === "memory.notes.get" && noteId === "roadmap") {
       return Promise.resolve({
         agentId: "main",
         sync: {
           lastSyncedLamport: "42",
           e2eeRequired: true,
         },
-        page: {
+        note: {
           id: "roadmap",
           title: "Roadmap",
           path: "memory/roadmap.md",
           content: "# Roadmap\n\nMilestone approval pending.",
           backlinks: [],
           claims: [],
+          evidence: [],
+          attachments: [],
           provenance: [{ label: "Ledger", value: "evt-2" }],
         },
       });
     }
-    if (method === "memory.wiki.history") {
+    if (method === "memory.notes.history") {
       return Promise.resolve({
         agentId: "main",
-        pageId,
+        noteId,
         history: [
           {
             eventId: "evt-1",
             lamport: "42",
-            summary: "Updated page",
+            summary: "Updated note",
             at: "2026-04-11T10:00:00Z",
             author: "atlas",
             diffSummary: "Claims and evidence refreshed.",
@@ -328,62 +349,11 @@ function makeRequestMock() {
         ],
       });
     }
-    if (method === "memory.files.list") {
-      return Promise.resolve({
-        agentId: "main",
-        sync: {
-          lastSyncedLamport: "42",
-          e2eeRequired: true,
-        },
-        files: [
-          {
-            id: "brief",
-            name: "product-brief.pdf",
-            mediaType: "application/pdf",
-            previewKind: "pdf",
-            size: 1024,
-            sha256: "sha-product-brief",
-            summary: "Imported from product brief",
-            provenanceSummary: "Imported from product brief",
-            relatedPagesCount: 1,
-            primaryPage: {
-              pageId: "atlas",
-              entityId: "atlas",
-              title: "Project Atlas",
-              path: "memory/project-atlas.md",
-              relation: "mentioned",
-            },
-            provenance: [{ label: "Source", value: "product-brief.md" }],
-            trace: {
-              kind: "files",
-              query: "atlas",
-              candidateCount: 1,
-              hitCount: 1,
-              hits: [
-                {
-                  id: "brief",
-                  name: "product-brief.pdf",
-                  mediaType: "application/pdf",
-                  reasons: ["attachment"],
-                },
-              ],
-              reasons: ["attachment"],
-            },
-            traceSummary: ["Query: atlas", "Reasons: attachment"],
-            reasonTags: [{ code: "attachment", label: "Attachment" }],
-          },
-        ],
-      });
-    }
     if (method === "memory.files.get") {
       return Promise.resolve({
         agentId: "main",
-        sync: {
-          lastSyncedLamport: "42",
-          e2eeRequired: true,
-        },
         file: {
-          id: "brief",
+          id: "product-brief.pdf",
           name: "product-brief.pdf",
           mediaType: "application/pdf",
           previewKind: "pdf",
@@ -420,47 +390,33 @@ function makeRequestMock() {
               relation: "mentioned",
             },
           ],
-          trace: {
-            kind: "files",
-            query: "atlas",
-            candidateCount: 1,
-            hitCount: 1,
-            hits: [
-              {
-                id: "brief",
-                name: "product-brief.pdf",
-                mediaType: "application/pdf",
-                reasons: ["attachment"],
-              },
-            ],
-            reasons: ["attachment"],
-          },
-          traceSummary: ["Query: atlas", "Reasons: attachment"],
-          reasonTags: [{ code: "attachment", label: "Attachment" }],
         },
       });
     }
     if (method === "memory.graph") {
-      return Promise.resolve({
-        ...makeGraphResult(scope, pageId || "atlas"),
-        query: typeof params?.query === "string" ? params.query : "",
-      });
+      return Promise.resolve(
+        makeGraphResult(
+          params?.scope === "local" ? "local" : "global",
+          typeof params?.pageId === "string" ? params.pageId : "atlas",
+          includeAttachments,
+        ),
+      );
     }
     if (method === "memory.trace.get") {
       return Promise.resolve({
-        traceId,
+        traceId: "trace-atlas",
         summary: ["Query: launch blockers", "Reasons: recent, linked"],
         reasonTags: [{ code: "linked", label: "Linked context" }],
         raw: {
           query: "launch blockers",
           reasons: ["recent", "linked"],
-          hits: [{ pageId: "atlas" }],
+          hits: [{ noteId: "atlas" }],
         },
       });
     }
     if (method === "memory.export") {
       return Promise.resolve({
-        format,
+        format: "json",
         fileName: "memory.json",
         mediaType: "application/json",
         content: '{"ok":true}',
@@ -489,26 +445,10 @@ function createProps(
     selectedAgentId: "main",
     memoryLoading: false,
     memoryError: null,
-    memoryList: {
-      agentId: "main",
-      workspace: "/workspace/main",
-      files: [
-        {
-          name: "MEMORY.md",
-          path: "/workspace/main/MEMORY.md",
-          missing: false,
-          size: 12,
-          updatedAtMs: 10,
-        },
-      ],
-    },
-    memoryActive: "MEMORY.md",
-    memoryContents: {
-      "MEMORY.md": "# Main memory",
-    },
-    memoryDrafts: {
-      "MEMORY.md": "# Main memory",
-    },
+    memoryList: null,
+    memoryActive: null,
+    memoryContents: {},
+    memoryDrafts: {},
     memorySaving: false,
     memoryDeleting: false,
     memoryStatusLoading: false,
@@ -617,14 +557,6 @@ function createProps(
   };
 }
 
-function clickButton(container: HTMLElement, label: string) {
-  const button = Array.from(container.querySelectorAll("button")).find((entry) =>
-    entry.textContent?.includes(label),
-  );
-  expect(button).toBeTruthy();
-  button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-}
-
 describe("renderMemoryHub", () => {
   beforeEach(async () => {
     await i18n.setLocale("en");
@@ -635,247 +567,191 @@ describe("renderMemoryHub", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the native memory shell with wiki, files, and graph views", async () => {
+  it("renders the note explorer layout instead of legacy memory view tabs", async () => {
     const { container } = await mountNativeHub(createProps());
+    const text = cleanText(container);
 
-    expect(container.querySelectorAll(".alisio-memory-view-tab")).toHaveLength(3);
-    expect(container.textContent).toContain("Wiki");
-    expect(container.textContent).toContain("Files");
-    expect(container.textContent).toContain("Graph");
-    expect(container.textContent).toContain(
-      "Browse pages, backlinks, and evidence as a personal wiki.",
-    );
-    expect(container.textContent).toContain(
-      "Inspect files, provenance, and linked pages without losing context.",
-    );
-    expect(container.textContent).toContain(
-      "See entities, relations, and the active neighborhood of memory.",
-    );
-    expect(container.textContent).toContain("Memory portal");
-    expect(container.textContent).toContain("Featured article");
-    expect(container.textContent).toContain("Project Atlas");
-    expect(container.textContent).toContain("Recent updates");
-    expect(container.textContent).toContain("Categories");
-    expect(container.textContent).toContain("Collections");
-    expect(container.textContent).toContain("State and export");
-    expect(container.textContent).toContain("Last synced lamport");
-    expect(container.textContent).toContain("E2EE");
-    expect(container.textContent).toContain("Required");
-    expect(container.textContent).not.toContain("Memory runtime");
+    expect(container.querySelector(".alisio-memory-notes__explorer")).toBeTruthy();
+    expect(container.querySelectorAll(".alisio-memory-view-tab")).toHaveLength(0);
+    expect(container.querySelector(".alisio-memory-note__textarea")).toBeTruthy();
+    expect(text).toContain("Notes");
+    expect(text).toContain("Attachments");
+    expect(text).toContain("Graph");
+    expect(text).toContain("State and export");
   });
 
-  it("keeps the memory page focused on wiki, files, and graph without legacy surfaces", async () => {
+  it("opens the selected note in Markdown mode by default and keeps attachments secondary", async () => {
+    const { container } = await mountNativeHub(createProps());
+    const titleInput = container.querySelector(".alisio-memory-note input") as HTMLInputElement;
+    const markdown = container.querySelector(".alisio-memory-note__textarea") as HTMLTextAreaElement;
+    const text = cleanText(container);
+
+    expect(titleInput).toBeTruthy();
+    expect(titleInput.value).toBe("Project Atlas");
+    expect(markdown.value).toContain("# Project Atlas");
+    expect(text).toContain("Backlinks");
+    expect(text).toContain("Attachments");
+    expect(text).toContain("product-brief.pdf");
+    expect(text).not.toContain("Memory views");
+  });
+
+  it("switches to reading mode for the same selected note", async () => {
     const { container } = await mountNativeHub(createProps());
 
-    expect(container.querySelector(".alisio-memory-settings")).toBeNull();
-    expect(container.textContent).not.toContain("Legacy markdown editor");
-    expect(container.textContent).not.toContain("Memory settings");
-    expect(container.textContent).not.toContain("Save settings");
-
-    clickButton(container, "Files");
+    clickButton(container, "Reading");
     await flushMemoryHub();
-    expect(container.querySelector(".alisio-memory-settings")).toBeNull();
+
+    const title = container.querySelector(".alisio-memory-note__title-input") as HTMLInputElement | null;
+    const article = container.querySelector(".memory-note__article-markdown");
+    expect(title?.value).toBe("Project Atlas");
+    expect(article?.textContent).toContain("Project Atlas keeps the launch blockers in one place.");
+    expect(article?.textContent).toContain("Roadmap");
+  });
+
+  it("loads an attachment preview inside the note detail instead of a separate primary files view", async () => {
+    const { container } = await mountNativeHub(createProps());
+
+    clickButton(container, "product-brief.pdf");
+    await flushMemoryHub();
+
+    const text = cleanText(container);
+    expect(container.querySelector("iframe.alisio-memory-files-preview__frame")).toBeTruthy();
+    expect(text).toContain("Download");
+    expect(text).toContain("Related notes");
+    expect(text).toContain("Project Atlas");
+  });
+
+  it("reloads the graph with attachments on demand and keeps the graph workspace active while opening nodes", async () => {
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+    const { container } = await mountNativeHub(props);
+
+    expect(
+      client.request.mock.calls.some(
+        ([method, params]) =>
+          method === "memory.graph" && (params as Record<string, unknown>).includeAttachments === true,
+      ),
+    ).toBe(false);
+
+    const graphTab = container.querySelector(".alisio-memory-sidebar__toolbar button:last-child") as
+      | HTMLButtonElement
+      | null;
+    expect(graphTab).toBeTruthy();
+    graphTab?.click();
+    await flushMemoryHub();
+
+    const toggle = Array.from(container.querySelectorAll("label")).find((entry) =>
+      entry.textContent?.includes("Show attachments"),
+    );
+    const checkbox = toggle?.querySelector("input[type='checkbox']") as HTMLInputElement | null;
+    expect(checkbox).toBeTruthy();
+    checkbox?.click();
+    await flushMemoryHub();
+
+    expect(
+      client.request.mock.calls.some(
+        ([method, params]) =>
+          method === "memory.graph" && (params as Record<string, unknown>).includeAttachments === true,
+      ),
+    ).toBe(true);
+
+    const graph = container.querySelector("alisio-memory-graph-view");
+    expect(graph).toBeTruthy();
+    graph?.dispatchEvent(
+      new CustomEvent("alisio-memory-graph-open-node", {
+        detail: { nodeId: "roadmap", pageId: "roadmap" },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await flushMemoryHub();
+    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-graph__canvas")).toBeTruthy();
+    expect(cleanText(container)).toContain("Roadmap");
+
+    graph?.dispatchEvent(
+      new CustomEvent("alisio-memory-graph-open-node", {
+        detail: { nodeId: "attachment:product-brief.pdf", pageId: "attachment:product-brief.pdf" },
+        bubbles: true,
+        composed: true,
+      }),
+    );
+    await flushMemoryHub();
+    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-sidebar")).toBeTruthy();
+    expect(container.querySelector("iframe.alisio-memory-files-preview__frame")).toBeTruthy();
+  });
+
+  it("opens the graph as a primary workspace view with its own canvas", async () => {
+    const { container } = await mountNativeHub(createProps());
 
     clickButton(container, "Graph");
     await flushMemoryHub();
-    expect(container.querySelector(".alisio-memory-settings")).toBeNull();
+
+    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-graph__canvas")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-sidebar")).toBeTruthy();
   });
 
-  it("opens traces from the wiki context preview", async () => {
-    const { container } = await mountNativeHub(createProps());
-    clickButton(container, "Project Atlas");
-    await flushMemoryHub();
-
-    const traceButtons = Array.from(
-      container.querySelectorAll(".alisio-memory-main button"),
-    ).filter((entry) => entry.textContent?.includes("View trace"));
-    expect(traceButtons.length).toBeGreaterThan(0);
-    traceButtons.at(-1)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushMemoryHub();
-
-    expect(container.textContent).toContain("Retrieval trace");
-    expect(container.textContent).toContain("Query: launch blockers");
-    expect(container.textContent).toContain("Linked context");
-  });
-
-  it("shows trace actions in search results for wiki and files", async () => {
-    const { container } = await mountNativeHub(
-      createProps({
-        searchQuery: "atlas",
-      }),
-    );
-    await flushMemoryHub();
-
-    const wikiTraceButton = Array.from(container.querySelectorAll("button")).find((entry) =>
-      entry.textContent?.includes("View trace"),
-    );
-    expect(wikiTraceButton).toBeTruthy();
-    wikiTraceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushMemoryHub();
-    expect(container.textContent).toContain("Retrieval trace");
-
-    clickButton(container, "Files");
-    await flushMemoryHub();
-
-    const fileTraceButton = Array.from(
-      container.querySelectorAll(".alisio-memory-sidebar button"),
-    ).find((entry) => entry.textContent?.includes("View trace"));
-    expect(fileTraceButton).toBeTruthy();
-  });
-
-  it("renders separate evidence, provenance, and revision panels", async () => {
-    const { container } = await mountNativeHub(createProps());
-    clickButton(container, "Project Atlas");
-    await flushMemoryHub();
-
-    expect(container.textContent).toContain("Evidence");
-    expect(container.textContent).toContain("Milestone approval still pending.");
-    expect(container.textContent).toContain("Provenance");
-    expect(container.textContent).toContain("Revision");
-    expect(container.textContent).toContain("Related files");
-    expect(container.textContent).toContain("product-brief.pdf");
-  });
-
-  it("opens wikilinks from the article body", async () => {
-    const { container } = await mountNativeHub(createProps());
-    clickButton(container, "Project Atlas");
-    await flushMemoryHub();
-
-    const wikiLink = Array.from(
-      container.querySelectorAll(".memory-wiki__article-markdown a"),
-    ).find((entry) => entry.textContent?.includes("Roadmap"));
-    expect(wikiLink).toBeTruthy();
-    wikiLink?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await flushMemoryHub();
-
-    expect(container.textContent).toContain("Milestone approval pending.");
-  });
-
-  it("navigates through files and graph views and opens linked pages from the graph", async () => {
-    const onSelectFile = vi.fn();
-    const { container } = await mountNativeHub(
-      createProps({
-        onSelectFile,
-      }),
-    );
-
-    clickButton(container, "Files");
-    await flushMemoryHub();
-    expect(container.textContent).toContain("product-brief.pdf");
-    expect(container.textContent).toContain("Imported from product brief");
-    expect(container.textContent).toContain("Source");
-    expect(container.textContent).toContain("Open");
-    expect(container.textContent).toContain("Download");
-    expect(container.textContent).toContain("Focus graph");
+  it("can refocus the graph into a local graph from a node action", async () => {
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+    const { container } = await mountNativeHub(props);
 
     clickButton(container, "Graph");
     await flushMemoryHub();
-    expect(container.textContent).toContain("depends-on");
 
-    clickButton(container, "Roadmap");
-    await flushMemoryHub();
-
-    expect(container.textContent).toContain("Roadmap");
-    expect(onSelectFile).not.toHaveBeenCalledWith("memory/roadmap.md");
-  });
-
-  it("uses canonical attachment links to open the wiki and focus the graph", async () => {
-    const { container } = await mountNativeHub(createProps());
-
-    clickButton(container, "Files");
-    await flushMemoryHub();
-
-    clickButton(container, "Open page");
-    await flushMemoryHub();
-
-    expect(container.textContent).toContain(
-      "Project Atlas keeps the launch blockers in one place.",
-    );
-
-    clickButton(container, "Files");
-    await flushMemoryHub();
-
-    clickButton(container, "Focus graph");
-    await flushMemoryHub();
-
-    expect(container.textContent).toContain("depends-on");
-    expect(container.textContent).toContain("Project Atlas");
-  });
-
-  it("opens graph targets even when the current wiki search is filtered", async () => {
-    const { container } = await mountNativeHub(
-      createProps({
-        searchQuery: "atlas",
+    const graph = container.querySelector("alisio-memory-graph-view");
+    expect(graph).toBeTruthy();
+    graph?.dispatchEvent(
+      new CustomEvent("alisio-memory-graph-focus-node", {
+        detail: { nodeId: "roadmap", pageId: "roadmap" },
+        bubbles: true,
+        composed: true,
       }),
     );
-
-    clickButton(container, "Graph");
-    await flushMemoryHub();
-    clickButton(container, "Roadmap");
     await flushMemoryHub();
 
-    expect(container.textContent).toContain("Roadmap");
+    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
+    expect(
+      client.request.mock.calls.some(
+        ([method, params]) =>
+          method === "memory.graph" &&
+          (params as Record<string, unknown>).scope === "local" &&
+          (params as Record<string, unknown>).pageId === "roadmap",
+      ),
+    ).toBe(true);
   });
 
-  it("shows a friendly message when the native wiki endpoint is unavailable", async () => {
-    const request = vi.fn((method: string) => {
-      if (method === "memory.wiki.list") {
-        return Promise.reject(
-          new GatewayRequestError({
-            code: "INVALID_REQUEST",
-            message: "unknown method: memory.wiki.list",
-          }),
-        );
-      }
-      if (method === "memory.files.list") {
-        return Promise.resolve({ agentId: "main", files: [] });
-      }
-      throw new Error(`unexpected request: ${method}`);
-    });
-
-    const { container } = await mountNativeHub(
-      createProps({
-        client: { request } as unknown as Parameters<typeof renderMemoryHub>[0]["client"],
-      }),
-    );
-
-    expect(container.textContent).toContain(
-      "This version of Alisio does not expose the native memory wiki yet.",
-    );
-  });
-
-  it("falls back to page sync metadata when list responses do not include sync status", async () => {
+  it("uses the injected graph when a native graph refresh fails", async () => {
     const request = vi.fn((method: string, params?: Record<string, unknown>) => {
-      if (method === "memory.wiki.list") {
+      if (method === "memory.notes.list") {
         return Promise.resolve({
           agentId: "main",
-          pages: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
+          notes: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
         });
       }
-      if (method === "memory.wiki.get" && params?.pageId === "atlas") {
+      if (method === "memory.notes.get") {
         return Promise.resolve({
           agentId: "main",
-          sync: {
-            lastSyncedLamport: "99",
-            e2eeRequired: true,
-          },
-          page: {
-            id: "atlas",
+          note: {
+            id: String(params?.noteId ?? "atlas"),
             title: "Project Atlas",
             path: "memory/project-atlas.md",
             content: "# Project Atlas",
+            attachments: [],
           },
         });
       }
-      if (method === "memory.wiki.history") {
+      if (method === "memory.notes.history") {
         return Promise.resolve({
           agentId: "main",
-          pageId: "atlas",
+          noteId: String(params?.noteId ?? "atlas"),
           history: [],
         });
       }
-      if (method === "memory.files.list") {
-        return Promise.resolve({ agentId: "main", files: [] });
+      if (method === "memory.graph") {
+        return Promise.reject(new Error("temporary graph fetch failure"));
       }
       throw new Error(`unexpected request: ${method}`);
     });
@@ -883,26 +759,25 @@ describe("renderMemoryHub", () => {
     const { container } = await mountNativeHub(
       createProps({
         client: { request } as unknown as Parameters<typeof renderMemoryHub>[0]["client"],
-        memoryStatus: null,
-        searchQuery: "atlas",
+        memoryGraph: makeGraphResult("global"),
       }),
     );
 
-    expect(container.textContent).toContain("99");
-    expect(container.textContent).toContain("Required");
+    const graphTab = container.querySelector(".alisio-memory-sidebar__toolbar button:last-child") as
+      | HTMLButtonElement
+      | null;
+    graphTab?.click();
+    await flushMemoryHub();
+
+    expect(cleanText(container)).toContain("Project Atlas");
+    expect(cleanText(container)).toContain("Roadmap");
   });
 
-  it("reloads native data when the canonical sync marker changes", async () => {
+  it("reloads notes and graph data when the sync marker changes", async () => {
     const props = createProps();
-    const client = props.client;
-    if (!client) {
-      throw new Error("expected native memory client");
-    }
-    const mockedClient = client as typeof client & {
-      request: ReturnType<typeof makeRequestMock>;
-    };
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
     const { hub } = await mountNativeHub(props);
-    mockedClient.request.mockClear();
+    client.request.mockClear();
 
     hub.props = {
       ...props,
@@ -919,14 +794,8 @@ describe("renderMemoryHub", () => {
     };
     await flushMemoryHub();
 
-    const requestCalls = mockedClient.request.mock.calls;
-    expect(requestCalls.filter(([method]) => method === "memory.wiki.list").length).toBeGreaterThan(
-      0,
-    );
-    expect(
-      requestCalls.filter(([method]) => method === "memory.files.list").length,
-    ).toBeGreaterThan(0);
-    expect(requestCalls.filter(([method]) => method === "memory.graph").length).toBeGreaterThan(0);
+    expect(client.request.mock.calls.some(([method]) => method === "memory.notes.list")).toBe(true);
+    expect(client.request.mock.calls.some(([method]) => method === "memory.graph")).toBe(true);
   });
 
   it("wraps the native memory hub", () => {

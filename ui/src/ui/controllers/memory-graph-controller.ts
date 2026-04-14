@@ -6,9 +6,11 @@ import type {
 } from "../types.ts";
 
 export type MemoryGraphFilterState = {
+  searchQuery: string;
   relationTypes: string[];
   tags: string[];
   neighbourhoodOnly: boolean;
+  showOrphans: boolean;
   hoveredNodeId: string | null;
   selectedEdgeId: string | null;
 };
@@ -25,12 +27,23 @@ export type MemoryGraphViewModel = {
 
 export function createMemoryGraphFilterState(): MemoryGraphFilterState {
   return {
+    searchQuery: "",
     relationTypes: [],
     tags: [],
     neighbourhoodOnly: false,
+    showOrphans: true,
     hoveredNodeId: null,
     selectedEdgeId: null,
   };
+}
+
+function matchesSearchQuery(node: MemoryGraphNode, query: string) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+  const haystacks = [node.title, node.slug, node.sourcePath, ...node.aliases, ...node.tags];
+  return haystacks.some((value) => value.toLowerCase().includes(normalizedQuery));
 }
 
 function groupBranches(
@@ -111,18 +124,25 @@ export function buildMemoryGraphViewModel(
     (edge) => relationFilter.size === 0 || relationFilter.has(edge.relationType),
   );
   const baseNodes = graph.nodes.filter((node) => {
-    if (tagFilter.size === 0 || node.id === focusNodeId) {
+    if (node.id === focusNodeId) {
       return true;
     }
-    return node.tags.some((tag) => tagFilter.has(tag));
+    if (tagFilter.size > 0 && !node.tags.some((tag) => tagFilter.has(tag))) {
+      return false;
+    }
+    return matchesSearchQuery(node, filters.searchQuery);
   });
   const baseNodeIds = new Set(baseNodes.map((node) => node.id));
-  const edges = baseEdges.filter((edge) => baseNodeIds.has(edge.fromId) && baseNodeIds.has(edge.toId));
+  const edges = baseEdges.filter(
+    (edge) => baseNodeIds.has(edge.fromId) && baseNodeIds.has(edge.toId),
+  );
 
-  const visibleNodeIds = new Set<string>();
-  for (const edge of edges) {
-    visibleNodeIds.add(edge.fromId);
-    visibleNodeIds.add(edge.toId);
+  const visibleNodeIds = filters.showOrphans ? new Set(baseNodeIds) : new Set<string>();
+  if (!filters.showOrphans) {
+    for (const edge of edges) {
+      visibleNodeIds.add(edge.fromId);
+      visibleNodeIds.add(edge.toId);
+    }
   }
   if (focusNodeId) {
     visibleNodeIds.add(focusNodeId);
@@ -141,9 +161,10 @@ export function buildMemoryGraphViewModel(
     const nodes = graph.nodes.filter((node) => neighborhoodNodeIds.has(node.id));
     const visibleEdges = edges.filter((edge) => neighborhoodEdgeIds.has(edge.id));
     const selectedEdge = visibleEdges.find((edge) => edge.id === filters.selectedEdgeId) ?? null;
-    const highlightSeed = filters.hoveredNodeId && neighborhoodNodeIds.has(filters.hoveredNodeId)
-      ? filters.hoveredNodeId
-      : focusNodeId;
+    const highlightSeed =
+      filters.hoveredNodeId && neighborhoodNodeIds.has(filters.hoveredNodeId)
+        ? filters.hoveredNodeId
+        : focusNodeId;
     return finalizeViewModel({
       graph,
       nodes,
@@ -156,9 +177,10 @@ export function buildMemoryGraphViewModel(
 
   const nodes = graph.nodes.filter((node) => visibleNodeIds.has(node.id));
   const selectedEdge = edges.find((edge) => edge.id === filters.selectedEdgeId) ?? null;
-  const highlightSeed = filters.hoveredNodeId && nodeById.has(filters.hoveredNodeId)
-    ? filters.hoveredNodeId
-    : focusNodeId;
+  const highlightSeed =
+    filters.hoveredNodeId && nodeById.has(filters.hoveredNodeId)
+      ? filters.hoveredNodeId
+      : focusNodeId;
   return finalizeViewModel({
     graph,
     nodes,
@@ -196,7 +218,7 @@ function finalizeViewModel(params: {
   }
   return {
     focusNode: params.focusNodeId
-      ? params.nodes.find((node) => node.id === params.focusNodeId) ?? null
+      ? (params.nodes.find((node) => node.id === params.focusNodeId) ?? null)
       : null,
     nodes: params.nodes,
     edges: params.edges,

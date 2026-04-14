@@ -29,6 +29,7 @@ export {
   resolveMemoryStateDir,
   resolveStoredDeviceKeyPath,
   resolveWrappedProfileRootKeyPath,
+  setupProfileRootKey,
   storeDeviceKey,
   storeProfileRootKey,
 } from "./storage.js";

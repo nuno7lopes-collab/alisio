@@ -5,6 +5,7 @@ import {
   executeMarketplaceSkillAction,
   enableSkillConfigPath,
   installMarketplaceSkillAction,
+  loadSkills,
   resolveSkillConsentRequest,
   saveSkillApiKey,
   saveSkillEnv,
@@ -347,6 +348,61 @@ describe("skills controller", () => {
       demo: "next",
     });
     expect(state.skillMessages).toEqual({});
+  });
+
+  it("queues a follow-up reload when loadSkills is called mid-flight", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    const firstResponse = new Promise<unknown>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const request = vi
+      .fn()
+      .mockImplementationOnce(() => firstResponse)
+      .mockResolvedValueOnce({
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [
+          {
+            skillKey: "demo",
+            eligible: true,
+          },
+        ],
+      });
+    const state = createState({
+      client: {
+        request,
+      } as never,
+    });
+
+    const firstLoad = loadSkills(state);
+    const queuedLoad = loadSkills(state);
+    resolveFirst({
+      workspaceDir: "/tmp/workspace",
+      managedSkillsDir: "/tmp/skills",
+      skills: [
+        {
+          skillKey: "demo",
+          eligible: false,
+        },
+      ],
+    });
+
+    await Promise.all([firstLoad, queuedLoad]);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(state.skillsReport).toEqual({
+      workspaceDir: "/tmp/workspace",
+      managedSkillsDir: "/tmp/skills",
+      skills: [
+        {
+          skillKey: "demo",
+          eligible: true,
+        },
+      ],
+    });
+    expect(state.skillsLoading).toBe(false);
+    expect(state.skillsLoadPromise).toBeUndefined();
+    expect(state.skillsReloadQueued).toBe(false);
   });
 
   it("stores a marketplace consent request when execution needs approval", async () => {

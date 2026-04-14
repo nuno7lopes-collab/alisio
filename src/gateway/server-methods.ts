@@ -45,6 +45,9 @@ const CONTROL_PLANE_WRITE_METHODS = new Set([
   "alisio.security.policy.applyProfile",
   "config.apply",
   "config.patch",
+  "memory.e2ee.setup",
+  "memory.e2ee.exportPairingCode",
+  "memory.e2ee.importPairingCode",
   "memory.sync",
   "update.run",
 ]);

@@ -27,7 +27,6 @@
 .alisio-memory-sidebar__top,
 .alisio-memory-group,
 .alisio-memory-runtime,
-.alisio-memory-settings,
 .alisio-memory-panel,
 .alisio-memory-preview,
 .alisio-memory-composer,
@@ -41,7 +40,6 @@
 .alisio-memory-sidebar__top,
 .alisio-memory-group,
 .alisio-memory-runtime,
-.alisio-memory-settings,
 .alisio-memory-composer,
 .alisio-memory-stat,
 .alisio-memory-header,
@@ -243,6 +241,527 @@
   padding-top: 2px;
 }
 
+.alisio-memory-shell--files {
+  align-items: start;
+}
+
+.alisio-memory-sidebar--files,
+.alisio-memory-main--files {
+  min-width: 0;
+}
+
+.alisio-memory-sidebar--files {
+  gap: 18px;
+}
+
+.alisio-memory-main--files {
+  gap: 20px;
+}
+
+.alisio-memory-files__vault,
+.alisio-memory-files__explorer-card,
+.alisio-memory-files__hero-card,
+.alisio-memory-files__preview-card,
+.alisio-memory-files__detail-card,
+.alisio-memory-files__inspector-card {
+  overflow: hidden;
+}
+
+.alisio-memory-files__vault {
+  display: grid;
+  gap: 16px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 48%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-elevated) 94%, transparent),
+      color-mix(in srgb, var(--panel) 96%, transparent)
+    );
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.alisio-memory-files__vault-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.alisio-memory-files__vault-icon,
+.alisio-memory-files__hero-icon,
+.alisio-memory-files__item-icon,
+.alisio-memory-files__link-icon,
+.alisio-memory-files__primary-page-icon,
+.alisio-memory-files__empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--accent) 74%, var(--text));
+}
+
+.alisio-memory-files__vault-icon,
+.alisio-memory-files__hero-icon,
+.alisio-memory-files__empty-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.alisio-memory-files__vault-icon svg,
+.alisio-memory-files__hero-icon svg,
+.alisio-memory-files__empty-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.alisio-memory-files__vault-copy,
+.alisio-memory-files__preview-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-memory-files__vault-eyebrow,
+.alisio-memory-files__hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-files__vault-copy h3 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.alisio-memory-files__vault-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-memory-files__metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.alisio-memory-files__metric-grid--compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.alisio-memory-files__metric-tile {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-elevated) 80%, transparent);
+}
+
+.alisio-memory-files__metric-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-files__metric-value {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.alisio-memory-files__metric-detail {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-memory-files__explorer {
+  display: grid;
+  gap: 16px;
+}
+
+.alisio-memory-files__section {
+  display: grid;
+  gap: 10px;
+}
+
+.alisio-memory-files__section-header,
+.alisio-memory-files__section-count {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-files__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.alisio-memory-file-list--vault {
+  gap: 10px;
+}
+
+.alisio-memory-files__result-card {
+  gap: 10px;
+}
+
+.alisio-memory-files__item {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-elevated) 88%, transparent),
+      color-mix(in srgb, var(--panel-elevated) 76%, transparent)
+    );
+  border-color: color-mix(in srgb, var(--border) 88%, transparent);
+}
+
+.alisio-memory-files__item.is-active {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent) 14%, var(--panel-elevated)),
+      color-mix(in srgb, var(--accent) 8%, var(--panel-elevated))
+    );
+}
+
+.alisio-memory-files__item-icon,
+.alisio-memory-files__link-icon,
+.alisio-memory-files__primary-page-icon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.alisio-memory-files__item-icon svg,
+.alisio-memory-files__link-icon svg,
+.alisio-memory-files__primary-page-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.alisio-memory-files__item-row,
+.alisio-memory-files__link-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.alisio-memory-files__item-kind {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-files__item-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.alisio-memory-files__item-context {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.alisio-memory-files__relation,
+.alisio-memory-files__preview-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--accent) 74%, var(--text));
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-files__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 18px;
+  align-items: start;
+}
+
+.alisio-memory-files__canvas,
+.alisio-memory-files__inspector {
+  min-width: 0;
+}
+
+.alisio-memory-files__canvas {
+  display: grid;
+  gap: 18px;
+}
+
+.alisio-memory-files__hero-card {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 14%, transparent), transparent 42%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-elevated) 92%, transparent),
+      color-mix(in srgb, var(--panel) 98%, transparent)
+    );
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.alisio-memory-files__hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.alisio-memory-files__hero-copy {
+  min-width: 0;
+}
+
+.alisio-memory-files__hero-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.alisio-memory-files__preview-card {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-elevated) 88%, transparent),
+      color-mix(in srgb, var(--panel) 98%, transparent)
+    );
+}
+
+.alisio-memory-files__preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+}
+
+.alisio-memory-files__preview-copy strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.alisio-memory-files__preview-copy > span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-memory-files__preview-card .alisio-memory-preview__body,
+.alisio-memory-files__preview-card .alisio-memory-preview__empty,
+.alisio-memory-files__preview-card .alisio-memory-files-preview__code,
+.alisio-memory-files__preview-card .alisio-memory-files-preview__image,
+.alisio-memory-files__preview-card .alisio-memory-files-preview__frame,
+.alisio-memory-files__preview-card .alisio-memory-files-preview__audio {
+  border-radius: 0;
+}
+
+.alisio-memory-files__preview-card .alisio-memory-preview__body,
+.alisio-memory-files__preview-card .alisio-memory-preview__empty,
+.alisio-memory-files__preview-card .alisio-memory-files-preview__code {
+  padding: 18px;
+  background: transparent;
+}
+
+.alisio-memory-files__preview-card .alisio-memory-files-preview__frame {
+  min-height: 560px;
+}
+
+.alisio-memory-files__preview-card .alisio-memory-preview__hint {
+  padding: 0 18px 18px;
+}
+
+.alisio-memory-files__details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.alisio-memory-files__detail-card,
+.alisio-memory-files__inspector-card {
+  min-width: 0;
+}
+
+.alisio-memory-files__link-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-elevated) 82%, transparent);
+}
+
+.alisio-memory-files__link-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.alisio-memory-files__link-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.alisio-memory-files__link-copy h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.alisio-memory-files__link-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.alisio-memory-files__provenance .alisio-memory-native__pairs {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.alisio-memory-files__provenance .alisio-memory-native__pair {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-elevated) 80%, transparent);
+}
+
+.alisio-memory-files__provenance .alisio-memory-native__pair span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-files__provenance .alisio-memory-native__pair strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.alisio-memory-files__inspector {
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: 18px;
+}
+
+.alisio-memory-files__summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.alisio-memory-files__primary-page {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--panel-elevated) 82%, transparent);
+  color: inherit;
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    transform 0.16s ease,
+    background 0.16s ease;
+}
+
+.alisio-memory-files__primary-page:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel-elevated));
+}
+
+.alisio-memory-files__primary-page-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-memory-files__primary-page-copy strong {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.alisio-memory-files__primary-page-copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.alisio-memory-files__hash {
+  display: block;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--panel-elevated) 82%, transparent);
+  color: var(--text);
+  font: 500 12px/1.65 var(--mono);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.alisio-memory-files__empty-state {
+  gap: 16px;
+}
+
 .alisio-memory-empty {
   padding: 12px 14px;
   border-radius: var(--radius-md);
@@ -257,35 +776,188 @@
   gap: 16px;
 }
 
-.alisio-memory-runtime,
-.alisio-memory-settings {
+.alisio-memory-workspace {
+  display: grid;
+  gap: 18px;
+  padding: 20px 22px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 42%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--panel-elevated) 84%, var(--panel)) 0%,
+      var(--panel) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: calc(var(--radius-lg) + 4px);
+  box-shadow: var(--shadow-sm);
+}
+
+.alisio-memory-workspace__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.alisio-memory-workspace__copy {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.alisio-memory-workspace__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.alisio-memory-workspace__copy h2 {
+  margin: 0;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.alisio-memory-workspace__copy p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.alisio-memory-workspace__controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(240px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.alisio-memory-view-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alisio-memory-view-tab {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: calc(var(--radius-lg) + 2px);
+  background: color-mix(in srgb, var(--panel-elevated) 78%, transparent);
+  color: inherit;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.alisio-memory-view-tab:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel-elevated));
+}
+
+.alisio-memory-view-tab.is-active {
+  border-color: color-mix(in srgb, var(--accent) 44%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-elevated));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.alisio-memory-view-tab__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: color-mix(in srgb, var(--accent) 74%, var(--text));
+}
+
+.alisio-memory-view-tab__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.alisio-memory-view-tab__copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-memory-view-tab__copy strong {
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.alisio-memory-view-tab__copy span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.alisio-memory-view-tab__metric {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
+}
+
+.alisio-memory-view-tab__metric strong {
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.alisio-memory-view-tab__metric span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.alisio-memory-runtime {
   display: grid;
   gap: 14px;
 }
 
-.alisio-memory-runtime__header,
-.alisio-memory-settings__header {
+.alisio-memory-runtime--secondary {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.alisio-memory-runtime__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
-.alisio-memory-runtime__copy,
-.alisio-memory-settings__copy {
+.alisio-memory-runtime__copy {
   min-width: 0;
 }
 
-.alisio-memory-runtime__copy h3,
-.alisio-memory-settings__copy h3 {
+.alisio-memory-runtime__copy h3 {
   margin: 0;
   font-size: 16px;
   line-height: 1.2;
   letter-spacing: -0.02em;
 }
 
-.alisio-memory-runtime__copy p,
-.alisio-memory-settings__copy p {
+.alisio-memory-runtime__copy p {
   margin: 0;
   max-width: 64ch;
   color: var(--muted);
@@ -293,8 +965,7 @@
   line-height: 1.6;
 }
 
-.alisio-memory-runtime__actions,
-.alisio-memory-settings__actions {
+.alisio-memory-runtime__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -409,8 +1080,7 @@
   overflow-wrap: anywhere;
 }
 
-.alisio-memory-runtime__empty,
-.alisio-memory-settings__empty {
+.alisio-memory-runtime__empty {
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -552,28 +1222,6 @@
   text-align: center;
 }
 
-.alisio-memory-settings .config-section-card__desc,
-.alisio-memory-settings .cfg-field__help,
-.alisio-memory-settings .cfg-toggle-row__help,
-.alisio-memory-settings .cfg-object__help,
-.alisio-memory-settings .cfg-array__help,
-.alisio-memory-settings .cfg-tags {
-  display: none;
-}
-
-.alisio-memory-settings .config-section-card__icon {
-  display: none;
-}
-
-.alisio-memory-settings .config-section-card__header {
-  gap: 0;
-  padding: 14px 16px;
-}
-
-.alisio-memory-settings .config-section-card__content {
-  padding: 14px 16px;
-}
-
 .alisio-memory-skeleton {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -584,6 +1232,20 @@
 @media (max-width: 1100px) {
   .alisio-memory-shell,
   .alisio-memory-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alisio-memory-files__stage,
+  .alisio-memory-files__details-grid,
+  .alisio-memory-files__metric-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alisio-memory-files__inspector {
+    position: static;
+  }
+
+  .alisio-memory-view-switcher {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -598,6 +1260,41 @@
   .alisio-memory-toolbar,
   .alisio-memory-stats {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alisio-memory-workspace {
+    padding: 16px;
+  }
+
+  .alisio-memory-workspace__top {
+    flex-direction: column;
+  }
+
+  .alisio-memory-workspace__controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alisio-memory-files__hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alisio-memory-files__preview-head,
+  .alisio-memory-files__item-row,
+  .alisio-memory-files__link-row {
+    flex-direction: column;
+  }
+
+  .alisio-memory-view-tab {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .alisio-memory-view-tab__metric {
+    grid-column: 1 / -1;
+    grid-template-columns: auto auto;
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: 8px;
+    text-align: left;
   }
 
   .alisio-memory-sidebar__agent-row {
@@ -622,8 +1319,7 @@
     flex-direction: column;
   }
 
-  .alisio-memory-runtime__header,
-  .alisio-memory-settings__header {
+  .alisio-memory-runtime__header {
     flex-direction: column;
   }
 
@@ -632,8 +1328,7 @@
     justify-content: stretch;
   }
 
-  .alisio-memory-runtime__actions,
-  .alisio-memory-settings__actions {
+  .alisio-memory-runtime__actions {
     width: 100%;
     justify-content: stretch;
   }
@@ -642,15 +1337,13 @@
     flex: 1 1 auto;
   }
 
-  .alisio-memory-runtime__actions .btn,
-  .alisio-memory-settings__actions .btn {
+  .alisio-memory-runtime__actions .btn {
     flex: 1 1 auto;
   }
 
   .alisio-memory-sidebar__top,
   .alisio-memory-group,
   .alisio-memory-runtime,
-  .alisio-memory-settings,
   .alisio-memory-composer,
   .alisio-memory-stat,
   .alisio-memory-header,

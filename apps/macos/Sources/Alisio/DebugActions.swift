@@ -117,7 +117,7 @@ enum DebugActions {
     static func rebuildAppFromCheckout() async -> Result<String, DebugActionError> {
         guard let checkoutRoot = CommandResolver.developerCheckoutRoot() else {
             return .failure(.message(
-                "This action is only available for apps launched from dist/Alisio.app.",
+                "This action is only available for apps launched from a local checkout.",
             ))
         }
 
@@ -126,7 +126,7 @@ enum DebugActions {
             return .failure(.message("Missing scripts/restart-mac.sh in the local checkout."))
         }
 
-        let appBundle = checkoutRoot.appendingPathComponent("dist/Alisio.app")
+        let appBundle = checkoutRoot.appendingPathComponent(".run/Alisio.app")
         let logPath = "/tmp/alisio-dev-rebuild.log"
         let command = self.devRebuildLaunchCommand(
             checkoutRoot: checkoutRoot,
@@ -144,7 +144,9 @@ enum DebugActions {
             return .failure(.message("Failed to start rebuild: \(error.localizedDescription)"))
         }
 
-        return .success("Rebuild started. The app will close and reopen. Log: \(logPath)")
+        return .success(
+            "Sync started. The app will close, rebuild the Control UI, restart the local runtime, and reopen. Log: \(logPath)"
+        )
     }
 
     static func resetGatewayTunnel() async -> Result<String, DebugActionError> {

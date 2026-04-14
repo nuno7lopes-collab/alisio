@@ -350,12 +350,16 @@ export type CanonicalMemoryGraphResult = {
     id: string;
     pageId: string;
     entityId: string;
+    kind: "note" | "attachment";
     title: string;
     slug: string;
     sourcePath: string;
     sourceKind: CanonicalProjectionSource;
     aliases: string[];
     tags: string[];
+    attachmentId?: string;
+    fileName?: string;
+    mediaType?: string;
     incoming: number;
     outgoing: number;
     degree: number;
@@ -369,15 +373,18 @@ export type CanonicalMemoryGraphResult = {
     relationType: string;
     ordinal: number;
     reason: {
-      kind: "canonical-link";
-      sourcePageId: string;
-      targetPageId: string;
+      kind: "canonical-link" | "attachment-reference";
+      sourcePageId?: string;
+      targetPageId?: string;
       sourceTitle: string;
       targetTitle: string;
       sourcePath: string;
       targetPath: string;
       relationType: string;
       ordinal: number;
+      attachmentId?: string;
+      fileName?: string;
+      mediaType?: string;
     };
   }>;
   branches: Array<{
@@ -4061,6 +4068,7 @@ export function queryCanonicalMemoryGraph(params: {
   relationLimit?: number;
   nodeLimit?: number;
   edgeLimit?: number;
+  includeAttachments?: boolean;
 }): CanonicalMemoryGraphResult {
   return queryCanonicalMemoryGraphFromStore(params);
 }

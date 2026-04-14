@@ -36,7 +36,6 @@ import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadMemoryGraph, loadMemoryStatus } from "./controllers/memory-runtime.ts";
-import { loadModelCatalogPair } from "./controllers/models.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -288,6 +287,22 @@ export function setTab(host: SettingsHost, next: Tab) {
   applyTabSelection(host, publicTabFor(next), { refreshPolicy: "always", syncUrl: true });
 }
 
+export function setSettingsSection(host: SettingsHost, next: SettingsSection) {
+  const normalized = normalizeSettingsSection(next);
+  if (host.tab !== "settings") {
+    host.settingsSection = normalized;
+    applyTabSelection(host, "settings", { refreshPolicy: "always", syncUrl: true });
+    return;
+  }
+  if (host.settingsSection === normalized) {
+    return;
+  }
+  host.settingsSection = normalized;
+  syncSettingsTabPolling(host, "settings");
+  syncUrlWithTab(host, "settings", false);
+  void refreshSettingsSectionState(host);
+}
+
 export function setTheme(host: SettingsHost, next: ThemeName, context?: ThemeTransitionContext) {
   const resolved = resolveTheme(next, host.themeMode);
   const applyTheme = () => {
@@ -344,47 +359,15 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     if (!hasBootstrapShellState) {
       await loadAlisioBootstrap(host as unknown as AlisioApp);
     }
-    await loadAlisioModels(host as unknown as AlisioApp);
-    await loadSessions(host as unknown as AlisioApp, {
-      activeMinutes: 0,
-      limit: 0,
-      includeGlobal: true,
-      includeUnknown: true,
-    });
-    const shouldLoadChatCatalog =
-      host.connected &&
-      host.client &&
-      (!host.chatModelCatalog || host.chatModelCatalog.length === 0);
-    const shouldLoadManagementCatalog =
-      host.connected &&
-      host.client &&
-      (!host.modelManagementCatalog || host.modelManagementCatalog.length === 0);
-    if (host.client && (shouldLoadChatCatalog || shouldLoadManagementCatalog)) {
-      if (shouldLoadChatCatalog) {
-        host.chatModelsLoading = true;
-      }
-      if (shouldLoadManagementCatalog) {
-        host.modelManagementLoading = true;
-      }
-      try {
-        const pair = await loadModelCatalogPair(host.client);
-        if (pair) {
-          if (shouldLoadChatCatalog) {
-            host.chatModelCatalog = pair.chatCatalog;
-          }
-          if (shouldLoadManagementCatalog) {
-            host.modelManagementCatalog = pair.managementCatalog;
-          }
-        }
-      } finally {
-        if (shouldLoadChatCatalog) {
-          host.chatModelsLoading = false;
-        }
-        if (shouldLoadManagementCatalog) {
-          host.modelManagementLoading = false;
-        }
-      }
-    }
+    await Promise.allSettled([
+      loadAlisioModels(host as unknown as AlisioApp),
+      loadSessions(host as unknown as AlisioApp, {
+        activeMinutes: 0,
+        limit: 0,
+        includeGlobal: true,
+        includeUnknown: true,
+      }),
+    ]);
   }
   if (host.tab === "memory") {
     await Promise.allSettled([
@@ -474,18 +457,7 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
         ? []
         : [loadAlisioDoctorSummary(host as unknown as AlisioApp)]),
     ]);
-    if (host.settingsSection === "debug") {
-      await loadDebug(host as unknown as AlisioApp);
-      host.eventLog = host.eventLogBuffer;
-    }
-    if (host.settingsSection === "logs") {
-      host.logsAtBottom = true;
-      await loadLogs(host as unknown as AlisioApp, { reset: true });
-      scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
-    }
-    if (host.settingsSection === "mac") {
-      await loadNativeShellState(host);
-    }
+    await refreshSettingsSectionState(host);
   }
 }
 
@@ -665,6 +637,36 @@ export function setTabFromRoute(host: SettingsHost, next: Tab) {
   applyTabSelection(host, publicTabFor(next), { refreshPolicy: "connected" });
 }
 
+async function refreshSettingsSectionState(host: SettingsHost) {
+  if (host.settingsSection === "debug") {
+    await loadDebug(host as unknown as AlisioApp);
+    host.eventLog = host.eventLogBuffer;
+    return;
+  }
+  if (host.settingsSection === "logs") {
+    host.logsAtBottom = true;
+    await loadLogs(host as unknown as AlisioApp, { reset: true });
+    scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
+    return;
+  }
+  if (host.settingsSection === "mac") {
+    await loadNativeShellState(host);
+  }
+}
+
+function syncSettingsTabPolling(host: SettingsHost, tab: Tab) {
+  if (tab === "settings" && host.settingsSection === "logs") {
+    startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);
+  } else {
+    stopLogsPolling(host as unknown as Parameters<typeof stopLogsPolling>[0]);
+  }
+  if (tab === "settings" && host.settingsSection === "debug") {
+    startDebugPolling(host as unknown as Parameters<typeof startDebugPolling>[0]);
+  } else {
+    stopDebugPolling(host as unknown as Parameters<typeof stopDebugPolling>[0]);
+  }
+}
+
 function applyTabSelection(
   host: SettingsHost,
   next: Tab,
@@ -687,16 +689,7 @@ function applyTabSelection(
   if (next === "chat") {
     host.chatHasAutoScrolled = false;
   }
-  if (next === "settings" && host.settingsSection === "logs") {
-    startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);
-  } else {
-    stopLogsPolling(host as unknown as Parameters<typeof stopLogsPolling>[0]);
-  }
-  if (next === "settings" && host.settingsSection === "debug") {
-    startDebugPolling(host as unknown as Parameters<typeof startDebugPolling>[0]);
-  } else {
-    stopDebugPolling(host as unknown as Parameters<typeof stopDebugPolling>[0]);
-  }
+  syncSettingsTabPolling(host, next);
 
   if (options.refreshPolicy === "always" || host.connected) {
     void refreshActiveTab(host);

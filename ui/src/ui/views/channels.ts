@@ -1072,22 +1072,6 @@ export function renderChannels(props: ChannelsProps) {
             </section>
           `}
 
-      <section class="card channel-session-card">
-        <div class="card-title">${channelText("sessionTitle")}</div>
-        <div class="card-sub channel-session-card__description">${channelText("sessionBody")}</div>
-        <div class="channel-session-card__grid">
-          <div class="channel-session-card__item">
-            <span class="channel-session-card__icon" aria-hidden="true">${icons.link}</span>
-            <span class="channel-session-card__text">${channelText("sessionDirect")}</span>
-          </div>
-          <div class="channel-session-card__item">
-            <span class="channel-session-card__icon" aria-hidden="true">
-              ${icons.messageSquare}
-            </span>
-            <span class="channel-session-card__text">${channelText("sessionGroups")}</span>
-          </div>
-        </div>
-      </section>
     </section>
   `;
 }

@@ -40,6 +40,7 @@ import type { ChatItem, ChatRunActivity, MessageGroup } from "../types/chat-type
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { agentLogoUrl, resolveAgentAvatarUrl } from "./agents-utils.ts";
 import { renderChatSecurityConsole } from "./chat-security.ts";
+import { renderSkeletonLines, renderSkeletonPill } from "./loading-skeleton.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
 import "../components/resizable-divider.ts";
 
@@ -61,8 +62,6 @@ export type FallbackIndicatorStatus = {
 
 export type ChatProps = {
   sessionKey: string;
-  onSessionKeyChange: (next: string) => void;
-  thinkingLevel: string | null;
   showThinking: boolean;
   showToolCalls: boolean;
   loading: boolean;
@@ -107,14 +106,12 @@ export type ChatProps = {
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
   showNewMessages?: boolean;
   onScrollToBottom?: () => void;
-  onRefresh: () => void;
   onToggleFocusMode: () => void;
   onApplyAccessMode?: (mode: Exclude<SecurityAccessMode, "custom">) => void;
   onResolveApproval?: (
     entry: ExecApprovalRequest,
     decision: "allow-once" | "allow-always" | "deny",
   ) => void;
-  onOpenAdvancedSecurity?: () => void;
   onOpenNativeSettings?: () => void;
   getDraft?: () => string;
   onDraftChange: (next: string) => void;
@@ -124,20 +121,11 @@ export type ChatProps = {
   onSend: () => void;
   onAbort?: () => void;
   onQueueRemove: (id: string) => void;
-  onNewSession: () => void;
-  onClearHistory?: () => void;
-  agentsList: {
-    agents: Array<{ id: string; name?: string; identity?: { name?: string; avatarUrl?: string } }>;
-    defaultId?: string;
-  } | null;
-  currentAgentId: string;
-  onAgentChange: (agentId: string) => void;
-  onNavigateToAgent?: () => void;
-  onSessionSelect?: (sessionKey: string) => void;
   onOpenSidebar?: (content: string) => void;
   onCloseSidebar?: () => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
+  composerModelSelect?: TemplateResult | typeof nothing;
   basePath?: string;
 };
 
@@ -787,6 +775,53 @@ function renderWelcomeState(props: ChatProps): TemplateResult {
   `;
 }
 
+function renderChatSkeletonGroup(opts: {
+  role: "assistant" | "user";
+  lines: readonly ("short" | "medium" | "long")[];
+}): TemplateResult {
+  return html`
+    <div class="chat-group ${opts.role} chat-group--skeleton" aria-hidden="true">
+      <div class="chat-avatar ${opts.role} skeleton chat-avatar--skeleton"></div>
+      <div class="chat-group-messages">
+        <div class="chat-bubble chat-bubble--skeleton">
+          ${renderSkeletonLines(opts.lines, {
+            compact: true,
+            className: "alisio-chat__skeleton-copy",
+          })}
+        </div>
+        <div class="chat-group-footer chat-group-footer--skeleton">
+          ${renderSkeletonPill({
+            small: true,
+            className: "alisio-chat__skeleton-meta",
+          })}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderChatLoadingSkeleton(): TemplateResult {
+  return html`
+    <div class="chat-loading-skeleton" role="status" aria-label=${chatText("loading")}>
+      ${renderChatSkeletonGroup({ role: "assistant", lines: ["long", "medium", "short"] })}
+      ${renderChatSkeletonGroup({ role: "user", lines: ["medium"] })}
+      ${renderChatSkeletonGroup({ role: "assistant", lines: ["long", "short"] })}
+      ${renderChatSkeletonGroup({ role: "assistant", lines: ["medium", "long", "short"] })}
+    </div>
+  `;
+}
+
+function renderThreadRefreshIndicator(): TemplateResult {
+  return html`
+    <div class="alisio-chat__refresh-indicator" role="status" aria-live="polite">
+      <span class="chat-run-status__chip chat-run-status__chip--refresh">
+        <span class="chat-run-status__icon" aria-hidden="true">${icons.loader}</span>
+        <span class="chat-run-status__label">${chatText("loading")}</span>
+      </span>
+    </div>
+  `;
+}
+
 function renderSearchBar(requestUpdate: () => void): TemplateResult | typeof nothing {
   if (!vs.searchOpen) {
     return nothing;
@@ -1061,49 +1096,13 @@ export function renderChat(props: ChatProps) {
       class="chat-thread"
       role="log"
       aria-live="polite"
+      aria-busy=${props.loading ? "true" : "false"}
       @scroll=${props.onChatScroll}
       @click=${handleCodeBlockCopy}
     >
       <div class="chat-thread-inner alisio-chat__thread">
-        ${props.loading && chatItems.length === 0
-          ? html`
-              <div class="chat-loading-skeleton" aria-label=${chatText("loading")}>
-                <div class="chat-line assistant">
-                  <div class="chat-msg">
-                    <div class="chat-bubble">
-                      <div
-                        class="skeleton skeleton-line skeleton-line--long"
-                        style="margin-bottom: 8px"
-                      ></div>
-                      <div
-                        class="skeleton skeleton-line skeleton-line--medium"
-                        style="margin-bottom: 8px"
-                      ></div>
-                      <div class="skeleton skeleton-line skeleton-line--short"></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="chat-line user" style="margin-top: 12px">
-                  <div class="chat-msg">
-                    <div class="chat-bubble">
-                      <div class="skeleton skeleton-line skeleton-line--medium"></div>
-                    </div>
-                  </div>
-                </div>
-                <div class="chat-line assistant" style="margin-top: 12px">
-                  <div class="chat-msg">
-                    <div class="chat-bubble">
-                      <div
-                        class="skeleton skeleton-line skeleton-line--long"
-                        style="margin-bottom: 8px"
-                      ></div>
-                      <div class="skeleton skeleton-line skeleton-line--short"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            `
-          : nothing}
+        ${props.loading && chatItems.length > 0 ? renderThreadRefreshIndicator() : nothing}
+        ${props.loading && chatItems.length === 0 ? renderChatLoadingSkeleton() : nothing}
         ${isEmpty && !vs.searchOpen ? renderWelcomeState(props) : nothing}
         ${isEmpty && vs.searchOpen
           ? html` <div class="agent-chat__empty">${chatText("noMatchingMessages")}</div> `
@@ -1436,7 +1435,6 @@ export function renderChat(props: ChatProps) {
           nativeShellState: props.nativeShellState ?? null,
           onApplyAccessMode: props.onApplyAccessMode,
           onResolveApproval: props.onResolveApproval,
-          onOpenAdvancedSecurity: props.onOpenAdvancedSecurity,
           onOpenNativeSettings: props.onOpenNativeSettings,
         })}
 
@@ -1545,6 +1543,10 @@ export function renderChat(props: ChatProps) {
               : nothing}
             ${tokens ? html`<span class="agent-chat__token-count">${tokens}</span>` : nothing}
           </div>
+
+          ${props.composerModelSelect !== undefined
+            ? html` <div class="alisio-chat__composer-model">${props.composerModelSelect}</div> `
+            : nothing}
 
           <div class="agent-chat__toolbar-right alisio-chat__composer-actions">
             ${nothing /* search hidden for now */}

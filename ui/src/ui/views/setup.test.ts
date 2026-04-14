@@ -634,8 +634,9 @@ describe("setup view", () => {
     expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
   });
 
-  it("shows the connector upgrade path on Free after the first occupied slot", () => {
+  it("keeps connectors available on Free after the first occupied slot", () => {
     const container = document.createElement("div");
+    const onBeginConnector = vi.fn();
     render(
       renderSetup(
         createSetupProps({
@@ -683,16 +684,19 @@ describe("setup view", () => {
               scopes: ["repo"],
             },
           ],
+          onBeginConnector,
         }),
       ),
       container,
     );
 
-    expect(container.textContent).toContain("Free includes 1 connected app.");
+    expect(container.textContent).not.toContain("Free includes 1 connected app.");
     const githubButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
       (button) => button.textContent?.includes("Connect with GitHub"),
     );
-    expect(githubButton?.disabled).toBe(true);
+    expect(githubButton?.disabled).toBe(false);
+    githubButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onBeginConnector).toHaveBeenCalledWith("github");
   });
 
   it("ignores a stale runtime step once setup is already ready", () => {

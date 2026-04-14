@@ -29,6 +29,7 @@ const graph = {
       id: "atlas",
       pageId: "atlas",
       entityId: "atlas",
+      kind: "note" as const,
       title: "Project Atlas",
       slug: "project-atlas",
       sourcePath: "memory/project-atlas.md",
@@ -43,6 +44,7 @@ const graph = {
       id: "roadmap",
       pageId: "roadmap",
       entityId: "roadmap",
+      kind: "note" as const,
       title: "Roadmap",
       slug: "roadmap",
       sourcePath: "memory/roadmap.md",
@@ -57,6 +59,7 @@ const graph = {
       id: "launch",
       pageId: "launch",
       entityId: "launch",
+      kind: "note" as const,
       title: "Launch Notes",
       slug: "launch-notes",
       sourcePath: "memory/launch-notes.md",
@@ -130,6 +133,7 @@ describe("memory graph controller", () => {
   it("filters by relation type and preserves focus visibility", () => {
     const filters = createMemoryGraphFilterState();
     filters.relationTypes = ["depends-on"];
+    filters.showOrphans = false;
 
     const view = buildMemoryGraphViewModel(graph, filters);
 
@@ -149,5 +153,97 @@ describe("memory graph controller", () => {
     expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-launch"]);
     expect(view.highlightedNodeIds.has("atlas")).toBe(true);
     expect(view.highlightedNodeIds.has("launch")).toBe(true);
+  });
+
+  it("filters visible nodes by local search while preserving focus visibility", () => {
+    const filters = createMemoryGraphFilterState();
+    filters.searchQuery = "road";
+
+    const view = buildMemoryGraphViewModel(graph, filters);
+
+    expect(view.nodes.map((node) => node.id)).toEqual(["atlas", "roadmap"]);
+    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-roadmap"]);
+    expect(view.focusNode?.id).toBe("atlas");
+  });
+
+  it("includes attachment nodes when attachment relations are selected", () => {
+    const filters = createMemoryGraphFilterState();
+    filters.relationTypes = ["references-attachment"];
+    filters.showOrphans = false;
+
+    const graphWithAttachment = {
+      ...graph,
+      nodes: [
+        ...graph.nodes,
+        {
+          id: "attachment:brief",
+          pageId: "attachment:brief",
+          entityId: "attachment:brief",
+          kind: "attachment" as const,
+          title: "product-brief.pdf",
+          slug: "product-brief.pdf",
+          sourcePath: "attachments/product-brief.pdf",
+          sourceKind: "workspace-memory" as const,
+          aliases: ["product-brief.pdf"],
+          tags: ["application/pdf"],
+          attachmentId: "brief",
+          fileName: "product-brief.pdf",
+          mediaType: "application/pdf",
+          incoming: 1,
+          outgoing: 0,
+          degree: 1,
+        },
+      ],
+      edges: [
+        ...graph.edges,
+        {
+          id: "edge-atlas-brief",
+          fromId: "atlas",
+          toId: "attachment:brief",
+          fromPageId: "atlas",
+          toPageId: "attachment:brief",
+          relationType: "references-attachment",
+          ordinal: 2,
+          reason: {
+            kind: "attachment-reference" as const,
+            sourcePageId: "atlas",
+            targetPageId: "attachment:brief",
+            sourceTitle: "Project Atlas",
+            targetTitle: "product-brief.pdf",
+            sourcePath: "memory/project-atlas.md",
+            targetPath: "attachments/product-brief.pdf",
+            relationType: "references-attachment",
+            ordinal: 2,
+            attachmentId: "brief",
+            fileName: "product-brief.pdf",
+            mediaType: "application/pdf",
+          },
+        },
+      ],
+      availableRelationTypes: [...graph.availableRelationTypes, "references-attachment"],
+      availableTags: [...graph.availableTags, "application/pdf"],
+      stats: {
+        totalNodes: 4,
+        totalEdges: 3,
+        visibleNodes: 4,
+        visibleEdges: 3,
+      },
+    };
+
+    const view = buildMemoryGraphViewModel(graphWithAttachment, filters);
+
+    expect(view.nodes.map((node) => node.id)).toEqual(["atlas", "attachment:brief"]);
+    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-brief"]);
+    expect(view.focusNode?.id).toBe("atlas");
+  });
+
+  it("keeps orphan notes visible by default", () => {
+    const filters = createMemoryGraphFilterState();
+    filters.relationTypes = ["depends-on"];
+
+    const view = buildMemoryGraphViewModel(graph, filters);
+
+    expect(view.nodes.map((node) => node.id)).toContain("launch");
+    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-roadmap"]);
   });
 });

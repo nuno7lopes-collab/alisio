@@ -16,7 +16,7 @@ describe("alisio-plan-gating", () => {
     ).toBe(2);
   });
 
-  it("enforces the Free connector limit for new connections only", () => {
+  it("allows new connector connections on Free and Plus", () => {
     expect(
       gateAlisioConnectorConnection({
         plan: "free",
@@ -28,15 +28,18 @@ describe("alisio-plan-gating", () => {
         plan: "free",
         connectedCount: 1,
       }),
-    ).toMatchObject({
-      ok: false,
-      code: "connector_limit_reached",
-    });
+    ).toEqual({ ok: true });
     expect(
       gateAlisioConnectorConnection({
         plan: "free",
         connectedCount: 1,
         connectorAlreadyConnected: true,
+      }),
+    ).toEqual({ ok: true });
+    expect(
+      gateAlisioConnectorConnection({
+        plan: "free",
+        connectedCount: 8,
       }),
     ).toEqual({ ok: true });
     expect(

@@ -1,5 +1,10 @@
 import type { NativeShellPermission, NativeShellState } from "./types.ts";
 
+export type HostDeviceIdentity = {
+  deviceId: string;
+  publicKey: string;
+};
+
 type AlisioHostRequest = <T = unknown>(
   method: string,
   params?: Record<string, unknown>,
@@ -69,6 +74,19 @@ export async function setVoiceWake(params: {
 
 export async function revealLogs() {
   return requestAlisioHost("revealLogs");
+}
+
+export async function getHostDeviceIdentity() {
+  return requestAlisioHost<HostDeviceIdentity>("getDeviceIdentity");
+}
+
+export async function signHostDevicePayload(payload: string) {
+  const result = await requestAlisioHost<{ signature?: string }>("signDevicePayload", { payload });
+  const signature = result?.signature?.trim();
+  if (!signature) {
+    throw new Error("Native host bridge returned an invalid device signature");
+  }
+  return signature;
 }
 
 export async function openNativeSettings(section?: string) {

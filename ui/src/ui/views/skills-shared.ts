@@ -121,9 +121,51 @@ export function humanizeSkillSource(source: string) {
     case canonicalSkillSources.extra:
       return t("alisio.capabilities.sources.extra");
     case "alisio-mcp":
-      return "MCP server";
+      return t("alisio.capabilities.sources.mcpServer");
     default:
       return t("alisio.capabilities.sources.external");
+  }
+}
+
+function humanizeSkillAction(action: "install" | "remove" | "execute") {
+  switch (action) {
+    case "install":
+      return t("alisio.capabilities.detail.audit.install");
+    case "remove":
+      return t("alisio.capabilities.detail.audit.remove");
+    case "execute":
+    default:
+      return t("alisio.capabilities.detail.audit.execute");
+  }
+}
+
+function humanizeAuditOutcome(
+  outcome: "requested" | "granted" | "denied" | "completed" | "failed",
+) {
+  switch (outcome) {
+    case "requested":
+      return t("alisio.capabilities.detail.audit.requested");
+    case "granted":
+      return t("alisio.capabilities.detail.audit.granted");
+    case "denied":
+      return t("alisio.capabilities.detail.audit.denied");
+    case "completed":
+      return t("alisio.capabilities.detail.audit.completed");
+    case "failed":
+    default:
+      return t("alisio.capabilities.detail.audit.failed");
+  }
+}
+
+function humanizeConsentDecision(decision: "allow-once" | "allow-always" | "deny") {
+  switch (decision) {
+    case "allow-once":
+      return t("alisio.capabilities.detail.audit.allowOnce");
+    case "allow-always":
+      return t("alisio.capabilities.detail.audit.allowAlways");
+    case "deny":
+    default:
+      return t("alisio.capabilities.detail.audit.deny");
   }
 }
 
@@ -218,24 +260,36 @@ function buildPermissionChipsFromSpec(
     return [];
   }
   const chips = [
-    `Consent: ${permissions.consent}`,
-    `Sandbox: ${permissions.sandbox.mode}/${permissions.sandbox.filesystem}/${permissions.sandbox.network}`,
+    t("alisio.capabilities.detail.permission.consent", { value: permissions.consent }),
+    t("alisio.capabilities.detail.permission.sandbox", {
+      value: `${permissions.sandbox.mode}/${permissions.sandbox.filesystem}/${permissions.sandbox.network}`,
+    }),
   ];
   if ((permissions.exec?.bins?.length ?? 0) > 0) {
-    chips.push(`Exec: ${permissions.exec?.bins?.join(", ")}`);
+    chips.push(
+      t("alisio.capabilities.detail.permission.exec", {
+        value: permissions.exec?.bins?.join(", ") ?? "",
+      }),
+    );
   }
   if ((permissions.files?.write?.length ?? 0) > 0) {
-    chips.push(`Write: ${permissions.files?.write?.join(", ")}`);
+    chips.push(
+      t("alisio.capabilities.detail.permission.write", {
+        value: permissions.files?.write?.join(", ") ?? "",
+      }),
+    );
   }
   if (permissions.network?.outbound) {
     chips.push(
-      permissions.network.hosts?.length
-        ? `Network: ${permissions.network.hosts.join(", ")}`
-        : "Network: outbound",
+      t("alisio.capabilities.detail.permission.network", {
+        value: permissions.network.hosts?.length
+          ? permissions.network.hosts.join(", ")
+          : t("alisio.capabilities.detail.permission.networkOutbound"),
+      }),
     );
   }
   if (permissions.mcp?.consume) {
-    chips.push("Consume MCP");
+    chips.push(t("alisio.capabilities.detail.permission.consumeMcp"));
   }
   return chips;
 }
@@ -248,7 +302,12 @@ function buildOutputChipsFromSpec(outputs: SkillStatusEntry["outputs"] | undefin
   if (!outputs) {
     return [];
   }
-  return [`Primary: ${outputs.primary}`, ...outputs.formats.map((format) => `Format: ${format}`)];
+  return [
+    t("alisio.capabilities.detail.outputPrimary", { value: outputs.primary }),
+    ...outputs.formats.map((format) =>
+      t("alisio.capabilities.detail.outputFormat", { value: format }),
+    ),
+  ];
 }
 
 function buildOutputChips(skill: SkillStatusEntry): string[] {
@@ -296,8 +355,12 @@ export function renderSkillStatusChips(params: {
   return html`
     <div class="chip-row" style="margin-top: 6px;">
       <span class="chip">${humanizeSkillSource(skill.source)}</span>
-      ${skill.installed ? html`<span class="chip chip-ok">Installed</span>` : nothing}
-      ${skill.kind === "mcp-server" ? html`<span class="chip">MCP</span>` : nothing}
+      ${skill.installed
+        ? html`<span class="chip chip-ok">${t("alisio.capabilities.detail.installed")}</span>`
+        : nothing}
+      ${skill.kind === "mcp-server"
+        ? html`<span class="chip">${t("alisio.capabilities.detail.mcpBadge")}</span>`
+        : nothing}
       ${showBundledBadge
         ? html` <span class="chip">${t("alisio.capabilities.sources.bundledBadge")}</span> `
         : nothing}
@@ -337,7 +400,11 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
   const consentPermissionChips = buildPermissionChipsFromSpec(consentRequest?.permissions);
   const consentOutputChips = buildOutputChipsFromSpec(consentRequest?.outputs);
   const consentGrantChips =
-    skill.consentGrants?.map((grant) => `${grant.action}: always allowed`) ?? [];
+    skill.consentGrants?.map((grant) =>
+      t("alisio.capabilities.detail.storedConsentValue", {
+        action: humanizeSkillAction(grant.action),
+      }),
+    ) ?? [];
   const hasMarketplaceActions = Boolean(skill.installable || skill.removable || skill.executable);
   const marketplaceActions = [
     skill.installable
@@ -347,7 +414,7 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
             ?disabled=${busy}
             @click=${() => props.onMarketplaceInstall(skill.skillKey)}
           >
-            Install locally
+            ${t("alisio.capabilities.detail.installLocal")}
           </button>
         `
       : nothing,
@@ -358,7 +425,7 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
             ?disabled=${busy}
             @click=${() => props.onMarketplaceRemove(skill.skillKey)}
           >
-            Remove local copy
+            ${t("alisio.capabilities.detail.removeLocal")}
           </button>
         `
       : nothing,
@@ -369,12 +436,14 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
             ?disabled=${busy}
             @click=${() => props.onMarketplaceExecute(skill.skillKey)}
           >
-            ${skill.kind === "mcp-server" ? "Inspect MCP" : "Run skill"}
+            ${skill.kind === "mcp-server"
+              ? t("alisio.capabilities.detail.inspectMcp")
+              : t("alisio.capabilities.detail.runSkill")}
           </button>
         `
       : nothing,
   ];
-  const showToggle = skill.kind !== "mcp-server";
+  const showToggle = skill.kind !== "mcp-server" && !isSkillNotInstalled(skill);
   const ensureModalOpen = (el?: Element) => {
     if (!(el instanceof HTMLDialogElement) || el.open) {
       return;
@@ -445,7 +514,9 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
           ${permissionChips.length > 0
             ? html`
                 <div class="skill-detail__section">
-                  <div class="skill-detail__section-title">Permissions</div>
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.permissionsTitle")}
+                  </div>
                   <div class="chip-row skill-detail__chip-list">
                     ${permissionChips.map((chip) => html`<span class="chip">${chip}</span>`)}
                   </div>
@@ -455,7 +526,9 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
           ${outputChips.length > 0
             ? html`
                 <div class="skill-detail__section">
-                  <div class="skill-detail__section-title">Outputs</div>
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.outputsTitle")}
+                  </div>
                   <div class="chip-row skill-detail__chip-list">
                     ${outputChips.map((chip) => html`<span class="chip">${chip}</span>`)}
                   </div>
@@ -465,14 +538,19 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
           ${skill.access && !skill.access.allowed
             ? html`
                 <div class="callout skill-detail__callout skill-detail__callout--warn">
-                  Marketplace access: ${skill.access.issues.map((issue) => issue.message).join(" ")}
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.marketplaceAccessTitle")}
+                  </div>
+                  <div>${skill.access.issues.map((issue) => issue.message).join(" ")}</div>
                 </div>
               `
             : nothing}
           ${consentGrantChips.length > 0
             ? html`
                 <div class="skill-detail__section">
-                  <div class="skill-detail__section-title">Stored consent</div>
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.storedConsentTitle")}
+                  </div>
                   <div class="chip-row skill-detail__chip-list">
                     ${consentGrantChips.map((chip) => html`<span class="chip">${chip}</span>`)}
                   </div>
@@ -482,7 +560,9 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
           ${hasMarketplaceActions
             ? html`
                 <div class="skill-detail__section">
-                  <div class="skill-detail__section-title">Marketplace actions</div>
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.marketplaceActionsTitle")}
+                  </div>
                   <div class="chip-row skill-detail__chip-list">${marketplaceActions}</div>
                 </div>
               `
@@ -516,24 +596,24 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                       ?disabled=${busy}
                       @click=${() => props.onConsentResolve("allow-once")}
                     >
-                      Allow once
+                      ${t("alisio.capabilities.detail.allowOnce")}
                     </button>
                     <button
                       class="btn"
                       ?disabled=${busy}
                       @click=${() => props.onConsentResolve("allow-always")}
                     >
-                      Allow always
+                      ${t("alisio.capabilities.detail.allowAlways")}
                     </button>
                     <button class="btn" ?disabled=${busy} @click=${props.onConsentDismiss}>
-                      Cancel
+                      ${t("alisio.capabilities.detail.cancel")}
                     </button>
                     <button
                       class="btn"
                       ?disabled=${busy}
                       @click=${() => props.onConsentResolve("deny")}
                     >
-                      Deny
+                      ${t("alisio.capabilities.detail.deny")}
                     </button>
                   </div>
                 </div>
@@ -695,14 +775,18 @@ ${actionOutput.text}</pre
           ${skill.recentAudit && skill.recentAudit.length > 0
             ? html`
                 <div class="skill-detail__section">
-                  <div class="skill-detail__section-title">Recent activity</div>
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.recentActivityTitle")}
+                  </div>
                   <div class="list">
                     ${skill.recentAudit.slice(0, 5).map(
                       (entry) => html`
                         <div class="list-item">
                           <div class="list-title">
-                            ${entry.action} ·
-                            ${entry.outcome}${entry.decision ? ` · ${entry.decision}` : ""}
+                            ${humanizeSkillAction(entry.action)} ·
+                            ${humanizeAuditOutcome(entry.outcome)}${entry.decision
+                              ? ` · ${humanizeConsentDecision(entry.decision)}`
+                              : ""}
                           </div>
                           <div class="list-sub">${entry.summary}</div>
                         </div>

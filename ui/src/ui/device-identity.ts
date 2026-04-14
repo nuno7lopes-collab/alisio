@@ -1,4 +1,5 @@
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
+import { getHostDeviceIdentity, hasAlisioHostBridge, signHostDevicePayload } from "./alisio-host.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
 type StoredIdentity = {
@@ -12,7 +13,13 @@ type StoredIdentity = {
 export type DeviceIdentity = {
   deviceId: string;
   publicKey: string;
+  privateKey?: string;
+  source?: "browser" | "host";
+};
+
+type BrowserDeviceIdentity = DeviceIdentity & {
   privateKey: string;
+  source: "browser";
 };
 
 const STORAGE_KEY = "alisio-device-identity-v2";
@@ -47,7 +54,7 @@ async function fingerprintPublicKey(publicKey: Uint8Array): Promise<string> {
   return bytesToHex(new Uint8Array(hash));
 }
 
-async function generateIdentity(): Promise<DeviceIdentity> {
+async function generateIdentity(): Promise<BrowserDeviceIdentity> {
   const privateKey = utils.randomSecretKey();
   const publicKey = await getPublicKeyAsync(privateKey);
   const deviceId = await fingerprintPublicKey(publicKey);
@@ -55,10 +62,34 @@ async function generateIdentity(): Promise<DeviceIdentity> {
     deviceId,
     publicKey: base64UrlEncode(publicKey),
     privateKey: base64UrlEncode(privateKey),
+    source: "browser",
   };
 }
 
+async function loadHostIdentity(): Promise<DeviceIdentity | null> {
+  if (!hasAlisioHostBridge()) {
+    return null;
+  }
+  const identity = await getHostDeviceIdentity();
+  if (!identity.deviceId?.trim() || !identity.publicKey?.trim()) {
+    throw new Error("Native host bridge returned an invalid device identity");
+  }
+  return {
+    deviceId: identity.deviceId,
+    publicKey: identity.publicKey,
+    source: "host",
+  };
+}
+
+export async function loadManagedDeviceIdentity(): Promise<DeviceIdentity | null> {
+  return await loadHostIdentity().catch(() => null);
+}
+
 export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
+  const hostIdentity = await loadManagedDeviceIdentity();
+  if (hostIdentity) {
+    return hostIdentity;
+  }
   const storage = getSafeLocalStorage();
   try {
     const raw = storage?.getItem(STORAGE_KEY);
@@ -87,6 +118,7 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
           deviceId: parsed.deviceId,
           publicKey: parsed.publicKey,
           privateKey: parsed.privateKey,
+          source: "browser",
         };
       }
     }
@@ -111,4 +143,11 @@ export async function signDevicePayload(privateKeyBase64Url: string, payload: st
   const data = new TextEncoder().encode(payload);
   const sig = await signAsync(data, key);
   return base64UrlEncode(sig);
+}
+
+export async function signDevicePayloadWithIdentity(identity: DeviceIdentity, payload: string) {
+  if (identity.privateKey) {
+    return await signDevicePayload(identity.privateKey, payload);
+  }
+  return await signHostDevicePayload(payload);
 }

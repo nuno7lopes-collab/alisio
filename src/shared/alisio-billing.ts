@@ -14,7 +14,7 @@ export type AlisioPlanEntitlements = {
 const ALISIO_PLAN_ENTITLEMENTS: Record<AlisioPlan, AlisioPlanEntitlements> = {
   free: {
     connectors: {
-      maxConnected: 1,
+      maxConnected: null,
     },
     organizations: false,
     sharing: false,
@@ -90,10 +90,13 @@ export function countAlisioConnectorPlanSlots(
 export function alisioConnectorUpgradeMessage(plan: AlisioPlan): string {
   const limit = alisioConnectorLimit(plan);
   if (limit == null) {
-    return "This plan already includes multiple connected apps.";
+    return plan === "free"
+      ? "Free includes all connected apps."
+      : "This plan already includes all connected apps.";
   }
+  const planLabel = plan === "free" ? "Free" : "This plan";
   const noun = limit === 1 ? "app" : "apps";
-  return `Free includes ${limit} connected ${noun}. Open Settings -> Billing to upgrade before connecting more apps.`;
+  return `${planLabel} includes ${limit} connected ${noun}. Open Settings -> Billing to upgrade before connecting more apps.`;
 }
 
 export function alisioOrganizationsUpgradeMessage(): string {

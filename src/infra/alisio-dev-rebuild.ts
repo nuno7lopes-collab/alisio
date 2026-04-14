@@ -40,10 +40,14 @@ function resolveDeveloperCheckoutRoot(packageRoot: string): string | null {
 
   let cursor = normalizedPackageRoot;
   for (let depth = 0; depth < 8; depth += 1) {
-    const expectedPackagedRoot = normalizePath(
-      path.join(cursor, "dist", "Alisio.app", "Contents", "Resources", "alisio-package"),
-    );
-    if (hasDeveloperRestartScript(cursor) && expectedPackagedRoot === normalizedPackageRoot) {
+    const expectedPackagedRoots = [
+      normalizePath(path.join(cursor, "dist", "Alisio.app", "Contents", "Resources", "alisio-package")),
+      normalizePath(path.join(cursor, ".run", "Alisio.app", "Contents", "Resources", "alisio-package")),
+    ];
+    if (
+      hasDeveloperRestartScript(cursor) &&
+      expectedPackagedRoots.includes(normalizedPackageRoot)
+    ) {
       return cursor;
     }
     const parent = path.dirname(cursor);
@@ -73,7 +77,7 @@ export function startAlisioDeveloperRebuild(): AlisioAppRebuildResult {
   const checkoutRoot = resolveDeveloperCheckoutRoot(packageRoot);
   if (!checkoutRoot) {
     throw new Error(
-      "This action is only available for runtimes launched from dist/Alisio.app or a local checkout.",
+      "This action is only available for runtimes launched from .run/Alisio.app, dist/Alisio.app, or a local checkout.",
     );
   }
 
@@ -82,7 +86,7 @@ export function startAlisioDeveloperRebuild(): AlisioAppRebuildResult {
     throw new Error("Missing scripts/restart-mac.sh in the local checkout.");
   }
 
-  const appBundle = path.join(checkoutRoot, "dist", "Alisio.app");
+  const appBundle = path.join(checkoutRoot, ".run", "Alisio.app");
   const logPath = "/tmp/alisio-dev-rebuild.log";
   const backgroundScript = `
 set -euo pipefail
@@ -102,7 +106,8 @@ fi
 
   return {
     ok: true,
-    message: `Rebuild started. The app will close and reopen. Log: ${logPath}`,
+    message:
+      `Sync started. The app will close, rebuild the Control UI, restart the local runtime, and reopen. Log: ${logPath}`,
     logPath,
   };
 }

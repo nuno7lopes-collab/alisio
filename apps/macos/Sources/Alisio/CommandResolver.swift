@@ -56,11 +56,11 @@ enum CommandResolver {
         fileManager: FileManager = .default,
         homeDirectory: URL = FileManager().homeDirectoryForCurrentUser) -> URL
     {
-        if let bundled = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) {
-            return bundled
-        }
         if let inferred = self.inferBundledProjectRoot(bundleURL: bundleURL, fileManager: fileManager) {
             return inferred
+        }
+        if let bundled = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) {
+            return bundled
         }
         if let stored = defaults.string(forKey: self.projectRootDefaultsKey),
            let url = self.expandPath(stored),
@@ -88,6 +88,9 @@ enum CommandResolver {
     static func inferBundledProjectRoot(bundleURL: URL, fileManager: FileManager = .default) -> URL? {
         #if DEBUG
         let standardized = bundleURL.standardizedFileURL
+        if let runRoot = self.inferDeveloperRunRoot(bundleURL: standardized, fileManager: fileManager) {
+            return runRoot
+        }
         var cursor = standardized.deletingLastPathComponent()
         for _ in 0..<8 {
             if cursor.lastPathComponent == "dist" {
@@ -666,6 +669,16 @@ enum CommandResolver {
             url.appendingPathComponent("apps/macos", isDirectory: true),
         ]
         return required.allSatisfy { fileManager.fileExists(atPath: $0.path) }
+    }
+
+    private static func inferDeveloperRunRoot(
+        bundleURL: URL,
+        fileManager: FileManager) -> URL?
+    {
+        let parent = bundleURL.deletingLastPathComponent()
+        guard parent.lastPathComponent == ".run" else { return nil }
+        let candidate = parent.deletingLastPathComponent()
+        return self.isProjectRoot(candidate, fileManager: fileManager) ? candidate : nil
     }
 
     private static func expandPath(_ path: String) -> URL? {

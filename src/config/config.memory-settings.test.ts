@@ -97,35 +97,60 @@ describe("config memory settings", () => {
     expect(result.issues.length).toBeGreaterThan(0);
   });
 
-  it("rejects unsupported sync transport config until runtime wiring lands", () => {
-    const result = validateConfigObject({
-      memory: {
-        sync: {
-          enabled: true,
-        },
-      },
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected validation to fail");
-    }
-    expect(result.issues.length).toBeGreaterThan(0);
-  });
-
-  it("rejects unsupported E2EE transport config until runtime wiring lands", () => {
+  it("accepts canonical memory E2EE and sync config surfaces", () => {
     const result = validateConfigObject({
       memory: {
         e2ee: {
           required: true,
         },
+        sync: {
+          mode: "cloud",
+          relayBaseUrl: "https://relay.example.test",
+          ui: {
+            enabled: false,
+          },
+        },
       },
     });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected validation to fail");
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected validation to succeed");
     }
-    expect(result.issues.length).toBeGreaterThan(0);
+    expect(result.config.memory?.e2ee).toEqual({
+      required: true,
+    });
+    expect(result.config.memory?.sync).toEqual({
+      mode: "cloud",
+      relayBaseUrl: "https://relay.example.test",
+      ui: {
+        enabled: false,
+      },
+    });
+  });
+
+  it("applies E2EE and sync defaults inside explicit memory transport config", () => {
+    const result = validateConfigObject({
+      memory: {
+        e2ee: {},
+        sync: {
+          ui: {},
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected validation to succeed");
+    }
+    expect(result.config.memory?.e2ee).toEqual({
+      required: true,
+    });
+    expect(result.config.memory?.sync).toEqual({
+      mode: "off",
+      ui: {
+        enabled: true,
+      },
+    });
   });
 });

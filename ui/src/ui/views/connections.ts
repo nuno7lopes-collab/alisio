@@ -1,8 +1,11 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
-import { renderSkeletonStatCards } from "./loading-skeleton.ts";
+import { groupPairedDevicesByComputer } from "../controllers/devices.ts";
+import { icons } from "../icons.ts";
+import { renderSkeletonLines } from "./loading-skeleton.ts";
 import { countConnectedNodes, countReadyExecNodes } from "./nodes-shared.ts";
 import { renderNodes, type NodesProps } from "./nodes.ts";
+import { renderRemoteComputers } from "./remote-computers.ts";
 import {
   expandSharingScopeSelection,
   SHARING_POLICY_MODE_ORDER,
@@ -20,7 +23,10 @@ function countPendingDevices(props: NodesProps) {
 }
 
 function countPairedDevices(props: NodesProps) {
-  return props.devicesList?.paired?.length ?? 0;
+  return groupPairedDevicesByComputer(
+    props.devicesList?.paired ?? [],
+    props.currentDeviceId ?? null,
+  ).length;
 }
 
 function countPendingNodeRequests(props: NodesProps) {
@@ -30,21 +36,45 @@ function countPendingNodeRequests(props: NodesProps) {
 function renderOverviewCard(params: {
   label: string;
   value: number | string;
-  headline: string;
   detail: string;
+  icon: unknown;
 }) {
   return html`
     <article class="alisio-connections-overview-card">
+      <span class="alisio-connections-overview-card__icon" aria-hidden="true">${params.icon}</span>
       <span class="alisio-connections-overview-card__label">${params.label}</span>
       <strong>${params.value}</strong>
-      <p>${params.headline}</p>
       <div class="alisio-connections-overview-card__detail">${params.detail}</div>
+    </article>
+  `;
+}
+
+function renderOverviewSkeletonCard(icon: unknown) {
+  return html`
+    <article class="alisio-connections-overview-card alisio-connections-overview-card--skeleton">
+      <span class="alisio-connections-overview-card__icon" aria-hidden="true">${icon}</span>
+      <span class="skeleton skeleton-line skeleton-line--short" aria-hidden="true"></span>
+      <span class="skeleton alisio-connections-overview-card__metric-skeleton" aria-hidden="true">
+      </span>
+      ${renderSkeletonLines(["medium"], {
+        compact: true,
+        className: "alisio-connections-overview-card__detail-skeleton",
+      })}
     </article>
   `;
 }
 
 function renderPanelCount(value: number) {
   return html`<span class="alisio-connections-subsection__count">${value}</span>`;
+}
+
+function renderHeroMetaItem(label: string, value: number) {
+  return html`
+    <span class="alisio-connections-meta-chip">
+      <strong>${value}</strong>
+      <span>${label}</span>
+    </span>
+  `;
 }
 
 function resolveSharingScopeLabel(scope: string) {
@@ -154,24 +184,36 @@ function resolveSensitiveSharingResourcesLabel() {
 }
 
 function renderSharingSummary(sharing: NonNullable<NodesProps["sharing"]>) {
+  const resourcePolicies = resolveSharingResourcePolicies(sharing);
   return html`
     <div
       class="alisio-connections-summary"
       aria-label=${t("alisio.connections.sharing.summaryTitle")}
     >
-      <span class="pill">${t("alisio.connections.sharing.summary.discovery")}</span>
-      <span class="pill"
-        >${t("alisio.connections.sharing.models")} ·
-        ${resolveSharingPolicyModeLabel(resolveSharingResourcePolicies(sharing).models)}</span
-      >
-      <span class="pill"
-        >${t("alisio.connections.sharing.exec")} ·
-        ${resolveSharingPolicyModeLabel(resolveExecutionPolicyMode(sharing))}</span
-      >
-      <span class="pill"
-        >${t("alisio.connections.sharing.summary.sensitive")} ·
-        ${resolveSharingPolicyModeLabel("explicit-consent")}</span
-      >
+      <div class="alisio-connections-summary-item">
+        <span class="alisio-connections-summary-item__label"
+          >${t("alisio.connections.sharing.title")}</span
+        >
+        <strong>${t("alisio.connections.sharing.summary.discovery")}</strong>
+      </div>
+      <div class="alisio-connections-summary-item">
+        <span class="alisio-connections-summary-item__label"
+          >${t("alisio.connections.sharing.models")}</span
+        >
+        <strong>${resolveSharingPolicyModeLabel(resourcePolicies.models)}</strong>
+      </div>
+      <div class="alisio-connections-summary-item">
+        <span class="alisio-connections-summary-item__label"
+          >${t("alisio.connections.sharing.exec")}</span
+        >
+        <strong>${resolveSharingPolicyModeLabel(resolveExecutionPolicyMode(sharing))}</strong>
+      </div>
+      <div class="alisio-connections-summary-item">
+        <span class="alisio-connections-summary-item__label"
+          >${t("alisio.connections.sharing.summary.sensitive")}</span
+        >
+        <strong>${resolveSharingPolicyModeLabel("explicit-consent")}</strong>
+      </div>
     </div>
   `;
 }
@@ -287,7 +329,7 @@ function renderSharingSuggestions(params: {
     return nothing;
   }
   return html`
-    <section class="alisio-connections-subsection">
+    <section class="alisio-connections-subsection alisio-connections-subsection--insights">
       <div class="alisio-connections-subsection__head">
         <span class="alisio-connections-subsection__title"
           >${t("alisio.connections.sharing.suggestionsTitle")}</span
@@ -341,7 +383,7 @@ function renderSharingResourcePolicies(
     (resource) => !isSensitiveSharingResource(resource),
   );
   return html`
-    <section class="alisio-connections-subsection">
+    <section class="alisio-connections-subsection alisio-connections-subsection--policy">
       <div class="alisio-connections-subsection__head">
         <span class="alisio-connections-subsection__title"
           >${t("alisio.connections.sharing.policyTitle")}</span
@@ -418,7 +460,6 @@ function renderSharing(props: NodesProps) {
   const text = {
     title: t("alisio.connections.sharing.title"),
     subtitle: t("alisio.connections.sharing.subtitle"),
-    note: t("alisio.connections.sharing.note"),
     loading: t("alisio.connections.loading"),
     refresh: t("common.refresh"),
     availableTitle: t("alisio.connections.sharing.availableTitle"),
@@ -442,17 +483,17 @@ function renderSharing(props: NodesProps) {
     (sharing.policy.editable || typeof props.onSharingSetPolicy === "function");
 
   return html`
-    <section class="card alisio-connections-panel">
+    <section class="card alisio-connections-panel alisio-connections-panel--sharing">
       <div class="alisio-connections-panel__head">
         <div class="alisio-connections-panel__identity">
-          <span class="alisio-connections-panel__icon" aria-hidden="true">+</span>
+          <span class="alisio-connections-panel__icon" aria-hidden="true">${icons.link}</span>
           <div>
             <div class="card-title">${text.title}</div>
             <div class="card-sub">${text.subtitle}</div>
           </div>
         </div>
         <button
-          class="btn btn--ghost"
+          class="btn btn--ghost btn--sm"
           ?disabled=${loading}
           @click=${() => props.onSharingRefresh?.()}
         >
@@ -462,21 +503,31 @@ function renderSharing(props: NodesProps) {
       ${props.sharingError
         ? html`<div class="callout danger" style="margin-top: 12px;">${props.sharingError}</div>`
         : nothing}
-      ${sharing ? renderSharingSummary(sharing) : nothing}
-      ${showExternalPolicyToggle && sharing
+      ${sharing
         ? html`
-            <label class="field" style="margin-top: 4px;">
-              <span>${text.allowExternalUse}</span>
-              <input
-                type="checkbox"
-                .checked=${sharing.policy.allowExternalUse}
-                ?disabled=${loading || !sharing.policy.editable || !props.onSharingSetPolicy}
-                @change=${(event: Event) =>
-                  props.onSharingSetPolicy?.((event.target as HTMLInputElement).checked)}
-              />
-            </label>
-            <div class="alisio-connections-entry__note" style="margin-top: -4px;">
-              ${sharing.policy.allowExternalUse ? text.externalOn : text.externalOff}
+            <div class="alisio-connections-toolbar">
+              ${renderSharingSummary(sharing)}
+              ${showExternalPolicyToggle
+                ? html`
+                    <div class="alisio-connections-inline-setting">
+                      <label class="field alisio-connections-inline-setting__field">
+                        <span>${text.allowExternalUse}</span>
+                        <input
+                          type="checkbox"
+                          .checked=${sharing.policy.allowExternalUse}
+                          ?disabled=${loading ||
+                          !sharing.policy.editable ||
+                          !props.onSharingSetPolicy}
+                          @change=${(event: Event) =>
+                            props.onSharingSetPolicy?.((event.target as HTMLInputElement).checked)}
+                        />
+                      </label>
+                      <div class="alisio-connections-inline-setting__note">
+                        ${sharing.policy.allowExternalUse ? text.externalOn : text.externalOff}
+                      </div>
+                    </div>
+                  `
+                : nothing}
             </div>
           `
         : nothing}
@@ -492,196 +543,204 @@ function renderSharing(props: NodesProps) {
           `
         : html`
             <div class="alisio-connections-sections">
-              ${renderSharingSuggestions({
-                suggestions,
-                loading,
-                onSharingRequest: props.onSharingRequest,
-              })}
-              ${sharing ? renderSharingResourcePolicies(props, sharing) : nothing}
-              ${showAvailable
-                ? html`<section class="alisio-connections-subsection">
-                    <div class="alisio-connections-subsection__head">
-                      <span class="alisio-connections-subsection__title"
-                        >${text.availableTitle}</span
-                      >
-                      ${renderPanelCount(available.length)}
-                    </div>
-                    <div class="list">
-                      ${available.map((target) => {
-                        const requestStatus = resolveSharingStatusLabel(target.requestStatus);
-                        const ownerBadge =
-                          sharing != null
-                            ? resolveSharingOwnerBadge({
-                                viewer: sharing.viewer,
-                                target,
-                              })
-                            : null;
-                        return html`
-                          <div class="list-item alisio-connections-entry">
-                            <div class="alisio-connections-entry__head">
-                              <div class="list-title">${target.label}</div>
-                              <div class="alisio-connections-entry__pills">
-                                ${ownerBadge
-                                  ? html`<span class="pill">${ownerBadge}</span>`
-                                  : nothing}
-                                ${requestStatus
-                                  ? html`<span class="pill">${requestStatus}</span>`
-                                  : nothing}
+              <div class="alisio-connections-sections alisio-connections-sections--sharing-top">
+                ${renderSharingSuggestions({
+                  suggestions,
+                  loading,
+                  onSharingRequest: props.onSharingRequest,
+                })}
+                ${sharing ? renderSharingResourcePolicies(props, sharing) : nothing}
+              </div>
+              <div
+                class="alisio-connections-sections alisio-connections-sections--sharing-activity"
+              >
+                ${showAvailable
+                  ? html`<section class="alisio-connections-subsection">
+                      <div class="alisio-connections-subsection__head">
+                        <span class="alisio-connections-subsection__title"
+                          >${text.availableTitle}</span
+                        >
+                        ${renderPanelCount(available.length)}
+                      </div>
+                      <div class="list">
+                        ${available.map((target) => {
+                          const requestStatus = resolveSharingStatusLabel(target.requestStatus);
+                          const ownerBadge =
+                            sharing != null
+                              ? resolveSharingOwnerBadge({
+                                  viewer: sharing.viewer,
+                                  target,
+                                })
+                              : null;
+                          return html`
+                            <div class="list-item alisio-connections-entry">
+                              <div class="alisio-connections-entry__head">
+                                <div class="list-title">${target.label}</div>
+                                <div class="alisio-connections-entry__pills">
+                                  ${ownerBadge
+                                    ? html`<span class="pill">${ownerBadge}</span>`
+                                    : nothing}
+                                  ${requestStatus
+                                    ? html`<span class="pill">${requestStatus}</span>`
+                                    : nothing}
+                                </div>
+                              </div>
+                              <div class="alisio-connections-entry__note">
+                                ${describeSharingTargetAccess(target)}
+                              </div>
+                              <div class="alisio-connections-entry__actions">
+                                ${renderSharingRequestButtons({
+                                  target,
+                                  loading,
+                                  onSharingRequest: props.onSharingRequest,
+                                })}
                               </div>
                             </div>
-                            <div class="alisio-connections-entry__note">
-                              ${describeSharingTargetAccess(target)}
+                          `;
+                        })}
+                      </div>
+                    </section>`
+                  : nothing}
+                ${showShared
+                  ? html`<section class="alisio-connections-subsection">
+                      <div class="alisio-connections-subsection__head">
+                        <span class="alisio-connections-subsection__title"
+                          >${text.sharedTitle}</span
+                        >
+                        ${renderPanelCount(sharedWithMe.length)}
+                      </div>
+                      <div class="list">
+                        ${sharedWithMe.map((target) => {
+                          const scopes = formatSharingScopes(target.grantScopes);
+                          const grantId = target.grantId;
+                          const requestButtons = renderSharingRequestButtons({
+                            target,
+                            loading,
+                            onSharingRequest: props.onSharingRequest,
+                          });
+                          const requestStatus = resolveSharingStatusLabel(target.requestStatus);
+                          const ownerBadge =
+                            sharing != null
+                              ? resolveSharingOwnerBadge({
+                                  viewer: sharing.viewer,
+                                  target,
+                                })
+                              : null;
+                          return html`
+                            <div class="list-item alisio-connections-entry">
+                              <div class="alisio-connections-entry__head">
+                                <div class="list-title">${target.label}</div>
+                                <div class="alisio-connections-entry__pills">
+                                  ${ownerBadge
+                                    ? html`<span class="pill">${ownerBadge}</span>`
+                                    : nothing}
+                                  ${requestStatus
+                                    ? html`<span class="pill">${requestStatus}</span>`
+                                    : nothing}
+                                </div>
+                              </div>
+                              <div class="alisio-connections-entry__note">
+                                ${describeSharingTargetAccess(target)}
+                              </div>
+                              ${scopes
+                                ? html`
+                                    <div class="alisio-connections-entry__note">
+                                      ${text.currentScopes}: ${scopes}
+                                    </div>
+                                  `
+                                : nothing}
+                              ${requestButtons.length > 0 || grantId
+                                ? html`
+                                    <div class="alisio-connections-entry__actions">
+                                      ${requestButtons}
+                                      ${grantId
+                                        ? html`
+                                            <button
+                                              class="btn"
+                                              ?disabled=${loading || !props.onSharingRevoke}
+                                              @click=${() => props.onSharingRevoke?.(grantId)}
+                                            >
+                                              ${text.revoke}
+                                            </button>
+                                          `
+                                        : nothing}
+                                    </div>
+                                  `
+                                : nothing}
                             </div>
-                            <div class="alisio-connections-entry__actions">
-                              ${renderSharingRequestButtons({
-                                target,
-                                loading,
-                                onSharingRequest: props.onSharingRequest,
-                              })}
-                            </div>
-                          </div>
-                        `;
-                      })}
-                    </div>
-                  </section>`
-                : nothing}
-              ${showShared
-                ? html`<section class="alisio-connections-subsection">
-                    <div class="alisio-connections-subsection__head">
-                      <span class="alisio-connections-subsection__title">${text.sharedTitle}</span>
-                      ${renderPanelCount(sharedWithMe.length)}
-                    </div>
-                    <div class="list">
-                      ${sharedWithMe.map((target) => {
-                        const scopes = formatSharingScopes(target.grantScopes);
-                        const grantId = target.grantId;
-                        const requestButtons = renderSharingRequestButtons({
-                          target,
-                          loading,
-                          onSharingRequest: props.onSharingRequest,
-                        });
-                        const requestStatus = resolveSharingStatusLabel(target.requestStatus);
-                        const ownerBadge =
-                          sharing != null
-                            ? resolveSharingOwnerBadge({
-                                viewer: sharing.viewer,
-                                target,
-                              })
-                            : null;
-                        return html`
-                          <div class="list-item alisio-connections-entry">
-                            <div class="alisio-connections-entry__head">
-                              <div class="list-title">${target.label}</div>
-                              <div class="alisio-connections-entry__pills">
-                                ${ownerBadge
-                                  ? html`<span class="pill">${ownerBadge}</span>`
-                                  : nothing}
-                                ${requestStatus
-                                  ? html`<span class="pill">${requestStatus}</span>`
-                                  : nothing}
+                          `;
+                        })}
+                      </div>
+                    </section>`
+                  : nothing}
+                ${showIncoming
+                  ? html`<section class="alisio-connections-subsection">
+                      <div class="alisio-connections-subsection__head">
+                        <span class="alisio-connections-subsection__title"
+                          >${text.incomingTitle}</span
+                        >
+                        ${renderPanelCount(incomingRequests.length)}
+                      </div>
+                      <div class="list">
+                        ${incomingRequests.map((request) => {
+                          const scopes = formatSharingScopes(request.scopes);
+                          return html`
+                            <div class="list-item alisio-connections-entry">
+                              <div class="alisio-connections-entry__head">
+                                <div class="list-title">${request.targetLabel}</div>
+                                <div class="alisio-connections-entry__pills">
+                                  <span class="pill">${request.requester.label}</span>
+                                </div>
+                              </div>
+                              ${scopes
+                                ? html`
+                                    <div class="alisio-connections-entry__note">
+                                      ${text.currentScopes}: ${scopes}
+                                    </div>
+                                  `
+                                : nothing}
+                              <div class="alisio-connections-entry__actions">
+                                ${resolveSharingApprovalOptions(request.scopes).map(
+                                  (scope) => html`
+                                    <button
+                                      class="btn primary"
+                                      ?disabled=${loading ||
+                                      !props.onSharingApprove ||
+                                      request.status !== "pending"}
+                                      @click=${() =>
+                                        props.onSharingApprove?.(
+                                          request.requestId,
+                                          expandSharingScopeSelection(scope),
+                                        )}
+                                    >
+                                      ${text.approve} ${resolveSharingScopeLabel(scope) ?? scope}
+                                    </button>
+                                  `,
+                                )}
+                                <button
+                                  class="btn"
+                                  ?disabled=${loading ||
+                                  !props.onSharingReject ||
+                                  request.status !== "pending"}
+                                  @click=${() => props.onSharingReject?.(request.requestId)}
+                                >
+                                  ${text.reject}
+                                </button>
                               </div>
                             </div>
-                            <div class="alisio-connections-entry__note">
-                              ${describeSharingTargetAccess(target)}
-                            </div>
-                            ${scopes
-                              ? html`
-                                  <div class="alisio-connections-entry__note">
-                                    ${text.currentScopes}: ${scopes}
-                                  </div>
-                                `
-                              : nothing}
-                            ${requestButtons.length > 0 || grantId
-                              ? html`
-                                  <div class="alisio-connections-entry__actions">
-                                    ${requestButtons}
-                                    ${grantId
-                                      ? html`
-                                          <button
-                                            class="btn"
-                                            ?disabled=${loading || !props.onSharingRevoke}
-                                            @click=${() => props.onSharingRevoke?.(grantId)}
-                                          >
-                                            ${text.revoke}
-                                          </button>
-                                        `
-                                      : nothing}
-                                  </div>
-                                `
-                              : nothing}
-                          </div>
-                        `;
-                      })}
-                    </div>
-                  </section>`
-                : nothing}
-              ${showIncoming
-                ? html`<section class="alisio-connections-subsection">
-                    <div class="alisio-connections-subsection__head">
-                      <span class="alisio-connections-subsection__title"
-                        >${text.incomingTitle}</span
-                      >
-                      ${renderPanelCount(incomingRequests.length)}
-                    </div>
-                    <div class="list">
-                      ${incomingRequests.map((request) => {
-                        const scopes = formatSharingScopes(request.scopes);
-                        return html`
-                          <div class="list-item alisio-connections-entry">
-                            <div class="alisio-connections-entry__head">
-                              <div class="list-title">${request.targetLabel}</div>
-                              <div class="alisio-connections-entry__pills">
-                                <span class="pill">${request.requester.label}</span>
-                              </div>
-                            </div>
-                            ${scopes
-                              ? html`
-                                  <div class="alisio-connections-entry__note">
-                                    ${text.currentScopes}: ${scopes}
-                                  </div>
-                                `
-                              : nothing}
-                            <div class="alisio-connections-entry__actions">
-                              ${resolveSharingApprovalOptions(request.scopes).map(
-                                (scope) => html`
-                                  <button
-                                    class="btn primary"
-                                    ?disabled=${loading ||
-                                    !props.onSharingApprove ||
-                                    request.status !== "pending"}
-                                    @click=${() =>
-                                      props.onSharingApprove?.(
-                                        request.requestId,
-                                        expandSharingScopeSelection(scope),
-                                      )}
-                                  >
-                                    ${text.approve} ${resolveSharingScopeLabel(scope) ?? scope}
-                                  </button>
-                                `,
-                              )}
-                              <button
-                                class="btn"
-                                ?disabled=${loading ||
-                                !props.onSharingReject ||
-                                request.status !== "pending"}
-                                @click=${() => props.onSharingReject?.(request.requestId)}
-                              >
-                                ${text.reject}
-                              </button>
-                            </div>
-                          </div>
-                        `;
-                      })}
-                    </div>
-                  </section>`
-                : nothing}
-              ${!showActivity
-                ? html`
-                    <section class="alisio-connections-subsection">
-                      <div class="alisio-connections-empty">${text.emptyState}</div>
-                    </section>
-                  `
-                : nothing}
+                          `;
+                        })}
+                      </div>
+                    </section>`
+                  : nothing}
+                ${!showActivity
+                  ? html`
+                      <section class="alisio-connections-subsection">
+                        <div class="alisio-connections-empty">${text.emptyState}</div>
+                      </section>
+                    `
+                  : nothing}
+              </div>
             </div>
           `}
     </section>
@@ -694,14 +753,23 @@ export function renderConnections(props: NodesProps) {
   const connectedNodes = countConnectedNodes(props.nodes);
   const execReadyNodes = countReadyExecNodes(props.nodes);
   const pendingNodes = countPendingNodeRequests(props);
+  const sharingAvailableCount = props.sharing?.devices.available?.length ?? 0;
+  const sharingSharedCount = props.sharing?.devices.sharedWithMe?.length ?? 0;
+  const sharingIncomingCount = props.sharing?.incomingRequests?.length ?? 0;
   const refreshing =
-    props.loading ||
+    props.nodesLoading ||
     props.devicesLoading ||
+    Boolean(props.sharingLoading) ||
     props.nodePairingsLoading ||
-    props.configLoading ||
-    props.execApprovalsLoading;
-  const showOverviewLoading =
-    refreshing && props.nodes.length === 0 && !props.devicesList && !props.nodePairingsList;
+    props.configLoading;
+  const devicesInitialLoading = !props.devicesList && !props.devicesError;
+  const runtimeInitialLoading =
+    (!props.nodesLoaded && !props.nodesError) ||
+    (!props.nodePairingsList && !props.nodePairingsError);
+  const devicesUnavailable = !props.devicesList && Boolean(props.devicesError);
+  const runtimeUnavailable =
+    (!props.nodesLoaded && Boolean(props.nodesError)) ||
+    (!props.nodePairingsList && Boolean(props.nodePairingsError));
   const text = {
     eyebrow: t("alisio.connections.eyebrow"),
     title: t("alisio.connections.title"),
@@ -715,15 +783,11 @@ export function renderConnections(props: NodesProps) {
     liveNodes: t("alisio.connections.liveNodes"),
     execReady: t("alisio.connections.nodes.execReady"),
     pendingNodes: t("alisio.connections.pendingNodes"),
+    na: t("common.na"),
   };
-  const runtimeDetail =
-    pendingNodes > 0
-      ? `${execReadyNodes} ${text.execReady} · ${pendingNodes} ${text.pendingNodes}`
-      : `${execReadyNodes} ${text.execReady}`;
-
   return html`
     <section class="alisio-page alisio-connections-page">
-      <div class="card alisio-connections-hero">
+      <div class="card alisio-connections-hero" aria-busy=${refreshing ? "true" : "false"}>
         <div class="alisio-page__eyebrow">${text.eyebrow}</div>
         <div class="alisio-connections-hero__head">
           <div>
@@ -735,26 +799,65 @@ export function renderConnections(props: NodesProps) {
           </button>
         </div>
         <div class="alisio-connections-overview">
-          ${showOverviewLoading
-            ? renderSkeletonStatCards(2)
-            : html`
-                ${renderOverviewCard({
-                  label: text.devicesTitle,
-                  value: pairedDevices,
-                  headline: text.pairedDevices,
-                  detail: `${pendingDevices} ${text.pendingDevices}`,
-                })}
-                ${renderOverviewCard({
-                  label: text.runtimeTitle,
-                  value: connectedNodes,
-                  headline: text.liveNodes,
-                  detail: runtimeDetail,
-                })}
-              `}
+          ${devicesInitialLoading
+            ? renderOverviewSkeletonCard(icons.smartphone)
+            : renderOverviewCard({
+                label: text.pairedDevices,
+                value: devicesUnavailable ? text.na : pairedDevices,
+                detail: text.devicesTitle,
+                icon: icons.smartphone,
+              })}
+          ${devicesInitialLoading
+            ? renderOverviewSkeletonCard(icons.radio)
+            : renderOverviewCard({
+                label: text.pendingDevices,
+                value: devicesUnavailable ? text.na : pendingDevices,
+                detail: text.devicesTitle,
+                icon: icons.radio,
+              })}
+          ${runtimeInitialLoading
+            ? renderOverviewSkeletonCard(icons.monitor)
+            : renderOverviewCard({
+                label: text.liveNodes,
+                value: runtimeUnavailable ? text.na : connectedNodes,
+                detail: text.runtimeTitle,
+                icon: icons.monitor,
+              })}
+          ${runtimeInitialLoading
+            ? renderOverviewSkeletonCard(icons.zap)
+            : renderOverviewCard({
+                label: text.execReady,
+                value: runtimeUnavailable ? text.na : execReadyNodes,
+                detail:
+                  runtimeUnavailable || pendingNodes === 0
+                    ? text.runtimeTitle
+                    : `${pendingNodes} ${text.pendingNodes}`,
+                icon: icons.zap,
+              })}
         </div>
+        ${props.sharing &&
+        (sharingAvailableCount > 0 || sharingSharedCount > 0 || sharingIncomingCount > 0)
+          ? html`
+              <div class="alisio-connections-meta-strip">
+                ${renderHeroMetaItem(
+                  t("alisio.connections.sharing.availableTitle"),
+                  sharingAvailableCount,
+                )}
+                ${renderHeroMetaItem(
+                  t("alisio.connections.sharing.sharedTitle"),
+                  sharingSharedCount,
+                )}
+                ${renderHeroMetaItem(
+                  t("alisio.connections.sharing.incomingTitle"),
+                  sharingIncomingCount,
+                )}
+              </div>
+            `
+          : nothing}
       </div>
       <div class="alisio-connections-stack">
-        ${renderSharing(props)} ${renderNodes(props, { includeExecApprovals: false })}
+        ${renderRemoteComputers(props)} ${renderSharing(props)}
+        ${renderNodes(props, { includeExecApprovals: false })}
       </div>
     </section>
   `;

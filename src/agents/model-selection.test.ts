@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
+import { buildAlisioCurrentProviderId } from "../shared/alisio-dynamic-provider.js";
 import { resetLogger, setLoggerOverride } from "../logging/logger.js";
 import {
   buildAllowedModelSet,
@@ -394,6 +395,33 @@ describe("model-selection", () => {
       ]);
     });
 
+    it("drops missing local dynamic models from the allowlist and default selection", () => {
+      const provider = buildAlisioCurrentProviderId();
+      const cfg = {
+        agents: {
+          defaults: {
+            model: { primary: `${provider}/qwen3-4b-q4-k-m` },
+            models: {
+              [`${provider}/qwen3-4b-q4-k-m`]: {},
+              "openai/gpt-4o": {},
+            },
+          },
+        },
+      } as AlisioConfig;
+
+      const result = buildAllowedModelSet({
+        cfg,
+        catalog: [{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }],
+        defaultProvider: "openai",
+        defaultModel: "gpt-4o",
+      });
+
+      expect(result.allowAny).toBe(false);
+      expect(result.allowedKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(false);
+      expect(result.allowedKeys.has("openai/gpt-4o")).toBe(true);
+      expect(result.allowedCatalog).toEqual([{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }]);
+    });
+
     it("includes fallback models in allowed set", () => {
       const cfg = createAgentFallbackConfig({
         fallbacks: ["anthropic/claude-sonnet-4-6", "google/gemini-3-pro"],
@@ -460,6 +488,20 @@ describe("model-selection", () => {
       expect(result).toEqual({
         key: "anthropic/claude-sonnet-4-6",
         ref: { provider: "anthropic", model: "claude-sonnet-4-6" },
+      });
+    });
+
+    it("rejects missing local dynamic models even when allowAny would otherwise permit them", () => {
+      const provider = buildAlisioCurrentProviderId();
+      const result = resolveAllowedModelRef({
+        cfg: {} as AlisioConfig,
+        catalog: [],
+        raw: `${provider}/qwen3-4b-q4-k-m`,
+        defaultProvider: "openai",
+      });
+
+      expect(result).toEqual({
+        error: `model unavailable: ${provider}/qwen3-4b-q4-k-m`,
       });
     });
 

@@ -23,6 +23,8 @@ scripts/package-mac-app.sh
 Creates `dist/Alisio.app` in local debug mode, with bundle id `ai.alisio.mac.debug`, and signs it via `scripts/codesign-mac-app.sh`.
 When no Apple signing identity is available, debug packaging now falls back to ad-hoc signing automatically.
 
+For the normal macOS dev loop, `scripts/restart-mac.sh` now stages and opens `.run/Alisio.app` so the running app, the reopened app, and the LaunchAgent all stay on the same bundle path.
+
 Release placeholder:
 
 ```bash

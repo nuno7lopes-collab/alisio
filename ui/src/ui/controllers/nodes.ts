@@ -5,6 +5,7 @@ export type NodesState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
   nodesLoading: boolean;
+  nodesLoaded: boolean;
   nodes: NodeListNode[];
   nodesError?: string | null;
   lastError?: string | null;
@@ -34,6 +35,7 @@ export async function loadNodes(state: NodesState, opts?: { quiet?: boolean }) {
   try {
     const res = await state.client.request<{ nodes?: NodeListNode[] }>("node.list", {});
     state.nodes = Array.isArray(res.nodes) ? res.nodes : [];
+    state.nodesLoaded = true;
   } catch (err) {
     if (!opts?.quiet) {
       setNodesError(state, String(err));

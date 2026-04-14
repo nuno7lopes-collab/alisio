@@ -37,6 +37,16 @@ type GraphCatalogEntry = {
   body: string;
 };
 
+type GraphAttachmentEntry = {
+  nodeId: string;
+  attachmentId: string;
+  fileName: string;
+  mediaType: string;
+  sha256: string;
+  createdAtMs: number;
+  sourcePath: string;
+};
+
 type RankedGraphEntry = GraphCatalogEntry & {
   score: number;
 };
@@ -91,6 +101,23 @@ function openCanonicalDb(status: CanonicalMemoryStoreStatus): DatabaseSync {
 
 function defaultProjectionPath(slug: string): string {
   return slug === "memory-root" ? "MEMORY.md" : `memory/${slug}.md`;
+}
+
+function buildAttachmentNodeId(attachmentId: string) {
+  return `attachment:${attachmentId}`;
+}
+
+function attachmentSourcePath(fileName: string) {
+  return `attachments/${fileName}`;
+}
+
+function slugifyAttachmentName(fileName: string) {
+  const normalized = fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return normalized || "attachment";
 }
 
 function listAliases(db: DatabaseSync, pageId: string): string[] {
@@ -438,6 +465,45 @@ function buildCatalog(db: DatabaseSync): GraphCatalogEntry[] {
   });
 }
 
+function buildAttachmentCatalog(db: DatabaseSync): GraphAttachmentEntry[] {
+  const rows = db
+    .prepare(
+      `SELECT blob_id, mime, sha256, created_at_ms
+       FROM attachments
+       ORDER BY created_at_ms DESC, blob_id ASC`,
+    )
+    .all() as Array<{
+    blob_id: string;
+    mime: string;
+    sha256: string;
+    created_at_ms: number | bigint;
+  }>;
+  return rows.map((row) => {
+    const fileName = normalizeString(row.blob_id) || "attachment";
+    return {
+      nodeId: buildAttachmentNodeId(fileName),
+      attachmentId: fileName,
+      fileName,
+      mediaType: normalizeString(row.mime) || "application/octet-stream",
+      sha256: normalizeString(row.sha256),
+      createdAtMs: normalizeNumber(row.created_at_ms),
+      sourcePath: attachmentSourcePath(fileName),
+    } satisfies GraphAttachmentEntry;
+  });
+}
+
+function noteReferencesAttachment(noteBody: string, attachment: GraphAttachmentEntry) {
+  const loweredBody = noteBody.toLowerCase();
+  const candidates = [
+    attachment.attachmentId,
+    attachment.fileName,
+    attachment.sha256,
+  ]
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return candidates.some((candidate) => loweredBody.includes(candidate));
+}
+
 function buildMatches(params: {
   db: DatabaseSync;
   catalog: GraphCatalogEntry[];
@@ -502,7 +568,7 @@ function buildMatches(params: {
 function buildBranches(params: {
   focusPageId: string | null;
   edges: GraphEdge[];
-  catalogById: Map<string, GraphCatalogEntry>;
+  nodeTitleById: Map<string, string>;
 }): GraphBranch[] {
   if (!params.focusPageId) {
     return [];
@@ -542,8 +608,8 @@ function buildBranches(params: {
     .map((branch) => ({
       ...branch,
       nodeIds: [...branch.nodeIds].toSorted((left, right) => {
-        const leftTitle = params.catalogById.get(left)?.title ?? left;
-        const rightTitle = params.catalogById.get(right)?.title ?? right;
+        const leftTitle = params.nodeTitleById.get(left) ?? left;
+        const rightTitle = params.nodeTitleById.get(right) ?? right;
         return leftTitle.localeCompare(rightTitle);
       }),
     }))
@@ -553,6 +619,160 @@ function buildBranches(params: {
       }
       return left.relationType.localeCompare(right.relationType);
     });
+}
+
+function withNodeMetrics<T extends GraphNode>(nodes: T[], edges: GraphEdge[]): T[] {
+  return nodes.map((node) => {
+    const incoming = edges.filter((edge) => edge.toId === node.id).length;
+    const outgoing = edges.filter((edge) => edge.fromId === node.id).length;
+    return {
+      ...node,
+      incoming,
+      outgoing,
+      degree: incoming + outgoing,
+    };
+  });
+}
+
+function augmentGraphWithAttachments(params: {
+  graph: CanonicalMemoryGraphResult;
+  catalogById: Map<string, GraphCatalogEntry>;
+  attachmentCatalog: GraphAttachmentEntry[];
+  nodeLimit: number;
+  edgeLimit: number;
+}): CanonicalMemoryGraphResult {
+  if (params.attachmentCatalog.length === 0 || params.graph.nodes.length === 0) {
+    return params.graph;
+  }
+
+  const noteNodes = params.graph.nodes.filter((node) => node.kind === "note");
+  const candidateAttachmentNodes = new Map<string, GraphNode>();
+  const candidateAttachmentEdges: GraphEdge[] = [];
+
+  for (const noteNode of noteNodes) {
+    const note = params.catalogById.get(noteNode.pageId);
+    if (!note || !note.body.trim()) {
+      continue;
+    }
+    let ordinal = 0;
+    for (const attachment of params.attachmentCatalog) {
+      if (!noteReferencesAttachment(note.body, attachment)) {
+        continue;
+      }
+
+      if (!candidateAttachmentNodes.has(attachment.nodeId)) {
+        candidateAttachmentNodes.set(attachment.nodeId, {
+          id: attachment.nodeId,
+          pageId: attachment.nodeId,
+          entityId: attachment.nodeId,
+          kind: "attachment",
+          title: attachment.fileName,
+          slug: slugifyAttachmentName(attachment.fileName),
+          sourcePath: attachment.sourcePath,
+          sourceKind: "workspace-memory",
+          aliases: [attachment.attachmentId],
+          tags: [attachment.mediaType],
+          attachmentId: attachment.attachmentId,
+          fileName: attachment.fileName,
+          mediaType: attachment.mediaType,
+          incoming: 0,
+          outgoing: 0,
+          degree: 0,
+        });
+      }
+
+      candidateAttachmentEdges.push({
+        id: buildStableEdgeId({
+          sourcePageId: noteNode.id,
+          targetPageId: attachment.nodeId,
+          relationType: "references-attachment",
+          ordinal,
+        }),
+        fromId: noteNode.id,
+        toId: attachment.nodeId,
+        fromPageId: noteNode.pageId,
+        toPageId: attachment.nodeId,
+        relationType: "references-attachment",
+        ordinal,
+        reason: {
+          kind: "attachment-reference",
+          sourcePageId: noteNode.pageId,
+          targetPageId: attachment.nodeId,
+          sourceTitle: noteNode.title,
+          targetTitle: attachment.fileName,
+          sourcePath: noteNode.sourcePath,
+          targetPath: attachment.sourcePath,
+          relationType: "references-attachment",
+          ordinal,
+          attachmentId: attachment.attachmentId,
+          fileName: attachment.fileName,
+          mediaType: attachment.mediaType,
+        },
+      });
+      ordinal += 1;
+    }
+  }
+
+  if (candidateAttachmentEdges.length === 0) {
+    return params.graph;
+  }
+
+  const mergedNodes = [...params.graph.nodes];
+  const mergedEdges = [...params.graph.edges];
+  const visibleNodeIds = new Set(mergedNodes.map((node) => node.id));
+  let attachmentNodesTruncated = false;
+  let attachmentEdgesTruncated = false;
+
+  for (const edge of candidateAttachmentEdges) {
+    if (mergedEdges.length >= params.edgeLimit) {
+      attachmentEdgesTruncated = true;
+      continue;
+    }
+    if (!visibleNodeIds.has(edge.toId)) {
+      if (mergedNodes.length >= params.nodeLimit) {
+        attachmentNodesTruncated = true;
+        attachmentEdgesTruncated = true;
+        continue;
+      }
+      const attachmentNode = candidateAttachmentNodes.get(edge.toId);
+      if (!attachmentNode) {
+        continue;
+      }
+      mergedNodes.push(attachmentNode);
+      visibleNodeIds.add(edge.toId);
+    }
+    mergedEdges.push(edge);
+  }
+
+  const nodesWithMetrics = withNodeMetrics(mergedNodes, mergedEdges);
+  const nodeTitleById = new Map(nodesWithMetrics.map((node) => [node.id, node.title]));
+
+  return {
+    ...params.graph,
+    nodes: nodesWithMetrics,
+    edges: mergedEdges,
+    branches: buildBranches({
+      focusPageId: params.graph.focus?.nodeId ?? null,
+      edges: mergedEdges,
+      nodeTitleById,
+    }),
+    availableRelationTypes: [...new Set(mergedEdges.map((edge) => edge.relationType))].toSorted(
+      (left, right) => left.localeCompare(right),
+    ),
+    availableTags: [...new Set(nodesWithMetrics.flatMap((node) => node.tags))].toSorted(
+      (left, right) => left.localeCompare(right),
+    ),
+    stats: {
+      totalNodes: params.graph.stats.totalNodes + candidateAttachmentNodes.size,
+      totalEdges: params.graph.stats.totalEdges + candidateAttachmentEdges.length,
+      visibleNodes: nodesWithMetrics.length,
+      visibleEdges: mergedEdges.length,
+    },
+    truncated: {
+      nodes: params.graph.truncated.nodes || attachmentNodesTruncated,
+      edges: params.graph.truncated.edges || attachmentEdgesTruncated,
+    },
+  };
 }
 
 function buildSeedIds(params: {
@@ -616,29 +836,30 @@ function finalizeGraph(params: {
     .map((pageId) => params.catalogById.get(pageId))
     .filter((entry): entry is GraphCatalogEntry => Boolean(entry))
     .map((entry) => {
-      const incoming = visibleEdges.filter((edge) => edge.toId === entry.pageId).length;
-      const outgoing = visibleEdges.filter((edge) => edge.fromId === entry.pageId).length;
       return {
         id: entry.pageId,
         pageId: entry.pageId,
         entityId: entry.pageId,
+        kind: "note",
         title: entry.title,
         slug: entry.slug,
         sourcePath: entry.sourcePath,
         sourceKind: "workspace-memory",
         aliases: entry.aliases,
         tags: entry.tags,
-        incoming,
-        outgoing,
-        degree: incoming + outgoing,
+        incoming: 0,
+        outgoing: 0,
+        degree: 0,
       } satisfies GraphNode;
     });
 
+  const nodesWithMetrics = withNodeMetrics(visibleNodes, visibleEdges);
   const visibleNodeIdSet = new Set(visibleNodes.map((node) => node.id));
   const filteredEdges = visibleEdges.filter(
     (edge) => visibleNodeIdSet.has(edge.fromId) && visibleNodeIdSet.has(edge.toId),
   );
   const focusEntry = params.focusId ? params.catalogById.get(params.focusId) : null;
+  const nodeTitleById = new Map(nodesWithMetrics.map((node) => [node.id, node.title]));
 
   return {
     query: params.query,
@@ -666,12 +887,12 @@ function finalizeGraph(params: {
           },
         }
       : {}),
-    nodes: visibleNodes,
+    nodes: nodesWithMetrics,
     edges: filteredEdges,
     branches: buildBranches({
       focusPageId: focusEntry?.pageId ?? null,
       edges: filteredEdges,
-      catalogById: params.catalogById,
+      nodeTitleById,
     }),
     availableRelationTypes: [...new Set(filteredEdges.map((edge) => edge.relationType))].toSorted(
       (left, right) => left.localeCompare(right),
@@ -705,6 +926,7 @@ export function queryCanonicalMemoryGraphFromStore(params: {
   relationLimit?: number;
   nodeLimit?: number;
   edgeLimit?: number;
+  includeAttachments?: boolean;
 }): CanonicalMemoryGraphResult {
   const query = normalizeString(params.query);
   const requestedFocusId = normalizeString(params.pageId) || normalizeString(params.entityId);
@@ -874,7 +1096,7 @@ export function queryCanonicalMemoryGraphFromStore(params: {
       }
     }
 
-    return finalizeGraph({
+    const graph = finalizeGraph({
       status: params.status,
       query,
       scope,
@@ -886,6 +1108,16 @@ export function queryCanonicalMemoryGraphFromStore(params: {
       nodeLimit,
       edgeLimit,
       matches,
+    });
+    if (params.includeAttachments !== true) {
+      return graph;
+    }
+    return augmentGraphWithAttachments({
+      graph,
+      catalogById,
+      attachmentCatalog: buildAttachmentCatalog(db),
+      nodeLimit,
+      edgeLimit,
     });
   } finally {
     db.close();

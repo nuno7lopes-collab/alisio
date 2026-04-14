@@ -32,6 +32,16 @@ export function loadPersistedLocale(): Locale | null {
   return isSupportedLocale(locale) ? locale : null;
 }
 
+export function resolvePreferredLocale(): Locale {
+  const saved = readStoredLocaleValue();
+  if (isSupportedLocale(saved)) {
+    return saved;
+  }
+  const language =
+    typeof globalThis.navigator?.language === "string" ? globalThis.navigator.language : "";
+  return resolveNavigatorLocale(language);
+}
+
 class I18nManager {
   private locale: Locale = DEFAULT_LOCALE;
   private translations: Partial<Record<Locale, TranslationMap>> = { [DEFAULT_LOCALE]: en };
@@ -39,10 +49,6 @@ class I18nManager {
 
   constructor() {
     this.loadLocale();
-  }
-
-  private readStoredLocale(): string | null {
-    return readStoredLocaleValue();
   }
 
   private persistLocale(locale: Locale) {
@@ -65,13 +71,7 @@ class I18nManager {
   }
 
   private resolveInitialLocale(): Locale {
-    const saved = this.readStoredLocale();
-    if (isSupportedLocale(saved)) {
-      return saved;
-    }
-    const language =
-      typeof globalThis.navigator?.language === "string" ? globalThis.navigator.language : null;
-    return resolveNavigatorLocale(language ?? "");
+    return resolvePreferredLocale();
   }
 
   private loadLocale() {

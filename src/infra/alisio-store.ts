@@ -1686,43 +1686,25 @@ function assertAlisioAccountSetupAccess(
   }
 }
 
-function withLocalAgentName(
-  profile: AlisioLocalAccountProfile,
-  agentName: string | null | undefined,
-): AlisioLocalAccountProfile {
-  const normalizedAgentName = normalizeAlisioAgentName(agentName);
-  return normalizedAgentName
-    ? {
-        ...profile,
-        agentName: normalizedAgentName,
-      }
-    : profile;
-}
-
 function toLocalAccountProfile(
   profile: AlisioCloudAccountProfile,
-  opts?: { agentName?: string | null },
 ): AlisioLocalAccountProfile {
   return {
-    ...withLocalAgentName(
-      {
-        ...(profile.userId ? { userId: profile.userId } : {}),
-        username: profile.username,
-        displayName: profile.displayName,
-        email: profile.email,
-        avatarLabel: profile.avatarLabel,
-        ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
-        ...(profile.termsAcceptedAt ? { termsAcceptedAt: profile.termsAcceptedAt } : {}),
-        ...(typeof profile.marketingOptIn === "boolean"
-          ? { marketingOptIn: profile.marketingOptIn }
-          : {}),
-        ...(profile.birthdate ? { birthdate: profile.birthdate } : {}),
-        joinedAt: profile.joinedAt,
-        plan: normalizeAlisioPlan(profile.plan),
-        backend: profile.backend,
-      },
-      opts?.agentName,
-    ),
+    ...(profile.userId ? { userId: profile.userId } : {}),
+    username: profile.username,
+    displayName: profile.displayName,
+    email: profile.email,
+    avatarLabel: profile.avatarLabel,
+    ...(normalizeAlisioAgentName(profile.agentName) ? { agentName: profile.agentName } : {}),
+    ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+    ...(profile.termsAcceptedAt ? { termsAcceptedAt: profile.termsAcceptedAt } : {}),
+    ...(typeof profile.marketingOptIn === "boolean"
+      ? { marketingOptIn: profile.marketingOptIn }
+      : {}),
+    ...(profile.birthdate ? { birthdate: profile.birthdate } : {}),
+    joinedAt: profile.joinedAt,
+    plan: normalizeAlisioPlan(profile.plan),
+    backend: profile.backend,
   };
 }
 
@@ -4077,9 +4059,7 @@ async function hydrateStoredAccountState(
       fetchImpl,
     });
     state.account.cloudSession = restored.session;
-    state.account.profile = toLocalAccountProfile(restored.profile, {
-      agentName: state.account.profile.agentName,
-    });
+    state.account.profile = toLocalAccountProfile(restored.profile);
     state.account.session = toAccountSessionFromCloud(
       restored.session,
       restored.profile.profileCompleted,
@@ -4354,9 +4334,7 @@ export async function updateAlisioAccountProfile(
           plan: state.account.profile.plan,
           env,
         });
-        state.account.profile = toLocalAccountProfile(completedProfile, {
-          agentName: profilePayload.agentName,
-        });
+        state.account.profile = toLocalAccountProfile(completedProfile);
         state.account.session = toAccountSessionFromCloud(
           state.account.cloudSession,
           completedProfile.profileCompleted,
@@ -4406,18 +4384,12 @@ async function applySignedInCloudAccountResult(params: {
     : params.result.profile;
   const resetScopedState = shouldResetAccountScopedState(params.state, {
     session: params.result.session,
-    profile: normalizeStoredAccountProfile(
-      toLocalAccountProfile(restoredProfile, {
-        agentName: params.state.account.profile.agentName,
-      }),
-    ),
+    profile: normalizeStoredAccountProfile(toLocalAccountProfile(restoredProfile)),
   });
   if (resetScopedState) {
     resetStoredAccountScopedState(params.state);
   }
-  params.state.account.profile = toLocalAccountProfile(restoredProfile, {
-    agentName: resetScopedState ? undefined : params.state.account.profile.agentName,
-  });
+  params.state.account.profile = toLocalAccountProfile(restoredProfile);
   params.state.account.cloudSession = params.result.session;
   params.state.account.session = toAccountSessionFromCloud(
     params.result.session,

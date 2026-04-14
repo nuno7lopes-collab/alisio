@@ -141,13 +141,18 @@ export const skillsHandlers: GatewayRequestHandlers = {
       }
     }
     const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const eligibility = { remote: getRemoteSkillEligibility() };
+    const entries = loadWorkspaceSkillEntries(workspaceDir, { config: cfg });
     const report = buildWorkspaceSkillStatus(workspaceDir, {
       config: cfg,
-      eligibility: { remote: getRemoteSkillEligibility() },
+      eligibility,
+      entries,
     });
     report.marketplaceCatalog = await resolveWorkspaceMarketplaceCatalogStatus(workspaceDir, {
       config: cfg,
-      eligibility: { remote: getRemoteSkillEligibility() },
+      eligibility,
+      entries,
+      localReport: report,
     });
     respond(true, report, undefined);
   },

@@ -241,11 +241,13 @@ struct DebugSettings: View {
 
                     if self.canRebuildFromCheckout {
                         HStack(spacing: 8) {
-                            Button(self.rebuildAppInFlight ? "Rebuilding app…" : "Rebuild app") {
+                            Button(self.rebuildAppInFlight ? "Syncing app + UI…" : "Sync app + UI") {
                                 Task { await self.rebuildAppFromCheckout() }
                             }
                             .disabled(self.rebuildAppInFlight)
-                            .help("Rebuilds the local dist app from the checkout and reopens it.")
+                            .help(
+                                "Builds the Control UI, rebuilds the local dist app from the checkout, restarts the runtime, and reopens it."
+                            )
                             Spacer(minLength: 0)
                         }
                         .buttonStyle(.bordered)

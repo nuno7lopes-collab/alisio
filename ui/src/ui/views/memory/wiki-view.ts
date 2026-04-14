@@ -160,18 +160,60 @@ function renderStat(label: string, value: string | number) {
   `;
 }
 
+function renderCompactStat(label: string, value: string | number) {
+  return html`
+    <article class="memory-wiki__compact-stat">
+      <strong>${String(value)}</strong>
+      <span>${label}</span>
+    </article>
+  `;
+}
+
+function buildPortalMonogram(title: string | null | undefined) {
+  const normalized = title?.trim() || "Memory";
+  return normalized.slice(0, 1).toUpperCase();
+}
+
 function renderPortalGroup(params: {
   group: MemoryWikiPortalGroup;
   onSelectPage: (pageId: string) => void;
 }) {
+  const lead = params.group.pages[0] ?? null;
+  const secondaryPages = lead ? params.group.pages.slice(1) : params.group.pages;
   return html`
-    <section class="memory-wiki__rail-card">
-      <div class="memory-wiki__rail-header">
-        <h4>${translatePortalGroupName(params.group.name)}</h4>
-        <span>${params.group.pages.length}</span>
+    <article class="memory-wiki__portal-cluster">
+      <div class="memory-wiki__cluster-header">
+        <div class="memory-wiki__stack">
+          <span class="memory-wiki__cluster-label"
+            >${params.group.kind === "category"
+              ? translateWithFallback("alisio.memory.wiki.categories", "Categories")
+              : translateWithFallback("alisio.memory.wiki.collections", "Collections")}</span
+          >
+          <h5>${translatePortalGroupName(params.group.name)}</h5>
+        </div>
+        <span class="memory-wiki__count-pill">${params.group.pages.length}</span>
       </div>
+      ${lead
+        ? html`
+            <button
+              type="button"
+              class="memory-wiki__cluster-lead"
+              @click=${() => params.onSelectPage(lead.id)}
+            >
+              <strong>${lead.title}</strong>
+              <p>${lead.summary}</p>
+              <div class="memory-wiki__meta-row">
+                <span>${lead.path?.trim() || lead.title}</span>
+                <span
+                  >${formatTimestamp(lead.updatedAt) ??
+                  (typeof lead.backlinks === "number" ? `${lead.backlinks} ↩` : lead.title)}</span
+                >
+              </div>
+            </button>
+          `
+        : nothing}
       <div class="memory-wiki__stack">
-        ${params.group.pages.map(
+        ${secondaryPages.map(
           (page) => html`
             <button
               type="button"
@@ -184,7 +226,7 @@ function renderPortalGroup(params: {
           `,
         )}
       </div>
-    </section>
+    </article>
   `;
 }
 
@@ -490,23 +532,118 @@ function renderCreateComposer(params: RenderMemoryWikiViewParams) {
   `;
 }
 
+function renderSidebarBrand(text: MemoryText, portal: ReturnType<typeof buildWikiPortalModel>) {
+  return html`
+    <section class="memory-wiki__brand-card">
+      <div class="memory-wiki__brand-mark">
+        ${buildPortalMonogram(portal.featured?.title ?? portal.pages[0]?.title)}
+      </div>
+      <div class="memory-wiki__stack">
+        <p class="memory-wiki__eyebrow">
+          ${translateWithFallback("alisio.memory.wiki.portalEyebrow", "Personal encyclopedia")}
+        </p>
+        <h3 class="memory-wiki__brand-title">
+          ${translateWithFallback("alisio.memory.wiki.portalTitle", "Memory portal")}
+        </h3>
+        <p class="memory-wiki__brand-body">
+          ${translateWithFallback(
+            "alisio.memory.wiki.portalBody",
+            "Browse ledger-backed pages, follow links, and inspect the evidence behind every article.",
+          )}
+        </p>
+      </div>
+      <div class="memory-wiki__brand-grid">
+        ${renderCompactStat(
+          translateWithFallback("alisio.memory.wiki.pages", "Pages"),
+          portal.stats.pages,
+        )}
+        ${renderCompactStat(text.wikiBacklinks, portal.stats.backlinks)}
+        ${renderCompactStat(text.wikiClaims, portal.stats.claims)}
+        ${renderCompactStat(text.wikiEvidence, portal.stats.evidence)}
+      </div>
+    </section>
+  `;
+}
+
+function renderSidebarPageCard(params: {
+  page: ReturnType<typeof buildWikiPortalModel>["pages"][number];
+  text: MemoryText;
+  selectedPageId: string | null;
+  tracesEnabled: boolean;
+  onSelectPage: (pageId: string) => void;
+  onOpenTrace: (params: OpenTraceParams) => void;
+}) {
+  const taxonomy = [...params.page.categories, ...params.page.collections].slice(0, 3);
+  const metaLeft = params.page.path?.trim() || params.text.na;
+  const metaRight =
+    typeof params.page.backlinks === "number" && params.page.backlinks > 0
+      ? `${params.page.backlinks} ↩`
+      : (formatTimestamp(params.page.updatedAt) ?? params.text.na);
+  return html`
+    <article class="memory-wiki__index-card">
+      <button
+        type="button"
+        class="memory-wiki__index-link ${params.selectedPageId === params.page.id ? "is-active" : ""}"
+        aria-current=${params.selectedPageId === params.page.id ? "true" : "false"}
+        @click=${() => params.onSelectPage(params.page.id)}
+      >
+        <div class="memory-wiki__index-meta">
+          <span>${metaLeft}</span>
+          <span>${metaRight}</span>
+        </div>
+        <strong>${params.page.title}</strong>
+        <p>${params.page.summary}</p>
+        <div class="memory-wiki__chip-row">
+          ${taxonomy.map((entry) => html`<span class="memory-wiki__chip">${entry}</span>`)}
+        </div>
+        ${renderReasonTags(params.page.reasonTags)}
+      </button>
+      ${params.tracesEnabled && (params.page.traceId || params.page.trace)
+        ? html`
+            <div class="alisio-memory-native__result-actions">
+              <button
+                type="button"
+                class="btn btn--sm"
+                @click=${(event: Event) => {
+                  event.stopPropagation();
+                  params.onOpenTrace({
+                    label: params.page.title,
+                    traceId: params.page.traceId,
+                    trace: params.page.trace,
+                    summary: params.page.traceSummary,
+                    reasonTags: params.page.reasonTags,
+                  });
+                }}
+              >
+                ${params.text.viewTrace}
+              </button>
+            </div>
+          `
+        : nothing}
+    </article>
+  `;
+}
+
 function renderSidebar(params: RenderMemoryWikiViewParams) {
   const text = params.text;
   const portal = buildWikiPortalModel(params.wikiList);
   return html`
     <section class="alisio-memory-group memory-wiki__sidebar-group">
-      <div class="alisio-memory-group__header">
-        <h2>${text.wikiListTitle}</h2>
-        <div class="alisio-memory-runtime__actions">
-          <button class="btn btn--sm" @click=${() => params.onGoHome()}>
-            ${translateWithFallback("alisio.memory.wiki.portalHome", "Portal")}
-          </button>
-          <button
-            class="btn btn--sm primary"
-            @click=${() => params.onToggleCreate(!params.createOpen)}
-          >
-            ${text.wikiCreate}
-          </button>
+      ${renderSidebarBrand(text, portal)}
+      <div class="memory-wiki__sidebar-toolbar">
+        <div class="alisio-memory-group__header">
+          <h2>${text.wikiListTitle}</h2>
+          <div class="alisio-memory-runtime__actions">
+            <button class="btn btn--sm" @click=${() => params.onGoHome()}>
+              ${translateWithFallback("alisio.memory.wiki.portalHome", "Portal")}
+            </button>
+            <button
+              class="btn btn--sm primary"
+              @click=${() => params.onToggleCreate(!params.createOpen)}
+            >
+              ${text.wikiCreate}
+            </button>
+          </div>
         </div>
       </div>
       ${params.createOpen ? renderCreateComposer(params) : nothing}
@@ -534,53 +671,16 @@ function renderSidebar(params: RenderMemoryWikiViewParams) {
           : portal.pages.length === 0
             ? html`<div class="alisio-memory-empty">${text.wikiEmpty}</div>`
             : html`
-                <div class="alisio-memory-file-list">
-                  ${portal.pages.map(
-                    (page) => html`
-                      <article class="alisio-memory-native__result-card">
-                        <button
-                          type="button"
-                          class="alisio-memory-file ${params.selectedPageId === page.id
-                            ? "is-active"
-                            : ""}"
-                          aria-current=${params.selectedPageId === page.id ? "true" : "false"}
-                          @click=${() => params.onSelectPage(page.id)}
-                        >
-                          <span class="alisio-memory-file__copy">
-                            <span class="alisio-memory-file__title">${page.title}</span>
-                            <span class="alisio-memory-file__meta">${page.summary}</span>
-                            ${renderReasonTags(page.reasonTags)}
-                          </span>
-                          <span class="alisio-memory-file__status">
-                            ${typeof page.backlinks === "number"
-                              ? `${page.backlinks} ↩`
-                              : (formatTimestamp(page.updatedAt) ?? text.na)}
-                          </span>
-                        </button>
-                        ${params.tracesEnabled && (page.traceId || page.trace)
-                          ? html`
-                              <div class="alisio-memory-native__result-actions">
-                                <button
-                                  type="button"
-                                  class="btn btn--sm"
-                                  @click=${(event: Event) => {
-                                    event.stopPropagation();
-                                    params.onOpenTrace({
-                                      label: page.title,
-                                      traceId: page.traceId,
-                                      trace: page.trace,
-                                      summary: page.traceSummary,
-                                      reasonTags: page.reasonTags,
-                                    });
-                                  }}
-                                >
-                                  ${text.viewTrace}
-                                </button>
-                              </div>
-                            `
-                          : nothing}
-                      </article>
-                    `,
+                <div class="memory-wiki__page-list">
+                  ${portal.pages.map((page) =>
+                    renderSidebarPageCard({
+                      page,
+                      text,
+                      selectedPageId: params.selectedPageId,
+                      tracesEnabled: params.tracesEnabled,
+                      onSelectPage: params.onSelectPage,
+                      onOpenTrace: params.onOpenTrace,
+                    }),
                   )}
                 </div>
               `}
@@ -606,36 +706,69 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
     categories: translateWithFallback("alisio.memory.wiki.categories", "Categories"),
     collections: translateWithFallback("alisio.memory.wiki.collections", "Collections"),
   };
+  const portalSnapshot =
+    portal.stats.pages > 0
+      ? `${portal.stats.pages} ${translateWithFallback(
+          "alisio.memory.wiki.pages",
+          "Pages",
+        ).toLowerCase()}`
+      : translateWithFallback("alisio.memory.wiki.portalEyebrow", labels.portalEyebrow);
 
   return html`
     <section class="memory-wiki__portal">
       <header class="memory-wiki__hero">
-        <div>
+        <div class="memory-wiki__hero-copy">
+          <div class="memory-wiki__article-tabs">
+            <span class="memory-wiki__article-tab is-active">
+              ${translateWithFallback("alisio.memory.wiki.portalHome", "Portal")}
+            </span>
+            <span class="memory-wiki__article-tab">${params.text.wikiListTitle}</span>
+          </div>
           <p class="memory-wiki__eyebrow">${labels.portalEyebrow}</p>
           <h3>${labels.portalTitle}</h3>
-          <p>${labels.portalBody}</p>
+          <p class="memory-wiki__hero-body">${labels.portalBody}</p>
+          <div class="memory-wiki__meta-row">
+            <span>${portalSnapshot}</span>
+            <span>${portal.categories.length} ${labels.categories.toLowerCase()}</span>
+            <span>${portal.collections.length} ${labels.collections.toLowerCase()}</span>
+          </div>
         </div>
-        <div class="memory-wiki__stats">
-          ${renderStat(
-            translateWithFallback("alisio.memory.wiki.pages", "Pages"),
-            portal.stats.pages,
-          )}
-          ${renderStat(text.wikiBacklinks, portal.stats.backlinks)}
-          ${renderStat(text.wikiClaims, portal.stats.claims)}
-          ${renderStat(text.wikiEvidence, portal.stats.evidence)}
+        <div class="memory-wiki__hero-panel">
+          <div class="memory-wiki__stats">
+            ${renderStat(
+              translateWithFallback("alisio.memory.wiki.pages", "Pages"),
+              portal.stats.pages,
+            )}
+            ${renderStat(text.wikiBacklinks, portal.stats.backlinks)}
+            ${renderStat(text.wikiClaims, portal.stats.claims)}
+            ${renderStat(text.wikiEvidence, portal.stats.evidence)}
+          </div>
+          <div class="memory-wiki__context">
+            <strong>${labels.featured}</strong>
+            <span>${portal.featured?.summary || labels.portalBody}</span>
+          </div>
         </div>
       </header>
 
-      <div class="memory-wiki__portal-grid">
-        <section class="memory-wiki__paper">
+      <div class="memory-wiki__portal-grid memory-wiki__portal-grid--feature">
+        <section class="memory-wiki__paper memory-wiki__spotlight">
           <div class="memory-wiki__rail-header">
             <h4>${labels.featured}</h4>
           </div>
           ${portal.featured
             ? html`
-                <div class="memory-wiki__stack">
+                <div class="memory-wiki__spotlight-copy">
+                  <span class="memory-wiki__cluster-label">${portal.featured.path?.trim()}</span>
                   <strong class="memory-wiki__feature-title">${portal.featured.title}</strong>
-                  <p>${portal.featured.summary}</p>
+                  <p class="memory-wiki__spotlight-body">${portal.featured.summary}</p>
+                  <div class="memory-wiki__chip-row">
+                    ${portal.featured.categories
+                      .slice(0, 2)
+                      .map((entry) => html`<span class="memory-wiki__chip">${entry}</span>`)}
+                    ${portal.featured.collections
+                      .slice(0, 2)
+                      .map((entry) => html`<span class="memory-wiki__chip">${entry}</span>`)}
+                  </div>
                   <div class="memory-wiki__meta-row">
                     <span>${portal.featured.path?.trim() || params.text.na}</span>
                     <span>${formatTimestamp(portal.featured.updatedAt) ?? params.text.na}</span>
@@ -651,19 +784,23 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
             : html`<div class="alisio-memory-empty">${params.text.wikiNoSelection}</div>`}
         </section>
 
-        <section class="memory-wiki__paper">
+        <section class="memory-wiki__paper memory-wiki__newsdesk">
           <div class="memory-wiki__rail-header">
             <h4>${labels.recent}</h4>
+            <span class="memory-wiki__count-pill">${portal.recentUpdates.length}</span>
           </div>
-          <div class="memory-wiki__stack">
+          <div class="memory-wiki__news-list">
             ${portal.recentUpdates.map(
               (page) => html`
                 <button
                   type="button"
-                  class="memory-wiki__mini-link"
+                  class="memory-wiki__news-item"
                   @click=${() => params.onSelectPage(page.id)}
                 >
-                  <strong>${page.title}</strong>
+                  <div class="memory-wiki__stack">
+                    <strong>${page.title}</strong>
+                    <span>${page.summary}</span>
+                  </div>
                   <span>${formatTimestamp(page.updatedAt) ?? params.text.na}</span>
                 </button>
               `,
@@ -672,10 +809,11 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
         </section>
       </div>
 
-      <div class="memory-wiki__portal-grid">
+      <div class="memory-wiki__portal-grid memory-wiki__portal-grid--discovery">
         <section class="memory-wiki__paper">
           <div class="memory-wiki__rail-header">
             <h4>${labels.categories}</h4>
+            <span class="memory-wiki__count-pill">${portal.categories.length}</span>
           </div>
           ${portal.categories.length === 0
             ? html`<div class="alisio-memory-empty">${params.text.none}</div>`
@@ -686,6 +824,7 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
         <section class="memory-wiki__paper">
           <div class="memory-wiki__rail-header">
             <h4>${labels.collections}</h4>
+            <span class="memory-wiki__count-pill">${portal.collections.length}</span>
           </div>
           ${portal.collections.length === 0
             ? html`<div class="alisio-memory-empty">${params.text.none}</div>`
@@ -729,6 +868,20 @@ function renderContext(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
   `;
 }
 
+function renderArticleHighlights(text: MemoryText, page: MemoryWikiPageModel) {
+  return html`
+    <div class="memory-wiki__article-highlights">
+      ${renderCompactStat(text.wikiBacklinks, page.backlinks?.length ?? 0)}
+      ${renderCompactStat(text.wikiClaims, page.claims?.length ?? 0)}
+      ${renderCompactStat(text.wikiEvidence, page.evidence?.length ?? 0)}
+      ${renderCompactStat(
+        translateWithFallback("alisio.memory.wiki.relatedFiles", "Related files"),
+        page.relatedFiles.length,
+      )}
+    </div>
+  `;
+}
+
 function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageModel) {
   const labels = {
     home: translateWithFallback("alisio.memory.wiki.portalHome", "Portal"),
@@ -743,56 +896,84 @@ function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
   return html`
     <article class="memory-wiki__article">
       <header class="memory-wiki__article-header">
-        <div class="memory-wiki__article-copy">
-          <div class="memory-wiki__breadcrumbs">
-            <button type="button" @click=${() => params.onGoHome()}>${labels.home}</button>
-            <span>/</span>
-            <span>${page.title}</span>
+        <div class="memory-wiki__article-shell">
+          <div class="memory-wiki__article-copy">
+            <div class="memory-wiki__breadcrumbs">
+              <button type="button" @click=${() => params.onGoHome()}>${labels.home}</button>
+              <span>/</span>
+              <span>${page.title}</span>
+            </div>
+            <p class="memory-wiki__eyebrow">${page.path?.trim() || params.text.na}</p>
+            <h3>${page.title}</h3>
+            <p class="memory-wiki__lede">
+              ${page.summary || page.lead || page.path?.trim() || params.text.na}
+            </p>
+            <div class="memory-wiki__meta-row">
+              <span>${page.path?.trim() || params.text.na}</span>
+              ${page.revision?.updatedAt
+                ? html`<span>${formatTimestamp(page.revision.updatedAt) ?? params.text.na}</span>`
+                : nothing}
+              ${page.revision?.author ? html`<span>${page.revision.author}</span>` : nothing}
+            </div>
+            <div class="memory-wiki__chip-row">
+              ${[...page.categories, ...page.collections].map(
+                (entry) => html`<span class="memory-wiki__chip">${entry}</span>`,
+              )}
+            </div>
+            ${renderReasonTags(page.reasonTags)}
           </div>
-          <h3>${page.title}</h3>
-          <p class="memory-wiki__lede">
-            ${page.summary || page.lead || page.path?.trim() || params.text.na}
-          </p>
-          <div class="memory-wiki__meta-row">
-            <span>${page.path?.trim() || params.text.na}</span>
-            ${page.revision?.updatedAt
-              ? html`<span>${formatTimestamp(page.revision.updatedAt) ?? params.text.na}</span>`
-              : nothing}
-          </div>
-          ${renderReasonTags(page.reasonTags)}
-          ${renderReasonTags(
-            [...page.categories, ...page.collections].map((entry) => ({
-              code: entry.toLowerCase().replace(/\s+/g, "-"),
-              label: entry,
-            })),
-          )}
+          <aside class="memory-wiki__article-facts">
+            <div class="memory-wiki__detail-card">
+              <span>${labels.source}</span>
+              <strong>${page.path?.trim() || params.text.na}</strong>
+            </div>
+            <div class="memory-wiki__detail-card">
+              <span>${params.text.wikiRevision}</span>
+              <strong>${page.revision?.eventId || params.text.na}</strong>
+            </div>
+            <div class="memory-wiki__detail-card">
+              <span>${labels.relatedFiles}</span>
+              <strong>${String(page.relatedFiles.length)}</strong>
+            </div>
+            <div class="alisio-memory-runtime__actions">
+              <button class="btn btn--sm" @click=${() => params.onGoHome()}>${labels.home}</button>
+              ${params.tracesEnabled && (page.traceId || page.trace)
+                ? html`
+                    <button
+                      class="btn btn--sm"
+                      @click=${() =>
+                        params.onOpenTrace({
+                          label: page.title,
+                          traceId: page.traceId,
+                          trace: page.trace,
+                          summary: page.traceSummary,
+                          reasonTags: page.reasonTags,
+                        })}
+                    >
+                      ${params.text.viewTrace}
+                    </button>
+                  `
+                : nothing}
+              <button
+                class="btn btn--sm primary"
+                @click=${() => params.onToggleEditor(!params.editorOpen)}
+              >
+                ${params.editorOpen ? labels.hideEditor : labels.edit}
+              </button>
+            </div>
+          </aside>
         </div>
-        <div class="alisio-memory-runtime__actions">
-          <button class="btn btn--sm" @click=${() => params.onGoHome()}>${labels.home}</button>
-          ${params.tracesEnabled && (page.traceId || page.trace)
-            ? html`
-                <button
-                  class="btn btn--sm"
-                  @click=${() =>
-                    params.onOpenTrace({
-                      label: page.title,
-                      traceId: page.traceId,
-                      trace: page.trace,
-                      summary: page.traceSummary,
-                      reasonTags: page.reasonTags,
-                    })}
-                >
-                  ${params.text.viewTrace}
-                </button>
-              `
-            : nothing}
+        <div class="memory-wiki__article-tabs">
+          <span class="memory-wiki__article-tab is-active">${labels.readMode}</span>
           <button
-            class="btn btn--sm primary"
+            type="button"
+            class="memory-wiki__article-tab ${params.editorOpen ? "is-active" : ""}"
             @click=${() => params.onToggleEditor(!params.editorOpen)}
           >
             ${params.editorOpen ? labels.hideEditor : labels.edit}
           </button>
         </div>
+        ${renderArticleHighlights(params.text, page)}
       </header>
 
       ${renderContext(params, page)}
@@ -917,34 +1098,56 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
       .memory-wiki__rail-card,
       .memory-wiki__editor,
       .memory-wiki__portal {
-        border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
-        border-radius: 22px;
+        position: relative;
+        display: grid;
+        align-content: start;
+        gap: 16px;
+        min-width: 0;
+        overflow: hidden;
+        padding: 22px;
+        color: var(--text);
+        border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+        border-radius: 20px;
+        background:
+          radial-gradient(
+            circle at top right,
+            color-mix(in srgb, var(--accent) 10%, transparent),
+            transparent 34%
+          ),
+          linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--card) 94%, transparent),
+            color-mix(in srgb, var(--panel) 98%, transparent)
+          );
+        box-shadow: var(--shadow-md);
+      }
+      .memory-wiki__sidebar-group::before,
+      .memory-wiki__paper::before,
+      .memory-wiki__article::before,
+      .memory-wiki__rail-card::before,
+      .memory-wiki__editor::before,
+      .memory-wiki__portal::before {
+        content: "";
+        position: absolute;
+        inset: 0;
         background: linear-gradient(
           180deg,
-          color-mix(in srgb, var(--surface-elevated) 82%, rgba(255, 255, 255, 0.02)),
-          color-mix(in srgb, var(--surface-panel) 88%, rgba(255, 255, 255, 0.01))
+          rgba(255, 255, 255, 0.02),
+          transparent 72%
         );
-        box-shadow: 0 18px 48px rgba(7, 11, 22, 0.12);
-      }
-      .memory-wiki__portal,
-      .memory-wiki__article,
-      .memory-wiki__editor,
-      .memory-wiki__paper,
-      .memory-wiki__rail-card,
-      .memory-wiki__sidebar-group {
-        padding: 20px;
+        pointer-events: none;
       }
       .memory-wiki__hero,
       .memory-wiki__article-header {
         display: grid;
-        gap: 18px;
+        gap: 20px;
       }
       .memory-wiki__eyebrow,
       .memory-wiki__breadcrumbs {
         margin: 0;
-        color: color-mix(in srgb, currentColor 58%, transparent);
-        font-size: 0.8rem;
-        letter-spacing: 0.08em;
+        color: var(--muted);
+        font-size: 0.76rem;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
       }
       .memory-wiki__breadcrumbs {
@@ -959,6 +1162,65 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
         color: inherit;
         cursor: pointer;
       }
+      .memory-wiki__hero-copy,
+      .memory-wiki__hero-panel,
+      .memory-wiki__spotlight-copy,
+      .memory-wiki__article-shell,
+      .memory-wiki__article-facts,
+      .memory-wiki__brand-card,
+      .memory-wiki__brand-grid,
+      .memory-wiki__page-list,
+      .memory-wiki__news-list,
+      .memory-wiki__article-highlights,
+      .memory-wiki__sidebar-toolbar {
+        display: grid;
+        gap: 14px;
+      }
+      .memory-wiki__brand-card {
+        background:
+          radial-gradient(
+            circle at top right,
+            color-mix(in srgb, var(--accent) 16%, transparent),
+            transparent 42%
+          ),
+          linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--accent) 7%, var(--card)),
+            color-mix(in srgb, var(--panel) 96%, transparent)
+          );
+        border-color: color-mix(in srgb, var(--accent) 18%, var(--border));
+      }
+      .memory-wiki__brand-mark {
+        display: inline-grid;
+        place-items: center;
+        width: 68px;
+        height: 68px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+        background: color-mix(in srgb, var(--accent) 12%, var(--card));
+        color: color-mix(in srgb, var(--accent) 72%, var(--text));
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        font-size: 2rem;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      }
+      .memory-wiki__brand-title,
+      .memory-wiki__hero h3,
+      .memory-wiki__article h3,
+      .memory-wiki__cluster-header h5 {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        line-height: 1.08;
+      }
+      .memory-wiki__brand-title {
+        font-size: 1.65rem;
+      }
+      .memory-wiki__brand-body,
+      .memory-wiki__hero-body,
+      .memory-wiki__spotlight-body {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
       .memory-wiki__stats,
       .memory-wiki__portal-grid,
       .memory-wiki__article-layout {
@@ -966,59 +1228,119 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
         gap: 18px;
       }
       .memory-wiki__stats {
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
       }
       .memory-wiki__stat {
         display: grid;
-        gap: 6px;
-        border-radius: 18px;
-        padding: 14px;
-        background: color-mix(in srgb, var(--accent-primary) 9%, var(--surface-elevated));
+        gap: 8px;
+        min-width: 0;
+        padding: 16px;
+        border-radius: 16px;
+        background: color-mix(in srgb, var(--card) 92%, transparent);
+        border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
       }
       .memory-wiki__stat span {
-        font-size: 0.82rem;
-        color: color-mix(in srgb, currentColor 60%, transparent);
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
       }
       .memory-wiki__stat strong {
-        font-size: 1.3rem;
+        font-size: 1.5rem;
+        color: var(--text-strong);
+      }
+      .memory-wiki__compact-stat {
+        display: grid;
+        gap: 4px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+        background: color-mix(in srgb, var(--bg-hover) 66%, var(--card));
+      }
+      .memory-wiki__compact-stat strong {
+        font-size: 1.15rem;
+        color: var(--text-strong);
+      }
+      .memory-wiki__compact-stat span {
+        color: var(--muted);
+        font-size: 0.78rem;
       }
       .memory-wiki__portal-grid {
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        margin-top: 18px;
+        gap: 16px;
+      }
+      .memory-wiki__portal-grid--feature {
+        grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+      }
+      .memory-wiki__portal-grid--discovery {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
       }
       .memory-wiki__featured-teaser,
-      .memory-wiki__mini-link {
+      .memory-wiki__mini-link,
+      .memory-wiki__cluster-lead,
+      .memory-wiki__news-item,
+      .memory-wiki__index-link {
         display: grid;
-        gap: 6px;
+        gap: 8px;
         width: 100%;
-        border: 1px solid color-mix(in srgb, var(--border-subtle) 80%, transparent);
-        border-radius: 18px;
-        padding: 14px 16px;
-        background: color-mix(in srgb, var(--surface-elevated) 76%, transparent);
+        border: 1px solid color-mix(in srgb, var(--border) 92%, transparent);
+        border-radius: 16px;
+        padding: 16px 18px;
+        background: color-mix(in srgb, var(--bg-hover) 72%, var(--card));
+        color: var(--text);
         text-align: left;
+        transition:
+          transform 160ms ease,
+          border-color 160ms ease,
+          background 160ms ease;
+        cursor: pointer;
+      }
+      .memory-wiki__featured-teaser:hover,
+      .memory-wiki__mini-link:hover,
+      .memory-wiki__cluster-lead:hover,
+      .memory-wiki__news-item:hover,
+      .memory-wiki__index-link:hover {
+        transform: translateY(-1px);
+        border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+        background: color-mix(in srgb, var(--accent) 7%, var(--card));
       }
       .memory-wiki__featured-teaser span,
       .memory-wiki__mini-link span,
       .memory-wiki__meta-row,
-      .memory-wiki__detail-card span {
-        color: color-mix(in srgb, currentColor 68%, transparent);
+      .memory-wiki__detail-card span,
+      .memory-wiki__news-item > span,
+      .memory-wiki__index-link p,
+      .memory-wiki__cluster-label {
+        color: var(--muted);
       }
       .memory-wiki__featured-teaser p {
         margin: 0;
+      }
+      .memory-wiki__featured-teaser {
+        background:
+          linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--accent) 11%, var(--card)),
+            color-mix(in srgb, var(--accent) 4%, var(--panel))
+          );
+        border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
       }
       .memory-wiki__meta-row {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
-        font-size: 0.9rem;
-      }
-      .memory-wiki__feature-title,
-      .memory-wiki__article h3 {
-        margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.45;
       }
       .memory-wiki__article h3 {
-        font-size: clamp(2rem, 3vw, 2.7rem);
+        font-size: clamp(2.2rem, 3vw, 3rem);
+        color: var(--text-strong);
+      }
+      .memory-wiki__hero h3 {
+        font-size: clamp(2.3rem, 3.4vw, 3.15rem);
+        color: var(--text-strong);
       }
       .memory-wiki__article-copy,
       .memory-wiki__stack,
@@ -1029,26 +1351,76 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
         display: grid;
         gap: 10px;
       }
+      .memory-wiki__hero {
+        grid-template-columns: minmax(0, 1.18fr) minmax(300px, 0.82fr);
+        align-items: start;
+      }
+      .memory-wiki__article-shell {
+        grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.82fr);
+        align-items: start;
+      }
       .memory-wiki__article-layout {
         grid-template-columns: minmax(0, 1.75fr) minmax(280px, 0.95fr);
         align-items: start;
-        margin-top: 20px;
+        gap: 16px;
       }
       .memory-wiki__article-body {
         display: grid;
-        gap: 18px;
+        gap: 16px;
+      }
+      .memory-wiki__article-highlights {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      }
+      .memory-wiki__article-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .memory-wiki__article-tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 36px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+        background: color-mix(in srgb, var(--bg-hover) 72%, var(--card));
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+      .memory-wiki__article-tab.is-active {
+        background: color-mix(in srgb, var(--accent) 12%, var(--card));
+        border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+        color: var(--text-strong);
       }
       .memory-wiki__article-markdown {
         line-height: 1.72;
+        position: relative;
+        background:
+          linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--card) 96%, transparent),
+            color-mix(in srgb, var(--panel) 98%, transparent)
+          );
+        border-color: color-mix(in srgb, var(--border) 92%, transparent);
+      }
+      .memory-wiki__article-markdown > p:first-of-type::first-letter {
+        float: left;
+        margin: 0.02em 0.12em 0 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        font-size: 3.4rem;
+        line-height: 0.9;
+        color: color-mix(in srgb, var(--accent) 74%, var(--text-strong));
       }
       .memory-wiki__article-markdown h1,
       .memory-wiki__article-markdown h2,
       .memory-wiki__article-markdown h3,
       .memory-wiki__article-markdown h4 {
         scroll-margin-top: 84px;
+        color: var(--text-strong);
       }
       .memory-wiki__article-markdown a {
-        color: var(--accent-primary);
+        color: var(--accent);
       }
       .memory-wiki__toc-links {
         display: flex;
@@ -1072,31 +1444,175 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
       }
       .memory-wiki__rail-header h4 {
         margin: 0;
+        color: var(--text-strong);
       }
       .memory-wiki__detail-card,
       .memory-wiki__context,
       .memory-wiki__kv,
-      .memory-wiki__create {
+      .memory-wiki__create,
+      .memory-wiki__portal-cluster,
+      .memory-wiki__article-facts {
         border-radius: 16px;
         padding: 14px;
-        background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+        background: color-mix(in srgb, var(--bg-hover) 66%, var(--card));
+        border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
       }
       .memory-wiki__context {
-        margin-top: 16px;
+        margin-top: 0;
+      }
+      .memory-wiki__cluster-header {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .memory-wiki__cluster-header h5 {
+        font-size: 1.22rem;
+        color: var(--text-strong);
+      }
+      .memory-wiki__cluster-label {
+        font-size: 0.72rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .memory-wiki__count-pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 36px;
+        height: 32px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 12%, var(--card));
+        color: color-mix(in srgb, var(--accent) 64%, var(--text));
+        font-size: 0.8rem;
+        border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+      }
+      .memory-wiki__chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .memory-wiki__chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 10px;
+        min-height: 28px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--accent) 10%, var(--card));
+        color: color-mix(in srgb, var(--accent) 62%, var(--text));
+        font-size: 0.78rem;
+        border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+      }
+      .memory-wiki__spotlight {
+        background:
+          radial-gradient(
+            circle at top right,
+            color-mix(in srgb, var(--accent) 14%, transparent),
+            transparent 42%
+          ),
+          linear-gradient(
+            180deg,
+            color-mix(in srgb, var(--accent) 9%, var(--card)),
+            color-mix(in srgb, var(--panel) 96%, transparent)
+          );
+        border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+      }
+      .memory-wiki__news-item {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+      }
+      .memory-wiki__index-card {
+        display: grid;
+        gap: 10px;
+      }
+      .memory-wiki__index-link {
+        padding: 18px;
+      }
+      .memory-wiki__index-link.is-active {
+        border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+        background: color-mix(in srgb, var(--accent) 10%, var(--card));
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+      }
+      .memory-wiki__index-link p {
+        margin: 0;
+        line-height: 1.58;
+        color: var(--muted);
+      }
+      .memory-wiki__index-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .memory-wiki__featured-teaser strong,
+      .memory-wiki__cluster-lead strong,
+      .memory-wiki__news-item strong,
+      .memory-wiki__index-link strong,
+      .memory-wiki__detail-card strong {
+        line-height: 1.25;
+        color: var(--text-strong);
       }
       .memory-wiki__textarea {
         min-height: 280px;
       }
       .memory-wiki__draft-preview summary {
         cursor: pointer;
+        color: var(--text-strong);
       }
       .memory-wiki__lede {
         margin: 0;
-        font-size: 1.05rem;
+        font-size: 1.08rem;
+        line-height: 1.7;
+        color: color-mix(in srgb, var(--text) 94%, transparent);
+      }
+      .memory-wiki__toc {
+        padding: 16px 18px;
+        border-radius: 18px;
+        border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+        background: color-mix(in srgb, var(--bg-hover) 68%, var(--card));
+      }
+      .memory-wiki__sidebar-group {
+        gap: 18px;
+      }
+      @media (max-width: 1280px) {
+        .memory-wiki__hero,
+        .memory-wiki__article-shell,
+        .memory-wiki__portal-grid--feature,
+        .memory-wiki__portal-grid--discovery {
+          grid-template-columns: 1fr;
+        }
       }
       @media (max-width: 1080px) {
         .memory-wiki__article-layout {
           grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 720px) {
+        .memory-wiki__sidebar-group,
+        .memory-wiki__paper,
+        .memory-wiki__article,
+        .memory-wiki__rail-card,
+        .memory-wiki__editor,
+        .memory-wiki__portal {
+          padding: 18px;
+        }
+        .memory-wiki__stats,
+        .memory-wiki__article-highlights {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .memory-wiki__news-item,
+        .memory-wiki__news-item {
+          grid-template-columns: 1fr;
+        }
+        .memory-wiki__index-meta {
+          flex-direction: column;
+          align-items: flex-start;
         }
       }
     </style>

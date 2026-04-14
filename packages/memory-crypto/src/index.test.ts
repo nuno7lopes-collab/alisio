@@ -10,7 +10,7 @@ import {
   exportPairingCode,
   importProfileKeyFromPairingCode,
   loadProfileRootKey,
-  storeProfileRootKey,
+  setupProfileRootKey,
 } from "./index.js";
 
 describe("@alisio/memory-crypto", () => {
@@ -98,10 +98,10 @@ describe("@alisio/memory-crypto", () => {
 
     const passphrase = "pairing passphrase with enough entropy";
     const profileId = "profile-gamma";
-    const profileRootKey = await deriveProfileRootKey({ profileId, passphrase });
-    const stored = await storeProfileRootKey({ profileId, profileRootKey });
-    expect(stored.status).toBe("file");
-    expect(stored.deviceKeyStoredIn).toBe("file");
+    const setup = await setupProfileRootKey({ profileId, passphrase, stateDir });
+    const profileRootKey = setup.profileRootKey;
+    expect(setup.action).toBe("created");
+    expect(setup.storedIn).toBe("file");
     expect(__testing.resolveWrappedProfileRootKeyPath(profileId, stateDir)).toContain(".alisio");
 
     const loaded = await loadProfileRootKey({ profileId, passphrase, stateDir });
@@ -125,5 +125,29 @@ describe("@alisio/memory-crypto", () => {
     expect(imported.cached).toBe("file");
     expect(imported.sourceDeviceId).toBe("device-origin");
     expect(Buffer.from(imported.profileRootKey)).toEqual(Buffer.from(profileRootKey));
+  });
+
+  it("loads an existing local profile root key instead of recreating it", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-memory-crypto-"));
+    const stateDir = path.join(tempHome, ".alisio");
+    vi.stubEnv("HOME", tempHome);
+    vi.stubEnv("ALISIO_STATE_DIR", stateDir);
+
+    const first = await setupProfileRootKey({
+      profileId: "profile-delta",
+      passphrase: "local setup passphrase",
+      stateDir,
+    });
+    const second = await setupProfileRootKey({
+      profileId: "profile-delta",
+      passphrase: "local setup passphrase",
+      stateDir,
+    });
+
+    expect(first.action).toBe("created");
+    expect(second.action).toBe("loaded");
+    expect(second.storedIn).toBe("file");
+    expect(second.path).toBe(first.path);
+    expect(Buffer.from(second.profileRootKey)).toEqual(Buffer.from(first.profileRootKey));
   });
 });

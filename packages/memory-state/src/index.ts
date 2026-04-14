@@ -168,7 +168,9 @@ function reducePageMetadataUpsert(
   const title = payload.title ?? existing?.title ?? payload.pageId;
   const slug = payload.slug ?? existing?.slug ?? payload.pageId;
   const createdAtMs = existing?.created_at_ms ?? payload.createdAtMs ?? payload.updatedAtMs;
-  const tombstoned = existing?.tombstoned ?? 0;
+  // Metadata upserts describe a live page shape. If a workspace import or later
+  // write reintroduces a previously tombstoned page, the upsert must revive it.
+  const tombstoned = 0;
   return [
     {
       sql:

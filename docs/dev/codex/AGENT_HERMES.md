@@ -6,11 +6,21 @@
   - `createMemoryCrypto({ profileRootKey, telemetry })`
   - `deriveProfileRootKey({ profileId, passphrase })`
   - `storeProfileRootKey(...)` / `loadProfileRootKey(...)`
+  - `setupProfileRootKey(...)`
   - `exportPairingCode(...)` / `importProfileKeyFromPairingCode(...)`
 - `packages/memory-sync` expõe:
   - `createCloudRelayMemoryTransport({ baseUrl, getAccessToken, telemetry })`
   - `createDirectMemoryTransportStub({ directEnabled })`
   - `resolveMemorySyncAvailability(...)`
+- Config global estável:
+  - `memory.e2ee.required` (hard requirement; default `true`)
+  - `memory.sync.mode` (default `off`)
+  - `memory.sync.relayBaseUrl` (opcional)
+  - `memory.sync.ui.enabled` (default `true`, guard de rollout UI)
+- Gateway RPC mínimo:
+  - `memory.e2ee.setup`
+  - `memory.e2ee.exportPairingCode`
+  - `memory.e2ee.importPairingCode`
 
 ## Contrato
 
@@ -18,8 +28,9 @@
   - eventos: `ciphertextBase64` + `nonceBase64`
   - blobs: `ciphertextBase64`
 - A decriptação é sempre local.
-- E2EE é obrigatório; nesta árvore isso é tratado pelo fluxo/runtime, não por um knob global estável de config.
+- E2EE é obrigatório; `memory.e2ee.required` documenta esse requisito e não introduz um fallback plaintext.
 - Se faltar `ProfileRootKey`, o estado correto é `blocked`, nunca plaintext fallback.
+- `canonical-store` lê config primeiro e env vars depois para `memory.sync.*`; env legacy continua suportado por compatibilidade durante a transição.
 
 ## Chamada mínima para GAIA
 
@@ -27,6 +38,7 @@
 import {
   createMemoryCrypto,
   loadProfileRootKey,
+  setupProfileRootKey,
 } from "../../../packages/memory-crypto/src/index.js";
 import {
   createCloudRelayMemoryTransport,
@@ -66,10 +78,12 @@ await transport.pushEncryptedEvents(profileId, [
 ]);
 ```
 
-## Flags estáveis
+## Flags estáveis e rollout
 
 - `memory.ledger.enabled`
 - `memory.legacyMarkdownProjection.enabled`
 - `memory.crdt.pages.enabled`
+- `memory.e2ee.required`
+- `memory.sync.ui.enabled`
 
-Os detalhes de transporte de sync continuam no contrato dos packages (`packages/memory-sync`, `packages/memory-crypto`) e não estão expostos aqui como config global estável nesta árvore.
+Os detalhes de pairing continuam locais ao device: a pairing code é a única exportação explícita de material sensível.

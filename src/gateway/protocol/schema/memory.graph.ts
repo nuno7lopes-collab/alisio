@@ -17,6 +17,10 @@ const MemoryGraphCloudSyncSchema = Type.Union([
   Type.Literal("enabled"),
   Type.Literal("error"),
 ]);
+const MemoryGraphNodeKindSchema = Type.Union([
+  Type.Literal("note"),
+  Type.Literal("attachment"),
+]);
 
 export const MemoryGraphProjectionSchema = Type.Object(
   {
@@ -82,12 +86,16 @@ export const MemoryGraphNodeSchema = Type.Object(
     id: NonEmptyString,
     pageId: NonEmptyString,
     entityId: NonEmptyString,
+    kind: MemoryGraphNodeKindSchema,
     title: NonEmptyString,
     slug: NonEmptyString,
     sourcePath: NonEmptyString,
     sourceKind: MemoryGraphProjectionSourceSchema,
     aliases: Type.Array(Type.String()),
     tags: Type.Array(Type.String()),
+    attachmentId: Type.Optional(NonEmptyString),
+    fileName: Type.Optional(NonEmptyString),
+    mediaType: Type.Optional(NonEmptyString),
     incoming: Type.Integer({ minimum: 0 }),
     outgoing: Type.Integer({ minimum: 0 }),
     degree: Type.Integer({ minimum: 0 }),
@@ -97,15 +105,18 @@ export const MemoryGraphNodeSchema = Type.Object(
 
 export const MemoryGraphEdgeReasonSchema = Type.Object(
   {
-    kind: Type.Literal("canonical-link"),
-    sourcePageId: NonEmptyString,
-    targetPageId: NonEmptyString,
+    kind: Type.Union([Type.Literal("canonical-link"), Type.Literal("attachment-reference")]),
+    sourcePageId: Type.Optional(NonEmptyString),
+    targetPageId: Type.Optional(NonEmptyString),
     sourceTitle: NonEmptyString,
     targetTitle: NonEmptyString,
     sourcePath: NonEmptyString,
     targetPath: NonEmptyString,
     relationType: NonEmptyString,
     ordinal: Type.Integer({ minimum: 0 }),
+    attachmentId: Type.Optional(NonEmptyString),
+    fileName: Type.Optional(NonEmptyString),
+    mediaType: Type.Optional(NonEmptyString),
   },
   { additionalProperties: false },
 );
@@ -165,6 +176,7 @@ export const MemoryGraphParamsSchema = Type.Object(
     relationLimit: Type.Optional(Type.Integer({ minimum: 1 })),
     nodeLimit: Type.Optional(Type.Integer({ minimum: 1 })),
     edgeLimit: Type.Optional(Type.Integer({ minimum: 1 })),
+    includeAttachments: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

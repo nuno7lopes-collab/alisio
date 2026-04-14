@@ -67,6 +67,22 @@ export type StoreProfileRootKeyResult = {
   deviceKeyStoredIn: "keychain" | "file";
 };
 
+export type SetupProfileRootKeyParams = {
+  profileId: string;
+  passphrase: string;
+  stateDir?: string;
+  env?: NodeJS.ProcessEnv;
+  telemetry?: MemoryCryptoTelemetry;
+};
+
+export type SetupProfileRootKeyResult = {
+  profileId: string;
+  profileRootKey: Uint8Array;
+  action: "created" | "loaded";
+  storedIn: "keychain" | "file";
+  path: string;
+};
+
 export type LoadDeviceKeyParams = {
   profileId: string;
   profileRootKey?: BytesLike;

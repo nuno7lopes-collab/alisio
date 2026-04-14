@@ -242,6 +242,99 @@ function renderConnectorCard(
   `;
 }
 
+function resolveConnectorCardState(
+  row: ConnectorRow,
+  item: AlisioProviderOverviewItem | undefined,
+): {
+  status: AlisioProviderOverviewItem["status"];
+  connected: boolean;
+} {
+  const fallbackStatus =
+    row.status === "connected"
+      ? "connected"
+      : row.status === "needs_reconnect"
+        ? "attention"
+        : row.status === "in_review"
+          ? "coming_soon"
+          : row.status === "unavailable"
+            ? "unavailable"
+            : "ready";
+  const status = item?.status ?? fallbackStatus;
+  return {
+    status,
+    connected: status === "connected",
+  };
+}
+
+function connectorStatusOrder(status: AlisioProviderOverviewItem["status"]) {
+  switch (status) {
+    case "connected":
+      return 0;
+    case "attention":
+      return 1;
+    case "ready":
+      return 2;
+    case "coming_soon":
+      return 3;
+    case "unavailable":
+    default:
+      return 4;
+  }
+}
+
+function renderConnectorSection(params: {
+  id: "connected" | "available";
+  title: string;
+  subtitle?: string;
+  entries: Array<{
+    row: ConnectorRow;
+    item?: AlisioProviderOverviewItem;
+    state: ReturnType<typeof resolveConnectorCardState>;
+  }>;
+  props: {
+    onBeginConnector: (connectorId: string) => void;
+    onRevokeConnector: (connectorId: string) => void;
+    planBlocksNewConnections?: boolean;
+    planLimitMessage?: string | null;
+  };
+  text: {
+    revoke: string;
+    reconnect: string;
+    reviewSetup: string;
+  };
+}) {
+  if (params.entries.length === 0) {
+    return nothing;
+  }
+  return html`
+    <section class="card alisio-auth-page__section" data-section=${params.id}>
+      <div class="card-title">${params.title}</div>
+      ${params.subtitle ? html`<div class="card-sub">${params.subtitle}</div>` : nothing}
+      <div class="stack">
+        ${params.entries.map(({ row, item, state }) =>
+          renderConnectorCard(
+            row,
+            {
+              onBeginConnector: params.props.onBeginConnector,
+              onRevokeConnector: params.props.onRevokeConnector,
+              planBlocksNewConnections: params.props.planBlocksNewConnections,
+              planLimitMessage: params.props.planLimitMessage,
+              overviewStatus: state.status,
+              subtitle: item?.subtitle,
+              connectLabel: item?.connectLabel,
+            },
+            {
+              revoke: params.text.revoke,
+              reconnect: params.text.reconnect,
+              reviewSetup: params.text.reviewSetup,
+            },
+          ),
+        )}
+      </div>
+    </section>
+  `;
+}
+
 export function renderAuthentications(props: {
   loading: boolean;
   error: string | null;
@@ -264,6 +357,9 @@ export function renderAuthentications(props: {
     summaryAttention: t("alisio.authentications.summary.attention"),
     searchPlaceholder: t("alisio.authentications.searchPlaceholder"),
     emptyFiltered: t("alisio.authentications.emptyFiltered"),
+    authorizedTitle: t("alisio.authentications.authorizedTitle"),
+    authorizedSubtitle: t("alisio.authentications.authorizedSubtitle"),
+    availableTitle: t("alisio.authentications.availableTitle"),
     openConnections: t("alisio.authentications.actions.openConnections"),
     revoke: t("alisio.authentications.actions.revoke"),
     reconnect: t("alisio.authentications.actions.reconnect"),
@@ -290,9 +386,45 @@ export function renderAuthentications(props: {
       )
       .map((item) => [item.connectorId, item]),
   );
+  const appOrderByConnectorId = new Map(
+    (overview?.apps ?? [])
+      .filter((item): item is AlisioProviderOverviewItem & { connectorId: string } =>
+        typeof item.connectorId === "string" && item.connectorId.trim().length > 0,
+      )
+      .map((item, index) => [item.connectorId, index]),
+  );
   const visibleConnectorRows = connectorRows.filter((row) =>
     matchesConnectorSearch(row, appOverviewByConnectorId.get(row.definition.id), props.search),
   );
+  const connectorEntries = visibleConnectorRows
+    .map((row) => {
+      const item = appOverviewByConnectorId.get(row.definition.id);
+      return {
+        row,
+        item,
+        state: resolveConnectorCardState(row, item),
+      };
+    })
+    .toSorted((left, right) => {
+      const leftOrder = appOrderByConnectorId.get(left.row.definition.id);
+      const rightOrder = appOrderByConnectorId.get(right.row.definition.id);
+      if (leftOrder != null || rightOrder != null) {
+        return (
+          (leftOrder ?? Number.MAX_SAFE_INTEGER) -
+            (rightOrder ?? Number.MAX_SAFE_INTEGER) ||
+          left.row.definition.title.localeCompare(right.row.definition.title) ||
+          left.row.definition.id.localeCompare(right.row.definition.id)
+        );
+      }
+      return (
+        connectorStatusOrder(left.state.status) -
+          connectorStatusOrder(right.state.status) ||
+        left.row.definition.title.localeCompare(right.row.definition.title) ||
+        left.row.definition.id.localeCompare(right.row.definition.id)
+      );
+    });
+  const connectedConnectorEntries = connectorEntries.filter((entry) => entry.state.connected);
+  const availableConnectorEntries = connectorEntries.filter((entry) => !entry.state.connected);
 
   const summary = {
     connected: connectorRows.filter((row) => row.status === "connected").length,
@@ -410,31 +542,39 @@ export function renderAuthentications(props: {
               ${props.search ? text.emptyFiltered : t("alisio.authentications.emptyAuthorized")}
             </div>`
           : html`
-              <section class="card">
-                <div class="card-title">${t("alisio.authentications.sections.apps")}</div>
-                <div class="stack">
-                  ${visibleConnectorRows.map((row) => {
-                    const item = appOverviewByConnectorId.get(row.definition.id);
-                    return renderConnectorCard(
-                      row,
-                      {
-                        onBeginConnector: props.onBeginConnector,
-                        onRevokeConnector: props.onRevokeConnector,
-                        planBlocksNewConnections: connectorLimitReached,
-                        planLimitMessage: connectorLimitMessage,
-                        overviewStatus: item?.status,
-                        subtitle: item?.subtitle,
-                        connectLabel: item?.connectLabel,
-                      },
-                      {
-                        revoke: text.revoke,
-                        reconnect: text.reconnect,
-                        reviewSetup: text.reviewSetup,
-                      },
-                    );
-                  })}
-                </div>
-              </section>
+              ${renderConnectorSection({
+                id: "connected",
+                title: text.authorizedTitle,
+                subtitle: text.authorizedSubtitle,
+                entries: connectedConnectorEntries,
+                props: {
+                  onBeginConnector: props.onBeginConnector,
+                  onRevokeConnector: props.onRevokeConnector,
+                  planBlocksNewConnections: connectorLimitReached,
+                  planLimitMessage: connectorLimitMessage,
+                },
+                text: {
+                  revoke: text.revoke,
+                  reconnect: text.reconnect,
+                  reviewSetup: text.reviewSetup,
+                },
+              })}
+              ${renderConnectorSection({
+                id: "available",
+                title: connectedConnectorEntries.length > 0 ? text.availableTitle : text.title,
+                entries: availableConnectorEntries,
+                props: {
+                  onBeginConnector: props.onBeginConnector,
+                  onRevokeConnector: props.onRevokeConnector,
+                  planBlocksNewConnections: connectorLimitReached,
+                  planLimitMessage: connectorLimitMessage,
+                },
+                text: {
+                  revoke: text.revoke,
+                  reconnect: text.reconnect,
+                  reviewSetup: text.reviewSetup,
+                },
+              })}
             `}
     </section>
   `;

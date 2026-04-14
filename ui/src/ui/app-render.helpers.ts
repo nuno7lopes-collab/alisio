@@ -1,4 +1,4 @@
-import { html, nothing } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { parseAgentSessionKey } from "../../../src/sessions/session-key-utils.js";
 import { t } from "../i18n/index.ts";
@@ -249,46 +249,25 @@ function renderCronFilterIcon(hiddenCount: number) {
 }
 
 export function renderChatSessionSelect(state: AppViewState) {
-  const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
-  const modelSelect = renderChatModelSelect(state);
   return html`
     <div class="chat-controls__session-row">
-      <label class="field chat-controls__session">
-        <select
-          .value=${state.sessionKey}
-          ?disabled=${!state.connected || sessionGroups.length === 0}
-          @change=${(e: Event) => {
-            const next = (e.target as HTMLSelectElement).value;
-            if (state.sessionKey === next) {
-              return;
-            }
-            switchChatSession(state, next);
-          }}
-        >
-          ${repeat(
-            sessionGroups,
-            (group) => group.id,
-            (group) =>
-              html`<optgroup label=${group.label}>
-                ${repeat(
-                  group.options,
-                  (entry) => entry.key,
-                  (entry) =>
-                    html`<option value=${entry.key} title=${entry.title}>${entry.label}</option>`,
-                )}
-              </optgroup>`,
-          )}
-        </select>
-      </label>
-      ${modelSelect}
+      ${renderChatSessionField(state)} ${renderChatModelSelect(state)}
     </div>
   `;
+}
+
+export function renderChatSessionPicker(state: AppViewState) {
+  return renderChatSessionField(state);
+}
+
+export function renderChatComposerModelSelect(state: AppViewState) {
+  return renderChatModelSelect(state, { variant: "composer" });
 }
 
 export function renderChatDesktopToolbar(state: AppViewState) {
   return html`
     <div class="alisio-chat-toolbar" role="toolbar" aria-label=${t("alisio.shell.chatSettings")}>
-      <div class="alisio-chat-toolbar__primary">${renderChatSessionSelect(state)}</div>
+      <div class="alisio-chat-toolbar__primary">${renderChatSessionPicker(state)}</div>
       <div class="alisio-chat-toolbar__secondary">${renderChatControls(state)}</div>
     </div>
   `;
@@ -299,28 +278,193 @@ export function renderChatControls(state: AppViewState) {
   const hiddenCronCount = hideCron
     ? countHiddenCronSessions(state.sessionKey, state.sessionsResult)
     : 0;
+  const showThinking = state.settings.chatShowThinking;
+  const showToolCalls = state.settings.chatShowToolCalls;
+  const focusActive = state.settings.chatFocusMode;
+  const hasMenuOverrides = focusActive || !showThinking || !showToolCalls || !hideCron;
+  return html`
+    <details class="chat-tools-menu ${hasMenuOverrides ? "chat-tools-menu--active" : ""}">
+      <summary
+        class="chat-tools-menu__trigger"
+        title=${t("alisio.shell.chatSettings")}
+        aria-label=${t("alisio.shell.chatSettings")}
+      >
+        ${icons.moreHorizontal}
+      </summary>
+      <div class="chat-tools-menu__panel">
+        ${renderChatToolsMenuItems(state, { hiddenCronCount })}
+      </div>
+    </details>
+  `;
+}
+
+type ChatToolsMenuAction = {
+  icon: TemplateResult;
+  label: string;
+  title: string;
+  onClick: (event: Event) => void | Promise<void>;
+  active?: boolean;
+  disabled?: boolean;
+  pressed?: boolean;
+  stateLabel?: string;
+};
+
+function renderChatToolsMenuItems(
+  state: AppViewState,
+  opts: { hiddenCronCount: number },
+): TemplateResult {
+  const hideCron = state.sessionsHideCron ?? true;
   const disableThinkingToggle = false;
   const disableFocusToggle = false;
   const showThinking = state.settings.chatShowThinking;
   const showToolCalls = state.settings.chatShowToolCalls;
   const focusActive = state.settings.chatFocusMode;
-  const toolCallsIcon = html`
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path
-        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-      ></path>
-    </svg>
+  return html`
+    ${renderChatToolsMenuAction({
+      icon: renderRefreshIcon(),
+      label: t("chat.menuRefresh"),
+      title: t("chat.refreshTitle"),
+      onClick: async (event) => {
+        closeChatToolsSurface(event.currentTarget);
+        const app = state as unknown as AlisioApp;
+        const preserveEphemeral = Boolean(app.chatRunId || app.chatFinalizing);
+        app.chatManualRefreshInFlight = true;
+        app.chatNewMessagesBelow = false;
+        await app.updateComplete;
+        if (!preserveEphemeral) {
+          app.resetToolStream();
+        }
+        try {
+          await refreshChat(state as unknown as Parameters<typeof refreshChat>[0], {
+            scheduleScroll: false,
+          });
+          app.scrollToBottom({ smooth: true });
+        } finally {
+          requestAnimationFrame(() => {
+            app.chatManualRefreshInFlight = false;
+            app.chatNewMessagesBelow = false;
+          });
+        }
+      },
+      disabled: state.chatLoading || !state.connected,
+    })}
+    ${renderChatToolsMenuAction({
+      icon: icons.brain,
+      label: t("chat.menuThinking"),
+      title: disableThinkingToggle ? t("chat.onboardingDisabled") : t("chat.thinkingToggle"),
+      onClick: (event) => {
+        if (disableThinkingToggle) {
+          return;
+        }
+        closeChatToolsSurface(event.currentTarget);
+        state.applySettings({
+          ...state.settings,
+          chatShowThinking: !state.settings.chatShowThinking,
+        });
+      },
+      active: showThinking,
+      stateLabel: showThinking ? t("chat.menuOn") : t("chat.menuOff"),
+      pressed: showThinking,
+      disabled: disableThinkingToggle,
+    })}
+    ${renderChatToolsMenuAction({
+      icon: icons.wrench,
+      label: t("chat.menuToolCalls"),
+      title: disableThinkingToggle ? t("chat.onboardingDisabled") : t("chat.toolCallsToggle"),
+      onClick: (event) => {
+        if (disableThinkingToggle) {
+          return;
+        }
+        closeChatToolsSurface(event.currentTarget);
+        state.applySettings({
+          ...state.settings,
+          chatShowToolCalls: !state.settings.chatShowToolCalls,
+        });
+      },
+      active: showToolCalls,
+      stateLabel: showToolCalls ? t("chat.menuOn") : t("chat.menuOff"),
+      pressed: showToolCalls,
+      disabled: disableThinkingToggle,
+    })}
+    ${renderChatToolsMenuAction({
+      icon: renderFocusIcon(),
+      label: t("chat.menuFocus"),
+      title: disableFocusToggle ? t("chat.onboardingDisabled") : t("chat.focusToggle"),
+      onClick: (event) => {
+        if (disableFocusToggle) {
+          return;
+        }
+        closeChatToolsSurface(event.currentTarget);
+        state.applySettings({
+          ...state.settings,
+          chatFocusMode: !state.settings.chatFocusMode,
+        });
+      },
+      active: focusActive,
+      stateLabel: focusActive ? t("chat.menuOn") : t("chat.menuOff"),
+      pressed: focusActive,
+      disabled: disableFocusToggle,
+    })}
+    ${renderChatToolsMenuAction({
+      icon: renderCronFilterIcon(opts.hiddenCronCount),
+      label:
+        hideCron && opts.hiddenCronCount > 0
+          ? t("chat.showCronSessionsHidden", { count: String(opts.hiddenCronCount) })
+          : t("chat.menuCron"),
+      title: hideCron
+        ? opts.hiddenCronCount > 0
+          ? t("chat.showCronSessionsHidden", { count: String(opts.hiddenCronCount) })
+          : t("chat.showCronSessions")
+        : t("chat.hideCronSessions"),
+      onClick: (event) => {
+        closeChatToolsSurface(event.currentTarget);
+        state.sessionsHideCron = !hideCron;
+      },
+      active: hideCron,
+      stateLabel: hideCron ? t("chat.menuHidden") : t("chat.menuVisible"),
+      pressed: hideCron,
+    })}
   `;
-  const refreshIcon = html`
+}
+
+function renderChatToolsMenuAction(action: ChatToolsMenuAction) {
+  return html`
+    <button
+      type="button"
+      class="chat-tools-menu__item ${action.active ? "is-active" : ""}"
+      title=${action.title}
+      aria-label=${action.title}
+      aria-pressed=${action.pressed === undefined ? nothing : action.pressed}
+      ?disabled=${action.disabled}
+      @click=${action.onClick}
+    >
+      <span class="chat-tools-menu__item-main">
+        <span class="chat-tools-menu__item-icon">${action.icon}</span>
+        <span class="chat-tools-menu__item-label">${action.label}</span>
+      </span>
+      ${action.stateLabel
+        ? html`<span class="chat-tools-menu__item-state">${action.stateLabel}</span>`
+        : nothing}
+    </button>
+  `;
+}
+
+function closeChatToolsSurface(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const details = target.closest("details.chat-tools-menu");
+  if (details instanceof HTMLDetailsElement) {
+    details.open = false;
+  }
+  const dropdown = target.closest(".chat-controls-dropdown");
+  if (dropdown instanceof HTMLElement) {
+    dropdown.classList.remove("open");
+  }
+}
+
+function renderRefreshIcon() {
+  return html`
     <svg
       width="18"
       height="18"
@@ -335,7 +479,10 @@ export function renderChatControls(state: AppViewState) {
       <path d="M21 3v5h-5"></path>
     </svg>
   `;
-  const focusIcon = html`
+}
+
+function renderFocusIcon() {
+  return html`
     <svg
       width="18"
       height="18"
@@ -353,154 +500,48 @@ export function renderChatControls(state: AppViewState) {
       <circle cx="12" cy="12" r="3"></circle>
     </svg>
   `;
+}
+
+function renderChatSessionField(state: AppViewState) {
+  const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
   return html`
-    <div class="chat-controls">
-      <button
-        class="btn btn--sm btn--icon"
-        ?disabled=${state.chatLoading || !state.connected}
-        @click=${async () => {
-          const app = state as unknown as AlisioApp;
-          const preserveEphemeral = Boolean(app.chatRunId || app.chatFinalizing);
-          app.chatManualRefreshInFlight = true;
-          app.chatNewMessagesBelow = false;
-          await app.updateComplete;
-          if (!preserveEphemeral) {
-            app.resetToolStream();
-          }
-          try {
-            await refreshChat(state as unknown as Parameters<typeof refreshChat>[0], {
-              scheduleScroll: false,
-            });
-            app.scrollToBottom({ smooth: true });
-          } finally {
-            requestAnimationFrame(() => {
-              app.chatManualRefreshInFlight = false;
-              app.chatNewMessagesBelow = false;
-            });
-          }
-        }}
-        title=${t("chat.refreshTitle")}
-      >
-        ${refreshIcon}
-      </button>
-      <span class="chat-controls__separator">|</span>
-      <button
-        class="btn btn--sm btn--icon ${showThinking ? "active" : ""}"
-        ?disabled=${disableThinkingToggle}
-        @click=${() => {
-          if (disableThinkingToggle) {
+    <label class="field chat-controls__session">
+      <select
+        .value=${state.sessionKey}
+        ?disabled=${!state.connected || sessionGroups.length === 0}
+        @change=${(e: Event) => {
+          const next = (e.target as HTMLSelectElement).value;
+          if (state.sessionKey === next) {
             return;
           }
-          state.applySettings({
-            ...state.settings,
-            chatShowThinking: !state.settings.chatShowThinking,
-          });
+          switchChatSession(state, next);
         }}
-        aria-pressed=${showThinking}
-        title=${disableThinkingToggle ? t("chat.onboardingDisabled") : t("chat.thinkingToggle")}
       >
-        ${icons.brain}
-      </button>
-      <button
-        class="btn btn--sm btn--icon ${showToolCalls ? "active" : ""}"
-        ?disabled=${disableThinkingToggle}
-        @click=${() => {
-          if (disableThinkingToggle) {
-            return;
-          }
-          state.applySettings({
-            ...state.settings,
-            chatShowToolCalls: !state.settings.chatShowToolCalls,
-          });
-        }}
-        aria-pressed=${showToolCalls}
-        title=${disableThinkingToggle ? t("chat.onboardingDisabled") : t("chat.toolCallsToggle")}
-      >
-        ${toolCallsIcon}
-      </button>
-      <button
-        class="btn btn--sm btn--icon ${focusActive ? "active" : ""}"
-        ?disabled=${disableFocusToggle}
-        @click=${() => {
-          if (disableFocusToggle) {
-            return;
-          }
-          state.applySettings({
-            ...state.settings,
-            chatFocusMode: !state.settings.chatFocusMode,
-          });
-        }}
-        aria-pressed=${focusActive}
-        title=${disableFocusToggle ? t("chat.onboardingDisabled") : t("chat.focusToggle")}
-      >
-        ${focusIcon}
-      </button>
-      <button
-        class="btn btn--sm btn--icon ${hideCron ? "active" : ""}"
-        @click=${() => {
-          state.sessionsHideCron = !hideCron;
-        }}
-        aria-pressed=${hideCron}
-        title=${hideCron
-          ? hiddenCronCount > 0
-            ? t("chat.showCronSessionsHidden", { count: String(hiddenCronCount) })
-            : t("chat.showCronSessions")
-          : t("chat.hideCronSessions")}
-      >
-        ${renderCronFilterIcon(hiddenCronCount)}
-      </button>
-    </div>
+        ${repeat(
+          sessionGroups,
+          (group) => group.id,
+          (group) =>
+            html`<optgroup label=${group.label}>
+              ${repeat(
+                group.options,
+                (entry) => entry.key,
+                (entry) =>
+                  html`<option value=${entry.key} title=${entry.title}>${entry.label}</option>`,
+              )}
+            </optgroup>`,
+        )}
+      </select>
+    </label>
   `;
 }
 
 /**
- * Mobile-only gear toggle + dropdown for chat controls.
+ * Mobile-only compact dropdown for chat controls.
  * Rendered in the topbar so it doesn't consume content-header space.
  * Hidden on desktop via CSS.
  */
 export function renderChatMobileToggle(state: AppViewState) {
-  const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
-  const modelSelect = renderChatModelSelect(state);
-  const disableThinkingToggle = false;
-  const disableFocusToggle = false;
-  const showThinking = state.settings.chatShowThinking;
-  const showToolCalls = state.settings.chatShowToolCalls;
-  const focusActive = state.settings.chatFocusMode;
-  const toolCallsIcon = html`
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path
-        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-      ></path>
-    </svg>
-  `;
-  const focusIcon = html`
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d="M4 7V4h3"></path>
-      <path d="M20 7V4h-3"></path>
-      <path d="M4 17v3h3"></path>
-      <path d="M20 17v3h-3"></path>
-      <circle cx="12" cy="12" r="3"></circle>
-    </svg>
-  `;
-
+  const hiddenCronCount = countHiddenCronSessions(state.sessionKey, state.sessionsResult);
   return html`
     <div class="chat-mobile-controls-wrapper">
       <button
@@ -523,21 +564,7 @@ export function renderChatMobileToggle(state: AppViewState) {
         title=${t("alisio.shell.chatSettings")}
         aria-label=${t("alisio.shell.chatSettings")}
       >
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="12" cy="12" r="3"></circle>
-          <path
-            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-          ></path>
-        </svg>
+        ${icons.moreHorizontal}
       </button>
       <div
         class="chat-controls-dropdown"
@@ -545,79 +572,9 @@ export function renderChatMobileToggle(state: AppViewState) {
           e.stopPropagation();
         }}
       >
-        <div class="chat-controls">
-          <label class="field chat-controls__session">
-            <select
-              .value=${state.sessionKey}
-              @change=${(e: Event) => {
-                const next = (e.target as HTMLSelectElement).value;
-                switchChatSession(state, next);
-              }}
-            >
-              ${sessionGroups.map(
-                (group) => html`
-                  <optgroup label=${group.label}>
-                    ${group.options.map(
-                      (opt) => html`
-                        <option value=${opt.key} title=${opt.title}>${opt.label}</option>
-                      `,
-                    )}
-                  </optgroup>
-                `,
-              )}
-            </select>
-          </label>
-          ${modelSelect}
-          <div class="chat-controls__thinking">
-            <button
-              class="btn btn--sm btn--icon ${showThinking ? "active" : ""}"
-              ?disabled=${disableThinkingToggle}
-              @click=${() => {
-                if (!disableThinkingToggle) {
-                  state.applySettings({
-                    ...state.settings,
-                    chatShowThinking: !state.settings.chatShowThinking,
-                  });
-                }
-              }}
-              aria-pressed=${showThinking}
-              title=${t("chat.thinkingToggle")}
-            >
-              ${icons.brain}
-            </button>
-            <button
-              class="btn btn--sm btn--icon ${showToolCalls ? "active" : ""}"
-              ?disabled=${disableThinkingToggle}
-              @click=${() => {
-                if (!disableThinkingToggle) {
-                  state.applySettings({
-                    ...state.settings,
-                    chatShowToolCalls: !state.settings.chatShowToolCalls,
-                  });
-                }
-              }}
-              aria-pressed=${showToolCalls}
-              title=${t("chat.toolCallsToggle")}
-            >
-              ${toolCallsIcon}
-            </button>
-            <button
-              class="btn btn--sm btn--icon ${focusActive ? "active" : ""}"
-              ?disabled=${disableFocusToggle}
-              @click=${() => {
-                if (!disableFocusToggle) {
-                  state.applySettings({
-                    ...state.settings,
-                    chatFocusMode: !state.settings.chatFocusMode,
-                  });
-                }
-              }}
-              aria-pressed=${focusActive}
-              title=${t("chat.focusToggle")}
-            >
-              ${focusIcon}
-            </button>
-          </div>
+        <div class="chat-tools-menu__panel chat-tools-menu__panel--mobile">
+          <div class="chat-tools-menu__session">${renderChatSessionPicker(state)}</div>
+          ${renderChatToolsMenuItems(state, { hiddenCronCount })}
         </div>
       </div>
     </div>
@@ -660,8 +617,12 @@ async function refreshSessionOptions(state: AppViewState) {
   });
 }
 
-function renderChatModelSelect(state: AppViewState) {
+function renderChatModelSelect(
+  state: AppViewState,
+  opts: { variant?: "toolbar" | "composer" } = {},
+) {
   const { currentOverride, defaultLabel, options } = resolveChatModelSelectState(state);
+  const variant = opts.variant ?? "toolbar";
   const switchingModel = isChatModelSwitchPending(state);
   const busy =
     state.chatLoading ||
@@ -673,7 +634,9 @@ function renderChatModelSelect(state: AppViewState) {
   const disabled =
     !state.connected || busy || (state.chatModelsLoading && options.length === 0) || !state.client;
   return html`
-    <label class="field chat-controls__session chat-controls__model">
+    <label
+      class="field chat-controls__session chat-controls__model chat-controls__model--${variant}"
+    >
       <select
         data-chat-model-select="true"
         aria-label=${t("chat.modelSelect")}

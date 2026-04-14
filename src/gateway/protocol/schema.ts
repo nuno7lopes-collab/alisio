@@ -14,6 +14,7 @@ export * from "./schema/logs-chat.js";
 export * from "./schema/memory.files.js";
 export * from "./schema/memory.graph.js";
 export * from "./schema/memory.js";
+export * from "./schema/memory.notes.js";
 export * from "./schema/memory.wiki.js";
 export * from "./schema/nodes.js";
 export * from "./schema/protocol-schemas.js";

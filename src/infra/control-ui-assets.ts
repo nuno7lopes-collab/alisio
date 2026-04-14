@@ -168,6 +168,25 @@ function addCandidate(candidates: Set<string>, value: string | null) {
   candidates.add(path.resolve(value));
 }
 
+function addDeveloperRunAppCandidates(candidates: Set<string>, repoRoot: string | null) {
+  if (!repoRoot) {
+    return;
+  }
+  const runRoot = path.join(repoRoot, ".run");
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(runRoot);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.endsWith(".app")) {
+      continue;
+    }
+    addCandidate(candidates, path.join(runRoot, entry, "Contents", "Resources", "control-ui"));
+  }
+}
+
 export function resolveControlUiRootOverrideSync(rootOverride: string): string | null {
   const resolved = path.resolve(rootOverride);
   try {
@@ -239,6 +258,7 @@ export function resolveControlUiRootSync(opts: ControlUiRootResolveOptions = {})
   if (packageRoot) {
     addCandidate(candidates, path.join(packageRoot, "dist", "control-ui"));
   }
+  addDeveloperRunAppCandidates(candidates, resolveControlUiRepoRoot(argv1));
   addCandidate(candidates, path.join(cwd, "dist", "control-ui"));
 
   for (const dir of candidates) {

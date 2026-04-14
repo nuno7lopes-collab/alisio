@@ -149,4 +149,33 @@ describe("models-config merge helpers", () => {
 
     expect(merged.custom?.apiKey).toBe("OPENAI_API_KEY"); // pragma: allowlist secret
   });
+
+  it("drops stale dynamic Alisio providers that disappeared from the snapshot", () => {
+    const merged = mergeWithExistingProviderSecrets({
+      nextProviders: {
+        custom: {
+          models: [{ id: "model", api: "openai-responses" }],
+        } as ProviderConfig,
+      },
+      existingProviders: {
+        "alisio-local-current-llama": {
+          api: "alisio:alisio-local-current-llama",
+          models: [{ id: "qwen3-4b-q4-k-m", api: "alisio:alisio-local-current-llama" }],
+        } as ExistingProviderConfig,
+        custom: {
+          apiKey: preservedApiKey,
+          models: [{ id: "model", api: "openai-responses" }],
+        } as ExistingProviderConfig,
+      },
+      secretRefManagedProviders: new Set<string>(),
+      explicitBaseUrlProviders: new Set<string>(),
+    });
+
+    expect(merged).not.toHaveProperty("alisio-local-current-llama");
+    expect(merged.custom).toEqual(
+      expect.objectContaining({
+        apiKey: preservedApiKey,
+      }),
+    );
+  });
 });

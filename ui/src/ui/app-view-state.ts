@@ -8,6 +8,10 @@ import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
 import type {
+  RemoteComputerDraft,
+  RemoteComputerTaskRecord,
+} from "./controllers/remote-computers.ts";
+import type {
   SecurityAccessDiagnostics,
   SecurityAccessMode,
 } from "./controllers/security-access.ts";
@@ -159,6 +163,7 @@ export type AppViewState = {
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;
   nodesLoading: boolean;
+  nodesLoaded: boolean;
   nodes: NodeListNode[];
   nodesError: string | null;
   chatNewMessagesBelow: boolean;
@@ -171,9 +176,14 @@ export type AppViewState = {
   devicesLoading: boolean;
   devicesError: string | null;
   devicesList: DevicePairingList | null;
+  currentDeviceId: string | null;
   nodePairingsLoading: boolean;
   nodePairingsError: string | null;
   nodePairingsList: RuntimeNodePairingList | null;
+  remoteComputerDrafts: Record<string, RemoteComputerDraft>;
+  remoteComputerBusy: Record<string, boolean>;
+  remoteComputerErrors: Record<string, string | null>;
+  remoteComputerTasks: Record<string, RemoteComputerTaskRecord[]>;
   execApprovalsLoading: boolean;
   execApprovalsSaving: boolean;
   execApprovalsDirty: boolean;
@@ -437,6 +447,7 @@ export type AppViewState = {
     refreshSessionsAfterChat: Set<string>;
     connect: () => void;
     setTab: (tab: Tab) => void;
+    setSettingsSection: (section: SettingsSection) => void;
     setTheme: (theme: ThemeName, context?: ThemeTransitionContext) => void;
     setThemeMode: (mode: ThemeMode, context?: ThemeTransitionContext) => void;
     applySettings: (next: UiSettings) => void;

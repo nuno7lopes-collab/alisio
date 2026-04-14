@@ -23,8 +23,6 @@ const contextNoticeSessions: ChatProps["sessions"] = {
 function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
   return {
     sessionKey: "main",
-    onSessionKeyChange: () => undefined,
-    thinkingLevel: null,
     showThinking: true,
     showToolCalls: true,
     loading: false,
@@ -63,16 +61,11 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     focusMode: false,
     assistantName: "Alisio",
     assistantAvatar: null,
-    onRefresh: () => undefined,
     onToggleFocusMode: () => undefined,
     onDraftChange: () => undefined,
     onOpenRuntimeSetup: () => undefined,
     onSend: () => undefined,
     onQueueRemove: () => undefined,
-    onNewSession: () => undefined,
-    agentsList: null,
-    currentAgentId: "",
-    onAgentChange: () => undefined,
     ...overrides,
   };
 }

@@ -57,6 +57,7 @@ function createOptions(
     respond: vi.fn(),
     context: {
       dedupe: new Map(),
+      broadcast: vi.fn(),
       disconnectClientsForDevice: vi.fn(),
       logGateway: {
         debug: vi.fn(),
@@ -167,6 +168,13 @@ describe("deviceHandlers", () => {
       },
       undefined,
     );
+    expect(opts.context.broadcast).toHaveBeenCalledWith(
+      "devices.changed",
+      expect.objectContaining({
+        reason: "share.approve",
+      }),
+      { dropIfSlow: true },
+    );
   });
 
   it("revokes a sharing grant with canonical grantId input", async () => {
@@ -186,6 +194,14 @@ describe("deviceHandlers", () => {
         targetId: "device-1",
       },
       undefined,
+    );
+    expect(opts.context.broadcast).toHaveBeenCalledWith(
+      "devices.changed",
+      expect.objectContaining({
+        reason: "share.revoke",
+        targetId: "device-1",
+      }),
+      { dropIfSlow: true },
     );
   });
 });

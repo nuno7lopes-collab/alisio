@@ -5,6 +5,7 @@ import {
   loadMemoryStatus,
   requestMemoryExport,
   requestMemoryFile,
+  requestMemoryNotesList,
   requestMemoryWikiList,
   requestMemoryWikiPage,
   syncMemoryNow,
@@ -198,6 +199,89 @@ describe("memory-runtime controller", () => {
     );
     expect(state.memoryGraphError).toBeNull();
     expect(state.memoryGraphLoading).toBe(false);
+  });
+
+  it("passes includeAttachments when loading the canonical memory graph", async () => {
+    const { state, request } = createState();
+
+    request.mockImplementation((method: string, params: Record<string, unknown>) => {
+      if (method === "memory.graph" && params.agentId === "main") {
+        return Promise.resolve({
+          query: "",
+          profileId: "local-main",
+          workspaceScope: "scope-main",
+          storePath: "/tmp/canonical.sqlite",
+          backend: "builtin",
+          state: "ready",
+          projectionInterface: "markdown-repo",
+          syncMode: "local-first",
+          cloudSync: "unavailable",
+          scope: "global",
+          nodes: [],
+          edges: [],
+          branches: [],
+          availableRelationTypes: [],
+          availableTags: [],
+          stats: {
+            totalNodes: 0,
+            totalEdges: 0,
+            visibleNodes: 0,
+            visibleEdges: 0,
+          },
+          truncated: {
+            nodes: false,
+            edges: false,
+          },
+          matches: [],
+        });
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    await loadMemoryGraph(state, {
+      agentId: "main",
+      scope: "global",
+      includeAttachments: true,
+    });
+
+    expect(request).toHaveBeenCalledWith(
+      "memory.graph",
+      expect.objectContaining({
+        agentId: "main",
+        includeAttachments: true,
+      }),
+    );
+  });
+
+  it("falls back from memory.notes.list to memory.wiki.list during transition", async () => {
+    const { request } = createState();
+
+    request.mockImplementation((method: string) => {
+      if (method === "memory.notes.list") {
+        return Promise.reject(
+          new GatewayRequestError({
+            code: "INVALID_REQUEST",
+            message: "unknown method: memory.notes.list",
+          }),
+        );
+      }
+      if (method === "memory.wiki.list") {
+        return Promise.resolve({
+          agentId: "main",
+          pages: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
+        });
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    const result = await requestMemoryNotesList(
+      { request } as unknown as Parameters<typeof requestMemoryNotesList>[0],
+      { agentId: "main" },
+    );
+
+    expect(result.notes.map((note) => note.title)).toEqual(["Project Atlas"]);
+    expect(request).toHaveBeenCalledWith("memory.notes.list", { agentId: "main" });
+    expect(request).toHaveBeenCalledWith("memory.wiki.list", { agentId: "main" });
   });
 
   it("surfaces a friendly native-wiki message when memory.wiki.list is unavailable", async () => {

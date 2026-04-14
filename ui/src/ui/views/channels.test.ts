@@ -171,7 +171,6 @@ describe("channels view", () => {
     expect(container.textContent).toContain("The bot is missing access to the target group.");
     expect(container.textContent).toContain("Create the bot in BotFather.");
     expect(container.textContent).toContain("Paste the bot token here.");
-    expect(container.textContent).toContain("Direct messages reuse the main session");
     findButton(container, "View setup guide")?.dispatchEvent(
       new MouseEvent("click", { bubbles: true }),
     );

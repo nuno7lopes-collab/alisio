@@ -171,6 +171,13 @@ type NativeFileEntry = {
   traceSummary?: string[];
 };
 
+type NativeNoteListEntry = NativeWikiListPage;
+type NativeNoteAttachment = NativeWikiRelatedFile;
+type NativeNote = Omit<NativeWikiPage, "relatedFiles"> & {
+  attachments?: NativeNoteAttachment[];
+};
+type NativeNoteHistoryEntry = NativeHistoryEntry;
+
 type NativeMemoryContext = {
   cfg: ReturnType<typeof loadConfig>;
   agentId: string;
@@ -1369,6 +1376,36 @@ function buildWikiPageDetail(params: {
   };
 }
 
+function asNativeNote(page: NativeWikiPage): NativeNote {
+  const { relatedFiles, ...rest } = page;
+  return {
+    ...rest,
+    ...(relatedFiles?.length ? { attachments: relatedFiles } : {}),
+  };
+}
+
+function asNativeWikiPage(note: NativeNote): NativeWikiPage {
+  const { attachments, ...rest } = note;
+  return {
+    ...rest,
+    ...(attachments?.length ? { relatedFiles: attachments } : {}),
+  };
+}
+
+function buildNoteListResult(params: { db: DatabaseSync; query?: string }): NativeNoteListEntry[] {
+  return buildWikiListResult(params);
+}
+
+function buildNoteDetail(params: {
+  db: DatabaseSync;
+  canonicalStore: CanonicalMemoryStoreStatus;
+  pageId: string;
+  query?: string;
+}): NativeNote | null {
+  const page = buildWikiPageDetail(params);
+  return page ? asNativeNote(page) : null;
+}
+
 function slugifyTitle(title: string): string {
   const normalized = normalizeReferenceKey(title)
     .replace(/[^a-z0-9/_-]+/g, "-")
@@ -1823,11 +1860,11 @@ async function buildExportResult(params: {
           agentId: params.agentId,
           exportedAt: new Date().toISOString(),
           sync: buildSyncSurface(params.canonicalStore),
-          pages: pages.map((page) => ({
+          notes: pages.map((page) => ({
             ...page,
             contentPreview: summarizeText(page.content, 240),
           })),
-          files: attachments.map((attachment) => ({
+          attachments: attachments.map((attachment) => ({
             id: attachment.id,
             name: attachment.name,
             mediaType: attachment.mediaType,
@@ -1849,7 +1886,7 @@ async function buildExportResult(params: {
       `- Profile: ${params.canonicalStore.profileId}`,
       `- Last synced lamport: ${params.canonicalStore.lastSyncedLamport}`,
       "",
-      "## Wiki",
+      "## Notes",
       "",
       ...pages.flatMap((page) => [
         `### ${page.title}`,
@@ -1859,7 +1896,7 @@ async function buildExportResult(params: {
         page.content.trimEnd(),
         "",
       ]),
-      "## Files",
+      "## Attachments",
       "",
       ...attachments.flatMap((attachment) => [
         `- ${attachment.name} (${attachment.mediaType}, ${attachment.size} bytes, ${attachment.sha256})`,
@@ -1882,13 +1919,13 @@ async function buildExportResult(params: {
         agentId: params.agentId,
         exportedAt: new Date().toISOString(),
         sync: buildSyncSurface(params.canonicalStore),
-        pages: pages.map((page) => ({
+        notes: pages.map((page) => ({
           id: page.id,
           title: page.title,
           path: page.path,
           backlinks: page.backlinks,
         })),
-        files: attachments.map((attachment) => ({
+        attachments: attachments.map((attachment) => ({
           id: attachment.id,
           name: attachment.name,
           mediaType: attachment.mediaType,
@@ -1915,6 +1952,202 @@ async function buildExportResult(params: {
   };
 }
 
+export async function handleMemoryNotesListGatewayRequest({
+  params,
+  respond,
+}: GatewayRequestHandlerOptions) {
+  const context = await resolveNativeMemoryContext({
+    method: "memory.notes.list",
+    request: params,
+    respond,
+  });
+  if (!context) {
+    return;
+  }
+  const db = openCanonicalDb(context.canonicalStore);
+  try {
+    respond(
+      true,
+      {
+        agentId: context.agentId,
+        sync: buildSyncSurface(context.canonicalStore),
+        exportFormats: ["zip", "json", "markdown"],
+        notes: buildNoteListResult({
+          db,
+          query: normalizeString(params.query),
+        }),
+      },
+      undefined,
+    );
+  } finally {
+    db.close();
+    await context.close();
+  }
+}
+
+export async function handleMemoryNotesGetGatewayRequest({
+  params,
+  respond,
+}: GatewayRequestHandlerOptions) {
+  const noteId = normalizeString(params.noteId);
+  if (!noteId) {
+    respondGatewayError(respond, "INVALID_REQUEST", "memory.notes.get requires noteId");
+    return;
+  }
+  const context = await resolveNativeMemoryContext({
+    method: "memory.notes.get",
+    request: params,
+    respond,
+  });
+  if (!context) {
+    return;
+  }
+  const db = openCanonicalDb(context.canonicalStore);
+  try {
+    const note = buildNoteDetail({
+      db,
+      canonicalStore: context.canonicalStore,
+      pageId: noteId,
+      query: normalizeString(params.query),
+    });
+    if (!note) {
+      respondGatewayError(respond, "NOT_FOUND", `memory note not found: ${noteId}`);
+      return;
+    }
+    respond(
+      true,
+      {
+        agentId: context.agentId,
+        sync: buildSyncSurface(context.canonicalStore),
+        note,
+      },
+      undefined,
+    );
+  } finally {
+    db.close();
+    await context.close();
+  }
+}
+
+export async function handleMemoryNotesUpdateGatewayRequest({
+  params,
+  respond,
+}: GatewayRequestHandlerOptions) {
+  const title = normalizeString(params.title);
+  const content = typeof params.content === "string" ? params.content : "";
+  if (!title) {
+    respondGatewayError(respond, "INVALID_REQUEST", "memory.notes.update requires title");
+    return;
+  }
+  if (typeof params.content !== "string") {
+    respondGatewayError(respond, "INVALID_REQUEST", "memory.notes.update requires content");
+    return;
+  }
+  const context = await resolveNativeMemoryContext({
+    method: "memory.notes.update",
+    request: params,
+    respond,
+    syncIfDirty: false,
+  });
+  if (!context) {
+    return;
+  }
+  const db = openCanonicalDb(context.canonicalStore);
+  const noteId = normalizeString(params.noteId) || undefined;
+  let dbClosed = false;
+  try {
+    const entity = buildPageEntityInput({
+      db,
+      pageId: noteId,
+      title,
+      content,
+    });
+    db.close();
+    dbClosed = true;
+    const updatedStatus = await upsertCanonicalMemoryStructuredEntities({
+      cfg: context.cfg,
+      agentId: context.agentId,
+      workspaceDir: context.canonicalStore.workspaceDir,
+      backend: context.canonicalStore.backend,
+      env: process.env,
+      entities: [entity],
+    });
+    await persistWorkspaceProjection({
+      profileId: context.canonicalStore.profileId,
+      workspaceDir: context.canonicalStore.workspaceDir,
+      entity,
+    });
+    const refreshedDb = openCanonicalDb(updatedStatus);
+    try {
+      const note = buildNoteDetail({
+        db: refreshedDb,
+        canonicalStore: updatedStatus,
+        pageId: entity.entityId ?? noteId ?? "",
+        query: normalizeString(params.query),
+      });
+      respond(
+        true,
+        {
+          ok: true,
+          agentId: context.agentId,
+          note,
+          revision: note?.revision ?? null,
+          sync: buildSyncSurface(updatedStatus),
+        },
+        undefined,
+      );
+    } finally {
+      refreshedDb.close();
+    }
+  } catch (error) {
+    if (!dbClosed) {
+      db.close();
+    }
+    respondGatewayError(
+      respond,
+      "UNAVAILABLE",
+      `memory.notes.update failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    await context.close();
+    return;
+  }
+  await context.close();
+}
+
+export async function handleMemoryNotesHistoryGatewayRequest({
+  params,
+  respond,
+}: GatewayRequestHandlerOptions) {
+  const noteId = normalizeString(params.noteId);
+  if (!noteId) {
+    respondGatewayError(respond, "INVALID_REQUEST", "memory.notes.history requires noteId");
+    return;
+  }
+  const context = await resolveNativeMemoryContext({
+    method: "memory.notes.history",
+    request: params,
+    respond,
+  });
+  if (!context) {
+    return;
+  }
+  const db = openCanonicalDb(context.canonicalStore);
+  try {
+    respond(
+      true,
+      {
+        agentId: context.agentId,
+        noteId,
+        history: loadHistoryEntries(context.canonicalStore, noteId) as NativeNoteHistoryEntry[],
+      },
+      undefined,
+    );
+  } finally {
+    db.close();
+    await context.close();
+  }
+}
+
 export async function handleMemoryWikiListGatewayRequest({
   params,
   respond,
@@ -1935,7 +2168,7 @@ export async function handleMemoryWikiListGatewayRequest({
         agentId: context.agentId,
         sync: buildSyncSurface(context.canonicalStore),
         exportFormats: ["zip", "json", "markdown"],
-        pages: buildWikiListResult({
+        pages: buildNoteListResult({
           db,
           query: normalizeString(params.query),
         }),
@@ -1967,13 +2200,13 @@ export async function handleMemoryWikiGetGatewayRequest({
   }
   const db = openCanonicalDb(context.canonicalStore);
   try {
-    const page = buildWikiPageDetail({
+    const note = buildNoteDetail({
       db,
       canonicalStore: context.canonicalStore,
       pageId,
       query: normalizeString(params.query),
     });
-    if (!page) {
+    if (!note) {
       respondGatewayError(respond, "NOT_FOUND", `memory page not found: ${pageId}`);
       return;
     }
@@ -1982,7 +2215,7 @@ export async function handleMemoryWikiGetGatewayRequest({
       {
         agentId: context.agentId,
         sync: buildSyncSurface(context.canonicalStore),
-        page,
+        page: asNativeWikiPage(note),
       },
       undefined,
     );
@@ -2042,7 +2275,7 @@ export async function handleMemoryWikiUpdateGatewayRequest({
     });
     const refreshedDb = openCanonicalDb(updatedStatus);
     try {
-      const page = buildWikiPageDetail({
+      const note = buildNoteDetail({
         db: refreshedDb,
         canonicalStore: updatedStatus,
         pageId: entity.entityId ?? pageId ?? "",
@@ -2053,8 +2286,8 @@ export async function handleMemoryWikiUpdateGatewayRequest({
         {
           ok: true,
           agentId: context.agentId,
-          page,
-          revision: page?.revision ?? null,
+          page: note ? asNativeWikiPage(note) : null,
+          revision: note?.revision ?? null,
           sync: buildSyncSurface(updatedStatus),
         },
         undefined,

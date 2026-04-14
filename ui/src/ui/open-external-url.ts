@@ -113,6 +113,14 @@ export type OpenExternalUrlSafeOptions = ResolveSafeExternalUrlOptions & {
   baseHref?: string;
 };
 
+export type OpenExternalTargetOptions = OpenExternalUrlSafeOptions & {
+  popup?: WindowProxy | null;
+  openViaHost?: ((url: string) => Promise<unknown>) | null;
+  preferNewTab?: boolean;
+};
+
+export type OpenExternalTargetResult = "host" | "popup" | "new-tab" | "same-tab" | "invalid";
+
 export function reserveExternalPopup(): WindowProxy | null {
   const opened = window.open("about:blank", "_blank", "popup,width=520,height=720");
   if (opened) {
@@ -170,4 +178,39 @@ export function openExternalUrlSafe(
     nullPopupOpener(opened);
   }
   return opened;
+}
+
+export async function openExternalTarget(
+  rawUrl: string,
+  opts: OpenExternalTargetOptions = {},
+): Promise<OpenExternalTargetResult> {
+  const baseHref = opts.baseHref ?? window.location.href;
+  if (opts.openViaHost) {
+    try {
+      await opts.openViaHost(rawUrl);
+      return "host";
+    } catch {
+      // Fall back to browser navigation when the native bridge cannot launch the URL.
+    }
+  }
+
+  if (navigateReservedExternalPopup(opts.popup ?? null, rawUrl, opts)) {
+    return "popup";
+  }
+
+  closeReservedExternalPopup(opts.popup ?? null);
+  const safeUrl = resolveSafeExternalUrl(rawUrl, baseHref, opts);
+  if (!safeUrl) {
+    return "invalid";
+  }
+
+  if (opts.preferNewTab) {
+    const opened = openExternalUrlSafe(safeUrl, { ...opts, baseHref });
+    if (opened) {
+      return "new-tab";
+    }
+  }
+
+  window.location.assign(safeUrl);
+  return "same-tab";
 }

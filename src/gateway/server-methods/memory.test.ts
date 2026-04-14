@@ -7,9 +7,30 @@ const listAgentIds = vi.hoisted(() => vi.fn(() => ["main"]));
 const resolveMemorySearchConfig = vi.hoisted(() => vi.fn());
 const getActiveMemorySearchManager = vi.hoisted(() => vi.fn());
 const resolveActiveMemoryBackendConfig = vi.hoisted(() => vi.fn(() => ({ backend: "builtin" })));
+const resolveStateDir = vi.hoisted(() => vi.fn(() => "/tmp/state"));
+const resolveAlisioMemoryOwnerProfile = vi.hoisted(() =>
+  vi.fn(() => ({
+    profileId: "local-nuno",
+    source: "local-profile",
+  })),
+);
+const setupProfileRootKey = vi.hoisted(() => vi.fn());
+const loadProfileRootKey = vi.hoisted(() => vi.fn());
+const exportPairingCode = vi.hoisted(() => vi.fn());
+const importProfileKeyFromPairingCode = vi.hoisted(() => vi.fn());
+const storeProfileRootKey = vi.hoisted(() => vi.fn());
+const logGatewayInfo = vi.hoisted(() => vi.fn());
 
 vi.mock("../../config/config.js", () => ({
   loadConfig,
+}));
+
+vi.mock("../../config/paths.js", () => ({
+  resolveStateDir,
+}));
+
+vi.mock("../../infra/alisio-memory-profile.js", () => ({
+  resolveAlisioMemoryOwnerProfile,
 }));
 
 vi.mock("../../agents/agent-scope.js", () => ({
@@ -23,6 +44,14 @@ vi.mock("../../agents/memory-search.js", () => ({
 vi.mock("../../plugins/memory-runtime.js", () => ({
   getActiveMemorySearchManager,
   resolveActiveMemoryBackendConfig,
+}));
+
+vi.mock("../../../packages/memory-crypto/src/index.js", () => ({
+  exportPairingCode,
+  importProfileKeyFromPairingCode,
+  loadProfileRootKey,
+  setupProfileRootKey,
+  storeProfileRootKey,
 }));
 
 import { memoryHandlers } from "./memory.js";
@@ -102,7 +131,11 @@ async function invokeMemoryMethod(
     req: {} as never,
     params: params as never,
     respond: respond as never,
-    context: {} as never,
+    context: {
+      logGateway: {
+        info: logGatewayInfo,
+      },
+    } as never,
     client: null,
     isWebchatConnect: () => false,
   });
@@ -116,6 +149,17 @@ describe("memoryHandlers", () => {
     resolveMemorySearchConfig.mockReset().mockReturnValue(createResolvedMemoryConfig());
     getActiveMemorySearchManager.mockReset();
     resolveActiveMemoryBackendConfig.mockReset().mockReturnValue({ backend: "builtin" });
+    resolveStateDir.mockReset().mockReturnValue("/tmp/state");
+    resolveAlisioMemoryOwnerProfile.mockReset().mockReturnValue({
+      profileId: "local-nuno",
+      source: "local-profile",
+    });
+    setupProfileRootKey.mockReset();
+    loadProfileRootKey.mockReset();
+    exportPairingCode.mockReset();
+    importProfileKeyFromPairingCode.mockReset();
+    storeProfileRootKey.mockReset();
+    logGatewayInfo.mockReset();
   });
 
   it("returns detailed status for the requested agent", async () => {
@@ -325,6 +369,172 @@ describe("memoryHandlers", () => {
       undefined,
     );
     expect(close).toHaveBeenCalled();
+  });
+
+  it("sets up a local E2EE profile key and logs the outcome", async () => {
+    setupProfileRootKey.mockResolvedValue({
+      profileId: "local-nuno",
+      profileRootKey: new Uint8Array([1, 2, 3]),
+      action: "created",
+      storedIn: "file",
+      path: "/tmp/state/memory/e2ee/local-nuno/profile-root-key.json",
+    });
+
+    const respond = await invokeMemoryMethod("memory.e2ee.setup", {
+      agentId: "main",
+      passphrase: "setup passphrase",
+    });
+
+    expect(setupProfileRootKey).toHaveBeenCalledWith({
+      profileId: "local-nuno",
+      passphrase: "setup passphrase",
+      stateDir: "/tmp/state",
+      env: process.env,
+    });
+    expect(logGatewayInfo).toHaveBeenCalledWith(
+      "memory e2ee event",
+      expect.objectContaining({
+        event: "key_created",
+        agentId: "main",
+        profileId: "local-nuno",
+        storedIn: "file",
+      }),
+    );
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      {
+        ok: true,
+        profileId: "local-nuno",
+        action: "created",
+        storedIn: "file",
+        path: "/tmp/state/memory/e2ee/local-nuno/profile-root-key.json",
+      },
+      undefined,
+    );
+  });
+
+  it("exports a pairing code only after a local key exists", async () => {
+    loadProfileRootKey.mockResolvedValue(new Uint8Array([7, 8, 9]));
+    exportPairingCode.mockResolvedValue("PAIRING-CODE-123");
+
+    const respond = await invokeMemoryMethod("memory.e2ee.exportPairingCode", {
+      agentId: "main",
+      passphrase: "pairing passphrase",
+      sourceDeviceId: "device-main",
+    });
+
+    expect(loadProfileRootKey).toHaveBeenCalledWith({
+      profileId: "local-nuno",
+      stateDir: "/tmp/state",
+      env: process.env,
+    });
+    expect(exportPairingCode).toHaveBeenCalledWith({
+      profileId: "local-nuno",
+      passphrase: "pairing passphrase",
+      profileRootKey: new Uint8Array([7, 8, 9]),
+      sourceDeviceId: "device-main",
+      createdAt: expect.any(String),
+    });
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        ok: true,
+        profileId: "local-nuno",
+        pairingCode: "PAIRING-CODE-123",
+        sourceDeviceId: "device-main",
+      }),
+      undefined,
+    );
+    expect(logGatewayInfo).toHaveBeenCalledWith(
+      "memory e2ee event",
+      expect.objectContaining({
+        event: "pairing_exported",
+        agentId: "main",
+        profileId: "local-nuno",
+        sourceDeviceId: "device-main",
+      }),
+    );
+  });
+
+  it("imports a matching pairing code into local storage", async () => {
+    importProfileKeyFromPairingCode.mockResolvedValue({
+      profileId: "local-nuno",
+      profileRootKey: new Uint8Array([4, 5, 6]),
+      cached: "passphrase-only",
+      createdAt: "2026-04-13T12:00:00.000Z",
+      sourceDeviceId: "device-a",
+    });
+    storeProfileRootKey.mockResolvedValue({
+      path: "/tmp/state/memory/e2ee/local-nuno/profile-root-key.json",
+      status: "file",
+      deviceKeyStoredIn: "file",
+    });
+
+    const respond = await invokeMemoryMethod("memory.e2ee.importPairingCode", {
+      agentId: "main",
+      pairingCode: "PAIRING-CODE-123",
+      passphrase: "pairing passphrase",
+    });
+
+    expect(importProfileKeyFromPairingCode).toHaveBeenCalledWith({
+      pairingCode: "PAIRING-CODE-123",
+      passphrase: "pairing passphrase",
+      cache: false,
+      stateDir: "/tmp/state",
+      env: process.env,
+    });
+    expect(storeProfileRootKey).toHaveBeenCalledWith({
+      profileId: "local-nuno",
+      profileRootKey: new Uint8Array([4, 5, 6]),
+      stateDir: "/tmp/state",
+      env: process.env,
+    });
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      {
+        ok: true,
+        profileId: "local-nuno",
+        cached: "file",
+        createdAt: "2026-04-13T12:00:00.000Z",
+        sourceDeviceId: "device-a",
+      },
+      undefined,
+    );
+    expect(logGatewayInfo).toHaveBeenCalledWith(
+      "memory e2ee event",
+      expect.objectContaining({
+        event: "pairing_imported",
+        agentId: "main",
+        profileId: "local-nuno",
+        cached: "file",
+        sourceDeviceId: "device-a",
+      }),
+    );
+  });
+
+  it("rejects pairing imports that target a different profile", async () => {
+    importProfileKeyFromPairingCode.mockResolvedValue({
+      profileId: "local-other",
+      profileRootKey: new Uint8Array([4, 5, 6]),
+      cached: "passphrase-only",
+      createdAt: "2026-04-13T12:00:00.000Z",
+    });
+
+    const respond = await invokeMemoryMethod("memory.e2ee.importPairingCode", {
+      agentId: "main",
+      pairingCode: "PAIRING-CODE-123",
+      passphrase: "pairing passphrase",
+    });
+
+    expect(storeProfileRootKey).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: "memory pairing code targets local-other, expected local-nuno",
+      }),
+    );
   });
 
   it("rejects manual sync when the backend has no sync implementation", async () => {

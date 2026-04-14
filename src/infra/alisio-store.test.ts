@@ -1209,7 +1209,7 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
-  it("blocks new connector connections on Free after the first connected app", async () => {
+  it("allows new connector connections on Free after the first connected app", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
         ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
@@ -1253,13 +1253,17 @@ describe("beginAlisioConnectorSetup", () => {
         fetchMock,
       );
 
-      await expect(beginAlisioConnectorSetup("gmail-send", env)).rejects.toThrow(
-        "Free includes 1 connected app.",
-      );
+      await expect(beginAlisioConnectorSetup("gmail-send", env)).resolves.toMatchObject({
+        connectorId: "gmail-send",
+        availability: "ready",
+        mode: "oauth",
+        provider: "google",
+        statusReason: "ready_for_oauth",
+      });
     });
   });
 
-  it("blocks new connector connections on Free when the existing slot only needs reconnect", async () => {
+  it("allows new connector connections on Free when the existing app only needs reconnect", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
         ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
@@ -1312,9 +1316,13 @@ describe("beginAlisioConnectorSetup", () => {
       };
       await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 
-      await expect(beginAlisioConnectorSetup("gmail-send", env)).rejects.toThrow(
-        "Free includes 1 connected app.",
-      );
+      await expect(beginAlisioConnectorSetup("gmail-send", env)).resolves.toMatchObject({
+        connectorId: "gmail-send",
+        availability: "ready",
+        mode: "oauth",
+        provider: "google",
+        statusReason: "ready_for_oauth",
+      });
     });
   });
 
@@ -2471,6 +2479,108 @@ describe("beginAlisioConnectorSetup", () => {
 
         expect(account.profile.displayName).toBe("Nuno Cloud");
         expect(account.profile.email).toBe("nuno@example.com");
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  it("uses the Supabase agent name as the authoritative value during hydration", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const statePath = alisioStateFile(root);
+      await fs.mkdir(path.dirname(statePath), { recursive: true });
+      await fs.writeFile(
+        statePath,
+        JSON.stringify(
+          {
+            version: 1,
+            account: {
+              profile: {
+                userId: "user-1",
+                username: "nuno",
+                displayName: "Nuno Lopes",
+                email: "nuno@example.com",
+                agentName: "Local stale name",
+                avatarLabel: "N",
+                joinedAt: "2026-04-04T15:00:00.000Z",
+                plan: "Free Plan",
+                backend: "supabase",
+              },
+              preferences: {
+                language: "pt-PT",
+                theme: "dark",
+              },
+              session: {
+                state: "signed_in",
+                profileCompleted: true,
+                signedInAt: "2026-04-04T15:00:00.000Z",
+                backend: "supabase",
+              },
+              cloudSession: {
+                backend: "supabase",
+                state: "signed_in",
+                userId: "user-1",
+                email: "nuno@example.com",
+                accessToken: "access-token",
+                refreshToken: "refresh-token",
+                expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+                signedInAt: "2026-04-04T15:00:00.000Z",
+              },
+            },
+            organization: {
+              mode: "none",
+            },
+            ai: {},
+            authorizations: {},
+            oauthCredentials: {},
+            pendingAuthorizations: {},
+          },
+          null,
+          2,
+        ),
+      );
+
+      const env = {
+        ALISIO_STATE_DIR: root,
+        ALISIO_SUPABASE_URL: "https://example.supabase.co",
+        ALISIO_SUPABASE_ANON_KEY: "anon-key",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      } as NodeJS.ProcessEnv;
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: "user-1",
+              email: "nuno@example.com",
+              created_at: "2026-04-04T15:00:00.000Z",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify([
+              {
+                user_id: "user-1",
+                email: "nuno@example.com",
+                display_name: "Nuno Lopes",
+                username: "nuno",
+                agent_name: "Cloud canonical name",
+                avatar_label: "N",
+                joined_at: "2026-04-04T15:00:00.000Z",
+                plan: "free",
+                profile_completed: true,
+              },
+            ]),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const account = await getAlisioAccountState(env);
+        expect(account.profile.agentName).toBe("Cloud canonical name");
       } finally {
         vi.unstubAllGlobals();
       }

@@ -9,6 +9,7 @@ APP_NAME="$(alisio_app_name)"
 PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
 APP_EXECUTABLE="${APP_EXECUTABLE:-${ALISIO_MAC_EXECUTABLE:-$PRODUCT}}"
 APP_BUNDLE="${ALISIO_APP_BUNDLE:-${APP_BUNDLE:-}}"
+DEV_APP_BUNDLE="$ROOT_DIR/.run/${APP_NAME}.app"
 LOG_PATH="${ALISIO_RESTART_LOG:-/tmp/alisio-restart.log}"
 LOCK_KEY="$(printf '%s' "$ROOT_DIR" | shasum -a 256 | cut -c1-8)"
 LOCK_DIR="${TMPDIR:-/tmp}/alisio-restart-${LOCK_KEY}"
@@ -75,6 +76,8 @@ pkill -x "$APP_EXECUTABLE" 2>/dev/null || true
 launchctl bootout gui/"$UID"/"$(alisio_bundle_domain).mac" 2>/dev/null || true
 
 run_step "bundle canvas a2ui" bash -lc "cd '$ROOT_DIR' && pnpm canvas:a2ui:bundle"
+# Keep the bundled Control UI aligned with the checkout before packaging/relaunch.
+run_step "build control ui" bash -lc "cd '$ROOT_DIR' && pnpm ui:build"
 run_step "swift build" bash -lc "cd '$ROOT_DIR/apps/macos' && swift build -q --product '$PRODUCT'"
 
 if [[ "$NO_SIGN" == "1" ]]; then
@@ -82,15 +85,11 @@ if [[ "$NO_SIGN" == "1" ]]; then
   export SIGN_IDENTITY="-"
 fi
 
-run_step "package app" bash -lc "cd '$ROOT_DIR' && SKIP_TSC=${SKIP_TSC:-1} bash '$ROOT_DIR/scripts/package-mac-app.sh'"
-
 if [[ -z "$APP_BUNDLE" ]]; then
-  if [[ -d "/Applications/${APP_NAME}.app" ]]; then
-    APP_BUNDLE="/Applications/${APP_NAME}.app"
-  else
-    APP_BUNDLE="$ROOT_DIR/dist/${APP_NAME}.app"
-  fi
+  APP_BUNDLE="$DEV_APP_BUNDLE"
 fi
+
+run_step "package app" bash -lc "cd '$ROOT_DIR' && SKIP_TSC=${SKIP_TSC:-1} MACOS_FINAL_APP_PATH='$APP_BUNDLE' bash '$ROOT_DIR/scripts/package-mac-app.sh'"
 [[ -d "$APP_BUNDLE" ]] || fail "App bundle não encontrado. Define ALISIO_APP_BUNDLE."
 
 run_step "open app" open "$APP_BUNDLE"

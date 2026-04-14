@@ -1,3 +1,10 @@
+import {
+  exportPairingCode,
+  importProfileKeyFromPairingCode,
+  loadProfileRootKey,
+  setupProfileRootKey,
+  storeProfileRootKey,
+} from "../../../packages/memory-crypto/src/index.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
 import {
   resolveMemorySearchConfig,
@@ -5,6 +12,8 @@ import {
 } from "../../agents/memory-search.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
+import { resolveStateDir } from "../../config/paths.js";
+import { resolveAlisioMemoryOwnerProfile } from "../../infra/alisio-memory-profile.js";
 import {
   getActiveMemorySearchManager,
   resolveActiveMemoryBackendConfig,
@@ -14,6 +23,9 @@ import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  validateMemoryE2eeExportPairingCodeParams,
+  validateMemoryE2eeImportPairingCodeParams,
+  validateMemoryE2eeSetupParams,
   type MemoryStatusConfig,
   type MemoryStatusResult,
   type MemoryStatusRuntime,
@@ -47,6 +59,33 @@ function resolveAgentContext(params: Record<string, unknown>, respond: RespondFn
     return null;
   }
   return { cfg, agentId };
+}
+
+function resolveMemoryE2eeContext(params: Record<string, unknown>, respond: RespondFn) {
+  const agentContext = resolveAgentContext(params, respond);
+  if (!agentContext) {
+    return null;
+  }
+  const env = process.env;
+  return {
+    ...agentContext,
+    env,
+    stateDir: resolveStateDir(env),
+    ownerProfile: resolveAlisioMemoryOwnerProfile(env),
+  };
+}
+
+function logMemoryE2eeEvent(
+  logGateway: {
+    info: (message: string, meta?: Record<string, unknown>) => void;
+  },
+  event: "key_created" | "key_loaded" | "pairing_exported" | "pairing_imported",
+  details: Record<string, unknown>,
+) {
+  logGateway.info("memory e2ee event", {
+    event,
+    ...details,
+  });
 }
 
 function buildMemoryStatusConfig(config: ResolvedMemorySearchConfig): MemoryStatusConfig {
@@ -444,6 +483,197 @@ export const memoryHandlers: GatewayRequestHandlers = {
       respond(true, result, undefined);
     } finally {
       await manager.close?.().catch(() => {});
+    }
+  },
+  "memory.e2ee.setup": async ({ params, respond, context }) => {
+    if (!validateMemoryE2eeSetupParams(params)) {
+      respondInvalidMethodParams(
+        respond,
+        "memory.e2ee.setup",
+        validateMemoryE2eeSetupParams.errors,
+      );
+      return;
+    }
+
+    const memoryContext = resolveMemoryE2eeContext(params, respond);
+    if (!memoryContext) {
+      return;
+    }
+    const { passphrase } = params as { passphrase: string };
+
+    try {
+      const result = await setupProfileRootKey({
+        profileId: memoryContext.ownerProfile.profileId,
+        passphrase,
+        stateDir: memoryContext.stateDir,
+        env: memoryContext.env,
+      });
+      logMemoryE2eeEvent(
+        context.logGateway,
+        result.action === "created" ? "key_created" : "key_loaded",
+        {
+          agentId: memoryContext.agentId,
+          profileId: result.profileId,
+          storedIn: result.storedIn,
+        },
+      );
+      respond(
+        true,
+        {
+          ok: true,
+          profileId: result.profileId,
+          action: result.action,
+          storedIn: result.storedIn,
+          path: result.path,
+        },
+        undefined,
+      );
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `memory E2EE setup failed: ${formatError(err)}`),
+      );
+    }
+  },
+  "memory.e2ee.exportPairingCode": async ({ params, respond, context }) => {
+    if (!validateMemoryE2eeExportPairingCodeParams(params)) {
+      respondInvalidMethodParams(
+        respond,
+        "memory.e2ee.exportPairingCode",
+        validateMemoryE2eeExportPairingCodeParams.errors,
+      );
+      return;
+    }
+
+    const memoryContext = resolveMemoryE2eeContext(params, respond);
+    if (!memoryContext) {
+      return;
+    }
+    const { passphrase, sourceDeviceId } = params as {
+      passphrase: string;
+      sourceDeviceId?: string;
+    };
+
+    try {
+      const profileRootKey = await loadProfileRootKey({
+        profileId: memoryContext.ownerProfile.profileId,
+        stateDir: memoryContext.stateDir,
+        env: memoryContext.env,
+      });
+      if (!profileRootKey) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            "memory E2EE key is not initialized on this device",
+          ),
+        );
+        return;
+      }
+
+      const createdAt = new Date().toISOString();
+      const pairingCode = await exportPairingCode({
+        profileId: memoryContext.ownerProfile.profileId,
+        passphrase,
+        profileRootKey,
+        sourceDeviceId,
+        createdAt,
+      });
+      logMemoryE2eeEvent(context.logGateway, "pairing_exported", {
+        agentId: memoryContext.agentId,
+        profileId: memoryContext.ownerProfile.profileId,
+        createdAt,
+        ...(sourceDeviceId ? { sourceDeviceId } : {}),
+      });
+      respond(
+        true,
+        {
+          ok: true,
+          profileId: memoryContext.ownerProfile.profileId,
+          pairingCode,
+          createdAt,
+          ...(sourceDeviceId ? { sourceDeviceId } : {}),
+        },
+        undefined,
+      );
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `memory pairing export failed: ${formatError(err)}`),
+      );
+    }
+  },
+  "memory.e2ee.importPairingCode": async ({ params, respond, context }) => {
+    if (!validateMemoryE2eeImportPairingCodeParams(params)) {
+      respondInvalidMethodParams(
+        respond,
+        "memory.e2ee.importPairingCode",
+        validateMemoryE2eeImportPairingCodeParams.errors,
+      );
+      return;
+    }
+
+    const memoryContext = resolveMemoryE2eeContext(params, respond);
+    if (!memoryContext) {
+      return;
+    }
+    const { pairingCode, passphrase } = params as {
+      pairingCode: string;
+      passphrase: string;
+    };
+
+    try {
+      const imported = await importProfileKeyFromPairingCode({
+        pairingCode,
+        passphrase,
+        cache: false,
+        stateDir: memoryContext.stateDir,
+        env: memoryContext.env,
+      });
+      if (imported.profileId !== memoryContext.ownerProfile.profileId) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `memory pairing code targets ${imported.profileId}, expected ${memoryContext.ownerProfile.profileId}`,
+          ),
+        );
+        return;
+      }
+
+      const cached = await storeProfileRootKey({
+        profileId: imported.profileId,
+        profileRootKey: imported.profileRootKey,
+        stateDir: memoryContext.stateDir,
+        env: memoryContext.env,
+      });
+      logMemoryE2eeEvent(context.logGateway, "pairing_imported", {
+        agentId: memoryContext.agentId,
+        profileId: imported.profileId,
+        cached: cached.status,
+        ...(imported.sourceDeviceId ? { sourceDeviceId: imported.sourceDeviceId } : {}),
+      });
+      respond(
+        true,
+        {
+          ok: true,
+          profileId: imported.profileId,
+          cached: cached.status,
+          createdAt: imported.createdAt,
+          ...(imported.sourceDeviceId ? { sourceDeviceId: imported.sourceDeviceId } : {}),
+        },
+        undefined,
+      );
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `memory pairing import failed: ${formatError(err)}`),
+      );
     }
   },
   "memory.sync": async ({ params, respond }) => {

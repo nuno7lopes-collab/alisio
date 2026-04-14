@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import JSZip from "jszip";
 import type { AlisioConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { requireNodeSqlite } from "alisio/plugin-sdk/memory-core-host-engine-storage";
+import JSZip from "jszip";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadConfig = vi.hoisted(() => vi.fn());
@@ -24,17 +24,21 @@ vi.mock("./memory/index.js", () => ({
 }));
 
 import {
-  handleMemoryFilesGetGatewayRequest,
-  handleMemoryFilesListGatewayRequest,
-} from "./gateway/files.js";
-import {
   handleMemoryExportGatewayRequest,
+  handleMemoryNotesGetGatewayRequest,
+  handleMemoryNotesHistoryGatewayRequest,
+  handleMemoryNotesListGatewayRequest,
+  handleMemoryNotesUpdateGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
   handleMemoryWikiGetGatewayRequest,
   handleMemoryWikiHistoryGatewayRequest,
   handleMemoryWikiListGatewayRequest,
   handleMemoryWikiUpdateGatewayRequest,
 } from "./gateway.native.js";
+import {
+  handleMemoryFilesGetGatewayRequest,
+  handleMemoryFilesListGatewayRequest,
+} from "./gateway/files.js";
 import { memoryWriteEvent, syncCanonicalMemoryStore } from "./memory/canonical-store.js";
 
 type TestWorkspace = {
@@ -121,7 +125,13 @@ async function insertTraceEvent(params: {
   trace: Record<string, unknown>;
 }) {
   const { DatabaseSync } = requireNodeSqlite();
-  const ledgerPath = path.join(params.stateDir, "state", params.profileId, "memory", "ledger.sqlite");
+  const ledgerPath = path.join(
+    params.stateDir,
+    "state",
+    params.profileId,
+    "memory",
+    "ledger.sqlite",
+  );
   await fs.mkdir(path.dirname(ledgerPath), { recursive: true });
   const db = new DatabaseSync(ledgerPath);
   try {
@@ -201,9 +211,9 @@ async function seedNativeMemory() {
   try {
     atlasPageId =
       (
-        db
-          .prepare(`SELECT page_id FROM pages WHERE title = ? LIMIT 1`)
-          .get("Project Atlas") as { page_id?: string } | undefined
+        db.prepare(`SELECT page_id FROM pages WHERE title = ? LIMIT 1`).get("Project Atlas") as
+          | { page_id?: string }
+          | undefined
       )?.page_id ?? "";
   } finally {
     db.close();
@@ -298,16 +308,14 @@ async function seedNativeMemory() {
 }
 
 async function invoke(
-  handler: (
-    opts: {
-      req: never;
-      params: Record<string, unknown>;
-      respond: (...args: unknown[]) => void;
-      context: never;
-      client: null;
-      isWebchatConnect: () => false;
-    },
-  ) => Promise<void>,
+  handler: (opts: {
+    req: never;
+    params: Record<string, unknown>;
+    respond: (...args: unknown[]) => void;
+    context: never;
+    client: null;
+    isWebchatConnect: () => false;
+  }) => Promise<void>,
   params: Record<string, unknown>,
 ) {
   const respond = vi.fn();
@@ -448,6 +456,61 @@ describe("native memory gateway handlers", () => {
     await fs.rm(seeded.test.root, { recursive: true, force: true });
   });
 
+  it("serves note aliases over the canonical markdown pages", async () => {
+    const seeded = await seedNativeMemory();
+
+    const listRespond = await invoke(handleMemoryNotesListGatewayRequest, {
+      agentId: "main",
+      query: "atlas",
+    });
+    const listResult = listRespond.mock.calls[0]?.[1] as {
+      notes: Array<{ title: string }>;
+    };
+    expect(listResult.notes.map((note) => note.title)).toContain("Project Atlas");
+
+    const getRespond = await invoke(handleMemoryNotesGetGatewayRequest, {
+      agentId: "main",
+      noteId: seeded.atlasPageId,
+      query: "atlas",
+    });
+    const getResult = getRespond.mock.calls[0]?.[1] as {
+      note: {
+        attachments?: Array<{ name: string }>;
+        content: string;
+      };
+    };
+    expect(getResult.note.attachments?.map((attachment) => attachment.name)).toContain(
+      "product-brief.pdf",
+    );
+    expect(getResult.note.content).toContain("priority: high");
+
+    const historyRespond = await invoke(handleMemoryNotesHistoryGatewayRequest, {
+      agentId: "main",
+      noteId: seeded.atlasPageId,
+    });
+    expect(historyRespond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        noteId: seeded.atlasPageId,
+        history: expect.arrayContaining([expect.objectContaining({ eventId: expect.any(String) })]),
+      }),
+      undefined,
+    );
+
+    const updateRespond = await invoke(handleMemoryNotesUpdateGatewayRequest, {
+      agentId: "main",
+      noteId: seeded.atlasPageId,
+      title: "Project Atlas",
+      content: "# Project Atlas\n\nAtlas updated from notes API.\n",
+    });
+    const updateResult = updateRespond.mock.calls[0]?.[1] as {
+      note?: { content: string };
+    };
+    expect(updateResult.note?.content).toContain("Atlas updated from notes API.");
+
+    await fs.rm(seeded.test.root, { recursive: true, force: true });
+  });
+
   it("serves files, related pages, and exports coherent snapshots", async () => {
     const seeded = await seedNativeMemory();
 
@@ -524,11 +587,11 @@ describe("native memory gateway handlers", () => {
     });
     const jsonResult = jsonRespond.mock.calls[0]?.[1] as { content: string };
     const parsed = JSON.parse(jsonResult.content) as {
-      pages: Array<{ title: string }>;
-      files: Array<{ name: string }>;
+      notes: Array<{ title: string }>;
+      attachments: Array<{ name: string }>;
     };
-    expect(parsed.pages.map((page) => page.title)).toContain("Project Atlas");
-    expect(parsed.files.map((file) => file.name)).toContain("product-brief.pdf");
+    expect(parsed.notes.map((note) => note.title)).toContain("Project Atlas");
+    expect(parsed.attachments.map((file) => file.name)).toContain("product-brief.pdf");
 
     const zipRespond = await invoke(handleMemoryExportGatewayRequest, {
       agentId: "main",
@@ -554,9 +617,7 @@ describe("native memory gateway handlers", () => {
       expect.objectContaining({
         traceId: seeded.traceId,
         raw: expect.objectContaining({ query: "atlas" }),
-        reasonTags: expect.arrayContaining([
-          expect.objectContaining({ code: "exact_title" }),
-        ]),
+        reasonTags: expect.arrayContaining([expect.objectContaining({ code: "exact_title" })]),
       }),
       undefined,
     );
@@ -606,6 +667,67 @@ describe("native memory gateway handlers", () => {
     );
     expect(workspaceProjection).not.toContain("\n  - Atlas\n");
     expect(workspaceProjection).not.toContain("tags:");
+
+    await fs.rm(seeded.test.root, { recursive: true, force: true });
+  });
+
+  it("revives workspace pages on the next canonical sync after a tombstone", async () => {
+    const seeded = await seedNativeMemory();
+
+    const tombstoned = await memoryWriteEvent({
+      cfg: seeded.test.cfg,
+      agentId: "main",
+      workspaceDir: seeded.test.workspaceDir,
+      backend: "builtin",
+      env: process.env,
+      events: [
+        {
+          actorId: "atlas",
+          pageId: seeded.atlasPageId,
+          type: "PAGE_TOMBSTONED",
+          payload: {
+            pageId: seeded.atlasPageId,
+            tombstoned: true,
+            updatedAtMs: Date.now(),
+          },
+        },
+      ],
+    });
+    seeded.status = tombstoned.status;
+
+    seeded.status = await syncCanonicalMemoryStore({
+      cfg: seeded.test.cfg,
+      agentId: "main",
+      workspaceDir: seeded.test.workspaceDir,
+      backend: "builtin",
+      env: process.env,
+    });
+
+    const db = openDb(seeded.status.path);
+    try {
+      const page =
+        (
+          db
+            .prepare(
+              `SELECT tombstoned
+               FROM pages
+               WHERE page_id = ?`,
+            )
+            .get(seeded.atlasPageId) as { tombstoned?: number } | undefined
+        )?.tombstoned ?? 1;
+      expect(page).toBe(0);
+    } finally {
+      db.close();
+    }
+
+    const listRespond = await invoke(handleMemoryWikiListGatewayRequest, {
+      agentId: "main",
+      query: "atlas",
+    });
+    const listResult = listRespond.mock.calls[0]?.[1] as {
+      pages: Array<{ title: string }>;
+    };
+    expect(listResult.pages.map((page) => page.title)).toContain("Project Atlas");
 
     await fs.rm(seeded.test.root, { recursive: true, force: true });
   });

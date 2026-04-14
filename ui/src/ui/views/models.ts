@@ -10,7 +10,6 @@ import type { AlisioAiState, AlisioBootstrapState, AlisioModelsState } from "../
 import {
   renderSkeletonButton,
   renderSkeletonLines,
-  renderSkeletonListItem,
   renderSkeletonPill,
 } from "./loading-skeleton.ts";
 
@@ -111,8 +110,6 @@ function modelsText() {
     recommendedUpTo: t("alisio.settings.models.recommendedUpTo"),
     memory: t("alisio.settings.models.memory"),
     disk: t("alisio.settings.models.disk"),
-    defaultModel: t("alisio.settings.models.defaultModel"),
-    chooseModel: t("alisio.settings.models.chooseModel"),
     noModelChoices: t("alisio.settings.models.noModelChoices"),
     modelsAvailable: t("alisio.settings.models.modelsAvailable"),
     suggestion: t("alisio.settings.models.suggestion"),
@@ -333,15 +330,6 @@ function resolveModelRecommendation(
   return target.recommendations.find((entry) => entry.modelId === modelId) ?? null;
 }
 
-function isOpenAiModelValue(value: string) {
-  const normalized = value.trim().toLowerCase();
-  return normalized.startsWith("openai-codex/") || normalized.startsWith("openai/");
-}
-
-function resolveOpenAiModelOptions(options: readonly ChatModelOption[]) {
-  return options.filter((entry) => isOpenAiModelValue(entry.value));
-}
-
 function resolveProviderModelId(value: string, providerId: string | null | undefined) {
   const normalizedProviderId = providerId?.trim();
   if (!normalizedProviderId) {
@@ -447,14 +435,8 @@ function formatCount(value: number, singular: string, plural: string) {
   return `${value} ${value === 1 ? singular : plural}`;
 }
 
-function splitTargets(targets: readonly LocalModelTarget[]) {
-  const currentTargets = targets.filter((target) => target.current);
-  const linkedTargets = targets.filter((target) => !target.current);
-  return {
-    currentTargets,
-    linkedTargets,
-    currentTarget: currentTargets[0] ?? null,
-  };
+function resolveCurrentTargets(targets: readonly LocalModelTarget[]) {
+  return targets.filter((target) => target.current);
 }
 
 function resolveTargetRuntimeLabel(target: LocalModelTarget) {
@@ -635,6 +617,10 @@ function formatModelBytes(value: number | undefined) {
   return `${Math.max(1, Math.round(mb))} MB`;
 }
 
+function trimProgressVerb(label: string) {
+  return label.replace(/(?:\.\.\.|…)\s*$/, "").trim();
+}
+
 function findTargetModelOperation(
   operations: ModelsOperationMap | undefined,
   targetId: string,
@@ -648,6 +634,7 @@ function renderModelOperationProgress(
   modelId: string,
   operation: {
     action: "install" | "uninstall";
+    intent?: "install" | "update" | "uninstall";
     phase: "started" | "running" | "completed" | "failed";
     percent?: number;
     downloadedSize?: number;
@@ -669,12 +656,15 @@ function renderModelOperationProgress(
         : operation.phase === "started"
           ? 35
           : 65;
-  const progressLabel =
-    operation.action === "uninstall"
-      ? text.uninstalling
+  const installLabel =
+    operation.intent === "update"
+      ? progressPercent > 0
+        ? `${trimProgressVerb(text.updating)} ${progressPercent}%`
+        : text.updating
       : progressPercent > 0
-        ? `${text.installing} ${progressPercent}%`
+        ? `${trimProgressVerb(text.installing)} ${progressPercent}%`
         : text.installing;
+  const progressLabel = operation.action === "uninstall" ? text.uninstalling : installLabel;
   const meta =
     operation.action === "install" &&
     typeof operation.downloadedSize === "number" &&
@@ -705,6 +695,19 @@ function renderModelOperationProgress(
       </div>
     </div>
   `;
+}
+
+function resolveUpdateButtonLabel(
+  operation: {
+    action: "install" | "uninstall";
+    intent?: "install" | "update" | "uninstall";
+  } | null,
+) {
+  const text = modelsText();
+  if (operation?.action !== "install") {
+    return text.update;
+  }
+  return text.updating;
 }
 
 function resolveCatalogEntryById(catalog: readonly TargetCatalogEntryView[], modelId: string) {
@@ -763,7 +766,7 @@ function renderInstalledModelRows(props: {
                       ?disabled=${busy}
                       @click=${() => props.onUpdateModel?.(props.target.targetId, model.id)}
                     >
-                      ${operation?.action === "install" ? text.updating : text.update}
+                      ${resolveUpdateButtonLabel(operation)}
                     </button>
                   `
                 : nothing}
@@ -986,106 +989,127 @@ function renderTargetCard(props: {
   `;
 }
 
-function renderOpenAiModelChooser(props: {
-  modelOptions: readonly ChatModelOption[];
-  defaultChatModelValue: string;
-  defaultChatModelDisplay: string;
-  defaultChatModelLabel: string;
-  busy: boolean;
-  onSelectDefaultModel: (value: string) => void;
-}) {
-  const text = modelsText();
-  const openAiOptions = resolveOpenAiModelOptions(props.modelOptions);
-  const defaultModelLabel = isOpenAiModelValue(props.defaultChatModelValue)
-    ? props.defaultChatModelDisplay || props.defaultChatModelLabel
-    : text.chooseModel;
-
+function renderTargetCardSkeleton(opts: { showActions?: boolean; showCatalog?: boolean } = {}) {
+  const showActions = opts.showActions ?? true;
+  const showCatalog = opts.showCatalog ?? true;
   return html`
-    <section class="alisio-models__chooser">
-      <div class="alisio-models__chooser-head">
-        <div class="alisio-models__chooser-title">${text.defaultModel}</div>
-        <div class="list-sub">${defaultModelLabel}</div>
+    <div class="alisio-models__target alisio-models__target--skeleton" aria-hidden="true">
+      <div class="alisio-models__target-head">
+        <div class="alisio-models__target-skeleton-copy">
+          ${renderSkeletonLines(["medium", "short"], { compact: true })}
+        </div>
+        <div class="alisio-models__target-skeleton-badges">
+          ${renderSkeletonPill({ small: true })} ${renderSkeletonPill({ small: true })}
+        </div>
       </div>
-      ${openAiOptions.length === 0
-        ? html`<div class="list-sub">${text.noModelChoices}</div>`
-        : html`
-            <div class="alisio-models__model-chips">
-              ${openAiOptions.map(
-                (option) => html`
-                  <button
-                    class="alisio-models__model-chip ${option.value === props.defaultChatModelValue
-                      ? "is-active"
-                      : ""}"
-                    ?disabled=${props.busy}
-                    @click=${() => props.onSelectDefaultModel(option.value)}
-                  >
-                    ${option.label}
-                  </button>
-                `,
-              )}
+      <div class="alisio-models__target-meta">
+        ${renderSkeletonPill({ small: true })}
+        ${renderSkeletonLines(["medium"], {
+          compact: true,
+          className: "alisio-models__target-skeleton-status",
+        })}
+      </div>
+      <div class="alisio-models__installed">
+        <div
+          class="skeleton skeleton-line skeleton-line--short alisio-models__section-skeleton-label"
+        ></div>
+        <div class="alisio-models__model-row alisio-models__model-row--skeleton">
+          <div class="alisio-models__model-main">
+            ${renderSkeletonLines(["medium", "long"], { compact: true })}
+          </div>
+          ${showActions
+            ? html`
+                <div class="alisio-models__model-actions">
+                  ${renderSkeletonButton({ small: true })} ${renderSkeletonButton({ small: true })}
+                </div>
+              `
+            : html`
+                <div class="alisio-models__target-skeleton-badges">
+                  ${renderSkeletonPill({ small: true })} ${renderSkeletonPill({ small: true })}
+                </div>
+              `}
+        </div>
+      </div>
+      ${showCatalog
+        ? html`
+            <div class="alisio-models__installed">
+              <div
+                class="skeleton skeleton-line skeleton-line--short alisio-models__section-skeleton-label"
+              ></div>
+              <div class="alisio-models__catalog">
+                <div class="alisio-models__catalog-item alisio-models__catalog-item--skeleton">
+                  <div class="alisio-models__model-main">
+                    ${renderSkeletonLines(["medium", "long"], { compact: true })}
+                    <div class="alisio-models__model-facts">
+                      ${renderSkeletonPill({ small: true })} ${renderSkeletonPill({ small: true })}
+                      ${renderSkeletonPill({ small: true })}
+                    </div>
+                  </div>
+                  <div class="alisio-models__catalog-actions">
+                    ${renderSkeletonButton({ small: true })}
+                  </div>
+                </div>
+              </div>
             </div>
-          `}
-    </section>
+          `
+        : nothing}
+    </div>
+  `;
+}
+
+function renderAiProfileSkeleton() {
+  return html`
+    <article class="alisio-settings-ai__profile alisio-models__profile" aria-hidden="true">
+      <div class="alisio-settings-ai__profile-head">
+        <div class="alisio-models__target-skeleton-copy">
+          ${renderSkeletonLines(["medium", "short"], { compact: true })}
+        </div>
+        <div class="alisio-models__target-skeleton-badges">
+          ${renderSkeletonPill({ small: true })} ${renderSkeletonPill({ small: true })}
+        </div>
+      </div>
+      <div class="alisio-models__profile-summary">
+        ${renderSkeletonPill({ small: true })} ${renderSkeletonPill({ small: true })}
+      </div>
+    </article>
   `;
 }
 
 function renderProviderPicker(props: {
   selectedProviderId: ModelProviderId;
-  loading: boolean;
-  openAiTitle: string;
-  openAiPrimary: string;
-  openAiSecondary: string;
-  localTitle: string;
-  localPrimary: string;
-  localSecondary: string;
-  onSelectProvider: (providerId: ModelProviderId) => void;
-}) {
-  const cards: Array<{
+  cards: ReadonlyArray<{
     id: ModelProviderId;
     badge: string;
     title: string;
     primary: string;
     secondary: string;
-  }> = [
-    {
-      id: "openai",
-      badge: "O",
-      title: props.openAiTitle,
-      primary: props.openAiPrimary,
-      secondary: props.openAiSecondary,
-    },
-    {
-      id: "local",
-      badge: "L",
-      title: props.localTitle,
-      primary: props.localPrimary,
-      secondary: props.localSecondary,
-    },
-  ];
-
+    loading: boolean;
+  }>;
+  onSelectProvider: (providerId: ModelProviderId) => void;
+}) {
   return html`
     <div class="alisio-models__provider-grid">
-      ${cards.map(
+      ${props.cards.map(
         (card) => html`
           <button
             type="button"
             class="alisio-models__provider-card ${props.selectedProviderId === card.id
               ? "is-selected"
-              : ""}"
-            ?disabled=${props.loading}
+              : ""} ${card.loading ? "is-loading" : ""}"
             @click=${() => props.onSelectProvider(card.id)}
             aria-pressed=${String(props.selectedProviderId === card.id)}
+            aria-busy=${String(card.loading)}
           >
             <span class="alisio-models__provider-badge">${card.badge}</span>
-            <span class="alisio-models__provider-copy">
-              <span class="alisio-models__provider-title">${card.title}</span>
-              ${props.loading
+            <div class="alisio-models__provider-copy">
+              <div class="alisio-models__provider-title">${card.title}</div>
+              ${card.loading
                 ? renderSkeletonLines(["medium", "short"], { compact: true })
                 : html`
-                    <span class="alisio-models__provider-primary">${card.primary}</span>
-                    <span class="alisio-models__provider-secondary">${card.secondary}</span>
+                    <div class="alisio-models__provider-primary">${card.primary}</div>
+                    <div class="alisio-models__provider-secondary">${card.secondary}</div>
                   `}
-            </span>
+            </div>
           </button>
         `,
       )}
@@ -1261,6 +1285,20 @@ function resolveProfiles(ai: AlisioAiState | null | undefined) {
   });
 }
 
+function syncInlineRenameState(profiles: readonly AiProfile[]) {
+  const profileIds = new Set(profiles.map((profile) => profile.profileId));
+  for (const profileId of profileRenameEditingIds) {
+    if (!profileIds.has(profileId)) {
+      profileRenameEditingIds.delete(profileId);
+    }
+  }
+  for (const profileId of profileRenameDrafts.keys()) {
+    if (!profileIds.has(profileId)) {
+      profileRenameDrafts.delete(profileId);
+    }
+  }
+}
+
 function renderUsagePreview(
   profile: AiProfile,
   ai: AlisioAiState | null | undefined,
@@ -1413,12 +1451,6 @@ function renderChatGptSection(props: {
   aiLoading: boolean;
   aiError: string | null;
   expandedProfileId: string | null | undefined;
-  modelOptions: readonly ChatModelOption[];
-  defaultChatModelValue: string;
-  defaultChatModelDisplay: string;
-  defaultChatModelLabel: string;
-  modelPickerBusy: boolean;
-  onSelectDefaultModel: (value: string) => void;
   onToggleProfile: (profileId: string) => void;
   onConnect: () => void;
   onRefreshAll: () => void;
@@ -1431,6 +1463,7 @@ function renderChatGptSection(props: {
   const text = aiText();
   const ai = props.bootstrap?.ai;
   const profiles = resolveProfiles(ai);
+  syncInlineRenameState(profiles);
   const activeProfileId = ai?.binding ? ai.activeProfileId : undefined;
   const expandedProfileId =
     typeof props.expandedProfileId === "undefined"
@@ -1440,10 +1473,13 @@ function renderChatGptSection(props: {
         ? props.expandedProfileId
         : null;
   const showInitialLoading = props.aiLoading && profiles.length === 0 && !props.aiError;
-  const showModelChooser = showInitialLoading || profiles.length > 0;
+  const showReloading = props.aiLoading && !showInitialLoading;
 
   return html`
-    <article class="card alisio-settings-card alisio-models-section">
+    <article
+      class="card alisio-settings-card alisio-models-section"
+      aria-busy=${String(props.aiLoading)}
+    >
       <div class="alisio-models-section__header">
         <div>
           <div class="card-title">${sectionText.chatgptTitle}</div>
@@ -1456,6 +1492,12 @@ function renderChatGptSection(props: {
                 <span class="pill"
                   >${profiles.length} ${profiles.length === 1 ? text.profile : text.profiles}</span
                 >
+                ${showReloading
+                  ? renderSkeletonPill({
+                      small: true,
+                      className: "alisio-models__refresh-indicator",
+                    })
+                  : nothing}
                 ${profiles.length > 0
                   ? html`
                       <button class="btn" ?disabled=${props.aiLoading} @click=${props.onRefreshAll}>
@@ -1475,22 +1517,11 @@ function renderChatGptSection(props: {
       </div>
 
       ${props.aiError ? html`<div class="callout danger">${props.aiError}</div>` : nothing}
-      ${showModelChooser
-        ? renderOpenAiModelChooser({
-            modelOptions: props.modelOptions,
-            defaultChatModelValue: props.defaultChatModelValue,
-            defaultChatModelDisplay: props.defaultChatModelDisplay,
-            defaultChatModelLabel: props.defaultChatModelLabel,
-            busy: props.modelPickerBusy,
-            onSelectDefaultModel: props.onSelectDefaultModel,
-          })
-        : nothing}
       ${showInitialLoading
         ? html`
             <div role="status" aria-label=${sectionText.chatgptSubtitle}>
-              <div class="loading-state__list">
-                ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
-                ${renderSkeletonListItem({ lines: ["short", "medium", "long"], aside: "button" })}
+              <div class="alisio-settings-ai__profile-list">
+                ${renderAiProfileSkeleton()} ${renderAiProfileSkeleton()}
               </div>
             </div>
           `
@@ -1530,12 +1561,16 @@ function renderLocalModelsSection(props: {
 }) {
   const text = modelsText();
   const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
+  const showReloading = props.modelsLoading && !showInitialLoading;
   const targets = props.models?.targets ?? [];
-  const { currentTargets } = splitTargets(targets);
+  const currentTargets = resolveCurrentTargets(targets);
   const publishedModels = props.models?.catalog ?? [];
 
   return html`
-    <article class="card alisio-settings-card alisio-models-section">
+    <article
+      class="card alisio-settings-card alisio-models-section"
+      aria-busy=${String(props.modelsLoading)}
+    >
       <div class="alisio-models-section__header">
         <div>
           <div class="card-title">${text.localTitle}</div>
@@ -1543,19 +1578,25 @@ function renderLocalModelsSection(props: {
         </div>
         ${showInitialLoading
           ? renderSkeletonPill()
-          : html`<span class="pill"
-              >${text.backend} · ${props.models?.backend ?? "llama.cpp"}</span
-            >`}
+          : html`
+              <div class="alisio-models__section-status">
+                <span class="pill">${text.backend} · ${props.models?.backend ?? "llama.cpp"}</span>
+                ${showReloading
+                  ? renderSkeletonPill({
+                      small: true,
+                      className: "alisio-models__refresh-indicator",
+                    })
+                  : nothing}
+              </div>
+            `}
       </div>
 
       ${props.modelsError ? html`<div class="callout danger">${props.modelsError}</div>` : nothing}
       ${showInitialLoading
         ? html`
             <div role="status" aria-label=${text.localSubtitle}>
-              <div class="loading-state__list">
-                ${renderSkeletonListItem({ lines: ["medium", "long", "short"] })}
-                ${renderSkeletonListItem({ lines: ["short", "medium", "long"] })}
-                ${renderSkeletonListItem({ lines: ["long", "medium", "short"], aside: "button" })}
+              <div class="alisio-models__targets">
+                ${renderTargetCardSkeleton()} ${renderTargetCardSkeleton({ showCatalog: false })}
               </div>
             </div>
           `
@@ -1605,15 +1646,10 @@ export function renderModelsHub(props: {
   expandedProfileId: string | null | undefined;
   selectedProviderId: ModelProviderId | null | undefined;
   modelOptions: readonly ChatModelOption[];
-  defaultChatModelValue: string;
-  defaultChatModelDisplay: string;
-  defaultChatModelLabel: string;
-  modelPickerBusy: boolean;
   onToggleProfile: (profileId: string) => void;
   onSelectProvider: (providerId: ModelProviderId) => void;
   onConnectAi: () => void;
   onRefreshAllAiProfiles: () => void;
-  onSelectDefaultChatModel: (value: string) => void;
   onSelectAiProfile: (profileId: string) => void;
   onDisconnectAiProfile: (profileId: string) => void;
   onRefreshAiProfile: (profileId: string) => void;
@@ -1626,7 +1662,7 @@ export function renderModelsHub(props: {
   const aiTextValues = aiText();
   const profiles = resolveProfiles(props.bootstrap?.ai);
   const localTargets = props.models?.targets ?? [];
-  const { currentTargets } = splitTargets(localTargets);
+  const currentTargets = resolveCurrentTargets(localTargets);
   const localCatalog = props.models?.catalog ?? [];
   const currentTargetDisplayModels = currentTargets.flatMap((target) =>
     resolveTargetDisplayModels(target, props.modelOptions, target.chatProviderId ?? null),
@@ -1639,8 +1675,6 @@ export function renderModelsHub(props: {
         : 0),
     0,
   );
-  const providerPickerLoading =
-    (props.aiLoading && profiles.length === 0) || (props.modelsLoading && !props.models);
   const uniqueInstalledModels = countUniqueInstalledModels(currentTargets);
   const localDisplayModelCount = currentTargetDisplayModels.length;
   const localPrimary = resolvePrimaryLocalSummary(currentTargets, localCatalog) || text.localTitle;
@@ -1654,36 +1688,44 @@ export function renderModelsHub(props: {
         ? formatCount(localSuggestionsCount, text.suggestion, text.suggestions)
         : text.noLocalModels;
   const primaryOpenAiProfile = profiles[0] ?? null;
-  const openAiPrimary =
-    profiles.length > 0 && isOpenAiModelValue(props.defaultChatModelValue)
-      ? props.defaultChatModelDisplay || props.defaultChatModelLabel
-      : primaryOpenAiProfile
-        ? resolveProfileTitle(primaryOpenAiProfile)
-        : aiTextValues.noProfiles;
+  const openAiPrimary = primaryOpenAiProfile
+    ? resolveProfileTitle(primaryOpenAiProfile)
+    : aiTextValues.noProfiles;
   const openAiSecondary = `${profiles.length} ${profiles.length === 1 ? aiTextValues.profile : aiTextValues.profiles}`;
+  const openAiCardLoading = props.aiLoading && profiles.length === 0 && !props.aiError;
+  const localCardLoading = props.modelsLoading && !props.models && !props.modelsError;
   const selectedProviderId =
     props.selectedProviderId === "local" || props.selectedProviderId === "openai"
       ? props.selectedProviderId
-      : providerPickerLoading
+      : profiles.length > 0 || openAiCardLoading
         ? "openai"
-        : profiles.length > 0
-          ? "openai"
-          : currentTargets.length > 0 || localCatalog.length > 0
-            ? "local"
-            : "openai";
+        : currentTargets.length > 0 || localCatalog.length > 0 || localCardLoading
+          ? "local"
+          : "openai";
 
   return html`
     <section class="alisio-page alisio-models-page">
       <div class="alisio-models-layout">
         ${renderProviderPicker({
           selectedProviderId,
-          loading: providerPickerLoading,
-          openAiTitle: text.chatgptTitle,
-          openAiPrimary,
-          openAiSecondary,
-          localTitle: text.localTitle,
-          localPrimary,
-          localSecondary,
+          cards: [
+            {
+              id: "openai",
+              badge: "O",
+              title: text.chatgptTitle,
+              primary: openAiPrimary,
+              secondary: openAiSecondary,
+              loading: openAiCardLoading,
+            },
+            {
+              id: "local",
+              badge: "L",
+              title: text.localTitle,
+              primary: localPrimary,
+              secondary: localSecondary,
+              loading: localCardLoading,
+            },
+          ],
           onSelectProvider: props.onSelectProvider,
         })}
         ${selectedProviderId === "openai"
@@ -1692,12 +1734,6 @@ export function renderModelsHub(props: {
               aiLoading: props.aiLoading,
               aiError: props.aiError,
               expandedProfileId: props.expandedProfileId,
-              modelOptions: props.modelOptions,
-              defaultChatModelValue: props.defaultChatModelValue,
-              defaultChatModelDisplay: props.defaultChatModelDisplay,
-              defaultChatModelLabel: props.defaultChatModelLabel,
-              modelPickerBusy: props.modelPickerBusy,
-              onSelectDefaultModel: props.onSelectDefaultChatModel,
               onToggleProfile: props.onToggleProfile,
               onConnect: props.onConnectAi,
               onRefreshAll: props.onRefreshAllAiProfiles,

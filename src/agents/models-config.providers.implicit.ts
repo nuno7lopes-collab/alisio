@@ -1,4 +1,9 @@
 import type { AlisioConfig } from "../config/config.js";
+import {
+  buildAlisioCurrentProviderId,
+  ensureAlisioDynamicProviderSource,
+  resolveAlisioDynamicProviderConfig,
+} from "../infra/alisio-model-providers.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
   groupPluginDiscoveryProvidersByOrder,
@@ -241,6 +246,55 @@ function buildPluginCatalogConfig(ctx: ImplicitProviderContext): AlisioConfig {
   };
 }
 
+function toImplicitProviderConfig(
+  provider:
+    | ReturnType<typeof resolveAlisioDynamicProviderConfig>
+    | undefined,
+): ProviderConfig | undefined {
+  if (!provider) {
+    return undefined;
+  }
+  // Dynamic local/runtime-backed providers use synthetic `alisio:*` APIs that
+  // are valid for models.json/registry consumption but are not part of the
+  // static config schema's closed provider API union.
+  return {
+    ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
+    ...(provider.apiKey ? { apiKey: provider.apiKey } : {}),
+    api: provider.api,
+    models: provider.models,
+  } as unknown as ProviderConfig;
+}
+
+async function resolveManagedLocalImplicitProviders(
+  ctx: ImplicitProviderContext,
+): Promise<Record<string, ProviderConfig> | undefined> {
+  try {
+    const providerId = buildAlisioCurrentProviderId();
+    const ensured = await ensureAlisioDynamicProviderSource(providerId);
+    if (!ensured) {
+      return undefined;
+    }
+    const implicitProvider = toImplicitProviderConfig(
+      resolveAlisioDynamicProviderConfig(providerId),
+    );
+    if (!implicitProvider) {
+      return undefined;
+    }
+    return {
+      [providerId]: mergeImplicitProviderConfig({
+        existing: resolveExistingImplicitProviderFromContext({
+          ctx,
+          providerIds: [providerId],
+        }),
+        implicit: implicitProvider,
+      }),
+    };
+  } catch (error) {
+    log.warn(`failed to inspect managed local runtime for implicit providers: ${String(error)}`);
+    return undefined;
+  }
+}
+
 async function runProviderCatalogWithTimeout(
   params: Parameters<typeof runProviderCatalog>[0] & {
     timeoutMs: number | null;
@@ -298,6 +352,7 @@ export async function resolveImplicitProviders(
   for (const order of PLUGIN_DISCOVERY_ORDERS) {
     mergeImplicitProviderSet(providers, await resolvePluginImplicitProviders(context, order));
   }
+  mergeImplicitProviderSet(providers, await resolveManagedLocalImplicitProviders(context));
 
   return providers;
 }

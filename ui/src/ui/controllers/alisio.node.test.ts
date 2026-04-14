@@ -8,11 +8,14 @@ import {
   signUpAlisioAccountWithPassword,
   updateAlisioAccountPassword,
   verifyAlisioAccountEmailAuth,
+  applyAlisioModelOperation,
   refreshAlisioAiProfile,
+  installAlisioModel,
   loadAlisioAccount,
   loadAlisioBootstrap,
   loadAlisioConnectors,
   loadAlisioDoctorSummary,
+  loadAlisioModels,
   requestAlisioRecoveryEmail,
   saveAlisioAccount,
   saveAlisioOrganization,
@@ -152,6 +155,50 @@ function createDoctorSummary(
     ok: true,
     issues: [],
   } as unknown as NonNullable<AlisioState["alisioDoctor"]>;
+}
+
+function createModelsSnapshot() {
+  return {
+    backend: "llama.cpp",
+    catalog: [
+      {
+        id: "qwen3-4b-q4-k-m",
+        slug: "qwen3-4b-q4-k-m",
+        family: "Qwen",
+        name: "Qwen3 4B",
+        backend: "llama.cpp",
+        releaseStage: "published",
+      },
+    ],
+    targets: [
+      {
+        targetId: "current",
+        deviceId: "current",
+        label: "Workstation",
+        runtimeLabel: "Local GGUF",
+        platform: "darwin",
+        current: true,
+        connected: true,
+        location: "local",
+        backend: "llama.cpp",
+        runtimeKind: "llama.cpp",
+        runtimeStatus: "ready",
+        capabilities: {
+          install: true,
+          update: true,
+          uninstall: true,
+          consentRequired: true,
+        },
+        supportsInstall: true,
+        supportsUpdate: true,
+        supportsUninstall: true,
+        consentRequired: true,
+        chatProviderId: "alisio-local-current",
+        installedModels: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
+        recommendations: [],
+      },
+    ],
+  } as unknown as NonNullable<AlisioState["alisioModels"]>;
 }
 
 describe("alisio controller reconnect safety", () => {
@@ -1416,6 +1463,100 @@ describe("alisio controller reconnect safety", () => {
 
     expect(state.alisioPasswordResetRequired).toBe(false);
     expect(state.alisioAccountNotice).toContain("password was updated");
+  });
+});
+
+describe("alisio models controller", () => {
+  it("evita refazer os catálogos quando a snapshot de modelos não mudou", async () => {
+    const snapshot = createModelsSnapshot();
+    const request = vi.fn(async (method: string, params?: unknown) => {
+      if (method === "alisio.models.get") {
+        return snapshot;
+      }
+      if (method === "models.list") {
+        return {
+          models: [
+            {
+              id: "qwen3-4b-q4-k-m",
+              name: "Qwen3 4B",
+              provider:
+                (params as { scope?: string } | undefined)?.scope === "all"
+                  ? "alisio-local-current"
+                  : "openai-codex",
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      chatModelCatalog: [{ id: "seed", name: "Seed", provider: "openai-codex" }],
+      modelManagementCatalog: [{ id: "seed", name: "Seed", provider: "alisio-local-current" }],
+    });
+
+    await loadAlisioModels(state);
+    expect(request).toHaveBeenCalledWith("models.list", {});
+    expect(request).toHaveBeenCalledWith("models.list", { scope: "all" });
+
+    request.mockClear();
+    await loadAlisioModels(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("alisio.models.get", {});
+  });
+
+  it("preserva o intent de update nas operações locais e nos eventos de progresso", async () => {
+    const installRequest = deferred<{
+      ok: true;
+      backend: "llama.cpp";
+      targetId: string;
+      modelId: string;
+    }>();
+    const snapshot = createModelsSnapshot();
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.models.install") {
+        return installRequest.promise;
+      }
+      if (method === "alisio.models.get") {
+        return snapshot;
+      }
+      if (method === "models.list") {
+        return { models: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioModels: snapshot,
+      chatModelCatalog: [{ id: "seed", name: "Seed", provider: "openai-codex" }],
+      modelManagementCatalog: [{ id: "seed", name: "Seed", provider: "alisio-local-current" }],
+    });
+
+    const run = installAlisioModel(state, {
+      targetId: "current",
+      modelId: "qwen3-4b-q4-k-m",
+    });
+
+    expect(state.alisioModelOperations["current::qwen3-4b-q4-k-m"]?.intent).toBe("update");
+
+    applyAlisioModelOperation(state, {
+      targetId: "current",
+      modelId: "qwen3-4b-q4-k-m",
+      action: "install",
+      phase: "running",
+      percent: 55,
+    });
+
+    expect(state.alisioModelOperations["current::qwen3-4b-q4-k-m"]?.intent).toBe("update");
+
+    installRequest.resolve({
+      ok: true,
+      backend: "llama.cpp",
+      targetId: "current",
+      modelId: "qwen3-4b-q4-k-m",
+    });
+    await run;
   });
 });
 

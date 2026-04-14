@@ -8,7 +8,8 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
   const base: NodesProps = {
     assistantName: "Alisio",
     assistantAgentId: "main",
-    loading: false,
+    nodesLoading: false,
+    nodesLoaded: true,
     nodes: [],
     nodesError: null,
     devicesLoading: false,
@@ -17,6 +18,7 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
       pending: [],
       paired: [],
     },
+    currentDeviceId: null,
     nodePairingsLoading: false,
     nodePairingsError: null,
     nodePairingsList: {
@@ -41,7 +43,8 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
     onNodePairingsRefresh: () => undefined,
     onDeviceApprove: () => undefined,
     onDeviceReject: () => undefined,
-    onDeviceRemove: () => undefined,
+    onDeviceRemoveComputer: () => undefined,
+    onDeviceCleanupComputer: () => undefined,
     onNodeApprove: () => undefined,
     onNodeReject: () => undefined,
     onDeviceRotate: () => undefined,
@@ -152,19 +155,170 @@ describe("nodes devices pending rendering", () => {
       container,
     );
 
-    expect(container.querySelectorAll(".alisio-connections-overview-card")).toHaveLength(2);
-    expect(container.querySelectorAll(".alisio-connections-panel")).toHaveLength(2);
+    expect(container.querySelectorAll(".alisio-connections-overview-card")).toHaveLength(4);
+    expect(container.querySelectorAll(".alisio-connections-panel")).toHaveLength(3);
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Devices");
+    expect(text).toContain("Remote computers");
+    expect(text).toContain("Computers");
     expect(text).toContain("Alisio nodes and execution");
     expect(text).toContain("Execution");
     expect(text).toContain("Alisio nodes");
     expect(text).toContain("Node requests");
   });
 
-  it("lets the operator remove a linked device from the paired list", () => {
-    const onDeviceRemove = vi.fn();
+  it("surfaces a ready remote computer with a command runner", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          nodes: [
+            {
+              nodeId: "office-mac",
+              displayName: "Office Mac",
+              connected: true,
+              paired: true,
+              commands: ["system.run"],
+            },
+          ],
+          devicesList: {
+            pending: [],
+            paired: [
+              {
+                deviceId: "office-mac",
+                displayName: "Office Mac",
+                roles: ["node"],
+                scopes: ["operator.read"],
+                tokens: [],
+              },
+            ],
+          },
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              allowExternalUse: false,
+              editable: true,
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [
+                {
+                  targetId: "office-mac",
+                  label: "Office Mac",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:1",
+                  ownerScope: "user",
+                  ownerLabel: "Nuno",
+                  registeredAt: "2026-04-08T10:00:00.000Z",
+                  updatedAt: "2026-04-08T10:00:00.000Z",
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "shared",
+                  grantScopes: ["read-only", "model-use", "exec"],
+                  grantId: "grant-1",
+                },
+              ],
+              available: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Control ready");
+    expect(text).toContain("Office Mac");
+    expect(text).toContain("Run");
+    expect(container.querySelector('input[placeholder="uname -a"]')).toBeTruthy();
+  });
+
+  it("requests remote control from the unified remote computers panel", () => {
+    const onSharingRequest = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          onSharingRequest,
+          nodes: [
+            {
+              nodeId: "linked-mac",
+              displayName: "Linked Mac",
+              connected: true,
+              paired: true,
+              commands: ["system.run"],
+            },
+          ],
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              allowExternalUse: false,
+              editable: true,
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [
+                {
+                  targetId: "linked-mac",
+                  label: "Linked Mac",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:1",
+                  ownerScope: "user",
+                  ownerLabel: "Nuno",
+                  registeredAt: "2026-04-08T10:00:00.000Z",
+                  updatedAt: "2026-04-08T10:00:00.000Z",
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "requestable",
+                  grantScopes: ["read-only", "model-use"],
+                },
+              ],
+              available: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((entry) =>
+      entry.textContent?.includes("Request control"),
+    );
+    expect(button).toBeTruthy();
+
+    button?.click();
+
+    expect(onSharingRequest).toHaveBeenCalledWith("linked-mac", ["exec"]);
+  });
+
+  it("lets the operator remove a linked computer from the paired list", () => {
+    const onDeviceRemoveComputer = vi.fn();
     const container = document.createElement("div");
 
     render(
@@ -182,20 +336,74 @@ describe("nodes devices pending rendering", () => {
               },
             ],
           },
-          onDeviceRemove,
+          onDeviceRemoveComputer,
         }),
       ),
       container,
     );
 
     const removeButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Remove device"),
+      (button) => button.textContent?.includes("Remove computer"),
     );
     expect(removeButton).toBeDefined();
 
     removeButton?.click();
 
-    expect(onDeviceRemove).toHaveBeenCalledWith("device-1");
+    expect(onDeviceRemoveComputer).toHaveBeenCalledWith("Studio Mac", ["device-1"]);
+  });
+
+  it("groups duplicate paired records under one computer and offers cleanup for the current machine", () => {
+    const onDeviceCleanupComputer = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderNodes(
+        baseProps({
+          currentDeviceId: "device-2",
+          devicesList: {
+            pending: [],
+            paired: [
+              {
+                deviceId: "device-1",
+                displayName: "Studio Mac",
+                platform: "macOS",
+                roles: ["operator"],
+                scopes: ["operator.read"],
+                tokens: [],
+                approvedAtMs: 10,
+              },
+              {
+                deviceId: "device-2",
+                displayName: "Studio Mac",
+                platform: "macOS",
+                roles: ["operator"],
+                scopes: ["operator.read"],
+                tokens: [],
+                approvedAtMs: 20,
+              },
+            ],
+          },
+          onDeviceCleanupComputer,
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Studio Mac");
+    expect(text).toContain("this computer");
+    expect(text).toContain("1 old backend records");
+    expect(text).not.toContain("device-1");
+    expect(text).not.toContain("device-2");
+
+    const cleanupButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Clean old records"),
+    );
+    expect(cleanupButton).toBeDefined();
+
+    cleanupButton?.click();
+
+    expect(onDeviceCleanupComputer).toHaveBeenCalledWith("Studio Mac", ["device-1"]);
   });
 
   it("summarizes node details instead of listing raw capability chips", () => {
@@ -297,7 +505,8 @@ describe("nodes devices pending rendering", () => {
     render(
       renderConnections(
         baseProps({
-          loading: true,
+          nodesLoading: true,
+          nodesLoaded: false,
           devicesLoading: true,
           devicesList: null,
           nodePairingsLoading: true,
@@ -309,8 +518,56 @@ describe("nodes devices pending rendering", () => {
       container,
     );
 
-    expect(container.querySelectorAll(".loading-state__stat-card").length).toBeGreaterThan(1);
+    expect(container.querySelectorAll(".alisio-connections-overview-card--skeleton").length).toBe(
+      4,
+    );
     expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
+  });
+
+  it("keeps runtime metrics in skeleton state until node sources finish the first load", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          nodesLoading: true,
+          nodesLoaded: false,
+          devicesList: {
+            pending: [],
+            paired: [{ deviceId: "device-1", displayName: "Studio Mac", tokens: [] }],
+          },
+          nodePairingsList: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelectorAll(".alisio-connections-overview-card--skeleton").length).toBe(
+      2,
+    );
+    expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
+    expect(container.textContent ?? "").toContain("Studio Mac");
+    expect(container.textContent ?? "").not.toContain("0 live nodes");
+  });
+
+  it("does not block connections refresh on hidden exec approvals loading", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          execApprovalsLoading: true,
+        }),
+      ),
+      container,
+    );
+
+    const refreshButtons = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).map(
+      (button) => button.textContent?.trim(),
+    );
+
+    expect(refreshButtons).toContain("Refresh all");
+    expect(refreshButtons).not.toContain("Loading…");
   });
 
   it("renders pending node approvals with approve and reject actions", () => {
@@ -615,7 +872,8 @@ describe("nodes devices pending rendering", () => {
       container,
     );
 
-    const text = container.textContent ?? "";
+    const sharingPanel = container.querySelector(".alisio-connections-panel--sharing");
+    const text = sharingPanel?.textContent ?? "";
     expect(text).toContain("No shared devices, requests, or approvals right now.");
     expect(text).not.toContain("Available to request");
     expect(text).not.toContain("Shared with you");

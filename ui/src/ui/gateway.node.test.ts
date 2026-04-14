@@ -4,16 +4,8 @@ import { loadDeviceAuthToken, storeDeviceAuthToken } from "./device-auth.ts";
 import type { DeviceIdentity } from "./device-identity.ts";
 
 const wsInstances = vi.hoisted((): MockWebSocket[] => []);
-const loadOrCreateDeviceIdentityMock = vi.hoisted(() =>
-  vi.fn(
-    async (): Promise<DeviceIdentity> => ({
-      deviceId: "device-1",
-      privateKey: "private-key", // pragma: allowlist secret
-      publicKey: "public-key", // pragma: allowlist secret
-    }),
-  ),
-);
-const signDevicePayloadMock = vi.hoisted(() =>
+const loadManagedDeviceIdentityMock = vi.hoisted(() => vi.fn(async (): Promise<DeviceIdentity | null> => null));
+const signDevicePayloadWithIdentityMock = vi.hoisted(() =>
   vi.fn(async (_privateKeyBase64Url: string, _payload: string) => "signature"),
 );
 
@@ -76,8 +68,8 @@ class MockWebSocket {
 }
 
 vi.mock("./device-identity.ts", () => ({
-  loadOrCreateDeviceIdentity: loadOrCreateDeviceIdentityMock,
-  signDevicePayload: signDevicePayloadMock,
+  loadManagedDeviceIdentity: loadManagedDeviceIdentityMock,
+  signDevicePayloadWithIdentity: signDevicePayloadWithIdentityMock,
 }));
 
 const { CONTROL_UI_OPERATOR_SCOPES, GatewayBrowserClient, shouldRetryWithDeviceToken } =
@@ -99,6 +91,18 @@ function stubWindowGlobals(storage?: ReturnType<typeof createStorageMock>) {
     setTimeout: (handler: (...args: unknown[]) => void, timeout?: number, ...args: unknown[]) =>
       globalThis.setTimeout(() => handler(...args), timeout),
     clearTimeout: (timeoutId: number | undefined) => globalThis.clearTimeout(timeoutId),
+  });
+}
+
+function enableHostManagedIdentity(identity?: Partial<DeviceIdentity>) {
+  window.alisioHost = {
+    request: vi.fn(),
+  };
+  loadManagedDeviceIdentityMock.mockResolvedValue({
+    deviceId: "device-1",
+    privateKey: "private-key", // pragma: allowlist secret
+    publicKey: "public-key", // pragma: allowlist secret
+    ...identity,
   });
 }
 
@@ -154,6 +158,7 @@ async function startRetriedDeviceTokenConnect(params: {
   token: string;
   retryNonce?: string;
 }) {
+  enableHostManagedIdentity();
   const client = new GatewayBrowserClient({
     url: params.url,
     token: params.token,
@@ -183,13 +188,9 @@ describe("GatewayBrowserClient", () => {
   beforeEach(() => {
     const storage = createStorageMock();
     wsInstances.length = 0;
-    loadOrCreateDeviceIdentityMock.mockReset();
-    signDevicePayloadMock.mockClear();
-    loadOrCreateDeviceIdentityMock.mockResolvedValue({
-      deviceId: "device-1",
-      privateKey: "private-key", // pragma: allowlist secret
-      publicKey: "public-key", // pragma: allowlist secret
-    });
+    loadManagedDeviceIdentityMock.mockReset();
+    signDevicePayloadWithIdentityMock.mockClear();
+    loadManagedDeviceIdentityMock.mockResolvedValue(null);
 
     vi.stubGlobal("localStorage", storage);
     stubWindowGlobals(storage);
@@ -222,6 +223,7 @@ describe("GatewayBrowserClient", () => {
   });
 
   it("prefers explicit shared auth over cached device tokens", async () => {
+    enableHostManagedIdentity();
     const client = new GatewayBrowserClient({
       url: "ws://127.0.0.1:40705",
       token: "shared-auth-token",
@@ -232,8 +234,11 @@ describe("GatewayBrowserClient", () => {
     expect(typeof connectFrame.id).toBe("string");
     expect(connectFrame.method).toBe("connect");
     expect(connectFrame.params?.auth?.token).toBe("shared-auth-token");
-    expect(signDevicePayloadMock).toHaveBeenCalledWith("private-key", expect.any(String));
-    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
+    expect(signDevicePayloadWithIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ privateKey: "private-key" }),
+      expect.any(String),
+    );
+    const signedPayload = signDevicePayloadWithIdentityMock.mock.calls[0]?.[1];
     expect(signedPayload).toContain("|shared-auth-token|nonce-1");
     expect(signedPayload).not.toContain("stored-device-token");
   });
@@ -254,8 +259,8 @@ describe("GatewayBrowserClient", () => {
       password: undefined,
       deviceToken: undefined,
     });
-    expect(loadOrCreateDeviceIdentityMock).not.toHaveBeenCalled();
-    expect(signDevicePayloadMock).not.toHaveBeenCalled();
+    expect(loadManagedDeviceIdentityMock).toHaveBeenCalledOnce();
+    expect(signDevicePayloadWithIdentityMock).not.toHaveBeenCalled();
   });
 
   it("sends explicit shared password on insecure first connect without cached device fallback", async () => {
@@ -274,11 +279,35 @@ describe("GatewayBrowserClient", () => {
       password: "shared-password", // pragma: allowlist secret
       deviceToken: undefined,
     });
-    expect(loadOrCreateDeviceIdentityMock).not.toHaveBeenCalled();
-    expect(signDevicePayloadMock).not.toHaveBeenCalled();
+    expect(loadManagedDeviceIdentityMock).toHaveBeenCalledOnce();
+    expect(signDevicePayloadWithIdentityMock).not.toHaveBeenCalled();
+  });
+
+  it("still uses the machine identity on insecure pages when a native host bridge exists", async () => {
+    stubInsecureCrypto();
+    enableHostManagedIdentity({
+      deviceId: "host-device-1",
+      publicKey: "host-public-key",
+      source: "host",
+    });
+
+    const client = new GatewayBrowserClient({
+      url: "ws://gateway.example:40705",
+      token: "shared-auth-token",
+    });
+
+    const { connectFrame } = await startConnect(client);
+
+    expect(connectFrame.method).toBe("connect");
+    expect(loadManagedDeviceIdentityMock).toHaveBeenCalledOnce();
+    expect(signDevicePayloadWithIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ deviceId: "host-device-1", source: "host" }),
+      expect.any(String),
+    );
   });
 
   it("uses cached device tokens only when no explicit shared auth is provided", async () => {
+    enableHostManagedIdentity();
     const client = new GatewayBrowserClient({
       url: "ws://127.0.0.1:40705",
     });
@@ -288,12 +317,16 @@ describe("GatewayBrowserClient", () => {
     expect(typeof connectFrame.id).toBe("string");
     expect(connectFrame.method).toBe("connect");
     expect(connectFrame.params?.auth?.token).toBe("stored-device-token");
-    expect(signDevicePayloadMock).toHaveBeenCalledWith("private-key", expect.any(String));
-    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
+    expect(signDevicePayloadWithIdentityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ privateKey: "private-key" }),
+      expect.any(String),
+    );
+    const signedPayload = signDevicePayloadWithIdentityMock.mock.calls[0]?.[1];
     expect(signedPayload).toContain("|stored-device-token|nonce-1");
   });
 
   it("signs bootstrap-token connects with the bootstrap token payload", async () => {
+    enableHostManagedIdentity();
     localStorage.clear();
     const client = new GatewayBrowserClient({
       url: "ws://127.0.0.1:40705",
@@ -305,30 +338,72 @@ describe("GatewayBrowserClient", () => {
     expect(connectFrame.method).toBe("connect");
     expect(connectFrame.params?.auth?.token).toBeUndefined();
     expect(connectFrame.params?.auth?.bootstrapToken).toBe("bootstrap-token");
-    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
+    const signedPayload = signDevicePayloadWithIdentityMock.mock.calls[0]?.[1];
     expect(signedPayload).toContain("|bootstrap-token|nonce-1");
   });
 
-  it("prefers bootstrap auth over cached device tokens for automatic startup", async () => {
+  it("prefers cached device tokens over bootstrap auth after the first successful connect", async () => {
+    vi.useFakeTimers();
+    enableHostManagedIdentity();
+    localStorage.clear();
     const client = new GatewayBrowserClient({
       url: "ws://127.0.0.1:40705",
       bootstrapToken: "bootstrap-token",
     });
 
-    const { connectFrame } = await startConnect(client);
+    const { ws: firstWs, connectFrame: firstConnect } = await startConnect(client);
 
-    expect(connectFrame.params?.auth).toEqual({
+    expect(firstConnect.params?.auth).toEqual({
       token: undefined,
       bootstrapToken: "bootstrap-token",
       password: undefined,
       deviceToken: undefined,
     });
-    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
-    expect(signedPayload).toContain("|bootstrap-token|nonce-1");
-    expect(signedPayload).not.toContain("stored-device-token");
+
+    firstWs.emitMessage({
+      type: "res",
+      id: firstConnect.id,
+      ok: true,
+      payload: {
+        type: "hello-ok",
+        protocol: 3,
+        auth: {
+          deviceToken: "fresh-device-token",
+          role: "operator",
+          scopes: [...CONTROL_UI_OPERATOR_SCOPES],
+        },
+      },
+    });
+    await vi.waitFor(() =>
+      expect(loadDeviceAuthToken({ deviceId: "device-1", role: "operator" })?.token).toBe(
+        "fresh-device-token",
+      ),
+    );
+
+    firstWs.emitClose(1006, "");
+    await vi.advanceTimersByTimeAsync(800);
+
+    const secondWs = getLatestWebSocket();
+    expect(secondWs).not.toBe(firstWs);
+    const { connectFrame: secondConnect } = await continueConnect(secondWs, "nonce-2");
+
+    expect(secondConnect.params?.auth).toEqual({
+      token: "fresh-device-token",
+      bootstrapToken: undefined,
+      password: undefined,
+      deviceToken: "fresh-device-token",
+    });
+
+    const signedPayload = signDevicePayloadWithIdentityMock.mock.calls.at(-1)?.[1];
+    expect(signedPayload).toContain("|fresh-device-token|nonce-2");
+    expect(signedPayload).not.toContain("bootstrap-token");
+
+    client.stop();
+    vi.useRealTimers();
   });
 
   it("ignores cached operator device tokens that do not include read access", async () => {
+    enableHostManagedIdentity();
     localStorage.clear();
     storeDeviceAuthToken({
       deviceId: "device-1",
@@ -345,7 +420,7 @@ describe("GatewayBrowserClient", () => {
 
     expect(connectFrame.method).toBe("connect");
     expect(connectFrame.params?.auth?.token).toBeUndefined();
-    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
+    const signedPayload = signDevicePayloadWithIdentityMock.mock.calls[0]?.[1];
     expect(signedPayload).not.toContain("under-scoped-device-token");
   });
 

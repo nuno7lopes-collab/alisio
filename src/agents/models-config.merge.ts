@@ -1,3 +1,4 @@
+import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
 import { isNonSecretApiKeyMarker } from "./model-auth-markers.js";
 import type { ProviderConfig } from "./models-config.providers.secrets.js";
 
@@ -221,6 +222,9 @@ export function mergeWithExistingProviderSecrets(params: {
     params;
   const mergedProviders: Record<string, ProviderConfig> = {};
   for (const [key, entry] of Object.entries(existingProviders)) {
+    if (isAlisioDynamicProvider(key) && !(key in nextProviders)) {
+      continue;
+    }
     mergedProviders[key] = entry;
   }
   for (const [key, newEntry] of Object.entries(nextProviders)) {

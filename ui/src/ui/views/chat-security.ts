@@ -38,7 +38,6 @@ export type ChatSecurityConsoleProps = {
   nativeShellState?: NativeShellState | null;
   onApplyAccessMode?: (mode: Exclude<SecurityAccessMode, "custom">) => void;
   onResolveApproval?: (entry: ExecApprovalRequest, decision: ApprovalDecision) => void;
-  onOpenAdvancedSecurity?: () => void;
   onOpenNativeSettings?: () => void;
 };
 
@@ -194,7 +193,6 @@ export function renderChatSecurityConsole(
   if (
     !props.onApplyAccessMode &&
     !props.onResolveApproval &&
-    !props.onOpenAdvancedSecurity &&
     props.approvalQueue.length === 0 &&
     props.approvalAuditTrail.length === 0
   ) {
@@ -347,17 +345,6 @@ export function renderChatSecurityConsole(
               >
                 ${t("alisio.chat.access.pendingShort", { count: String(queue.length) })}
               </span>
-            `
-          : nothing}
-        ${props.onOpenAdvancedSecurity
-          ? html`
-              <button
-                type="button"
-                class="alisio-chat__access-pill alisio-chat__access-pill--ghost"
-                @click=${props.onOpenAdvancedSecurity}
-              >
-                ${t("alisio.chat.access.openAdvanced")}
-              </button>
             `
           : nothing}
       </div>

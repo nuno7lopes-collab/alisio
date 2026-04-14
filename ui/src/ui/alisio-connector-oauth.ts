@@ -174,6 +174,67 @@ function parseConnectorOAuthSignal(raw: unknown): AlisioConnectorOAuthSignal | n
   }
 }
 
+function promoteConnectorAuthorizationAfterOAuth(
+  host: ConnectorOAuthRefreshHost,
+  connectorId: string,
+): void {
+  const connectorCatalog =
+    host.alisioProviders?.connectors.catalog?.length > 0
+      ? host.alisioProviders.connectors.catalog
+      : host.alisioConnectorCatalog;
+  const existingAuthorization = host.alisioConnectorAuthorizations.find(
+    (entry) => entry.connectorId === connectorId,
+  );
+  const connectorDefinition = connectorCatalog.find((entry) => entry.id === connectorId);
+  const nextAuthorization = {
+    connectorId,
+    state: "connected" as const,
+    health: "healthy" as const,
+    scopes: existingAuthorization?.scopes?.length
+      ? existingAuthorization.scopes
+      : connectorDefinition?.scopes ?? [],
+    connectedAt: existingAuthorization?.connectedAt,
+    connectedAccount: existingAuthorization?.connectedAccount,
+  };
+
+  const mergeAuthorizations = (authorizations: typeof host.alisioConnectorAuthorizations) => {
+    const next = [...authorizations];
+    const index = next.findIndex((entry) => entry.connectorId === connectorId);
+    if (index >= 0) {
+      next[index] = {
+        ...next[index],
+        ...nextAuthorization,
+      };
+      return next;
+    }
+    next.push(nextAuthorization);
+    return next;
+  };
+
+  host.alisioConnectorAuthorizations = mergeAuthorizations(host.alisioConnectorAuthorizations);
+  if (!host.alisioProviders) {
+    return;
+  }
+  host.alisioProviders = {
+    ...host.alisioProviders,
+    connectors: {
+      ...host.alisioProviders.connectors,
+      authorizations: mergeAuthorizations(host.alisioProviders.connectors.authorizations),
+    },
+    apps: host.alisioProviders.apps.map((item) =>
+      item.connectorId === connectorId
+        ? {
+            ...item,
+            status: "connected",
+            active: true,
+            accountLabel: nextAuthorization.connectedAccount?.label ?? item.accountLabel,
+            accountEmail: nextAuthorization.connectedAccount?.email ?? item.accountEmail,
+          }
+        : item,
+    ),
+  };
+}
+
 export function subscribeAlisioConnectorOAuthSignals(
   onSignal: ConnectorOAuthSignalHandler,
 ): () => void {
@@ -319,10 +380,22 @@ export function buildPendingAlisioConnectorChatResume(params: {
 
 export async function refreshAfterAlisioConnectorOAuth(
   host: ConnectorOAuthRefreshHost,
+  signal?: AlisioConnectorOAuthSignal,
 ): Promise<void> {
+  if (signal?.connectorId) {
+    promoteConnectorAuthorizationAfterOAuth(host, signal.connectorId);
+  }
   await Promise.allSettled([
     loadAlisioProviderOverview(host, { force: true }),
     loadAlisioConnectors(host, { force: true }),
     loadAlisioDoctorSummary(host, { force: true }),
   ]);
+  if (
+    signal?.connectorId &&
+    !host.alisioConnectorAuthorizations.some(
+      (entry) => entry.connectorId === signal.connectorId && entry.state === "connected",
+    )
+  ) {
+    promoteConnectorAuthorizationAfterOAuth(host, signal.connectorId);
+  }
 }

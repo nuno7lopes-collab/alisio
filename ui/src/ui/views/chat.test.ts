@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 
-import { render } from "lit";
+import { html, render } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { renderChatDesktopToolbar, renderChatSessionSelect } from "../app-render.helpers.ts";
@@ -171,8 +171,6 @@ function flushTasks() {
 function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
   return {
     sessionKey: "main",
-    onSessionKeyChange: () => undefined,
-    thinkingLevel: null,
     showThinking: true,
     showToolCalls: true,
     loading: false,
@@ -199,17 +197,12 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     assistantName: "Alisio",
     assistantAvatar: null,
     assistantAgentId: "main",
-    onRefresh: () => undefined,
     onToggleFocusMode: () => undefined,
     onDraftChange: () => undefined,
     onOpenRuntimeSetup: () => undefined,
     onBeginConnector: () => undefined,
     onSend: () => undefined,
     onQueueRemove: () => undefined,
-    onNewSession: () => undefined,
-    agentsList: null,
-    currentAgentId: "",
-    onAgentChange: () => undefined,
     ...overrides,
   };
 }
@@ -250,7 +243,6 @@ describe("chat view", () => {
   it("renders the chat security console as a compact control strip with approval actions", () => {
     const container = document.createElement("div");
     const onResolveApproval = vi.fn();
-    const onOpenAdvancedSecurity = vi.fn();
     render(
       renderChat(
         createProps({
@@ -306,7 +298,6 @@ describe("chat view", () => {
           ],
           onApplyAccessMode: () => undefined,
           onResolveApproval,
-          onOpenAdvancedSecurity,
           nativeShellState: {
             platform: "macos",
             launchAtLogin: true,
@@ -342,11 +333,7 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("Approval center");
     expect(container.textContent).not.toContain("Recent decisions");
 
-    const advancedButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Details"),
-    );
-    expect(advancedButton).not.toBeUndefined();
-    advancedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(container.textContent).not.toContain("Details");
 
     const allowOnceButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".exec-approval-actions .btn"),
@@ -354,7 +341,6 @@ describe("chat view", () => {
     expect(allowOnceButton).not.toBeUndefined();
     allowOnceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(onOpenAdvancedSecurity).toHaveBeenCalledTimes(1);
     expect(onResolveApproval).toHaveBeenCalledWith(
       expect.objectContaining({ id: "approval-1" }),
       "allow-once",
@@ -517,6 +503,48 @@ describe("chat view", () => {
     expect(button).not.toBeNull();
     button?.dispatchEvent(new MouseEvent("click"));
     expect(onOpenRuntimeSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders first-load skeletons with the same grouped structure as real chat rows", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          loading: true,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-loading-skeleton")).not.toBeNull();
+    expect(container.querySelectorAll(".chat-group--skeleton")).toHaveLength(4);
+    expect(container.querySelector(".chat-line")).toBeNull();
+    expect(container.querySelector(".chat-msg")).toBeNull();
+    expect(container.querySelector(".chat-thread")?.getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("shows a minimal inline refresh indicator when reloading existing history", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          loading: true,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "Existing transcript" }],
+              timestamp: 1,
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".alisio-chat__refresh-indicator")).not.toBeNull();
+    expect(container.querySelector(".chat-loading-skeleton")).toBeNull();
+    expect(container.textContent).toContain("Loading chat");
+    expect(container.querySelector(".chat-thread")?.getAttribute("aria-busy")).toBe("true");
   });
 
   it("renders a connector auth CTA in chat tool cards and wires the connector flow", () => {
@@ -1106,12 +1134,10 @@ describe("chat view", () => {
 
   it("keeps secondary composer actions hidden when aborting is unavailable", () => {
     const container = document.createElement("div");
-    const onNewSession = vi.fn();
     render(
       renderChat(
         createProps({
           canAbort: false,
-          onNewSession,
         }),
       ),
       container,
@@ -1121,7 +1147,6 @@ describe("chat view", () => {
       'button[title="New session"]',
     );
     expect(newSessionButton).toBeNull();
-    expect(onNewSession).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Stop");
   });
 
@@ -1788,24 +1813,43 @@ describe("chat view", () => {
     expect(labels).toContain("Coding (beta) / main");
   });
 
-  it("renders the desktop chat toolbar with session and model controls together", () => {
+  it("renders the desktop chat toolbar with a session picker and compact tools menu", () => {
     const { state } = createChatHeaderState();
     const container = document.createElement("div");
     render(renderChatDesktopToolbar(state), container);
 
     expect(container.querySelector(".alisio-chat-toolbar")).not.toBeNull();
-    expect(container.querySelector(".chat-controls__session-row")).not.toBeNull();
-    expect(container.querySelector('select[data-chat-model-select="true"]')).not.toBeNull();
-    expect(container.querySelector(".chat-controls")).not.toBeNull();
+    expect(container.querySelector(".chat-controls__session")).not.toBeNull();
+    expect(container.querySelector('select[data-chat-model-select="true"]')).toBeNull();
+    expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
   });
 
   it("renders the Alisio chat shell wrappers for the redesigned layout", () => {
     const container = document.createElement("div");
-    render(renderChat(createProps()), container);
+    render(
+      renderChat(
+        createProps({
+          composerModelSelect: html`
+            <label
+              class="field chat-controls__session chat-controls__model chat-controls__model--composer"
+            >
+              <select data-chat-model-select="true">
+                <option value="">Default</option>
+              </select>
+            </label>
+          `,
+        }),
+      ),
+      container,
+    );
 
     expect(container.querySelector(".alisio-chat")).not.toBeNull();
     expect(container.querySelector(".alisio-chat__thread")).not.toBeNull();
     expect(container.querySelector(".alisio-chat__composer")).not.toBeNull();
     expect(container.querySelector(".alisio-chat__composer-toolbar")).not.toBeNull();
+    expect(container.querySelector(".alisio-chat__composer-model")).not.toBeNull();
+    expect(
+      container.querySelector('.alisio-chat__composer-model select[data-chat-model-select="true"]'),
+    ).not.toBeNull();
   });
 });

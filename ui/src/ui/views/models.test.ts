@@ -179,15 +179,10 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
         label: "Qwen3 8B · Studio Mac",
       },
     ],
-    defaultChatModelValue: "openai-codex/gpt-5.4",
-    defaultChatModelDisplay: "gpt-5.4 · openai-codex",
-    defaultChatModelLabel: "Default (gpt-5.4 · openai-codex)",
-    modelPickerBusy: false,
     onToggleProfile: vi.fn(),
     onSelectProvider: vi.fn(),
     onConnectAi: vi.fn(),
     onRefreshAllAiProfiles: vi.fn(),
-    onSelectDefaultChatModel: vi.fn(),
     onSelectAiProfile: vi.fn(),
     onDisconnectAiProfile: vi.fn(),
     onRefreshAiProfile: vi.fn(),
@@ -267,12 +262,8 @@ describe("renderModelsHub", () => {
     );
     localCard?.click();
     expect(props.onSelectProvider).toHaveBeenCalledWith("local");
-
-    const allModelButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).filter((button) => button.textContent?.includes("gpt-5.3-codex"));
-    allModelButtons[0]?.click();
-    expect(props.onSelectDefaultChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
+    expect(container.querySelector(".alisio-models__chooser")).toBeNull();
+    expect(container.textContent).toContain("alice@example.com");
     expect(container.textContent).not.toContain("This chat");
     expect(container.textContent).not.toContain("Alisio nodes");
   });
@@ -315,6 +306,29 @@ describe("renderModelsHub", () => {
     expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
   });
 
+  it("keeps update progress copy in sync with the update action", () => {
+    const props = createProps({
+      selectedProviderId: "local",
+      modelOperations: {
+        "current::qwen3-4b-q4-k-m": {
+          targetId: "current",
+          modelId: "qwen3-4b-q4-k-m",
+          action: "install",
+          intent: "update",
+          phase: "running",
+          percent: 42,
+          updatedAt: Date.now(),
+        },
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Updating 42%");
+    expect(container.textContent).not.toContain("Installing 42%");
+  });
+
   it("renders loading, empty and error states for the local surface", () => {
     const loadingProps = createProps({
       selectedProviderId: "local",
@@ -323,9 +337,7 @@ describe("renderModelsHub", () => {
     });
     const loadingContainer = document.createElement("div");
     render(renderModelsHub(loadingProps), loadingContainer);
-    expect(loadingContainer.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(
-      1,
-    );
+    expect(loadingContainer.querySelectorAll(".alisio-models__target--skeleton").length).toBe(2);
 
     const emptyProps = createProps({
       selectedProviderId: "local",
@@ -347,6 +359,37 @@ describe("renderModelsHub", () => {
     const errorContainer = document.createElement("div");
     render(renderModelsHub(errorProps), errorContainer);
     expect(errorContainer.textContent).toContain("Local fetch failed");
+  });
+
+  it("shows per-card loading and keeps ready provider summaries visible", () => {
+    const props = createProps({
+      modelsLoading: true,
+      models: null,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const providerCards = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__provider-card"),
+    );
+    expect(providerCards).toHaveLength(2);
+    expect(providerCards[0]?.textContent).toContain("alice@example.com");
+    expect(providerCards[0]?.classList.contains("is-loading")).toBe(false);
+    expect(providerCards[1]?.classList.contains("is-loading")).toBe(true);
+  });
+
+  it("shows a reload indicator without dropping rendered local content", () => {
+    const props = createProps({
+      selectedProviderId: "local",
+      modelsLoading: true,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Qwen3 4B");
+    expect(container.querySelector(".alisio-models__refresh-indicator")).not.toBeNull();
   });
 
   it("falls back to a valid surface when a stale nodes selection is provided", () => {

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GatewayBonjourBeacon } from "../../infra/bonjour-discovery.js";
 import { pickBeaconHost, pickGatewayPort, renderBeaconLines } from "./discover.js";
 
+const clearRuntimeConfigSnapshot = vi.fn();
 const acquireGatewayLock = vi.fn(async (_opts?: { port?: number }) => ({
   release: vi.fn(async () => {}),
 }));
@@ -38,6 +39,10 @@ const gatewayLog = {
 
 vi.mock("../../infra/gateway-lock.js", () => ({
   acquireGatewayLock: (opts?: { port?: number }) => acquireGatewayLock(opts),
+}));
+
+vi.mock("../../config/config.js", () => ({
+  clearRuntimeConfigSnapshot: () => clearRuntimeConfigSnapshot(),
 }));
 
 vi.mock("../../infra/restart.js", () => ({
@@ -279,6 +284,7 @@ describe("runGatewayLoop", () => {
         restartExpectedMs: 1500,
       });
       expect(markGatewaySigusr1RestartHandled).toHaveBeenCalledTimes(1);
+      expect(clearRuntimeConfigSnapshot).toHaveBeenCalledTimes(1);
       expect(resetAllLanes).toHaveBeenCalledTimes(1);
 
       sigusr1();
@@ -291,6 +297,7 @@ describe("runGatewayLoop", () => {
       });
       expect(markGatewaySigusr1RestartHandled).toHaveBeenCalledTimes(2);
       expect(markGatewayDraining).toHaveBeenCalledTimes(2);
+      expect(clearRuntimeConfigSnapshot).toHaveBeenCalledTimes(2);
       expect(resetAllLanes).toHaveBeenCalledTimes(2);
       expect(acquireGatewayLock).toHaveBeenCalledTimes(3);
 

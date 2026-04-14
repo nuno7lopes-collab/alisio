@@ -10,6 +10,7 @@ import {
   applySettings,
   applySettingsFromUrl,
   attachThemeListener,
+  setSettingsSection,
   setTabFromRoute,
   syncAccountPreferences,
   syncTabWithLocation,
@@ -315,6 +316,17 @@ describe("setTabFromRoute", () => {
 
     setTabFromRoute(host, "chat");
     expect(host.debugPollInterval).toBeNull();
+  });
+
+  it("switches settings subsections in place and keeps the tab stable", () => {
+    setTestWindowUrl("https://control.example/settings");
+    const host = createHost("settings");
+
+    setSettingsSection(host, "account");
+
+    expect(host.tab).toBe("settings");
+    expect(host.settingsSection).toBe("account");
+    expect(window.location.search).toBe("?section=account");
   });
 
   it("re-resolves the active palette when only themeMode changes", () => {

@@ -17,6 +17,20 @@ type StoredIdentity = {
   createdAtMs: number;
 };
 
+type LegacyStoredIdentity = {
+  version?: 1;
+  deviceId: string;
+  publicKey: string;
+  privateKey: string;
+  createdAtMs: number;
+};
+
+type NormalizedStoredIdentity = {
+  identity: DeviceIdentity;
+  stored: StoredIdentity;
+  needsRewrite: boolean;
+};
+
 function resolveDefaultIdentityPath(): string {
   return path.join(resolveStateDir(), "identity", "device.json");
 }
@@ -26,6 +40,7 @@ function ensureDir(filePath: string) {
 }
 
 const ED25519_SPKI_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
+const ED25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 
 function base64UrlEncode(buf: Buffer): string {
   return buf.toString("base64").replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, "");
@@ -54,6 +69,109 @@ function fingerprintPublicKey(publicKeyPem: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
+function formatPem(label: "PUBLIC KEY" | "PRIVATE KEY", der: Buffer): string {
+  const body = der
+    .toString("base64")
+    .match(/.{1,64}/g)
+    ?.join("\n");
+  return `-----BEGIN ${label}-----\n${body ?? ""}\n-----END ${label}-----\n`;
+}
+
+function isStoredIdentity(value: unknown): value is StoredIdentity {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (value as StoredIdentity).version === 1 &&
+    typeof (value as StoredIdentity).deviceId === "string" &&
+    typeof (value as StoredIdentity).publicKeyPem === "string" &&
+    typeof (value as StoredIdentity).privateKeyPem === "string" &&
+    typeof (value as StoredIdentity).createdAtMs === "number"
+  );
+}
+
+function isLegacyStoredIdentity(value: unknown): value is LegacyStoredIdentity {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    typeof (value as LegacyStoredIdentity).deviceId === "string" &&
+    typeof (value as LegacyStoredIdentity).publicKey === "string" &&
+    typeof (value as LegacyStoredIdentity).privateKey === "string" &&
+    typeof (value as LegacyStoredIdentity).createdAtMs === "number"
+  );
+}
+
+function normalizeStoredIdentity(raw: string): NormalizedStoredIdentity | null {
+  const parsed = JSON.parse(raw) as unknown;
+  if (isStoredIdentity(parsed)) {
+    const stored = canonicalizeStoredIdentity({
+      privateKeyPem: parsed.privateKeyPem,
+      createdAtMs: parsed.createdAtMs,
+    });
+    if (!stored) {
+      return null;
+    }
+    return {
+      identity: {
+        deviceId: stored.deviceId,
+        publicKeyPem: stored.publicKeyPem,
+        privateKeyPem: stored.privateKeyPem,
+      },
+      stored,
+      needsRewrite:
+        stored.deviceId !== parsed.deviceId ||
+        stored.publicKeyPem !== parsed.publicKeyPem ||
+        stored.privateKeyPem !== parsed.privateKeyPem,
+    };
+  }
+  if (isLegacyStoredIdentity(parsed)) {
+    const privateKeyRaw = base64UrlDecode(parsed.privateKey);
+    if (privateKeyRaw.length !== 32) {
+      return null;
+    }
+    const legacyPrivateKeyPem = formatPem(
+      "PRIVATE KEY",
+      Buffer.concat([ED25519_PKCS8_PREFIX, privateKeyRaw]),
+    );
+    const stored = canonicalizeStoredIdentity({
+      privateKeyPem: legacyPrivateKeyPem,
+      createdAtMs: parsed.createdAtMs,
+    });
+    if (!stored) {
+      return null;
+    }
+    return {
+      identity: {
+        deviceId: stored.deviceId,
+        publicKeyPem: stored.publicKeyPem,
+        privateKeyPem: stored.privateKeyPem,
+      },
+      stored,
+      needsRewrite: true,
+    };
+  }
+  return null;
+}
+
+function canonicalizeStoredIdentity(params: {
+  privateKeyPem: string;
+  createdAtMs: number;
+}): StoredIdentity | null {
+  try {
+    const privateKey = crypto.createPrivateKey(params.privateKeyPem);
+    const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+    const publicKeyPem = crypto.createPublicKey(privateKey).export({ type: "spki", format: "pem" }).toString();
+    return {
+      version: 1,
+      deviceId: fingerprintPublicKey(publicKeyPem),
+      publicKeyPem,
+      privateKeyPem,
+      createdAtMs: params.createdAtMs,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function generateIdentity(): DeviceIdentity {
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
   const publicKeyPem = publicKey.export({ type: "spki", format: "pem" }).toString();
@@ -62,42 +180,28 @@ function generateIdentity(): DeviceIdentity {
   return { deviceId, publicKeyPem, privateKeyPem };
 }
 
+function writeStoredIdentity(filePath: string, stored: StoredIdentity) {
+  ensureDir(filePath);
+  fs.writeFileSync(filePath, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch {
+    // best-effort
+  }
+}
+
 export function loadOrCreateDeviceIdentity(
   filePath: string = resolveDefaultIdentityPath(),
 ): DeviceIdentity {
   try {
     if (fs.existsSync(filePath)) {
       const raw = fs.readFileSync(filePath, "utf8");
-      const parsed = JSON.parse(raw) as StoredIdentity;
-      if (
-        parsed?.version === 1 &&
-        typeof parsed.deviceId === "string" &&
-        typeof parsed.publicKeyPem === "string" &&
-        typeof parsed.privateKeyPem === "string"
-      ) {
-        const derivedId = fingerprintPublicKey(parsed.publicKeyPem);
-        if (derivedId && derivedId !== parsed.deviceId) {
-          const updated: StoredIdentity = {
-            ...parsed,
-            deviceId: derivedId,
-          };
-          fs.writeFileSync(filePath, `${JSON.stringify(updated, null, 2)}\n`, { mode: 0o600 });
-          try {
-            fs.chmodSync(filePath, 0o600);
-          } catch {
-            // best-effort
-          }
-          return {
-            deviceId: derivedId,
-            publicKeyPem: parsed.publicKeyPem,
-            privateKeyPem: parsed.privateKeyPem,
-          };
+      const normalized = normalizeStoredIdentity(raw);
+      if (normalized) {
+        if (normalized.needsRewrite) {
+          writeStoredIdentity(filePath, normalized.stored);
         }
-        return {
-          deviceId: parsed.deviceId,
-          publicKeyPem: parsed.publicKeyPem,
-          privateKeyPem: parsed.privateKeyPem,
-        };
+        return normalized.identity;
       }
     }
   } catch {
@@ -113,12 +217,7 @@ export function loadOrCreateDeviceIdentity(
     privateKeyPem: identity.privateKeyPem,
     createdAtMs: Date.now(),
   };
-  fs.writeFileSync(filePath, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
-  try {
-    fs.chmodSync(filePath, 0o600);
-  } catch {
-    // best-effort
-  }
+  writeStoredIdentity(filePath, stored);
   return identity;
 }
 

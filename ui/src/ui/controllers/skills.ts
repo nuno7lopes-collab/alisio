@@ -31,6 +31,8 @@ export type SkillsState = {
   skillMessages: SkillMessageMap;
   skillActionOutputs: Record<string, SkillActionOutput>;
   skillConsentRequest: SkillConsentRequest | null;
+  skillsLoadPromise?: Promise<void>;
+  skillsReloadQueued?: boolean;
 };
 
 export type SkillMessage = {
@@ -89,27 +91,43 @@ export async function loadSkills(state: SkillsState, options?: LoadSkillsOptions
   if (!state.client || !state.connected) {
     return;
   }
-  if (state.skillsLoading) {
+  const client = state.client;
+
+  if (state.skillsLoadPromise) {
+    state.skillsReloadQueued = true;
+    await state.skillsLoadPromise;
     return;
   }
+
   state.skillsLoading = true;
-  state.skillsError = null;
-  try {
-    const res = await state.client.request<SkillStatusReport | undefined>("skills.status", {});
-    if (res) {
-      state.skillsReport = res;
-      if (
-        state.skillConsentRequest &&
-        !(res.marketplaceCatalog ?? []).some(
-          (entry) => entry.skillKey === state.skillConsentRequest?.skillKey,
-        )
-      ) {
-        state.skillConsentRequest = null;
+  state.skillsLoadPromise = (async () => {
+    do {
+      state.skillsReloadQueued = false;
+      state.skillsError = null;
+      try {
+        const res = await client.request<SkillStatusReport | undefined>("skills.status", {});
+        if (res) {
+          state.skillsReport = res;
+          if (
+            state.skillConsentRequest &&
+            !(res.marketplaceCatalog ?? []).some(
+              (entry) => entry.skillKey === state.skillConsentRequest?.skillKey,
+            )
+          ) {
+            state.skillConsentRequest = null;
+          }
+        }
+      } catch (err) {
+        state.skillsError = getErrorMessage(err);
       }
-    }
-  } catch (err) {
-    state.skillsError = getErrorMessage(err);
+    } while (state.skillsReloadQueued && state.connected);
+  })();
+
+  try {
+    await state.skillsLoadPromise;
   } finally {
+    state.skillsLoadPromise = undefined;
+    state.skillsReloadQueued = false;
     state.skillsLoading = false;
   }
 }

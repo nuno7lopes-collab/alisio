@@ -57,6 +57,28 @@ vi.mock("node:fs", async (importOriginal) => {
       }
       throw new Error(`ENOENT: no such file or directory, stat '${p}'`);
     },
+    readdirSync: (p: string) => {
+      if (!isFixturePath(p)) {
+        return actual.readdirSync(p);
+      }
+      const dir = absInMock(p);
+      const prefix = `${dir}${pathMod.sep}`;
+      const names = new Set<string>();
+      for (const key of state.entries.keys()) {
+        if (!key.startsWith(prefix)) {
+          continue;
+        }
+        const remainder = key.slice(prefix.length);
+        const [name] = remainder.split(pathMod.sep);
+        if (name) {
+          names.add(name);
+        }
+      }
+      if (!state.entries.has(dir) && names.size === 0) {
+        throw new Error(`ENOENT: no such file or directory, scandir '${p}'`);
+      }
+      return Array.from(names).toSorted();
+    },
     realpathSync: (p: string) =>
       isFixturePath(p)
         ? (state.realpaths.get(absInMock(p)) ?? absInMock(p))
@@ -232,6 +254,23 @@ describe("control UI assets helpers (fs-mocked)", () => {
     setFile(path.join(uiDir, "index.html"), "<html></html>\n");
 
     expect(resolveControlUiRootSync({ argv1: wrapperArgv1 })).toBe(uiDir);
+  });
+
+  it("falls back to .run app Control UI assets for a checkout entrypoint", () => {
+    const repoRoot = abs("fixtures/dev-checkout");
+    const runRoot = path.join(repoRoot, ".run");
+    const bundleRoot = path.join(runRoot, "Alisio.app");
+    const bundledUiDir = path.join(bundleRoot, "Contents", "Resources", "control-ui");
+
+    setDir(runRoot);
+    setDir(bundleRoot);
+    setFile(path.join(repoRoot, "package.json"), JSON.stringify({ name: "alisio" }));
+    setFile(path.join(repoRoot, "ui", "vite.config.ts"), "export {};\n");
+    setFile(path.join(bundledUiDir, "index.html"), "<html></html>\n");
+
+    expect(resolveControlUiRootSync({ argv1: path.join(repoRoot, "alisio.mjs") })).toBe(
+      bundledUiDir,
+    );
   });
 
   it("detects package-proven control-ui roots", () => {

@@ -384,6 +384,18 @@ import {
   MemoryBackendSchema,
   type MemoryEmbeddingStatus,
   MemoryEmbeddingStatusSchema,
+  type MemoryE2eeExportPairingCodeParams,
+  MemoryE2eeExportPairingCodeParamsSchema,
+  type MemoryE2eeExportPairingCodeResult,
+  MemoryE2eeExportPairingCodeResultSchema,
+  type MemoryE2eeImportPairingCodeParams,
+  MemoryE2eeImportPairingCodeParamsSchema,
+  type MemoryE2eeImportPairingCodeResult,
+  MemoryE2eeImportPairingCodeResultSchema,
+  type MemoryE2eeSetupParams,
+  MemoryE2eeSetupParamsSchema,
+  type MemoryE2eeSetupResult,
+  MemoryE2eeSetupResultSchema,
   type MemoryGraphBranch,
   MemoryGraphBranchSchema,
   type MemoryGraphEdge,
@@ -1050,6 +1062,13 @@ export const validateExecApprovalsNodeSetParams = ajv.compile<ExecApprovalsNodeS
 );
 export const validateLogsTailParams = ajv.compile<LogsTailParams>(LogsTailParamsSchema);
 export const validateMemoryStatusParams = ajv.compile<MemoryStatusParams>(MemoryStatusParamsSchema);
+export const validateMemoryE2eeSetupParams = ajv.compile<MemoryE2eeSetupParams>(
+  MemoryE2eeSetupParamsSchema,
+);
+export const validateMemoryE2eeExportPairingCodeParams =
+  ajv.compile<MemoryE2eeExportPairingCodeParams>(MemoryE2eeExportPairingCodeParamsSchema);
+export const validateMemoryE2eeImportPairingCodeParams =
+  ajv.compile<MemoryE2eeImportPairingCodeParams>(MemoryE2eeImportPairingCodeParamsSchema);
 export const validateMemorySyncParams = ajv.compile<MemorySyncParams>(MemorySyncParamsSchema);
 export const validateMemoryGraphParams = ajv.compile<MemoryGraphParams>(MemoryGraphParamsSchema);
 export const validateChatHistoryParams = ajv.compile(ChatHistoryParamsSchema);
@@ -1317,6 +1336,12 @@ export {
   MemoryFilesSetResultSchema,
   MemoryFilesDeleteParamsSchema,
   MemoryFilesDeleteResultSchema,
+  MemoryE2eeSetupParamsSchema,
+  MemoryE2eeSetupResultSchema,
+  MemoryE2eeExportPairingCodeParamsSchema,
+  MemoryE2eeExportPairingCodeResultSchema,
+  MemoryE2eeImportPairingCodeParamsSchema,
+  MemoryE2eeImportPairingCodeResultSchema,
   MemorySyncParamsSchema,
   MemorySyncResultSchema,
   ApprovalAuditGetParamsSchema,

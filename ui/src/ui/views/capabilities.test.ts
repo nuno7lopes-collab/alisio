@@ -382,9 +382,30 @@ describe("renderCapabilities", () => {
       container,
     );
 
-    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(5);
+    expect(container.querySelector(".capabilities-filter-skeleton")).not.toBeNull();
+    expect(container.querySelector(".agent-tab")).toBeNull();
     expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
-    expect(container.textContent).not.toContain("No capabilities matched your filters.");
+    expect(container.textContent).not.toContain("No skills matched your filters.");
+    expect(container.textContent).not.toContain("Capabilities");
+  });
+
+  it("renders only the skills list surface without the capability overview", () => {
+    const container = document.createElement("div");
+
+    render(renderCapabilities(createProps()), container);
+
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("Capabilities");
+    expect(text).not.toContain("Ready now");
+    expect(text).not.toContain("Reply on external channels");
+    expect(text).not.toContain("Research and summarize information");
+    expect(text).not.toContain("Browse skills");
+    expect(container.querySelector(".capabilities-card-grid")).toBeNull();
+    expect(
+      Array.from(container.querySelectorAll("button")).some((button) =>
+        button.textContent?.includes("Refresh"),
+      ),
+    ).toBe(false);
   });
 
   it("renders marketplace catalog groups, consent CTA, and action output", async () => {
@@ -486,8 +507,8 @@ describe("renderCapabilities", () => {
     await Promise.resolve();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Installed");
-    expect(text).toContain("Catalog");
+    expect(text).toContain("On this computer");
+    expect(text).toContain("Available to add");
     expect(text).toContain("Not installed");
     expect(text).toContain("Allow once");
     expect(text).toContain("Allow always");
@@ -495,6 +516,43 @@ describe("renderCapabilities", () => {
     expect(text).toContain("MCP");
     expect(text).toContain("Exec: mcp-inspect");
     expect(text).toContain("Primary: prompt");
+  });
+
+  it("keeps local-only skills visible when marketplace data is also present", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderCapabilities(
+        createProps({
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [
+              createSkill({
+                skillKey: "local-only",
+                name: "Local Only Skill",
+                source: "alisio-workspace",
+              }),
+            ],
+            marketplaceCatalog: [
+              createSkill({
+                skillKey: "catalog-skill",
+                name: "Catalog Skill",
+                installed: false,
+                eligible: false,
+              }),
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("On this computer");
+    expect(text).toContain("Available to add");
+    expect(text).toContain("Local Only Skill");
+    expect(text).toContain("Catalog Skill");
   });
 
   it("separates not installed skills from setup blockers in the capability view", () => {
@@ -541,8 +599,10 @@ describe("renderCapabilities", () => {
     );
 
     const text = container.textContent ?? "";
+    expect(text).toContain("On this computer");
+    expect(text).toContain("Available to add");
     expect(text).toContain("Not installed");
-    expect(text).toContain("Need setup");
+    expect(text).toContain("Needs setup");
     expect(text).toContain("Catalog Skill");
     expect(text).toContain("Needs Config Skill");
   });

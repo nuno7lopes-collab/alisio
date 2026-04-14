@@ -17,7 +17,11 @@ import {
   CONTROL_UI_OPERATOR_SCOPES,
 } from "../../../src/shared/control-ui-operator.js";
 import { clearDeviceAuthToken, loadDeviceAuthToken, storeDeviceAuthToken } from "./device-auth.ts";
-import { loadOrCreateDeviceIdentity, signDevicePayload } from "./device-identity.ts";
+import {
+  loadManagedDeviceIdentity,
+  signDevicePayloadWithIdentity,
+  type DeviceIdentity,
+} from "./device-identity.ts";
 import { generateUUID } from "./uuid.ts";
 
 export { CONTROL_UI_OPERATOR_ROLE, CONTROL_UI_OPERATOR_SCOPES };
@@ -171,7 +175,7 @@ type ConnectPlan = {
   explicitGatewayToken?: string;
   selectedAuth: SelectedConnectAuth;
   auth?: GatewayConnectAuth;
-  deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null;
+  deviceIdentity: DeviceIdentity | null;
   device?: GatewayConnectDevice;
 };
 
@@ -179,7 +183,7 @@ type DeviceTokenRetryDecision = {
   deviceTokenRetryBudgetUsed: boolean;
   authDeviceToken?: string;
   explicitGatewayToken?: string;
-  deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null;
+  deviceIdentity: DeviceIdentity | null;
   storedToken?: string;
   canRetryWithDeviceTokenHint: boolean;
   url: string;
@@ -221,7 +225,7 @@ function buildGatewayConnectAuth(
 }
 
 async function buildGatewayConnectDevice(params: {
-  deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null;
+  deviceIdentity: DeviceIdentity | null;
   client: GatewayConnectClientInfo;
   role: string;
   scopes: string[];
@@ -246,7 +250,7 @@ async function buildGatewayConnectDevice(params: {
     token: params.signatureToken ?? null,
     nonce,
   });
-  const signature = await signDevicePayload(deviceIdentity.privateKey, payload);
+  const signature = await signDevicePayloadWithIdentity(deviceIdentity, payload);
   return {
     id: deviceIdentity.deviceId,
     publicKey: deviceIdentity.publicKey,
@@ -409,11 +413,7 @@ export class GatewayBrowserClient {
     const explicitBootstrapToken = this.opts.bootstrapToken?.trim() || undefined;
     const explicitPassword = this.opts.password?.trim() || undefined;
 
-    // crypto.subtle is only available in secure contexts (HTTPS, localhost).
-    // Over plain HTTP, we skip device identity and fall back to token-only auth.
-    // Gateways may reject this unless gateway.controlUi.allowInsecureAuth is enabled.
-    const isSecureContext = typeof crypto !== "undefined" && !!crypto.subtle;
-    let deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null = null;
+    let deviceIdentity: DeviceIdentity | null = null;
     let selectedAuth: SelectedConnectAuth = {
       authToken: explicitGatewayToken,
       authBootstrapToken: explicitBootstrapToken,
@@ -421,8 +421,10 @@ export class GatewayBrowserClient {
       canFallbackToShared: false,
     };
 
-    if (isSecureContext) {
-      deviceIdentity = await loadOrCreateDeviceIdentity();
+    // External browsers should not invent their own identity. Only use the
+    // machine identity when a native host bridge manages it for this computer.
+    deviceIdentity = await loadManagedDeviceIdentity();
+    if (deviceIdentity) {
       selectedAuth = this.selectConnectAuth({
         role,
         deviceId: deviceIdentity.deviceId,
@@ -622,13 +624,15 @@ export class GatewayBrowserClient {
       Boolean(explicitGatewayToken) &&
       Boolean(storedToken) &&
       isTrustedRetryEndpoint(this.opts.url);
-    const prefersBootstrapAuth = Boolean(explicitBootstrapToken);
-    const resolvedDeviceToken = !(explicitGatewayToken || authPassword || prefersBootstrapAuth)
-      ? (storedToken ?? undefined)
-      : undefined;
+    // Bootstrap setup codes are single-use. Once we have a cached device token for this
+    // origin, prefer it over any preloaded bootstrap token so reconnects stay stable.
+    const resolvedDeviceToken =
+      !explicitGatewayToken && !authPassword ? (storedToken ?? undefined) : undefined;
     const authToken = explicitGatewayToken ?? resolvedDeviceToken;
     const authBootstrapToken =
-      !explicitGatewayToken && !authToken ? explicitBootstrapToken : undefined;
+      !explicitGatewayToken && !authPassword && !resolvedDeviceToken
+        ? explicitBootstrapToken
+        : undefined;
     return {
       authToken,
       authBootstrapToken,

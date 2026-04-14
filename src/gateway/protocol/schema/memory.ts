@@ -287,6 +287,73 @@ export const MemoryFilesDeleteResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
+const MemoryE2eeSetupActionSchema = Type.Union([Type.Literal("created"), Type.Literal("loaded")]);
+const MemoryKeyStorageSchema = Type.Union([Type.Literal("keychain"), Type.Literal("file")]);
+const MemoryPairingCacheSchema = Type.Union([
+  Type.Literal("keychain"),
+  Type.Literal("file"),
+  Type.Literal("passphrase-only"),
+]);
+
+export const MemoryE2eeSetupParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    passphrase: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryE2eeSetupResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    profileId: NonEmptyString,
+    action: MemoryE2eeSetupActionSchema,
+    storedIn: MemoryKeyStorageSchema,
+    path: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryE2eeExportPairingCodeParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    passphrase: NonEmptyString,
+    sourceDeviceId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryE2eeExportPairingCodeResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    profileId: NonEmptyString,
+    pairingCode: NonEmptyString,
+    createdAt: NonEmptyString,
+    sourceDeviceId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryE2eeImportPairingCodeParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    pairingCode: NonEmptyString,
+    passphrase: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryE2eeImportPairingCodeResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    profileId: NonEmptyString,
+    cached: MemoryPairingCacheSchema,
+    createdAt: NonEmptyString,
+    sourceDeviceId: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
 export const MemorySyncParamsSchema = Type.Object(
   {
     agentId: NonEmptyString,

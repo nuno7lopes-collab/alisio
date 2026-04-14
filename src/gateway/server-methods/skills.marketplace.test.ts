@@ -3,12 +3,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loadConfigMock = vi.fn(() => ({}));
 const resolveDefaultAgentIdMock = vi.fn(() => "main");
 const resolveAgentWorkspaceDirMock = vi.fn(() => "/tmp/workspace");
-const buildWorkspaceSkillStatusMock = vi.fn(() => ({
+const loadWorkspaceSkillEntriesMock = vi.fn<
+  (workspaceDir: unknown, opts: unknown) => unknown[]
+>(() => []);
+const buildWorkspaceSkillStatusMock = vi.fn<
+  (
+    workspaceDir: unknown,
+    opts: unknown,
+  ) => {
+    workspaceDir: string;
+    managedSkillsDir: string;
+    skills: unknown[];
+  }
+>(() => ({
   workspaceDir: "/tmp/workspace",
   managedSkillsDir: "/tmp/workspace/.managed-skills",
   skills: [],
 }));
-const resolveWorkspaceMarketplaceCatalogStatusMock = vi.fn();
+const resolveWorkspaceMarketplaceCatalogStatusMock = vi.fn<
+  (workspaceDir: unknown, opts: unknown) => Promise<unknown>
+>();
 const installMarketplaceSkillMock = vi.fn();
 const removeMarketplaceSkillMock = vi.fn();
 const executeMarketplaceSkillMock = vi.fn();
@@ -27,15 +41,18 @@ vi.mock("../../agents/agent-scope.js", () => ({
 }));
 
 vi.mock("../../agents/skills-status.js", () => ({
-  buildWorkspaceSkillStatus: () => buildWorkspaceSkillStatusMock(),
-  resolveWorkspaceMarketplaceCatalogStatus: () => resolveWorkspaceMarketplaceCatalogStatusMock(),
+  buildWorkspaceSkillStatus: (workspaceDir: unknown, opts: unknown) =>
+    buildWorkspaceSkillStatusMock(workspaceDir, opts),
+  resolveWorkspaceMarketplaceCatalogStatus: (workspaceDir: unknown, opts: unknown) =>
+    resolveWorkspaceMarketplaceCatalogStatusMock(workspaceDir, opts),
 }));
 
 vi.mock("../../agents/skills.js", () => ({
   appendSkillAuditEntry: (params: unknown) => appendSkillAuditEntryMock(params),
   executeMarketplaceSkill: (params: unknown) => executeMarketplaceSkillMock(params),
   installMarketplaceSkill: (params: unknown) => installMarketplaceSkillMock(params),
-  loadWorkspaceSkillEntries: vi.fn(() => []),
+  loadWorkspaceSkillEntries: (workspaceDir: unknown, opts: unknown) =>
+    loadWorkspaceSkillEntriesMock(workspaceDir, opts),
   removeMarketplaceSkill: (params: unknown) => removeMarketplaceSkillMock(params),
   resolveMarketplaceConsent: (params: unknown) => resolveMarketplaceConsentMock(params),
 }));
@@ -103,6 +120,7 @@ describe("skills gateway handlers (marketplace)", () => {
     loadConfigMock.mockReset();
     resolveDefaultAgentIdMock.mockReset();
     resolveAgentWorkspaceDirMock.mockReset();
+    loadWorkspaceSkillEntriesMock.mockReset();
     buildWorkspaceSkillStatusMock.mockReset();
     resolveWorkspaceMarketplaceCatalogStatusMock.mockReset();
     installMarketplaceSkillMock.mockReset();
@@ -114,6 +132,7 @@ describe("skills gateway handlers (marketplace)", () => {
     loadConfigMock.mockReturnValue({});
     resolveDefaultAgentIdMock.mockReturnValue("main");
     resolveAgentWorkspaceDirMock.mockReturnValue("/tmp/workspace");
+    loadWorkspaceSkillEntriesMock.mockReturnValue([]);
     buildWorkspaceSkillStatusMock.mockReturnValue({
       workspaceDir: "/tmp/workspace",
       managedSkillsDir: "/tmp/workspace/.managed-skills",
@@ -122,6 +141,8 @@ describe("skills gateway handlers (marketplace)", () => {
   });
 
   it("attaches marketplaceCatalog to skills.status", async () => {
+    const entries = [{ skill: { name: "demo-skill" } }] as unknown[];
+    loadWorkspaceSkillEntriesMock.mockReturnValue(entries);
     resolveWorkspaceMarketplaceCatalogStatusMock.mockResolvedValue([
       createMarketplaceSkill({
         name: "mcp:toolbox",
@@ -143,6 +164,23 @@ describe("skills gateway handlers (marketplace)", () => {
           kind: "mcp-server",
         },
       ],
+    });
+    expect(loadWorkspaceSkillEntriesMock).toHaveBeenCalledWith("/tmp/workspace", {
+      config: {},
+    });
+    expect(buildWorkspaceSkillStatusMock).toHaveBeenCalledWith("/tmp/workspace", {
+      config: {},
+      eligibility: { remote: undefined },
+      entries,
+    });
+    expect(resolveWorkspaceMarketplaceCatalogStatusMock).toHaveBeenCalledWith("/tmp/workspace", {
+      config: {},
+      eligibility: { remote: undefined },
+      entries,
+      localReport: expect.objectContaining({
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/workspace/.managed-skills",
+      }),
     });
   });
 

@@ -35,7 +35,7 @@ export const TAB_GROUPS = [
   },
 ] as const;
 
-const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
+export const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
 
 const LEGACY_SETTINGS_SECTIONS = [
   "appearance",
@@ -57,7 +57,7 @@ export type SettingsSection =
   | (typeof LEGACY_SETTINGS_SECTIONS)[number];
 
 type PublicTab = (typeof PUBLIC_TABS)[number];
-type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
+export type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
 
 export type Tab = PublicTab;
 
@@ -150,6 +150,33 @@ export function normalizeSettingsSection(value: string | null | undefined): Sett
       return "support";
     case "infrastructure":
       return "mac";
+    default:
+      return "general";
+  }
+}
+
+export function publicSettingsSectionFor(section: SettingsSection): PublicSettingsSection {
+  switch (section) {
+    case "general":
+    case "appearance":
+    case "language":
+      return "general";
+    case "account":
+    case "security":
+    case "devices":
+    case "billing":
+    case "advanced":
+    case "workspace":
+    case "automation":
+    case "debug":
+    case "logs":
+      return "account";
+    case "mac":
+    case "infrastructure":
+      return "mac";
+    case "support":
+    case "communications":
+      return "support";
     default:
       return "general";
   }

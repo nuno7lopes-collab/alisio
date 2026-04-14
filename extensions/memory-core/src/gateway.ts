@@ -68,6 +68,7 @@ export async function handleMemoryGraphGatewayRequest({
   const relationLimit = parseOptionalPositiveInt(params.relationLimit);
   const nodeLimit = parseOptionalPositiveInt(params.nodeLimit);
   const edgeLimit = parseOptionalPositiveInt(params.edgeLimit);
+  const includeAttachments = params.includeAttachments === true;
   const cfg = loadConfig();
   const { manager, error } = await getMemorySearchManager({
     cfg,
@@ -107,6 +108,7 @@ export async function handleMemoryGraphGatewayRequest({
         ...(relationLimit ? { relationLimit } : {}),
         ...(nodeLimit ? { nodeLimit } : {}),
         ...(edgeLimit ? { edgeLimit } : {}),
+        ...(includeAttachments ? { includeAttachments: true } : {}),
       }),
       undefined,
     );

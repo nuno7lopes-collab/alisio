@@ -97,6 +97,10 @@ extension AlisioHostBridge: WKScriptMessageHandler {
             return self.voiceWakePayload()
         case "setVoiceWake":
             return try await self.setVoiceWake(params)
+        case "getDeviceIdentity":
+            return try self.deviceIdentityPayload()
+        case "signDevicePayload":
+            return try self.signDevicePayload(params)
         case "openNativeSettings":
             self.openNativeSettings(params)
             return ["ok": true]
@@ -144,6 +148,30 @@ extension AlisioHostBridge: WKScriptMessageHandler {
             await GatewayConnection.shared.voiceWakeSetTriggers(sanitized)
         }
         return self.voiceWakePayload()
+    }
+
+    private func deviceIdentityPayload() throws -> [String: String] {
+        let identity = DeviceIdentityStore.loadOrCreate()
+        guard let publicKey = DeviceIdentityStore.publicKeyBase64Url(identity) else {
+            throw AlisioHostBridgeError.actionFailed("Failed to encode device identity")
+        }
+        return [
+            "deviceId": identity.deviceId,
+            "publicKey": publicKey,
+        ]
+    }
+
+    private func signDevicePayload(_ params: [String: Any]) throws -> [String: String] {
+        guard let payload = params["payload"] as? String,
+              !payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            throw AlisioHostBridgeError.invalidParams("Missing payload")
+        }
+        let identity = DeviceIdentityStore.loadOrCreate()
+        guard let signature = DeviceIdentityStore.signPayload(payload, identity: identity) else {
+            throw AlisioHostBridgeError.actionFailed("Failed to sign device payload")
+        }
+        return ["signature": signature]
     }
 
     private func openNativeSettings(_ params: [String: Any]) {

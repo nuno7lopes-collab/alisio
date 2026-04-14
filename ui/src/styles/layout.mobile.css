@@ -462,54 +462,28 @@
     top: 100%;
     right: 0;
     z-index: 100;
-    background: var(--card, #161b22);
-    border: 1px solid var(--border, #30363d);
-    border-radius: var(--radius-md);
-    padding: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    flex-direction: column;
-    gap: 4px;
-    min-width: 220px;
+    padding-top: 10px;
   }
 
   .chat-mobile-controls-wrapper .chat-controls-dropdown.open {
     display: flex;
   }
 
-  .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 100%;
+  .chat-mobile-controls-wrapper .chat-tools-menu__panel--mobile {
+    min-width: min(280px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
   }
 
-  .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls__session {
+  .chat-mobile-controls-wrapper .chat-tools-menu__session .chat-controls__session {
     min-width: unset;
     max-width: unset;
     width: 100%;
   }
 
-  .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls__model {
-    width: 100%;
-  }
-
-  .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls__session select {
+  .chat-mobile-controls-wrapper .chat-tools-menu__session .chat-controls__session select {
     width: 100%;
     font-size: 14px;
     padding: 10px 12px;
-  }
-
-  .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls__thinking {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    padding: 4px 0;
-    justify-content: center;
-  }
-
-  .chat-mobile-controls-wrapper .chat-controls-dropdown .btn--icon {
-    min-width: 44px;
-    height: 44px;
   }
   .content {
     padding: 4px 4px 16px;
@@ -577,50 +551,14 @@
     font-size: 12px;
   }
 
-  /* Chat */
-  .chat-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .chat-header__left {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .chat-header__right {
-    justify-content: space-between;
-  }
-
-  .chat-session {
-    min-width: unset;
-    width: 100%;
-  }
-
   .chat-thread {
     margin-top: 0;
     padding: 0 4px 10px;
   }
 
-  .chat-msg {
-    max-width: 90%;
-  }
-
   .chat-bubble {
     padding: 8px 12px;
     border-radius: var(--radius-md);
-  }
-
-  .chat-compose {
-    gap: 8px;
-  }
-
-  .chat-compose__field textarea {
-    min-height: 60px;
-    padding: 8px 10px;
-    border-radius: var(--radius-md);
-    font-size: 14px;
   }
 
   .agent-chat__input {
@@ -691,18 +629,34 @@
   .alisio-chat .agent-chat__input.alisio-chat__composer {
     width: 100%;
     margin: 0 auto calc(env(safe-area-inset-bottom, 0px) + 6px);
-    padding: 7px 10px 7px;
-    border-radius: 22px;
+    padding: 10px 10px 9px;
+    border-radius: 24px;
   }
 
   .alisio-chat__composer-field {
     min-height: 44px;
-    padding: 4px 4px 8px;
+    padding: 6px 4px 10px;
     font-size: 14px;
   }
 
   .alisio-chat__composer-toolbar {
-    padding-top: 6px;
+    gap: 10px;
+    padding-top: 8px;
+  }
+
+  .alisio-chat__composer-model {
+    flex: 1 1 180px;
+    justify-content: flex-start;
+  }
+
+  .alisio-chat__composer-model .chat-controls__model {
+    width: 100%;
+  }
+
+  .alisio-chat__composer-model .chat-controls__model select {
+    height: 34px;
+    font-size: 12px;
+    padding: 0 12px;
   }
 
   .alisio-chat .agent-chat__input-btn,
@@ -821,12 +775,6 @@
 
   .alisio-chat__composer-field {
     min-height: 48px;
-    font-size: 13px;
-  }
-
-  .chat-compose__field textarea {
-    min-height: 52px;
-    padding: 8px 10px;
     font-size: 13px;
   }
 
