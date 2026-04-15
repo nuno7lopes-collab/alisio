@@ -45,6 +45,7 @@ export function buildControlUiCspHeader(opts?: { inlineScriptHashes?: string[] }
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https:",
     "font-src 'self' https://fonts.gstatic.com",
+    "frame-src 'self' http://127.0.0.1:* http://localhost:*",
     "connect-src 'self' ws: wss:",
   ].join("; ");
 }

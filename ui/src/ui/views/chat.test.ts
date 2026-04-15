@@ -41,6 +41,10 @@ function createChatHeaderState(
     providerOverride?: string | null;
     models?: ModelCatalogEntry[];
     omitSessionFromList?: boolean;
+    patchResolvedModel?: {
+      model: string | null;
+      modelProvider?: string | null;
+    };
   } = {},
 ): { state: AppViewState; request: ReturnType<typeof vi.fn> } {
   let currentModel = overrides.model ?? null;
@@ -55,35 +59,53 @@ function createChatHeaderState(
       : overrides.providerOverride;
   const omitSessionFromList = overrides.omitSessionFromList ?? false;
   const catalog = overrides.models ?? createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG);
+  const applySessionModel = (model: string | null, modelProvider?: string | null) => {
+    if (!model) {
+      currentModel = null;
+      currentModelProvider = null;
+      currentModelOverride = null;
+      currentProviderOverride = null;
+      return;
+    }
+    const normalized = model.trim();
+    const slashIndex = normalized.indexOf("/");
+    if (slashIndex > 0) {
+      currentModelProvider = normalized.slice(0, slashIndex);
+      currentModel = normalized.slice(slashIndex + 1);
+    } else {
+      currentModel = normalized;
+      if (typeof modelProvider === "string" && modelProvider.trim()) {
+        currentModelProvider = modelProvider.trim();
+      } else {
+        const matchingProviders = catalog
+          .filter((entry) => entry.id === normalized)
+          .map((entry) => entry.provider)
+          .filter(Boolean);
+        currentModelProvider =
+          matchingProviders.length === 1 ? matchingProviders[0] : currentModelProvider;
+      }
+    }
+    currentProviderOverride = currentModelProvider;
+    currentModelOverride = currentModel;
+  };
   const request = vi.fn(async (method: string, params: Record<string, unknown>) => {
     if (method === "sessions.patch") {
-      const nextModel = (params.model as string | null | undefined) ?? null;
-      if (!nextModel) {
-        currentModel = null;
-        currentModelProvider = null;
-        currentModelOverride = null;
-        currentProviderOverride = null;
+      const resolvedPatch = overrides.patchResolvedModel;
+      if (resolvedPatch) {
+        applySessionModel(resolvedPatch.model, resolvedPatch.modelProvider);
       } else {
-        const normalized = nextModel.trim();
-        const slashIndex = normalized.indexOf("/");
-        if (slashIndex > 0) {
-          currentModelProvider = normalized.slice(0, slashIndex);
-          currentModel = normalized.slice(slashIndex + 1);
-          currentProviderOverride = currentModelProvider;
-          currentModelOverride = currentModel;
-        } else {
-          currentModel = normalized;
-          const matchingProviders = catalog
-            .filter((entry) => entry.id === normalized)
-            .map((entry) => entry.provider)
-            .filter(Boolean);
-          currentModelProvider =
-            matchingProviders.length === 1 ? matchingProviders[0] : currentModelProvider;
-          currentProviderOverride = currentModelProvider;
-          currentModelOverride = currentModel;
-        }
+        applySessionModel((params.model as string | null | undefined) ?? null);
       }
-      return { ok: true, key: "main" };
+      return {
+        ok: true,
+        key: "main",
+        resolved: currentModel
+          ? {
+              model: currentModel,
+              modelProvider: currentModelProvider ?? undefined,
+            }
+          : undefined,
+      };
     }
     if (method === "chat.history") {
       return { messages: [], thinkingLevel: null };
@@ -526,6 +548,81 @@ describe("chat view", () => {
     expect(onOpenRuntimeSetup).toHaveBeenCalledTimes(1);
   });
 
+  it("renders markdown in the generic right pane host", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          sidebarOpen: true,
+          sidebarContent: "Hello **world**",
+          browserPaneSurfaceKind: "markdown",
+          onCloseSidebar: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".browser-pane")).not.toBeNull();
+    expect(container.querySelector(".sidebar-markdown strong")?.textContent).toBe("world");
+    expect(container.querySelector("resizable-divider")).not.toBeNull();
+  });
+
+  it("keeps the existing split container and renders the observer iframe", () => {
+    const container = document.createElement("div");
+    const onSelectBrowserPaneSurface = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          sidebarOpen: true,
+          sidebarContent: "Hello **world**",
+          browserPaneSurfaceKind: "observer",
+          browserPaneObserver: {
+            kind: "novnc",
+            url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+            label: "Observed browser",
+          },
+          onCloseSidebar: () => undefined,
+          onSelectBrowserPaneSurface,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-split-container--open")).not.toBeNull();
+    expect(container.querySelector(".browser-pane__iframe")?.getAttribute("src")).toBe(
+      "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+    );
+
+    const switchButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".browser-pane__switch button"),
+    );
+    expect(switchButtons.map((button) => button.textContent?.trim())).toEqual([
+      "Browser",
+      "Tool Output",
+    ]);
+
+    switchButtons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onSelectBrowserPaneSurface).toHaveBeenCalledWith("markdown");
+  });
+
+  it("does not open an empty split when the session has no observer and no markdown", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          sidebarOpen: true,
+          browserPaneSurfaceKind: "observer",
+          onCloseSidebar: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-split-container--open")).toBeNull();
+    expect(container.querySelector(".chat-sidebar")).toBeNull();
+    expect(container.querySelector(".browser-pane__iframe")).toBeNull();
+  });
+
   it("renders first-load skeletons with the same grouped structure as real chat rows", () => {
     const container = document.createElement("div");
     render(
@@ -790,6 +887,91 @@ describe("chat view", () => {
     const welcomeImage = container.querySelector<HTMLImageElement>(".agent-chat__welcome > img");
     expect(welcomeImage).not.toBeNull();
     expect(welcomeImage?.getAttribute("src")).toBe("/avatar/main");
+  });
+
+  it("personalizes the welcome state with the viewer first name when available", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          viewerDisplayName: "Nuno Lopes",
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Hello, Nuno.");
+    expect(container.textContent).toContain("What do you want to handle?");
+    expect(container.textContent).toContain("Create a task");
+  });
+
+  it("wires featured app actions in the welcome state for connect and use flows", () => {
+    const container = document.createElement("div");
+    const onBeginConnector = vi.fn();
+    const onDraftChange = vi.fn();
+    const onSend = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          connectorCatalog: [
+            {
+              id: "gmail-send",
+              title: "Gmail Send",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Send outbound email drafts.",
+              availability: "ready",
+              scopes: ["https://www.googleapis.com/auth/gmail.send"],
+            },
+            {
+              id: "google-calendar",
+              title: "Google Calendar",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Access your calendar.",
+              availability: "ready",
+              scopes: ["https://www.googleapis.com/auth/calendar"],
+            },
+          ],
+          connectorAuthorizations: [
+            {
+              connectorId: "google-calendar",
+              state: "connected",
+              health: "healthy",
+              scopes: ["https://www.googleapis.com/auth/calendar"],
+              connectedAccount: {
+                label: "Nuno",
+                email: "nuno@example.com",
+              },
+            },
+          ],
+          onBeginConnector,
+          onDraftChange,
+          onSend,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Connect send");
+    expect(container.textContent).toContain("View calendar");
+
+    const connectButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".agent-chat__welcome-app"),
+    ).find((button) => button.textContent?.includes("Connect"));
+    expect(connectButton).not.toBeUndefined();
+    connectButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
+
+    const useButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".agent-chat__welcome-app"),
+    ).find((button) => button.textContent?.includes("View calendar"));
+    expect(useButton).not.toBeUndefined();
+    useButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onDraftChange).toHaveBeenCalledWith("Look at my calendar and help me organize the day.");
+    expect(onSend).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to the bundled logo in the welcome state when the assistant avatar is not a URL", () => {
@@ -1134,6 +1316,34 @@ describe("chat view", () => {
     expect(container.textContent).toContain("Next in line");
   });
 
+  it("applies distinct queue tone classes for current and next items", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          finalizing: true,
+          queue: [
+            {
+              id: "pending",
+              text: "/steer tighten the plan",
+              createdAt: 1,
+              pendingRunId: "run-1",
+            },
+            {
+              id: "queued",
+              text: "follow up",
+              createdAt: 2,
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-queue__item--current")).not.toBeNull();
+    expect(container.querySelector(".chat-queue__state--next")).not.toBeNull();
+  });
+
   it("hides assistant message actions while the streamed answer is still being written", () => {
     const container = document.createElement("div");
     render(
@@ -1453,6 +1663,53 @@ describe("chat view", () => {
       model: null,
     });
     expect(state.chatModelOverrides.main).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("reconciles the picker with the backend-resolved model after a switch", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+      } satisfies Partial<Response>),
+    );
+    const { state, request } = createChatHeaderState({
+      models: createModelCatalog(OPENAI_GPT5_MODEL, OPENAI_GPT5_MINI_MODEL, {
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        provider: "alisio-local-current-llama",
+        providerLabel: "This device",
+      }),
+      patchResolvedModel: { model: "gpt-5-mini", modelProvider: "openai" },
+    });
+    const container = document.createElement("div");
+    render(renderChatSessionSelect(state), container);
+
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(modelSelect).not.toBeNull();
+
+    modelSelect!.value = "alisio-local-current-llama/qwen3-4b-q4-k-m";
+    modelSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushTasks();
+    render(renderChatSessionSelect(state), container);
+
+    expect(request).toHaveBeenCalledWith("sessions.patch", {
+      key: "main",
+      model: "alisio-local-current-llama/qwen3-4b-q4-k-m",
+    });
+    expect(state.chatModelOverrides.main).toEqual({
+      kind: "qualified",
+      value: "openai/gpt-5-mini",
+    });
+
+    const rerendered = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(rerendered?.value).toBe("openai/gpt-5-mini");
+    expect(state.sessionsResult?.sessions[0]?.model).toBe("gpt-5-mini");
+    expect(state.sessionsResult?.sessions[0]?.modelProvider).toBe("openai");
     vi.unstubAllGlobals();
   });
 
@@ -1840,12 +2097,77 @@ describe("chat view", () => {
     render(renderChatDesktopToolbar(state), container);
 
     expect(container.querySelector(".alisio-chat-toolbar")).not.toBeNull();
+    expect(container.textContent).toContain("New chat");
     expect(container.querySelector(".chat-controls__session")).not.toBeNull();
     expect(
       container.querySelector('.chat-select-chip--session select[data-chat-session-select="true"]'),
     ).not.toBeNull();
     expect(container.querySelector('select[data-chat-model-select="true"]')).toBeNull();
     expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
+  });
+
+  it("creates a real new chat from the desktop toolbar and switches the active conversation", async () => {
+    const { state, request } = createChatHeaderState();
+    request.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "sessions.create") {
+        expect(params).toEqual({ agentId: "main" });
+        return { key: "agent:main:dashboard:new-chat" };
+      }
+      if (method === "sessions.messages.subscribe") {
+        return { subscribed: true, key: "agent:main:dashboard:new-chat" };
+      }
+      if (method === "chat.history") {
+        return { messages: [], thinkingLevel: null };
+      }
+      if (method === "sessions.list") {
+        return {
+          ts: 0,
+          path: "",
+          count: 2,
+          defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+          sessions: [
+            {
+              key: "main",
+              kind: "direct",
+              updatedAt: null,
+            },
+            {
+              key: "agent:main:dashboard:new-chat",
+              kind: "direct",
+              updatedAt: null,
+            },
+          ],
+        };
+      }
+      if (method === "models.list") {
+        return { models: state.chatModelCatalog };
+      }
+      if (method === "tools.effective") {
+        return {
+          agentId: "main",
+          profile: "coding",
+          groups: [],
+        };
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    const newChatButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("New chat"),
+    );
+    expect(newChatButton).not.toBeUndefined();
+    newChatButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushTasks();
+    await flushTasks();
+
+    expect(request).toHaveBeenCalledWith("sessions.create", { agentId: "main" });
+    expect(state.sessionKey).toBe("agent:main:dashboard:new-chat");
+    expect(state.settings.lastActiveSessionKey).toBe("agent:main:dashboard:new-chat");
+    expect(state.resetToolStream).toHaveBeenCalled();
+    expect(state.resetChatScroll).toHaveBeenCalled();
   });
 
   it("renders compact model labels in the composer picker", () => {
@@ -1864,7 +2186,7 @@ describe("chat view", () => {
       option.textContent?.trim(),
     );
 
-    expect(labels).toEqual(["Default", "GPT-5 Mini", "DeepSeek Chat"]);
+    expect(labels).toEqual(["GPT-5", "GPT-5 Mini", "DeepSeek Chat"]);
     expect(labels.some((label) => label?.includes("·"))).toBe(false);
   });
 

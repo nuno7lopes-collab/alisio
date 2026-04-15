@@ -2,6 +2,7 @@ import type { NodeListNode } from "../../../src/shared/node-list-types.js";
 import type { PendingAlisioConnectorChatResume } from "./alisio-connector-oauth.ts";
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus, FallbackStatus } from "./app-tool-stream.ts";
+import type { BrowserPaneObserver, BrowserPaneSurfaceKind } from "./controllers/browser-pane.ts";
 import type { CronModelSuggestionsState, CronState } from "./controllers/cron.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
@@ -181,6 +182,8 @@ export type AppViewState = {
   sidebarOpen: boolean;
   sidebarContent: string | null;
   sidebarError: string | null;
+  browserPaneSurfaceKind: BrowserPaneSurfaceKind;
+  browserPaneObserver: BrowserPaneObserver | null;
   splitRatio: number;
   scrollToBottom: (opts?: { smooth?: boolean }) => void;
   devicesLoading: boolean;
@@ -495,5 +498,6 @@ export type AppViewState = {
     handleLogsScroll: (event: Event) => void;
     handleOpenSidebar: (content: string) => void;
     handleCloseSidebar: () => void;
+    handleSelectBrowserPaneSurface: (surface: BrowserPaneSurfaceKind) => void;
     handleSplitRatioChange: (ratio: number) => void;
   };

@@ -4,6 +4,7 @@ import {
   alisioPlanTranslationKey,
   normalizeAlisioPlan,
 } from "../../../src/shared/alisio-billing.js";
+import { isAlisioConnectorRuntimeReady } from "../../../src/shared/alisio-connector-runtime.js";
 import { i18n, t } from "../i18n/index.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 import {
@@ -29,10 +30,10 @@ import {
   renderChatComposerModelSelect,
   renderChatDesktopToolbar,
   renderChatMobileToggle,
-  resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
   isChatModelSwitchPending,
   renderTab,
+  switchChatSession,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { buildChatModelOptions } from "./chat-model-select-state.ts";
@@ -40,16 +41,11 @@ import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   beginAlisioAccountEmailAuth,
-  beginAlisioAccountGoogleAuth,
   beginAlisioAiConnect,
   beginAlisioConnector,
-  cancelAlisioSetupWizard,
   changeAlisioAccountEmail,
-  continueAlisioSetupWizard,
-  disconnectAlisioAi,
   disconnectAlisioAiProfile,
   installAlisioModel,
-  loadAlisioAccount,
   loadAlisioConnectors,
   loadAlisioProviderOverview,
   loadAlisioSharing,
@@ -66,8 +62,9 @@ import {
   selectAlisioAiProfile,
   saveAlisioSharingPolicy,
   signOutAlisioAccount,
+  signInAlisioAccountWithPassword,
+  signUpAlisioAccountWithPassword,
   saveAlisioOrganization,
-  startAlisioSetupWizard,
   uninstallAlisioModel,
   updateAlisioAccountPassword,
   verifyAlisioAccountEmailAuth,
@@ -253,10 +250,8 @@ function scheduleConnectorAuthorizationRefresh(state: AppViewState, connectorId:
     window.setTimeout(
       async () => {
         attempts += 1;
-        await Promise.allSettled([
-          loadAlisioProviderOverview(state, { force: true }),
-          loadAlisioConnectors(state, { force: true }),
-        ]);
+        await loadAlisioConnectors(state, { force: true }).catch(() => {});
+        void loadAlisioProviderOverview(state, { force: true });
         const authorization =
           state.alisioProviders?.connectors.authorizations.find(
             (entry) => entry.connectorId === connectorId,
@@ -300,31 +295,6 @@ function scheduleOpenAiRefresh(state: AppViewState) {
   tick();
 }
 
-function scheduleAccountRefresh(state: AppViewState) {
-  let attempts = 0;
-  const maxAttempts = 45;
-
-  const tick = () => {
-    window.setTimeout(
-      async () => {
-        attempts += 1;
-        await loadAlisioAccount(state);
-        const accountState =
-          state.alisioBootstrap?.account.session.state ??
-          state.alisioAccount?.session.state ??
-          null;
-        if (accountState === "signed_in" || attempts >= maxAttempts) {
-          return;
-        }
-        tick();
-      },
-      attempts === 0 ? 1000 : 2000,
-    );
-  };
-
-  tick();
-}
-
 function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
   const popup = typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
   void beginAlisioAiConnect(state, callbackUrl)
@@ -335,28 +305,6 @@ function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
         return;
       }
       scheduleOpenAiRefresh(state);
-      void openExternalTarget(targetUrl, {
-        popup,
-        openViaHost:
-          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
-        preferNewTab: typeof window.alisioHost?.request === "function",
-      });
-    })
-    .catch(() => {
-      closeReservedExternalPopup(popup);
-    });
-}
-
-function beginAccountGoogleConnectFlow(state: AppViewState, callbackUrl: string) {
-  const popup = typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
-  void beginAlisioAccountGoogleAuth(state, callbackUrl)
-    .then((result) => {
-      const targetUrl = result?.setupUrl;
-      if (!targetUrl) {
-        closeReservedExternalPopup(popup);
-        return;
-      }
-      scheduleAccountRefresh(state);
       void openExternalTarget(targetUrl, {
         popup,
         openViaHost:
@@ -398,7 +346,22 @@ function shouldReserveConnectorPopup(state: AppViewState, connectorId: string) {
     return false;
   }
   const definition = state.alisioConnectorCatalog.find((entry) => entry.id === connectorId);
-  return definition?.availability === "ready";
+  return definition?.availability === "ready" && isAlisioConnectorRuntimeReady(connectorId);
+}
+
+function connectorSetupErrorMessage(
+  result: { statusReason?: string | null } | null | undefined,
+): string {
+  switch (result?.statusReason) {
+    case "review_required":
+      return t("alisio.authentications.errors.reviewPending");
+    case "missing_client_config":
+    case "missing_token_encryption":
+    case "unavailable":
+      return t("alisio.authentications.errors.unavailable");
+    default:
+      return t("alisio.authentications.errors.startFailed");
+  }
 }
 
 function beginConnectorFlow(
@@ -442,12 +405,8 @@ function beginConnectorFlow(
       }
       if (result.mode !== "oauth") {
         closeReservedExternalPopup(popup);
-        state.alisioConnectorSetupGuide = result;
-        state.setupStep = "connectors";
-        state.alisioConnectorsError = null;
-        if (typeof state.setTab === "function") {
-          state.setTab("setup");
-        }
+        state.alisioConnectorSetupGuide = null;
+        state.alisioConnectorsError = connectorSetupErrorMessage(result);
         return;
       }
       const targetUrl = result.setupUrl;
@@ -515,24 +474,8 @@ export function renderApp(state: AppViewState) {
     startupLoading: state.alisioStartupLoading,
     startupError: state.alisioStartupError,
     startupBootstrap: state.alisioStartupBootstrap,
-    bootstrapLoading: state.alisioBootstrapLoading,
-    bootstrapError: state.alisioBootstrapError,
     bootstrap: state.alisioBootstrap,
-    doctorLoading: state.alisioDoctorLoading,
-    doctorError: state.alisioDoctorError,
-    doctor: state.alisioDoctor,
-    wizardLoading: state.setupWizardLoading,
-    wizardSubmitting: state.setupWizardSubmitting,
-    wizardSessionId: state.setupWizardSessionId,
-    wizardStep: state.setupWizardStep,
-    wizardStatus: state.setupWizardStatus,
-    wizardError: state.setupWizardError,
-    wizardDraftText: state.setupWizardDraftText,
-    wizardDraftConfirm: state.setupWizardDraftConfirm,
-    wizardDraftSelectIndex: state.setupWizardDraftSelectIndex,
-    wizardDraftMultiIndexes: state.setupWizardDraftMultiIndexes,
     requestedStep: state.setupStep,
-    setupGuide: state.alisioConnectorSetupGuide,
     accountLoading: state.alisioAccountLoading,
     accountError: state.alisioAccountError,
     accountNotice: state.alisioAccountNotice,
@@ -545,40 +488,10 @@ export function renderApp(state: AppViewState) {
     termsAccepted: state.alisioTermsAccepted,
     marketingOptIn: state.alisioMarketingOptIn,
     birthdate: state.alisioBirthdate,
-    aiLoading: state.alisioAiLoading,
-    aiError: state.alisioAiError,
-    onDismissSetupGuide: () => {
-      state.alisioConnectorSetupGuide = null;
-    },
-    onOpenSupportUrl: (targetUrl) => {
-      void openExternalTarget(targetUrl, {
-        openViaHost:
-          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
-        preferNewTab: true,
-      });
-    },
-    organizationLoading: state.alisioOrganizationLoading,
-    organizationError: state.alisioOrganizationError,
-    organization: state.alisioOrganization,
-    organizationDraftMode: state.alisioOrganizationDraftMode,
-    organizationName: state.alisioOrganizationName,
-    organizationInviteEmail: state.alisioOrganizationInviteEmail,
-    connectorsLoading: state.alisioConnectorsLoading,
-    connectorsError: state.alisioConnectorsError,
-    connectorCatalog: state.alisioConnectorCatalog,
-    connectorAuthorizations: state.alisioConnectorAuthorizations,
-    nativeShellLoading: state.nativeShellLoading,
-    nativeShellError: state.nativeShellError,
-    nativeShellState: state.nativeShellState,
     onAuthEmailChange: (value) => {
       state.alisioAccountError = null;
       state.alisioAccountNotice = null;
       state.alisioAuthEmail = value;
-    },
-    onAuthPendingEmailChange: (value) => {
-      state.alisioAccountError = null;
-      state.alisioAccountNotice = null;
-      state.alisioAuthPendingEmail = value;
     },
     onAuthCodeChange: (value) => {
       state.alisioAccountError = null;
@@ -632,71 +545,8 @@ export function renderApp(state: AppViewState) {
     },
     onConnect: () => state.connect(),
     onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
-    onOpenChannels: () => state.setTab("channels" as import("./navigation.ts").Tab),
     onOpenSettingsAi: () => {
       state.setTab("models" as import("./navigation.ts").Tab);
-    },
-    onOpenSettingsMac: () => {
-      state.setSettingsSection("mac");
-      void openNativeSettings("mac");
-    },
-    onSetLaunchAtLogin: (enabled) => {
-      void setLaunchAtLogin(enabled).then(() => loadNativeShellState(state));
-    },
-    onRequestPermission: (permission) => {
-      void requestNativePermission(permission).then(() => loadNativeShellState(state));
-    },
-    onDraftModeChange: (mode) => {
-      state.alisioOrganizationDraftMode = mode;
-    },
-    onOrganizationNameChange: (value) => {
-      state.alisioOrganizationName = value;
-    },
-    onInviteEmailChange: (value) => {
-      state.alisioOrganizationInviteEmail = value;
-    },
-    onCreateOrganization: () => {
-      void saveAlisioOrganization(state, {
-        mode: "owner",
-        organizationName: state.alisioOrganizationName.trim(),
-      });
-    },
-    onJoinOrganization: () => {
-      void saveAlisioOrganization(state, {
-        mode: "member",
-        organizationName: state.alisioOrganizationName.trim(),
-        inviteEmail: state.alisioOrganizationInviteEmail.trim() || undefined,
-      });
-    },
-    onResetOrganization: () => {
-      void saveAlisioOrganization(state, { mode: "none" });
-    },
-    onBeginConnector: (connectorId) => {
-      beginConnectorFlow(state, connectorId);
-    },
-    onRevokeConnector: (connectorId) => {
-      void revokeAlisioConnector(state, connectorId);
-    },
-    onStartWizard: (mode) => {
-      void startAlisioSetupWizard(state, mode);
-    },
-    onContinueWizard: (answer) => {
-      void continueAlisioSetupWizard(state, answer);
-    },
-    onCancelWizard: () => {
-      void cancelAlisioSetupWizard(state);
-    },
-    onWizardDraftTextChange: (value) => {
-      state.setupWizardDraftText = value;
-    },
-    onWizardDraftConfirmChange: (value) => {
-      state.setupWizardDraftConfirm = value;
-    },
-    onWizardDraftSelectIndexChange: (value) => {
-      state.setupWizardDraftSelectIndex = value;
-    },
-    onWizardDraftMultiIndexesChange: (value) => {
-      state.setupWizardDraftMultiIndexes = value;
     },
     onAccountFieldChange: (field, value) => {
       state.alisioAccountError = null;
@@ -718,38 +568,14 @@ export function renderApp(state: AppViewState) {
     onVerifyEmailAuth: () => {
       void verifyAlisioAccountEmailAuth(state);
     },
-    onBeginGoogleAuth: () => {
-      const callbackUrl = resolveAlisioAccountCallbackUrl(state);
-      beginAccountGoogleConnectFlow(state, callbackUrl);
+    onSignInWithPassword: (email, password) => {
+      void signInAlisioAccountWithPassword(state, { email, password });
     },
-    onBeginAiConnect: () => {
-      const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
-      const popup =
-        typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
-      void beginAlisioAiConnect(state, callbackUrl.toString())
-        .then((result) => {
-          const targetUrl = result?.setupUrl;
-          if (!targetUrl) {
-            closeReservedExternalPopup(popup);
-            return;
-          }
-          scheduleOpenAiRefresh(state);
-          void openExternalTarget(targetUrl, {
-            popup,
-            openViaHost:
-              typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
-            preferNewTab: typeof window.alisioHost?.request === "function",
-          });
-        })
-        .catch(() => {
-          closeReservedExternalPopup(popup);
-        });
+    onSignUpWithPassword: (email, password) => {
+      void signUpAlisioAccountWithPassword(state, { email, password });
     },
-    onDisconnectAi: () => {
-      void disconnectAlisioAi(state);
-    },
-    onRefreshAi: () => {
-      void refreshAlisioAi(state);
+    onRequestRecoveryEmail: () => {
+      void requestAlisioRecoveryEmail(state);
     },
     onSaveAccount: () => {
       const profile = state.alisioAccount?.profile;
@@ -974,7 +800,9 @@ export function renderApp(state: AppViewState) {
               </div>
               <button
                 type="button"
-                class="nav-collapse-toggle sidebar-shell__toggle"
+                class="nav-collapse-toggle sidebar-shell__toggle ${navCollapsed
+                  ? "is-collapsed"
+                  : ""}"
                 @click=${() =>
                   state.applySettings({
                     ...state.settings,
@@ -984,7 +812,7 @@ export function renderApp(state: AppViewState) {
                 aria-label="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
               >
                 <span class="nav-collapse-toggle__icon" aria-hidden="true"
-                  >${navCollapsed ? icons.panelLeftOpen : icons.panelLeftClose}</span
+                  >${icons.chevronRight}</span
                 >
               </button>
             </div>
@@ -1119,8 +947,8 @@ export function renderApp(state: AppViewState) {
         ${state.lastError ? html`<div class="callout danger">${state.lastError}</div>` : nothing}
         ${activeTab === "authentications"
           ? renderAuthentications({
-              loading: state.alisioProvidersLoading,
-              error: state.alisioProvidersError,
+              loading: state.alisioConnectorsLoading,
+              error: state.alisioConnectorsError,
               account: state.alisioAccount,
               overview: state.alisioProviders,
               connectorCatalog: state.alisioConnectorCatalog,
@@ -1584,16 +1412,16 @@ export function renderApp(state: AppViewState) {
                   if (!launched) {
                     return;
                   }
-                  state.sessionKey = launched.sessionKey;
+                  switchChatSession(state, launched.sessionKey);
                   state.setTab?.("chat");
                 })();
               },
               onOpenRequesterSession: (sessionKey) => {
-                state.sessionKey = sessionKey;
+                switchChatSession(state, sessionKey);
                 state.setTab?.("chat");
               },
               onOpenChildSession: (sessionKey) => {
-                state.sessionKey = sessionKey;
+                switchChatSession(state, sessionKey);
                 state.setTab?.("chat");
               },
             })
@@ -1685,11 +1513,13 @@ export function renderApp(state: AppViewState) {
                   getDraft: () => state.chatMessage,
                   onDraftChange: (next) => (state.chatMessage = next),
                   onOpenRuntimeSetup: () => {
-                    state.setupStep = state.alisioBootstrap?.nextStep ?? "runtime";
-                    state.setTab("setup" as import("./navigation.ts").Tab);
+                    state.setTab("models" as import("./navigation.ts").Tab);
                   },
                   onBeginConnector: (connectorId) => {
                     beginConnectorFlow(state, connectorId, { resumeChatIntent: true });
+                  },
+                  onOpenAuthentications: () => {
+                    state.setTab("authentications" as import("./navigation.ts").Tab);
                   },
                   onRequestUpdate: requestHostUpdate,
                   securityDiagnostics: chatSecurityDiagnostics,
@@ -1722,7 +1552,7 @@ export function renderApp(state: AppViewState) {
                       if (!launched) {
                         return;
                       }
-                      state.sessionKey = launched.sessionKey;
+                      switchChatSession(state, launched.sessionKey);
                       state.setTab("chat" as import("./navigation.ts").Tab);
                     })();
                   },
@@ -1730,7 +1560,7 @@ export function renderApp(state: AppViewState) {
                     state.setTab("tasks" as import("./navigation.ts").Tab);
                   },
                   onOpenTaskSession: (sessionKey) => {
-                    state.sessionKey = sessionKey;
+                    switchChatSession(state, sessionKey);
                     state.setTab("chat" as import("./navigation.ts").Tab);
                   },
                   onOpenNativeSettings:
@@ -1745,14 +1575,21 @@ export function renderApp(state: AppViewState) {
                   sidebarOpen: state.sidebarOpen,
                   sidebarContent: state.sidebarContent,
                   sidebarError: state.sidebarError,
+                  browserPaneSurfaceKind: state.browserPaneSurfaceKind,
+                  browserPaneObserver: state.browserPaneObserver,
                   splitRatio: state.splitRatio,
                   onOpenSidebar: (content: string) => state.handleOpenSidebar(content),
                   onCloseSidebar: () => state.handleCloseSidebar(),
+                  onSelectBrowserPaneSurface: (surface) =>
+                    state.handleSelectBrowserPaneSurface(surface),
                   onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                   assistantName: state.assistantName,
                   assistantAvatar: state.assistantAvatar,
                   assistantAgentId: state.assistantAgentId,
                   basePath: state.basePath ?? "",
+                  viewerDisplayName: profile?.displayName ?? null,
+                  connectorCatalog: state.alisioConnectorCatalog,
+                  connectorAuthorizations: state.alisioConnectorAuthorizations,
                 })}
               </section>
             `

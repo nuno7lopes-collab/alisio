@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createStorageMock } from "../../test-helpers/storage.ts";
 import { GatewayRequestError } from "../gateway.ts";
+import type { SessionsListResult } from "../types.ts";
+import { readBrowserPaneObserverEvent, resolveBrowserPaneSessionObserver } from "./browser-pane.ts";
 import {
   abortChatRun,
   handleChatEvent,
+  handleSessionMessageEvent,
   loadChatHistory,
   sendChatMessage,
   type ChatEventPayload,
@@ -49,6 +53,94 @@ function createOtherRunNoReplyFinalPayload(): ChatEventPayload {
     },
   };
 }
+
+function createSessionsResult(
+  session: Partial<SessionsListResult["sessions"][number]>,
+): SessionsListResult {
+  return {
+    ts: 0,
+    path: "",
+    count: 1,
+    defaults: {
+      modelProvider: null,
+      model: null,
+      contextTokens: null,
+    },
+    sessions: [
+      {
+        key: "main",
+        kind: "direct",
+        updatedAt: null,
+        ...session,
+      },
+    ],
+  };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe("browser pane controller helpers", () => {
+  it("clears a cached live observer when the session row explicitly removes it", () => {
+    const liveObserver = {
+      kind: "novnc" as const,
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Live browser",
+    };
+
+    expect(
+      resolveBrowserPaneSessionObserver({
+        sessionKey: "main",
+        liveObserver,
+        sessions: createSessionsResult({
+          observer: null,
+        }),
+      }),
+    ).toBeNull();
+    expect(
+      resolveBrowserPaneSessionObserver({
+        sessionKey: "main",
+        liveObserver,
+        sessions: createSessionsResult({}),
+      }),
+    ).toEqual(liveObserver);
+  });
+
+  it("parses observer event updates and explicit removals", () => {
+    vi.stubGlobal("localStorage", createStorageMock());
+
+    expect(
+      readBrowserPaneObserverEvent({
+        sessionKey: "main",
+        observer: {
+          kind: "novnc",
+          url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+          label: "Observed browser",
+        },
+      }),
+    ).toEqual({
+      sessionKey: "main",
+      observer: {
+        kind: "novnc",
+        url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+        label: "Observed browser",
+      },
+    });
+    expect(
+      readBrowserPaneObserverEvent({
+        session: {
+          key: "main",
+          observer: null,
+        },
+      }),
+    ).toEqual({
+      sessionKey: "main",
+      observer: null,
+    });
+  });
+});
 
 describe("handleChatEvent", () => {
   it("returns null when payload is missing", () => {
@@ -569,6 +661,244 @@ describe("handleChatEvent", () => {
     // entry.text takes precedence — "real reply" is NOT silent, so the message is kept.
     expect(handleChatEvent(state, payload)).toBe("final");
     expect(state.chatMessages).toHaveLength(1);
+  });
+});
+
+describe("handleSessionMessageEvent", () => {
+  it("replaces an optimistic user turn with the canonical transcript update", () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "manda isso" }],
+      timestamp: 20,
+      idempotencyKey: "run-1",
+    };
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [previousMessage, optimisticUserTurn],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "msg-1",
+        messageSeq: 2,
+        message: {
+          role: "user",
+          content: "manda isso",
+          timestamp: 21,
+          idempotencyKey: "run-1",
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(2);
+    expect(state.chatMessages[0]).toEqual(previousMessage);
+    expect(state.chatMessages[1]).toMatchObject({
+      role: "user",
+      content: "manda isso",
+      timestamp: 21,
+      idempotencyKey: "run-1",
+      messageId: "msg-1",
+      __alisio: {
+        id: "msg-1",
+        seq: 2,
+      },
+    });
+  });
+
+  it("dedupes repeated canonical user transcript updates", () => {
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "procura o email" }],
+          timestamp: 20,
+          idempotencyKey: "run-email-1",
+        },
+      ],
+    });
+    const payload = {
+      sessionKey: "main",
+      messageId: "msg-email-1",
+      messageSeq: 3,
+      message: {
+        role: "user",
+        content: "procura o email",
+        timestamp: 21,
+        idempotencyKey: "run-email-1",
+      },
+    } as const;
+
+    expect(handleSessionMessageEvent(state, payload)).toBe(true);
+    expect(handleSessionMessageEvent(state, payload)).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      messageId: "msg-email-1",
+      idempotencyKey: "run-email-1",
+      content: "procura o email",
+    });
+  });
+
+  it("ignores canonical assistant transcript updates because chat events already cover them", () => {
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Feito." }],
+          timestamp: 30,
+        },
+      ],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "msg-assistant-1",
+        messageSeq: 3,
+        message: {
+          role: "assistant",
+          content: "Feito.",
+          timestamp: 31,
+        },
+      }),
+    ).toBe(false);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      role: "assistant",
+      content: [{ type: "text", text: "Feito." }],
+      timestamp: 30,
+    });
+  });
+
+  it("ignores transcript updates for other sessions and tool roles", () => {
+    const existing = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [existing],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "other",
+        message: { role: "user", content: "ignorar", timestamp: 11 },
+      }),
+    ).toBe(false);
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        message: { role: "tool", content: "ignorar", timestamp: 12 },
+      }),
+    ).toBe(false);
+
+    expect(state.chatMessages).toEqual([existing]);
+  });
+
+  it("rehydrates inline image previews from transcript media fields", () => {
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/png", data: "local-preview" },
+            },
+          ],
+          timestamp: 20,
+          idempotencyKey: "run-image-1",
+        },
+      ],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "msg-image-1",
+        messageSeq: 4,
+        message: {
+          role: "user",
+          content: "",
+          timestamp: 21,
+          idempotencyKey: "run-image-1",
+          MediaPath: "/tmp/chat-send-image-a.png",
+          MediaPaths: ["/tmp/chat-send-image-a.png"],
+          MediaType: "Image/PNG; charset=utf-8",
+          MediaTypes: ["Image/PNG; charset=utf-8"],
+          MediaPreviewImages: [{ mimeType: "image/png", data: "preview-base64" }],
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      role: "user",
+      messageId: "msg-image-1",
+      __alisio: {
+        id: "msg-image-1",
+        seq: 4,
+      },
+      content: [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/png",
+            data: "preview-base64",
+          },
+        },
+      ],
+    });
+  });
+
+  it("rehydrates attachment pills from transcript media fields when no preview exists", () => {
+    const state = createState({
+      sessionKey: "main",
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "msg-pdf-1",
+        messageSeq: 5,
+        message: {
+          role: "user",
+          content: "resume isto",
+          timestamp: 22,
+          idempotencyKey: "run-pdf-1",
+          MediaPath: "/tmp/brief.pdf",
+          MediaPaths: ["/tmp/brief.pdf"],
+          MediaType: "application/pdf",
+          MediaTypes: ["application/pdf"],
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      role: "user",
+      content: [
+        { type: "text", text: "resume isto" },
+        {
+          type: "attachment",
+          mimeType: "application/pdf",
+          fileName: "brief.pdf",
+        },
+      ],
+    });
   });
 });
 

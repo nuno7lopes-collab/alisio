@@ -71,6 +71,16 @@ import {
 } from "./controllers/agents.ts";
 import { completeAlisioAccountEmailLinkAuth, saveAlisioAccount } from "./controllers/alisio.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
+import {
+  loadBrowserPaneUiState,
+  readBrowserPaneObserverStateFromSessionRow,
+  resolveBrowserPaneSessionObserver,
+  saveBrowserPaneUiState,
+  type BrowserPaneMarkdownState,
+  type BrowserPaneObserver,
+  type BrowserPaneSurfaceKind,
+  type BrowserPaneUiState,
+} from "./controllers/browser-pane.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
@@ -133,6 +143,9 @@ const NATIVE_WORKSPACE_READY_EVENT = "alisio-ui-ready";
 export class AlisioApp extends LitElement {
   private i18nController = new I18nController(this);
   private presentationPreferencesFlushInFlight = false;
+  private browserPaneUiBySession = new Map<string, BrowserPaneUiState>();
+  private browserPaneMarkdownBySession = new Map<string, BrowserPaneMarkdownState>();
+  private browserPaneObserverBySession = new Map<string, BrowserPaneObserver>();
   clientInstanceId = generateUUID();
   connectGeneration = 0;
   @state() settings: UiSettings = loadSettings();
@@ -156,7 +169,6 @@ export class AlisioApp extends LitElement {
   @state() eventLog: EventLogEntry[] = [];
   private eventLogBuffer: EventLogEntry[] = [];
   private toolStreamSyncTimer: number | null = null;
-  private sidebarCloseTimer: number | null = null;
 
   @state() assistantName = bootAssistantIdentity.name;
   @state() assistantAvatar = bootAssistantIdentity.avatar;
@@ -273,6 +285,11 @@ export class AlisioApp extends LitElement {
   @state() sidebarOpen = false;
   @state() sidebarContent: string | null = null;
   @state() sidebarError: string | null = null;
+  @state() browserPaneSurfaceKind: BrowserPaneSurfaceKind = loadBrowserPaneUiState({
+    gatewayUrl: this.settings.gatewayUrl,
+    sessionKey: this.settings.sessionKey,
+  }).selectedSurface;
+  @state() browserPaneObserver: BrowserPaneObserver | null = null;
   @state() splitRatio = this.settings.splitRatio;
 
   @state() nodesLoading = false;
@@ -575,6 +592,7 @@ export class AlisioApp extends LitElement {
   @state() logsAtBottom = true;
 
   client: GatewayBrowserClient | null = null;
+  sessionMessageSubscribedKey: string | null = null;
   private chatScrollFrame: number | null = null;
   private chatScrollTimeout: number | null = null;
   private chatHasAutoScrolled = false;
@@ -696,6 +714,9 @@ export class AlisioApp extends LitElement {
     handleUpdated(this as unknown as Parameters<typeof handleUpdated>[0], changed);
     if (this.connected && this.pendingAccountEmailLinkAuth) {
       void this.completePendingAccountEmailLinkAuth();
+    }
+    if (changed.has("sessionKey") || changed.has("sessionsResult") || changed.has("settings")) {
+      this.syncBrowserPaneForSession(this.sessionKey);
     }
     if (changed.has("execApprovalQueue")) {
       if (this.execApprovalQueue.length > 0 && this.execApprovalTicker == null) {
@@ -1024,31 +1045,159 @@ export class AlisioApp extends LitElement {
     this.pendingGatewayToken = null;
   }
 
+  private getBrowserPaneScopeKey(sessionKey: string): string {
+    const normalizedSessionKey = sessionKey.trim() || "main";
+    const gatewayUrl = this.settings.gatewayUrl.trim() || "default";
+    return `${gatewayUrl}::${normalizedSessionKey}`;
+  }
+
+  private getBrowserPaneUiState(sessionKey: string): BrowserPaneUiState {
+    const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
+    const cached = this.browserPaneUiBySession.get(scopeKey);
+    if (cached) {
+      return cached;
+    }
+    const loaded = loadBrowserPaneUiState({
+      gatewayUrl: this.settings.gatewayUrl,
+      sessionKey,
+    });
+    this.browserPaneUiBySession.set(scopeKey, loaded);
+    return loaded;
+  }
+
+  private rememberBrowserPaneUiState(
+    sessionKey: string,
+    patch: Partial<BrowserPaneUiState>,
+  ): BrowserPaneUiState {
+    const current = this.getBrowserPaneUiState(sessionKey);
+    const next: BrowserPaneUiState = {
+      open: patch.open ?? current.open,
+      selectedSurface: patch.selectedSurface ?? current.selectedSurface,
+      touched: patch.touched ?? current.touched,
+    };
+    const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
+    this.browserPaneUiBySession.set(scopeKey, next);
+    saveBrowserPaneUiState({
+      gatewayUrl: this.settings.gatewayUrl,
+      sessionKey,
+      state: next,
+    });
+    return next;
+  }
+
+  private getBrowserPaneMarkdownState(sessionKey: string): BrowserPaneMarkdownState {
+    return (
+      this.browserPaneMarkdownBySession.get(this.getBrowserPaneScopeKey(sessionKey)) ?? {
+        content: null,
+        error: null,
+      }
+    );
+  }
+
+  private setBrowserPaneMarkdownState(sessionKey: string, next: BrowserPaneMarkdownState): void {
+    const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
+    if (!next.content && !next.error) {
+      this.browserPaneMarkdownBySession.delete(scopeKey);
+      return;
+    }
+    this.browserPaneMarkdownBySession.set(scopeKey, next);
+  }
+
+  private resolveSessionBrowserPaneObserver(sessionKey: string): BrowserPaneObserver | null {
+    const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
+    const sessionRow = this.sessionsResult?.sessions?.find((entry) => entry.key === sessionKey);
+    const rowObserverState = readBrowserPaneObserverStateFromSessionRow(sessionRow);
+    if (rowObserverState.present) {
+      if (rowObserverState.observer) {
+        this.browserPaneObserverBySession.set(scopeKey, rowObserverState.observer);
+      } else {
+        this.browserPaneObserverBySession.delete(scopeKey);
+      }
+      return rowObserverState.observer;
+    }
+    const liveObserver = this.browserPaneObserverBySession.get(scopeKey) ?? null;
+    const resolved = resolveBrowserPaneSessionObserver({
+      sessionKey,
+      sessions: this.sessionsResult,
+      liveObserver,
+    });
+    if (resolved) {
+      this.browserPaneObserverBySession.set(scopeKey, resolved);
+      return resolved;
+    }
+    return liveObserver;
+  }
+
+  setBrowserPaneObserver(sessionKey: string, observer: BrowserPaneObserver | null): void {
+    const normalizedSessionKey = sessionKey.trim();
+    if (!normalizedSessionKey) {
+      return;
+    }
+    const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
+    if (observer) {
+      this.browserPaneObserverBySession.set(scopeKey, observer);
+    } else {
+      this.browserPaneObserverBySession.delete(scopeKey);
+    }
+    if (normalizedSessionKey === this.sessionKey) {
+      this.syncBrowserPaneForSession(normalizedSessionKey);
+    }
+  }
+
+  private syncBrowserPaneForSession(sessionKey: string): void {
+    const normalizedSessionKey = sessionKey.trim() || "main";
+    const ui = this.getBrowserPaneUiState(normalizedSessionKey);
+    const markdown = this.getBrowserPaneMarkdownState(normalizedSessionKey);
+    const observer = this.resolveSessionBrowserPaneObserver(normalizedSessionKey);
+    const hasMarkdown = Boolean(markdown.content || markdown.error);
+    let selectedSurface = ui.selectedSurface;
+    if (selectedSurface === "observer" && !observer && hasMarkdown) {
+      selectedSurface = "markdown";
+    } else if (selectedSurface === "markdown" && !hasMarkdown && observer) {
+      selectedSurface = "observer";
+    }
+    const hasSurface = Boolean(observer || hasMarkdown);
+    const autoOpenObserver = !ui.touched && Boolean(observer);
+    this.sidebarContent = markdown.content;
+    this.sidebarError = markdown.error;
+    this.browserPaneObserver = observer;
+    this.browserPaneSurfaceKind = selectedSurface;
+    this.sidebarOpen = hasSurface && (ui.open || autoOpenObserver);
+  }
+
   // Sidebar handlers for tool output viewing
   handleOpenSidebar(content: string) {
-    if (this.sidebarCloseTimer != null) {
-      window.clearTimeout(this.sidebarCloseTimer);
-      this.sidebarCloseTimer = null;
-    }
+    this.setBrowserPaneMarkdownState(this.sessionKey, {
+      content,
+      error: null,
+    });
+    this.rememberBrowserPaneUiState(this.sessionKey, {
+      open: true,
+      selectedSurface: "markdown",
+      touched: true,
+    });
     this.sidebarContent = content;
     this.sidebarError = null;
     this.sidebarOpen = true;
+    this.browserPaneSurfaceKind = "markdown";
   }
 
   handleCloseSidebar() {
+    this.rememberBrowserPaneUiState(this.sessionKey, {
+      open: false,
+      touched: true,
+    });
     this.sidebarOpen = false;
-    // Clear content after transition
-    if (this.sidebarCloseTimer != null) {
-      window.clearTimeout(this.sidebarCloseTimer);
-    }
-    this.sidebarCloseTimer = window.setTimeout(() => {
-      if (this.sidebarOpen) {
-        return;
-      }
-      this.sidebarContent = null;
-      this.sidebarError = null;
-      this.sidebarCloseTimer = null;
-    }, 200);
+  }
+
+  handleSelectBrowserPaneSurface(surface: BrowserPaneSurfaceKind) {
+    this.rememberBrowserPaneUiState(this.sessionKey, {
+      open: true,
+      selectedSurface: surface,
+      touched: true,
+    });
+    this.browserPaneSurfaceKind = surface;
+    this.sidebarOpen = true;
   }
 
   handleSplitRatioChange(ratio: number) {

@@ -179,6 +179,7 @@ type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
   toolStreamById: Map<string, unknown>;
   toolStreamOrder: string[];
   toolStreamSyncTimer: number | null;
+  setBrowserPaneObserver: ReturnType<typeof vi.fn>;
 };
 
 function createHost(): GatewayTestHost {
@@ -247,6 +248,7 @@ function createHost(): GatewayTestHost {
     execApprovalError: null,
     updateAvailable: null,
     alisioModelOperations: {},
+    setBrowserPaneObserver: vi.fn(),
   };
 }
 
@@ -423,6 +425,19 @@ describe("connectGateway", () => {
     expect(refreshActiveTabMock).toHaveBeenLastCalledWith(host, { includeChatHistory: true });
   });
 
+  it("subscribes to session transcript updates for the active chat session on hello", async () => {
+    const { client } = connectHostGateway();
+
+    client.emitHello();
+
+    await vi.waitFor(() => {
+      expect(client.request).toHaveBeenCalledWith("sessions.subscribe", {});
+      expect(client.request).toHaveBeenCalledWith("sessions.messages.subscribe", {
+        key: "main",
+      });
+    });
+  });
+
   it("holds queued work until the final history reload finishes", async () => {
     let resolveHistory!: () => void;
     loadChatHistoryMock.mockImplementationOnce(
@@ -470,6 +485,134 @@ describe("connectGateway", () => {
     await vi.waitFor(() => {
       expect(host.chatFinalizing).toBe(false);
       expect(chatSendCalls()).toHaveLength(1);
+    });
+  });
+
+  it("reconciles canonical user transcript updates from session.message events", () => {
+    const { host, client } = connectHostGateway();
+    client.emitHello();
+
+    host.chatMessages = [
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Olá." }],
+        timestamp: 10,
+      },
+      {
+        role: "user",
+        content: [{ type: "text", text: "procura o email" }],
+        timestamp: 20,
+        idempotencyKey: "run-email-1",
+      },
+    ];
+
+    client.emitEvent({
+      event: "session.message",
+      payload: {
+        sessionKey: "main",
+        messageId: "msg-email-1",
+        messageSeq: 2,
+        message: {
+          role: "user",
+          content: "procura o email",
+          timestamp: 21,
+          idempotencyKey: "run-email-1",
+        },
+      },
+    });
+
+    expect(host.chatMessages).toHaveLength(2);
+    expect(host.chatMessages[1]).toMatchObject({
+      role: "user",
+      content: "procura o email",
+      timestamp: 21,
+      idempotencyKey: "run-email-1",
+      messageId: "msg-email-1",
+      __alisio: {
+        id: "msg-email-1",
+        seq: 2,
+      },
+    });
+  });
+
+  it("applies observer metadata updates from gateway events", () => {
+    const { host, client } = connectHostGateway();
+
+    client.emitEvent({
+      event: "agent",
+      payload: {
+        sessionKey: "main",
+        observer: {
+          kind: "novnc",
+          url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+          label: "Observed browser",
+        },
+      },
+    });
+
+    expect(host.setBrowserPaneObserver).toHaveBeenCalledWith("main", {
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Observed browser",
+    });
+  });
+
+  it("clears observer metadata when the gateway explicitly removes it", () => {
+    const { host, client } = connectHostGateway();
+
+    client.emitEvent({
+      event: "sessions.changed",
+      payload: {
+        sessionKey: "main",
+        reason: "patch",
+        observer: null,
+      },
+    });
+
+    expect(host.setBrowserPaneObserver).toHaveBeenCalledWith("main", null);
+  });
+
+  it("forces a canonical history reload after attachment-backed runs finish", async () => {
+    const { host, client } = connectHostGateway();
+    client.emitHello();
+
+    host.chatRunId = "run-image-1";
+    host.chatMessages = [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/png",
+              data: "preview-base64",
+            },
+          },
+        ],
+        timestamp: 20,
+        idempotencyKey: "run-image-1",
+      },
+    ];
+
+    client.emitEvent({
+      event: "chat",
+      payload: {
+        runId: "run-image-1",
+        sessionKey: "main",
+        state: "final",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "feito" }],
+        },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(loadChatHistoryMock).toHaveBeenCalledWith(host, {
+        silent: true,
+        preserveEphemeral: false,
+      });
     });
   });
 

@@ -32,9 +32,18 @@ import {
   loadAlisioSharing,
 } from "./controllers/alisio.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
+import {
+  readBrowserPaneObserverEvent,
+  type BrowserPaneObserver,
+} from "./controllers/browser-pane.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
-import { handleChatEvent, type ChatEventPayload } from "./controllers/chat.ts";
+import {
+  handleChatEvent,
+  handleSessionMessageEvent,
+  type ChatEventPayload,
+  type SessionMessageEventPayload,
+} from "./controllers/chat.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
@@ -57,7 +66,11 @@ import {
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { applyRemoteComputerTaskUpdate } from "./controllers/remote-computers.ts";
-import { loadSessions, subscribeSessions } from "./controllers/sessions.ts";
+import {
+  loadSessions,
+  subscribeSessions,
+  syncSessionMessageSubscription,
+} from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadTasksOverview } from "./controllers/tasks.ts";
 import { clearDeviceAuthToken } from "./device-auth.ts";
@@ -122,6 +135,7 @@ type GatewayHost = {
   updateAvailable: UpdateAvailable | null;
   bootstrapDeviceRetryConsumed?: boolean;
   alisioModelOperations: ModelsOperationMap;
+  setBrowserPaneObserver?: (sessionKey: string, observer: BrowserPaneObserver | null) => void;
 };
 
 type SessionDefaultsSnapshot = {
@@ -280,6 +294,51 @@ function shouldRefreshChatHistoryAfterReconnect(host: GatewayHost): boolean {
   );
 }
 
+function messageHasStructuredAttachments(message: unknown): boolean {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+  const content = (message as { content?: unknown }).content;
+  if (!Array.isArray(content)) {
+    return false;
+  }
+  return content.some((block) => {
+    if (!block || typeof block !== "object") {
+      return false;
+    }
+    const type = (block as { type?: unknown }).type;
+    return type === "image" || type === "image_url" || type === "attachment";
+  });
+}
+
+function activeRunNeedsCanonicalHistory(host: GatewayHost, runId: string | undefined): boolean {
+  if (!runId) {
+    return false;
+  }
+  const messages = (host as unknown as { chatMessages?: unknown[] }).chatMessages;
+  if (!Array.isArray(messages)) {
+    return false;
+  }
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const entry = messages[index];
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const record = entry as Record<string, unknown>;
+    const role = typeof record.role === "string" ? record.role.toLowerCase() : "";
+    if (role !== "user") {
+      continue;
+    }
+    const idempotencyKey =
+      typeof record.idempotencyKey === "string" ? record.idempotencyKey.trim() : "";
+    if (idempotencyKey !== runId) {
+      continue;
+    }
+    return messageHasStructuredAttachments(record);
+  }
+  return false;
+}
+
 function applySessionDefaults(host: GatewayHost, defaults?: SessionDefaultsSnapshot) {
   if (!defaults?.mainSessionKey) {
     return;
@@ -386,6 +445,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
     reconnectReason === "seq-gap" && shouldRefreshChatHistoryAfterReconnect(host);
   shutdownHost.pendingShutdownMessage = null;
   shutdownHost.resumeChatQueueAfterReconnect = false;
+  (host as { sessionMessageSubscribedKey?: string | null }).sessionMessageSubscribedKey = null;
   host.lastError = reconnectReason === "seq-gap" ? "Resyncing live state…" : null;
   host.lastErrorCode = null;
   host.hello = null;
@@ -476,6 +536,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
         );
       }
       void subscribeSessions(host as unknown as AlisioApp);
+      void syncSessionMessageSubscription(host as unknown as AlisioApp);
       void loadAssistantIdentity(host as unknown as AlisioApp);
       void loadAgents(host as unknown as AlisioApp);
       void loadHealthState(host as unknown as AlisioApp);
@@ -630,8 +691,11 @@ function handleTerminalChatEvent(
       });
     }
   }
+  const needsCanonicalHistoryForAttachments =
+    opts.isActiveRun && activeRunNeedsCanonicalHistory(host, runId);
   const hasBufferedAssistantStream =
     opts.isActiveRun &&
+    !needsCanonicalHistoryForAttachments &&
     !hadToolEvents &&
     state === "final" &&
     shouldReloadHistoryForFinalEvent(payload) &&
@@ -639,7 +703,9 @@ function handleTerminalChatEvent(
   const shouldRefreshHistory =
     state === "final" &&
     !hasBufferedAssistantStream &&
-    ((opts.isActiveRun && hadToolEvents) || shouldReloadHistoryForFinalEvent(payload));
+    ((opts.isActiveRun && hadToolEvents) ||
+      needsCanonicalHistoryForAttachments ||
+      shouldReloadHistoryForFinalEvent(payload));
   if (shouldRefreshHistory) {
     const preserveEphemeral = !opts.isActiveRun && Boolean(host.chatRunId || host.chatFinalizing);
     if (!preserveEphemeral) {
@@ -684,14 +750,20 @@ function shouldDeferFinalChatCommit(
   }
   const toolHost = host as unknown as Parameters<typeof resetToolStream>[0];
   const hadToolEvents = toolHost.toolStreamOrder.length > 0;
+  const needsCanonicalHistoryForAttachments = activeRunNeedsCanonicalHistory(host, payload.runId);
   if (
     !hadToolEvents &&
+    !needsCanonicalHistoryForAttachments &&
     shouldReloadHistoryForFinalEvent(payload) &&
     Boolean((host as unknown as { chatStream?: string | null }).chatStream?.trim())
   ) {
     return false;
   }
-  return hadToolEvents || shouldReloadHistoryForFinalEvent(payload);
+  return (
+    hadToolEvents ||
+    needsCanonicalHistoryForAttachments ||
+    shouldReloadHistoryForFinalEvent(payload)
+  );
 }
 
 function deferFinalChatCommit(host: GatewayHost, payload: ChatEventPayload): void {
@@ -752,6 +824,14 @@ function handleChatGatewayEvent(host: GatewayHost, payload: ChatEventPayload | u
   }
 }
 
+function applyBrowserPaneObserverUpdate(host: GatewayHost, payload: unknown): void {
+  const observerUpdate = readBrowserPaneObserverEvent(payload);
+  if (!observerUpdate) {
+    return;
+  }
+  host.setBrowserPaneObserver?.(observerUpdate.sessionKey, observerUpdate.observer);
+}
+
 function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   host.eventLogBuffer = [
     { ts: Date.now(), event: evt.event, payload: evt.payload },
@@ -760,6 +840,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   if (host.tab === "settings" && host.settingsSection === "debug") {
     host.eventLog = host.eventLogBuffer;
   }
+  applyBrowserPaneObserverUpdate(host, evt.payload);
 
   if (evt.event === "agent") {
     handleAgentEvent(
@@ -771,6 +852,14 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
 
   if (evt.event === "chat") {
     handleChatGatewayEvent(host, evt.payload as ChatEventPayload | undefined);
+    return;
+  }
+
+  if (evt.event === "session.message") {
+    handleSessionMessageEvent(
+      host as unknown as AlisioApp,
+      evt.payload as SessionMessageEventPayload,
+    );
     return;
   }
 

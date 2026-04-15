@@ -27,6 +27,7 @@ import {
   type SlashCommandDef,
 } from "../chat/slash-commands.ts";
 import { isSttSupported, startStt, stopStt } from "../chat/speech.ts";
+import type { BrowserPaneObserver, BrowserPaneSurfaceKind } from "../controllers/browser-pane.ts";
 import type { ChatRuntimeSetupHint } from "../controllers/chat.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "../controllers/exec-approval.ts";
 import type {
@@ -36,6 +37,8 @@ import type {
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type {
+  AlisioConnectorAuthorization,
+  AlisioConnectorDefinition,
   GatewaySessionRow,
   SessionsListResult,
   TaskProposalDraft,
@@ -44,9 +47,11 @@ import type {
 import type { ChatItem, ChatRunActivity, MessageGroup } from "../types/chat-types.ts";
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { agentLogoUrl, resolveAgentAvatarUrl } from "./agents-utils.ts";
+import { renderBrowserPane } from "./browser-pane.ts";
 import { renderChatSecurityAccessStrip, renderChatSecurityQueue } from "./chat-security.ts";
+import { connectorBrandStyle, getConnectorBranding } from "./connector-branding.ts";
+import { buildConnectorRows, type ConnectorRow } from "./connector-state.ts";
 import { renderSkeletonLines, renderSkeletonPill } from "./loading-skeleton.ts";
-import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
 import "../components/resizable-divider.ts";
 
 export type CompactionIndicatorStatus = {
@@ -105,6 +110,8 @@ export type ChatProps = {
   sidebarOpen?: boolean;
   sidebarContent?: string | null;
   sidebarError?: string | null;
+  browserPaneSurfaceKind?: BrowserPaneSurfaceKind;
+  browserPaneObserver?: BrowserPaneObserver | null;
   splitRatio?: number;
   assistantName: string;
   assistantAvatar: string | null;
@@ -138,10 +145,15 @@ export type ChatProps = {
   onQueueRemove: (id: string) => void;
   onOpenSidebar?: (content: string) => void;
   onCloseSidebar?: () => void;
+  onSelectBrowserPaneSurface?: (surface: BrowserPaneSurfaceKind) => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
   composerModelSelect?: TemplateResult | typeof nothing;
   basePath?: string;
+  viewerDisplayName?: string | null;
+  connectorCatalog?: AlisioConnectorDefinition[];
+  connectorAuthorizations?: AlisioConnectorAuthorization[];
+  onOpenAuthentications?: () => void;
 };
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
@@ -811,12 +823,95 @@ function tokenEstimate(draft: string): string | null {
   return `~${Math.ceil(draft.length / 4)} tokens`;
 }
 
-const WELCOME_SUGGESTION_KEYS = [
-  "suggestions.whatCanYouDo",
-  "suggestions.summarizeRecentSessions",
-  "suggestions.helpConfigureChannel",
-  "suggestions.checkSystemHealth",
+const WELCOME_FEATURED_CONNECTORS = [
+  {
+    connectActionKey: "welcome.featuredApps.gmailReadConnectAction",
+    id: "gmail-read",
+    connectedActionKey: "welcome.featuredApps.gmailReadConnectedAction",
+    promptKey: "welcome.featuredApps.gmailReadPrompt",
+  },
+  {
+    connectActionKey: "welcome.featuredApps.gmailSendConnectAction",
+    id: "gmail-send",
+    connectedActionKey: "welcome.featuredApps.gmailSendConnectedAction",
+    promptKey: "welcome.featuredApps.gmailSendPrompt",
+  },
+  {
+    connectActionKey: "welcome.featuredApps.googleCalendarConnectAction",
+    id: "google-calendar",
+    connectedActionKey: "welcome.featuredApps.googleCalendarConnectedAction",
+    promptKey: "welcome.featuredApps.googleCalendarPrompt",
+  },
 ] as const;
+
+type WelcomeFeaturedConnector = (typeof WELCOME_FEATURED_CONNECTORS)[number];
+type WelcomeConnectorEntry = {
+  config: WelcomeFeaturedConnector;
+  row: ConnectorRow;
+};
+
+function extractWelcomeFirstName(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const [first = ""] = trimmed.split(/\s+/);
+  const normalized = first.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  return normalized || null;
+}
+
+function applyWelcomePrompt(props: ChatProps, text: string): void {
+  props.onDraftChange(text);
+  if (props.connected && props.canSend) {
+    props.onSend();
+  }
+}
+
+function buildWelcomeConnectorEntries(props: ChatProps): WelcomeConnectorEntry[] {
+  if (!props.connectorCatalog?.length) {
+    return [];
+  }
+  const rows = buildConnectorRows(props.connectorCatalog, props.connectorAuthorizations ?? []);
+  const rowsById = new Map(rows.map((row) => [row.definition.id, row]));
+  return WELCOME_FEATURED_CONNECTORS.map((config) => {
+    const row = rowsById.get(config.id);
+    return row ? { config, row } : null;
+  }).filter((entry): entry is WelcomeConnectorEntry => entry !== null);
+}
+
+function resolveWelcomeConnectorActionLabel(entry: WelcomeConnectorEntry): string {
+  switch (entry.row.status) {
+    case "connected":
+      return chatText(entry.config.connectedActionKey);
+    case "needs_reconnect":
+      return chatText("welcome.featuredApps.reconnect");
+    case "setup_required":
+      return chatText("welcome.featuredApps.configure");
+    case "ready":
+      return chatText(entry.config.connectActionKey);
+    case "in_review":
+    case "unavailable":
+    default:
+      return chatText("welcome.featuredApps.openApps");
+  }
+}
+
+function handleWelcomeConnectorAction(props: ChatProps, entry: WelcomeConnectorEntry): void {
+  switch (entry.row.status) {
+    case "connected":
+      applyWelcomePrompt(props, chatText(entry.config.promptKey));
+      return;
+    case "needs_reconnect":
+    case "ready":
+      props.onBeginConnector?.(entry.row.definition.id);
+      return;
+    case "setup_required":
+    case "in_review":
+    case "unavailable":
+    default:
+      props.onOpenAuthentications?.();
+  }
+}
 
 function renderWelcomeState(props: ChatProps): TemplateResult {
   const name = props.assistantName || chatText("defaultAssistantName");
@@ -827,6 +922,55 @@ function renderWelcomeState(props: ChatProps): TemplateResult {
     },
   });
   const logoUrl = agentLogoUrl(props.basePath ?? "");
+  const firstName = extractWelcomeFirstName(props.viewerDisplayName);
+  const greeting = firstName
+    ? chatText("welcome.greetingNamed", { name: firstName })
+    : chatText("welcome.greetingGeneric");
+  const visibleFeaturedConnectors = props.connected
+    ? buildWelcomeConnectorEntries(props).filter(
+        (entry) =>
+          entry.row.status === "connected" ||
+          entry.row.status === "ready" ||
+          entry.row.status === "needs_reconnect",
+      )
+    : [];
+  const quickActions = props.connected
+    ? [
+        {
+          icon: icons.penLine,
+          onClick: () => {
+            if (props.onOpenTasks) {
+              props.onOpenTasks();
+              return;
+            }
+            applyWelcomePrompt(props, chatText("welcome.quickActions.newTaskPrompt"));
+          },
+          title: chatText("welcome.quickActions.newTaskTitle"),
+        },
+        {
+          icon: icons.scrollText,
+          onClick: () => {
+            applyWelcomePrompt(props, chatText("welcome.quickActions.resumePrompt"));
+          },
+          title: chatText("welcome.quickActions.resumeTitle"),
+        },
+        {
+          icon: icons.monitor,
+          onClick: () => {
+            applyWelcomePrompt(props, chatText("welcome.quickActions.systemPrompt"));
+          },
+          title: chatText("welcome.quickActions.systemTitle"),
+        },
+      ]
+    : props.onOpenRuntimeSetup
+      ? [
+          {
+            icon: icons.settings,
+            onClick: props.onOpenRuntimeSetup,
+            title: chatText("welcome.quickActions.openSetupTitle"),
+          },
+        ]
+      : [];
 
   return html`
     <div class="agent-chat__welcome" style="--agent-color: var(--accent)">
@@ -840,32 +984,64 @@ function renderWelcomeState(props: ChatProps): TemplateResult {
         : html`<div class="agent-chat__avatar agent-chat__avatar--logo">
             <img src=${logoUrl} alt="Alisio" />
           </div>`}
-      <h2>${name}</h2>
-      <div class="agent-chat__badges">
-        <span class="agent-chat__badge"
-          ><img src=${logoUrl} alt="" /> ${chatText("welcome.readyBadge")}</span
-        >
+      <div class="agent-chat__welcome-hero">
+        <h2>${greeting}</h2>
+        <p class="agent-chat__welcome-title">
+          ${props.connected
+            ? chatText("welcome.titleConnected")
+            : chatText("welcome.titleDisconnected")}
+        </p>
+        <div class="agent-chat__welcome-actions">
+          ${quickActions.map(
+            (action) => html`
+              <button type="button" class="agent-chat__welcome-action" @click=${action.onClick}>
+                <span class="agent-chat__welcome-action-icon" aria-hidden="true"
+                  >${action.icon}</span
+                >
+                <span class="agent-chat__welcome-action-label">${action.title}</span>
+              </button>
+            `,
+          )}
+        </div>
       </div>
-      <p class="agent-chat__hint">
-        ${chatText("welcome.hint")} &middot; <kbd>/</kbd> ${chatText("welcome.commandHint")}
-      </p>
-      <div class="agent-chat__suggestions">
-        ${WELCOME_SUGGESTION_KEYS.map(
-          (key) => html`
-            <button
-              type="button"
-              class="agent-chat__suggestion"
-              @click=${() => {
-                const text = chatText(key);
-                props.onDraftChange(text);
-                props.onSend();
-              }}
-            >
-              ${chatText(key)}
-            </button>
-          `,
-        )}
-      </div>
+      ${visibleFeaturedConnectors.length > 0
+        ? html`
+            <div class="agent-chat__welcome-apps">
+              ${visibleFeaturedConnectors.map((entry) => {
+                const providerLabel = entry.row.definition.providerLabel ?? entry.row.definition.id;
+                const brand = getConnectorBranding(entry.row.definition.id, providerLabel);
+                return html`
+                  <button
+                    type="button"
+                    class="agent-chat__welcome-app"
+                    style=${connectorBrandStyle(brand)}
+                    @click=${() => handleWelcomeConnectorAction(props, entry)}
+                  >
+                    <span class="agent-chat__welcome-app-logo">
+                      <img src=${brand.logoUrl} alt="" />
+                    </span>
+                    <span class="agent-chat__welcome-app-label">
+                      ${resolveWelcomeConnectorActionLabel(entry)}
+                    </span>
+                  </button>
+                `;
+              })}
+              ${props.onOpenAuthentications
+                ? html`
+                    <button
+                      type="button"
+                      class="agent-chat__welcome-app agent-chat__welcome-app--ghost"
+                      @click=${props.onOpenAuthentications}
+                    >
+                      <span class="agent-chat__welcome-app-label"
+                        >${chatText("welcome.openApps")}</span
+                      >
+                    </button>
+                  `
+                : nothing}
+            </div>
+          `
+        : nothing}
     </div>
   `;
 }
@@ -1166,7 +1342,15 @@ export function renderChat(props: ChatProps) {
   let fileInputEl: HTMLInputElement | null = null;
 
   const splitRatio = props.splitRatio ?? 0.6;
-  const sidebarOpen = Boolean(props.sidebarOpen && props.onCloseSidebar);
+  const browserPaneMarkdown = {
+    content: props.sidebarContent ?? null,
+    error: props.sidebarError ?? null,
+  };
+  const sidebarOpen = Boolean(
+    props.sidebarOpen &&
+    props.onCloseSidebar &&
+    (props.browserPaneObserver || browserPaneMarkdown.content || browserPaneMarkdown.error),
+  );
 
   const handleCodeBlockCopy = (e: Event) => {
     const btn = (e.target as HTMLElement).closest(".code-block-copy");
@@ -1529,9 +1713,11 @@ export function renderChat(props: ChatProps) {
                 @resize=${(e: CustomEvent) => props.onSplitRatioChange?.(e.detail.splitRatio)}
               ></resizable-divider>
               <div class="chat-sidebar">
-                ${renderMarkdownSidebar({
-                  content: props.sidebarContent ?? null,
-                  error: props.sidebarError ?? null,
+                ${renderBrowserPane({
+                  observer: props.browserPaneObserver ?? null,
+                  markdown: browserPaneMarkdown,
+                  selectedSurface: props.browserPaneSurfaceKind ?? "observer",
+                  onSelectSurface: props.onSelectBrowserPaneSurface,
                   onClose: props.onCloseSidebar!,
                   onViewRawText: () => {
                     if (!props.sidebarContent || !props.onOpenSidebar) {
@@ -1552,37 +1738,43 @@ export function renderChat(props: ChatProps) {
                 ${chatText("queue.title", { count: String(props.queue.length) })}
               </div>
               <div class="chat-queue__list">
-                ${props.queue.map(
-                  (item) => html`
-                    <div class="chat-queue__item">
+                ${props.queue.map((item, index) => {
+                  const queueText =
+                    item.text ||
+                    (item.attachments?.length
+                      ? chatText("compose.fileAttachment", {
+                          count: String(item.attachments.length),
+                        })
+                      : "");
+                  const queueTone = item.pendingRunId ? "current" : isBusy ? "next" : "ready";
+                  const queueState = item.pendingRunId
+                    ? chatText("queue.pendingCurrent")
+                    : isBusy
+                      ? chatText("queue.pendingNext")
+                      : chatText("queue.ready");
+                  return html`
+                    <div class="chat-queue__item chat-queue__item--${queueTone}">
                       <div class="chat-queue__body">
-                        <div class="chat-queue__text">
-                          ${item.text ||
-                          (item.attachments?.length
-                            ? chatText("compose.fileAttachment", {
-                                count: String(item.attachments.length),
-                              })
-                            : "")}
+                        <div class="chat-queue__meta">
+                          <span class="chat-queue__slot">#${index + 1}</span>
+                          <div class="chat-queue__state chat-queue__state--${queueTone}">
+                            ${queueState}
+                          </div>
                         </div>
-                        <div class="chat-queue__state">
-                          ${item.pendingRunId
-                            ? chatText("queue.pendingCurrent")
-                            : isBusy
-                              ? chatText("queue.pendingNext")
-                              : chatText("queue.ready")}
-                        </div>
+                        <div class="chat-queue__text">${queueText}</div>
                       </div>
                       <button
                         class="btn chat-queue__remove"
                         type="button"
                         aria-label=${chatText("queue.remove")}
+                        title=${chatText("queue.remove")}
                         @click=${() => props.onQueueRemove(item.id)}
                       >
                         ${icons.x}
                       </button>
                     </div>
-                  `,
-                )}
+                  `;
+                })}
               </div>
             </div>
           `
@@ -1942,11 +2134,25 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
   return groupMessages(items);
 }
 
+function resolveTranscriptMessageMeta(message: unknown): Record<string, unknown> | null {
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    return null;
+  }
+  const meta = (message as { __alisio?: unknown }).__alisio;
+  return meta && typeof meta === "object" && !Array.isArray(meta)
+    ? (meta as Record<string, unknown>)
+    : null;
+}
+
 function messageKey(message: unknown, index: number): string {
   const m = message as Record<string, unknown>;
   const toolCallId = typeof m.toolCallId === "string" ? m.toolCallId : "";
   if (toolCallId) {
     return `tool:${toolCallId}`;
+  }
+  const idempotencyKey = typeof m.idempotencyKey === "string" ? m.idempotencyKey : "";
+  if (idempotencyKey) {
+    return `msg:${idempotencyKey}`;
   }
   const id = typeof m.id === "string" ? m.id : "";
   if (id) {
@@ -1955,6 +2161,18 @@ function messageKey(message: unknown, index: number): string {
   const messageId = typeof m.messageId === "string" ? m.messageId : "";
   if (messageId) {
     return `msg:${messageId}`;
+  }
+  const transcriptMeta = resolveTranscriptMessageMeta(message);
+  const transcriptId = typeof transcriptMeta?.id === "string" ? transcriptMeta.id : "";
+  if (transcriptId) {
+    return `msg:${transcriptId}`;
+  }
+  const transcriptSeq =
+    typeof transcriptMeta?.seq === "number" && Number.isFinite(transcriptMeta.seq)
+      ? transcriptMeta.seq
+      : null;
+  if (transcriptSeq != null) {
+    return `msg:seq:${transcriptSeq}`;
   }
   const timestamp = typeof m.timestamp === "number" ? m.timestamp : null;
   const role = typeof m.role === "string" ? m.role : "unknown";

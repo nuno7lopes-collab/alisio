@@ -60,6 +60,12 @@ import type { ProductChannelSurfaceMode } from "../../../src/channels/product-su
 import type { CronJobBase } from "../../../src/cron/types-shared.js";
 import type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
 import type {
+  ConversationCategory,
+  ConversationRelationship,
+  ConversationRuntimeRef,
+  ConversationSurfaceRef,
+} from "../../../src/shared/conversation-model.js";
+import type {
   GatewayAgentRow as SharedGatewayAgentRow,
   SessionsListResultBase,
   SessionsPatchResultBase,
@@ -491,10 +497,27 @@ export type SessionRunStatus = "running" | "done" | "failed" | "killed" | "timeo
 
 export type GatewaySessionRow = {
   key: string;
+  conversationId?: string;
+  conversationKey?: string;
+  transcriptId?: string;
   spawnedBy?: string;
   kind: "direct" | "group" | "global" | "unknown";
+  category?: ConversationCategory;
+  surfaceRef?: ConversationSurfaceRef;
+  runtimeRef?: ConversationRuntimeRef;
+  relationship?: ConversationRelationship;
   label?: string;
   displayName?: string;
+  observer?: {
+    kind: "novnc";
+    url: string;
+    label?: string;
+  } | null;
+  browserObserver?: {
+    kind: "novnc";
+    url: string;
+    label?: string;
+  } | null;
   surface?: string;
   subject?: string;
   room?: string;
