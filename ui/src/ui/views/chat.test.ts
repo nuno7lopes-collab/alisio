@@ -2110,6 +2110,25 @@ describe("chat view", () => {
     expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
   });
 
+  it("supports rendering the desktop chat toolbar inside the topbar with search", () => {
+    const { state } = createChatHeaderState();
+    const container = document.createElement("div");
+    render(
+      renderChatDesktopToolbar(state, {
+        surface: "topbar",
+        searchButton: html`
+          <button class="topbar-search topbar-search--chat" type="button">
+            <span class="topbar-search__label">Pesquisar</span>
+          </button>
+        `,
+      }),
+      container,
+    );
+
+    expect(container.querySelector(".alisio-chat-toolbar--topbar")).not.toBeNull();
+    expect(container.querySelector(".topbar-search--chat")).not.toBeNull();
+  });
+
   it("shows the derived first-message title in the desktop chat toolbar", () => {
     const { state } = createChatHeaderState({ omitSessionFromList: true });
     state.sessionKey = "agent:main:dashboard:new-chat";
