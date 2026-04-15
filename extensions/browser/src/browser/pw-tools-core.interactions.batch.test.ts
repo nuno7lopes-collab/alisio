@@ -14,6 +14,7 @@ const refLocator = vi.fn(() => {
   throw new Error("test: refLocator should not be called");
 });
 const restoreRoleRefsForTarget = vi.fn(() => {});
+const semanticRefLocator = vi.fn(() => null);
 
 const closePageViaPlaywright = vi.fn(async () => {});
 const resizeViewportViaPlaywright = vi.fn(async () => {});
@@ -24,6 +25,7 @@ vi.mock("./pw-session.js", () => ({
   getPageForTargetId,
   refLocator,
   restoreRoleRefsForTarget,
+  semanticRefLocator,
 }));
 
 vi.mock("./pw-tools-core.snapshot.js", () => ({

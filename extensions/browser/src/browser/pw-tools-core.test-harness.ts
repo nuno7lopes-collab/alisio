@@ -25,6 +25,7 @@ const sessionMocks = vi.hoisted(() => ({
   forceDisconnectPlaywrightForTarget: vi.fn(async () => {}),
   restoreRoleRefsForTarget: vi.fn(() => {}),
   storeRoleRefsForTarget: vi.fn(() => {}),
+  semanticRefLocator: vi.fn(() => null),
   refLocator: vi.fn(() => {
     if (!currentRefLocator) {
       throw new Error("missing locator");

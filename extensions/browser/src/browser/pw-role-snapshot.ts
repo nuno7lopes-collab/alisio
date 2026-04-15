@@ -341,20 +341,27 @@ export function buildRoleSnapshotFromAiSnapshot(
 ): { snapshot: string; refs: RoleRefMap } {
   const lines = String(aiSnapshot ?? "").split("\n");
   const refs: RoleRefMap = {};
+  const tracker = createRoleNameTracker();
 
   if (options.interactive) {
     const out = buildInteractiveSnapshotLines({
       lines,
       options,
-      resolveRef: ({ suffix }) => {
+      resolveRef: ({ role, name, suffix }) => {
         const ref = parseAiSnapshotRef(suffix);
-        return ref ? { ref } : null;
+        if (!ref) {
+          return null;
+        }
+        const nth = tracker.getNextIndex(role, name);
+        tracker.trackRef(role, name, ref);
+        return { ref, nth };
       },
-      recordRef: ({ role, name }, ref) => {
-        refs[ref] = { role, ...(name ? { name } : {}) };
+      recordRef: ({ role, name }, ref, nth) => {
+        refs[ref] = { role, ...(name ? { name } : {}), ...(nth !== undefined ? { nth } : {}) };
       },
       includeSuffix: () => true,
     });
+    removeNthFromNonDuplicates(refs, tracker);
     return {
       snapshot: out.join("\n") || "(no interactive elements)",
       refs,
@@ -388,11 +395,15 @@ export function buildRoleSnapshotFromAiSnapshot(
 
     const ref = parseAiSnapshotRef(suffix);
     if (ref) {
-      refs[ref] = { role, ...(name ? { name } : {}) };
+      const nth = tracker.getNextIndex(role, name);
+      tracker.trackRef(role, name, ref);
+      refs[ref] = { role, ...(name ? { name } : {}), ...(nth !== undefined ? { nth } : {}) };
     }
 
     out.push(line);
   }
+
+  removeNthFromNonDuplicates(refs, tracker);
 
   const tree = out.join("\n") || "(empty)";
   return {

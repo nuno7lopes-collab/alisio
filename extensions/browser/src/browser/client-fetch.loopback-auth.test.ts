@@ -179,6 +179,15 @@ describe("fetchBrowserJson loopback auth", () => {
     });
   });
 
+  it("does not suggest a gateway restart for generic dispatcher timeouts", async () => {
+    mocks.dispatch.mockRejectedValueOnce(new Error("timed out"));
+
+    await expectThrownBrowserFetchError(() => fetchBrowserJson<{ ok: boolean }>("/act"), {
+      contains: ["browser action timed out inside the Alisio gateway", "fresh snapshot"],
+      omits: ["Do NOT retry the browser tool", "Restart the Alisio gateway"],
+    });
+  });
+
   it("surfaces 429 from HTTP URL as rate-limit error with no-retry hint", async () => {
     const response = new Response("max concurrent sessions exceeded", { status: 429 });
     const text = vi.spyOn(response, "text");

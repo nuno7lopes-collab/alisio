@@ -5,6 +5,7 @@ import {
   refLocator,
   rememberRoleRefsForTarget,
   restoreRoleRefsForTarget,
+  semanticRefLocator,
 } from "./pw-session.js";
 
 function fakePage(): {
@@ -70,6 +71,17 @@ describe("pw-session refLocator", () => {
     refLocator(page, "e1");
 
     expect(mocks.locator).toHaveBeenCalledWith("aria-ref=e1");
+  });
+
+  it("resolves semantic fallback locators for aria snapshot refs", () => {
+    const { page, mocks } = fakePage();
+    const state = ensurePageState(page);
+    state.roleRefsMode = "aria";
+    state.roleRefs = { e1: { role: "button", name: "OK", nth: 1 } };
+
+    semanticRefLocator(page, "e1");
+
+    expect(mocks.getByRole).toHaveBeenCalledWith("button", { name: "OK", exact: true });
   });
 });
 

@@ -7,6 +7,7 @@ import {
   getPageForTargetId,
   refLocator,
   restoreRoleRefsForTarget,
+  semanticRefLocator,
 } from "./pw-session.js";
 import {
   normalizeTimeoutMs,
@@ -47,19 +48,151 @@ function resolveInteractionTimeoutMs(timeoutMs?: number): number {
   return Math.max(500, Math.min(60_000, Math.floor(timeoutMs ?? 8000)));
 }
 
-async function awaitEvalWithAbort<T>(
-  evalPromise: Promise<T>,
+async function awaitWithAbort<T>(
+  workPromise: Promise<T>,
   abortPromise?: Promise<never>,
 ): Promise<T> {
   if (!abortPromise) {
-    return await evalPromise;
+    return await workPromise;
   }
   try {
-    return await Promise.race([evalPromise, abortPromise]);
+    return await Promise.race([workPromise, abortPromise]);
   } catch (err) {
-    // If abort wins the race, evaluate may reject later; avoid unhandled rejections.
-    void evalPromise.catch(() => {});
+    // If abort wins the race, the underlying Playwright command may reject later;
+    // keep that rejection handled so it does not surface as unhandled noise.
+    void workPromise.catch(() => {});
     throw err;
+  }
+}
+
+function normalizeInteractionErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+}
+
+function isTransientTargetError(err: unknown): boolean {
+  const message = normalizeInteractionErrorMessage(err);
+  return (
+    message.includes("frame has been detached") ||
+    message.includes("target page, context or browser has been closed") ||
+    message.includes("execution context was destroyed") ||
+    message.includes("session closed") ||
+    message.includes("browser has been closed") ||
+    message.includes("closed the connection") ||
+    message.includes("most likely because of a navigation")
+  );
+}
+
+function isAriaRefResolutionError(err: unknown): boolean {
+  const message = normalizeInteractionErrorMessage(err);
+  return (
+    message.includes("aria-ref=") &&
+    (message.includes("timeout") ||
+      message.includes("waiting for locator") ||
+      message.includes("strict mode violation") ||
+      message.includes("unknown ref"))
+  );
+}
+
+function normalizeAbortReason(reason: unknown): Error {
+  return reason instanceof Error ? reason : new Error(String(reason ?? "aborted"));
+}
+
+async function withAbortableInteraction<T>(
+  opts: TargetOpts & {
+    signal?: AbortSignal;
+    abortReason: string;
+  },
+  work: () => Promise<T>,
+): Promise<T> {
+  const signal = opts.signal;
+  let abortListener: (() => void) | undefined;
+  let abortReject: ((reason: unknown) => void) | undefined;
+  let abortPromise: Promise<never> | undefined;
+
+  if (signal) {
+    abortPromise = new Promise((_, reject) => {
+      abortReject = reject;
+    });
+    void abortPromise.catch(() => {});
+    const disconnect = () => {
+      void forceDisconnectPlaywrightForTarget({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        reason: opts.abortReason,
+      }).catch(() => {});
+    };
+    if (signal.aborted) {
+      disconnect();
+      throw normalizeAbortReason(signal.reason);
+    }
+    abortListener = () => {
+      disconnect();
+      abortReject?.(normalizeAbortReason(signal.reason));
+    };
+    signal.addEventListener("abort", abortListener, { once: true });
+    if (signal.aborted) {
+      abortListener();
+      throw normalizeAbortReason(signal.reason);
+    }
+  }
+
+  try {
+    return await awaitWithAbort(work(), abortPromise);
+  } finally {
+    if (signal && abortListener) {
+      signal.removeEventListener("abort", abortListener);
+    }
+  }
+}
+
+async function withResolvedRefAction<T>(opts: {
+  cdpUrl: string;
+  targetId?: string;
+  ref: string;
+  signal?: AbortSignal;
+  abortReason: string;
+  action: (locator: ReturnType<typeof refLocator>) => Promise<T>;
+}): Promise<T> {
+  const ref = requireRef(opts.ref);
+  const run = async (
+    strategy: "primary" | "semantic",
+    page?: Awaited<ReturnType<typeof getRestoredPageForTarget>>,
+  ): Promise<T> => {
+    const activePage = page ?? (await getRestoredPageForTarget(opts));
+    const locator =
+      strategy === "semantic"
+        ? (semanticRefLocator(activePage, ref) ?? refLocator(activePage, ref))
+        : refLocator(activePage, ref);
+    return await withAbortableInteraction(opts, async () => await opts.action(locator));
+  };
+
+  try {
+    return await run("primary");
+  } catch (err) {
+    let lastErr = err;
+    if (isTransientTargetError(lastErr)) {
+      await forceDisconnectPlaywrightForTarget({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        reason: `retry ${opts.abortReason} after detached target`,
+      }).catch(() => {});
+      try {
+        return await run("primary");
+      } catch (retryErr) {
+        lastErr = retryErr;
+      }
+    }
+    if (isAriaRefResolutionError(lastErr)) {
+      const page = await getRestoredPageForTarget(opts);
+      if (semanticRefLocator(page, ref)) {
+        try {
+          return await run("semantic", page);
+        } catch (fallbackErr) {
+          lastErr = fallbackErr;
+        }
+      }
+    }
+    throw toAIFriendlyError(lastErr, ref);
   }
 }
 
@@ -87,15 +220,12 @@ export async function clickViaPlaywright(opts: {
   modifiers?: Array<"Alt" | "Control" | "ControlOrMeta" | "Meta" | "Shift">;
   delayMs?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
-  const page = await getRestoredPageForTarget(opts);
   const label = resolved.ref ?? resolved.selector!;
-  const locator = resolved.ref
-    ? refLocator(page, requireRef(resolved.ref))
-    : page.locator(resolved.selector!);
   const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
-  try {
+  const clickLocator = async (locator: ReturnType<typeof refLocator>) => {
     const delayMs = resolveBoundedDelayMs(opts.delayMs, "click delayMs", MAX_CLICK_DELAY_MS);
     if (delayMs > 0) {
       await locator.hover({ timeout });
@@ -107,13 +237,38 @@ export async function clickViaPlaywright(opts: {
         button: opts.button,
         modifiers: opts.modifiers,
       });
-    } else {
-      await locator.click({
-        timeout,
-        button: opts.button,
-        modifiers: opts.modifiers,
-      });
+      return;
     }
+    await locator.click({
+      timeout,
+      button: opts.button,
+      modifiers: opts.modifiers,
+    });
+  };
+
+  if (resolved.ref) {
+    await withResolvedRefAction({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolved.ref,
+      signal: opts.signal,
+      abortReason: "click aborted",
+      action: clickLocator,
+    });
+    return;
+  }
+
+  const page = await getRestoredPageForTarget(opts);
+  try {
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "click aborted",
+      },
+      async () => await clickLocator(page.locator(resolved.selector!)),
+    );
   } catch (err) {
     throw toAIFriendlyError(err, label);
   }
@@ -125,17 +280,37 @@ export async function hoverViaPlaywright(opts: {
   ref?: string;
   selector?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
-  const page = await getRestoredPageForTarget(opts);
   const label = resolved.ref ?? resolved.selector!;
-  const locator = resolved.ref
-    ? refLocator(page, requireRef(resolved.ref))
-    : page.locator(resolved.selector!);
-  try {
-    await locator.hover({
-      timeout: resolveInteractionTimeoutMs(opts.timeoutMs),
+  const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
+
+  if (resolved.ref) {
+    await withResolvedRefAction({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolved.ref,
+      signal: opts.signal,
+      abortReason: "hover aborted",
+      action: async (locator) => {
+        await locator.hover({ timeout });
+      },
     });
+    return;
+  }
+
+  const page = await getRestoredPageForTarget(opts);
+  try {
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "hover aborted",
+      },
+      async () => await page.locator(resolved.selector!).hover({ timeout }),
+    );
   } catch (err) {
     throw toAIFriendlyError(err, label);
   }
@@ -149,6 +324,7 @@ export async function dragViaPlaywright(opts: {
   endRef?: string;
   endSelector?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const resolvedStart = requireRefOrSelector(opts.startRef, opts.startSelector);
   const resolvedEnd = requireRefOrSelector(opts.endRef, opts.endSelector);
@@ -162,9 +338,18 @@ export async function dragViaPlaywright(opts: {
   const startLabel = resolvedStart.ref ?? resolvedStart.selector!;
   const endLabel = resolvedEnd.ref ?? resolvedEnd.selector!;
   try {
-    await startLocator.dragTo(endLocator, {
-      timeout: resolveInteractionTimeoutMs(opts.timeoutMs),
-    });
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "drag aborted",
+      },
+      async () =>
+        await startLocator.dragTo(endLocator, {
+          timeout: resolveInteractionTimeoutMs(opts.timeoutMs),
+        }),
+    );
   } catch (err) {
     throw toAIFriendlyError(err, `${startLabel} -> ${endLabel}`);
   }
@@ -177,20 +362,40 @@ export async function selectOptionViaPlaywright(opts: {
   selector?: string;
   values: string[];
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
   if (!opts.values?.length) {
     throw new Error("values are required");
   }
-  const page = await getRestoredPageForTarget(opts);
   const label = resolved.ref ?? resolved.selector!;
-  const locator = resolved.ref
-    ? refLocator(page, requireRef(resolved.ref))
-    : page.locator(resolved.selector!);
-  try {
-    await locator.selectOption(opts.values, {
-      timeout: resolveInteractionTimeoutMs(opts.timeoutMs),
+  const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
+
+  if (resolved.ref) {
+    await withResolvedRefAction({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolved.ref,
+      signal: opts.signal,
+      abortReason: "select aborted",
+      action: async (locator) => {
+        await locator.selectOption(opts.values, { timeout });
+      },
     });
+    return;
+  }
+
+  const page = await getRestoredPageForTarget(opts);
+  try {
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "select aborted",
+      },
+      async () => await page.locator(resolved.selector!).selectOption(opts.values, { timeout }),
+    );
   } catch (err) {
     throw toAIFriendlyError(err, label);
   }
@@ -201,6 +406,7 @@ export async function pressKeyViaPlaywright(opts: {
   targetId?: string;
   key: string;
   delayMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const key = String(opts.key ?? "").trim();
   if (!key) {
@@ -208,9 +414,18 @@ export async function pressKeyViaPlaywright(opts: {
   }
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
-  await page.keyboard.press(key, {
-    delay: Math.max(0, Math.floor(opts.delayMs ?? 0)),
-  });
+  await withAbortableInteraction(
+    {
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      signal: opts.signal,
+      abortReason: "press aborted",
+    },
+    async () =>
+      await page.keyboard.press(key, {
+        delay: Math.max(0, Math.floor(opts.delayMs ?? 0)),
+      }),
+  );
 }
 
 export async function typeViaPlaywright(opts: {
@@ -222,16 +437,13 @@ export async function typeViaPlaywright(opts: {
   submit?: boolean;
   slowly?: boolean;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
   const text = String(opts.text ?? "");
-  const page = await getRestoredPageForTarget(opts);
   const label = resolved.ref ?? resolved.selector!;
-  const locator = resolved.ref
-    ? refLocator(page, requireRef(resolved.ref))
-    : page.locator(resolved.selector!);
   const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
-  try {
+  const typeIntoLocator = async (locator: ReturnType<typeof refLocator>) => {
     if (opts.slowly) {
       await locator.click({ timeout });
       await locator.type(text, { timeout, delay: 75 });
@@ -241,6 +453,31 @@ export async function typeViaPlaywright(opts: {
     if (opts.submit) {
       await locator.press("Enter", { timeout });
     }
+  };
+
+  if (resolved.ref) {
+    await withResolvedRefAction({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolved.ref,
+      signal: opts.signal,
+      abortReason: "type aborted",
+      action: typeIntoLocator,
+    });
+    return;
+  }
+
+  const page = await getRestoredPageForTarget(opts);
+  try {
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "type aborted",
+      },
+      async () => await typeIntoLocator(page.locator(resolved.selector!)),
+    );
   } catch (err) {
     throw toAIFriendlyError(err, label);
   }
@@ -251,11 +488,15 @@ export async function fillFormViaPlaywright(opts: {
   targetId?: string;
   fields: BrowserFormField[];
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
-  const page = await getRestoredPageForTarget(opts);
   const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
   for (const field of opts.fields) {
-    const ref = field.ref.trim();
+    const rawRef = field.ref.trim();
+    if (!rawRef) {
+      continue;
+    }
+    const ref = requireRef(rawRef);
     const type = (field.type || DEFAULT_FILL_FIELD_TYPE).trim() || DEFAULT_FILL_FIELD_TYPE;
     const rawValue = field.value;
     const value =
@@ -264,25 +505,31 @@ export async function fillFormViaPlaywright(opts: {
         : typeof rawValue === "number" || typeof rawValue === "boolean"
           ? String(rawValue)
           : "";
-    if (!ref) {
-      continue;
-    }
-    const locator = refLocator(page, ref);
     if (type === "checkbox" || type === "radio") {
       const checked =
         rawValue === true || rawValue === 1 || rawValue === "1" || rawValue === "true";
-      try {
-        await locator.setChecked(checked, { timeout });
-      } catch (err) {
-        throw toAIFriendlyError(err, ref);
-      }
+      await withResolvedRefAction({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref,
+        signal: opts.signal,
+        abortReason: "fill aborted",
+        action: async (locator) => {
+          await locator.setChecked(checked, { timeout });
+        },
+      });
       continue;
     }
-    try {
-      await locator.fill(value, { timeout });
-    } catch (err) {
-      throw toAIFriendlyError(err, ref);
-    }
+    await withResolvedRefAction({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref,
+      signal: opts.signal,
+      abortReason: "fill aborted",
+      action: async (locator) => {
+        await locator.fill(value, { timeout });
+      },
+    });
   }
 }
 
@@ -378,7 +625,7 @@ export async function evaluateViaPlaywright(opts: {
         fnBody: fnText,
         timeoutMs: evaluateTimeout,
       });
-      return await awaitEvalWithAbort(evalPromise, abortPromise);
+      return await awaitWithAbort(evalPromise, abortPromise);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-implied-eval -- required for browser-context eval
@@ -408,7 +655,7 @@ export async function evaluateViaPlaywright(opts: {
       fnBody: fnText,
       timeoutMs: evaluateTimeout,
     });
-    return await awaitEvalWithAbort(evalPromise, abortPromise);
+    return await awaitWithAbort(evalPromise, abortPromise);
   } finally {
     if (signal && abortListener) {
       signal.removeEventListener("abort", abortListener);
@@ -422,17 +669,37 @@ export async function scrollIntoViewViaPlaywright(opts: {
   ref?: string;
   selector?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
-  const page = await getRestoredPageForTarget(opts);
   const timeout = normalizeTimeoutMs(opts.timeoutMs, 20_000);
 
   const label = resolved.ref ?? resolved.selector!;
-  const locator = resolved.ref
-    ? refLocator(page, requireRef(resolved.ref))
-    : page.locator(resolved.selector!);
+  if (resolved.ref) {
+    await withResolvedRefAction({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolved.ref,
+      signal: opts.signal,
+      abortReason: "scrollIntoView aborted",
+      action: async (locator) => {
+        await locator.scrollIntoViewIfNeeded({ timeout });
+      },
+    });
+    return;
+  }
+
+  const page = await getRestoredPageForTarget(opts);
   try {
-    await locator.scrollIntoViewIfNeeded({ timeout });
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "scrollIntoView aborted",
+      },
+      async () => await page.locator(resolved.selector!).scrollIntoViewIfNeeded({ timeout }),
+    );
   } catch (err) {
     throw toAIFriendlyError(err, label);
   }
@@ -449,47 +716,59 @@ export async function waitForViaPlaywright(opts: {
   loadState?: "load" | "domcontentloaded" | "networkidle";
   fn?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<void> {
   const page = await getPageForTargetId(opts);
   ensurePageState(page);
   const timeout = normalizeTimeoutMs(opts.timeoutMs, 20_000);
-
-  if (typeof opts.timeMs === "number" && Number.isFinite(opts.timeMs)) {
-    await page.waitForTimeout(resolveBoundedDelayMs(opts.timeMs, "wait timeMs", MAX_WAIT_TIME_MS));
-  }
-  if (opts.text) {
-    await page.getByText(opts.text).first().waitFor({
-      state: "visible",
-      timeout,
-    });
-  }
-  if (opts.textGone) {
-    await page.getByText(opts.textGone).first().waitFor({
-      state: "hidden",
-      timeout,
-    });
-  }
-  if (opts.selector) {
-    const selector = String(opts.selector).trim();
-    if (selector) {
-      await page.locator(selector).first().waitFor({ state: "visible", timeout });
-    }
-  }
-  if (opts.url) {
-    const url = String(opts.url).trim();
-    if (url) {
-      await page.waitForURL(url, { timeout });
-    }
-  }
-  if (opts.loadState) {
-    await page.waitForLoadState(opts.loadState, { timeout });
-  }
-  if (opts.fn) {
-    const fn = String(opts.fn).trim();
-    if (fn) {
-      await page.waitForFunction(fn, { timeout });
-    }
-  }
+  await withAbortableInteraction(
+    {
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      signal: opts.signal,
+      abortReason: "wait aborted",
+    },
+    async () => {
+      if (typeof opts.timeMs === "number" && Number.isFinite(opts.timeMs)) {
+        await page.waitForTimeout(
+          resolveBoundedDelayMs(opts.timeMs, "wait timeMs", MAX_WAIT_TIME_MS),
+        );
+      }
+      if (opts.text) {
+        await page.getByText(opts.text).first().waitFor({
+          state: "visible",
+          timeout,
+        });
+      }
+      if (opts.textGone) {
+        await page.getByText(opts.textGone).first().waitFor({
+          state: "hidden",
+          timeout,
+        });
+      }
+      if (opts.selector) {
+        const selector = String(opts.selector).trim();
+        if (selector) {
+          await page.locator(selector).first().waitFor({ state: "visible", timeout });
+        }
+      }
+      if (opts.url) {
+        const url = String(opts.url).trim();
+        if (url) {
+          await page.waitForURL(url, { timeout });
+        }
+      }
+      if (opts.loadState) {
+        await page.waitForLoadState(opts.loadState, { timeout });
+      }
+      if (opts.fn) {
+        const fn = String(opts.fn).trim();
+        if (fn) {
+          await page.waitForFunction(fn, { timeout });
+        }
+      }
+    },
+  );
 }
 
 export async function takeScreenshotViaPlaywright(opts: {
@@ -712,6 +991,7 @@ async function executeSingleAction(
   cdpUrl: string,
   targetId?: string,
   evaluateEnabled?: boolean,
+  signal?: AbortSignal,
   depth = 0,
 ): Promise<void> {
   if (depth > MAX_BATCH_DEPTH) {
@@ -732,6 +1012,7 @@ async function executeSingleAction(
         >,
         delayMs: action.delayMs,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "type":
@@ -744,6 +1025,7 @@ async function executeSingleAction(
         submit: action.submit,
         slowly: action.slowly,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "press":
@@ -752,6 +1034,7 @@ async function executeSingleAction(
         targetId: effectiveTargetId,
         key: action.key,
         delayMs: action.delayMs,
+        signal,
       });
       break;
     case "hover":
@@ -761,6 +1044,7 @@ async function executeSingleAction(
         ref: action.ref,
         selector: action.selector,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "scrollIntoView":
@@ -770,6 +1054,7 @@ async function executeSingleAction(
         ref: action.ref,
         selector: action.selector,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "drag":
@@ -781,6 +1066,7 @@ async function executeSingleAction(
         endRef: action.endRef,
         endSelector: action.endSelector,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "select":
@@ -791,6 +1077,7 @@ async function executeSingleAction(
         selector: action.selector,
         values: action.values,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "fill":
@@ -799,6 +1086,7 @@ async function executeSingleAction(
         targetId: effectiveTargetId,
         fields: action.fields,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "resize":
@@ -824,6 +1112,7 @@ async function executeSingleAction(
         loadState: action.loadState,
         fn: action.fn,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "evaluate":
@@ -836,6 +1125,7 @@ async function executeSingleAction(
         fn: action.fn,
         ref: action.ref,
         timeoutMs: action.timeoutMs,
+        signal,
       });
       break;
     case "close":
@@ -851,6 +1141,7 @@ async function executeSingleAction(
         actions: action.actions,
         stopOnError: action.stopOnError,
         evaluateEnabled,
+        signal,
         depth: depth + 1,
       });
       break;
@@ -865,6 +1156,7 @@ export async function batchViaPlaywright(opts: {
   actions: BrowserActRequest[];
   stopOnError?: boolean;
   evaluateEnabled?: boolean;
+  signal?: AbortSignal;
   depth?: number;
 }): Promise<{ results: Array<{ ok: boolean; error?: string }> }> {
   const depth = opts.depth ?? 0;
@@ -877,7 +1169,14 @@ export async function batchViaPlaywright(opts: {
   const results: Array<{ ok: boolean; error?: string }> = [];
   for (const action of opts.actions) {
     try {
-      await executeSingleAction(action, opts.cdpUrl, opts.targetId, opts.evaluateEnabled, depth);
+      await executeSingleAction(
+        action,
+        opts.cdpUrl,
+        opts.targetId,
+        opts.evaluateEnabled,
+        opts.signal,
+        depth,
+      );
       results.push({ ok: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

@@ -2,6 +2,7 @@ import type {
   Browser,
   BrowserContext,
   ConsoleMessage,
+  Locator,
   Page,
   Request,
   Response,
@@ -516,12 +517,49 @@ export async function getPageForTargetId(opts: {
   return found;
 }
 
+function normalizeSnapshotRefToken(ref: string): string {
+  return ref.startsWith("@") ? ref.slice(1) : ref.startsWith("ref=") ? ref.slice(4) : ref;
+}
+
+function buildRoleLocatorFromInfo(
+  page: Page,
+  state: PageState | undefined,
+  info: { role: string; name?: string; nth?: number },
+): Locator {
+  const scope = state?.roleRefsFrameSelector
+    ? page.frameLocator(state.roleRefsFrameSelector)
+    : page;
+  const locAny = scope as unknown as {
+    getByRole: (
+      role: never,
+      opts?: { name?: string; exact?: boolean },
+    ) => ReturnType<Page["getByRole"]>;
+  };
+  const locator = info.name
+    ? locAny.getByRole(info.role as never, { name: info.name, exact: true })
+    : locAny.getByRole(info.role as never);
+  return info.nth !== undefined ? locator.nth(info.nth) : locator;
+}
+
+export function semanticRefLocator(page: Page, ref: string): Locator | null {
+  const normalized = normalizeSnapshotRefToken(ref);
+  if (!/^e\d+$/.test(normalized)) {
+    return null;
+  }
+
+  const state = pageStates.get(page);
+  if (state?.roleRefsMode !== "aria") {
+    return null;
+  }
+  const info = state.roleRefs?.[normalized];
+  if (!info) {
+    return null;
+  }
+  return buildRoleLocatorFromInfo(page, state, info);
+}
+
 export function refLocator(page: Page, ref: string) {
-  const normalized = ref.startsWith("@")
-    ? ref.slice(1)
-    : ref.startsWith("ref=")
-      ? ref.slice(4)
-      : ref;
+  const normalized = normalizeSnapshotRefToken(ref);
 
   if (/^e\d+$/.test(normalized)) {
     const state = pageStates.get(page);
@@ -537,19 +575,7 @@ export function refLocator(page: Page, ref: string) {
         `Unknown ref "${normalized}". Run a new snapshot and use a ref from that snapshot.`,
       );
     }
-    const scope = state?.roleRefsFrameSelector
-      ? page.frameLocator(state.roleRefsFrameSelector)
-      : page;
-    const locAny = scope as unknown as {
-      getByRole: (
-        role: never,
-        opts?: { name?: string; exact?: boolean },
-      ) => ReturnType<Page["getByRole"]>;
-    };
-    const locator = info.name
-      ? locAny.getByRole(info.role as never, { name: info.name, exact: true })
-      : locAny.getByRole(info.role as never);
-    return info.nth !== undefined ? locator.nth(info.nth) : locator;
+    return buildRoleLocatorFromInfo(page, state, info);
   }
 
   return page.locator(`aria-ref=${normalized}`);

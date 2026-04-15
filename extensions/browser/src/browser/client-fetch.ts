@@ -153,6 +153,14 @@ function appendBrowserToolModelHint(message: string): string {
   return `${message} ${BROWSER_TOOL_MODEL_HINT}`;
 }
 
+function isGenericDispatcherTimeoutMessage(message: string): boolean {
+  const normalized = message
+    .trim()
+    .toLowerCase()
+    .replace(/^error:\s*/, "");
+  return normalized === "timed out" || normalized === "aborted" || normalized === "request aborted";
+}
+
 async function discardResponseBody(res: Response): Promise<void> {
   try {
     await res.body?.cancel();
@@ -163,6 +171,13 @@ async function discardResponseBody(res: Response): Promise<void> {
 
 function enhanceDispatcherPathError(url: string, err: unknown): Error {
   const msg = normalizeErrorMessage(err);
+  if (isGenericDispatcherTimeoutMessage(msg)) {
+    return new Error(
+      "The browser action timed out inside the Alisio gateway. " +
+        "Retry once with a fresh snapshot; if it repeats, restart the browser or gateway.",
+      err instanceof Error ? { cause: err } : undefined,
+    );
+  }
   const suffix = `${resolveBrowserFetchOperatorHint(url)} ${BROWSER_TOOL_MODEL_HINT}`;
   const normalized = msg.endsWith(".") ? msg : `${msg}.`;
   return new Error(`${normalized} ${suffix}`, err instanceof Error ? { cause: err } : undefined);

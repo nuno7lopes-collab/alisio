@@ -56,7 +56,7 @@ export function toAIFriendlyError(error: unknown, selector: string): Error {
     const count = countMatch ? countMatch[1] : "multiple";
     return new Error(
       `Selector "${selector}" matched ${count} elements. ` +
-        `Run a new snapshot to get updated refs, or use a different ref.`,
+        `The page structure may have changed since the last snapshot; run a new snapshot or use a more specific ref.`,
     );
   }
 
@@ -66,7 +66,7 @@ export function toAIFriendlyError(error: unknown, selector: string): Error {
   ) {
     return new Error(
       `Element "${selector}" not found or not visible. ` +
-        `Run a new snapshot to see current page elements.`,
+        `The page may have rerendered and invalidated that snapshot ref; run a new snapshot to refresh refs.`,
     );
   }
 

@@ -11,6 +11,7 @@ const getPageForTargetId = vi.fn(async () => {
 });
 const ensurePageState = vi.fn(() => ({}));
 const restoreRoleRefsForTarget = vi.fn(() => {});
+const semanticRefLocator = vi.fn(() => null);
 const refLocator = vi.fn(() => {
   if (!locator) {
     throw new Error("test: locator not set");
@@ -29,6 +30,7 @@ vi.mock("./pw-session.js", () => {
     getPageForTargetId,
     refLocator,
     restoreRoleRefsForTarget,
+    semanticRefLocator,
   };
 });
 

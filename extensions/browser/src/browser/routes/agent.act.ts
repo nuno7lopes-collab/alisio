@@ -557,6 +557,7 @@ export function registerBrowserAgentActRoutes(
             if (timeoutMs) {
               clickRequest.timeoutMs = timeoutMs;
             }
+            clickRequest.signal = req.signal;
             await pw.clickViaPlaywright(clickRequest);
             return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
           }
@@ -625,6 +626,7 @@ export function registerBrowserAgentActRoutes(
             if (timeoutMs) {
               typeRequest.timeoutMs = timeoutMs;
             }
+            typeRequest.signal = req.signal;
             await pw.typeViaPlaywright(typeRequest);
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -655,6 +657,7 @@ export function registerBrowserAgentActRoutes(
               targetId: tab.targetId,
               key,
               delayMs: delayMs ?? undefined,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -698,6 +701,7 @@ export function registerBrowserAgentActRoutes(
               ref,
               selector,
               timeoutMs: timeoutMs ?? undefined,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -749,6 +753,7 @@ export function registerBrowserAgentActRoutes(
             if (timeoutMs) {
               scrollRequest.timeoutMs = timeoutMs;
             }
+            scrollRequest.signal = req.signal;
             await pw.scrollIntoViewViaPlaywright(scrollRequest);
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -800,6 +805,7 @@ export function registerBrowserAgentActRoutes(
               endRef,
               endSelector,
               timeoutMs: timeoutMs ?? undefined,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -853,6 +859,7 @@ export function registerBrowserAgentActRoutes(
               selector,
               values,
               timeoutMs: timeoutMs ?? undefined,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -898,6 +905,7 @@ export function registerBrowserAgentActRoutes(
               targetId: tab.targetId,
               fields,
               timeoutMs: timeoutMs ?? undefined,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -1000,6 +1008,7 @@ export function registerBrowserAgentActRoutes(
               loadState,
               fn,
               timeoutMs,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId });
           }
@@ -1104,6 +1113,7 @@ export function registerBrowserAgentActRoutes(
               actions,
               stopOnError,
               evaluateEnabled,
+              signal: req.signal,
             });
             return res.json({ ok: true, targetId: tab.targetId, results: result.results });
           }

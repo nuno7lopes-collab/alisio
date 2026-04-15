@@ -87,4 +87,13 @@ describe("pw-role-snapshot", () => {
     expect(res.refs.e5).toMatchObject({ role: "link", name: "Home" });
     expect(res.refs.e7).toMatchObject({ role: "button", name: "Save" });
   });
+
+  it("preserves nth metadata for duplicate AI snapshot refs", () => {
+    const ai = ['- button "Save" [ref=e5]', '- button "Save" [ref=e7]'].join("\n");
+
+    const res = buildRoleSnapshotFromAiSnapshot(ai);
+
+    expect(res.refs.e5).toMatchObject({ role: "button", name: "Save", nth: 0 });
+    expect(res.refs.e7).toMatchObject({ role: "button", name: "Save", nth: 1 });
+  });
 });
