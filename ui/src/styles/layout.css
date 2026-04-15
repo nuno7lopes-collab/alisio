@@ -1290,7 +1290,7 @@
 }
 
 .shell--nav-collapsed .topbar--chat .topnav-shell {
-  justify-content: stretch;
+  justify-content: flex-start;
 }
 
 .shell--nav-collapsed .topbar--chat .topnav-shell__content {

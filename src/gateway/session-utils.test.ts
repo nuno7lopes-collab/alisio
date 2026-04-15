@@ -912,6 +912,25 @@ describe("deriveSessionTitle", () => {
     expect(deriveSessionTitle(entry, "Hello, how are you?")).toBe("Hello, how are you?");
   });
 
+  test("strips injected inbound metadata from the derived first user title", () => {
+    const entry = {
+      sessionId: "abc123",
+      updatedAt: Date.now(),
+    } as SessionEntry;
+    const inbound =
+      'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-03-26 16:29 GMT] hi';
+    expect(deriveSessionTitle(entry, inbound)).toBe("hi");
+  });
+
+  test("falls back to session id when the first user message is only injected metadata", () => {
+    const entry = {
+      sessionId: "abcd1234-5678-90ef-ghij-klmnopqrstuv",
+      updatedAt: new Date("2024-03-15T10:30:00Z").getTime(),
+    } as SessionEntry;
+    const inbound = 'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```';
+    expect(deriveSessionTitle(entry, inbound)).toBe("abcd1234 (2024-03-15)");
+  });
+
   test("truncates long first user message to 60 chars with ellipsis", () => {
     const entry = {
       sessionId: "abc123",

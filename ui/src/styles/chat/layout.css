@@ -731,6 +731,13 @@
   padding: 6px 18px 4px;
 }
 
+.alisio-chat-toolbar--topbar {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
 .alisio-chat-toolbar__primary,
 .alisio-chat-toolbar__secondary {
   display: flex;
@@ -747,6 +754,35 @@
   flex: 0 0 auto;
   margin-left: auto;
   justify-content: flex-end;
+}
+
+.alisio-chat-toolbar--topbar .alisio-chat-toolbar__secondary {
+  gap: 12px;
+}
+
+.alisio-chat-toolbar--topbar .btn.btn--sm {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.alisio-chat-toolbar--topbar .chat-session-header {
+  max-width: min(100%, 760px);
+}
+
+.alisio-chat-toolbar--topbar .chat-session-title {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 18px;
+}
+
+.alisio-chat-toolbar--topbar .chat-session-switcher__trigger,
+.alisio-chat-toolbar--topbar .chat-tools-menu__trigger {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
 }
 
 .chat-session-header {

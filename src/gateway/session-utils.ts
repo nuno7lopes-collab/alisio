@@ -24,6 +24,7 @@ import {
   listSubagentRunsForController,
   resolveSubagentSessionStatus,
 } from "../agents/subagent-registry-read.js";
+import { stripInboundMetadata } from "../auto-reply/reply/strip-inbound-meta.js";
 import { type AlisioConfig, loadConfig } from "../config/config.js";
 import { resolveAgentModelFallbackValues } from "../config/model-input.js";
 import { resolveStateDir } from "../config/paths.js";
@@ -56,6 +57,7 @@ import {
   isWorkspaceRelativeAvatarPath,
   resolveAvatarMime,
 } from "../shared/avatar-policy.js";
+import { stripEnvelope, stripMessageIdHints } from "../shared/chat-envelope.js";
 import { normalizeSessionDeliveryFields } from "../utils/delivery-context.js";
 import { estimateUsageCost, resolveModelCostConfig } from "../utils/usage-format.js";
 import {
@@ -92,7 +94,7 @@ export type {
   SessionsPreviewResult,
 } from "./session-utils.types.js";
 
-const DERIVED_TITLE_MAX_LEN = 60;
+const DERIVED_TITLE_MAX_LEN = 44;
 const SYNTHETIC_HEARTBEAT_ORIGIN_TOKEN = "heartbeat";
 
 function normalizeOriginDisplayToken(value: string | undefined): string | undefined {
@@ -193,6 +195,12 @@ function truncateTitle(text: string, maxLen: number): string {
   return cut + "…";
 }
 
+function sanitizeDerivedSessionTitleSource(text: string): string {
+  const withoutInboundMeta = stripInboundMetadata(text);
+  const withoutEnvelope = stripMessageIdHints(stripEnvelope(withoutInboundMeta));
+  return withoutEnvelope.replace(/\s+/g, " ").trim();
+}
+
 export function deriveSessionTitle(
   entry: SessionEntry | undefined,
   firstUserMessage?: string | null,
@@ -210,7 +218,10 @@ export function deriveSessionTitle(
   }
 
   if (firstUserMessage?.trim()) {
-    const normalized = firstUserMessage.replace(/\s+/g, " ").trim();
+    const normalized = sanitizeDerivedSessionTitleSource(firstUserMessage);
+    if (!normalized) {
+      return entry.sessionId ? formatSessionIdPrefix(entry.sessionId, entry.updatedAt) : undefined;
+    }
     return truncateTitle(normalized, DERIVED_TITLE_MAX_LEN);
   }
 
