@@ -16,6 +16,7 @@ import {
   resolveDefaultModelForAgent,
 } from "../agents/model-selection.js";
 import { resolvePersonWorkspaceSummary } from "../agents/person-agent.js";
+import { getActiveEmbeddedRunSnapshot } from "../agents/pi-embedded-runner/runs.js";
 import {
   getSessionDisplaySubagentRunByChildSessionKey,
   getSubagentSessionRuntimeMs,
@@ -39,13 +40,14 @@ import {
   type SessionStoreTarget,
   type SessionScope,
 } from "../config/sessions.js";
+import { deriveSessionConversationModel } from "../config/sessions/conversation-model.js";
 import { openBoundaryFileSync } from "../infra/boundary-file-read.js";
 import {
   normalizeAgentId,
   normalizeMainKey,
   parseAgentSessionKey,
 } from "../routing/session-key.js";
-import { isCronRunSessionKey } from "../sessions/session-key-utils.js";
+import { deriveSessionChatType, isCronRunSessionKey } from "../sessions/session-key-utils.js";
 import {
   AVATAR_MAX_BYTES,
   isAvatarDataUrl,
@@ -232,6 +234,20 @@ function resolvePositiveNumber(value: number | null | undefined): number | undef
 
 function resolveNonNegativeNumber(value: number | null | undefined): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function resolveSessionObserver(sessionId: string | undefined): GatewaySessionRow["observer"] {
+  const browserNoVncUrl = sessionId
+    ? getActiveEmbeddedRunSnapshot(sessionId)?.browserNoVncUrl?.trim()
+    : "";
+  if (!browserNoVncUrl) {
+    return null;
+  }
+  return {
+    kind: "novnc",
+    url: browserNoVncUrl,
+    label: "Browser observer",
+  };
 }
 
 function resolveEstimatedSessionCostUsd(params: {
@@ -544,10 +560,27 @@ export function classifySessionKey(key: string, entry?: SessionEntry): GatewaySe
   if (key === "unknown") {
     return "unknown";
   }
+  if (entry?.category === "external_group") {
+    return "group";
+  }
+  const surfaceType = entry?.surfaceRef?.type;
+  if (
+    surfaceType === "discord_channel" ||
+    surfaceType === "discord_thread" ||
+    surfaceType === "external_thread" ||
+    surfaceType === "matrix_room" ||
+    surfaceType === "matrix_thread" ||
+    surfaceType === "slack_channel" ||
+    surfaceType === "slack_thread" ||
+    surfaceType === "telegram_topic"
+  ) {
+    return "group";
+  }
   if (entry?.chatType === "group" || entry?.chatType === "channel") {
     return "group";
   }
-  if (key.includes(":group:") || key.includes(":channel:")) {
+  const parsedChatType = deriveSessionChatType(key);
+  if (parsedChatType === "group" || parsedChatType === "channel") {
     return "group";
   }
   return "direct";
@@ -1294,17 +1327,36 @@ export function buildGatewaySessionRow(params: {
     }
   }
 
+  const conversationModel = deriveSessionConversationModel({
+    sessionKey: key,
+    entry,
+  });
+
   return {
     key,
+    conversationId: conversationModel.conversationId,
+    conversationKey: conversationModel.conversationKey,
+    transcriptId: conversationModel.transcriptId,
     spawnedBy: subagentOwner || entry?.spawnedBy,
     spawnedWorkspaceDir: entry?.spawnedWorkspaceDir,
     forkedFromParent: entry?.forkedFromParent,
     spawnDepth: entry?.spawnDepth,
     subagentRole: entry?.subagentRole,
     subagentControlScope: entry?.subagentControlScope,
-    kind: classifySessionKey(key, entry),
+    kind: classifySessionKey(key, {
+      sessionId: entry?.sessionId ?? "",
+      updatedAt: entry?.updatedAt ?? 0,
+      ...entry,
+      category: conversationModel.category,
+      surfaceRef: conversationModel.surfaceRef,
+    }),
+    category: conversationModel.category,
+    surfaceRef: conversationModel.surfaceRef,
+    runtimeRef: conversationModel.runtimeRef,
+    relationship: conversationModel.relationship,
     label: entry?.label,
     displayName,
+    observer: resolveSessionObserver(entry?.sessionId),
     derivedTitle,
     lastMessagePreview,
     channel,

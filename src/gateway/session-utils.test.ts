@@ -3,6 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import {
+  __testing as embeddedRunTesting,
+  clearActiveEmbeddedRun,
+  setActiveEmbeddedRun,
+  updateActiveEmbeddedRunSnapshot,
+} from "../agents/pi-embedded-runner/runs.js";
+import {
   addSubagentRunForTests,
   resetSubagentRegistryForTests,
 } from "../agents/subagent-registry.js";
@@ -27,6 +33,17 @@ import {
   resolveSessionModelRef,
   resolveSessionStoreKey,
 } from "./session-utils.js";
+
+type RunHandle = Parameters<typeof setActiveEmbeddedRun>[1];
+
+function createRunHandle(): RunHandle {
+  return {
+    queueMessage: async () => {},
+    isStreaming: () => true,
+    isCompacting: () => false,
+    abort: () => {},
+  };
+}
 
 function resolveSyncRealpath(filePath: string): string {
   return fs.realpathSync.native(filePath);
@@ -90,6 +107,7 @@ function createLegacyRuntimeStore(model: string): Record<string, SessionEntry> {
 describe("gateway session utils", () => {
   afterEach(() => {
     resetSubagentRegistryForTests({ persist: false });
+    embeddedRunTesting.resetActiveEmbeddedRuns();
   });
 
   test("capArrayByJsonBytes trims from the front", () => {
@@ -234,6 +252,48 @@ describe("gateway session utils", () => {
     const store = JSON.parse(fs.readFileSync(storePath, "utf8"));
     const found = target.storeKeys.some((k) => Boolean(store[k]));
     expect(found).toBe(true);
+  });
+
+  test("listSessionsFromStore projects live observer metadata and clears it with the run snapshot", () => {
+    const handle = createRunHandle();
+    const cfg = {
+      session: { mainKey: "main" },
+      agents: { list: [{ id: "main", default: true }] },
+    } as AlisioConfig;
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess-main",
+        updatedAt: 123,
+      } as SessionEntry,
+    };
+
+    setActiveEmbeddedRun("sess-main", handle, "agent:main:main");
+    updateActiveEmbeddedRunSnapshot("sess-main", {
+      transcriptLeafId: null,
+      browserNoVncUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+    });
+
+    const withObserver = listSessionsFromStore({
+      cfg,
+      storePath: path.join(os.tmpdir(), "alisio-session-utils-live.json"),
+      store,
+      opts: {},
+    });
+    expect(withObserver.sessions[0]?.observer).toEqual({
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Browser observer",
+    });
+
+    clearActiveEmbeddedRun("sess-main", handle, "agent:main:main");
+
+    const withoutObserver = listSessionsFromStore({
+      cfg,
+      storePath: path.join(os.tmpdir(), "alisio-session-utils-live.json"),
+      store,
+      opts: {},
+    });
+    expect(withoutObserver.sessions[0]?.observer).toBeNull();
   });
 
   test("resolveGatewaySessionStoreTarget includes all case-variant duplicate keys", () => {
@@ -2305,6 +2365,28 @@ describe("listSessionsFromStore subagent metadata", () => {
     const child = result.sessions.find((session) => session.key === "agent:main:dashboard:child");
     expect(main?.childSessions).toEqual(["agent:main:dashboard:child"]);
     expect(child?.parentSessionKey).toBe("agent:main:main");
+    expect(child?.category).toBe("dashboard");
+    expect(child?.relationship).toEqual({
+      kind: "child",
+      parentConversationId: "agent:main:main",
+    });
+    expect(child?.conversationId).toBe("agent:main:dashboard:child");
+    expect(child?.conversationKey).toBe("agent:main:dashboard:child");
+    expect(child?.transcriptId).toBe("sess-child");
+  });
+
+  test("classifies thread rows from typed surfaces without parsing thread suffixes", () => {
+    expect(
+      classifySessionKey("agent:main:discord:channel:123", {
+        sessionId: "sess-thread",
+        updatedAt: Date.now(),
+        surfaceRef: {
+          type: "discord_thread",
+          id: "thread-456",
+          channel: "discord",
+        },
+      } as SessionEntry),
+    ).toBe("group");
   });
 
   test("returns dashboard child sessions when filtering by parentSessionKey owner", () => {

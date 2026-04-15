@@ -3,7 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
-import { emitAgentEvent, registerAgentRunContext } from "../infra/agent-events.js";
+import {
+  clearActiveEmbeddedRun,
+  setActiveEmbeddedRun,
+  updateActiveEmbeddedRunSnapshot,
+} from "../agents/pi-embedded-runner/runs.js";
+import {
+  clearAgentRunContext,
+  emitAgentEvent,
+  registerAgentRunContext,
+} from "../infra/agent-events.js";
 import { saveMediaBuffer } from "../media/store.js";
 import { extractFirstTextBlock } from "../shared/chat-message-content.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
@@ -194,6 +203,13 @@ describe("gateway server chat", () => {
     };
   };
 
+  const createRunHandle = (): Parameters<typeof setActiveEmbeddedRun>[1] => ({
+    queueMessage: async () => {},
+    isStreaming: () => true,
+    isCompacting: () => false,
+    abort: () => {},
+  });
+
   test("sessions.send accepts dashboard messages for existing sessions", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-sessions-send-"));
     testState.sessionStorePath = path.join(dir, "sessions.json");
@@ -216,6 +232,86 @@ describe("gateway server chat", () => {
       expect(res.payload?.runId).toBe("idem-sessions-send-1");
       expect(res.payload?.messageSeq).toBe(1);
     } finally {
+      testState.sessionStorePath = undefined;
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("broadcasts observer publish and cleanup through sessions.changed", async () => {
+    await rpcReq(ws, "sessions.subscribe");
+
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-observer-"));
+    const handle = createRunHandle();
+    testState.sessionStorePath = path.join(dir, "sessions.json");
+
+    try {
+      await writeSessionStore({
+        entries: {
+          main: {
+            sessionId: "sess-main",
+            updatedAt: Date.now(),
+          },
+        },
+      });
+
+      setActiveEmbeddedRun("sess-main", handle, "main");
+      updateActiveEmbeddedRunSnapshot("sess-main", {
+        transcriptLeafId: null,
+        browserNoVncUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      });
+
+      registerAgentRunContext("run-observer-1", {
+        sessionKey: "main",
+      });
+
+      const publishEvent = onceMessage(
+        ws,
+        (message) =>
+          message.type === "event" &&
+          message.event === "sessions.changed" &&
+          message.payload?.phase === "observer" &&
+          message.payload?.sessionKey === "main" &&
+          message.payload?.observer?.url === "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      );
+
+      emitAgentEvent({
+        runId: "run-observer-1",
+        stream: "lifecycle",
+        sessionKey: "main",
+        data: { phase: "observer" },
+      });
+
+      const published = await publishEvent;
+      expect(published.payload?.observer).toEqual({
+        kind: "novnc",
+        url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+        label: "Browser observer",
+      });
+
+      const cleanupEvent = onceMessage(
+        ws,
+        (message) =>
+          message.type === "event" &&
+          message.event === "sessions.changed" &&
+          message.payload?.phase === "observer" &&
+          message.payload?.sessionKey === "main" &&
+          Object.prototype.hasOwnProperty.call(message.payload ?? {}, "observer") &&
+          message.payload?.observer === null,
+      );
+
+      clearActiveEmbeddedRun("sess-main", handle, "main");
+      emitAgentEvent({
+        runId: "run-observer-1",
+        stream: "lifecycle",
+        sessionKey: "main",
+        data: { phase: "observer" },
+      });
+
+      const cleaned = await cleanupEvent;
+      expect(cleaned.payload?.observer).toBeNull();
+    } finally {
+      await rpcReq(ws, "sessions.unsubscribe");
+      clearAgentRunContext("run-observer-1");
       testState.sessionStorePath = undefined;
       await fs.rm(dir, { recursive: true, force: true });
     }

@@ -9,6 +9,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
+import { emitAgentEvent } from "../../../infra/agent-events.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import {
   ensureGlobalUndiciEnvProxyDispatcher,
@@ -108,6 +109,7 @@ import { log } from "../logger.js";
 import { buildEmbeddedMessageActionDiscoveryInput } from "../message-action-discovery-input.js";
 import {
   clearActiveEmbeddedRun,
+  getActiveEmbeddedRunSnapshot,
   type EmbeddedPiQueueHandle,
   setActiveEmbeddedRun,
   updateActiveEmbeddedRunSnapshot,
@@ -1541,11 +1543,25 @@ export async function runEmbeddedAttempt(
           }
 
           const btwSnapshotMessages = activeSession.messages.slice(-MAX_BTW_SNAPSHOT_MESSAGES);
+          const previousBrowserNoVncUrl =
+            getActiveEmbeddedRunSnapshot(params.sessionId)?.browserNoVncUrl?.trim() || undefined;
+          const nextBrowserNoVncUrl = sandboxInfo?.browserNoVncUrl?.trim() || undefined;
           updateActiveEmbeddedRunSnapshot(params.sessionId, {
             transcriptLeafId,
             messages: btwSnapshotMessages,
             inFlightPrompt: effectivePrompt,
+            browserNoVncUrl: nextBrowserNoVncUrl,
           });
+          if (params.sessionKey && previousBrowserNoVncUrl !== nextBrowserNoVncUrl) {
+            emitAgentEvent({
+              runId: params.runId,
+              stream: "lifecycle",
+              sessionKey: params.sessionKey,
+              data: {
+                phase: "observer",
+              },
+            });
+          }
 
           // Only pass images option if there are actually images to pass
           // This avoids potential issues with models that don't expect the images parameter
@@ -1848,7 +1864,20 @@ export async function runEmbeddedAttempt(
             `CRITICAL: unsubscribe failed, possible resource leak: runId=${params.runId} ${String(err)}`,
           );
         }
+        const hadBrowserObserver = Boolean(
+          getActiveEmbeddedRunSnapshot(params.sessionId)?.browserNoVncUrl?.trim(),
+        );
         clearActiveEmbeddedRun(params.sessionId, queueHandle, params.sessionKey);
+        if (hadBrowserObserver && params.sessionKey) {
+          emitAgentEvent({
+            runId: params.runId,
+            stream: "lifecycle",
+            sessionKey: params.sessionKey,
+            data: {
+              phase: "observer",
+            },
+          });
+        }
         params.abortSignal?.removeEventListener?.("abort", onAbort);
       }
 

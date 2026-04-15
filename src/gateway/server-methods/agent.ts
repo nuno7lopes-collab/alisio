@@ -30,6 +30,11 @@ import { normalizeInputProvenance, type InputProvenance } from "../../sessions/i
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { createRunningTaskRun } from "../../tasks/task-executor.js";
 import {
+  createTaskWithExecution,
+  endTaskExecutionByRunId,
+  getTaskExecutionByRunId,
+} from "../../tasks/task-service.js";
+import {
   normalizeDeliveryContext,
   normalizeSessionDeliveryFields,
 } from "../../utils/delivery-context.js";
@@ -130,9 +135,16 @@ function emitSessionsChanged(
       ts: Date.now(),
       ...(sessionRow
         ? {
+            conversationId: sessionRow.conversationId,
+            conversationKey: sessionRow.conversationKey,
+            transcriptId: sessionRow.transcriptId,
             updatedAt: sessionRow.updatedAt ?? undefined,
             sessionId: sessionRow.sessionId,
             kind: sessionRow.kind,
+            category: sessionRow.category,
+            surfaceRef: sessionRow.surfaceRef,
+            runtimeRef: sessionRow.runtimeRef,
+            relationship: sessionRow.relationship,
             channel: sessionRow.channel,
             subject: sessionRow.subject,
             groupChannel: sessionRow.groupChannel,
@@ -147,6 +159,7 @@ function emitSessionsChanged(
             subagentControlScope: sessionRow.subagentControlScope,
             label: sessionRow.label,
             displayName: sessionRow.displayName,
+            observer: sessionRow.observer,
             deliveryContext: sessionRow.deliveryContext,
             parentSessionKey: sessionRow.parentSessionKey,
             childSessions: sessionRow.childSessions,
@@ -183,6 +196,11 @@ function emitSessionsChanged(
   );
 }
 
+function shouldAgentHandlerOwnTerminalState(runId: string) {
+  const execution = getTaskExecutionByRunId(runId);
+  return execution?.kind === "orchestrator_session" || execution?.kind === "cli";
+}
+
 function dispatchAgentRunFromGateway(params: {
   ingressOpts: Parameters<typeof agentCommandFromIngress>[0];
   runId: string;
@@ -190,18 +208,39 @@ function dispatchAgentRunFromGateway(params: {
   respond: GatewayRequestHandlerOptions["respond"];
   context: GatewayRequestHandlerOptions["context"];
 }) {
+  const normalizedRequesterOrigin = normalizeDeliveryContext({
+    channel: params.ingressOpts.channel,
+    to: params.ingressOpts.to,
+    accountId: params.ingressOpts.accountId,
+    threadId: params.ingressOpts.threadId,
+  });
+  try {
+    createTaskWithExecution({
+      title: params.ingressOpts.label ?? params.ingressOpts.message,
+      summary: params.ingressOpts.label ?? null,
+      requesterSessionKey: params.ingressOpts.sessionKey,
+      requestedBy: "gateway.agent",
+      orchestratorSessionKey: params.ingressOpts.sessionKey,
+      executionKind: params.ingressOpts.sessionKey?.trim() ? "orchestrator_session" : "cli",
+      executionSourceId: params.runId,
+      executionRunId: params.runId,
+      executionSessionKey: params.ingressOpts.sessionKey,
+      executionAgentId: params.ingressOpts.sessionKey
+        ? resolveAgentIdFromSessionKey(params.ingressOpts.sessionKey)
+        : undefined,
+      executionLabel: params.ingressOpts.label,
+      executionSummary: params.ingressOpts.message,
+    });
+  } catch {
+    // Best-effort only: canonical task tracking must not block agent runs.
+  }
   if (params.ingressOpts.sessionKey?.trim()) {
     try {
       createRunningTaskRun({
         runtime: "cli",
         sourceId: params.runId,
         requesterSessionKey: params.ingressOpts.sessionKey,
-        requesterOrigin: normalizeDeliveryContext({
-          channel: params.ingressOpts.channel,
-          to: params.ingressOpts.to,
-          accountId: params.ingressOpts.accountId,
-          threadId: params.ingressOpts.threadId,
-        }),
+        requesterOrigin: normalizedRequesterOrigin,
         childSessionKey: params.ingressOpts.sessionKey,
         runId: params.runId,
         task: params.ingressOpts.message,
@@ -214,6 +253,17 @@ function dispatchAgentRunFromGateway(params: {
   }
   void agentCommandFromIngress(params.ingressOpts, defaultRuntime, params.context.deps)
     .then((result) => {
+      try {
+        if (shouldAgentHandlerOwnTerminalState(params.runId)) {
+          endTaskExecutionByRunId({
+            runId: params.runId,
+            status: "succeeded",
+            summary: "completed",
+          });
+        }
+      } catch {
+        // Best-effort only: canonical task tracking must not block agent runs.
+      }
       const payload = {
         runId: params.runId,
         status: "ok" as const,
@@ -234,6 +284,18 @@ function dispatchAgentRunFromGateway(params: {
       params.respond(true, payload, undefined, { runId: params.runId });
     })
     .catch((err) => {
+      try {
+        if (shouldAgentHandlerOwnTerminalState(params.runId)) {
+          endTaskExecutionByRunId({
+            runId: params.runId,
+            status: "failed",
+            summary: String(err),
+            error: String(err),
+          });
+        }
+      } catch {
+        // Best-effort only: canonical task tracking must not block agent runs.
+      }
       const error = errorShape(ErrorCodes.UNAVAILABLE, String(err));
       const payload = {
         runId: params.runId,

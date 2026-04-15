@@ -18,6 +18,7 @@ import {
   type SessionEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
+import { deriveSessionConversationModel } from "../../config/sessions/conversation-model.js";
 import {
   hasInternalHookListeners,
   triggerInternalHook,
@@ -29,6 +30,8 @@ import {
   parseAgentSessionKey,
   resolveAgentIdFromSessionKey,
 } from "../../routing/session-key.js";
+import { isAlisioDynamicProvider } from "../../shared/alisio-dynamic-provider.js";
+import type { ConversationLifecycleEvent } from "../../shared/conversation-model.js";
 import { GATEWAY_CLIENT_IDS } from "../protocol/client-info.js";
 import {
   ErrorCodes,
@@ -43,6 +46,7 @@ import {
   validateSessionsPatchParams,
   validateSessionsPreviewParams,
   validateSessionsResetParams,
+  validateSessionsRuntimeResetParams,
   validateSessionsResolveParams,
   validateSessionsSendParams,
 } from "../protocol/index.js";
@@ -51,6 +55,7 @@ import {
   cleanupSessionBeforeMutation,
   emitSessionUnboundLifecycleEvent,
   performGatewaySessionReset,
+  performGatewaySessionRuntimeReset,
 } from "../session-reset-service.js";
 import { reactivateCompletedSubagentSession } from "../session-subagent-reactivation.js";
 import {
@@ -72,6 +77,7 @@ import {
 } from "../session-utils.js";
 import { applySessionsPatchToStore } from "../sessions-patch.js";
 import { resolveSessionKeyFromResolveParams } from "../sessions-resolve.js";
+import { publishAlisioDynamicModelProvidersForContext } from "./alisio.js";
 import { chatHandlers } from "./chat.js";
 import type {
   GatewayClient,
@@ -118,6 +124,21 @@ function resolveOptionalInitialSessionMessage(params: {
   return undefined;
 }
 
+function shouldRefreshDynamicCatalogForModel(rawModel: unknown): boolean {
+  if (typeof rawModel !== "string") {
+    return false;
+  }
+  const trimmed = rawModel.trim();
+  if (!trimmed) {
+    return false;
+  }
+  const slashIndex = trimmed.indexOf("/");
+  if (slashIndex <= 0) {
+    return false;
+  }
+  return isAlisioDynamicProvider(trimmed.slice(0, slashIndex));
+}
+
 function shouldAttachPendingMessageSeq(params: { payload: unknown; cached?: boolean }): boolean {
   if (params.cached) {
     return false;
@@ -131,23 +152,46 @@ function shouldAttachPendingMessageSeq(params: { payload: unknown; cached?: bool
 
 function emitSessionsChanged(
   context: Pick<GatewayRequestContext, "broadcastToConnIds" | "getSessionEventSubscriberConnIds">,
-  payload: { sessionKey?: string; reason: string; compacted?: boolean },
+  payload: {
+    sessionKey?: string;
+    reason: string;
+    compacted?: boolean;
+    lifecycle?: ConversationLifecycleEvent;
+  },
 ) {
   const connIds = context.getSessionEventSubscriberConnIds();
   if (connIds.size === 0) {
     return;
   }
   const sessionRow = payload.sessionKey ? loadGatewaySessionRow(payload.sessionKey) : null;
+  const lifecycle = payload.lifecycle
+    ? {
+        ...payload.lifecycle,
+        conversationId:
+          payload.lifecycle.conversationId ?? sessionRow?.conversationId ?? payload.sessionKey,
+        transcriptId: payload.lifecycle.transcriptId ?? sessionRow?.transcriptId,
+        surfaceRef: payload.lifecycle.surfaceRef ?? sessionRow?.surfaceRef,
+        runtimeRef: payload.lifecycle.runtimeRef ?? sessionRow?.runtimeRef,
+      }
+    : undefined;
   context.broadcastToConnIds(
     "sessions.changed",
     {
       ...payload,
+      ...(lifecycle ? { lifecycle } : {}),
       ts: Date.now(),
       ...(sessionRow
         ? {
+            conversationId: sessionRow.conversationId,
+            conversationKey: sessionRow.conversationKey,
+            transcriptId: sessionRow.transcriptId,
             updatedAt: sessionRow.updatedAt ?? undefined,
             sessionId: sessionRow.sessionId,
             kind: sessionRow.kind,
+            category: sessionRow.category,
+            surfaceRef: sessionRow.surfaceRef,
+            runtimeRef: sessionRow.runtimeRef,
+            relationship: sessionRow.relationship,
             channel: sessionRow.channel,
             subject: sessionRow.subject,
             groupChannel: sessionRow.groupChannel,
@@ -162,6 +206,7 @@ function emitSessionsChanged(
             subagentControlScope: sessionRow.subagentControlScope,
             label: sessionRow.label,
             displayName: sessionRow.displayName,
+            observer: sessionRow.observer,
             deliveryContext: sessionRow.deliveryContext,
             parentSessionKey: sessionRow.parentSessionKey,
             childSessions: sessionRow.childSessions,
@@ -225,6 +270,31 @@ function rejectWebchatSessionMutation(params: {
 
 function buildDashboardSessionKey(agentId: string): string {
   return `agent:${agentId}:dashboard:${randomUUID()}`;
+}
+
+function buildCreatedSessionConversationPatch(params: {
+  key: string;
+  entry: SessionEntry;
+  parentSessionKey?: string;
+  taskRequested: boolean;
+}) {
+  const modeled = deriveSessionConversationModel({
+    sessionKey: params.key,
+    entry: params.entry,
+  });
+  return {
+    category: params.taskRequested ? "task" : modeled.category,
+    surfaceRef: modeled.surfaceRef ?? {
+      type: "dashboard_chat" as const,
+      id: params.key,
+    },
+    relationship: params.parentSessionKey
+      ? {
+          kind: params.taskRequested ? ("task" as const) : ("child" as const),
+          parentConversationId: params.parentSessionKey,
+        }
+      : { kind: "root" as const },
+  };
 }
 
 function ensureSessionTranscriptFile(params: {
@@ -698,6 +768,9 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       canonicalParentSessionKey = parent.canonicalKey;
     }
     const key = requestedKey ?? buildDashboardSessionKey(agentId);
+    if (shouldRefreshDynamicCatalogForModel(p.model)) {
+      await publishAlisioDynamicModelProvidersForContext(context, { force: true });
+    }
     const target = resolveGatewaySessionStoreTarget({ cfg, key });
     const targetAgentId = resolveAgentIdFromSessionKey(target.canonicalKey);
     const created = await updateSessionStore(target.storePath, async (store) => {
@@ -712,12 +785,21 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         },
         loadGatewayModelCatalog: context.loadGatewayModelCatalog,
       });
-      if (!patched.ok || !canonicalParentSessionKey) {
+      if (!patched.ok) {
         return patched;
       }
       const nextEntry: SessionEntry = {
         ...patched.entry,
         parentSessionKey: canonicalParentSessionKey,
+        ...buildCreatedSessionConversationPatch({
+          key: target.canonicalKey,
+          entry: {
+            ...patched.entry,
+            parentSessionKey: canonicalParentSessionKey,
+          },
+          parentSessionKey: canonicalParentSessionKey,
+          taskRequested: typeof p.task === "string" && p.task.trim().length > 0,
+        }),
       };
       store[target.canonicalKey] = nextEntry;
       return {
@@ -821,6 +903,11 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     emitSessionsChanged(context, {
       sessionKey: target.canonicalKey,
       reason: "create",
+      lifecycle: {
+        kind: "conversation.created",
+        conversationId: target.canonicalKey,
+        transcriptId: createdEntry.sessionId,
+      },
     });
     if (runStarted) {
       emitSessionsChanged(context, {
@@ -925,6 +1012,10 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       return;
     }
 
+    if (shouldRefreshDynamicCatalogForModel(p.model)) {
+      await publishAlisioDynamicModelProvidersForContext(context, { force: true });
+    }
+
     const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key);
     const applied = await updateSessionStore(storePath, async (store) => {
       const { primaryKey } = migrateAndPruneGatewaySessionStoreKey({ cfg, key, store });
@@ -1001,6 +1092,54 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     emitSessionsChanged(context, {
       sessionKey: result.key,
       reason,
+      lifecycle: {
+        kind: "transcript.rotated",
+        conversationId: result.key,
+        transcriptId: result.entry.sessionId,
+        previousTranscriptId: result.previousSessionId,
+      },
+    });
+  },
+  "sessions.runtime.reset": async ({ params, respond, context }) => {
+    if (
+      !assertValidParams(
+        params,
+        validateSessionsRuntimeResetParams,
+        "sessions.runtime.reset",
+        respond,
+      )
+    ) {
+      return;
+    }
+    const key = requireSessionKey((params as { key?: unknown }).key, respond);
+    if (!key) {
+      return;
+    }
+    const rotateTranscript = (params as { rotateTranscript?: unknown }).rotateTranscript === true;
+    const result = await performGatewaySessionRuntimeReset({
+      key,
+      rotateTranscript,
+      commandSource: "gateway:sessions.runtime.reset",
+    });
+    if (!result.ok) {
+      respond(false, undefined, result.error);
+      return;
+    }
+    respond(true, { ok: true, key: result.key, entry: result.entry }, undefined);
+    emitSessionsChanged(context, {
+      sessionKey: result.key,
+      reason: rotateTranscript ? "runtime-reset+reset" : "runtime-reset",
+      lifecycle: rotateTranscript
+        ? {
+            kind: "transcript.rotated",
+            conversationId: result.key,
+            transcriptId: result.entry?.sessionId,
+            previousTranscriptId: result.previousSessionId,
+          }
+        : {
+            kind: "runtime.reset",
+            conversationId: result.key,
+          },
     });
   },
   "sessions.delete": async ({ params, respond, client, isWebchatConnect, context }) => {

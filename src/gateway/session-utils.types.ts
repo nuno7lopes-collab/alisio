@@ -1,6 +1,12 @@
 import type { ChatType } from "../channels/chat-type.js";
 import type { SessionEntry } from "../config/sessions.js";
 import type {
+  ConversationCategory,
+  ConversationRelationship,
+  ConversationRuntimeRef,
+  ConversationSurfaceRef,
+} from "../shared/conversation-model.js";
+import type {
   GatewayAgentRow as SharedGatewayAgentRow,
   SessionsListResultBase,
   SessionsPatchResultBase,
@@ -17,6 +23,9 @@ export type SessionRunStatus = "running" | "done" | "failed" | "killed" | "timeo
 
 export type GatewaySessionRow = {
   key: string;
+  conversationId?: string;
+  conversationKey?: string;
+  transcriptId?: string;
   spawnedBy?: string;
   spawnedWorkspaceDir?: string;
   forkedFromParent?: boolean;
@@ -24,8 +33,17 @@ export type GatewaySessionRow = {
   subagentRole?: SessionEntry["subagentRole"];
   subagentControlScope?: SessionEntry["subagentControlScope"];
   kind: "direct" | "group" | "global" | "unknown";
+  category?: ConversationCategory;
+  surfaceRef?: ConversationSurfaceRef;
+  runtimeRef?: ConversationRuntimeRef;
+  relationship?: ConversationRelationship;
   label?: string;
   displayName?: string;
+  observer?: {
+    kind: "novnc";
+    url: string;
+    label?: string;
+  } | null;
   derivedTitle?: string;
   lastMessagePreview?: string;
   channel?: string;
