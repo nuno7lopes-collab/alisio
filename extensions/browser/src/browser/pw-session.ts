@@ -119,6 +119,9 @@ const MAX_NETWORK_REQUESTS = 500;
 
 const cachedByCdpUrl = new Map<string, ConnectedBrowser>();
 const connectingByCdpUrl = new Map<string, Promise<ConnectedBrowser>>();
+const EMPTY_PAGE_ATTACH_POLL_MS = 50;
+const EMPTY_PAGE_ATTACH_WINDOW_MS = 300;
+const EMPTY_PAGE_RECONNECT_WINDOW_MS = 400;
 
 function normalizeCdpUrl(raw: string) {
   return raw.replace(/\/$/, "");
@@ -392,8 +395,50 @@ async function connectBrowser(cdpUrl: string): Promise<ConnectedBrowser> {
 
 async function getAllPages(browser: Browser): Promise<Page[]> {
   const contexts = browser.contexts();
-  const pages = contexts.flatMap((c) => c.pages());
+  const pages = contexts.flatMap((context) => {
+    observeContext(context);
+    return context.pages();
+  });
   return pages;
+}
+
+async function waitForPages(browser: Browser, waitMs: number): Promise<Page[]> {
+  const pages = await getAllPages(browser);
+  if (pages.length > 0 || waitMs <= 0) {
+    return pages;
+  }
+
+  const deadline = Date.now() + waitMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, EMPTY_PAGE_ATTACH_POLL_MS));
+    const next = await getAllPages(browser);
+    if (next.length > 0) {
+      return next;
+    }
+  }
+  return pages;
+}
+
+async function resolveBrowserPagesWithRecovery(opts: {
+  cdpUrl: string;
+  browser?: Browser;
+  targetId?: string;
+}): Promise<{ browser: Browser; pages: Page[] }> {
+  let browser = opts.browser ?? (await connectBrowser(opts.cdpUrl)).browser;
+  let pages = await waitForPages(browser, EMPTY_PAGE_ATTACH_WINDOW_MS);
+  if (pages.length > 0) {
+    return { browser, pages };
+  }
+
+  await forceDisconnectPlaywrightForTarget({
+    cdpUrl: opts.cdpUrl,
+    targetId: opts.targetId,
+    reason: "playwright page list was empty",
+  }).catch(() => {});
+
+  browser = (await connectBrowser(opts.cdpUrl)).browser;
+  pages = await waitForPages(browser, EMPTY_PAGE_RECONNECT_WINDOW_MS);
+  return { browser, pages };
 }
 
 async function pageTargetId(page: Page): Promise<string | null> {
@@ -454,7 +499,9 @@ async function findPageByTargetId(
   targetId: string,
   cdpUrl?: string,
 ): Promise<Page | null> {
-  const pages = await getAllPages(browser);
+  const pages = cdpUrl
+    ? (await resolveBrowserPagesWithRecovery({ cdpUrl, browser, targetId })).pages
+    : await getAllPages(browser);
   let resolvedViaCdp = false;
   for (const page of pages) {
     let tid: string | null = null;
@@ -497,10 +544,14 @@ export async function getPageForTargetId(opts: {
   cdpUrl: string;
   targetId?: string;
 }): Promise<Page> {
-  const { browser } = await connectBrowser(opts.cdpUrl);
-  const pages = await getAllPages(browser);
+  const { browser, pages } = await resolveBrowserPagesWithRecovery({
+    cdpUrl: opts.cdpUrl,
+    targetId: opts.targetId,
+  });
   if (!pages.length) {
-    throw new Error("No pages available in the connected browser.");
+    throw new Error(
+      "No pages available in the connected browser. The CDP session is connected, but Playwright could not see any tabs after retrying the attachment.",
+    );
   }
   const first = pages[0];
   if (!opts.targetId) {
@@ -749,8 +800,9 @@ export async function listPagesViaPlaywright(opts: { cdpUrl: string }): Promise<
     type: string;
   }>
 > {
-  const { browser } = await connectBrowser(opts.cdpUrl);
-  const pages = await getAllPages(browser);
+  const { pages } = await resolveBrowserPagesWithRecovery({
+    cdpUrl: opts.cdpUrl,
+  });
   const results: Array<{
     targetId: string;
     title: string;
