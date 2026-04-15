@@ -26,6 +26,7 @@ import {
 } from "./app-settings.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
+import { syncSessionMessageSubscription } from "./controllers/sessions.ts";
 import type { Tab } from "./navigation.ts";
 
 type LifecycleHost = {
@@ -123,6 +124,7 @@ export function handleDisconnected(host: LifecycleHost) {
   host.client?.stop();
   host.client = null;
   host.connected = false;
+  (host as { sessionMessageSubscribedKey?: string | null }).sessionMessageSubscribedKey = null;
   detachThemeListener(host as unknown as Parameters<typeof detachThemeListener>[0]);
   host.topbarObserver?.disconnect();
   host.topbarObserver = null;
@@ -145,6 +147,11 @@ export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unk
   }
   if (changed.has("alisioAccount")) {
     void loadAssistantIdentity(host as unknown as Parameters<typeof loadAssistantIdentity>[0]);
+  }
+  if (changed.has("sessionKey") || changed.has("connected")) {
+    void syncSessionMessageSubscription(
+      host as unknown as Parameters<typeof syncSessionMessageSubscription>[0],
+    );
   }
   if (host.tab === "chat" && host.chatManualRefreshInFlight) {
     return;

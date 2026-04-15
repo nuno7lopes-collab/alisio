@@ -1,3 +1,4 @@
+import { t } from "../../i18n/index.ts";
 import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { MemoryGraphState, MemoryStatusState, MemorySyncResult } from "../types.ts";
@@ -920,8 +921,7 @@ export async function loadMemoryStatus(
     if (isUnknownMethodError(err, "memory.status")) {
       if (isTrackedRequestCurrent(state, statusRequests, request)) {
         state.memoryStatus = null;
-        state.memoryStatusError =
-          "Este Alisio ainda não expõe o estado detalhado da memória nesta versão.";
+        state.memoryStatusError = t("alisio.memory.statusUnavailableVersion");
         state.memorySyncAvailable = false;
       }
       return;
@@ -971,7 +971,7 @@ export async function syncMemoryNow(state: MemoryRuntimeState, agentId: string) 
   } catch (err) {
     if (isTrackedRequestCurrent(state, syncRequests, request)) {
       state.memoryStatusError = isUnknownMethodError(err, "memory.sync")
-        ? "Este Alisio ainda não expõe sincronização manual da memória."
+        ? t("alisio.memory.syncUnavailableVersion")
         : String(err);
       state.memorySyncAvailable = false;
     }
@@ -1046,7 +1046,7 @@ export async function loadMemoryGraph(
     if (isTrackedRequestCurrent(state, graphRequests, request)) {
       state.memoryGraph = null;
       state.memoryGraphError = isUnknownMethodError(err, "memory.graph")
-        ? "Este Alisio ainda não expõe o grafo canónico da memória nesta versão."
+        ? t("alisio.memory.graphUnavailableVersion")
         : String(err);
     }
   } finally {

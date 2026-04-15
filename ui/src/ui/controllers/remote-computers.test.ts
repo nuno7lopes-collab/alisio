@@ -97,6 +97,7 @@ describe("remote computer controller", () => {
           },
         ],
       },
+      nodePairingsList: null,
     });
 
     expect(computers).toEqual([
@@ -273,6 +274,7 @@ describe("remote computer controller", () => {
           },
         ],
       },
+      nodePairingsList: null,
     });
 
     expect(computers).toHaveLength(1);
@@ -288,6 +290,164 @@ describe("remote computer controller", () => {
         supportsExec: true,
         trusted: true,
         grantId: "grant-1",
+      }),
+    );
+  });
+
+  it("marks a remote computer as trusted and pending when pairings match by computerId", () => {
+    const computers = resolveRemoteComputerRecords({
+      sharing: {
+        viewer: {
+          ownerKey: "user:1",
+          ownerScope: "user",
+          label: "Nuno",
+        },
+        planSupported: true,
+        policy: {
+          allowExternalUse: false,
+          editable: true,
+        },
+        devices: {
+          owned: [],
+          sharedWithMe: [
+            {
+              targetId: "windows-node",
+              computerId: "local:windows-box",
+              computerLabel: "Windows Box",
+              label: "Windows Box",
+              sourceKind: "node",
+              connected: false,
+              current: false,
+              ownerKey: "user:2",
+              ownerScope: "user",
+              ownerLabel: "Work",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "shared",
+              modelAccess: "shared",
+              execAccess: "requestable",
+            },
+          ],
+          available: [],
+        },
+        incomingRequests: [],
+        outgoingRequests: [],
+        approvals: [],
+        grants: [],
+        audit: [],
+      },
+      nodes: [],
+      devicesList: {
+        pending: [
+          {
+            requestId: "req-1",
+            deviceId: "windows-device-pending",
+            computerId: "local:windows-box",
+            displayName: "Windows Box",
+            roles: ["node"],
+          },
+        ],
+        paired: [
+          {
+            deviceId: "windows-device-approved",
+            computerId: "local:windows-box",
+            displayName: "Windows Box",
+            roles: ["node"],
+            tokens: [],
+          },
+        ],
+      },
+      nodePairingsList: null,
+    });
+
+    expect(computers).toEqual([
+      expect.objectContaining({
+        computerId: "local:windows-box",
+        trusted: true,
+        pairingPending: true,
+      }),
+    ]);
+  });
+
+  it("keeps connected exec-capable state from sharing and paired-node metadata when node inventory is filtered", () => {
+    const computers = resolveRemoteComputerRecords({
+      sharing: {
+        viewer: {
+          ownerKey: "user:1",
+          ownerScope: "user",
+          label: "Nuno",
+        },
+        planSupported: true,
+        policy: {
+          allowExternalUse: false,
+          editable: true,
+        },
+        devices: {
+          owned: [],
+          sharedWithMe: [
+            {
+              targetId: "windows-node",
+              computerId: "local:windows-box",
+              computerLabel: "Windows Box",
+              label: "Windows Box",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "shared",
+              modelAccess: "shared",
+              execAccess: "requestable",
+            },
+          ],
+          available: [],
+        },
+        incomingRequests: [],
+        outgoingRequests: [],
+        approvals: [],
+        grants: [],
+        audit: [],
+      },
+      nodes: [],
+      devicesList: {
+        pending: [],
+        paired: [
+          {
+            deviceId: "windows-node",
+            computerId: "local:windows-box",
+            computerLabel: "Windows Box",
+            displayName: "Windows Box",
+            roles: ["node"],
+            tokens: [],
+          },
+        ],
+      },
+      nodePairingsList: {
+        pending: [],
+        paired: [
+          {
+            nodeId: "windows-node",
+            displayName: "Windows Box",
+            platform: "Windows",
+            deviceFamily: "Windows",
+            commands: ["system.run"],
+            caps: ["exec.shell.v1"],
+          },
+        ],
+      },
+    });
+
+    expect(computers).toHaveLength(1);
+    expect(computers[0]).toEqual(
+      expect.objectContaining({
+        computerId: "local:windows-box",
+        connected: true,
+        supportsExec: true,
+        phase: "needs-approval",
+        trusted: true,
       }),
     );
   });

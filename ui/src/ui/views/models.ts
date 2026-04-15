@@ -2,8 +2,10 @@ import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 import {
+  DEFAULT_MODELS_AI_PROFILE_SORT,
   makeModelsOperationKey,
   type ModelProviderId,
+  type ModelsAiProfileSort,
   type ModelsOperationMap,
 } from "../models-view-types.ts";
 import type { AlisioAiState, AlisioBootstrapState, AlisioModelsState } from "../types.ts";
@@ -26,6 +28,7 @@ type TargetCatalogEntryView = {
   parametersBillions?: number;
   quantization?: string;
   memoryGb?: number;
+  vramGb?: number;
   diskGb?: number;
   recommendation?: LocalModelTarget["recommendations"][number] | null;
 };
@@ -64,6 +67,11 @@ function aiText() {
     remove: t("alisio.settings.ai.remove"),
     refreshAll: t("alisio.settings.ai.refreshAll"),
     emptyRefresh: t("alisio.settings.ai.emptyRefresh"),
+    sortLabel: t("alisio.settings.ai.sort.label"),
+    sortEmailAsc: t("alisio.settings.ai.sort.emailAsc"),
+    sortRecent: t("alisio.settings.ai.sort.recent"),
+    sortWeeklyResetAsc: t("alisio.settings.ai.sort.weeklyResetAsc"),
+    sortWeeklyResetDesc: t("alisio.settings.ai.sort.weeklyResetDesc"),
   };
 }
 
@@ -202,6 +210,10 @@ function resolveProfilePlanLabel(profile: AiProfile | null | undefined) {
   return planLabel;
 }
 
+function resolveProfileEmailSortKey(profile: AiProfile | null | undefined) {
+  return (resolveProfileEmail(profile) ?? resolveProfileTitle(profile)).trim().toLowerCase();
+}
+
 function resolveProfileUsageWindows(
   profile: AiProfile | null | undefined,
   ai: AlisioAiState | null | undefined,
@@ -249,6 +261,106 @@ function formatReset(resetAt?: number) {
   return `${diffDays}${text.daysSuffix}`;
 }
 
+function isWeeklyUsageWindow(label: string | null | undefined) {
+  const normalized = String(label ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "week" || normalized === "weekly" || normalized === "7d";
+}
+
+function resolveWeeklyResetRemainingMs(
+  profile: AiProfile,
+  ai: AlisioAiState | null | undefined,
+  active: boolean,
+) {
+  const weeklyWindow = resolveProfileUsageWindows(profile, ai, {
+    allowActiveFallback: active,
+  }).find((window) => isWeeklyUsageWindow(window.label));
+  if (typeof weeklyWindow?.resetAt !== "number") {
+    return null;
+  }
+  return Math.max(0, weeklyWindow.resetAt - Date.now());
+}
+
+function compareNullableAsc(left: number | null, right: number | null) {
+  if (left === null && right === null) {
+    return 0;
+  }
+  if (left === null) {
+    return 1;
+  }
+  if (right === null) {
+    return -1;
+  }
+  return left - right;
+}
+
+function compareNullableDesc(left: number | null, right: number | null) {
+  if (left === null && right === null) {
+    return 0;
+  }
+  if (left === null) {
+    return 1;
+  }
+  if (right === null) {
+    return -1;
+  }
+  return right - left;
+}
+
+function sortAiProfiles(
+  profiles: readonly AiProfile[],
+  ai: AlisioAiState | null | undefined,
+  activeProfileId: string | undefined,
+  profileSort: ModelsAiProfileSort,
+  recentProfileIds?: readonly string[],
+) {
+  const recentIndex = new Map(
+    (recentProfileIds ?? []).map((profileId, index) => [profileId, index] as const),
+  );
+  return [...profiles].toSorted((left, right) => {
+    const fallback = resolveProfileEmailSortKey(left).localeCompare(
+      resolveProfileEmailSortKey(right),
+    );
+    if (profileSort === "recent") {
+      if (left.profileId === activeProfileId) {
+        return -1;
+      }
+      if (right.profileId === activeProfileId) {
+        return 1;
+      }
+      const leftRecent = recentIndex.get(left.profileId);
+      const rightRecent = recentIndex.get(right.profileId);
+      if (typeof leftRecent === "number" || typeof rightRecent === "number") {
+        if (typeof leftRecent !== "number") {
+          return 1;
+        }
+        if (typeof rightRecent !== "number") {
+          return -1;
+        }
+        if (leftRecent !== rightRecent) {
+          return leftRecent - rightRecent;
+        }
+      }
+      return fallback;
+    }
+    if (profileSort === "email-asc") {
+      return fallback;
+    }
+    const leftReset = resolveWeeklyResetRemainingMs(left, ai, left.profileId === activeProfileId);
+    const rightReset = resolveWeeklyResetRemainingMs(
+      right,
+      ai,
+      right.profileId === activeProfileId,
+    );
+    const resetCompare =
+      profileSort === "weekly-reset-desc"
+        ? compareNullableDesc(leftReset, rightReset)
+        : compareNullableAsc(leftReset, rightReset);
+    return resetCompare || fallback;
+  });
+}
+
 function formatConnectedAt(locale: string | undefined, value?: string) {
   const text = aiText();
   if (!value) {
@@ -284,7 +396,15 @@ function formatHardwareSummary(target: LocalModelTarget) {
   if (!target.hardware) {
     return null;
   }
-  return `${text.hardware} · ${target.hardware.totalMemoryGb} GB RAM · ${target.hardware.cpuCores} CPU`;
+  const parts = [
+    `${target.hardware.ramTotalGb ?? target.hardware.totalMemoryGb} GB RAM`,
+    typeof target.hardware.vramTotalGb === "number"
+      ? `${target.hardware.vramTotalGb} GB VRAM`
+      : null,
+    target.hardware.gpuBackend ? target.hardware.gpuBackend.toUpperCase() : null,
+    `${target.hardware.cpuCores} CPU`,
+  ].filter(Boolean);
+  return parts.length > 0 ? `${text.hardware} · ${parts.join(" · ")}` : null;
 }
 
 function formatPlatformLabel(platform: string | null | undefined) {
@@ -516,7 +636,7 @@ function resolveSuggestedCatalogEntries(
       ): entry is {
         model: AlisioModelsState["catalog"][number];
         recommendation: NonNullable<ReturnType<typeof resolveModelRecommendation>>;
-      } => Boolean(entry.recommendation && entry.recommendation.grade !== "unsupported"),
+      } => Boolean(entry.recommendation),
     )
     .toSorted((left, right) => {
       const gradeDelta =
@@ -546,10 +666,10 @@ function resolveTargetAvailableCatalogEntries(
         parametersBillions: model.parametersBillions,
         quantization: model.quantization,
         memoryGb: model.memoryGb,
+        vramGb: model.vramGb,
         diskGb: model.diskGb,
         recommendation: model.recommendation ?? resolveModelRecommendation(target, model.id),
       }))
-      .filter((entry) => !entry.recommendation || entry.recommendation.grade !== "unsupported")
       .toSorted((left, right) => {
         const leftWeight = left.recommendation
           ? recommendationWeight(left.recommendation.grade)
@@ -571,6 +691,7 @@ function resolveTargetAvailableCatalogEntries(
     parametersBillions: model.parametersBillions,
     quantization: model.quantization,
     memoryGb: model.memoryGb,
+    vramGb: model.vramGb,
     diskGb: model.diskGb,
     recommendation,
   }));
@@ -588,6 +709,7 @@ function resolveTargetCatalogLookupEntries(
       parametersBillions: model.parametersBillions,
       quantization: model.quantization,
       memoryGb: model.memoryGb,
+      vramGb: model.vramGb,
       diskGb: model.diskGb,
       recommendation: model.recommendation ?? resolveModelRecommendation(target, model.id),
     }));
@@ -600,6 +722,7 @@ function resolveTargetCatalogLookupEntries(
     parametersBillions: model.parametersBillions,
     quantization: model.quantization,
     memoryGb: model.memoryGb,
+    vramGb: model.vramGb,
     diskGb: model.diskGb,
     recommendation: resolveModelRecommendation(target, model.id),
   }));
@@ -812,6 +935,7 @@ function renderTargetCatalog(props: {
           model.id,
         );
         const installBusy = operation?.action === "install" && operation.phase !== "failed";
+        const installBlocked = recommendation?.grade === "unsupported";
         return html`
           <div class="alisio-models__catalog-item">
             <div class="alisio-models__model-main">
@@ -827,6 +951,9 @@ function renderTargetCatalog(props: {
                 ${typeof model.memoryGb === "number"
                   ? html`<span class="pill">${text.memory} ${model.memoryGb} GB</span>`
                   : nothing}
+                ${typeof model.vramGb === "number"
+                  ? html`<span class="pill">VRAM ${model.vramGb} GB</span>`
+                  : nothing}
                 ${typeof model.diskGb === "number"
                   ? html`<span class="pill">${text.disk} ${model.diskGb} GB</span>`
                   : nothing}
@@ -840,7 +967,7 @@ function renderTargetCatalog(props: {
             <div class="alisio-models__catalog-actions">
               <button
                 class="btn primary"
-                ?disabled=${props.busy || !props.target.connected || installBusy}
+                ?disabled=${props.busy || !props.target.connected || installBusy || installBlocked}
                 @click=${() => props.onInstallModel(props.target.targetId, model.id)}
                 title=${recommendation?.reason ?? ""}
               >
@@ -1311,13 +1438,29 @@ function renderUsagePreview(
   if (windows.length === 0) {
     return nothing;
   }
-  return windows.map(
-    (window) => html`
+  return windows.map((window) => {
+    const subtleReset =
+      isWeeklyUsageWindow(window.label) && typeof window.resetAt === "number"
+        ? formatReset(window.resetAt)
+        : null;
+    return html`
       <span class="alisio-models__usage-pill ${usageTone(window.remainingPercent)}">
-        ${window.label} · ${Math.round(window.remainingPercent)}% ${text.available}
+        <span class="alisio-models__usage-pill-main"
+          >${window.label} · ${Math.round(window.remainingPercent)}% ${text.available}</span
+        >
+        ${subtleReset
+          ? html`
+              <span
+                class="alisio-models__usage-pill-reset"
+                title=${`${text.resetsIn} ${subtleReset}`}
+              >
+                ${subtleReset}
+              </span>
+            `
+          : nothing}
       </span>
-    `,
-  );
+    `;
+  });
 }
 
 function renderAiProfileCard(
@@ -1451,7 +1594,10 @@ function renderChatGptSection(props: {
   aiLoading: boolean;
   aiError: string | null;
   expandedProfileId: string | null | undefined;
+  profileSort: ModelsAiProfileSort | undefined;
+  profileRecentIds?: readonly string[];
   onToggleProfile: (profileId: string) => void;
+  onProfileSortChange: (sort: ModelsAiProfileSort) => void;
   onConnect: () => void;
   onRefreshAll: () => void;
   onSelectProfile: (profileId: string) => void;
@@ -1463,13 +1609,21 @@ function renderChatGptSection(props: {
   const text = aiText();
   const ai = props.bootstrap?.ai;
   const profiles = resolveProfiles(ai);
+  const profileSort = props.profileSort ?? DEFAULT_MODELS_AI_PROFILE_SORT;
   syncInlineRenameState(profiles);
   const activeProfileId = ai?.binding ? ai.activeProfileId : undefined;
+  const sortedProfiles = sortAiProfiles(
+    profiles,
+    ai,
+    activeProfileId,
+    profileSort,
+    props.profileRecentIds,
+  );
   const expandedProfileId =
     typeof props.expandedProfileId === "undefined"
-      ? (activeProfileId ?? profiles[0]?.profileId ?? null)
+      ? null
       : props.expandedProfileId &&
-          profiles.some((profile) => profile.profileId === props.expandedProfileId)
+          sortedProfiles.some((profile) => profile.profileId === props.expandedProfileId)
         ? props.expandedProfileId
         : null;
   const showInitialLoading = props.aiLoading && profiles.length === 0 && !props.aiError;
@@ -1505,6 +1659,28 @@ function renderChatGptSection(props: {
                       </button>
                     `
                   : nothing}
+                ${profiles.length > 1
+                  ? html`
+                      <label class="alisio-settings-ai__sort-control">
+                        <span class="sr-only">${text.sortLabel}</span>
+                        <select
+                          class="alisio-settings-ai__sort-select"
+                          .value=${profileSort}
+                          aria-label=${text.sortLabel}
+                          @change=${(event: Event) =>
+                            props.onProfileSortChange(
+                              (event.currentTarget as HTMLSelectElement)
+                                .value as ModelsAiProfileSort,
+                            )}
+                        >
+                          <option value="email-asc">${text.sortEmailAsc}</option>
+                          <option value="recent">${text.sortRecent}</option>
+                          <option value="weekly-reset-asc">${text.sortWeeklyResetAsc}</option>
+                          <option value="weekly-reset-desc">${text.sortWeeklyResetDesc}</option>
+                        </select>
+                      </label>
+                    `
+                  : nothing}
                 <button
                   class="btn ${profiles.length === 0 ? "primary" : ""}"
                   ?disabled=${props.aiLoading}
@@ -1529,7 +1705,7 @@ function renderChatGptSection(props: {
           ? html`<div class="alisio-settings-ai__empty">${text.noProfiles}</div>`
           : html`
               <div class="alisio-settings-ai__profile-list">
-                ${profiles.map((profile) =>
+                ${sortedProfiles.map((profile) =>
                   renderAiProfileCard(profile, {
                     ai,
                     locale: props.bootstrap?.account?.preferences?.language,
@@ -1645,8 +1821,11 @@ export function renderModelsHub(props: {
   aiError: string | null;
   expandedProfileId: string | null | undefined;
   selectedProviderId: ModelProviderId | null | undefined;
+  profileSort?: ModelsAiProfileSort;
+  profileRecentIds?: readonly string[];
   modelOptions: readonly ChatModelOption[];
   onToggleProfile: (profileId: string) => void;
+  onProfileSortChange: (sort: ModelsAiProfileSort) => void;
   onSelectProvider: (providerId: ModelProviderId) => void;
   onConnectAi: () => void;
   onRefreshAllAiProfiles: () => void;
@@ -1734,7 +1913,10 @@ export function renderModelsHub(props: {
               aiLoading: props.aiLoading,
               aiError: props.aiError,
               expandedProfileId: props.expandedProfileId,
+              profileSort: props.profileSort,
+              profileRecentIds: props.profileRecentIds,
               onToggleProfile: props.onToggleProfile,
+              onProfileSortChange: props.onProfileSortChange,
               onConnect: props.onConnectAi,
               onRefreshAll: props.onRefreshAllAiProfiles,
               onSelectProfile: props.onSelectAiProfile,

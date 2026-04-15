@@ -111,6 +111,15 @@
     padding-bottom: 12px;
   }
 
+  .sidebar-shell__toggle,
+  .sidebar--collapsed .sidebar-shell__toggle {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 26px;
+    height: 26px;
+  }
+
   .sidebar-context {
     align-items: flex-start;
     flex-direction: column;
@@ -341,17 +350,6 @@
     letter-spacing: 0.18em;
   }
 
-  .alisio-setup-account__method-btn--google {
-    gap: 12px;
-    padding: 14px;
-  }
-
-  .alisio-setup-account__method-logo-frame {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-  }
-
   .topnav-shell {
     flex-wrap: wrap;
     gap: 10px;
@@ -368,6 +366,10 @@
   .topnav-shell__content {
     display: none;
     width: 100%;
+  }
+
+  .topnav-shell__actions--chat {
+    display: flex;
   }
 
   .topbar-nav-toggle {
@@ -394,6 +396,10 @@
   .topbar-search {
     min-width: 0;
     flex: 1;
+  }
+
+  .topbar--chat {
+    padding-right: 12px;
   }
 
   .alisio-billing-plan-grid {

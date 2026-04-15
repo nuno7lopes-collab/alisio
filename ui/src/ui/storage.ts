@@ -1,6 +1,7 @@
 const SETTINGS_KEY_PREFIX = "alisio.control.settings.v2:";
 const DEFAULT_SETTINGS_KEY = "alisio.control.settings.v2";
 const TOKEN_SESSION_KEY_PREFIX = "alisio.control.token.v2:";
+const SURFACE_SESSION_KEY_PREFIX = "alisio.control.surface-session.v1:";
 const MAX_SCOPED_SESSION_ENTRIES = 10;
 
 function settingsKeyForGateway(gatewayUrl: string): string {
@@ -21,7 +22,7 @@ type PersistedUiSettings = Omit<UiSettings, "token" | "sessionKey" | "lastActive
 };
 
 import { DEFAULT_GATEWAY_PORT_TEXT } from "../../../src/shared/gateway-defaults.js";
-import { isSupportedLocale, resolvePreferredLocale } from "../i18n/index.ts";
+import { isSupportedLocale, loadPersistedLocale, resolvePreferredLocale } from "../i18n/index.ts";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../local-storage.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import { inferBasePathFromPathname } from "./navigation.ts";
@@ -132,11 +133,19 @@ function tokenSessionKeyForGateway(gatewayUrl: string): string {
   return `${TOKEN_SESSION_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
 }
 
+function surfaceSessionKeyForGateway(gatewayUrl: string): string {
+  return `${SURFACE_SESSION_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
+}
+
 function resolveScopedSessionSelection(
   gatewayUrl: string,
   parsed: PersistedUiSettings,
   defaults: UiSettings,
 ): ScopedSessionSelection {
+  const sessionScoped = loadSurfaceSessionSelection(gatewayUrl);
+  if (sessionScoped) {
+    return sessionScoped;
+  }
   const scope = normalizeGatewayTokenScope(gatewayUrl);
   const scoped = parsed.sessionsByGateway?.[scope];
   if (
@@ -172,6 +181,34 @@ function loadSessionToken(gatewayUrl: string): string {
   }
 }
 
+function loadSurfaceSessionSelection(gatewayUrl: string): ScopedSessionSelection | null {
+  try {
+    const storage = getSessionStorage();
+    if (!storage) {
+      return null;
+    }
+    const raw = storage.getItem(surfaceSessionKeyForGateway(gatewayUrl));
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<ScopedSessionSelection>;
+    if (
+      typeof parsed.sessionKey !== "string" ||
+      !parsed.sessionKey.trim() ||
+      typeof parsed.lastActiveSessionKey !== "string" ||
+      !parsed.lastActiveSessionKey.trim()
+    ) {
+      return null;
+    }
+    return {
+      sessionKey: parsed.sessionKey.trim(),
+      lastActiveSessionKey: parsed.lastActiveSessionKey.trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function persistSessionToken(gatewayUrl: string, token: string) {
   try {
     const storage = getSessionStorage();
@@ -190,10 +227,31 @@ function persistSessionToken(gatewayUrl: string, token: string) {
   }
 }
 
+function persistSurfaceSessionSelection(
+  selection: ScopedSessionSelection & { gatewayUrl: string },
+) {
+  try {
+    const storage = getSessionStorage();
+    if (!storage) {
+      return;
+    }
+    storage.setItem(
+      surfaceSessionKeyForGateway(selection.gatewayUrl),
+      JSON.stringify({
+        sessionKey: selection.sessionKey,
+        lastActiveSessionKey: selection.lastActiveSessionKey,
+      }),
+    );
+  } catch {
+    // best-effort
+  }
+}
+
 export function loadSettings(): UiSettings {
   const { pageUrl: pageDerivedUrl, effectiveUrl: defaultUrl } = deriveDefaultGatewayUrl();
   const storage = getSafeLocalStorage();
   const defaultLocale = resolvePreferredLocale();
+  const persistedI18nLocale = loadPersistedLocale();
 
   const defaults: UiSettings = {
     gatewayUrl: defaultUrl,
@@ -236,13 +294,19 @@ export function loadSettings(): UiSettings {
       (parsed as { themeMode?: unknown }).themeMode,
       (parsed as { themeAccents?: unknown }).themeAccents,
     );
-    const locale = isSupportedLocale(parsed.locale) ? parsed.locale : defaultLocale;
+    const storedSettingsLocale = isSupportedLocale(parsed.locale) ? parsed.locale : defaultLocale;
+    const locale =
+      persistedI18nLocale && persistedI18nLocale !== storedSettingsLocale
+        ? persistedI18nLocale
+        : storedSettingsLocale;
     const chatPresentationModeVersion =
       typeof parsed.chatPresentationModeVersion === "number"
         ? parsed.chatPresentationModeVersion
         : 0;
     const shouldMigrateChatPresentation = chatPresentationModeVersion < 2;
-    const shouldMigrateLocale = !isSupportedLocale(parsed.locale);
+    const shouldMigrateLocale =
+      !isSupportedLocale(parsed.locale) ||
+      (persistedI18nLocale != null && persistedI18nLocale !== parsed.locale);
     const shouldMigrateAppearance =
       "theme" in (parsed as Record<string, unknown>) ||
       !("themeFamily" in (parsed as Record<string, unknown>)) ||
@@ -317,6 +381,11 @@ export function saveSettings(next: UiSettings) {
 
 function persistSettings(next: UiSettings) {
   persistSessionToken(next.gatewayUrl, next.token);
+  persistSurfaceSessionSelection({
+    gatewayUrl: next.gatewayUrl,
+    sessionKey: next.sessionKey,
+    lastActiveSessionKey: next.lastActiveSessionKey,
+  });
   const storage = getSafeLocalStorage();
   const scope = normalizeGatewayTokenScope(next.gatewayUrl);
   const scopedKey = settingsKeyForGateway(next.gatewayUrl);

@@ -474,6 +474,7 @@ function renderLanguageSection(props: {
   locale: string | undefined;
   onLocaleChange: (value: PublicLanguageOption) => void;
 }) {
+  const selectedLocale = resolveSelectedLanguageOption(props.locale);
   const text = {
     title: t("alisio.settings.language.title"),
     displayLanguage: t("alisio.settings.language.displayLanguage"),
@@ -490,14 +491,16 @@ function renderLanguageSection(props: {
         <label class="field alisio-settings-field--inline">
           <span>${text.displayLanguage}</span>
           <select
-            .value=${resolveSelectedLanguageOption(props.locale)}
             @change=${(event: Event) =>
               props.onLocaleChange(
                 (event.target as HTMLSelectElement).value as PublicLanguageOption,
               )}
           >
             ${languageOptions().map(
-              (option) => html`<option value=${option.value}>${option.label}</option>`,
+              (option) =>
+                html`<option value=${option.value} ?selected=${option.value === selectedLocale}>
+                  ${option.label}
+                </option>`,
             )}
           </select>
         </label>

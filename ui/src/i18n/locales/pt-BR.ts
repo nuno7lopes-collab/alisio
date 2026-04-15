@@ -151,6 +151,11 @@ export const pt_BR: TranslationMap = {
     menuToolCalls: "Chamadas de tools",
     menuFocus: "Modo de foco",
     menuCron: "Sessões de cron",
+    newConversation: "Novo chat",
+    newConversationTitle: "Criar uma nova conversa de chat",
+    switchConversation: "Trocar chat",
+    renameConversationTitle: "Clique duas vezes para renomear este chat",
+    renameConversationPlaceholder: "Nome do chat",
     menuOn: "Ligado",
     menuOff: "Desligado",
     menuHidden: "Ocultas",
@@ -165,6 +170,36 @@ export const pt_BR: TranslationMap = {
   },
   alisio: {
     chat: {
+      welcome: {
+        greetingNamed: "Olá, {name}.",
+        greetingGeneric: "Olá.",
+        titleConnected: "O que você quer resolver?",
+        titleDisconnected: "Quando você estiver pronto, começamos.",
+        openApps: "Abrir apps",
+        quickActions: {
+          newTaskTitle: "Criar uma task",
+          newTaskPrompt: "Ajude-me a criar uma task recorrente.",
+          resumeTitle: "Retomar contexto",
+          resumePrompt: "Resuma minhas sessões recentes e diga onde devo retomar primeiro.",
+          systemTitle: "Verificar sistema",
+          systemPrompt: "Verifique o estado do sistema e diga o que precisa de atenção.",
+          openSetupTitle: "Abrir setup",
+        },
+        featuredApps: {
+          gmailReadPrompt: "Leia meus emails importantes e diga o que exige resposta.",
+          gmailReadConnectAction: "Conectar Gmail",
+          gmailReadConnectedAction: "Ler emails",
+          gmailSendPrompt: "Ajude-me a escrever e enviar um email.",
+          gmailSendConnectAction: "Conectar envio",
+          gmailSendConnectedAction: "Escrever email",
+          googleCalendarPrompt: "Veja minha agenda e ajude-me a organizar o dia.",
+          googleCalendarConnectAction: "Conectar agenda",
+          googleCalendarConnectedAction: "Ver agenda",
+          reconnect: "Reconectar",
+          configure: "Configurar",
+          openApps: "Ver apps",
+        },
+      },
       access: {
         title: "Segurança no chat",
         subtitle:

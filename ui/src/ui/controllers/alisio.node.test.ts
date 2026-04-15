@@ -4,6 +4,7 @@ import {
   DEFAULT_THEME_FAMILY,
   type AlisioThemeMode,
 } from "../../../../src/shared/alisio-appearance.js";
+import { DEFAULT_MODELS_AI_PROFILE_SORT } from "../models-view-types.ts";
 import {
   beginAlisioAccountEmailAuth,
   beginAlisioAccountGoogleAuth,
@@ -77,6 +78,8 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     modelManagementLoading: false,
     modelsExpandedProfileId: undefined,
     modelsSelectedProviderId: undefined,
+    modelsAiProfileSort: DEFAULT_MODELS_AI_PROFILE_SORT,
+    modelsAiProfileRecentIds: [],
     alisioAccountLoading: false,
     alisioAccountError: null,
     alisioAccountNotice: null,
@@ -616,6 +619,8 @@ describe("alisio controller reconnect safety", () => {
       ],
       modelsExpandedProfileId: "profile-1",
       modelsSelectedProviderId: "local",
+      modelsAiProfileSort: "weekly-reset-desc",
+      modelsAiProfileRecentIds: ["profile-1", "profile-2"],
       setupWizardSessionId: "wizard-1",
       setupWizardStatus: "running",
       setupWizardStep: {
@@ -657,6 +662,8 @@ describe("alisio controller reconnect safety", () => {
     expect(state.modelManagementLoading).toBe(false);
     expect(state.modelsExpandedProfileId).toBeUndefined();
     expect(state.modelsSelectedProviderId).toBeUndefined();
+    expect(state.modelsAiProfileSort).toBe(DEFAULT_MODELS_AI_PROFILE_SORT);
+    expect(state.modelsAiProfileRecentIds).toEqual([]);
     expect(state.setupWizardSessionId).toBeNull();
     expect(state.setupWizardStep).toBeNull();
     expect(state.setupWizardStatus).toBeNull();

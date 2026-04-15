@@ -6,16 +6,26 @@ import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import type { AlisioApp } from "./app.ts";
-import { createChatModelOverride, normalizeChatModelSelectionValue } from "./chat-model-ref.ts";
+import {
+  createChatModelOverride,
+  formatChatModelDisplay,
+  normalizeChatModelSelectionValue,
+  resolvePreferredServerChatModel,
+} from "./chat-model-ref.ts";
 import { resolveChatModelSelectState } from "./chat-model-select-state.ts";
 import { refreshVisibleToolsEffectiveForCurrentSession } from "./controllers/agents.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { loadConfig } from "./controllers/config.ts";
 import { loadModelCatalogPair } from "./controllers/models.ts";
-import { loadSessions } from "./controllers/sessions.ts";
+import { loadSessions, syncSessionMessageSubscription } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./navigation.ts";
-import type { AlisioAiState, ConfigSnapshot, SessionsListResult } from "./types.ts";
+import type {
+  AlisioAiState,
+  ConfigSnapshot,
+  SessionsListResult,
+  SessionsPatchResult,
+} from "./types.ts";
 import { resolveSessionDisplayName } from "./views/session-display.ts";
 export {
   parseSessionKey,
@@ -24,6 +34,7 @@ export {
 } from "./views/session-display.ts";
 
 type SessionDefaultsSnapshot = {
+  defaultAgentId?: string;
   mainSessionKey?: string;
   mainKey?: string;
 };
@@ -132,37 +143,19 @@ export function resolveEffectiveAlisioAiState(
   return state.alisioBootstrap?.ai ?? state.alisioStartupBootstrap?.ai ?? null;
 }
 
-function resolveSidebarChatSessionKey(state: AppViewState): string {
+function resolveNewChatAgentId(state: AppViewState): string {
+  const currentAgentId = parseAgentSessionKey(state.sessionKey)?.agentId?.trim();
+  if (currentAgentId) {
+    return currentAgentId;
+  }
+  const assistantAgentId = state.assistantAgentId?.trim();
+  if (assistantAgentId) {
+    return assistantAgentId;
+  }
   const snapshot = state.hello?.snapshot as
     | { sessionDefaults?: SessionDefaultsSnapshot }
     | undefined;
-  const mainSessionKey = snapshot?.sessionDefaults?.mainSessionKey?.trim();
-  if (mainSessionKey) {
-    return mainSessionKey;
-  }
-  const mainKey = snapshot?.sessionDefaults?.mainKey?.trim();
-  if (mainKey) {
-    return mainKey;
-  }
-  return "main";
-}
-
-function resetChatStateForSessionSwitch(state: AppViewState, sessionKey: string) {
-  state.sessionKey = sessionKey;
-  state.chatMessage = "";
-  state.chatAttachments = [];
-  state.chatStream = null;
-  (state as unknown as AlisioApp).chatStreamStartedAt = null;
-  state.chatRunId = null;
-  state.chatFinalizing = false;
-  state.chatQueue = [];
-  (state as unknown as AlisioApp).resetToolStream();
-  (state as unknown as AlisioApp).resetChatScroll();
-  state.applySettings({
-    ...state.settings,
-    sessionKey,
-    lastActiveSessionKey: sessionKey,
-  });
+  return snapshot?.sessionDefaults?.defaultAgentId?.trim() || "main";
 }
 
 export function renderTab(
@@ -193,13 +186,6 @@ export function renderTab(
           return;
         }
         event.preventDefault();
-        if (tab === "chat") {
-          const mainSessionKey = resolveSidebarChatSessionKey(state);
-          if (state.sessionKey !== mainSessionKey) {
-            resetChatStateForSessionSwitch(state, mainSessionKey);
-            void state.loadAssistantIdentity();
-          }
-        }
         state.setTab(tab);
       }}
       title=${titleForTab(tab)}
@@ -256,19 +242,295 @@ export function renderChatSessionSelect(state: AppViewState) {
   `;
 }
 
-export function renderChatSessionPicker(state: AppViewState) {
-  return renderChatSessionField(state);
+export function renderChatSessionPicker(
+  state: AppViewState,
+  opts: { surface?: "desktop" | "mobile" } = {},
+) {
+  return opts.surface === "mobile" ? renderChatSessionField(state) : renderChatSessionHeader(state);
 }
 
 export function renderChatComposerModelSelect(state: AppViewState) {
   return renderChatModelSelect(state, { variant: "composer" });
 }
 
-export function renderChatDesktopToolbar(state: AppViewState) {
+export function renderChatDesktopToolbar(
+  state: AppViewState,
+  opts: { searchButton?: TemplateResult | typeof nothing; surface?: "inline" | "topbar" } = {},
+) {
+  const surface = opts.surface ?? "inline";
   return html`
-    <div class="alisio-chat-toolbar" role="toolbar" aria-label=${t("alisio.shell.chatSettings")}>
-      <div class="alisio-chat-toolbar__primary">${renderChatSessionPicker(state)}</div>
-      <div class="alisio-chat-toolbar__secondary">${renderChatControls(state)}</div>
+    <div
+      class="alisio-chat-toolbar ${surface === "topbar" ? "alisio-chat-toolbar--topbar" : ""}"
+      role="toolbar"
+      aria-label=${t("alisio.shell.chatSettings")}
+    >
+      <div class="alisio-chat-toolbar__primary">
+        ${renderChatNewConversationButton(state)} ${renderChatSessionPicker(state)}
+      </div>
+      <div class="alisio-chat-toolbar__secondary">
+        ${opts.searchButton ?? nothing} ${renderChatControls(state)}
+      </div>
+    </div>
+  `;
+}
+
+function renderChatNewConversationButton(state: AppViewState) {
+  const disabled =
+    !state.connected ||
+    !state.client ||
+    state.chatLoading ||
+    state.chatSending ||
+    Boolean(state.chatRunId) ||
+    Boolean(state.chatFinalizing);
+  return html`
+    <button
+      type="button"
+      class="btn btn--sm"
+      title=${t("chat.newConversationTitle")}
+      ?disabled=${disabled}
+      @click=${async () => {
+        if (!state.client) {
+          return;
+        }
+        const created = await state.client.request<{ key?: string }>("sessions.create", {
+          agentId: resolveNewChatAgentId(state),
+        });
+        const nextSessionKey = created?.key?.trim();
+        if (!nextSessionKey) {
+          return;
+        }
+        switchChatSession(state, nextSessionKey);
+      }}
+    >
+      ${icons.plus} ${t("chat.newConversation")}
+    </button>
+  `;
+}
+
+function resolveCurrentSessionRow(
+  state: AppViewState,
+  key = state.sessionKey,
+): SessionsListResult["sessions"][number] | undefined {
+  return state.sessionsResult?.sessions.find((row) => row.key === key);
+}
+
+function resolveCurrentSessionTitle(state: AppViewState, key = state.sessionKey): string {
+  const row = resolveCurrentSessionRow(state, key);
+  return resolveSessionDisplayName(key, row).trim() || t("chat.newConversation");
+}
+
+function resolveCurrentSessionRenameDraft(state: AppViewState, key = state.sessionKey): string {
+  const row = resolveCurrentSessionRow(state, key);
+  return row?.label?.trim() || resolveCurrentSessionTitle(state, key);
+}
+
+function canRenameCurrentSession(state: AppViewState): boolean {
+  return Boolean(state.client && state.connected && state.sessionKey);
+}
+
+function resolveEventTargetRoot(eventTarget: EventTarget | null): Document | ShadowRoot | null {
+  if (!(eventTarget instanceof Node)) {
+    return null;
+  }
+  const root = eventTarget.getRootNode();
+  return root instanceof ShadowRoot || root instanceof Document ? root : null;
+}
+
+function focusChatSessionRenameInput(eventTarget: EventTarget | null) {
+  const root = resolveEventTargetRoot(eventTarget);
+  if (!root) {
+    return;
+  }
+  requestAnimationFrame(() => {
+    const input = root.querySelector<HTMLInputElement>('[data-chat-session-rename-input="true"]');
+    input?.focus();
+    input?.select();
+  });
+}
+
+function beginChatSessionRename(state: AppViewState, eventTarget: EventTarget | null) {
+  if (!canRenameCurrentSession(state)) {
+    return;
+  }
+  state.chatSessionRenameKey = state.sessionKey;
+  state.chatSessionRenameDraft = resolveCurrentSessionRenameDraft(state);
+  state.chatSessionRenamePending = false;
+  focusChatSessionRenameInput(eventTarget);
+}
+
+function cancelChatSessionRename(state: AppViewState) {
+  state.chatSessionRenameKey = null;
+  state.chatSessionRenameDraft = "";
+  state.chatSessionRenamePending = false;
+}
+
+async function commitChatSessionRename(
+  state: AppViewState,
+  eventTarget?: EventTarget | null,
+): Promise<void> {
+  if (state.chatSessionRenamePending) {
+    return;
+  }
+  const targetKey = state.chatSessionRenameKey?.trim();
+  if (!targetKey) {
+    cancelChatSessionRename(state);
+    return;
+  }
+  const row = resolveCurrentSessionRow(state, targetKey);
+  const explicitLabel = row?.label?.trim() || "";
+  const currentTitle = resolveCurrentSessionTitle(state, targetKey);
+  const nextLabel = state.chatSessionRenameDraft.trim();
+
+  if (!nextLabel && !explicitLabel) {
+    cancelChatSessionRename(state);
+    return;
+  }
+  if (
+    (explicitLabel && nextLabel === explicitLabel) ||
+    (!explicitLabel && nextLabel === currentTitle)
+  ) {
+    cancelChatSessionRename(state);
+    return;
+  }
+  if (!state.client || !state.connected) {
+    cancelChatSessionRename(state);
+    return;
+  }
+
+  state.chatSessionRenamePending = true;
+  state.lastError = null;
+  try {
+    await state.client.request<SessionsPatchResult>("sessions.patch", {
+      key: targetKey,
+      label: nextLabel || null,
+    });
+    cancelChatSessionRename(state);
+    await refreshSessionOptions(state);
+  } catch (err) {
+    state.chatSessionRenamePending = false;
+    state.lastError = `Failed to rename chat: ${String(err)}`;
+    focusChatSessionRenameInput(eventTarget ?? null);
+  }
+}
+
+function renderChatSessionHeader(state: AppViewState) {
+  const title = resolveCurrentSessionTitle(state);
+  const editing = state.chatSessionRenameKey === state.sessionKey;
+  const canRename = canRenameCurrentSession(state);
+  const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
+  const switcherDisabled = !state.connected || sessionGroups.length === 0;
+  return html`
+    <div class="chat-session-header">
+      <div class="chat-session-title ${editing ? "is-editing" : ""}">
+        <span class="chat-session-title__icon" aria-hidden="true">${icons.brain}</span>
+        ${editing
+          ? html`
+              <input
+                class="chat-session-title__input"
+                data-chat-session-rename-input="true"
+                .value=${state.chatSessionRenameDraft}
+                ?disabled=${state.chatSessionRenamePending}
+                placeholder=${t("chat.renameConversationPlaceholder")}
+                @click=${(event: Event) => event.stopPropagation()}
+                @input=${(event: InputEvent) => {
+                  state.chatSessionRenameDraft = (event.target as HTMLInputElement).value;
+                }}
+                @blur=${(event: FocusEvent) =>
+                  void commitChatSessionRename(state, event.currentTarget)}
+                @keydown=${(event: KeyboardEvent) => {
+                  event.stopPropagation();
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    void commitChatSessionRename(state, event.currentTarget);
+                    return;
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    cancelChatSessionRename(state);
+                  }
+                }}
+              />
+            `
+          : html`
+              <button
+                type="button"
+                class="chat-session-title__button"
+                data-chat-session-title-button="true"
+                title=${canRename ? t("chat.renameConversationTitle") : title}
+                aria-label=${title}
+                @dblclick=${(event: MouseEvent) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  beginChatSessionRename(state, event.currentTarget);
+                }}
+                @keydown=${(event: KeyboardEvent) => {
+                  if (event.key !== "Enter" && event.key !== "F2") {
+                    return;
+                  }
+                  event.preventDefault();
+                  event.stopPropagation();
+                  beginChatSessionRename(state, event.currentTarget);
+                }}
+              >
+                <span class="chat-session-title__text">${title}</span>
+              </button>
+            `}
+      </div>
+      ${switcherDisabled
+        ? html`
+            <button
+              type="button"
+              class="chat-session-switcher__trigger"
+              title=${t("chat.switchConversation")}
+              aria-label=${t("chat.switchConversation")}
+              disabled
+            >
+              ${icons.chevronDown}
+            </button>
+          `
+        : html`
+            <details class="chat-session-switcher">
+              <summary
+                class="chat-session-switcher__trigger"
+                title=${t("chat.switchConversation")}
+                aria-label=${t("chat.switchConversation")}
+              >
+                ${icons.chevronDown}
+              </summary>
+              <div class="chat-session-switcher__panel">
+                ${repeat(
+                  sessionGroups,
+                  (group) => group.id,
+                  (group) => html`
+                    <div class="chat-session-switcher__group">
+                      <div class="chat-session-switcher__group-label">${group.label}</div>
+                      ${repeat(
+                        group.options,
+                        (entry) => entry.key,
+                        (entry) => html`
+                          <button
+                            type="button"
+                            class="chat-session-switcher__option ${entry.key === state.sessionKey
+                              ? "is-active"
+                              : ""}"
+                            title=${entry.title}
+                            @click=${(event: Event) => {
+                              closeChatSessionSwitcher(event.currentTarget);
+                              if (entry.key !== state.sessionKey) {
+                                switchChatSession(state, entry.key);
+                              }
+                            }}
+                          >
+                            <span class="chat-session-switcher__option-label">${entry.label}</span>
+                          </button>
+                        `,
+                      )}
+                    </div>
+                  `,
+                )}
+              </div>
+            </details>
+          `}
     </div>
   `;
 }
@@ -449,18 +711,29 @@ function renderChatToolsMenuAction(action: ChatToolsMenuAction) {
   `;
 }
 
-function closeChatToolsSurface(target: EventTarget | null) {
+function closeDetailsSurface(target: EventTarget | null, selector: string) {
   if (!(target instanceof HTMLElement)) {
     return;
   }
-  const details = target.closest("details.chat-tools-menu");
+  const details = target.closest(selector);
   if (details instanceof HTMLDetailsElement) {
     details.open = false;
+  }
+}
+
+function closeChatToolsSurface(target: EventTarget | null) {
+  closeDetailsSurface(target, "details.chat-tools-menu");
+  if (!(target instanceof HTMLElement)) {
+    return;
   }
   const dropdown = target.closest(".chat-controls-dropdown");
   if (dropdown instanceof HTMLElement) {
     dropdown.classList.remove("open");
   }
+}
+
+function closeChatSessionSwitcher(target: EventTarget | null) {
+  closeDetailsSurface(target, "details.chat-session-switcher");
 }
 
 function renderRefreshIcon() {
@@ -577,7 +850,10 @@ export function renderChatMobileToggle(state: AppViewState) {
         }}
       >
         <div class="chat-tools-menu__panel chat-tools-menu__panel--mobile">
-          <div class="chat-tools-menu__session">${renderChatSessionPicker(state)}</div>
+          <div class="chat-tools-menu__session">
+            ${renderChatNewConversationButton(state)}
+            ${renderChatSessionPicker(state, { surface: "mobile" })}
+          </div>
           ${renderChatToolsMenuItems(state, { hiddenCronCount })}
         </div>
       </div>
@@ -587,6 +863,9 @@ export function renderChatMobileToggle(state: AppViewState) {
 
 export function switchChatSession(state: AppViewState, nextSessionKey: string) {
   state.sessionKey = nextSessionKey;
+  state.chatSessionRenameKey = null;
+  state.chatSessionRenameDraft = "";
+  state.chatSessionRenamePending = false;
   state.chatMessage = "";
   state.chatAttachments = [];
   state.chatStream = null;
@@ -608,6 +887,9 @@ export function switchChatSession(state: AppViewState, nextSessionKey: string) {
     nextSessionKey,
     true,
   );
+  void syncSessionMessageSubscription(
+    state as unknown as Parameters<typeof syncSessionMessageSubscription>[0],
+  );
   void loadChatHistory(state as unknown as ChatState);
   void refreshSessionOptions(state);
 }
@@ -625,10 +907,14 @@ function renderChatModelSelect(
   state: AppViewState,
   opts: { variant?: "toolbar" | "composer" } = {},
 ) {
-  const { currentOverride, defaultLabel, options } = resolveChatModelSelectState(state);
+  const { currentOverride, defaultDisplay, defaultLabel, defaultModel, options } =
+    resolveChatModelSelectState(state);
   const variant = opts.variant ?? "toolbar";
   const compactLabels = variant === "composer";
-  const selectDefaultLabel = compactLabels ? "Default" : defaultLabel;
+  const selectDefaultLabel =
+    compactLabels && defaultDisplay.trim().length > 0
+      ? compactComposerModelLabel(defaultDisplay, defaultModel)
+      : defaultLabel;
   const selectOptions = compactLabels ? buildCompactComposerModelOptions(options) : options;
   const switchingModel = isChatModelSwitchPending(state);
   const busy =
@@ -699,11 +985,11 @@ function compactComposerModelLabel(label: string, value: string): string {
   }
   const separator = trimmedLabel.indexOf(" · ");
   if (separator > 0) {
-    return trimmedLabel.slice(0, separator).trim();
+    return formatChatModelDisplay(trimmedLabel.slice(0, separator).trim());
   }
   const qualifiedSeparator = value.indexOf("/");
   if (qualifiedSeparator > 0) {
-    return value.slice(qualifiedSeparator + 1).trim();
+    return formatChatModelDisplay(value.slice(qualifiedSeparator + 1).trim());
   }
   return trimmedLabel;
 }
@@ -728,13 +1014,24 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
   };
   writeChatModelSwitchToken(state, targetSessionKey, requestToken);
   try {
-    await state.client.request("sessions.patch", {
+    const patched = await state.client.request<SessionsPatchResult>("sessions.patch", {
       key: targetSessionKey,
       model: nextOverrideValue || null,
     });
     if (readChatModelSwitchToken(state, targetSessionKey) !== requestToken) {
       return;
     }
+    const resolvedValue = resolvePreferredServerChatModel(
+      patched?.resolved?.model ?? nextOverrideValue,
+      patched?.resolved?.modelProvider,
+      state.chatModelCatalog ?? [],
+    ).value;
+    state.chatModelOverrides = {
+      ...state.chatModelOverrides,
+      [targetSessionKey]: createChatModelOverride(
+        normalizeChatModelSelectionValue(resolvedValue, defaultModel),
+      ),
+    };
     if (state.sessionKey === targetSessionKey) {
       void refreshVisibleToolsEffectiveForCurrentSession(state);
     }
@@ -939,7 +1236,7 @@ export function resolveSessionOptionGroups(
       key,
       label,
       scopeLabel,
-      title: key,
+      title: row ? resolveSessionDisplayName(key, row) : label,
     });
   };
 
@@ -1063,7 +1360,13 @@ function resolveSessionScopedOptionLabel(
 
   const label = row.label?.trim() || "";
   const displayName = row.displayName?.trim() || "";
-  if ((label && label !== key) || (displayName && displayName !== key)) {
+  const derivedTitle = row.derivedTitle?.trim() || "";
+  if (
+    (label && label !== key) ||
+    (displayName && displayName !== key) ||
+    (derivedTitle && derivedTitle !== key) ||
+    (rest?.trim() ?? "").startsWith("dashboard:")
+  ) {
     return resolveSessionDisplayName(key, row);
   }
 

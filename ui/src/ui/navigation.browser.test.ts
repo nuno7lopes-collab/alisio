@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import "../styles.css";
 import type { AlisioApp } from "./app.ts";
 import { mountApp as mountTestApp, registerAppMountHooks } from "./test-helpers/app-mount.ts";
@@ -156,6 +156,42 @@ describe("control UI routing", () => {
     await app.updateComplete;
     expect(app.tab).toBe("connections");
     expect(window.location.pathname).toBe("/connections");
+  });
+
+  it("keeps the selected chat conversation when returning to Chat from another tab", async () => {
+    const app = mountApp("/tasks");
+    await app.updateComplete;
+
+    const sessionKey = "agent:main:dashboard:chat-2";
+    app.sessionKey = sessionKey;
+    app.applySettings({
+      ...app.settings,
+      sessionKey,
+      lastActiveSessionKey: sessionKey,
+    });
+    await app.updateComplete;
+
+    app
+      .querySelector<HTMLAnchorElement>('a[data-tab="chat"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await app.updateComplete;
+
+    expect(app.tab).toBe("chat");
+    expect(app.sessionKey).toBe(sessionKey);
+    expect(app.settings.lastActiveSessionKey).toBe(sessionKey);
+  });
+
+  it("keeps the settings header and locale picker in Portuguese after a reload", async () => {
+    localStorage.setItem("alisio.i18n.locale", "pt-PT");
+    localStorage.setItem("alisio.control.settings.v2", JSON.stringify({ locale: "en" }));
+
+    const app = mountApp("/settings");
+
+    await vi.waitFor(async () => {
+      await app.updateComplete;
+      expect(app.querySelector(".dashboard-header__title")?.textContent).toContain("Definições");
+      expect(app.querySelector(".alisio-settings-field--inline select")?.value).toBe("pt-PT");
+    });
   });
 
   it("renders the refreshed top navigation shell", async () => {

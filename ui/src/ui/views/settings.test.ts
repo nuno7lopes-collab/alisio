@@ -197,6 +197,49 @@ describe("renderSettingsHub", () => {
     expect(container.querySelectorAll("[data-radius-option]")).toHaveLength(0);
   });
 
+  it("keeps the accent row outside label semantics so only the swatch stays interactive", () => {
+    const container = document.createElement("div");
+
+    render(renderSettingsHub(createProps()), container);
+
+    const row = container.querySelector<HTMLElement>(".settings-theme-card__accent-row");
+    const label = container.querySelector<HTMLElement>(".settings-theme-card__accent-label");
+    const input = container.querySelector<HTMLInputElement>(".settings-theme-card__accent-input");
+
+    expect(row?.tagName).toBe("DIV");
+    expect(label?.closest("label")).toBeNull();
+    expect(input?.closest("label")).toBeNull();
+  });
+
+  it("still routes accent changes through the swatch input", () => {
+    const container = document.createElement("div");
+    const onThemeAccentChange = vi.fn();
+
+    render(
+      renderSettingsHub(
+        createProps({
+          onThemeAccentChange,
+        }),
+      ),
+      container,
+    );
+
+    const input = container.querySelector<HTMLInputElement>(
+      ".settings-theme-card--mood .settings-theme-card__accent-input",
+    );
+
+    expect(input).not.toBeNull();
+
+    if (!input) {
+      return;
+    }
+
+    input.value = "#123456";
+    input.dispatchEvent(new Event("change"));
+
+    expect(onThemeAccentChange).toHaveBeenCalledWith("mood", "#123456");
+  });
+
   it("renders a reset control for presentation defaults", () => {
     const container = document.createElement("div");
     const onResetPresentation = vi.fn();

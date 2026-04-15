@@ -9,6 +9,8 @@ import {
 export type SessionsState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
+  sessionKey?: string;
+  sessionMessageSubscribedKey?: string | null;
   sessionsLoading: boolean;
   sessionsResult: SessionsListResult | null;
   sessionsError: string | null;
@@ -18,12 +20,86 @@ export type SessionsState = {
   sessionsIncludeUnknown: boolean;
 };
 
+function normalizeSessionSubscriptionKey(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function applyCanonicalSessionSelection(state: SessionsState, canonicalKey: string | null): void {
+  const nextKey = normalizeSessionSubscriptionKey(canonicalKey);
+  if (!nextKey) {
+    return;
+  }
+  const previousKey = normalizeSessionSubscriptionKey(state.sessionKey);
+  if (previousKey === nextKey) {
+    return;
+  }
+  state.sessionKey = nextKey;
+  const host = state as SessionsState & {
+    settings?: {
+      sessionKey?: string;
+      lastActiveSessionKey?: string;
+    } & Record<string, unknown>;
+    applySettings?: (next: unknown) => void;
+  };
+  const settings = host.settings;
+  if (!settings || typeof host.applySettings !== "function") {
+    return;
+  }
+  const settingsSessionKey = normalizeSessionSubscriptionKey(settings.sessionKey);
+  const settingsLastActiveKey = normalizeSessionSubscriptionKey(settings.lastActiveSessionKey);
+  if (
+    settingsSessionKey !== previousKey &&
+    settingsLastActiveKey !== previousKey &&
+    settingsSessionKey === nextKey &&
+    settingsLastActiveKey === nextKey
+  ) {
+    return;
+  }
+  host.applySettings({
+    ...settings,
+    sessionKey: nextKey,
+    lastActiveSessionKey: nextKey,
+  });
+}
+
 export async function subscribeSessions(state: SessionsState) {
   if (!state.client || !state.connected) {
     return;
   }
   try {
     await state.client.request("sessions.subscribe", {});
+  } catch (err) {
+    state.sessionsError = String(err);
+  }
+}
+
+export async function syncSessionMessageSubscription(state: SessionsState) {
+  const targetKey = normalizeSessionSubscriptionKey(state.sessionKey);
+  const activeKey = normalizeSessionSubscriptionKey(state.sessionMessageSubscribedKey);
+  if (!state.client || !state.connected) {
+    state.sessionMessageSubscribedKey = null;
+    return;
+  }
+  if (targetKey === activeKey) {
+    return;
+  }
+
+  try {
+    if (activeKey) {
+      await state.client.request("sessions.messages.unsubscribe", { key: activeKey });
+      state.sessionMessageSubscribedKey = null;
+    }
+    if (!targetKey) {
+      return;
+    }
+    const response = await state.client.request<{
+      key?: string;
+      subscribed?: boolean;
+    }>("sessions.messages.subscribe", { key: targetKey });
+    const canonicalKey = normalizeSessionSubscriptionKey(response?.key) ?? targetKey;
+    state.sessionMessageSubscribedKey = canonicalKey;
+    applyCanonicalSessionSelection(state, canonicalKey);
   } catch (err) {
     state.sessionsError = String(err);
   }
@@ -54,6 +130,7 @@ export async function loadSessions(
     const params: Record<string, unknown> = {
       includeGlobal,
       includeUnknown,
+      includeDerivedTitles: true,
     };
     if (activeMinutes > 0) {
       params.activeMinutes = activeMinutes;

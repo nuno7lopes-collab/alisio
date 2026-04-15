@@ -80,9 +80,36 @@ export const pt_PT: TranslationMap = {
     chat: {
       defaultAssistantName: "Assistente",
       welcome: {
-        readyBadge: "Pronto para conversar",
-        hint: "Escreve uma mensagem abaixo",
-        commandHint: "para comandos",
+        greetingNamed: "Olá, {name}.",
+        greetingGeneric: "Olá.",
+        titleConnected: "O que queres tratar?",
+        titleDisconnected: "Quando estiveres pronto, começamos.",
+        appsSubtitle:
+          "Liga as apps certas para eu poder ler email, preparar respostas e gerir a tua agenda.",
+        openApps: "Abrir apps",
+        quickActions: {
+          newTaskTitle: "Criar uma task",
+          newTaskPrompt: "Ajuda-me a criar uma task recorrente.",
+          resumeTitle: "Retomar contexto",
+          resumePrompt: "Resume as minhas sessões recentes e diz-me onde devo pegar primeiro.",
+          systemTitle: "Verificar sistema",
+          systemPrompt: "Verifica o estado do sistema e diz-me o que precisa de atenção.",
+          openSetupTitle: "Abrir setup",
+        },
+        featuredApps: {
+          gmailReadPrompt: "Lê os meus emails importantes e diz-me o que exige resposta.",
+          gmailReadConnectAction: "Ligar Gmail",
+          gmailReadConnectedAction: "Ler emails",
+          gmailSendPrompt: "Ajuda-me a escrever e enviar um email.",
+          gmailSendConnectAction: "Ligar envio",
+          gmailSendConnectedAction: "Escrever email",
+          googleCalendarPrompt: "Vê a minha agenda e ajuda-me a organizar o dia.",
+          googleCalendarConnectAction: "Ligar agenda",
+          googleCalendarConnectedAction: "Ver agenda",
+          reconnect: "Voltar a ligar",
+          configure: "Configurar",
+          openApps: "Ver apps",
+        },
       },
       suggestions: {
         whatCanYouDo: "O que consegues fazer?",
@@ -284,6 +311,11 @@ export const pt_PT: TranslationMap = {
       graphLoading: "A carregar grafo canónico",
       graphUnavailable: "O grafo canónico não está disponível para esta selecção.",
       graphEmpty: "Ainda não há correspondências no grafo canónico.",
+      statusUnavailableVersion:
+        "Esta versão do Alisio ainda não expõe o estado detalhado da memória.",
+      syncUnavailableVersion:
+        "Esta versão do Alisio ainda não expõe sincronização manual da memória.",
+      graphUnavailableVersion: "Esta versão do Alisio ainda não expõe o grafo canónico da memória.",
       graphAliases: "Aliases",
       graphTags: "Tags",
       graphRelations: "Relações",
@@ -581,7 +613,8 @@ export const pt_PT: TranslationMap = {
       hints: {
         connected: "Ligada e pronta para chats, tarefas e automações.",
         ready: "Disponível agora. Podes ligar esta app quando te fizer falta.",
-        inReview: "Visível no produto, à espera de aprovação do fornecedor.",
+        inReview:
+          "Visível no produto, mas ainda não está totalmente disponível para uso em runtime.",
         unavailable: "Ainda não disponível neste ambiente.",
         setupRequired:
           "A app OAuth do provider ainda não está configurada neste gateway do Alisio.",
@@ -1069,6 +1102,13 @@ export const pt_PT: TranslationMap = {
         activate: "Activar",
         refresh: "Actualizar",
         refreshAll: "Actualizar tudo",
+        sort: {
+          label: "Ordenar contas",
+          emailAsc: "A-Z",
+          recent: "Recentes",
+          weeklyResetAsc: "Semanal · mais cedo",
+          weeklyResetDesc: "Semanal · mais tarde",
+        },
         rename: "Renomear",
         renamePrompt: "Dá um nome a esta conta",
         remove: "Remover",
@@ -1146,6 +1186,7 @@ export const pt_PT: TranslationMap = {
         confirmInstall: "Instalar {model} em {target}?",
         confirmUpdate: "Actualizar {model} em {target}?",
         confirmUninstall: "Remover {model} de {target}?",
+        managementUnavailable: "Esta versão do Alisio ainda não expõe a gestão de modelos.",
       },
       security: {
         title: "Segurança",
@@ -1799,7 +1840,8 @@ export const pt_PT: TranslationMap = {
         eyebrow: "Bem-vindo ao Alisio",
         title: "Configura o teu agente pessoal.",
         subtitle:
-          "Entra, verifica o teu email, liga o OpenAI e inicia a primeira conversa. Os canais e as capacidades extra podem esperar para depois.",
+          "Entra com email e palavra-passe ou usa um magic link. Tudo o resto pode ficar para depois.",
+        profileSubtitle: "Termina o essencial da tua conta Alisio.",
       },
       progress: {
         oneOfThree: "1 de 2",
@@ -1817,7 +1859,7 @@ export const pt_PT: TranslationMap = {
         title: "Entrar ou criar conta",
         createTitle: "Entrar ou criar conta",
         signInTitle: "Entrar ou criar conta",
-        subtitle: "Continua com Google ou recebe um link seguro por email.",
+        subtitle: "Usa email e palavra-passe ou recebe um magic link seguro por email.",
         savedAccount: "Conta guardada: {email}",
         autoConnectHint:
           "O Alisio deve ligar-se automaticamente neste host. Se ainda não tiver terminado, tenta novamente uma vez.",
@@ -1825,15 +1867,26 @@ export const pt_PT: TranslationMap = {
         signInTab: "Continuar",
         email: "Email",
         emailPlaceholder: "nome@exemplo.com",
-        emailNote: "Enviamos um link seguro para este endereço.",
+        emailNote: "Usa o mesmo email para entrares com palavra-passe ou por magic link.",
+        password: "Palavra-passe",
+        passwordPlaceholder: "A tua palavra-passe",
+        passwordNote: "É opcional se preferires usar magic link.",
+        passwordRequired: "Introduz a tua palavra-passe para continuar.",
+        passwordMinLength: "Usa pelo menos 8 caracteres.",
         emailMethodTitle: "Magic link por email",
         emailMethodNote:
           "Sem palavra-passe. Abre o link recebido no teu email para terminares a entrada.",
+        signInAction: "Entrar",
+        signUpAction: "Criar conta",
+        magicLinkAction: "Enviar magic link",
+        recoveryAction: "Recuperar conta",
+        reconnect: "Reconectar app",
         googleAction: "Continuar com Google",
         googleNote: "Usa a tua conta Google para entrares mais depressa.",
         or: "ou",
         emailAction: "Enviar link de acesso",
         verifyTitle: "Verifica o email",
+        verifySubtitle: "Usa o link seguro da tua caixa de entrada para terminares a entrada.",
         verifyLinkTitle: "O link no email é o passo principal",
         verifyLinkNote: "Abre a mensagem enviada para {email} e usa o link seguro para entrares.",
         verifyLinkAuto:
@@ -1844,6 +1897,8 @@ export const pt_PT: TranslationMap = {
         codeFallbackSummary: "Tenho um código de 6 dígitos",
         useAnotherEmail: "Mudar email",
         waitForConnection: "Espera que o Alisio volte a ligar-se e depois continua.",
+        genericReconnectError:
+          "O Alisio ainda está a religar-se. Espera um momento e volta a tentar.",
         enterEmail: "Introduz o teu email para continuar.",
         validEmail: "Usa um email válido como nome@exemplo.com.",
         cloudUnavailable: "O backend cloud da conta Alisio não está disponível neste ambiente.",
@@ -1922,9 +1977,11 @@ export const pt_PT: TranslationMap = {
         openSettings: "Abrir definições do macOS",
       },
       ready: {
-        title: "Está tudo pronto",
+        title: "Conta pronta",
         subtitle:
-          "A tua conta e a IA estão prontas. Os canais, as apps e as capacidades extra podem esperar até depois do primeiro chat.",
+          "A tua conta já está pronta. Podes ligar a IA e as apps externas mais tarde nas definições.",
+        aiOptionalNotice:
+          "A ligação à IA pode esperar. Abre as definições de IA quando quiseres começar a conversar.",
         startChatting: "Começar a conversar",
         connectToolsLater: "Abrir canais",
         aiSettings: "Definições de IA",

@@ -28,6 +28,7 @@ export type SessionKeyInfo = {
 export type SessionDisplayRow = {
   label?: string | null;
   displayName?: string | null;
+  derivedTitle?: string | null;
 };
 
 function capitalize(value: string): string {
@@ -63,6 +64,9 @@ export function parseSessionKey(key: string, options: AgentDisplayOptions = {}):
       prefix: "",
       fallbackName: `${agentLabel} / ${t("alisio.shell.sessions.main")}`,
     };
+  }
+  if ((parsed?.rest ?? "").startsWith("dashboard:")) {
+    return { prefix: "", fallbackName: t("chat.newConversation") };
   }
   if (normalized.includes(":subagent:") || (parsed?.rest ?? "").startsWith("subagent:")) {
     return {
@@ -116,6 +120,7 @@ export function resolveSessionDisplayName(
 ): string {
   const label = row?.label?.trim() || "";
   const displayName = row?.displayName?.trim() || "";
+  const derivedTitle = row?.derivedTitle?.trim() || "";
   const { prefix, fallbackName } = parseSessionKey(key, options);
 
   const applyTypedPrefix = (value: string): string => {
@@ -131,6 +136,9 @@ export function resolveSessionDisplayName(
   }
   if (displayName && displayName !== key) {
     return applyTypedPrefix(displayName);
+  }
+  if (derivedTitle && derivedTitle !== key) {
+    return applyTypedPrefix(derivedTitle);
   }
   return fallbackName;
 }

@@ -138,6 +138,9 @@ export type AppViewState = {
   setupWizardDraftMultiIndexes: number[];
   setupStep: import("./types.ts").AlisioBootstrapStep | null;
   sessionKey: string;
+  chatSessionRenameKey: string | null;
+  chatSessionRenameDraft: string;
+  chatSessionRenamePending: boolean;
   chatLoading: boolean;
   chatSending: boolean;
   chatMessage: string;
@@ -161,6 +164,8 @@ export type AppViewState = {
   modelManagementCatalog: ModelCatalogEntry[];
   modelsExpandedProfileId?: string | null;
   modelsSelectedProviderId?: ModelProviderId | null;
+  modelsAiProfileSort?: import("./models-view-types.ts").ModelsAiProfileSort;
+  modelsAiProfileRecentIds?: string[];
   alisioModelOperations: ModelsOperationMap;
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;

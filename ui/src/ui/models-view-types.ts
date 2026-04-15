@@ -1,4 +1,7 @@
 export type ModelProviderId = "openai" | "local";
+export type ModelsAiProfileSort = "email-asc" | "recent" | "weekly-reset-asc" | "weekly-reset-desc";
+
+export const DEFAULT_MODELS_AI_PROFILE_SORT: ModelsAiProfileSort = "email-asc";
 
 export type ModelsOperationAction = "install" | "uninstall";
 export type ModelsOperationIntent = "install" | "update" | "uninstall";

@@ -193,6 +193,17 @@ function renderRevokeAction(computer: RemoteComputerRecord, props: NodesProps) {
   `;
 }
 
+function renderRemoteComputerActions(computer: RemoteComputerRecord, props: NodesProps) {
+  const requestAction = renderRequestAction(computer, props);
+  const revokeAction = renderRevokeAction(computer, props);
+  if (requestAction === nothing && revokeAction === nothing) {
+    return nothing;
+  }
+  return html`
+    <div class="row alisio-connections-action-row">${requestAction} ${revokeAction}</div>
+  `;
+}
+
 function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
   const tasks = props.remoteComputerTasks?.[computer.id] ?? [];
   if (computer.phase !== "ready" || !computer.nodeId) {
@@ -274,22 +285,38 @@ function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
   `;
 }
 
+function resolveRemoteComputerSummary(computer: RemoteComputerRecord) {
+  return [
+    `${t("alisio.connections.sharing.models")}: ${resolveAccessLabel(computer.modelAccess)}`,
+    `${t("alisio.connections.sharing.exec")}: ${resolveAccessLabel(computer.execAccess)}`,
+    computer.trusted ? t("alisio.connections.remote.trusted") : null,
+    computer.pairingPending ? t("alisio.connections.remote.pairingPending") : null,
+  ].filter((value): value is string => Boolean(value));
+}
+
+export function renderRemoteComputerDetails(
+  computer: RemoteComputerRecord,
+  props: NodesProps,
+  opts?: { showActions?: boolean },
+) {
+  const summaryParts = resolveRemoteComputerSummary(computer);
+  const showActions = opts?.showActions !== false;
+  return html`
+    ${summaryParts.length > 0
+      ? html`<div class="alisio-remote-computers__summary">${summaryParts.join(" · ")}</div>`
+      : nothing}
+    ${renderRunner(computer, props)}
+    ${showActions ? renderRemoteComputerActions(computer, props) : nothing}
+  `;
+}
+
 export function renderRemoteComputerCard(
   computer: RemoteComputerRecord,
   props: NodesProps,
   opts?: { compact?: boolean },
 ) {
   const badge = resolveComputerPhaseBadge(computer);
-  const summaryParts = [
-    `${t("alisio.connections.sharing.models")}: ${resolveAccessLabel(computer.modelAccess)}`,
-    `${t("alisio.connections.sharing.exec")}: ${resolveAccessLabel(computer.execAccess)}`,
-    computer.trusted ? t("alisio.connections.remote.trusted") : null,
-    computer.pairingPending ? t("alisio.connections.remote.pairingPending") : null,
-  ].filter((value): value is string => Boolean(value));
   const compact = opts?.compact === true;
-  const showActions =
-    (props.onSharingRequest && computer.execAccess === "requestable") ||
-    (props.onSharingRevoke && computer.grantId && computer.execAccess === "shared");
 
   if (compact) {
     return html`
@@ -333,17 +360,7 @@ export function renderRemoteComputerCard(
           </div>
         </summary>
         <div class="alisio-connections-entry__details">
-          ${summaryParts.length > 0
-            ? html`<div class="alisio-remote-computers__summary">${summaryParts.join(" · ")}</div>`
-            : nothing}
-          ${renderRunner(computer, props)}
-          ${showActions
-            ? html`
-                <div class="row alisio-connections-action-row">
-                  ${renderRequestAction(computer, props)} ${renderRevokeAction(computer, props)}
-                </div>
-              `
-            : nothing}
+          ${renderRemoteComputerDetails(computer, props)}
         </div>
       </details>
     `;
@@ -378,15 +395,10 @@ export function renderRemoteComputerCard(
             <span class=${badge.className}>${badge.label}</span>
           </div>
         </div>
-        ${summaryParts.length > 0
-          ? html`<div class="alisio-remote-computers__summary">${summaryParts.join(" · ")}</div>`
-          : nothing}
-        ${renderRunner(computer, props)}
+        ${renderRemoteComputerDetails(computer, props, { showActions: false })}
       </div>
       <div class="list-meta alisio-connections-entry__actions">
-        <div class="row alisio-connections-action-row">
-          ${renderRequestAction(computer, props)} ${renderRevokeAction(computer, props)}
-        </div>
+        ${renderRemoteComputerActions(computer, props)}
       </div>
     </article>
   `;
@@ -397,6 +409,7 @@ export function renderRemoteComputers(props: NodesProps) {
     sharing: props.sharing ?? null,
     nodes: props.nodes as NodeListNode[],
     devicesList: props.devicesList,
+    nodePairingsList: props.nodePairingsList,
   });
   const initialLoading =
     !props.sharing && !props.sharingError && props.sharingLoading && props.nodes.length === 0;

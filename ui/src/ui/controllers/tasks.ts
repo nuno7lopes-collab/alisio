@@ -1,5 +1,12 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
+  CanonicalTaskSummary,
+  Task,
+  TaskApproval,
+  TaskAssignment,
+  TaskDependency,
+  TaskEvent,
+  TaskExecution,
   TaskNotifyPolicy,
   TaskProposalDecision,
   TaskProposalDraft,
@@ -80,6 +87,162 @@ function normalizeTaskRecord(entry: unknown): TaskRecord | null {
   return record as TaskRecord;
 }
 
+function normalizeCanonicalTask(entry: unknown): Task | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const task = entry as Partial<Task>;
+  if (
+    typeof task.taskId !== "string" ||
+    typeof task.rootTaskId !== "string" ||
+    typeof task.title !== "string"
+  ) {
+    return null;
+  }
+  if (task.kind !== "task" && task.kind !== "project") {
+    return null;
+  }
+  if (
+    task.status !== "draft" &&
+    task.status !== "pending_approval" &&
+    task.status !== "ready" &&
+    task.status !== "in_progress" &&
+    task.status !== "blocked" &&
+    task.status !== "awaiting_review" &&
+    task.status !== "completed" &&
+    task.status !== "cancelled" &&
+    task.status !== "failed"
+  ) {
+    return null;
+  }
+  return {
+    ...(task as Task),
+    acceptance: Array.isArray(task.acceptance)
+      ? task.acceptance.filter((value): value is string => typeof value === "string")
+      : [],
+  };
+}
+
+function normalizeTaskExecution(entry: unknown): TaskExecution | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const execution = entry as Partial<TaskExecution>;
+  if (
+    typeof execution.executionId !== "string" ||
+    typeof execution.taskId !== "string" ||
+    typeof execution.attempt !== "number"
+  ) {
+    return null;
+  }
+  if (
+    execution.kind !== "subagent" &&
+    execution.kind !== "acp" &&
+    execution.kind !== "cron" &&
+    execution.kind !== "cli" &&
+    execution.kind !== "orchestrator_session"
+  ) {
+    return null;
+  }
+  if (
+    execution.status !== "queued" &&
+    execution.status !== "running" &&
+    execution.status !== "succeeded" &&
+    execution.status !== "failed" &&
+    execution.status !== "timed_out" &&
+    execution.status !== "cancelled" &&
+    execution.status !== "lost"
+  ) {
+    return null;
+  }
+  return execution as TaskExecution;
+}
+
+function normalizeTaskAssignment(entry: unknown): TaskAssignment | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const assignment = entry as Partial<TaskAssignment>;
+  if (
+    typeof assignment.assignmentId !== "string" ||
+    typeof assignment.taskId !== "string" ||
+    typeof assignment.agentId !== "string"
+  ) {
+    return null;
+  }
+  if (
+    assignment.status !== "active" &&
+    assignment.status !== "released" &&
+    assignment.status !== "expired"
+  ) {
+    return null;
+  }
+  return assignment as TaskAssignment;
+}
+
+function normalizeTaskApproval(entry: unknown): TaskApproval | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const approval = entry as Partial<TaskApproval>;
+  if (typeof approval.approvalId !== "string" || typeof approval.taskId !== "string") {
+    return null;
+  }
+  if (
+    approval.status !== "pending" &&
+    approval.status !== "approved" &&
+    approval.status !== "rejected" &&
+    approval.status !== "cancelled"
+  ) {
+    return null;
+  }
+  return approval as TaskApproval;
+}
+
+function normalizeTaskEvent(entry: unknown): TaskEvent | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const event = entry as Partial<TaskEvent>;
+  if (typeof event.eventId !== "string" || typeof event.taskId !== "string") {
+    return null;
+  }
+  return event as TaskEvent;
+}
+
+function normalizeTaskDependency(entry: unknown): TaskDependency | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const dependency = entry as Partial<TaskDependency>;
+  if (
+    typeof dependency.dependencyId !== "string" ||
+    typeof dependency.taskId !== "string" ||
+    typeof dependency.dependsOnTaskId !== "string" ||
+    dependency.kind !== "blocks"
+  ) {
+    return null;
+  }
+  return dependency as TaskDependency;
+}
+
+function normalizeCanonicalTaskSummary(raw: unknown): CanonicalTaskSummary {
+  const summary = raw as Partial<CanonicalTaskSummary> | null | undefined;
+  return {
+    total: typeof summary?.total === "number" ? summary.total : 0,
+    roots: typeof summary?.roots === "number" ? summary.roots : 0,
+    draft: typeof summary?.draft === "number" ? summary.draft : 0,
+    pendingApproval: typeof summary?.pendingApproval === "number" ? summary.pendingApproval : 0,
+    ready: typeof summary?.ready === "number" ? summary.ready : 0,
+    inProgress: typeof summary?.inProgress === "number" ? summary.inProgress : 0,
+    blocked: typeof summary?.blocked === "number" ? summary.blocked : 0,
+    awaitingReview: typeof summary?.awaitingReview === "number" ? summary.awaitingReview : 0,
+    completed: typeof summary?.completed === "number" ? summary.completed : 0,
+    cancelled: typeof summary?.cancelled === "number" ? summary.cancelled : 0,
+    failed: typeof summary?.failed === "number" ? summary.failed : 0,
+  };
+}
+
 function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -94,11 +257,44 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
   const proposals = (Array.isArray(value.proposals) ? value.proposals : [])
     .map(normalizeTaskProposalRecord)
     .filter((entry): entry is TaskProposalRecord => Boolean(entry));
+  const canonicalTasks = (Array.isArray(value.canonicalTasks) ? value.canonicalTasks : [])
+    .map(normalizeCanonicalTask)
+    .filter((entry): entry is Task => Boolean(entry));
+  const canonicalExecutions = (
+    Array.isArray(value.canonicalExecutions) ? value.canonicalExecutions : []
+  )
+    .map(normalizeTaskExecution)
+    .filter((entry): entry is TaskExecution => Boolean(entry));
+  const canonicalAssignments = (
+    Array.isArray(value.canonicalAssignments) ? value.canonicalAssignments : []
+  )
+    .map(normalizeTaskAssignment)
+    .filter((entry): entry is TaskAssignment => Boolean(entry));
+  const canonicalApprovals = (
+    Array.isArray(value.canonicalApprovals) ? value.canonicalApprovals : []
+  )
+    .map(normalizeTaskApproval)
+    .filter((entry): entry is TaskApproval => Boolean(entry));
+  const canonicalEvents = (Array.isArray(value.canonicalEvents) ? value.canonicalEvents : [])
+    .map(normalizeTaskEvent)
+    .filter((entry): entry is TaskEvent => Boolean(entry));
+  const canonicalDependencies = (
+    Array.isArray(value.canonicalDependencies) ? value.canonicalDependencies : []
+  )
+    .map(normalizeTaskDependency)
+    .filter((entry): entry is TaskDependency => Boolean(entry));
   return {
     ...(value as TasksOverviewResult),
+    canonicalSummary: normalizeCanonicalTaskSummary(value.canonicalSummary),
     proposalSummary: normalizeTaskProposalSummary(value.proposalSummary),
     proposals,
     tasks,
+    canonicalTasks,
+    canonicalExecutions,
+    canonicalAssignments,
+    canonicalApprovals,
+    canonicalEvents,
+    canonicalDependencies,
   };
 }
 
@@ -143,18 +339,19 @@ function normalizeTaskProposalRecord(entry: unknown): TaskProposalRecord | null 
   ) {
     return null;
   }
-  const linkedTask = normalizeTaskRecord(record.linkedTask);
   return {
     ...(record as TaskProposalRecord),
     acceptance: Array.isArray(record.acceptance)
       ? record.acceptance.filter((value): value is string => typeof value === "string")
       : [],
-    ...(linkedTask ? { linkedTask } : {}),
   };
 }
 
 function syncSelectedTask(state: TasksState) {
-  const tasks = state.tasksOverview?.tasks ?? [];
+  const tasks =
+    (state.tasksOverview?.canonicalTasks?.length ?? 0) > 0
+      ? (state.tasksOverview?.canonicalTasks ?? [])
+      : (state.tasksOverview?.tasks ?? []);
   if (tasks.length === 0) {
     state.tasksSelectedId = null;
     return;
@@ -237,26 +434,6 @@ export async function updateTaskNotifyPolicy(
   } finally {
     state.tasksBusy = false;
   }
-}
-
-function buildFallbackLaunchPrompt(proposal: TaskProposalDraft | TaskProposalRecord): string {
-  const lines = [`Please complete this approved ${proposal.kind}: ${proposal.title}`];
-  if (proposal.summary?.trim()) {
-    lines.push("", `Summary: ${proposal.summary.trim()}`);
-  }
-  if (proposal.rationale?.trim()) {
-    lines.push("", `Why it matters: ${proposal.rationale.trim()}`);
-  }
-  if (proposal.acceptance.length > 0) {
-    lines.push("", "Acceptance criteria:");
-    for (const item of proposal.acceptance) {
-      const normalized = item.trim();
-      if (normalized) {
-        lines.push(`- ${normalized}`);
-      }
-    }
-  }
-  return lines.join("\n");
 }
 
 async function upsertRemoteTaskProposal(
@@ -380,58 +557,29 @@ export async function launchTaskProposal(
   state.tasksBusy = true;
   state.tasksError = null;
   try {
-    let existing: TaskProposalRecord | null;
-    if ("proposalId" in proposal) {
-      existing = proposal;
-    } else {
-      existing = findTaskProposalByClientKey(
-        state,
-        proposal.requesterSessionKey,
-        proposal.clientKey,
-      );
-      if (!existing) {
-        existing = await upsertRemoteTaskProposal(state, proposal);
-      }
-      if (existing.decision === "pending") {
-        existing = await resolveRemoteTaskProposalDecision(state, existing.proposalId, "approved");
-      }
-    }
-
+    const existing =
+      "proposalId" in proposal
+        ? proposal
+        : (findTaskProposalByClientKey(state, proposal.requesterSessionKey, proposal.clientKey) ??
+          (await upsertRemoteTaskProposal(state, proposal)));
     if (!existing) {
       throw new Error("Task proposal could not be prepared for launch.");
     }
-    if (existing.decision !== "approved") {
-      throw new Error("Task proposal must be approved before launch.");
-    }
-    if (existing.launchedRunId?.trim()) {
-      throw new Error("Task proposal is already linked to a launched run.");
-    }
-
-    const prompt = existing.launchPrompt?.trim() || buildFallbackLaunchPrompt(existing);
-    const createResult = await state.client.request<{ key?: string; runId?: string | null }>(
-      "sessions.create",
-      {
-        agentId: existing.agentId ?? state.assistantAgentId ?? undefined,
-        label: existing.title,
-        parentSessionKey: existing.requesterSessionKey,
-        task: prompt,
-      },
-    );
-    const sessionKey = typeof createResult?.key === "string" ? createResult.key.trim() : "";
-    const runId = typeof createResult?.runId === "string" ? createResult.runId.trim() : "";
+    const launchResult = await state.client.request<{
+      proposal?: TaskProposalRecord;
+      sessionKey?: string;
+      runId?: string;
+    }>("tasks.launchFromProposal", {
+      proposalId: existing.proposalId,
+      agentId: existing.agentId ?? state.assistantAgentId ?? undefined,
+    });
+    const sessionKey =
+      typeof launchResult?.sessionKey === "string" ? launchResult.sessionKey.trim() : "";
+    const runId = typeof launchResult?.runId === "string" ? launchResult.runId.trim() : "";
     if (!sessionKey || !runId) {
       throw new Error("Task proposal launch did not start an agent run.");
     }
-
-    const attachResult = await state.client.request<{ proposal: TaskProposalRecord }>(
-      "tasks.proposal.attachLaunch",
-      {
-        proposalId: existing.proposalId,
-        runId,
-        sessionKey,
-      },
-    );
-    const attached = normalizeTaskProposalRecord(attachResult?.proposal);
+    const attached = normalizeTaskProposalRecord(launchResult?.proposal);
     if (!attached) {
       throw new Error("Invalid task proposal launch response.");
     }

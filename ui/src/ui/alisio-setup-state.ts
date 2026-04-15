@@ -6,30 +6,19 @@ type StartupBootstrapLike = Pick<
   "connectionRequired" | "startupState" | "nextStep"
 >;
 
-function normalizeSetupStep(value: string | null | undefined): AlisioBootstrapStep | null {
-  switch ((value ?? "").trim()) {
-    case "gateway":
-    case "runtime":
-    case "account":
-    case "organization":
-    case "connectors":
-    case "permissions":
-    case "ready":
-      return value as AlisioBootstrapStep;
-    default:
-      return null;
-  }
-}
-
-export function isPostReadySetupStep(step: AlisioBootstrapStep | null | undefined): boolean {
-  return step === "organization" || step === "connectors" || step === "permissions";
+export function isPostReadySetupStep(_step: AlisioBootstrapStep | null | undefined): boolean {
+  return false;
 }
 
 export function alisioBootstrapBlocksChatAccess(bootstrap: BootstrapLike | null | undefined) {
   if (!bootstrap) {
     return false;
   }
-  return Boolean(bootstrap.connectionRequired || bootstrap.startupState !== "ready");
+  return Boolean(
+    bootstrap.connectionRequired ||
+    bootstrap.startupState === "signed_out" ||
+    bootstrap.startupState === "needs_profile",
+  );
 }
 
 export function resolveCurrentStartupState(params: {
@@ -43,11 +32,8 @@ export function resolveBlockingSetupStep(params: {
   connected: boolean;
   bootstrap: BootstrapLike | null | undefined;
 }): AlisioBootstrapStep {
-  if (!params.connected) {
-    return "gateway";
-  }
-  if (!params.bootstrap) {
-    return "gateway";
+  if (!params.connected || !params.bootstrap) {
+    return "account";
   }
   if (
     params.bootstrap.connectionRequired ||
@@ -56,11 +42,7 @@ export function resolveBlockingSetupStep(params: {
   ) {
     return "account";
   }
-  if (params.bootstrap.startupState === "needs_ai") {
-    return "runtime";
-  }
-  const nextStep = normalizeSetupStep(params.bootstrap.nextStep);
-  return nextStep && nextStep !== "ready" ? nextStep : "runtime";
+  return "ready";
 }
 
 export function resolveDisplayedSetupStep(params: {
@@ -73,27 +55,11 @@ export function resolveDisplayedSetupStep(params: {
     bootstrap: params.bootstrap,
     startupBootstrap: params.startupBootstrap,
   });
-  if (startupState === "signed_out" || startupState === "needs_profile") {
+  if (!params.connected) {
     return "account";
   }
-  if (startupState === "needs_ai") {
-    return params.connected ? "runtime" : "gateway";
-  }
-  if (!params.connected) {
-    return "gateway";
-  }
-  const requestedStep = normalizeSetupStep(params.requestedStep);
-  const bootstrapStep = normalizeSetupStep(
-    params.bootstrap?.nextStep ?? params.startupBootstrap?.nextStep,
-  );
-  if (startupState === "ready") {
-    return requestedStep && isPostReadySetupStep(requestedStep) ? requestedStep : "ready";
-  }
-  if (requestedStep && requestedStep !== "ready") {
-    return requestedStep;
-  }
-  if (bootstrapStep && bootstrapStep !== "ready") {
-    return bootstrapStep;
+  if (startupState === "signed_out" || startupState === "needs_profile") {
+    return "account";
   }
   return "ready";
 }

@@ -251,14 +251,14 @@ describe("authentications view", () => {
               active: true,
             },
             {
-              id: "connector:google-sheets",
-              title: "Google Sheets",
-              subtitle: "Spreadsheet automation, reporting, and data sync workflows.",
-              status: "ready",
+              id: "connector:notion",
+              title: "Notion",
+              subtitle: "Workspace pages and database flows still rolling out.",
+              status: "coming_soon",
               authSource: "connector",
-              connectorId: "google-sheets",
-              connectLabel: "Connect with Google",
-              chips: ["Google"],
+              connectorId: "notion",
+              connectLabel: "Connect with Notion",
+              chips: ["Notion"],
               usageWindows: [],
               current: false,
               active: false,
@@ -277,14 +277,14 @@ describe("authentications view", () => {
             scopes: ["https://www.googleapis.com/auth/documents"],
           },
           {
-            id: "google-sheets",
-            title: "Google Sheets",
-            providerLabel: "Google",
-            category: "google",
-            connectLabel: "Connect with Google",
-            summary: "Spreadsheet automation, reporting, and data sync workflows.",
+            id: "notion",
+            title: "Notion",
+            providerLabel: "Notion",
+            category: "development",
+            connectLabel: "Connect with Notion",
+            summary: "Workspace pages and database flows still rolling out.",
             availability: "ready",
-            scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+            scopes: ["contents"],
           },
         ],
         connectorAuthorizations: [
@@ -307,9 +307,11 @@ describe("authentications view", () => {
     const availableSection = container.querySelector('[data-section="available"]');
     expect(connectedSection?.textContent).toContain("Already connected");
     expect(connectedSection?.textContent).toContain("Google Docs");
-    expect(connectedSection?.textContent).not.toContain("Google Sheets");
+    expect(connectedSection?.textContent).not.toContain("Notion");
+    expect(connectedSection?.querySelector(".alisio-auth-grid")).not.toBeNull();
+    expect(connectedSection?.querySelector(".alisio-auth-card--compact")).not.toBeNull();
     expect(availableSection?.textContent).toContain("Available apps");
-    expect(availableSection?.textContent).toContain("Google Sheets");
+    expect(availableSection?.textContent).toContain("Notion");
   });
 
   it("keeps new external app connections available on the free plan", () => {
@@ -418,7 +420,7 @@ describe("authentications view", () => {
     expect(onBeginConnector).toHaveBeenCalledWith("github");
   });
 
-  it("uses provider logos inside connect buttons and hides ready status pills", () => {
+  it("renders ready apps as compact cards with a minimal connect action", () => {
     const container = document.createElement("div");
 
     render(
@@ -485,9 +487,14 @@ describe("authentications view", () => {
       ".alisio-auth-card__connect-btn",
     );
 
+    expect(availableSection?.querySelector(".alisio-auth-grid")).not.toBeNull();
+    expect(availableSection?.querySelector(".alisio-auth-card--compact")).not.toBeNull();
+    expect(availableSection?.querySelector(".chip")).toBeNull();
     expect(availableSection?.querySelector(".pill--ready")).toBeNull();
     expect(connectButton?.textContent).toContain("Connect with Google");
-    expect(connectButton?.querySelector('img[src="brand-icons/google.svg"]')).not.toBeNull();
+    expect(connectButton?.classList.contains("alisio-auth-card__connect-btn--compact")).toBe(true);
+    expect(connectButton?.getAttribute("aria-label")).toBe("Connect with Google");
+    expect(connectButton?.textContent).toContain("+");
   });
 
   it("keeps coming soon badges visible when an app is not ready yet", () => {
@@ -557,7 +564,7 @@ describe("authentications view", () => {
     expect(availableSection?.querySelector(".alisio-auth-card__connect-btn")).toBeNull();
   });
 
-  it("keeps revoke available for already linked apps that are still rolling out", () => {
+  it("keeps revoke available for already linked apps that are still coming soon", () => {
     const container = document.createElement("div");
     const onRevokeConnector = vi.fn();
 
@@ -585,14 +592,14 @@ describe("authentications view", () => {
           runtimes: [],
           apps: [
             {
-              id: "connector:google-calendar",
-              title: "Google Calendar",
-              subtitle: "Calendar access.",
+              id: "connector:notion",
+              title: "Notion",
+              subtitle: "Workspace pages and database flows still rolling out.",
               status: "coming_soon",
               authSource: "connector",
-              connectorId: "google-calendar",
-              connectLabel: "Connect with Google",
-              chips: ["Google"],
+              connectorId: "notion",
+              connectLabel: "Connect with Notion",
+              chips: ["Notion"],
               usageWindows: [],
               current: false,
               active: false,
@@ -601,22 +608,22 @@ describe("authentications view", () => {
         },
         connectorCatalog: [
           {
-            id: "google-calendar",
-            title: "Google Calendar",
-            providerLabel: "Google",
-            category: "google",
-            connectLabel: "Connect with Google",
-            summary: "Calendar access.",
+            id: "notion",
+            title: "Notion",
+            providerLabel: "Notion",
+            category: "development",
+            connectLabel: "Connect with Notion",
+            summary: "Workspace pages and database flows still rolling out.",
             availability: "ready",
-            scopes: ["openid", "email"],
+            scopes: ["contents"],
           },
         ],
         connectorAuthorizations: [
           {
-            connectorId: "google-calendar",
+            connectorId: "notion",
             state: "connected",
             health: "healthy",
-            scopes: ["openid", "email"],
+            scopes: ["contents"],
             connectedAccount: {
               label: "Nuno",
               email: "nuno@example.com",
@@ -637,7 +644,50 @@ describe("authentications view", () => {
       (candidate) => candidate.textContent?.includes("Revoke"),
     );
     revokeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onRevokeConnector).toHaveBeenCalledWith("google-calendar");
+    expect(onRevokeConnector).toHaveBeenCalledWith("notion");
+  });
+
+  it("falls back to coming soon for catalog-ready connectors without runtime support", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: null,
+        connectorCatalog: [
+          {
+            id: "notion",
+            title: "Notion",
+            providerLabel: "Notion",
+            category: "development",
+            connectLabel: "Connect with Notion",
+            summary: "Repositories and pull requests.",
+            availability: "ready",
+            scopes: ["repo"],
+          },
+        ],
+        connectorAuthorizations: [
+          {
+            connectorId: "notion",
+            state: "not_connected",
+            health: "healthy",
+            scopes: ["repo"],
+          },
+        ],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+      }),
+      container,
+    );
+
+    const availableSection = container.querySelector('[data-section="available"]');
+    expect(availableSection?.textContent).toContain("Coming soon");
+    expect(availableSection?.textContent).toContain("Notion");
+    expect(availableSection?.querySelector(".alisio-auth-card__connect-btn")).toBeNull();
   });
 
   it("renders loading skeletons while the provider overview is still loading", () => {
@@ -660,5 +710,174 @@ describe("authentications view", () => {
     );
 
     expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(3);
+  });
+
+  it("prefers live connector status over stale overview app status", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 0,
+            ready: 0,
+            attention: 0,
+            total: 1,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [
+              {
+                id: "github",
+                title: "GitHub",
+                providerLabel: "GitHub",
+                category: "development",
+                connectLabel: "Connect with GitHub",
+                summary: "Repository workflows.",
+                availability: "ready",
+                scopes: ["repo"],
+              },
+            ],
+            authorizations: [],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:github",
+              title: "GitHub",
+              subtitle: "Repository workflows.",
+              status: "coming_soon",
+              authSource: "connector",
+              connectorId: "github",
+              connectLabel: "Connect with GitHub",
+              chips: ["GitHub"],
+              usageWindows: [],
+              current: false,
+              active: false,
+            },
+          ],
+        },
+        connectorCatalog: [
+          {
+            id: "github",
+            title: "GitHub",
+            providerLabel: "GitHub",
+            category: "development",
+            connectLabel: "Connect with GitHub",
+            summary: "Repository workflows.",
+            availability: "ready",
+            scopes: ["repo"],
+          },
+        ],
+        connectorAuthorizations: [],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+      }),
+      container,
+    );
+
+    const availableSection = container.querySelector('[data-section="available"]');
+    expect(availableSection?.textContent).toContain("GitHub");
+    expect(availableSection?.textContent).not.toContain("Coming soon");
+    expect(
+      Array.from(availableSection?.querySelectorAll("button") ?? []).some((candidate) =>
+        candidate.textContent?.includes("Connect with GitHub"),
+      ),
+    ).toBe(true);
+  });
+
+  it("renders from live connector data even while the overview is still loading", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: true,
+        error: null,
+        account: null,
+        overview: null,
+        connectorCatalog: [
+          {
+            id: "github",
+            title: "GitHub",
+            providerLabel: "GitHub",
+            category: "development",
+            connectLabel: "Connect with GitHub",
+            summary: "Repository workflows.",
+            availability: "ready",
+            scopes: ["repo"],
+          },
+        ],
+        connectorAuthorizations: [],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("GitHub");
+    expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(1);
+  });
+
+  it("shows missing-config connectors as unavailable without a connect action", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: null,
+        connectorCatalog: [
+          {
+            id: "github",
+            title: "GitHub",
+            providerLabel: "GitHub",
+            category: "development",
+            connectLabel: "Connect with GitHub",
+            summary: "Repository workflows.",
+            availability: "ready",
+            scopes: ["repo"],
+          },
+        ],
+        connectorAuthorizations: [
+          {
+            connectorId: "github",
+            state: "not_connected",
+            health: "config_missing",
+            scopes: ["repo"],
+          },
+        ],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+      }),
+      container,
+    );
+
+    const availableSection = container.querySelector('[data-section="available"]');
+    expect(availableSection?.textContent).toContain("GitHub");
+    expect(availableSection?.textContent).toContain("Unavailable");
+    expect(
+      Array.from(availableSection?.querySelectorAll("button") ?? []).some((candidate) =>
+        candidate.textContent?.includes("Connect with GitHub"),
+      ),
+    ).toBe(false);
+    expect(
+      Array.from(availableSection?.querySelectorAll("button") ?? []).some((candidate) =>
+        candidate.textContent?.includes("Configure"),
+      ),
+    ).toBe(false);
   });
 });

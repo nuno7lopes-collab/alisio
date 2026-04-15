@@ -2,11 +2,7 @@ import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
 import { docsUrl } from "../brand-compat.ts";
 import { i18n, isSupportedLocale } from "../i18n/index.ts";
 import { loadNativeShellState } from "./alisio-host.ts";
-import {
-  alisioBootstrapBlocksChatAccess,
-  isPostReadySetupStep,
-  resolveBlockingSetupStep,
-} from "./alisio-setup-state.ts";
+import { alisioBootstrapBlocksChatAccess, resolveBlockingSetupStep } from "./alisio-setup-state.ts";
 import { refreshChat } from "./app-chat.ts";
 import {
   startLogsPolling,
@@ -22,6 +18,7 @@ import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
   loadAlisioAccount,
+  loadAlisioConnectors,
   loadAlisioDoctorSummary,
   loadAlisioModels,
   loadAlisioOrganization,
@@ -145,18 +142,14 @@ function normalizeSetupStep(
 }
 
 function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootstrapStep | null {
-  const requestedStep = normalizeSetupStep(host.setupStep);
   if (!host.connected) {
-    return requestedStep === "ready" ? "gateway" : (requestedStep ?? "gateway");
+    return "account";
   }
   if (bootstrapBlocksChatAccess(host.alisioBootstrap)) {
     return resolveBlockingSetupStep({
       connected: host.connected,
       bootstrap: host.alisioBootstrap,
     });
-  }
-  if (requestedStep && isPostReadySetupStep(requestedStep)) {
-    return requestedStep;
   }
   return null;
 }
@@ -173,6 +166,12 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
   };
   host.settings = normalized;
   saveSettings(normalized);
+  if (
+    isSupportedLocale(normalized.locale) &&
+    (normalized.locale !== previous.locale || i18n.getLocale() !== normalized.locale)
+  ) {
+    void i18n.setLocale(normalized.locale);
+  }
   if (
     next.themeFamily !== host.themeFamily ||
     next.themeMode !== host.themeMode ||
@@ -365,7 +364,10 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     return;
   }
   if (host.tab === "authentications") {
-    await loadAlisioProviderOverview(host as unknown as AlisioApp);
+    await loadAlisioConnectors(host as unknown as AlisioApp);
+    // Warm the richer overview in the background, but do not block the Apps tab on it.
+    void loadAlisioProviderOverview(host as unknown as AlisioApp);
+    return;
   }
   if (host.tab === "channels") {
     await loadChannels(host as unknown as AlisioApp, false);
@@ -556,11 +558,6 @@ export async function syncAccountPreferences(host: SettingsHost) {
     return;
   }
 
-  const localeSync =
-    isSupportedLocale(nextLocale) && nextLocale !== host.settings.locale
-      ? i18n.setLocale(nextLocale)
-      : undefined;
-
   applySettings(host, {
     ...host.settings,
     locale: nextLocale,
@@ -568,8 +565,6 @@ export async function syncAccountPreferences(host: SettingsHost) {
     themeMode: nextThemeMode,
     themeAccents: nextThemeAccents,
   });
-
-  await localeSync;
 }
 
 export async function flushPendingPresentationPreferences(host: SettingsHost) {

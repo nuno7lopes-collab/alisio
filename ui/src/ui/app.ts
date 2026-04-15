@@ -96,8 +96,12 @@ import type {
 import type { SkillMessage } from "./controllers/skills.ts";
 import "./alisio-host.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { ModelProviderId } from "./models-view-types.ts";
-import type { ModelsOperationMap } from "./models-view-types.ts";
+import {
+  DEFAULT_MODELS_AI_PROFILE_SORT,
+  type ModelProviderId,
+  type ModelsAiProfileSort,
+  type ModelsOperationMap,
+} from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import { isPublicPresentationLocale } from "./presentation-preferences.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
@@ -242,6 +246,9 @@ export class AlisioApp extends LitElement {
   @state() setupStep: import("./types.ts").AlisioBootstrapStep | null = null;
 
   @state() sessionKey = this.settings.sessionKey;
+  @state() chatSessionRenameKey: string | null = null;
+  @state() chatSessionRenameDraft = "";
+  @state() chatSessionRenamePending = false;
   @state() chatLoading = false;
   @state() chatSending = false;
   @state() chatMessage = "";
@@ -277,6 +284,8 @@ export class AlisioApp extends LitElement {
   @state() navDrawerOpen = false;
   @state() modelsExpandedProfileId: string | null | undefined = undefined;
   @state() modelsSelectedProviderId: ModelProviderId | null | undefined = undefined;
+  @state() modelsAiProfileSort: ModelsAiProfileSort = DEFAULT_MODELS_AI_PROFILE_SORT;
+  @state() modelsAiProfileRecentIds: string[] = [];
   @state() alisioModelOperations: ModelsOperationMap = {};
 
   onSlashAction?: (action: string) => void;

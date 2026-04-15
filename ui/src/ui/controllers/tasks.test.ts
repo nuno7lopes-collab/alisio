@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
+  Task,
   TaskProposalDraft,
   TaskProposalRecord,
   TaskRecord,
@@ -23,6 +24,20 @@ function createTask(taskId: string, overrides: Partial<TaskRecord> = {}): TaskRe
     deliveryStatus: "pending",
     notifyPolicy: "done_only",
     createdAt: 1,
+    ...overrides,
+  };
+}
+
+function createCanonicalTask(taskId: string, overrides: Partial<Task> = {}): Task {
+  return {
+    taskId,
+    rootTaskId: taskId,
+    kind: "task",
+    title: "Implement canonical task workflow",
+    acceptance: [],
+    status: "draft",
+    createdAt: 1,
+    updatedAt: 1,
     ...overrides,
   };
 }
@@ -90,6 +105,19 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
         cron: 0,
       },
     },
+    canonicalSummary: {
+      total: 0,
+      roots: 0,
+      draft: 0,
+      pendingApproval: 0,
+      ready: 0,
+      inProgress: 0,
+      blocked: 0,
+      awaitingReview: 0,
+      completed: 0,
+      cancelled: 0,
+      failed: 0,
+    },
     proposalSummary: {
       total: 0,
       pending: 0,
@@ -118,6 +146,12 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
     },
     proposals: [],
     tasks: [],
+    canonicalTasks: [],
+    canonicalExecutions: [],
+    canonicalAssignments: [],
+    canonicalApprovals: [],
+    canonicalEvents: [],
+    canonicalDependencies: [],
     total: 0,
     limit: 50,
     offset: 0,
@@ -165,13 +199,24 @@ describe("tasks controller", () => {
         proposals: [
           createProposal("proposal-1", {
             acceptance: ["Tasks tab exists", "Chat cards launch work"],
-            linkedTask: createTask("linked-task", {
-              status: "queued",
-              deliveryStatus: "pending",
-            }),
+            launchedTaskId: "linked-task",
           }),
         ],
-        tasks: [createTask("task-1")],
+        canonicalSummary: {
+          total: 1,
+          roots: 1,
+          draft: 1,
+          pendingApproval: 0,
+          ready: 0,
+          inProgress: 0,
+          blocked: 0,
+          awaitingReview: 0,
+          completed: 0,
+          cancelled: 0,
+          failed: 0,
+        },
+        canonicalTasks: [createCanonicalTask("task-1")],
+        tasks: [createTask("legacy-task-1")],
         total: 1,
       }),
     );
@@ -192,7 +237,7 @@ describe("tasks controller", () => {
       "Tasks tab exists",
       "Chat cards launch work",
     ]);
-    expect(state.tasksOverview?.proposals[0]?.linkedTask?.taskId).toBe("linked-task");
+    expect(state.tasksOverview?.proposals[0]?.launchedTaskId).toBe("linked-task");
     expect(state.tasksSelectedId).toBe("task-1");
   });
 
@@ -204,6 +249,13 @@ describe("tasks controller", () => {
       findings: [],
       maintenance: createOverview().maintenance,
       tasks: [createTask("task-1")],
+      canonicalSummary: createOverview().canonicalSummary,
+      canonicalTasks: [],
+      canonicalExecutions: [],
+      canonicalAssignments: [],
+      canonicalApprovals: [],
+      canonicalEvents: [],
+      canonicalDependencies: [],
       total: 1,
       limit: 50,
       offset: 0,
@@ -226,6 +278,7 @@ describe("tasks controller", () => {
       rejected: 0,
       launched: 0,
     });
+    expect(state.tasksOverview?.canonicalTasks).toEqual([]);
   });
 
   it("upserts then resolves a missing proposal before refreshing the overview", async () => {
@@ -316,7 +369,7 @@ describe("tasks controller", () => {
       acceptance: draft.acceptance,
       launchPrompt: draft.launchPrompt,
     });
-    const approved = createProposal("proposal-1", {
+    createProposal("proposal-1", {
       kind: "project",
       title: draft.title,
       decision: "approved",
@@ -331,6 +384,7 @@ describe("tasks controller", () => {
       summary: draft.summary,
       acceptance: draft.acceptance,
       launchPrompt: draft.launchPrompt,
+      launchedTaskId: "canonical-task-1",
       launchedRunId: "run-task-1",
       launchedSessionKey: "agent:main:task:1",
       launchedAt: 10,
@@ -339,17 +393,12 @@ describe("tasks controller", () => {
       if (method === "tasks.proposal.upsert") {
         return { proposal: pending };
       }
-      if (method === "tasks.proposal.resolve") {
-        return { proposal: approved };
-      }
-      if (method === "sessions.create") {
+      if (method === "tasks.launchFromProposal") {
         return {
-          key: "agent:main:task:1",
+          proposal: launched,
+          sessionKey: "agent:main:task:1",
           runId: "run-task-1",
         };
-      }
-      if (method === "tasks.proposal.attachLaunch") {
-        return { proposal: launched };
       }
       if (method === "tasks.overview") {
         return createOverview({
@@ -376,16 +425,9 @@ describe("tasks controller", () => {
       sessionKey: "agent:main:task:1",
       runId: "run-task-1",
     });
-    expect(request).toHaveBeenNthCalledWith(3, "sessions.create", {
-      agentId: "assistant-main",
-      label: "Ship task inbox",
-      parentSessionKey: "main",
-      task: "Implement the task inbox and proposal launch flow.",
-    });
-    expect(request).toHaveBeenNthCalledWith(4, "tasks.proposal.attachLaunch", {
+    expect(request).toHaveBeenNthCalledWith(2, "tasks.launchFromProposal", {
       proposalId: "proposal-1",
-      runId: "run-task-1",
-      sessionKey: "agent:main:task:1",
+      agentId: "assistant-main",
     });
     expect(state.tasksOverview?.proposalSummary.launched).toBe(1);
     expect(state.tasksBusy).toBe(false);

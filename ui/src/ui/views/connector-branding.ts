@@ -5,6 +5,9 @@ type BrandDefinition = {
   accent: string;
   surface: string;
   border: string;
+  lightModeAccent?: string;
+  lightModeSurface?: string;
+  lightModeBorder?: string;
 };
 
 export type ConnectorBranding = {
@@ -32,12 +35,30 @@ function brandAssetUrl(asset: string): string {
 }
 
 function resolveBranding(definition: BrandDefinition): ConnectorBranding {
+  const lightMode = resolveBrandLightMode();
   return {
     logoUrl: brandAssetUrl(definition.asset),
-    accent: definition.accent,
-    surface: definition.surface,
-    border: definition.border,
+    accent: lightMode ? (definition.lightModeAccent ?? definition.accent) : definition.accent,
+    surface: lightMode ? (definition.lightModeSurface ?? definition.surface) : definition.surface,
+    border: lightMode ? (definition.lightModeBorder ?? definition.border) : definition.border,
   };
+}
+
+function resolveBrandLightMode(): boolean {
+  if (typeof document !== "undefined") {
+    const mode = document.documentElement.dataset.themeMode;
+    if (mode === "light") {
+      return true;
+    }
+    if (mode === "dark") {
+      return false;
+    }
+  }
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: light)").matches
+  );
 }
 
 const CONNECTOR_BRANDING: Record<string, BrandDefinition> = {
@@ -64,6 +85,9 @@ const CONNECTOR_BRANDING: Record<string, BrandDefinition> = {
     accent: "#E7E7E7",
     surface: "rgba(255, 255, 255, 0.08)",
     border: "rgba(255, 255, 255, 0.14)",
+    lightModeAccent: "#111111",
+    lightModeSurface: "rgba(17, 17, 17, 0.08)",
+    lightModeBorder: "rgba(17, 17, 17, 0.14)",
   }),
   tiktok: defineBrand({
     asset: "tiktok.png",
@@ -160,12 +184,18 @@ const CONNECTOR_BRANDING: Record<string, BrandDefinition> = {
     accent: "#E7E7E7",
     surface: "rgba(255, 255, 255, 0.08)",
     border: "rgba(255, 255, 255, 0.14)",
+    lightModeAccent: "#111111",
+    lightModeSurface: "rgba(17, 17, 17, 0.08)",
+    lightModeBorder: "rgba(17, 17, 17, 0.14)",
   }),
   github: defineBrand({
     asset: "github.png",
     accent: "#E7E7E7",
     surface: "rgba(255, 255, 255, 0.08)",
     border: "rgba(255, 255, 255, 0.14)",
+    lightModeAccent: "#111111",
+    lightModeSurface: "rgba(17, 17, 17, 0.08)",
+    lightModeBorder: "rgba(17, 17, 17, 0.14)",
   }),
   slack: defineBrand({
     asset: "slack.png",
@@ -184,6 +214,9 @@ const CONNECTOR_BRANDING: Record<string, BrandDefinition> = {
     accent: "#E7E7E7",
     surface: "rgba(255, 255, 255, 0.08)",
     border: "rgba(255, 255, 255, 0.14)",
+    lightModeAccent: "#111111",
+    lightModeSurface: "rgba(17, 17, 17, 0.08)",
+    lightModeBorder: "rgba(17, 17, 17, 0.14)",
   }),
 };
 

@@ -108,7 +108,7 @@ export function renderAppearanceControls(props: AppearanceControlsProps) {
                   >${active ? icons.check : ""}</span
                 >
               </button>
-              <label class="settings-theme-card__accent-row">
+              <div class="settings-theme-card__accent-row">
                 <span class="settings-theme-card__accent-label"
                   >${t("alisio.settings.appearance.accentLabel")}</span
                 >
@@ -137,7 +137,7 @@ export function renderAppearanceControls(props: AppearanceControlsProps) {
                   >
                   </span>
                 </span>
-              </label>
+              </div>
             </article>
           `;
         })}

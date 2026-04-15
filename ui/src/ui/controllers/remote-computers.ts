@@ -5,6 +5,7 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import type { AlisioSharingState } from "../types.ts";
 import { generateUUID } from "../uuid.ts";
 import type { DevicePairingList } from "./devices.ts";
+import type { RuntimeNodePairingList } from "./node-pairing.ts";
 
 type SharingTarget = AlisioSharingState["devices"]["owned"][number];
 type SharingAccess = SharingTarget["execAccess"];
@@ -87,6 +88,7 @@ type RemoteComputerCatalogState = {
   sharing: AlisioSharingState | null;
   nodes: NodeListNode[];
   devicesList: DevicePairingList | null;
+  nodePairingsList: RuntimeNodePairingList | null;
 };
 
 type TaskAcceptedPayload = {
@@ -134,9 +136,19 @@ function normalizeString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function supportsExec(node: Pick<NodeListNode, "commands" | "capabilities"> | null | undefined) {
+type ExecCapabilityRecord = {
+  commands?: string[];
+  caps?: string[];
+  capabilities?: Array<{ id?: string | null }>;
+};
+
+function supportsExec(node: ExecCapabilityRecord | null | undefined) {
   const commands = Array.isArray(node?.commands) ? node.commands : [];
   if (commands.includes("system.run")) {
+    return true;
+  }
+  const caps = Array.isArray(node?.caps) ? node.caps : [];
+  if (caps.some((capability) => capability.trim() === "exec.shell.v1")) {
     return true;
   }
   const capabilities = Array.isArray(node?.capabilities) ? node.capabilities : [];
@@ -325,15 +337,30 @@ export function resolveRemoteComputerRecords(
   const nodeById = new Map(
     state.nodes.map((node) => [node.nodeId.trim(), node] as const).filter(([nodeId]) => nodeId),
   );
+  const pairedNodeById = new Map(
+    (state.nodePairingsList?.paired ?? [])
+      .map((node) => [node.nodeId.trim(), node] as const)
+      .filter(([nodeId]) => nodeId),
+  );
   const pairedDevices = new Set(
     (state.devicesList?.paired ?? [])
       .map((entry) => entry.deviceId.trim())
       .filter((deviceId) => deviceId.length > 0),
   );
+  const pairedComputers = new Set(
+    (state.devicesList?.paired ?? [])
+      .map((entry) => normalizeString(entry.computerId) ?? normalizeString(entry.deviceId))
+      .filter((computerId): computerId is string => Boolean(computerId)),
+  );
   const pendingDevices = new Set(
     (state.devicesList?.pending ?? [])
       .map((entry) => entry.deviceId.trim())
       .filter((deviceId) => deviceId.length > 0),
+  );
+  const pendingComputers = new Set(
+    (state.devicesList?.pending ?? [])
+      .map((entry) => normalizeString(entry.computerId) ?? normalizeString(entry.deviceId))
+      .filter((computerId): computerId is string => Boolean(computerId)),
   );
   const viewerOwnerKey = state.sharing?.viewer.ownerKey ?? null;
   const grouped = new Map<string, RemoteComputerCandidate[]>();
@@ -344,8 +371,9 @@ export function resolveRemoteComputerRecords(
       continue;
     }
     const node = nodeById.get(targetId) ?? null;
-    const connected = node?.connected === true;
-    const execReady = supportsExec(node);
+    const pairedNode = pairedNodeById.get(targetId) ?? null;
+    const connected = node?.connected === true || target.connected;
+    const execReady = supportsExec(node) || supportsExec(pairedNode);
     const computerId = normalizeString(target.computerId) ?? targetId;
     const sameAccount = viewerOwnerKey !== null && target.ownerKey === viewerOwnerKey;
     const candidate = {
@@ -359,8 +387,8 @@ export function resolveRemoteComputerRecords(
       sameAccount,
       connected,
       supportsExec: execReady,
-      trusted: pairedDevices.has(targetId),
-      pairingPending: pendingDevices.has(targetId),
+      trusted: pairedDevices.has(targetId) || pairedComputers.has(computerId),
+      pairingPending: pendingDevices.has(targetId) || pendingComputers.has(computerId),
       deviceAccess: target.deviceAccess,
       modelAccess: target.modelAccess,
       execAccess: target.execAccess,
@@ -368,7 +396,7 @@ export function resolveRemoteComputerRecords(
       grantId: normalizeString(target.grantId),
       grantScopes: [...(target.grantScopes ?? [])],
       phase: resolveTargetPhase({ target, connected, supportsExec: execReady }),
-      nodeId: node ? node.nodeId : targetId,
+      nodeId: node?.nodeId ?? pairedNode?.nodeId ?? targetId,
       groupKey: sameAccount ? computerId : `${target.ownerKey}:${computerId}`,
     } satisfies RemoteComputerCandidate;
     const current = grouped.get(candidate.groupKey);

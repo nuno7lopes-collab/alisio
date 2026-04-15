@@ -90,11 +90,13 @@ function createChatHeaderState(
   };
   const request = vi.fn(async (method: string, params: Record<string, unknown>) => {
     if (method === "sessions.patch") {
-      const resolvedPatch = overrides.patchResolvedModel;
-      if (resolvedPatch) {
-        applySessionModel(resolvedPatch.model, resolvedPatch.modelProvider);
-      } else {
-        applySessionModel((params.model as string | null | undefined) ?? null);
+      if ("model" in params) {
+        const resolvedPatch = overrides.patchResolvedModel;
+        if (resolvedPatch) {
+          applySessionModel(resolvedPatch.model, resolvedPatch.modelProvider);
+        } else {
+          applySessionModel((params.model as string | null | undefined) ?? null);
+        }
       }
       return {
         ok: true,
@@ -133,6 +135,9 @@ function createChatHeaderState(
   });
   const state = {
     sessionKey: "main",
+    chatSessionRenameKey: null,
+    chatSessionRenameDraft: "",
+    chatSessionRenamePending: false,
     connected: true,
     sessionsHideCron: true,
     sessionsResult: createSessionsListResult({
@@ -2091,19 +2096,46 @@ describe("chat view", () => {
     expect(labels).toContain("Coding (beta) / main");
   });
 
-  it("renders the desktop chat toolbar with a session picker and compact tools menu", () => {
+  it("renders the desktop chat toolbar with a compact title, switcher, and tools menu", () => {
     const { state } = createChatHeaderState();
     const container = document.createElement("div");
     render(renderChatDesktopToolbar(state), container);
 
     expect(container.querySelector(".alisio-chat-toolbar")).not.toBeNull();
     expect(container.textContent).toContain("New chat");
-    expect(container.querySelector(".chat-controls__session")).not.toBeNull();
-    expect(
-      container.querySelector('.chat-select-chip--session select[data-chat-session-select="true"]'),
-    ).not.toBeNull();
+    expect(container.querySelector(".chat-session-header")).not.toBeNull();
+    expect(container.querySelector('[data-chat-session-title-button="true"]')).not.toBeNull();
+    expect(container.querySelector(".chat-session-switcher")).not.toBeNull();
     expect(container.querySelector('select[data-chat-model-select="true"]')).toBeNull();
     expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
+  });
+
+  it("shows the derived first-message title in the desktop chat toolbar", () => {
+    const { state } = createChatHeaderState({ omitSessionFromList: true });
+    state.sessionKey = "agent:main:dashboard:new-chat";
+    state.settings.sessionKey = state.sessionKey;
+    state.sessionsResult = {
+      ts: 0,
+      path: "",
+      count: 1,
+      defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+      sessions: [
+        {
+          key: state.sessionKey,
+          kind: "direct",
+          updatedAt: null,
+          derivedTitle: "Plano de marketing para maio",
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    const titleButton = container.querySelector<HTMLElement>(
+      '[data-chat-session-title-button="true"]',
+    );
+    expect(titleButton?.textContent).toContain("Plano de marketing para maio");
+    expect(titleButton?.textContent).not.toContain("dashboard:");
   });
 
   it("creates a real new chat from the desktop toolbar and switches the active conversation", async () => {
@@ -2168,6 +2200,98 @@ describe("chat view", () => {
     expect(state.settings.lastActiveSessionKey).toBe("agent:main:dashboard:new-chat");
     expect(state.resetToolStream).toHaveBeenCalled();
     expect(state.resetChatScroll).toHaveBeenCalled();
+  });
+
+  it("allows renaming the active chat from the desktop toolbar", async () => {
+    const { state, request } = createChatHeaderState({ omitSessionFromList: true });
+    state.sessionKey = "agent:main:dashboard:chat-1";
+    state.settings.sessionKey = state.sessionKey;
+    let currentLabel: string | null = null;
+    request.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "sessions.patch") {
+        currentLabel = (params?.label as string | null | undefined) ?? null;
+        return {
+          ok: true,
+          key: state.sessionKey,
+          entry: {
+            sessionId: "transcript-1",
+          },
+        };
+      }
+      if (method === "sessions.list") {
+        return {
+          ts: 0,
+          path: "",
+          count: 1,
+          defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+          sessions: [
+            {
+              key: state.sessionKey,
+              kind: "direct",
+              updatedAt: null,
+              derivedTitle: "Plano de marketing para maio",
+              ...(currentLabel ? { label: currentLabel } : {}),
+            },
+          ],
+        };
+      }
+      if (method === "chat.history") {
+        return { messages: [], thinkingLevel: null };
+      }
+      if (method === "models.list") {
+        return { models: state.chatModelCatalog };
+      }
+      if (method === "tools.effective") {
+        return {
+          agentId: "main",
+          profile: "coding",
+          groups: [],
+        };
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    state.sessionsResult = {
+      ts: 0,
+      path: "",
+      count: 1,
+      defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+      sessions: [
+        {
+          key: state.sessionKey,
+          kind: "direct",
+          updatedAt: null,
+          derivedTitle: "Plano de marketing para maio",
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    const titleButton = container.querySelector<HTMLElement>(
+      '[data-chat-session-title-button="true"]',
+    );
+    expect(titleButton).not.toBeNull();
+    titleButton?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    render(renderChatDesktopToolbar(state), container);
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-chat-session-rename-input="true"]',
+    );
+    expect(input).not.toBeNull();
+    input!.value = "Marketing maio";
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+    input!.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+    await flushTasks();
+    await flushTasks();
+    render(renderChatDesktopToolbar(state), container);
+
+    expect(request).toHaveBeenCalledWith("sessions.patch", {
+      key: "agent:main:dashboard:chat-1",
+      label: "Marketing maio",
+    });
+    expect(
+      container.querySelector<HTMLElement>('[data-chat-session-title-button="true"]')?.textContent,
+    ).toContain("Marketing maio");
   });
 
   it("renders compact model labels in the composer picker", () => {

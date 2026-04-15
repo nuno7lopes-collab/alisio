@@ -33,7 +33,7 @@ describe("i18n", () => {
 
   it("loads Alisio product copy in pt-PT and es", async () => {
     await translate.i18n.setLocale("pt-PT");
-    expect(translate.t("alisio.authentications.title")).toBe("Providers");
+    expect(translate.t("alisio.authentications.title")).toBe("Apps externas");
     expect(translate.t("alisio.organization.title")).toBe("Organização");
     expect(translate.t("alisio.settings.title")).toBe("Definições");
     expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Português (Portugal)");
@@ -74,6 +74,17 @@ describe("i18n", () => {
     expect(translate.t("common.health")).toBe("健康状况");
   });
 
+  it("notifies subscribers when the same locale is set again", async () => {
+    await translate.i18n.setLocale("pt-PT");
+    const subscriber = vi.fn();
+    const unsubscribe = translate.i18n.subscribe(subscriber);
+
+    await translate.i18n.setLocale("pt-PT");
+
+    expect(subscriber).toHaveBeenCalledWith("pt-PT");
+    unsubscribe();
+  });
+
   it("loads saved non-English locale on startup", async () => {
     vi.resetModules();
     vi.stubGlobal("localStorage", createStorageMock());
@@ -85,6 +96,38 @@ describe("i18n", () => {
     });
     expect(fresh.i18n.getLocale()).toBe("zh-CN");
     expect(fresh.t("common.health")).toBe("健康状况");
+  });
+
+  it("keeps the latest locale when startup loading races with a newer selection", async () => {
+    vi.resetModules();
+    vi.stubGlobal("localStorage", createStorageMock());
+    vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
+    localStorage.setItem("alisio.i18n.locale", "pt-PT");
+
+    vi.doMock("../lib/registry.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("../lib/registry.ts")>("../lib/registry.ts");
+      return {
+        ...actual,
+        loadLazyLocaleTranslation: async (locale: import("../lib/types.ts").Locale) => {
+          if (locale !== "pt-PT") {
+            return actual.loadLazyLocaleTranslation(locale);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          const module = await import("../locales/pt-PT.ts");
+          return module.pt_PT;
+        },
+      };
+    });
+
+    const fresh = await import("../lib/translate.ts");
+    await fresh.i18n.setLocale("en");
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(fresh.i18n.getLocale()).toBe("en");
+    expect(fresh.t("alisio.settings.title")).toBe("Settings");
+
+    vi.doUnmock("../lib/registry.ts");
   });
 
   it("skips node localStorage accessors that warn without a storage file", async () => {

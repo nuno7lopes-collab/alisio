@@ -5,7 +5,7 @@
 }
 
 .chat-tool-card {
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 12px;
   background: color-mix(in srgb, var(--card) 92%, var(--bg) 8%);
   overflow: hidden;
@@ -16,12 +16,12 @@
 }
 
 .chat-tool-card__details:not([open]) {
-  border-color: color-mix(in srgb, var(--border) 58%, transparent);
+  border-color: transparent;
   background: color-mix(in srgb, var(--card) 84%, var(--bg) 16%);
 }
 
 .chat-tool-card:hover {
-  border-color: color-mix(in srgb, var(--border-strong) 62%, transparent);
+  border-color: transparent;
   background: color-mix(in srgb, var(--bg-hover) 58%, transparent);
 }
 

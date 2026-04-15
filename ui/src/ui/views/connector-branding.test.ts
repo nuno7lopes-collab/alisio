@@ -8,6 +8,7 @@ import {
 describe("connector-branding", () => {
   afterEach(() => {
     delete window.__ALISIO_CONTROL_UI_BASE_PATH__;
+    delete document.documentElement.dataset.themeMode;
   });
 
   it("resolves local connector assets by default", () => {
@@ -36,5 +37,25 @@ describe("connector-branding", () => {
     expect(getConnectorActionBranding("instagram", "Meta").logoUrl).toBe(
       "brand-icons/instagram.png",
     );
+  });
+
+  it("darkens neutral brand accents when the UI is in light mode", () => {
+    document.documentElement.dataset.themeMode = "light";
+
+    expect(getConnectorBranding("github", "GitHub")).toMatchObject({
+      accent: "#111111",
+      surface: "rgba(17, 17, 17, 0.08)",
+      border: "rgba(17, 17, 17, 0.14)",
+    });
+  });
+
+  it("keeps neutral brand accents bright in dark mode", () => {
+    document.documentElement.dataset.themeMode = "dark";
+
+    expect(getConnectorBranding("github", "GitHub")).toMatchObject({
+      accent: "#E7E7E7",
+      surface: "rgba(255, 255, 255, 0.08)",
+      border: "rgba(255, 255, 255, 0.14)",
+    });
   });
 });

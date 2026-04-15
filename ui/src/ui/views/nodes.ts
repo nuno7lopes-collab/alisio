@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import { resolveConnectionsModel } from "../controllers/connections-model.ts";
 import { groupPairedDevicesByComputer, resolveComputerLabel } from "../controllers/devices.ts";
 import type {
   DevicePairingList,
@@ -104,10 +105,15 @@ export type NodesProps = {
 
 export function renderNodes(
   props: NodesProps,
-  opts?: { includeExecApprovals?: boolean; showDevices?: boolean },
+  opts?: {
+    includeExecApprovals?: boolean;
+    showDevices?: boolean;
+    collapseNodeInventoryByComputer?: boolean;
+  },
 ) {
   const includeExecApprovals = opts?.includeExecApprovals ?? true;
   const showDevices = opts?.showDevices ?? true;
+  const collapseNodeInventoryByComputer = opts?.collapseNodeInventoryByComputer ?? false;
   const bindingState = resolveBindingsState(props);
   const approvalsState = includeExecApprovals ? resolveExecApprovalsState(props) : null;
   return html`
@@ -115,10 +121,17 @@ export function renderNodes(
     ${showDevices
       ? html`
           <div class="alisio-connections-layout">
-            ${renderDevices(props)} ${renderRuntime(props, bindingState, { includeExecApprovals })}
+            ${renderDevices(props)}
+            ${renderRuntime(props, bindingState, {
+              includeExecApprovals,
+              collapseNodeInventoryByComputer,
+            })}
           </div>
         `
-      : renderRuntime(props, bindingState, { includeExecApprovals })}
+      : renderRuntime(props, bindingState, {
+          includeExecApprovals,
+          collapseNodeInventoryByComputer,
+        })}
   `;
 }
 
@@ -228,7 +241,7 @@ function renderDevices(props: NodesProps) {
 function renderRuntime(
   props: NodesProps,
   state: BindingState,
-  opts: { includeExecApprovals: boolean },
+  opts: { includeExecApprovals: boolean; collapseNodeInventoryByComputer: boolean },
 ) {
   const refreshing =
     props.nodesLoading ||
@@ -258,7 +271,10 @@ function renderRuntime(
         ? html`<div class="callout danger">${props.nodePairingsError}</div>`
         : nothing}
       <div class="alisio-connections-runtime-stack">
-        ${renderPendingNodeRequests(props)} ${renderBindings(state)} ${renderNodeList(props)}
+        ${renderPendingNodeRequests(props)} ${renderBindings(state)}
+        ${renderNodeList(props, {
+          collapseByComputer: opts.collapseNodeInventoryByComputer,
+        })}
       </div>
     </section>
   `;
@@ -459,7 +475,7 @@ function renderPairedComputerDetails(
 export function renderPairedComputer(
   computer: PairedComputer,
   props: NodesProps,
-  opts?: { compact?: boolean },
+  opts?: { compact?: boolean; runtimeContent?: unknown },
 ) {
   const meta = [computer.platform, computer.clientId, computer.clientMode].filter(
     (value): value is string => Boolean(value?.trim()),
@@ -496,6 +512,7 @@ export function renderPairedComputer(
         </summary>
         <div class="alisio-connections-entry__details">
           ${renderPairedComputerDetails(computer, props, { showMeta: false })}
+          ${opts?.runtimeContent ?? nothing}
         </div>
       </details>
     `;
@@ -519,7 +536,7 @@ export function renderPairedComputer(
             >
           </div>
         </div>
-        ${renderPairedComputerDetails(computer, props)}
+        ${renderPairedComputerDetails(computer, props)} ${opts?.runtimeContent ?? nothing}
       </div>
     </div>
   `;
@@ -793,23 +810,58 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
   `;
 }
 
-function renderNodeList(props: NodesProps) {
+function resolveVisibleRuntimeNodes(
+  props: NodesProps,
+  opts?: { collapseByComputer?: boolean },
+): Array<Record<string, unknown>> {
+  const allNodes = props.nodes;
+  if (opts?.collapseByComputer !== true) {
+    return allNodes;
+  }
+  const model = resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes as NodeListNode[],
+    nodePairingsList: props.nodePairingsList,
+  });
+  const coveredNodeIds = new Set(
+    [
+      ...(model.currentComputer?.runtimeNodes ?? []),
+      ...model.sameAccountComputers.flatMap((computer) => computer.runtimeNodes),
+      ...model.externalComputers.flatMap((computer) => computer.runtimeNodes),
+    ]
+      .map((node) => (typeof node.nodeId === "string" ? node.nodeId.trim() : ""))
+      .filter(Boolean),
+  );
+  return allNodes.filter((node) => {
+    const nodeId = typeof node.nodeId === "string" ? node.nodeId.trim() : "";
+    return !nodeId || !coveredNodeIds.has(nodeId);
+  });
+}
+
+function renderNodeList(props: NodesProps, opts?: { collapseByComputer?: boolean }) {
   const pairedRuntimeNodes = new Map(
     (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node]),
   );
+  const visibleNodes = resolveVisibleRuntimeNodes(props, opts);
   const showLoading = !props.nodesLoaded && !props.nodesError;
   const text = {
     nodesTitle: t("alisio.connections.nodes.title"),
     noNodes: t("alisio.connections.nodes.empty"),
     loading: t("alisio.connections.loading"),
   };
+  if (!showLoading && visibleNodes.length === 0 && opts?.collapseByComputer === true) {
+    return nothing;
+  }
   return html`
     <section class="alisio-connections-subpanel">
       <div class="alisio-connections-subpanel__head">
         <div>
           <div class="alisio-connections-subpanel__title">${text.nodesTitle}</div>
         </div>
-        ${showLoading ? renderSkeletonPill({ small: true }) : renderPanelCount(props.nodes.length)}
+        ${showLoading ? renderSkeletonPill({ small: true }) : renderPanelCount(visibleNodes.length)}
       </div>
       <div class="alisio-node-list">
         ${showLoading
@@ -819,9 +871,9 @@ function renderNodeList(props: NodesProps) {
                 ${renderSkeletonListItem({ lines: ["long", "medium", "short"] })}
               </div>
             `
-          : props.nodes.length === 0
+          : visibleNodes.length === 0
             ? html`<div class="alisio-connections-empty">${text.noNodes}</div>`
-            : props.nodes.map((node) => renderNode(node, pairedRuntimeNodes))}
+            : visibleNodes.map((node) => renderRuntimeNodeCard(node, pairedRuntimeNodes))}
       </div>
     </section>
   `;
@@ -899,7 +951,7 @@ function resolveNodeCommandCount(node: Record<string, unknown>) {
   return Array.isArray(node.commands) ? node.commands.length : 0;
 }
 
-function renderNode(
+export function renderRuntimeNodeCard(
   node: Record<string, unknown>,
   pairedRuntimeNodes: Map<string, RuntimeNodePairingList["paired"][number]>,
 ) {

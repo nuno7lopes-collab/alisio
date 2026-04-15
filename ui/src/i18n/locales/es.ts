@@ -86,9 +86,34 @@ export const es: TranslationMap = {
     chat: {
       defaultAssistantName: "Asistente",
       welcome: {
-        readyBadge: "Listo para chatear",
-        hint: "Escribe un mensaje abajo",
-        commandHint: "para comandos",
+        greetingNamed: "Hola, {name}.",
+        greetingGeneric: "Hola.",
+        titleConnected: "¿Qué quieres resolver?",
+        titleDisconnected: "Cuando quieras, empezamos.",
+        openApps: "Abrir apps",
+        quickActions: {
+          newTaskTitle: "Crear una tarea",
+          newTaskPrompt: "Ayúdame a crear una tarea recurrente.",
+          resumeTitle: "Retomar contexto",
+          resumePrompt: "Resume mis sesiones recientes y dime por dónde debería retomar.",
+          systemTitle: "Revisar sistema",
+          systemPrompt: "Comprueba el estado del sistema y dime qué necesita atención.",
+          openSetupTitle: "Abrir setup",
+        },
+        featuredApps: {
+          gmailReadPrompt: "Lee mis emails importantes y dime qué necesita respuesta.",
+          gmailReadConnectAction: "Conectar Gmail",
+          gmailReadConnectedAction: "Leer email",
+          gmailSendPrompt: "Ayúdame a redactar y enviar un email.",
+          gmailSendConnectAction: "Conectar envío",
+          gmailSendConnectedAction: "Escribir email",
+          googleCalendarPrompt: "Mira mi calendario y ayúdame a organizar el día.",
+          googleCalendarConnectAction: "Conectar agenda",
+          googleCalendarConnectedAction: "Ver agenda",
+          reconnect: "Reconectar",
+          configure: "Configurar",
+          openApps: "Ver apps",
+        },
       },
       suggestions: {
         whatCanYouDo: "¿Qué puedes hacer?",
@@ -273,6 +298,12 @@ export const es: TranslationMap = {
       graphLoading: "Cargando grafo canónico",
       graphUnavailable: "El grafo canónico no está disponible para esta selección.",
       graphEmpty: "Todavía no hay coincidencias en el grafo canónico.",
+      statusUnavailableVersion:
+        "Esta versión de Alisio todavía no expone el estado detallado de la memoria.",
+      syncUnavailableVersion:
+        "Esta versión de Alisio todavía no expone la sincronización manual de la memoria.",
+      graphUnavailableVersion:
+        "Esta versión de Alisio todavía no expone el grafo canónico de la memoria.",
       graphAliases: "Alias",
       graphTags: "Etiquetas",
       graphRelations: "Relaciones",
@@ -545,7 +576,8 @@ export const es: TranslationMap = {
       hints: {
         connected: "Conectada y lista para chats, tareas y automatizaciones.",
         ready: "Disponible ahora. Puedes conectar esta app cuando la necesites.",
-        inReview: "Visible en el producto, a la espera de aprobación del proveedor.",
+        inReview:
+          "Visible en el producto, pero todavía no está disponible del todo para uso en runtime.",
         unavailable: "Todavía no disponible en este entorno.",
         setupRequired:
           "La app OAuth del proveedor todavía no está configurada en este gateway de Alisio.",
@@ -984,6 +1016,13 @@ export const es: TranslationMap = {
         activate: "Activar",
         refresh: "Actualizar",
         refreshAll: "Actualizar todo",
+        sort: {
+          label: "Ordenar cuentas",
+          emailAsc: "A-Z",
+          recent: "Recientes",
+          weeklyResetAsc: "Semanal · antes",
+          weeklyResetDesc: "Semanal · después",
+        },
         rename: "Renombrar",
         renamePrompt: "Ponle un nombre a esta cuenta",
         remove: "Eliminar",
@@ -1053,6 +1092,7 @@ export const es: TranslationMap = {
         confirmInstall: "¿Instalar {model} en {target}?",
         confirmUpdate: "¿Actualizar {model} en {target}?",
         confirmUninstall: "¿Eliminar {model} de {target}?",
+        managementUnavailable: "Esta versión de Alisio todavía no expone la gestión de modelos.",
       },
       security: {
         title: "Seguridad",
@@ -1615,7 +1655,8 @@ export const es: TranslationMap = {
       hero: {
         eyebrow: "Bienvenido a Alisio",
         title: "Configura tu agente personal.",
-        subtitle: "Entra, verifica tu correo, conecta OpenAI y empieza la primera conversación.",
+        subtitle: "Entra con correo y contraseña o usa un magic link. Todo lo demás puede esperar.",
+        profileSubtitle: "Termina lo esencial de tu cuenta de Alisio.",
       },
       progress: {
         oneOfThree: "1 de 2",
@@ -1633,7 +1674,7 @@ export const es: TranslationMap = {
         title: "Entrar o crear cuenta",
         createTitle: "Entrar o crear cuenta",
         signInTitle: "Entrar o crear cuenta",
-        subtitle: "Continúa con Google o recibe un enlace seguro de acceso por correo.",
+        subtitle: "Usa correo y contraseña o recibe un magic link seguro por correo.",
         savedAccount:
           "Se encontró una cuenta guardada para {email}. Puedes volver a usar ese correo o cambiar a otro.",
         autoConnectHint:
@@ -1642,15 +1683,26 @@ export const es: TranslationMap = {
         signInTab: "Continuar",
         email: "Correo electrónico",
         emailPlaceholder: "nombre@ejemplo.com",
-        emailNote: "Enviaremos un enlace seguro de acceso a esta dirección.",
+        emailNote: "Usa el mismo correo para entrar con contraseña o por magic link.",
+        password: "Contraseña",
+        passwordPlaceholder: "Tu contraseña",
+        passwordNote: "Es opcional si prefieres usar magic link.",
+        passwordRequired: "Introduce tu contraseña para continuar.",
+        passwordMinLength: "Usa al menos 8 caracteres.",
         emailMethodTitle: "Magic link por correo",
         emailMethodNote:
           "Sin contraseña. Abre el enlace recibido en tu correo para terminar el acceso.",
+        signInAction: "Entrar",
+        signUpAction: "Crear cuenta",
+        magicLinkAction: "Enviar magic link",
+        recoveryAction: "Recuperar cuenta",
+        reconnect: "Reconectar app",
         googleAction: "Continuar con Google",
         googleNote: "Usa tu cuenta de Google para entrar más rápido.",
         or: "o",
         emailAction: "Enviarme un enlace de acceso",
         verifyTitle: "Revisa tu correo",
+        verifySubtitle: "Usa el enlace seguro de tu bandeja de entrada para terminar el acceso.",
         verifyLinkTitle: "El enlace del correo es el paso principal",
         verifyLinkNote: "Abre el mensaje enviado a {email} y usa el enlace seguro para entrar.",
         verifyLinkAuto:
@@ -1661,6 +1713,8 @@ export const es: TranslationMap = {
         codeFallbackSummary: "Tengo un código de 6 dígitos",
         useAnotherEmail: "Usar otro correo",
         waitForConnection: "Espera a que Alisio vuelva a conectarse y después continúa.",
+        genericReconnectError:
+          "Alisio todavía se está reconectando. Espera un momento y vuelve a intentarlo.",
         enterEmail: "Introduce tu correo para continuar.",
         validEmail: "Usa un correo válido como nombre@ejemplo.com.",
         cloudUnavailable:
@@ -1736,9 +1790,11 @@ export const es: TranslationMap = {
         openSettings: "Abrir ajustes de macOS",
       },
       ready: {
-        title: "Todo está listo",
+        title: "Cuenta lista",
         subtitle:
-          "Tu cuenta, perfil e IA están listos. El resto puede esperar hasta después del primer chat.",
+          "Tu cuenta ya está lista. Puedes conectar la IA y las apps externas más tarde en ajustes.",
+        aiOptionalNotice:
+          "La conexión con la IA puede esperar. Abre los ajustes de IA cuando quieras empezar a chatear.",
         startChatting: "Empezar a chatear",
         connectToolsLater: "Conectar herramientas más tarde",
         aiSettings: "Ajustes de IA",
@@ -1823,6 +1879,11 @@ export const es: TranslationMap = {
     menuToolCalls: "Llamadas a herramientas",
     menuFocus: "Modo de enfoque",
     menuCron: "Sesiones de cron",
+    newConversation: "Nuevo chat",
+    newConversationTitle: "Crear una nueva conversación de chat",
+    switchConversation: "Cambiar de chat",
+    renameConversationTitle: "Haz doble clic para cambiar el nombre de este chat",
+    renameConversationPlaceholder: "Nombre del chat",
     menuOn: "Activado",
     menuOff: "Desactivado",
     menuHidden: "Ocultas",

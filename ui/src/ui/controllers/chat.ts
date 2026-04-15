@@ -136,14 +136,186 @@ function resolveComparableStableId(message: unknown): string | null {
     return null;
   }
   const entry = message as Record<string, unknown>;
+  const transcriptMeta =
+    entry.__alisio && typeof entry.__alisio === "object" && !Array.isArray(entry.__alisio)
+      ? (entry.__alisio as Record<string, unknown>)
+      : null;
   const id =
-    (typeof entry.id === "string" && entry.id.trim()) ||
-    (typeof entry.messageId === "string" && entry.messageId.trim()) ||
     (typeof entry.toolCallId === "string" && entry.toolCallId.trim()) ||
     (typeof entry.tool_call_id === "string" && entry.tool_call_id.trim()) ||
     (typeof entry.idempotencyKey === "string" && entry.idempotencyKey.trim()) ||
+    (typeof entry.id === "string" && entry.id.trim()) ||
+    (typeof entry.messageId === "string" && entry.messageId.trim()) ||
+    (typeof transcriptMeta?.id === "string" && transcriptMeta.id.trim()) ||
     null;
   return id;
+}
+
+function normalizeSessionMessageMimeType(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const [mimeType] = trimmed.split(";", 1);
+  const normalized = mimeType?.trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function extractSessionMessageFileName(value: string): string | undefined {
+  const normalized = value.trim().split(/[\\/]/).at(-1)?.trim();
+  return normalized || undefined;
+}
+
+type SessionMessageMediaDescriptor = {
+  mimeType?: string;
+  fileName?: string;
+};
+
+type SessionMessageImagePreview = {
+  mimeType: string;
+  data: string;
+};
+
+function buildInlineSessionMessageImageBlock(
+  preview: SessionMessageImagePreview,
+): Record<string, unknown> {
+  return {
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: preview.mimeType,
+      data: preview.data,
+    },
+  };
+}
+
+function buildInlineSessionMessageAttachmentBlock(
+  descriptor: SessionMessageMediaDescriptor,
+): Record<string, unknown> {
+  return {
+    type: "attachment",
+    ...(descriptor.fileName ? { fileName: descriptor.fileName } : {}),
+    ...(descriptor.mimeType ? { mimeType: descriptor.mimeType } : {}),
+  };
+}
+
+function resolveSessionMessageMediaDescriptors(
+  message: Record<string, unknown>,
+): SessionMessageMediaDescriptor[] {
+  const mediaPaths = Array.isArray(message.MediaPaths)
+    ? message.MediaPaths.filter(
+        (value): value is string => typeof value === "string" && value.trim().length > 0,
+      )
+    : [];
+  const mediaTypes = Array.isArray(message.MediaTypes) ? message.MediaTypes : [];
+  if (mediaPaths.length > 0) {
+    return mediaPaths.map((mediaPath, index) => ({
+      mimeType:
+        normalizeSessionMessageMimeType(mediaTypes[index]) ??
+        (mediaPaths.length === 1 ? normalizeSessionMessageMimeType(message.MediaType) : undefined),
+      fileName: extractSessionMessageFileName(mediaPath),
+    }));
+  }
+
+  const mediaPath =
+    typeof message.MediaPath === "string" && message.MediaPath.trim().length > 0
+      ? message.MediaPath.trim()
+      : "";
+  if (!mediaPath) {
+    return [];
+  }
+  return [
+    {
+      mimeType: normalizeSessionMessageMimeType(message.MediaType),
+      fileName: extractSessionMessageFileName(mediaPath),
+    },
+  ];
+}
+
+function resolveSessionMessagePersistedImagePreviews(
+  message: Record<string, unknown>,
+): SessionMessageImagePreview[] {
+  if (!Array.isArray(message.MediaPreviewImages)) {
+    return [];
+  }
+  return message.MediaPreviewImages.map((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const candidate = entry as { mimeType?: unknown; data?: unknown };
+    const mimeType = normalizeSessionMessageMimeType(candidate.mimeType);
+    const data = typeof candidate.data === "string" ? candidate.data.trim() : "";
+    if (!mimeType || !isImageChatAttachmentMimeType(mimeType) || !data) {
+      return null;
+    }
+    return { mimeType, data };
+  }).filter((entry): entry is SessionMessageImagePreview => entry !== null);
+}
+
+function buildNormalizedSessionMessageContent(
+  message: Record<string, unknown>,
+): Array<Record<string, unknown>> | undefined {
+  const attachments = resolveSessionMessageMediaDescriptors(message);
+  const persistedPreviews = resolveSessionMessagePersistedImagePreviews(message);
+  const hasMedia = attachments.length > 0 || persistedPreviews.length > 0;
+  const contentBlocks: Array<Record<string, unknown>> = Array.isArray(message.content)
+    ? message.content.filter((block): block is Record<string, unknown> =>
+        Boolean(block && typeof block === "object"),
+      )
+    : [];
+  const hadStructuredContent = Array.isArray(message.content);
+  const hasStringContent = typeof message.content === "string" && message.content.trim().length > 0;
+  const hasTextField = typeof message.text === "string" && message.text.trim().length > 0;
+  if (!hadStructuredContent && hasStringContent && hasMedia) {
+    contentBlocks.push({ type: "text", text: message.content });
+  } else if (!hadStructuredContent && !hasStringContent && hasTextField && hasMedia) {
+    contentBlocks.push({ type: "text", text: message.text });
+  }
+
+  const hasInlineImageBlockBeforePreviews = contentBlocks.some((block) => {
+    const type = block.type;
+    return type === "image" || type === "image_url";
+  });
+  const existingAttachmentKeys = new Set(
+    contentBlocks
+      .map((block) => {
+        if (block.type !== "attachment") {
+          return null;
+        }
+        const fileName = typeof block.fileName === "string" ? block.fileName.trim() : "";
+        const mimeType = typeof block.mimeType === "string" ? block.mimeType.trim() : "";
+        return fileName || mimeType ? `${fileName}\u0001${mimeType}` : null;
+      })
+      .filter((key): key is string => key !== null),
+  );
+
+  if (!hasInlineImageBlockBeforePreviews && persistedPreviews.length > 0) {
+    contentBlocks.push(
+      ...persistedPreviews.map((preview) => buildInlineSessionMessageImageBlock(preview)),
+    );
+  }
+  const hasInlineImageBlock = hasInlineImageBlockBeforePreviews || persistedPreviews.length > 0;
+
+  for (const attachment of attachments) {
+    const normalizedMime = attachment.mimeType?.trim().toLowerCase();
+    if (normalizedMime && isImageChatAttachmentMimeType(normalizedMime) && hasInlineImageBlock) {
+      continue;
+    }
+    const attachmentKey = `${attachment.fileName?.trim() ?? ""}\u0001${normalizedMime ?? ""}`;
+    if (existingAttachmentKeys.has(attachmentKey)) {
+      continue;
+    }
+    existingAttachmentKeys.add(attachmentKey);
+    contentBlocks.push(buildInlineSessionMessageAttachmentBlock(attachment));
+  }
+
+  if (!hadStructuredContent && !hasMedia) {
+    return undefined;
+  }
+  return contentBlocks;
 }
 
 function getMessageTimestamp(message: unknown): number | null {
@@ -181,6 +353,25 @@ function areSemanticallyEquivalentMessages(left: unknown, right: unknown): boole
   }
 
   return false;
+}
+
+function findEquivalentMessageIndex(messages: unknown[], candidate: unknown): number {
+  const candidateStableId = resolveComparableStableId(candidate);
+  if (candidateStableId) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (resolveComparableStableId(messages[index]) === candidateStableId) {
+        return index;
+      }
+    }
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (areSemanticallyEquivalentMessages(messages[index], candidate)) {
+      return index;
+    }
+  }
+
+  return -1;
 }
 
 function mergeUnmatchedMessageSlices(localSlice: unknown[], historySlice: unknown[]): unknown[] {
@@ -297,6 +488,17 @@ function appendChatMessageIfDistinct(state: ChatState, message: unknown): void {
   state.chatMessages = [...state.chatMessages, message];
 }
 
+function upsertChatMessage(state: ChatState, message: unknown): void {
+  const existingIndex = findEquivalentMessageIndex(state.chatMessages, message);
+  if (existingIndex < 0) {
+    appendChatMessageIfDistinct(state, message);
+    return;
+  }
+  const nextMessages = state.chatMessages.slice();
+  nextMessages[existingIndex] = message;
+  state.chatMessages = dedupeAdjacentChatMessages(nextMessages);
+}
+
 export type ChatState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -359,6 +561,69 @@ export type ChatEventPayload = {
   message?: unknown;
   errorMessage?: string;
 };
+
+export type SessionMessageEventPayload = {
+  sessionKey: string;
+  message?: unknown;
+  messageId?: string;
+  messageSeq?: number;
+};
+
+function normalizeSessionMessagePayload(
+  payload?: SessionMessageEventPayload,
+): Record<string, unknown> | null {
+  if (!payload?.message || typeof payload.message !== "object" || Array.isArray(payload.message)) {
+    return null;
+  }
+  const record = payload.message as Record<string, unknown>;
+  const transcriptMeta =
+    record.__alisio && typeof record.__alisio === "object" && !Array.isArray(record.__alisio)
+      ? (record.__alisio as Record<string, unknown>)
+      : {};
+  const messageId =
+    (typeof payload.messageId === "string" && payload.messageId.trim()) ||
+    (typeof transcriptMeta.id === "string" && transcriptMeta.id.trim()) ||
+    "";
+  const messageSeq =
+    typeof payload.messageSeq === "number" && Number.isFinite(payload.messageSeq)
+      ? payload.messageSeq
+      : typeof transcriptMeta.seq === "number" && Number.isFinite(transcriptMeta.seq)
+        ? transcriptMeta.seq
+        : null;
+  const content = buildNormalizedSessionMessageContent(record);
+
+  return {
+    ...record,
+    ...(content ? { content } : {}),
+    ...(messageId && typeof record.messageId !== "string" ? { messageId } : {}),
+    __alisio: {
+      ...transcriptMeta,
+      ...(messageId ? { id: messageId } : {}),
+      ...(messageSeq != null ? { seq: messageSeq } : {}),
+    },
+  };
+}
+
+export function handleSessionMessageEvent(
+  state: ChatState,
+  payload?: SessionMessageEventPayload,
+): boolean {
+  if (!payload || payload.sessionKey !== state.sessionKey) {
+    return false;
+  }
+  const message = normalizeSessionMessagePayload(payload);
+  if (!message) {
+    return false;
+  }
+  // Assistant replies already arrive over broadcast chat events for every
+  // connected operator UI. Replaying them from session.message would create a
+  // second canonical source and can duplicate assistant turns across tabs.
+  if (normalizeComparableRole(message) !== "user") {
+    return false;
+  }
+  upsertChatMessage(state, message);
+  return true;
+}
 
 function maybeResetToolStream(state: ChatState) {
   const toolHost = state as ChatState & Partial<Parameters<typeof resetToolStream>[0]>;

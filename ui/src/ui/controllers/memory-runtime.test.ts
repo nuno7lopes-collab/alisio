@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { i18n } from "../../i18n/index.ts";
 import { GatewayRequestError } from "../gateway.ts";
 import {
   loadMemoryGraph,
@@ -39,6 +40,10 @@ function createState(): { state: MemoryRuntimeState; request: ReturnType<typeof 
 }
 
 describe("memory-runtime controller", () => {
+  beforeEach(async () => {
+    await i18n.setLocale("en");
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -112,7 +117,7 @@ describe("memory-runtime controller", () => {
     expect(state.memorySyncing).toBe(false);
   });
 
-  it("mostra um erro amigável quando o estado detalhado da memória não está disponível", async () => {
+  it("shows a friendly error when detailed memory status is unavailable", async () => {
     const { state, request } = createState();
 
     request.mockImplementation((method: string, params: { agentId?: string }) => {
@@ -130,7 +135,7 @@ describe("memory-runtime controller", () => {
     await loadMemoryStatus(state, "main");
 
     expect(state.memoryStatus).toBeNull();
-    expect(state.memoryStatusError).toContain("estado detalhado");
+    expect(state.memoryStatusError).toContain("detailed memory status");
     expect(state.memorySyncAvailable).toBe(false);
   });
 
@@ -152,7 +157,7 @@ describe("memory-runtime controller", () => {
 
     await syncMemoryNow(state, "main");
 
-    expect(state.memoryStatusError).toContain("sincronização manual");
+    expect(state.memoryStatusError).toContain("manual memory sync");
     expect(state.memorySyncAvailable).toBe(false);
   });
 

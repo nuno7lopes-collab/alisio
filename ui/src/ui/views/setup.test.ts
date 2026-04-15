@@ -3,35 +3,11 @@
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_THEME_SELECTION } from "../theme.ts";
-import type { AlisioBootstrapState, NativeShellState } from "../types.ts";
+import type { AlisioBootstrapState } from "../types.ts";
 import { renderOrganization } from "./organization.ts";
 import { renderSetup } from "./setup.ts";
 
 type SetupRenderProps = Parameters<typeof renderSetup>[0];
-
-function createNativeShellState(): NativeShellState {
-  return {
-    platform: "macos",
-    launchAtLogin: true,
-    permissions: {
-      notifications: true,
-      appleScript: false,
-      accessibility: true,
-      screenRecording: false,
-      microphone: true,
-      speechRecognition: false,
-      camera: true,
-      location: false,
-    },
-    voiceWake: {
-      supported: true,
-      enabled: false,
-      talkEnabled: false,
-      triggers: ["Hey Alisio"],
-    },
-    logsPath: "~/Library/Logs/Alisio",
-  };
-}
 
 function createBootstrapAccount(): NonNullable<AlisioBootstrapState["account"]> {
   return {
@@ -110,8 +86,6 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
   return {
     connected: true,
     lastError: null,
-    bootstrapLoading: false,
-    bootstrapError: null,
     bootstrap: null,
     startupLoading: false,
     startupError: null,
@@ -127,21 +101,7 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
       },
       ai: null,
     },
-    doctorLoading: false,
-    doctorError: null,
-    doctor: null,
-    wizardLoading: false,
-    wizardSubmitting: false,
-    wizardSessionId: null,
-    wizardStep: null,
-    wizardStatus: null,
-    wizardError: null,
-    wizardDraftText: "",
-    wizardDraftConfirm: false,
-    wizardDraftSelectIndex: 0,
-    wizardDraftMultiIndexes: [],
     requestedStep: "account",
-    setupGuide: null,
     accountLoading: false,
     accountError: null,
     accountNotice: null,
@@ -154,25 +114,7 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     termsAccepted: false,
     marketingOptIn: false,
     birthdate: "",
-    aiLoading: false,
-    aiError: null,
-    onDismissSetupGuide: vi.fn(),
-    onOpenSupportUrl: vi.fn(),
-    organizationLoading: false,
-    organizationError: null,
-    organization: { mode: "none" },
-    organizationDraftMode: "create",
-    organizationName: "",
-    organizationInviteEmail: "",
-    connectorsLoading: false,
-    connectorsError: null,
-    connectorCatalog: [],
-    connectorAuthorizations: [],
-    nativeShellLoading: false,
-    nativeShellError: null,
-    nativeShellState: createNativeShellState(),
     onAuthEmailChange: vi.fn(),
-    onAuthPendingEmailChange: vi.fn(),
     onAuthCodeChange: vi.fn(),
     onAuthStageChange: vi.fn(),
     onTermsAcceptedChange: vi.fn(),
@@ -180,33 +122,13 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     onBirthdateChange: vi.fn(),
     onConnect: vi.fn(),
     onOpenWorkspace: vi.fn(),
-    onOpenChannels: vi.fn(),
     onOpenSettingsAi: vi.fn(),
-    onOpenSettingsMac: vi.fn(),
-    onSetLaunchAtLogin: vi.fn(),
-    onRequestPermission: vi.fn(),
-    onDraftModeChange: vi.fn(),
-    onOrganizationNameChange: vi.fn(),
-    onInviteEmailChange: vi.fn(),
-    onCreateOrganization: vi.fn(),
-    onJoinOrganization: vi.fn(),
-    onResetOrganization: vi.fn(),
-    onBeginConnector: vi.fn(),
-    onRevokeConnector: vi.fn(),
-    onStartWizard: vi.fn(),
-    onContinueWizard: vi.fn(),
-    onCancelWizard: vi.fn(),
-    onWizardDraftTextChange: vi.fn(),
-    onWizardDraftConfirmChange: vi.fn(),
-    onWizardDraftSelectIndexChange: vi.fn(),
-    onWizardDraftMultiIndexesChange: vi.fn(),
     onAccountFieldChange: vi.fn(),
     onBeginEmailAuth: vi.fn(),
     onVerifyEmailAuth: vi.fn(),
-    onBeginGoogleAuth: vi.fn(),
-    onBeginAiConnect: vi.fn(),
-    onDisconnectAi: vi.fn(),
-    onRefreshAi: vi.fn(),
+    onSignInWithPassword: vi.fn(),
+    onSignUpWithPassword: vi.fn(),
+    onRequestRecoveryEmail: vi.fn(),
     onSaveAccount: vi.fn(),
     onUpdatePassword: vi.fn(),
     ...overrides,
@@ -390,18 +312,6 @@ describe("setup view", () => {
           },
           requestedStep: "runtime",
           authEmail: "nuno@example.com",
-          connectorCatalog: [
-            {
-              id: "github",
-              title: "GitHub",
-              providerLabel: "GitHub",
-              category: "development",
-              connectLabel: "Connect with GitHub",
-              summary: "Repositories and pull requests.",
-              availability: "ready",
-              scopes: ["repo"],
-            },
-          ],
         }),
       ),
       container,
@@ -410,38 +320,43 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Set up your personal agent.");
     expect(container.textContent).toContain("Sign in or create an account");
     expect(container.textContent).toContain("Email");
-    expect(container.textContent).toContain("Continue with Google");
-    expect(container.textContent).toContain("Magic link by email");
-    expect(container.textContent).toContain("Send sign-in link");
-    expect(container.textContent).toContain("We will send a secure sign-in link");
+    expect(container.textContent).toContain("Password");
+    expect(container.textContent).toContain("Sign in");
+    expect(container.textContent).toContain("Create account");
+    expect(container.textContent).toContain("Send magic link");
+    expect(container.textContent).toContain("Recover account");
     expect(container.textContent).toContain("Reconnect app");
     expect(container.textContent).toContain("Wait for Alisio to reconnect");
-    expect(
-      container.querySelector(
-        '.alisio-setup-account__method-btn--google img[src="brand-icons/google.svg"]',
-      ),
-    ).not.toBeNull();
+    expect(container.textContent).not.toContain("Continue with Google");
   });
 
-  it("submete o formulário de email quando o utilizador carrega Enter", () => {
+  it("submete o formulário de entrada com palavra-passe quando o utilizador carrega Enter", () => {
     const container = document.createElement("div");
-    const onBeginEmailAuth = vi.fn();
+    const onSignInWithPassword = vi.fn();
 
     render(
       renderSetup(
         createSetupProps({
-          onBeginEmailAuth,
+          onSignInWithPassword,
         }),
       ),
       container,
     );
 
     const form = container.querySelector("form.alisio-setup-account");
+    const passwordInput = container.querySelector<HTMLInputElement>(
+      'input[name="alisio-auth-password"]',
+    );
     expect(form).not.toBeNull();
+    expect(passwordInput).not.toBeNull();
+    if (passwordInput) {
+      passwordInput.value = "hunter22";
+    }
 
     form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 
-    expect(onBeginEmailAuth).toHaveBeenCalledTimes(1);
+    expect(onSignInWithPassword).toHaveBeenCalledTimes(1);
+    expect(onSignInWithPassword).toHaveBeenCalledWith("nuno@example.com", "hunter22");
   });
 
   it("bloqueia o setup quando o backend cloud nao esta configurado", () => {
@@ -475,9 +390,26 @@ describe("setup view", () => {
     );
 
     expect(container.textContent).toContain("The Alisio cloud backend is not configured");
-    expect(container.textContent).toContain("ALISIO_SUPABASE_URL");
-    expect(container.textContent).toContain("ALISIO_SUPABASE_ANON_KEY");
-    expect(container.textContent).not.toContain("We verify the email first and finish the rest");
+    expect(container.textContent).not.toContain("ALISIO_SUPABASE_URL");
+    expect(container.textContent).not.toContain("ALISIO_SUPABASE_ANON_KEY");
+  });
+
+  it("never renders the technical OAuth setup guide for missing local connector config", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSetup(
+        createSetupProps({
+          connected: true,
+          requestedStep: "connectors",
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).not.toContain("Finish OAuth setup in Alisio");
+    expect(container.textContent).not.toContain("ALISIO_GITHUB_CLIENT_ID");
+    expect(container.textContent).not.toContain("/oauth/github/callback");
   });
 
   it("desactiva os campos da conta enquanto um pedido está em curso", () => {
@@ -629,11 +561,11 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("You are ready");
+    expect(container.textContent).toContain("Account ready");
     expect(container.textContent).not.toContain("Create organization");
   });
 
-  it("renders connector skeletons instead of zeroed summary cards during connector loading", () => {
+  it("ignores a stale connectors step once setup is already ready", () => {
     const container = document.createElement("div");
     render(
       renderSetup(
@@ -642,79 +574,33 @@ describe("setup view", () => {
           startupBootstrap: null,
           requestedStep: "connectors",
           authEmail: "",
-          connectorsLoading: true,
         }),
       ),
       container,
     );
 
-    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(3);
-    expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
+    expect(container.textContent).toContain("Account ready");
+    expect(container.textContent).not.toContain("Apps externas");
+    expect(container.textContent).not.toContain("Connect with Google");
   });
 
-  it("keeps connectors available on Free after the first occupied slot", () => {
+  it("never renders connector actions inside setup", () => {
     const container = document.createElement("div");
-    const onBeginConnector = vi.fn();
     render(
       renderSetup(
         createSetupProps({
-          bootstrap: createReadyBootstrap({
-            nextStep: "connectors",
-            organizationState: { mode: "owner", organizationName: "Team" },
-            organization: { mode: "owner", organizationName: "Team" },
-          }),
+          bootstrap: createReadyBootstrap({ nextStep: "connectors" }),
           startupBootstrap: null,
           requestedStep: "connectors",
           authEmail: "",
-          connectorCatalog: [
-            {
-              id: "google-calendar",
-              title: "Google Calendar",
-              providerLabel: "Google",
-              category: "google",
-              connectLabel: "Connect with Google",
-              summary: "Calendar access.",
-              availability: "ready",
-              scopes: ["openid", "email"],
-            },
-            {
-              id: "github",
-              title: "GitHub",
-              providerLabel: "GitHub",
-              category: "development",
-              connectLabel: "Connect with GitHub",
-              summary: "Repositories and pull requests.",
-              availability: "ready",
-              scopes: ["repo"],
-            },
-          ],
-          connectorAuthorizations: [
-            {
-              connectorId: "google-calendar",
-              state: "connected",
-              health: "healthy",
-              scopes: ["openid", "email"],
-            },
-            {
-              connectorId: "github",
-              state: "not_connected",
-              health: "healthy",
-              scopes: ["repo"],
-            },
-          ],
-          onBeginConnector,
         }),
       ),
       container,
     );
 
-    expect(container.textContent).not.toContain("Free includes 1 connected app.");
-    const githubButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Connect with GitHub"),
-    );
-    expect(githubButton?.disabled).toBe(false);
-    githubButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onBeginConnector).toHaveBeenCalledWith("github");
+    expect(container.textContent).not.toContain("Connect with Google");
+    expect(container.textContent).not.toContain("No services connected yet");
+    expect(container.textContent).not.toContain("OAuth");
   });
 
   it("ignores a stale runtime step once setup is already ready", () => {
@@ -731,7 +617,7 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("You are ready");
+    expect(container.textContent).toContain("Account ready");
     expect(container.textContent).not.toContain("Connect OpenAI");
   });
 
@@ -770,27 +656,13 @@ describe("setup view", () => {
           startupBootstrap: null,
           requestedStep: null,
           authEmail: "",
-          organization: { mode: "owner", organizationName: "Team" },
-          organizationName: "Team",
-          connectorCatalog: [
-            {
-              id: "github",
-              title: "GitHub",
-              providerLabel: "GitHub",
-              category: "development",
-              connectLabel: "Connect with GitHub",
-              summary: "Repositories and pull requests.",
-              availability: "ready",
-              scopes: ["repo"],
-            },
-          ],
         }),
       ),
       container,
     );
 
-    expect(container.textContent).toContain("You are ready");
-    expect(container.textContent).not.toContain("GitHub");
+    expect(container.textContent).toContain("Account ready");
+    expect(container.textContent).not.toContain("Gmail Send");
   });
 
   it("shows the ready step instead of permissions once onboarding is already complete", () => {
@@ -807,84 +679,13 @@ describe("setup view", () => {
           startupBootstrap: null,
           requestedStep: null,
           authEmail: "",
-          organization: { mode: "owner", organizationName: "Team" },
-          organizationName: "Team",
         }),
       ),
       container,
     );
 
-    expect(container.textContent).toContain("You are ready");
+    expect(container.textContent).toContain("Account ready");
     expect(container.textContent).not.toContain("Finish macOS permissions");
-  });
-
-  it("keeps explicit post-ready connectors visible without showing a warning state", () => {
-    const container = document.createElement("div");
-    render(
-      renderSetup(
-        createSetupProps({
-          connected: true,
-          bootstrap: createReadyBootstrap({
-            nextStep: "ready",
-            connectorSummary: {
-              total: 1,
-              ready: 0,
-              connected: 0,
-              needsReconnect: 0,
-              inReview: 0,
-              unavailable: 0,
-              available: 1,
-            },
-            connectors: {
-              catalog: [],
-              authorizations: [],
-              summary: {
-                total: 1,
-                ready: 0,
-                connected: 0,
-                needsReconnect: 0,
-                inReview: 0,
-                unavailable: 0,
-                available: 1,
-              },
-            },
-          }),
-          startupBootstrap: null,
-          requestedStep: "connectors",
-          authEmail: "",
-          connectorCatalog: [
-            {
-              id: "github",
-              title: "GitHub",
-              providerLabel: "GitHub",
-              category: "development",
-              connectLabel: "Connect with GitHub",
-              summary: "Repositories and pull requests.",
-              availability: "ready",
-              scopes: ["repo"],
-            },
-          ],
-          connectorAuthorizations: [
-            {
-              connectorId: "github",
-              state: "not_connected",
-              health: "config_missing",
-              scopes: ["repo"],
-            },
-          ],
-        }),
-      ),
-      container,
-    );
-
-    expect(container.textContent).toContain("GitHub");
-    expect(container.textContent).toContain("Setup required");
-    expect(container.querySelector(".alisio-setup-page__progress .chip-active")).not.toBeNull();
-    expect(
-      [...container.querySelectorAll("button")].some((button) =>
-        button.textContent?.includes("Connect with GitHub"),
-      ),
-    ).toBe(false);
   });
 
   it("shows reconnect instead of ready when the app is offline", () => {
@@ -900,14 +701,12 @@ describe("setup view", () => {
           startupBootstrap: null,
           requestedStep: null,
           authEmail: "",
-          organization: { mode: "owner", organizationName: "Team" },
-          organizationName: "Team",
         }),
       ),
       container,
     );
 
     expect(container.textContent).toContain("Reconnect app");
-    expect(container.textContent).not.toContain("You are ready");
+    expect(container.textContent).not.toContain("Account ready");
   });
 });

@@ -17,6 +17,7 @@ import {
   syncUrlWithTab,
   syncThemeWithSettings,
 } from "./app-settings.ts";
+import { DashboardHeader } from "./components/dashboard-header.ts";
 import { DEFAULT_THEME_SELECTION, type ThemeFamily, type ThemeMode } from "./theme.ts";
 
 type Tab = "setup" | "authentications" | "organization" | "chat" | "memory" | "models" | "settings";
@@ -449,6 +450,17 @@ describe("setTabFromRoute", () => {
     expect(document.documentElement.style.getPropertyValue("--radius-full")).toBe("9999px");
   });
 
+  it("keeps the translation locale aligned when settings are applied directly", async () => {
+    const host = createHost("chat");
+
+    await i18n.setLocale("pt-PT");
+    applySettings(host, { ...host.settings, locale: "en" });
+
+    expect(host.settings.locale).toBe("en");
+    expect(i18n.getLocale()).toBe("en");
+    expect(document.documentElement.lang).toBe("en");
+  });
+
   it("syncs signed-in account preferences into local appearance settings", async () => {
     const host = createHost("chat");
     host.settings.themeMode = "dark";
@@ -808,5 +820,57 @@ describe("applySettingsFromUrl", () => {
     expect(host.settings.lastActiveSessionKey).toBe("agent:test_old:main");
     expect(host.pendingGatewayUrl).toBe("ws://gateway-b.example:18789");
     expect(host.pendingGatewayToken).toBe("test-token");
+  });
+
+  it("refreshes the authentications tab from connectors without blocking on provider overview", async () => {
+    vi.resetModules();
+    const loadAlisioConnectorsMock = vi.fn().mockResolvedValue(undefined);
+    const loadAlisioProviderOverviewMock = vi.fn(() => new Promise<never>(() => undefined));
+
+    vi.doMock("./controllers/alisio.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("./controllers/alisio.ts")>("./controllers/alisio.ts");
+      return {
+        ...actual,
+        loadAlisioConnectors: loadAlisioConnectorsMock,
+        loadAlisioProviderOverview: loadAlisioProviderOverviewMock,
+      };
+    });
+
+    const module = await import("./app-settings.ts");
+    await module.refreshActiveTab({
+      tab: "authentications",
+    } as never);
+
+    expect(loadAlisioConnectorsMock).toHaveBeenCalledOnce();
+    expect(loadAlisioProviderOverviewMock).toHaveBeenCalledOnce();
+    vi.doUnmock("./controllers/alisio.ts");
+  });
+});
+
+describe("dashboard header locale updates", () => {
+  beforeEach(async () => {
+    document.body.innerHTML = "";
+    await i18n.setLocale("en");
+  });
+
+  afterEach(async () => {
+    document.body.innerHTML = "";
+    await i18n.setLocale("en");
+  });
+
+  it("rerenders the current tab title when only the locale changes", async () => {
+    const element = new DashboardHeader();
+    element.tab = "settings";
+    document.body.appendChild(element);
+
+    await element.updateComplete;
+    expect(element.textContent).toContain("Settings");
+
+    await i18n.setLocale("pt-PT");
+    await element.updateComplete;
+
+    expect(element.textContent).toContain("Definições");
+    expect(element.textContent).not.toContain("Settings");
   });
 });

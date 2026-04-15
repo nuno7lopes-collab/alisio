@@ -5,6 +5,7 @@ import {
   countAlisioConnectorPlanSlots,
   normalizeAlisioPlan,
 } from "../../../../src/shared/alisio-billing.js";
+import { resolveAlisioConnectorSurfaceUiStatus } from "../../../../src/shared/alisio-connector-status.js";
 import { t } from "../../i18n/index.ts";
 import type {
   AlisioAccountState,
@@ -24,20 +25,6 @@ import {
   renderSkeletonLines,
   renderSkeletonPill,
 } from "./loading-skeleton.ts";
-
-function categoryLabel(category: string) {
-  switch (category) {
-    case "google":
-      return t("alisio.authentications.categories.google");
-    case "productivity":
-      return t("alisio.authentications.categories.productivity");
-    case "development":
-      return t("alisio.authentications.categories.development");
-    case "social":
-    default:
-      return t("alisio.authentications.categories.social");
-  }
-}
 
 function normalizeSearchText(value: string) {
   return value.trim().toLowerCase();
@@ -100,6 +87,25 @@ function statusLabel(status: AlisioProviderOverviewItem["status"]) {
   }
 }
 
+function mapConnectorSurfaceStatusToOverviewStatus(
+  status: ReturnType<typeof resolveAlisioConnectorSurfaceUiStatus>,
+): AlisioProviderOverviewItem["status"] {
+  switch (status) {
+    case "connected":
+      return "connected";
+    case "needs_reconnect":
+      return "attention";
+    case "in_review":
+      return "coming_soon";
+    case "unavailable":
+      return "unavailable";
+    case "ready":
+    case "setup_required":
+    default:
+      return "ready";
+  }
+}
+
 function renderConnectorIcon(definition: AlisioConnectorDefinition) {
   const branding = getConnectorBranding(definition.id, definition.providerLabel);
 
@@ -135,6 +141,7 @@ function renderConnectorAction(
     onRevokeConnector: (connectorId: string) => void;
     planBlocksNewConnections?: boolean;
     planLimitMessage?: string | null;
+    compact?: boolean;
   },
   text: {
     revoke: string;
@@ -150,13 +157,36 @@ function renderConnectorAction(
       : getConnectorActionBranding(row.definition.id, row.definition.providerLabel);
   if (status === "connected") {
     return html`
-      <button class="btn btn--sm danger" @click=${() => props.onRevokeConnector(row.definition.id)}>
+      <button
+        class="btn btn--sm danger ${props.compact ? "alisio-auth-card__action-btn" : ""}"
+        @click=${() => props.onRevokeConnector(row.definition.id)}
+      >
         ${text.revoke}
       </button>
     `;
   }
   if (status === "ready") {
     const disabled = props.planBlocksNewConnections === true;
+    const connectText = connectLabel ?? row.definition.connectLabel;
+    if (props.compact) {
+      return html`
+        <button
+          class="btn btn--sm alisio-auth-card__connect-btn alisio-auth-card__connect-btn--compact"
+          ?disabled=${disabled}
+          aria-label=${connectText}
+          title=${disabled ? (props.planLimitMessage ?? "") : connectText}
+          @click=${() => {
+            if (disabled) {
+              return;
+            }
+            props.onBeginConnector(row.definition.id);
+          }}
+        >
+          <span aria-hidden="true" class="alisio-auth-card__connect-plus">+</span>
+          <span class="sr-only">${connectText}</span>
+        </button>
+      `;
+    }
     return html`
       <button
         class="btn btn--sm alisio-auth-card__connect-btn"
@@ -169,14 +199,16 @@ function renderConnectorAction(
           props.onBeginConnector(row.definition.id);
         }}
       >
-        ${renderConnectorActionContent(connectLabel ?? row.definition.connectLabel, actionBranding)}
+        ${renderConnectorActionContent(connectText, actionBranding)}
       </button>
     `;
   }
   if (status === "needs_reconnect") {
     return html`
       <button
-        class="btn btn--sm alisio-auth-card__connect-btn"
+        class="btn btn--sm alisio-auth-card__connect-btn ${props.compact
+          ? "alisio-auth-card__action-btn"
+          : ""}"
         @click=${() => props.onBeginConnector(row.definition.id)}
       >
         ${renderConnectorActionContent(text.reconnect, actionBranding)}
@@ -186,7 +218,9 @@ function renderConnectorAction(
   if (status === "setup_required") {
     return html`
       <button
-        class="btn btn--sm alisio-auth-card__connect-btn"
+        class="btn btn--sm alisio-auth-card__connect-btn ${props.compact
+          ? "alisio-auth-card__action-btn"
+          : ""}"
         @click=${() => props.onBeginConnector(row.definition.id)}
       >
         ${renderConnectorActionContent(text.reviewSetup, actionBranding)}
@@ -207,6 +241,7 @@ function renderConnectorCard(
     subtitle?: string;
     connectLabel?: string;
     actionStatus?: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
+    compact?: boolean;
   },
   text: {
     revoke: string;
@@ -235,7 +270,9 @@ function renderConnectorCard(
 
   return html`
     <article
-      class="alisio-auth-card ${row.status === "connected" ? "alisio-auth-card--connected" : ""}"
+      class="alisio-auth-card ${row.status === "connected"
+        ? "alisio-auth-card--connected"
+        : ""} ${props.compact ? "alisio-auth-card--compact" : ""}"
     >
       <div class="alisio-auth-card__main">
         <div class="alisio-auth-card__head">
@@ -244,18 +281,14 @@ function renderConnectorCard(
             <div class="alisio-auth-card__brand-copy">
               <div class="list-title">${row.definition.title}</div>
               <div class="list-sub">${summary}</div>
+              ${connectedAs
+                ? html`<div class="alisio-auth-card__meta">
+                    ${t("alisio.authentications.connectedAs")}: ${connectedAs}
+                  </div>`
+                : nothing}
             </div>
           </div>
           ${renderConnectorStatusBadge(status)}
-        </div>
-        <div class="chip-row" style="margin-top: 12px;">
-          <span class="chip">${row.definition.providerLabel}</span>
-          <span class="chip">${categoryLabel(row.definition.category)}</span>
-          ${connectedAs
-            ? html`<span class="chip"
-                >${t("alisio.authentications.connectedAs")}: ${connectedAs}</span
-              >`
-            : nothing}
         </div>
       </div>
       <div class="alisio-auth-card__aside">
@@ -267,26 +300,22 @@ function renderConnectorCard(
 
 function resolveConnectorCardState(
   row: ConnectorRow,
-  item: AlisioProviderOverviewItem | undefined,
+  _item: AlisioProviderOverviewItem | undefined,
 ): {
   status: AlisioProviderOverviewItem["status"];
   connected: boolean;
   actionStatus: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
 } {
-  const fallbackStatus =
-    row.status === "connected"
-      ? "connected"
-      : row.status === "needs_reconnect"
-        ? "attention"
-        : row.status === "in_review"
-          ? "coming_soon"
-          : row.status === "unavailable"
-            ? "unavailable"
-            : "ready";
-  const status = item?.status ?? fallbackStatus;
+  const fallbackStatus = mapConnectorSurfaceStatusToOverviewStatus(
+    resolveAlisioConnectorSurfaceUiStatus({
+      definition: row.definition,
+      authorization: row.authorization,
+    }),
+  );
+  const status = fallbackStatus;
   return {
     status,
-    connected: row.status === "connected" ? item?.active !== false : status === "connected",
+    connected: status === "connected",
     actionStatus:
       row.status === "connected"
         ? "connected"
@@ -336,6 +365,8 @@ function renderConnectorSection(params: {
     reconnect: string;
     reviewSetup: string;
   };
+  compactCards?: boolean;
+  grid?: boolean;
 }) {
   if (params.entries.length === 0) {
     return nothing;
@@ -344,7 +375,7 @@ function renderConnectorSection(params: {
     <section class="card alisio-auth-page__section" data-section=${params.id}>
       <div class="card-title">${params.title}</div>
       ${params.subtitle ? html`<div class="card-sub">${params.subtitle}</div>` : nothing}
-      <div class="stack">
+      <div class=${params.grid ? "alisio-auth-grid" : "stack"}>
         ${params.entries.map(({ row, item, state }) =>
           renderConnectorCard(
             row,
@@ -357,6 +388,7 @@ function renderConnectorSection(params: {
               subtitle: item?.subtitle,
               connectLabel: item?.connectLabel,
               actionStatus: state.actionStatus,
+              compact: params.compactCards,
             },
             {
               revoke: params.text.revoke,
@@ -395,12 +427,12 @@ export function renderAuthentications(props: {
   };
   const overviewConnectorCatalog = props.overview?.connectors.catalog ?? [];
   const connectorCatalog =
-    overviewConnectorCatalog.length > 0 ? overviewConnectorCatalog : props.connectorCatalog;
+    props.connectorCatalog.length > 0 ? props.connectorCatalog : overviewConnectorCatalog;
   const overviewConnectorAuthorizations = props.overview?.connectors.authorizations ?? [];
   const connectorAuthorizations =
-    overviewConnectorAuthorizations.length > 0
-      ? overviewConnectorAuthorizations
-      : props.connectorAuthorizations;
+    props.connectorAuthorizations.length > 0
+      ? props.connectorAuthorizations
+      : overviewConnectorAuthorizations;
   const connectorRows = buildConnectorRows(connectorCatalog, connectorAuthorizations);
   const overview = props.overview;
   const appOverviewByConnectorId = new Map(
@@ -453,7 +485,11 @@ export function renderAuthentications(props: {
   const connectedConnectorEntries = connectorEntries.filter((entry) => entry.state.connected);
   const availableConnectorEntries = connectorEntries.filter((entry) => !entry.state.connected);
 
-  const showInitialLoading = props.loading && !overview;
+  const showInitialLoading =
+    props.loading &&
+    !overview &&
+    connectorCatalog.length === 0 &&
+    connectorAuthorizations.length === 0;
   const currentPlan = normalizeAlisioPlan(props.account?.profile.plan);
   const connectorLimit = alisioConnectorLimit(currentPlan);
   const occupiedConnectorSlots = countAlisioConnectorPlanSlots(
@@ -544,6 +580,8 @@ export function renderAuthentications(props: {
                   reconnect: text.reconnect,
                   reviewSetup: text.reviewSetup,
                 },
+                compactCards: true,
+                grid: true,
               })}
               ${renderConnectorSection({
                 id: "available",
@@ -560,6 +598,8 @@ export function renderAuthentications(props: {
                   reconnect: text.reconnect,
                   reviewSetup: text.reviewSetup,
                 },
+                compactCards: true,
+                grid: true,
               })}
             `}
     </section>

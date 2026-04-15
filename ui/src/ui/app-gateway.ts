@@ -889,7 +889,10 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   }
 
   if (evt.event === "sessions.changed") {
-    void loadSessions(host as unknown as AlisioApp);
+    void Promise.allSettled([
+      loadSessions(host as unknown as AlisioApp),
+      loadTasksOverview(host as unknown as AlisioApp, { quiet: true }),
+    ]);
     return;
   }
 

@@ -107,6 +107,7 @@ describe("refreshChat", () => {
         expect(params).toEqual({
           includeGlobal: true,
           includeUnknown: true,
+          includeDerivedTitles: true,
         });
         return {
           ts: 0,
@@ -138,6 +139,7 @@ describe("refreshChat", () => {
       expect.objectContaining({
         includeGlobal: true,
         includeUnknown: true,
+        includeDerivedTitles: true,
       }),
     );
     expect(request).toHaveBeenCalledWith("models.list", {});

@@ -1,7 +1,7 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { t } from "../../i18n/index.ts";
+import { I18nController, t } from "../../i18n/index.ts";
 import {
   buildMemoryFileActionModel,
   buildMemoryFilePreviewModel,
@@ -376,6 +376,8 @@ function formatNoteSubtitle(
 }
 
 export class AlisioMemoryNativeHub extends LitElement {
+  private i18nController = new I18nController(this);
+
   createRenderRoot() {
     return this;
   }

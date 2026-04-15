@@ -168,6 +168,13 @@ describe("parseSessionKey", () => {
     });
   });
 
+  it("uses a friendly fallback for dashboard chats", () => {
+    expect(parseSessionKey("agent:main:dashboard:1234")).toEqual({
+      prefix: "",
+      fallbackName: "New chat",
+    });
+  });
+
   it("returns raw key for unknown patterns", () => {
     expect(parseSessionKey("something-unknown")).toEqual({
       prefix: "",
@@ -247,6 +254,15 @@ describe("resolveSessionDisplayName", () => {
         row({ key: "discord:123:456", displayName: "My Chat" }),
       ),
     ).toBe("My Chat");
+  });
+
+  it("falls back to a derived title when no explicit label exists", () => {
+    expect(
+      resolveSessionDisplayName(
+        "agent:main:dashboard:1234",
+        row({ key: "agent:main:dashboard:1234", derivedTitle: "Plano de lançamento" }),
+      ),
+    ).toBe("Plano de lançamento");
   });
 
   it("prefers label over displayName when both are present", () => {

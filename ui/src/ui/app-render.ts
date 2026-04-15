@@ -468,6 +468,19 @@ export function renderApp(state: AppViewState) {
 
   const setupBlockedByBootstrap = alisioBootstrapBlocksChatAccess(state.alisioBootstrap);
   const shouldShowSetup = state.tab === "setup" || setupBlockedByBootstrap;
+  const renderSearchButton = (className = "topbar-search") => html`
+    <button
+      class=${className}
+      @click=${() => {
+        state.paletteOpen = !state.paletteOpen;
+      }}
+      title=${t("alisio.shell.searchTitle")}
+      aria-label=${t("alisio.shell.openCommandPalette")}
+    >
+      <span class="topbar-search__label">${t("common.search")}</span>
+      <kbd class="topbar-search__kbd">⌘K</kbd>
+    </button>
+  `;
   const setupView = renderSetup({
     connected: state.connected,
     lastError: state.lastError,
@@ -748,8 +761,8 @@ export function renderApp(state: AppViewState) {
           state.navDrawerOpen = false;
         }}
       ></button>
-      <header class="topbar">
-        <div class="topnav-shell">
+      <header class="topbar ${isChat ? "topbar--chat" : ""}">
+        <div class="topnav-shell ${isChat ? "topnav-shell--chat" : ""}">
           <button
             type="button"
             class="topbar-nav-toggle"
@@ -763,20 +776,17 @@ export function renderApp(state: AppViewState) {
             <span class="nav-collapse-toggle__icon" aria-hidden="true">${icons.menu}</span>
           </button>
           <div class="topnav-shell__content">
-            <dashboard-header .tab=${activeTab}></dashboard-header>
+            ${isChat
+              ? renderChatDesktopToolbar(state, {
+                  searchButton: renderSearchButton("topbar-search topbar-search--chat"),
+                  surface: "topbar",
+                })
+              : html`<dashboard-header .tab=${activeTab}></dashboard-header>`}
           </div>
-          <div class="topnav-shell__actions">
-            <button
-              class="topbar-search"
-              @click=${() => {
-                state.paletteOpen = !state.paletteOpen;
-              }}
-              title=${t("alisio.shell.searchTitle")}
-              aria-label=${t("alisio.shell.openCommandPalette")}
-            >
-              <span class="topbar-search__label">${t("common.search")}</span>
-              <kbd class="topbar-search__kbd">⌘K</kbd>
-            </button>
+          <div class="topnav-shell__actions ${isChat ? "topnav-shell__actions--chat" : ""}">
+            ${renderSearchButton(
+              isChat ? "topbar-search topbar-search--chat topbar-search--mobile" : "topbar-search",
+            )}
             <div class="topbar-status">${isChat ? renderChatMobileToggle(state) : nothing}</div>
           </div>
         </div>
@@ -1472,7 +1482,6 @@ export function renderApp(state: AppViewState) {
         ${activeTab === "chat"
           ? html`
               <section class="alisio-chat-shell">
-                ${renderChatDesktopToolbar(state)}
                 ${renderChat({
                   sessionKey: state.sessionKey,
                   showThinking,
@@ -1634,9 +1643,14 @@ export function renderApp(state: AppViewState) {
               aiError: state.alisioAiError,
               expandedProfileId: state.modelsExpandedProfileId,
               selectedProviderId: state.modelsSelectedProviderId,
+              profileSort: state.modelsAiProfileSort,
+              profileRecentIds: state.modelsAiProfileRecentIds,
               onToggleProfile: (profileId) => {
                 state.modelsExpandedProfileId =
                   state.modelsExpandedProfileId === profileId ? null : profileId;
+              },
+              onProfileSortChange: (sort) => {
+                state.modelsAiProfileSort = sort;
               },
               onSelectProvider: (providerId) => {
                 state.modelsSelectedProviderId = providerId;
@@ -1649,6 +1663,10 @@ export function renderApp(state: AppViewState) {
                 void refreshAlisioAi(state);
               },
               onSelectAiProfile: (profileId) => {
+                state.modelsAiProfileRecentIds = [
+                  profileId,
+                  ...(state.modelsAiProfileRecentIds ?? []).filter((entry) => entry !== profileId),
+                ];
                 state.modelsExpandedProfileId = profileId;
                 void selectAlisioAiProfile(state, profileId);
               },

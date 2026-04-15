@@ -153,6 +153,24 @@ describe("loadSettings default gateway URL derivation", () => {
     });
   });
 
+  it("reconciles stale stored settings locale with the persisted i18n locale", async () => {
+    vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
+    setTestLocation({
+      protocol: "https:",
+      host: "gateway.example:8443",
+      pathname: "/",
+    });
+    localStorage.setItem("alisio.i18n.locale", "pt-PT");
+    localStorage.setItem("alisio.control.settings.v2", JSON.stringify({ locale: "en" }));
+
+    const { loadSettings } = await import("./storage.ts");
+
+    expect(loadSettings()).toMatchObject({
+      gatewayUrl: expectedGatewayUrl(""),
+      locale: "pt-PT",
+    });
+  });
+
   it("skips node sessionStorage accessors that warn without a storage file", async () => {
     vi.resetModules();
     vi.unstubAllGlobals();
@@ -198,6 +216,88 @@ describe("loadSettings default gateway URL derivation", () => {
     expect(loadSettings()).toMatchObject({
       gatewayUrl: gwUrl,
       token: "session-token",
+    });
+  });
+
+  it("prefers the current-tab session selection from sessionStorage over shared gateway defaults", async () => {
+    setTestLocation({
+      protocol: "https:",
+      host: "gateway.example:8443",
+      pathname: "/",
+    });
+
+    const gwUrl = expectedGatewayUrl("");
+    localStorage.setItem(
+      `alisio.control.settings.v2:${gwUrl}`,
+      JSON.stringify({
+        gatewayUrl: gwUrl,
+        sessionsByGateway: {
+          [gwUrl]: {
+            sessionKey: "agent:shared:main",
+            lastActiveSessionKey: "agent:shared:main",
+          },
+        },
+      }),
+    );
+    sessionStorage.setItem(
+      "alisio.control.surface-session.v1:wss://gateway.example:8443",
+      JSON.stringify({
+        sessionKey: "agent:tab:main",
+        lastActiveSessionKey: "agent:tab:main",
+      }),
+    );
+
+    const { loadSettings } = await import("./storage.ts");
+
+    expect(loadSettings()).toMatchObject({
+      gatewayUrl: gwUrl,
+      sessionKey: "agent:tab:main",
+      lastActiveSessionKey: "agent:tab:main",
+    });
+  });
+
+  it("keeps different selected conversations per tab even when the shared gateway defaults are the same", async () => {
+    setTestLocation({
+      protocol: "https:",
+      host: "gateway.example:8443",
+      pathname: "/",
+    });
+
+    const tabA = createStorageMock();
+    const tabB = createStorageMock();
+    const gwUrl = expectedGatewayUrl("");
+    const { loadSettings, saveSettings } = await import("./storage.ts");
+
+    vi.stubGlobal("sessionStorage", tabA);
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        sessionKey: "agent:main:conversation-a",
+        lastActiveSessionKey: "agent:main:conversation-a",
+      }),
+    );
+
+    vi.stubGlobal("sessionStorage", tabB);
+    saveSettings(
+      createStoredSettings({
+        gatewayUrl: gwUrl,
+        sessionKey: "agent:main:conversation-b",
+        lastActiveSessionKey: "agent:main:conversation-b",
+      }),
+    );
+
+    vi.stubGlobal("sessionStorage", tabA);
+    expect(loadSettings()).toMatchObject({
+      gatewayUrl: gwUrl,
+      sessionKey: "agent:main:conversation-a",
+      lastActiveSessionKey: "agent:main:conversation-a",
+    });
+
+    vi.stubGlobal("sessionStorage", tabB);
+    expect(loadSettings()).toMatchObject({
+      gatewayUrl: gwUrl,
+      sessionKey: "agent:main:conversation-b",
+      lastActiveSessionKey: "agent:main:conversation-b",
     });
   });
 
@@ -257,6 +357,7 @@ describe("loadSettings default gateway URL derivation", () => {
       themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
       themeMode: DEFAULT_THEME_SELECTION.themeMode,
       themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
+      locale: "en",
       presentationSyncPending: false,
       chatFocusMode: false,
       chatShowThinking: true,

@@ -167,6 +167,8 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     aiError: null,
     expandedProfileId: "profile-1",
     selectedProviderId: "openai" as const,
+    profileSort: "email-asc" as const,
+    profileRecentIds: [],
     modelOptions: [
       { value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" },
       { value: "openai-codex/gpt-5.3-codex", label: "gpt-5.3-codex · openai-codex" },
@@ -180,6 +182,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
       },
     ],
     onToggleProfile: vi.fn(),
+    onProfileSortChange: vi.fn(),
     onSelectProvider: vi.fn(),
     onConnectAi: vi.fn(),
     onRefreshAllAiProfiles: vi.fn(),
@@ -304,6 +307,56 @@ describe("renderModelsHub", () => {
     ).find((button) => button.textContent?.includes("Uninstall"));
     uninstallButton?.click();
     expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
+  });
+
+  it("shows unsupported heavy models as blocked installs with the hardware reason", () => {
+    const props = createProps({
+      selectedProviderId: "local",
+      models: {
+        ...createModelsState(),
+        catalog: [
+          ...createModelsState().catalog,
+          {
+            id: "qwen3-32b-q4-k-m",
+            slug: "qwen3-32b-q4-k-m",
+            family: "Qwen",
+            name: "Qwen3 32B",
+            parametersBillions: 32,
+            quantization: "Q4_K_M",
+            backend: "llama.cpp",
+            summary: "Large local model.",
+            diskGb: 19.8,
+            memoryGb: 32,
+            vramGb: 20,
+            releaseStage: "published",
+          },
+        ],
+        targets: [
+          {
+            ...createModelsState().targets[0],
+            recommendations: [
+              {
+                modelId: "qwen3-32b-q4-k-m",
+                grade: "unsupported",
+                label: "Not recommended",
+                reason: "Needs about ~32 GB RAM / ~20 GB VRAM.",
+              },
+            ],
+          },
+          ...createModelsState().targets.slice(1),
+        ],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Qwen3 32B");
+    expect(container.textContent).toContain("Needs about ~32 GB RAM / ~20 GB VRAM.");
+    const blockedInstallButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.trim() === "Install" && button.disabled);
+    expect(blockedInstallButton).toBeTruthy();
   });
 
   it("keeps update progress copy in sync with the update action", () => {
@@ -449,6 +502,224 @@ describe("renderModelsHub", () => {
     render(renderModelsHub(props), container);
 
     expect(container.textContent).toContain("Connected (limits unavailable)");
+  });
+
+  it("shows a subtle sort dropdown and emits profile sort changes", () => {
+    const props = createProps({
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          ...createBootstrap().ai,
+          profiles: [
+            createBootstrap().ai.profiles![0],
+            {
+              ...createBootstrap().ai.profiles![0],
+              profileId: "profile-2",
+              email: "zeta@example.com",
+              identity: { email: "zeta@example.com" },
+            },
+          ],
+        },
+      } as AlisioBootstrapState,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const select = container.querySelector<HTMLSelectElement>(".alisio-settings-ai__sort-select");
+    expect(select).not.toBeNull();
+    expect(select?.value).toBe("email-asc");
+
+    if (!select) {
+      throw new Error("expected sort select");
+    }
+    select.value = "weekly-reset-desc";
+    select.dispatchEvent(new Event("change"));
+
+    expect(props.onProfileSortChange).toHaveBeenCalledWith("weekly-reset-desc");
+  });
+
+  it("starts with the active OpenAI account collapsed while keeping the active glow", () => {
+    const props = createProps({
+      expandedProfileId: undefined,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const activeProfile = container.querySelector<HTMLElement>(
+      ".alisio-settings-ai__profile.is-active",
+    );
+    expect(activeProfile).not.toBeNull();
+    expect(activeProfile?.classList.contains("is-expanded")).toBe(false);
+  });
+
+  it("sorts OpenAI accounts by recent usage with the active profile first", () => {
+    const props = createProps({
+      expandedProfileId: null,
+      profileSort: "recent",
+      profileRecentIds: ["profile-3", "profile-1"],
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          ...createBootstrap().ai,
+          activeProfileId: "profile-2",
+          binding: {
+            ...createBootstrap().ai.binding!,
+            authProfileId: "auth-2",
+          },
+          profiles: [
+            {
+              ...createBootstrap().ai.profiles![0],
+              profileId: "profile-1",
+              email: "zeta@example.com",
+              identity: { email: "zeta@example.com" },
+            },
+            {
+              ...createBootstrap().ai.profiles![0],
+              profileId: "profile-2",
+              email: "beta@example.com",
+              identity: { email: "beta@example.com" },
+            },
+            {
+              ...createBootstrap().ai.profiles![0],
+              profileId: "profile-3",
+              email: "alpha@example.com",
+              identity: { email: "alpha@example.com" },
+            },
+          ],
+        },
+      } as AlisioBootstrapState,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const profileOrder = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-settings-ai__profile-title"),
+    ).map((element) => element.textContent?.trim() ?? "");
+
+    expect(profileOrder).toEqual(["beta@example.com", "alpha@example.com", "zeta@example.com"]);
+  });
+
+  it("sorts OpenAI accounts by weekly reset with the soonest reset first", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-15T20:00:00.000Z"));
+    try {
+      const props = createProps({
+        expandedProfileId: null,
+        profileSort: "weekly-reset-asc",
+        bootstrap: {
+          ...createBootstrap(),
+          ai: {
+            ...createBootstrap().ai,
+            profiles: [
+              {
+                ...createBootstrap().ai.profiles![0],
+                profileId: "profile-1",
+                email: "zeta@example.com",
+                identity: { email: "zeta@example.com" },
+                aggregatedTelemetry: {
+                  secondaryWindow: {
+                    label: "Week",
+                    remainingPercent: 40,
+                    resetAt: new Date("2026-04-20T20:00:00.000Z").getTime(),
+                  },
+                },
+              },
+              {
+                ...createBootstrap().ai.profiles![0],
+                profileId: "profile-2",
+                email: "beta@example.com",
+                identity: { email: "beta@example.com" },
+                aggregatedTelemetry: {
+                  secondaryWindow: {
+                    label: "Week",
+                    remainingPercent: 70,
+                    resetAt: new Date("2026-04-16T20:00:00.000Z").getTime(),
+                  },
+                },
+              },
+              {
+                ...createBootstrap().ai.profiles![0],
+                profileId: "profile-3",
+                email: "alpha@example.com",
+                identity: { email: "alpha@example.com" },
+                aggregatedTelemetry: {
+                  secondaryWindow: {
+                    label: "Week",
+                    remainingPercent: 55,
+                    resetAt: new Date("2026-04-18T20:00:00.000Z").getTime(),
+                  },
+                },
+              },
+            ],
+          },
+        } as AlisioBootstrapState,
+      });
+      const container = document.createElement("div");
+
+      render(renderModelsHub(props), container);
+
+      const profileOrder = Array.from(
+        container.querySelectorAll<HTMLElement>(".alisio-settings-ai__profile-title"),
+      ).map((element) => element.textContent?.trim() ?? "");
+
+      expect(profileOrder).toEqual(["beta@example.com", "alpha@example.com", "zeta@example.com"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("shows a subtle weekly reset hint on collapsed telemetry pills", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-15T20:00:00.000Z"));
+    try {
+      const props = createProps({
+        expandedProfileId: null,
+        bootstrap: {
+          ...createBootstrap(),
+          ai: {
+            ...createBootstrap().ai,
+            profiles: [
+              {
+                ...createBootstrap().ai.profiles![0],
+                aggregatedTelemetry: {
+                  primaryWindow: {
+                    label: "5h",
+                    remainingPercent: 100,
+                    resetAt: new Date("2026-04-16T01:00:00.000Z").getTime(),
+                  },
+                  secondaryWindow: {
+                    label: "Week",
+                    remainingPercent: 53,
+                    resetAt: new Date("2026-04-20T20:00:00.000Z").getTime(),
+                  },
+                },
+              },
+            ],
+          },
+        } as AlisioBootstrapState,
+      });
+      const container = document.createElement("div");
+
+      render(renderModelsHub(props), container);
+
+      const usagePills = Array.from(
+        container.querySelectorAll<HTMLElement>(".alisio-models__usage-pill"),
+      ).map((element) => element.textContent?.replace(/\s+/g, " ").trim() ?? "");
+      const pillMains = Array.from(
+        container.querySelectorAll<HTMLElement>(".alisio-models__usage-pill-main"),
+      ).map((element) => element.textContent?.replace(/\s+/g, " ").trim() ?? "");
+      const weeklyReset = container.querySelector<HTMLElement>(".alisio-models__usage-pill-reset");
+
+      expect(usagePills).toContain("5h · 100% available");
+      expect(pillMains).toContain("Week · 53% available");
+      expect(weeklyReset?.textContent?.trim()).toBe("5d");
+      expect(container.querySelectorAll(".alisio-models__usage-pill-reset")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("setDefaultChatModel does not create a new allowlist when the config was previously open", async () => {

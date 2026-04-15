@@ -1,69 +1,15 @@
 import { html, nothing } from "lit";
-import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
-import { groupPairedDevicesByComputer, type PairedComputer } from "../controllers/devices.ts";
-import { resolveRemoteComputerRecords } from "../controllers/remote-computers.ts";
+import {
+  resolveConnectionsModel,
+  type ConnectionComputerModel,
+} from "../controllers/connections-model.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
 import { renderSkeletonListItem, renderSkeletonPill } from "./loading-skeleton.ts";
 import type { NodesProps } from "./nodes.ts";
-import { renderPendingDevice, renderPairedComputer } from "./nodes.ts";
-import { renderRemoteComputerCard } from "./remote-computers.ts";
-
-function resolveRemoteGroups(props: NodesProps) {
-  const all = resolveRemoteComputerRecords({
-    sharing: props.sharing ?? null,
-    nodes: props.nodes as NodeListNode[],
-    devicesList: props.devicesList,
-  });
-  return {
-    all,
-    sameAccount: all.filter((computer) => computer.sameAccount),
-    external: all.filter((computer) => !computer.sameAccount),
-  };
-}
-
-function resolveLocalComputerIds(props: NodesProps, localComputers: readonly PairedComputer[]) {
-  const ids = new Set(localComputers.map((computer) => computer.computerId));
-  const fallbackCurrent = resolveCurrentFallbackComputer(props, localComputers);
-  if (fallbackCurrent?.id?.trim()) {
-    ids.add(fallbackCurrent.id.trim());
-  }
-  return ids;
-}
-
-function resolveCurrentLocalComputerIds(
-  props: NodesProps,
-  localComputers: readonly PairedComputer[],
-) {
-  const ids = new Set(
-    localComputers
-      .filter((computer) => computer.isCurrentComputer)
-      .map((computer) => computer.computerId),
-  );
-  const fallbackCurrent = resolveCurrentFallbackComputer(props, localComputers);
-  if (fallbackCurrent?.id?.trim()) {
-    ids.add(fallbackCurrent.id.trim());
-  }
-  return ids;
-}
-
-function resolveVisibleRemoteGroups(props: NodesProps, localComputers?: readonly PairedComputer[]) {
-  const groupedLocalComputers =
-    localComputers ??
-    groupPairedDevicesByComputer(props.devicesList?.paired ?? [], props.currentDeviceId ?? null);
-  const localComputerIds = resolveLocalComputerIds(props, groupedLocalComputers);
-  const remoteGroups = resolveRemoteGroups(props);
-  const sameAccount = remoteGroups.sameAccount.filter(
-    (computer) => !localComputerIds.has(computer.computerId),
-  );
-  const external = remoteGroups.external;
-  return {
-    all: [...sameAccount, ...external],
-    sameAccount,
-    external,
-  };
-}
+import { renderPendingDevice, renderPairedComputer, renderRuntimeNodeCard } from "./nodes.ts";
+import { renderRemoteComputerCard, renderRemoteComputerDetails } from "./remote-computers.ts";
 
 function parseTimestamp(value: string | null | undefined) {
   if (!value) {
@@ -73,68 +19,53 @@ function parseTimestamp(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function resolveCurrentFallbackComputer(
-  props: NodesProps,
-  localComputers: readonly PairedComputer[],
-) {
-  if (localComputers.some((computer) => computer.isCurrentComputer)) {
-    return null;
-  }
-  const current =
-    props.account?.devices.find((device) => device.current) ?? props.account?.devices[0];
-  if (!current) {
-    return null;
-  }
-  return current;
-}
-
 export function countAccountComputers(props: NodesProps) {
-  const localComputers = groupPairedDevicesByComputer(
-    props.devicesList?.paired ?? [],
-    props.currentDeviceId ?? null,
-  );
-  const remoteGroups = resolveVisibleRemoteGroups(props, localComputers);
-  const computerIds = resolveLocalComputerIds(props, localComputers);
-  for (const computer of remoteGroups.sameAccount) {
-    computerIds.add(computer.computerId);
-  }
-  return computerIds.size;
+  return resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes,
+    nodePairingsList: props.nodePairingsList,
+  }).accountComputersCount;
 }
 
 export function countExternalComputers(props: NodesProps) {
-  return new Set(resolveVisibleRemoteGroups(props).external.map((computer) => computer.computerId))
-    .size;
+  return resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes,
+    nodePairingsList: props.nodePairingsList,
+  }).externalComputersCount;
 }
 
 export function countPendingComputerAccess(props: NodesProps) {
-  const sharingRequests = resolveVisiblePendingSharingRequests(props);
+  const model = resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes,
+    nodePairingsList: props.nodePairingsList,
+  });
   return (
-    (props.devicesList?.pending?.length ?? 0) +
-    sharingRequests.incoming.length +
-    sharingRequests.outgoing.length
+    model.pendingDeviceRequests.length +
+    model.pendingSharing.incoming.length +
+    model.pendingSharing.outgoing.length
   );
 }
 
 export function countOnlineComputers(props: NodesProps) {
-  const localComputers = groupPairedDevicesByComputer(
-    props.devicesList?.paired ?? [],
-    props.currentDeviceId ?? null,
-  );
-  const remoteGroups = resolveVisibleRemoteGroups(props, localComputers);
-  const hasCurrentComputer =
-    localComputers.some((computer) => computer.isCurrentComputer) ||
-    resolveCurrentFallbackComputer(props, localComputers) !== null;
-  const onlineComputerIds = new Set(
-    remoteGroups.all
-      .filter((computer) => computer.connected)
-      .map((computer) => computer.computerId),
-  );
-  if (hasCurrentComputer) {
-    for (const computerId of resolveCurrentLocalComputerIds(props, localComputers)) {
-      onlineComputerIds.add(computerId);
-    }
-  }
-  return onlineComputerIds.size;
+  return resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes,
+    nodePairingsList: props.nodePairingsList,
+  }).onlineComputersCount;
 }
 
 function resolveAccountPrimaryLabel(props: NodesProps) {
@@ -182,20 +113,6 @@ function resolveSharingRequestLabel(scopes: readonly string[]) {
     return t("alisio.connections.sharing.requestModels");
   }
   return t("alisio.connections.sharing.requestReadOnly");
-}
-
-function resolveVisiblePendingSharingRequests(props: NodesProps): {
-  incoming: NonNullable<NodesProps["sharing"]>["incomingRequests"];
-  outgoing: NonNullable<NodesProps["sharing"]>["outgoingRequests"];
-} {
-  const incoming = (props.sharing?.incomingRequests ?? []).filter(
-    (request) => request.status === "pending",
-  );
-  const incomingIds = new Set(incoming.map((request) => request.requestId));
-  const outgoing = (props.sharing?.outgoingRequests ?? []).filter(
-    (request) => request.status === "pending" && !incomingIds.has(request.requestId),
-  );
-  return { incoming, outgoing };
 }
 
 function renderIncomingRequest(
@@ -306,6 +223,58 @@ function renderCurrentFallbackComputer(
   `;
 }
 
+function renderComputerRuntimeContent(computer: ConnectionComputerModel, props: NodesProps) {
+  if (!computer.local || computer.runtimeNodes.length === 0) {
+    return nothing;
+  }
+  const pairedRuntimeNodes = new Map(
+    (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node] as const),
+  );
+  return html`
+    <div class="alisio-connections-entry__runtime">
+      <div class="muted alisio-connections-entry__section-label">
+        ${t("alisio.connections.nodes.title")}
+      </div>
+      <div class="alisio-node-list">
+        ${computer.runtimeNodes.map((node) => renderRuntimeNodeCard(node, pairedRuntimeNodes))}
+      </div>
+    </div>
+  `;
+}
+
+function renderComputerRemoteContent(computer: ConnectionComputerModel, props: NodesProps) {
+  if (!computer.local || !computer.remote) {
+    return nothing;
+  }
+  return html`
+    <div class="alisio-connections-entry__runtime">
+      <div class="muted alisio-connections-entry__section-label">
+        ${t("alisio.connections.remote.title")}
+      </div>
+      ${renderRemoteComputerDetails(computer.remote, props)}
+    </div>
+  `;
+}
+
+function renderComputerEntry(computer: ConnectionComputerModel, props: NodesProps) {
+  if (computer.local) {
+    return renderPairedComputer(computer.local, props, {
+      compact: true,
+      runtimeContent: html`
+        ${renderComputerRuntimeContent(computer, props)}
+        ${renderComputerRemoteContent(computer, props)}
+      `,
+    });
+  }
+  if (computer.fallback) {
+    return renderCurrentFallbackComputer(computer.fallback);
+  }
+  if (computer.remote) {
+    return renderRemoteComputerCard(computer.remote, props, { compact: true });
+  }
+  return nothing;
+}
+
 function renderComputersSection(params: { title: string; count?: number; items: unknown[] }) {
   return html`
     <section class="alisio-connections-subsection">
@@ -346,40 +315,33 @@ function renderCollapsibleComputersSection(params: {
 }
 
 export function renderComputersPanel(props: NodesProps) {
-  const localComputers = groupPairedDevicesByComputer(
-    props.devicesList?.paired ?? [],
-    props.currentDeviceId ?? null,
-  );
-  const remoteGroups = resolveVisibleRemoteGroups(props, localComputers);
-  const fallbackCurrent = resolveCurrentFallbackComputer(props, localComputers);
+  const model = resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes,
+    nodePairingsList: props.nodePairingsList,
+  });
   const initialLoading =
     !props.devicesList &&
     !props.devicesError &&
     !props.sharing &&
     !props.sharingError &&
     props.devicesLoading;
-  const visibleSharingRequests = resolveVisiblePendingSharingRequests(props);
   const pendingItems = [
-    ...(props.devicesList?.pending ?? []).map((request) => renderPendingDevice(request, props)),
-    ...visibleSharingRequests.incoming.map((request) => renderIncomingRequest(request, props)),
-    ...visibleSharingRequests.outgoing.map((request) => renderOutgoingRequest(request)),
+    ...model.pendingDeviceRequests.map((request) => renderPendingDevice(request, props)),
+    ...model.pendingSharing.incoming.map((request) => renderIncomingRequest(request, props)),
+    ...model.pendingSharing.outgoing.map((request) => renderOutgoingRequest(request)),
   ];
-  const currentComputer = localComputers.find((computer) => computer.isCurrentComputer) ?? null;
-  const currentItems = fallbackCurrent
-    ? [renderCurrentFallbackComputer(fallbackCurrent)]
-    : currentComputer
-      ? [renderPairedComputer(currentComputer, props, { compact: true })]
-      : [];
-  const accountItems = [
-    ...localComputers
-      .filter((computer) => !computer.isCurrentComputer)
-      .map((computer) => renderPairedComputer(computer, props, { compact: true })),
-    ...remoteGroups.sameAccount.map((computer) =>
-      renderRemoteComputerCard(computer, props, { compact: true }),
-    ),
-  ];
-  const otherItems = remoteGroups.external.map((computer) =>
-    renderRemoteComputerCard(computer, props, { compact: true }),
+  const currentItems = model.currentComputer
+    ? [renderComputerEntry(model.currentComputer, props)]
+    : [];
+  const accountItems = model.sameAccountComputers.map((computer) =>
+    renderComputerEntry(computer, props),
+  );
+  const otherItems = model.externalComputers.map((computer) =>
+    renderComputerEntry(computer, props),
   );
   const pendingCount = countPendingComputerAccess(props);
   const refreshing = props.devicesLoading || Boolean(props.sharingLoading);

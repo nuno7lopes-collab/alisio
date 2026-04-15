@@ -25,6 +25,20 @@ export type ChatModelSelectState = {
   options: ChatModelSelectOption[];
 };
 
+function resolveCatalogModelLabel(catalog: ModelCatalogEntry[], value: string): string | null {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) {
+    return null;
+  }
+  for (const entry of catalog) {
+    const option = buildChatModelOption(entry);
+    if (option.value.trim().toLowerCase() === trimmed) {
+      return option.label;
+    }
+  }
+  return null;
+}
+
 function resolveActiveSessionRow(state: ChatModelSelectStateInput) {
   return state.sessionsResult?.sessions?.find((row) => row.key === state.sessionKey);
 }
@@ -100,13 +114,15 @@ export function resolveChatModelSelectState(
 ): ChatModelSelectState {
   const currentOverride = resolveChatModelOverrideValue(state);
   const defaultModel = resolveDefaultModelValue(state);
-  const defaultDisplay = formatChatModelDisplay(defaultModel);
+  const catalog = state.chatModelCatalog ?? [];
+  const defaultDisplay =
+    resolveCatalogModelLabel(catalog, defaultModel) ?? formatChatModelDisplay(defaultModel);
 
   return {
     currentOverride,
     defaultModel,
     defaultDisplay,
     defaultLabel: defaultModel ? `Default (${defaultDisplay})` : "Default model",
-    options: buildChatModelOptions(state.chatModelCatalog ?? [], [currentOverride], [defaultModel]),
+    options: buildChatModelOptions(catalog, [currentOverride], [defaultModel]),
   };
 }

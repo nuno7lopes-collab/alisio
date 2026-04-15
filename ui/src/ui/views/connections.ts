@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import { resolveConnectionsModel } from "../controllers/connections-model.ts";
 import { icons } from "../icons.ts";
 import {
   countAccountComputers,
@@ -423,7 +424,7 @@ function renderSharingResourcePolicies(
   `;
 }
 
-function renderSharing(props: NodesProps) {
+function renderSharingContent(props: NodesProps) {
   const loading = props.sharingLoading === true;
   const showPanel = loading || props.sharingError != null || props.sharing != null;
   if (!showPanel) {
@@ -465,23 +466,7 @@ function renderSharing(props: NodesProps) {
     (sharing.policy.editable || typeof props.onSharingSetPolicy === "function");
 
   return html`
-    <section class="card alisio-connections-panel alisio-connections-panel--sharing">
-      <div class="alisio-connections-panel__head">
-        <div class="alisio-connections-panel__identity">
-          <span class="alisio-connections-panel__icon" aria-hidden="true">${icons.link}</span>
-          <div>
-            <div class="card-title">${text.title}</div>
-            <div class="card-sub">${text.subtitle}</div>
-          </div>
-        </div>
-        <button
-          class="btn btn--ghost btn--sm"
-          ?disabled=${loading}
-          @click=${() => props.onSharingRefresh?.()}
-        >
-          ${loading ? text.loading : text.refresh}
-        </button>
-      </div>
+    <div class="alisio-connections-panel__body alisio-connections-panel__body--sharing">
       ${props.sharingError
         ? html`<div class="callout danger" style="margin-top: 12px;">${props.sharingError}</div>`
         : nothing}
@@ -725,7 +710,7 @@ function renderSharing(props: NodesProps) {
               </div>
             </div>
           `}
-    </section>
+    </div>
   `;
 }
 
@@ -759,6 +744,14 @@ export function renderConnections(props: NodesProps) {
     na: t("common.na"),
     advanced: t("alisio.connections.advanced"),
   };
+  const connectionsModel = resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes,
+    nodePairingsList: props.nodePairingsList,
+  });
   return html`
     <section class="alisio-page alisio-connections-page">
       <div class="card alisio-connections-hero" aria-busy=${refreshing ? "true" : "false"}>
@@ -803,11 +796,7 @@ export function renderConnections(props: NodesProps) {
       </div>
       <div class="alisio-connections-stack">
         ${renderComputersPanel(props)}
-        ${(props.sharing?.devices.available?.length ?? 0) > 0 ||
-        (props.sharing?.devices.sharedWithMe?.length ?? 0) > 0 ||
-        (props.sharing?.incomingRequests?.length ?? 0) > 0 ||
-        (props.sharing?.suggestions?.length ?? 0) > 0 ||
-        props.sharing?.policy.resourcesEditable
+        ${connectionsModel.hasAdvancedSharing
           ? html`
               <details class="card alisio-connections-panel alisio-connections-panel--sharing">
                 <summary class="alisio-connections-panel__head">
@@ -821,11 +810,15 @@ export function renderConnections(props: NodesProps) {
                     </div>
                   </div>
                 </summary>
-                ${renderSharing(props)}
+                ${renderSharingContent(props)}
               </details>
             `
           : nothing}
-        ${renderNodes(props, { includeExecApprovals: false, showDevices: false })}
+        ${renderNodes(props, {
+          includeExecApprovals: false,
+          showDevices: false,
+          collapseNodeInventoryByComputer: true,
+        })}
       </div>
     </section>
   `;

@@ -557,6 +557,21 @@ describe("renderMemoryHub", () => {
     expect(text).toContain("Graph");
   });
 
+  it("rerenders hub copy when only the locale changes", async () => {
+    const { container, hub } = await mountNativeHub(createProps());
+    const element = hub as HTMLElement & { updateComplete?: Promise<unknown> };
+
+    expect(cleanText(container)).toContain("Notes");
+
+    await i18n.setLocale("pt-PT");
+    await element.updateComplete;
+    await flushMemoryHub();
+
+    const text = cleanText(container);
+    expect(text).toContain("Notas");
+    expect(text).not.toContain("Notes");
+  });
+
   it("não pede o grafo no primeiro open enquanto a vista principal está nas notas", async () => {
     const props = createProps();
     const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };

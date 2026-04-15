@@ -46,6 +46,7 @@ class I18nManager {
   private locale: Locale = DEFAULT_LOCALE;
   private translations: Partial<Record<Locale, TranslationMap>> = { [DEFAULT_LOCALE]: en };
   private subscribers: Set<Subscriber> = new Set();
+  private localeRequestVersion = 0;
 
   constructor() {
     this.loadLocale();
@@ -92,7 +93,11 @@ class I18nManager {
 
   public async setLocale(locale: Locale) {
     const needsTranslationLoad = locale !== DEFAULT_LOCALE && !this.translations[locale];
+    const requestVersion = ++this.localeRequestVersion;
     if (this.locale === locale && !needsTranslationLoad) {
+      this.syncDocumentLocale(locale);
+      this.persistLocale(locale);
+      this.notify();
       return;
     }
 
@@ -103,10 +108,17 @@ class I18nManager {
           return;
         }
         this.translations[locale] = translation;
+        if (requestVersion !== this.localeRequestVersion) {
+          return;
+        }
       } catch (e) {
         console.error(`Failed to load locale: ${locale}`, e);
         return;
       }
+    }
+
+    if (requestVersion !== this.localeRequestVersion) {
+      return;
     }
 
     this.locale = locale;

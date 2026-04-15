@@ -1,18 +1,19 @@
-import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
+import { summarizeAlisioConnectorSurfaceUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
 import { isAlisioManagedProvider } from "../../../../src/shared/alisio-dynamic-provider.js";
 import { t } from "../../i18n/index.ts";
 import { resolveAlisioAccountEmailRedirectUrl } from "../alisio-account-auth.ts";
 import {
   alisioBootstrapBlocksChatAccess,
-  isPostReadySetupStep,
   resolveBlockingSetupStep,
 } from "../alisio-setup-state.ts";
 import { clearDeviceAuthToken } from "../device-auth.ts";
 import { loadManagedDeviceIdentity } from "../device-identity.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import {
+  DEFAULT_MODELS_AI_PROFILE_SORT,
   makeModelsOperationKey,
   type ModelProviderId,
+  type ModelsAiProfileSort,
   type ModelsOperation,
   type ModelsOperationIntent,
   type ModelsOperationMap,
@@ -80,6 +81,8 @@ export type AlisioState = {
   modelManagementLoading?: boolean;
   modelsExpandedProfileId?: string | null;
   modelsSelectedProviderId?: ModelProviderId | null;
+  modelsAiProfileSort?: ModelsAiProfileSort;
+  modelsAiProfileRecentIds?: string[];
   alisioAccountLoading: boolean;
   alisioAccountError: string | null;
   alisioAccountNotice: string | null;
@@ -422,14 +425,6 @@ function syncSetupRoute(state: AlisioState) {
       bootstrap,
     });
     state.setTab("setup");
-    return;
-  }
-  if (
-    !shouldForceSetup(bootstrap) &&
-    activeTab === "setup" &&
-    !isPostReadySetupStep(state.setupStep)
-  ) {
-    state.setTab("chat");
   }
 }
 
@@ -594,7 +589,7 @@ function applyConnectorSnapshot(
 ) {
   const catalog = [...params.catalog];
   const authorizations = [...params.authorizations];
-  const summary = summarizeAlisioConnectorUiStatuses({
+  const summary = summarizeAlisioConnectorSurfaceUiStatuses({
     definitions: catalog,
     authorizations,
   });
@@ -643,6 +638,8 @@ function resetSignedOutAccountState(state: AlisioState) {
   state.alisioProvidersError = null;
   state.modelsExpandedProfileId = undefined;
   state.modelsSelectedProviderId = undefined;
+  state.modelsAiProfileSort = DEFAULT_MODELS_AI_PROFILE_SORT;
+  state.modelsAiProfileRecentIds = [];
   if (Array.isArray(state.chatModelCatalog)) {
     state.chatModelCatalog = state.chatModelCatalog.filter(
       (entry) => !isAlisioManagedProvider(entry.provider),
@@ -842,7 +839,7 @@ export async function loadAlisioModels(state: AlisioState) {
     }
     if (isUnknownMethodError(error, "alisio.models.get")) {
       state.alisioModels = null;
-      state.alisioModelsError = "Este Alisio ainda não expõe a gestão de modelos nesta versão.";
+      state.alisioModelsError = t("alisio.settings.models.managementUnavailable");
       return;
     }
     state.alisioModelsError = String(error);
@@ -979,8 +976,7 @@ export async function loadAlisioAccount(state: AlisioState) {
 
 export async function beginAlisioAccountEmailAuth(state: AlisioState) {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return;
   }
   if (!state.alisioAccount && !state.alisioAccountLoading) {
@@ -1050,8 +1046,7 @@ export async function completeAlisioAccountEmailLinkAuth(
   },
 ): Promise<boolean> {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return false;
   }
   const request = beginTrackedRequest(state, accountRequests, false);
@@ -1101,8 +1096,7 @@ export async function completeAlisioAccountEmailLinkAuth(
 
 export async function verifyAlisioAccountEmailAuth(state: AlisioState) {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return;
   }
   const request = beginTrackedRequest(state, accountRequests, false);
@@ -1139,8 +1133,7 @@ export async function verifyAlisioAccountEmailAuth(state: AlisioState) {
 
 export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackUrl: string) {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return null;
   }
   if (!state.alisioAccount && !state.alisioAccountLoading) {
@@ -1295,8 +1288,7 @@ async function authenticateAlisioAccountWithPassword(
   params: { email: string; password: string; mode: "sign_in" | "sign_up" },
 ) {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return;
   }
   if (!state.alisioAccount && !state.alisioAccountLoading) {
@@ -1328,8 +1320,11 @@ async function authenticateAlisioAccountWithPassword(
       return;
     }
     applyAccountSnapshot(state, account);
+    state.alisioAuthPendingEmail = params.email.trim();
+    state.alisioAuthCode = "";
     state.alisioPasswordResetRequired = false;
     if (params.mode === "sign_up" && account.session.state !== "signed_in") {
+      state.alisioAuthStage = "email-link";
       state.alisioAccountNotice = t("alisio.setup.account.signUpConfirmNotice");
     }
     await loadAlisioDoctorSummary(state, { force: true });
@@ -1411,8 +1406,7 @@ export async function requestAlisioRecoveryEmail(state: AlisioState) {
 
 export async function changeAlisioAccountEmail(state: AlisioState, params: { email: string }) {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return;
   }
   const request = beginTrackedRequest(state, accountRequests, false);
@@ -1450,8 +1444,7 @@ export async function updateAlisioAccountPassword(
   params: { password: string },
 ) {
   if (!state.client || !state.connected) {
-    state.alisioAccountError =
-      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    state.alisioAccountError = t("alisio.setup.account.genericReconnectError");
     return;
   }
   const request = beginTrackedRequest(state, accountRequests, false);
