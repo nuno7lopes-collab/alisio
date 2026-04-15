@@ -24,6 +24,7 @@ import {
   resetTaskRegistryRuntimeForTests,
   type TaskRegistryHookEvent,
 } from "./task-registry.store.js";
+import { closeTaskRegistrySqliteStore } from "./task-registry.store.sqlite.js";
 import { summarizeTaskRecords } from "./task-registry.summary.js";
 import type {
   TaskDeliveryState,
@@ -1345,5 +1346,6 @@ export function resetTaskRegistryForTests(opts?: { persist?: boolean }) {
     // Close the sqlite handle after persisting the empty snapshot so Windows temp-dir
     // cleanup can remove the state directory without hitting runs.sqlite EBUSY errors.
     getTaskRegistryStore().close?.();
+    closeTaskRegistrySqliteStore();
   }
 }

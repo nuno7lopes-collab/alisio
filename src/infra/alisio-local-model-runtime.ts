@@ -45,6 +45,7 @@ type SuggestedLocalModelCatalogEntry = {
   quantization?: string;
   diskGb: number;
   memoryGb: number;
+  vramGb?: number;
   ownedBy?: string;
 };
 
@@ -72,6 +73,7 @@ function buildSuggestedAvailableModels(
     quantization: entry.quantization,
     diskGb: entry.diskGb,
     memoryGb: entry.memoryGb,
+    vramGb: entry.vramGb,
     recommendation: recommendationById.get(entry.id),
   }));
 }
@@ -89,6 +91,7 @@ export function listManagedLocalAvailableModels(
       quantization: entry.quantization,
       diskGb: entry.diskGb,
       memoryGb: entry.memoryGb,
+      vramGb: entry.vramGb,
       ownedBy: entry.backend,
     })),
     hardware,

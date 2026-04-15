@@ -1,4 +1,4 @@
-import type { TaskRecord } from "./task-registry.types.js";
+import type { Task } from "./task-service.types.js";
 
 export type TaskProposalKind = "task" | "project";
 
@@ -24,13 +24,14 @@ export type TaskProposalRecord = {
   updatedAt: number;
   resolvedAt?: number;
   resolvedBy?: string;
+  launchedTaskId?: string;
   launchedRunId?: string;
   launchedSessionKey?: string;
   launchedAt?: number;
 };
 
 export type TaskProposalView = TaskProposalRecord & {
-  linkedTask?: TaskRecord;
+  linkedTask?: Task;
 };
 
 export type TaskProposalSummary = {

@@ -1,8 +1,10 @@
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
+import type { ConversationBindingContext } from "../../channels/conversation-binding-context.js";
 import { resolveConversationLabel } from "../../channels/conversation-label.js";
 import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
 import { normalizeMessageChannel } from "../../utils/message-channel.js";
+import { deriveSessionConversationModel } from "./conversation-model.js";
 import { buildGroupDisplayName, resolveGroupSessionKey } from "./group.js";
 import type { GroupKeyResolution, SessionEntry, SessionOrigin } from "./types.js";
 
@@ -196,6 +198,7 @@ export function deriveSessionMetaPatch(params: {
   sessionKey: string;
   existing?: SessionEntry;
   groupResolution?: GroupKeyResolution | null;
+  bindingContext?: ConversationBindingContext | null;
 }): Partial<SessionEntry> | null {
   const groupPatch = deriveGroupSessionPatch(params);
   const origin = deriveSessionOrigin(params.ctx);
@@ -204,16 +207,31 @@ export function deriveSessionMetaPatch(params: {
     params.ctx,
   );
   const originChanged = sanitizedExistingOrigin !== params.existing?.origin;
-  if (!groupPatch && !origin && !originChanged) {
-    return null;
-  }
-
   const patch: Partial<SessionEntry> = groupPatch ? { ...groupPatch } : {};
   const mergedOrigin = mergeOrigin(sanitizedExistingOrigin, origin);
   if (mergedOrigin) {
     patch.origin = mergedOrigin;
   } else if (originChanged && params.existing?.origin) {
     patch.origin = undefined;
+  }
+
+  const modeledEntry: SessionEntry = {
+    ...(params.existing ?? { sessionId: "", updatedAt: Date.now() }),
+    ...patch,
+  };
+  const conversationModel = deriveSessionConversationModel({
+    sessionKey: params.sessionKey,
+    entry: modeledEntry,
+    bindingContext: params.bindingContext,
+  });
+  if (
+    conversationModel.category !== params.existing?.category ||
+    JSON.stringify(conversationModel.surfaceRef) !== JSON.stringify(params.existing?.surfaceRef) ||
+    JSON.stringify(conversationModel.relationship) !== JSON.stringify(params.existing?.relationship)
+  ) {
+    patch.category = conversationModel.category;
+    patch.surfaceRef = conversationModel.surfaceRef;
+    patch.relationship = conversationModel.relationship;
   }
 
   return Object.keys(patch).length > 0 ? patch : null;

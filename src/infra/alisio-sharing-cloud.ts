@@ -339,6 +339,8 @@ function targetRowToRecord(row: Record<string, unknown>): AlisioSharingCloudTarg
   }
   return {
     targetId,
+    ...(asString(row.computer_id) ? { computerId: asString(row.computer_id) } : {}),
+    ...(asString(row.computer_label) ? { computerLabel: asString(row.computer_label) } : {}),
     label,
     ...(asString(row.platform) ? { platform: asString(row.platform) } : {}),
     sourceKind,
@@ -469,6 +471,8 @@ function policyRowToRecord(row: Record<string, unknown>): AlisioSharingCloudPoli
 function toTargetRow(target: AlisioSharingCloudTargetRecord) {
   return {
     target_id: target.targetId,
+    computer_id: target.computerId ?? null,
+    computer_label: target.computerLabel ?? null,
     label: target.label,
     platform: target.platform ?? null,
     source_kind: target.sourceKind,
@@ -653,6 +657,8 @@ export async function loadAlisioSharingCloudState(params: {
       const existing = existingById.get(target.targetId);
       return {
         targetId: target.targetId,
+        computerId: target.computerId ?? existing?.computerId,
+        computerLabel: target.computerLabel ?? existing?.computerLabel,
         label: target.label,
         platform: target.platform,
         sourceKind: target.sourceKind,

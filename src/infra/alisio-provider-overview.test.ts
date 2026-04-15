@@ -144,7 +144,7 @@ describe("loadAlisioProviderOverview", () => {
               connectLabel: "Connect with Google",
               summary: "Calendar access.",
               availability: "ready",
-              scopes: ["openid", "email"],
+              scopes: ["https://www.googleapis.com/auth/calendar", "openid", "email"],
             },
           ] as never,
         listAlisioConnectorAuthorizations: async () =>
@@ -163,7 +163,7 @@ describe("loadAlisioProviderOverview", () => {
               connectorId: "google-calendar",
               state: "connected",
               health: "healthy",
-              scopes: ["openid", "email"],
+              scopes: ["https://www.googleapis.com/auth/calendar", "openid", "email"],
               connectedAccount: {
                 label: "Nuno",
                 email: "nuno@example.com",
@@ -302,9 +302,9 @@ describe("loadAlisioProviderOverview", () => {
       "connected",
     );
     expect(result.apps.find((item) => item.connectorId === "google-calendar")?.status).toBe(
-      "coming_soon",
+      "connected",
     );
-    expect(result.apps.find((item) => item.connectorId === "google-calendar")?.active).toBe(false);
+    expect(result.apps.find((item) => item.connectorId === "google-calendar")?.active).toBe(true);
     expect(result.connectors.catalog).toHaveLength(2);
   });
 

@@ -553,6 +553,17 @@ export function buildAllowedModelSet(params: {
     allowedKeys.add(defaultKey);
   }
 
+  // Runtime-backed local/linked models should stay usable from chat even when
+  // a static allowlist is configured. They are ephemeral surfaces discovered
+  // from the current Alisio runtime, so only admit entries that are actually
+  // present in the live catalog.
+  for (const entry of params.catalog) {
+    if (!isAlisioDynamicProvider(entry.provider)) {
+      continue;
+    }
+    allowedKeys.add(modelKey(entry.provider, entry.id));
+  }
+
   const allowedCatalog = [
     ...params.catalog.filter((entry) => allowedKeys.has(modelKey(entry.provider, entry.id))),
     ...syntheticCatalogEntries.values(),
@@ -675,11 +686,11 @@ export function resolveAllowedModelRef(params: {
     defaultProvider: params.defaultProvider,
     defaultModel: params.defaultModel,
   });
-  if (!status.allowed) {
-    return { error: `model not allowed: ${status.key}` };
-  }
   if (isAlisioDynamicProvider(resolved.ref.provider) && !status.inCatalog) {
     return { error: `model unavailable: ${status.key}` };
+  }
+  if (!status.allowed) {
+    return { error: `model not allowed: ${status.key}` };
   }
 
   return { ref: resolved.ref, key: status.key };

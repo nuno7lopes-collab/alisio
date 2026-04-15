@@ -58,6 +58,8 @@ const acpRuntimeMocks = vi.hoisted(() => ({
 const acpManagerMocks = vi.hoisted(() => ({
   cancelSession: vi.fn(async () => {}),
   closeSession: vi.fn(async () => {}),
+  initializeSession: vi.fn(async () => {}),
+  updateSessionRuntimeOptions: vi.fn(async () => {}),
 }));
 const browserSessionTabMocks = vi.hoisted(() => ({
   closeTrackedBrowserTabsForSessions: vi.fn(async () => 0),
@@ -151,6 +153,8 @@ vi.mock("../acp/control-plane/manager.js", () => ({
   getAcpSessionManager: () => ({
     cancelSession: acpManagerMocks.cancelSession,
     closeSession: acpManagerMocks.closeSession,
+    initializeSession: acpManagerMocks.initializeSession,
+    updateSessionRuntimeOptions: acpManagerMocks.updateSessionRuntimeOptions,
   }),
 }));
 
@@ -278,6 +282,8 @@ describe("gateway server sessions", () => {
     );
     acpManagerMocks.cancelSession.mockClear();
     acpManagerMocks.closeSession.mockClear();
+    acpManagerMocks.initializeSession.mockClear();
+    acpManagerMocks.updateSessionRuntimeOptions.mockClear();
     browserSessionTabMocks.closeTrackedBrowserTabsForSessions.mockClear();
     browserSessionTabMocks.closeTrackedBrowserTabsForSessions.mockResolvedValue(0);
   });
@@ -304,6 +310,9 @@ describe("gateway server sessions", () => {
         providerOverride?: string;
         modelOverride?: string;
         parentSessionKey?: string;
+        category?: string;
+        surfaceRef?: { type?: string; id?: string };
+        relationship?: { kind?: string; parentConversationId?: string };
         sessionFile?: string;
       };
     }>(ws, "sessions.create", {
@@ -319,6 +328,14 @@ describe("gateway server sessions", () => {
     expect(created.payload?.entry?.providerOverride).toBe("openai");
     expect(created.payload?.entry?.modelOverride).toBe("gpt-test-a");
     expect(created.payload?.entry?.parentSessionKey).toBe("agent:main:main");
+    expect(created.payload?.entry?.category).toBe("dashboard");
+    expect(created.payload?.entry?.surfaceRef).toMatchObject({
+      type: "dashboard_chat",
+    });
+    expect(created.payload?.entry?.relationship).toEqual({
+      kind: "child",
+      parentConversationId: "agent:main:main",
+    });
     expect(created.payload?.entry?.sessionFile).toBeTruthy();
     expect(created.payload?.sessionId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
@@ -332,6 +349,9 @@ describe("gateway server sessions", () => {
         providerOverride?: string;
         modelOverride?: string;
         parentSessionKey?: string;
+        category?: string;
+        surfaceRef?: { type?: string; id?: string };
+        relationship?: { kind?: string; parentConversationId?: string };
         sessionFile?: string;
       }
     >;
@@ -342,6 +362,14 @@ describe("gateway server sessions", () => {
       providerOverride: "openai",
       modelOverride: "gpt-test-a",
       parentSessionKey: "agent:main:main",
+      category: "dashboard",
+    });
+    expect(rawStore[key]?.surfaceRef).toMatchObject({
+      type: "dashboard_chat",
+    });
+    expect(rawStore[key]?.relationship).toEqual({
+      kind: "child",
+      parentConversationId: "agent:main:main",
     });
     expect(created.payload?.entry?.sessionFile).toBe(rawStore[key]?.sessionFile);
 
@@ -2078,6 +2106,79 @@ describe("gateway server sessions", () => {
       cwd: "/tmp/acp-session",
       state: "idle",
     });
+
+    ws.close();
+  });
+
+  test("sessions.runtime.reset keeps the conversation transcript while resetting ACP runtime", async () => {
+    const { dir, storePath } = await createSessionStoreDir();
+    await writeSingleLineSession(dir, "sess-main", "hello");
+
+    await writeSessionStore({
+      entries: {
+        main: {
+          sessionId: "sess-main",
+          updatedAt: Date.now(),
+          acp: {
+            backend: "acpx",
+            agent: "codex",
+            runtimeSessionName: "runtime:reset",
+            mode: "persistent",
+            runtimeOptions: {
+              runtimeMode: "plan",
+              timeoutSeconds: 45,
+            },
+            cwd: "/tmp/acp-session",
+            state: "idle",
+            lastActivityAt: Date.now(),
+          },
+        },
+      },
+    });
+    const { ws } = await openClient();
+    const reset = await rpcReq<{
+      ok: true;
+      key: string;
+      entry?: {
+        sessionId?: string;
+      };
+    }>(ws, "sessions.runtime.reset", {
+      key: "main",
+    });
+
+    expect(reset.ok).toBe(true);
+    expect(reset.payload?.key).toBe("agent:main:main");
+    expect(reset.payload?.entry?.sessionId).toBe("sess-main");
+    expect(acpManagerMocks.closeSession).toHaveBeenCalledWith({
+      allowBackendUnavailable: true,
+      cfg: expect.any(Object),
+      requireAcpSession: false,
+      clearMeta: false,
+      reason: "reset-in-place-reset",
+      sessionKey: "agent:main:main",
+    });
+    expect(acpManagerMocks.initializeSession).toHaveBeenCalledWith({
+      backendId: "acpx",
+      cfg: expect.any(Object),
+      cwd: "/tmp/acp-session",
+      agent: "codex",
+      mode: "persistent",
+      sessionKey: "agent:main:main",
+    });
+    expect(acpManagerMocks.updateSessionRuntimeOptions).toHaveBeenCalledWith({
+      cfg: expect.any(Object),
+      sessionKey: "agent:main:main",
+      patch: {
+        runtimeMode: "plan",
+        timeoutSeconds: 45,
+      },
+    });
+    const store = JSON.parse(await fs.readFile(storePath, "utf-8")) as Record<
+      string,
+      { sessionId?: string }
+    >;
+    expect(store["agent:main:main"]?.sessionId).toBe("sess-main");
+    expect(threadBindingMocks.unbindThreadBindingsBySessionKey).not.toHaveBeenCalled();
 
     ws.close();
   });

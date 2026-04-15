@@ -270,6 +270,66 @@ describe("session.message websocket events", () => {
     }
   });
 
+  test("delivers the same conversation transcript stream to multiple clients in append order", async () => {
+    const storePath = await createSessionStoreFile();
+    await writeSessionStore({
+      entries: {
+        main: {
+          sessionId: "sess-main",
+          updatedAt: Date.now(),
+        },
+      },
+      storePath,
+    });
+
+    const harness = await createGatewaySuiteHarness();
+    try {
+      const firstWs = await harness.openWs();
+      const secondWs = await harness.openWs();
+      try {
+        await connectOk(firstWs, { scopes: ["operator.read"] });
+        await connectOk(secondWs, { scopes: ["operator.read"] });
+        await rpcReq(firstWs, "sessions.messages.subscribe", { key: "agent:main:main" });
+        await rpcReq(secondWs, "sessions.messages.subscribe", { key: "agent:main:main" });
+
+        const firstEventA = waitForSessionMessageEvent(firstWs, "agent:main:main");
+        const firstEventB = waitForSessionMessageEvent(secondWs, "agent:main:main");
+        const [firstAppend, firstPayloadA, firstPayloadB] = await Promise.all([
+          appendAssistantMessageToSessionTranscript({
+            sessionKey: "agent:main:main",
+            text: "first append",
+            storePath,
+          }),
+          firstEventA,
+          firstEventB,
+        ]);
+        expect(firstAppend.ok).toBe(true);
+        expect((firstPayloadA.payload as { messageSeq?: number }).messageSeq).toBe(1);
+        expect((firstPayloadB.payload as { messageSeq?: number }).messageSeq).toBe(1);
+
+        const secondEventA = waitForSessionMessageEvent(firstWs, "agent:main:main");
+        const secondEventB = waitForSessionMessageEvent(secondWs, "agent:main:main");
+        const [secondAppend, secondPayloadA, secondPayloadB] = await Promise.all([
+          appendAssistantMessageToSessionTranscript({
+            sessionKey: "agent:main:main",
+            text: "second append",
+            storePath,
+          }),
+          secondEventA,
+          secondEventB,
+        ]);
+        expect(secondAppend.ok).toBe(true);
+        expect((secondPayloadA.payload as { messageSeq?: number }).messageSeq).toBe(2);
+        expect((secondPayloadB.payload as { messageSeq?: number }).messageSeq).toBe(2);
+      } finally {
+        firstWs.close();
+        secondWs.close();
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
   test("includes live usage metadata on session.message and sessions.changed transcript events", async () => {
     const storePath = await createSessionStoreFile();
     await writeSessionStore({
@@ -631,6 +691,90 @@ describe("session.message websocket events", () => {
         });
       } finally {
         ws.close();
+      }
+    } finally {
+      await harness.close();
+    }
+  });
+
+  test("keeps WhatsApp and Telegram conversations isolated across simultaneous subscribers", async () => {
+    const storePath = await createSessionStoreFile();
+    const whatsappSessionKey = "agent:main:whatsapp:direct:+15550001111";
+    const telegramSessionKey = "agent:main:telegram:direct:123456789";
+    await writeSessionStore({
+      entries: {
+        [whatsappSessionKey]: {
+          sessionId: "sess-whatsapp",
+          updatedAt: Date.now(),
+        },
+        [telegramSessionKey]: {
+          sessionId: "sess-telegram",
+          updatedAt: Date.now(),
+        },
+      },
+      storePath,
+    });
+
+    const harness = await createGatewaySuiteHarness();
+    try {
+      const whatsappWs = await harness.openWs();
+      const telegramWs = await harness.openWs();
+      try {
+        await connectOk(whatsappWs, { scopes: ["operator.read"] });
+        await connectOk(telegramWs, { scopes: ["operator.read"] });
+        await rpcReq(whatsappWs, "sessions.messages.subscribe", { key: whatsappSessionKey });
+        await rpcReq(telegramWs, "sessions.messages.subscribe", { key: telegramSessionKey });
+
+        const whatsappEvent = waitForSessionMessageEvent(whatsappWs, whatsappSessionKey);
+        const [whatsappAppend] = await Promise.all([
+          appendAssistantMessageToSessionTranscript({
+            sessionKey: whatsappSessionKey,
+            text: "whatsapp only",
+            storePath,
+          }),
+          whatsappEvent,
+        ]);
+        expect(whatsappAppend.ok).toBe(true);
+        await expectNoMessageWithin({
+          timeoutMs: 300,
+          watch: () =>
+            onceMessage(
+              telegramWs,
+              (message) =>
+                message.type === "event" &&
+                message.event === "session.message" &&
+                (message.payload as { sessionKey?: string } | undefined)?.sessionKey ===
+                  telegramSessionKey,
+              300,
+            ),
+        });
+
+        const telegramEvent = waitForSessionMessageEvent(telegramWs, telegramSessionKey);
+        const [telegramAppend] = await Promise.all([
+          appendAssistantMessageToSessionTranscript({
+            sessionKey: telegramSessionKey,
+            text: "telegram only",
+            storePath,
+          }),
+          telegramEvent,
+        ]);
+        expect(telegramAppend.ok).toBe(true);
+        await expectNoMessageWithin({
+          timeoutMs: 300,
+          watch: () =>
+            onceMessage(
+              whatsappWs,
+              (message) =>
+                message.type === "event" &&
+                message.event === "session.message" &&
+                (message.payload as { sessionKey?: string } | undefined)?.sessionKey ===
+                  whatsappSessionKey,
+              300,
+            ),
+        });
+      } finally {
+        whatsappWs.close();
+        telegramWs.close();
       }
     } finally {
       await harness.close();

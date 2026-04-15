@@ -1,7 +1,7 @@
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
-import { normalizeAgentId } from "../../routing/session-key.js";
+import { normalizeAgentId, resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { isAcpSessionKey } from "../../sessions/session-key-utils.js";
 import {
   createRunningTaskRun,
@@ -9,6 +9,11 @@ import {
   failTaskRunByRunId,
   startTaskRunByRunId,
 } from "../../tasks/task-executor.js";
+import {
+  createTaskWithExecution,
+  endTaskExecutionByRunId,
+  markTaskExecutionRunningByRunId,
+} from "../../tasks/task-service.js";
 import type { DeliveryContext } from "../../utils/delivery-context.js";
 import {
   AcpRuntimeError,
@@ -1881,6 +1886,29 @@ export class AcpSessionManager {
 
   private createBackgroundTaskRecord(context: BackgroundTaskContext, startedAt: number): void {
     try {
+      createTaskWithExecution({
+        title: context.label ?? context.task,
+        summary: context.task,
+        requesterSessionKey: context.requesterSessionKey,
+        requestedBy: context.requesterSessionKey,
+        ownerAgentId: resolveAgentIdFromSessionKey(context.childSessionKey),
+        orchestratorSessionKey: context.childSessionKey,
+        parentSessionKey: context.requesterSessionKey,
+        executionKind: "acp",
+        executionSourceId: context.runId,
+        executionRunId: context.runId,
+        executionSessionKey: context.childSessionKey,
+        executionAgentId: resolveAgentIdFromSessionKey(context.childSessionKey),
+        executionLabel: context.label,
+        executionSummary: context.task,
+        executionStatus: "queued",
+      });
+    } catch (error) {
+      logVerbose(
+        `acp-manager: failed creating canonical task for ${context.runId}: ${String(error)}`,
+      );
+    }
+    try {
       createRunningTaskRun({
         runtime: "acp",
         sourceId: context.runId,
@@ -1907,6 +1935,15 @@ export class AcpSessionManager {
     },
   ): void {
     try {
+      markTaskExecutionRunningByRunId({
+        runId,
+        startedAt: params.lastEventAt,
+        summary: params.progressSummary,
+      });
+    } catch (error) {
+      logVerbose(`acp-manager: failed updating canonical task for ${runId}: ${String(error)}`);
+    }
+    try {
       startTaskRunByRunId({
         runId,
         lastEventAt: params.lastEventAt,
@@ -1929,6 +1966,18 @@ export class AcpSessionManager {
       terminalOutcome?: "succeeded" | "blocked" | null;
     },
   ): void {
+    try {
+      endTaskExecutionByRunId({
+        runId,
+        status: params.status,
+        endedAt: params.endedAt,
+        summary: params.terminalSummary ?? params.progressSummary ?? undefined,
+        error: params.error,
+        terminalOutcome: params.terminalOutcome,
+      });
+    } catch (error) {
+      logVerbose(`acp-manager: failed updating canonical task for ${runId}: ${String(error)}`);
+    }
     try {
       if (params.status === "succeeded") {
         completeTaskRunByRunId({

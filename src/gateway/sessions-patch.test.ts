@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
+import { buildAlisioCurrentProviderId } from "../shared/alisio-dynamic-provider.js";
 import { applySessionsPatchToStore } from "./sessions-patch.js";
 
 const SUBAGENT_MODEL = "synthetic/hf:moonshotai/Kimi-K2.5";
@@ -98,6 +99,19 @@ function createAllowlistedAnthropicModelCfg(): AlisioConfig {
         model: { primary: "openai/gpt-5.2" },
         models: {
           "anthropic/claude-sonnet-4-6": { alias: "sonnet" },
+        },
+      },
+    },
+  } as AlisioConfig;
+}
+
+function createAllowlistedOpenAiModelCfg(): AlisioConfig {
+  return {
+    agents: {
+      defaults: {
+        model: { primary: "openai/gpt-4o" },
+        models: {
+          "openai/gpt-4o": {},
         },
       },
     },
@@ -271,6 +285,34 @@ describe("gateway sessions patch", () => {
     );
     expect(entry.providerOverride).toBe("anthropic");
     expect(entry.modelOverride).toBe("claude-sonnet-4-6");
+  });
+
+  test("accepts runtime-available local dynamic refs even when the allowlist is static", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    const entry = expectPatchOk(
+      await runPatch({
+        cfg: createAllowlistedOpenAiModelCfg(),
+        patch: { key: MAIN_SESSION_KEY, model: `${provider}/qwen3-4b-q4-k-m` },
+        loadGatewayModelCatalog: async () => [
+          { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+          { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+        ],
+      }),
+    );
+
+    expect(entry.providerOverride).toBe(provider);
+    expect(entry.modelOverride).toBe("qwen3-4b-q4-k-m");
+  });
+
+  test("rejects unavailable local dynamic refs when the runtime catalog does not expose them", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    const result = await runPatch({
+      cfg: createAllowlistedOpenAiModelCfg(),
+      patch: { key: MAIN_SESSION_KEY, model: `${provider}/qwen3-4b-q4-k-m` },
+      loadGatewayModelCatalog: async () => [{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }],
+    });
+
+    expectPatchError(result, `model unavailable: ${provider}/qwen3-4b-q4-k-m`);
   });
 
   test("sets spawnDepth for subagent sessions", async () => {

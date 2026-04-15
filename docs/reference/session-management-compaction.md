@@ -39,6 +39,27 @@ Alisio is designed around a single **Gateway process** that owns session state.
 
 ---
 
+## Canonical chat model
+
+Use these terms distinctly when reasoning about chat/session behavior:
+
+- **Agent**: the long-lived agent identity, persona, and memory owner.
+- **Surface**: where the human is interacting. Examples: dashboard chat, desktop window, web tab, WhatsApp chat, Telegram topic, Discord thread.
+- **Conversation**: the logical short-term context bucket for one chat. Multiple conversations can belong to the same agent at the same time.
+- **Transcript**: the concrete active history file for one conversation.
+- **Runtime**: an optional external execution/runtime binding such as ACP or Codex.
+- **Client-local view state**: per-device or per-window UI state such as selected chat, draft text, scroll position, and active tab.
+
+Important invariants:
+
+- A conversation has one active transcript at a time.
+- Reset keeps the same conversation and rotates to a new transcript.
+- New chat creates a new conversation and its first transcript.
+- Runtime reset is separate from conversation reset.
+- Client-local view state is not shared conversation state.
+
+---
+
 ## Two persistence layers
 
 Alisio persists sessions in two layers:
@@ -107,7 +128,7 @@ Isolated cron runs also create session entries/transcripts, and they have dedica
 
 ## Session keys (`sessionKey`)
 
-A `sessionKey` identifies _which conversation bucket_ you’re in (routing + isolation).
+A `sessionKey` identifies the logical **conversation** bucket (routing + isolation).
 
 Common patterns:
 
@@ -119,11 +140,13 @@ Common patterns:
 
 The canonical rules are documented at [/concepts/session](/concepts/session).
 
+In the current implementation, the conversation identity maps to the session key, while newer Gateway read models also expose explicit conversation metadata such as `conversationId`, `conversationKey`, `category`, `surfaceRef`, `runtimeRef`, and `relationship`.
+
 ---
 
 ## Session ids (`sessionId`)
 
-Each `sessionKey` points at a current `sessionId` (the transcript file that continues the conversation).
+Each `sessionKey` points at a current `sessionId` (the active **transcript** file for that conversation).
 
 Rules of thumb:
 
@@ -133,6 +156,90 @@ Rules of thumb:
 - **Thread parent fork guard** (`session.parentForkMaxTokens`, default `100000`) skips parent transcript forking when the parent session is already too large; the new thread starts fresh. Set `0` to disable.
 
 Implementation detail: the decision happens in `initSessionState()` in `src/auto-reply/reply/session.ts`.
+
+In the current model:
+
+- `sessionKey` = conversation identity
+- `sessionId` = active transcript identity
+
+That mapping is preserved for compatibility, but new Gateway APIs expose the conversation/transcript split explicitly.
+
+---
+
+## Operation semantics
+
+These operations are intentionally different:
+
+### Reset (`/new`, `/reset`, `sessions.reset`)
+
+Reset means:
+
+- same conversation
+- new transcript
+- preserve conversation-level metadata
+
+This is the existing contract and remains stable for hooks and automations.
+
+### New chat (`sessions.create`, dashboard "New chat")
+
+New chat means:
+
+- new conversation
+- new transcript
+- current dashboard or desktop surface binds to the new conversation
+
+This is how Alisio now models "real" additional chats for the same agent.
+
+### Runtime reset (`sessions.runtime.reset`)
+
+Runtime reset means:
+
+- reset the bound external runtime only
+- keep the same conversation
+- keep the same transcript unless transcript rotation is explicitly requested
+
+This separates ACP or external runtime lifecycle from chat lifecycle.
+
+---
+
+## Surface policy
+
+Alisio supports multiple simultaneous conversations for the same agent, but surface behavior is intentionally different by channel type.
+
+### Dashboard, web, and desktop surfaces
+
+- Can create real new chats
+- Can switch between existing conversations
+- Can show the same conversation on multiple devices or windows at once
+- Keep selected chat, draft, and scroll state locally per surface
+
+### External messaging surfaces
+
+Examples: WhatsApp, Telegram, Signal, iMessage, Discord channels.
+
+- Default to one stable conversation binding per surface
+- `/new` resets that conversation
+- Do not implicitly create hidden extra chats behind the same surface
+
+Threaded surfaces are modeled explicitly:
+
+- Telegram topics are typed topic surfaces
+- Discord or Slack threads are typed thread surfaces
+
+Core semantics should not depend on inferring behavior from `:thread:` or `:topic:` suffix parsing alone.
+
+---
+
+## Lifecycle events
+
+Gateway session change payloads now expose explicit lifecycle semantics alongside compatibility fields:
+
+- `conversation.created`
+- `transcript.rotated`
+- `runtime.reset`
+- `surface.rebound`
+
+These lifecycle labels make it possible to plug future memory promotion or summarization logic into clean event boundaries without overloading `/new`.
 
 ---
 
@@ -157,6 +264,15 @@ Key fields (not exhaustive):
 - `compactionCount`: how often auto-compaction completed for this session key
 - `memoryFlushAt`: timestamp for the last pre-compaction memory flush
 - `memoryFlushCompactionCount`: compaction count when the last flush ran
+
+Newer session rows and Gateway payloads can also carry additive typed metadata such as:
+
+- `category`
+- `surfaceRef`
+- `relationship`
+- `conversationId` / `conversationKey`
+- `transcriptId`
+- `runtimeRef`
 
 The store is safe to edit, but the Gateway is the authority: it may rewrite or rehydrate entries as sessions run.
 
@@ -255,6 +371,31 @@ Why: leave enough headroom for multi-turn “housekeeping” (like memory writes
 
 Implementation: `ensurePiCompactionReserveTokens()` in `src/agents/pi-settings.ts`
 (called from `src/agents/pi-embedded-runner.ts`).
+
+---
+
+## Migration notes
+
+This cleanup is intentionally additive and compatibility-first.
+
+What stayed compatible:
+
+- `/new` and `/reset` still mean "reset the current conversation"
+- `sessionKey` still identifies the logical conversation
+- `sessionId` still identifies the active transcript
+- existing hooks that listen to `command:new` or `command:reset` keep their meaning
+
+What is now explicit:
+
+- real new chat creation is distinct from reset
+- runtime reset is distinct from chat reset
+- surface typing and lineage metadata are exposed as typed fields instead of only legacy `kind` or key-shape heuristics
+- dashboard and desktop selections are treated as client-local view state rather than a global current-chat pointer
+
+Deprecated mental model:
+
+- do not treat "session" as a single overloaded concept
+- prefer reasoning in terms of agent, surface, conversation, transcript, runtime, and client-local view state
 
 ---
 

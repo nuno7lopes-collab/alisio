@@ -45,6 +45,7 @@ import {
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { createRunningTaskRun } from "../tasks/task-executor.js";
+import { createTaskWithExecution } from "../tasks/task-service.js";
 import {
   deliveryContextFromSession,
   formatConversationTarget,
@@ -953,6 +954,30 @@ export async function spawnAcpDirect(
     }
     parentRelay?.notifyStarted();
     try {
+      createTaskWithExecution({
+        title: params.label ?? params.task,
+        summary: params.task,
+        requesterSessionKey: requesterInternalKey,
+        requestedBy: parentSessionKey,
+        ownerAgentId: targetAgentId,
+        orchestratorSessionKey: sessionKey,
+        parentSessionKey: requesterInternalKey,
+        executionKind: "acp",
+        executionSourceId: childRunId,
+        executionRunId: childRunId,
+        executionSessionKey: sessionKey,
+        executionAgentId: targetAgentId,
+        executionLabel: params.label,
+        executionSummary: params.task,
+      });
+    } catch (error) {
+      log.warn("Failed to create canonical task for ACP spawn", {
+        sessionKey,
+        runId: childRunId,
+        error,
+      });
+    }
+    try {
       createRunningTaskRun({
         runtime: "acp",
         sourceId: childRunId,
@@ -983,6 +1008,30 @@ export async function spawnAcpDirect(
     };
   }
 
+  try {
+    createTaskWithExecution({
+      title: params.label ?? params.task,
+      summary: params.task,
+      requesterSessionKey: requesterInternalKey,
+      requestedBy: requesterInternalKey,
+      ownerAgentId: targetAgentId,
+      orchestratorSessionKey: sessionKey,
+      parentSessionKey: requesterInternalKey,
+      executionKind: "acp",
+      executionSourceId: childRunId,
+      executionRunId: childRunId,
+      executionSessionKey: sessionKey,
+      executionAgentId: targetAgentId,
+      executionLabel: params.label,
+      executionSummary: params.task,
+    });
+  } catch (error) {
+    log.warn("Failed to create canonical task for ACP spawn", {
+      sessionKey,
+      runId: childRunId,
+      error,
+    });
+  }
   try {
     createRunningTaskRun({
       runtime: "acp",

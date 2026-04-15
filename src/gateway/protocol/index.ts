@@ -327,12 +327,40 @@ import {
   TaskProposalDecisionSchema,
   type TaskProposalKind,
   TaskProposalKindSchema,
+  type CanonicalTaskStatus,
+  CanonicalTaskStatusSchema,
+  type CanonicalTaskSummary,
+  CanonicalTaskSummarySchema,
+  type Task,
+  TaskSchema,
+  type TaskApproval,
+  TaskApprovalSchema,
+  type TaskApprovalStatus,
+  TaskApprovalStatusSchema,
   type TaskProposalRecord,
   TaskProposalRecordSchema,
   type TaskProposalSummary,
   TaskProposalSummarySchema,
+  type TaskAssignment,
+  TaskAssignmentSchema,
+  type TaskAssignmentStatus,
+  TaskAssignmentStatusSchema,
   type TaskDeliveryStatus,
   TaskDeliveryStatusSchema,
+  type TaskDependency,
+  TaskDependencySchema,
+  type TaskDependencyKind,
+  TaskDependencyKindSchema,
+  type TaskEvent,
+  TaskEventSchema,
+  type TaskEventKindV2,
+  TaskEventKindV2Schema,
+  type TaskExecution,
+  TaskExecutionSchema,
+  type TaskExecutionKind,
+  TaskExecutionKindSchema,
+  type TaskExecutionStatus,
+  TaskExecutionStatusSchema,
   type TaskMaintenanceSummary,
   TaskMaintenanceSummarySchema,
   type TaskNotifyPolicy,
@@ -351,14 +379,46 @@ import {
   TaskStatusCountsSchema,
   type TaskTerminalOutcome,
   TaskTerminalOutcomeSchema,
+  type TasksApprovalDecideParams,
+  TasksApprovalDecideParamsSchema,
+  type TasksApprovalDecideResult,
+  TasksApprovalDecideResultSchema,
+  type TasksApprovalRequestParams,
+  TasksApprovalRequestParamsSchema,
+  type TasksApprovalRequestResult,
+  TasksApprovalRequestResultSchema,
   type TasksCancelParams,
   TasksCancelParamsSchema,
   type TasksCancelResult,
   TasksCancelResultSchema,
+  type TasksClaimParams,
+  TasksClaimParamsSchema,
+  type TasksClaimResult,
+  TasksClaimResultSchema,
+  type TasksCreateParams,
+  TasksCreateParamsSchema,
+  type TasksCreateResult,
+  TasksCreateResultSchema,
+  type TasksExecutionCancelParams,
+  TasksExecutionCancelParamsSchema,
+  type TasksExecutionCancelResult,
+  TasksExecutionCancelResultSchema,
+  type TasksExecutionEndParams,
+  TasksExecutionEndParamsSchema,
+  type TasksExecutionEndResult,
+  TasksExecutionEndResultSchema,
+  type TasksExecutionStartParams,
+  TasksExecutionStartParamsSchema,
+  type TasksExecutionStartResult,
+  TasksExecutionStartResultSchema,
   type TasksNotifyParams,
   TasksNotifyParamsSchema,
   type TasksNotifyResult,
   TasksNotifyResultSchema,
+  type TasksLaunchFromProposalParams,
+  TasksLaunchFromProposalParamsSchema,
+  type TasksLaunchFromProposalResult,
+  TasksLaunchFromProposalResultSchema,
   type TasksProposalAttachLaunchParams,
   TasksProposalAttachLaunchParamsSchema,
   type TasksProposalAttachLaunchResult,
@@ -371,6 +431,18 @@ import {
   TasksProposalUpsertParamsSchema,
   type TasksProposalUpsertResult,
   TasksProposalUpsertResultSchema,
+  type TasksReleaseParams,
+  TasksReleaseParamsSchema,
+  type TasksReleaseResult,
+  TasksReleaseResultSchema,
+  type TasksSpawnChildParams,
+  TasksSpawnChildParamsSchema,
+  type TasksSpawnChildResult,
+  TasksSpawnChildResultSchema,
+  type TasksUpdateParams,
+  TasksUpdateParamsSchema,
+  type TasksUpdateResult,
+  TasksUpdateResultSchema,
   type TasksOverviewParams,
   TasksOverviewParamsSchema,
   type TasksOverviewResult,
@@ -599,6 +671,8 @@ import {
   SessionsPreviewParamsSchema,
   type SessionsResetParams,
   SessionsResetParamsSchema,
+  type SessionsRuntimeResetParams,
+  SessionsRuntimeResetParamsSchema,
   type SessionsResolveParams,
   SessionsResolveParamsSchema,
   type SessionsSendParams,
@@ -942,6 +1016,9 @@ export const validateSessionsPatchParams =
   ajv.compile<SessionsPatchParams>(SessionsPatchParamsSchema);
 export const validateSessionsResetParams =
   ajv.compile<SessionsResetParams>(SessionsResetParamsSchema);
+export const validateSessionsRuntimeResetParams = ajv.compile<SessionsRuntimeResetParams>(
+  SessionsRuntimeResetParamsSchema,
+);
 export const validateSessionsDeleteParams = ajv.compile<SessionsDeleteParams>(
   SessionsDeleteParamsSchema,
 );
@@ -1006,6 +1083,50 @@ export const validateTasksOverviewParams =
   ajv.compile<TasksOverviewParams>(TasksOverviewParamsSchema);
 export const validateTasksOverviewResult =
   ajv.compile<TasksOverviewResult>(TasksOverviewResultSchema);
+export const validateTasksCreateParams = ajv.compile<TasksCreateParams>(TasksCreateParamsSchema);
+export const validateTasksCreateResult = ajv.compile<TasksCreateResult>(TasksCreateResultSchema);
+export const validateTasksUpdateParams = ajv.compile<TasksUpdateParams>(TasksUpdateParamsSchema);
+export const validateTasksUpdateResult = ajv.compile<TasksUpdateResult>(TasksUpdateResultSchema);
+export const validateTasksClaimParams = ajv.compile<TasksClaimParams>(TasksClaimParamsSchema);
+export const validateTasksClaimResult = ajv.compile<TasksClaimResult>(TasksClaimResultSchema);
+export const validateTasksReleaseParams = ajv.compile<TasksReleaseParams>(TasksReleaseParamsSchema);
+export const validateTasksReleaseResult = ajv.compile<TasksReleaseResult>(TasksReleaseResultSchema);
+export const validateTasksSpawnChildParams = ajv.compile<TasksSpawnChildParams>(
+  TasksSpawnChildParamsSchema,
+);
+export const validateTasksSpawnChildResult = ajv.compile<TasksSpawnChildResult>(
+  TasksSpawnChildResultSchema,
+);
+export const validateTasksExecutionStartParams = ajv.compile<TasksExecutionStartParams>(
+  TasksExecutionStartParamsSchema,
+);
+export const validateTasksExecutionStartResult = ajv.compile<TasksExecutionStartResult>(
+  TasksExecutionStartResultSchema,
+);
+export const validateTasksExecutionEndParams = ajv.compile<TasksExecutionEndParams>(
+  TasksExecutionEndParamsSchema,
+);
+export const validateTasksExecutionEndResult = ajv.compile<TasksExecutionEndResult>(
+  TasksExecutionEndResultSchema,
+);
+export const validateTasksExecutionCancelParams = ajv.compile<TasksExecutionCancelParams>(
+  TasksExecutionCancelParamsSchema,
+);
+export const validateTasksExecutionCancelResult = ajv.compile<TasksExecutionCancelResult>(
+  TasksExecutionCancelResultSchema,
+);
+export const validateTasksApprovalRequestParams = ajv.compile<TasksApprovalRequestParams>(
+  TasksApprovalRequestParamsSchema,
+);
+export const validateTasksApprovalRequestResult = ajv.compile<TasksApprovalRequestResult>(
+  TasksApprovalRequestResultSchema,
+);
+export const validateTasksApprovalDecideParams = ajv.compile<TasksApprovalDecideParams>(
+  TasksApprovalDecideParamsSchema,
+);
+export const validateTasksApprovalDecideResult = ajv.compile<TasksApprovalDecideResult>(
+  TasksApprovalDecideResultSchema,
+);
 export const validateTasksCancelParams = ajv.compile<TasksCancelParams>(TasksCancelParamsSchema);
 export const validateTasksCancelResult = ajv.compile<TasksCancelResult>(TasksCancelResultSchema);
 export const validateTasksNotifyParams = ajv.compile<TasksNotifyParams>(TasksNotifyParamsSchema);
@@ -1027,6 +1148,12 @@ export const validateTasksProposalAttachLaunchParams = ajv.compile<TasksProposal
 );
 export const validateTasksProposalAttachLaunchResult = ajv.compile<TasksProposalAttachLaunchResult>(
   TasksProposalAttachLaunchResultSchema,
+);
+export const validateTasksLaunchFromProposalParams = ajv.compile<TasksLaunchFromProposalParams>(
+  TasksLaunchFromProposalParamsSchema,
+);
+export const validateTasksLaunchFromProposalResult = ajv.compile<TasksLaunchFromProposalResult>(
+  TasksLaunchFromProposalResultSchema,
 );
 export const validateDevicePairListParams = ajv.compile<DevicePairListParams>(
   DevicePairListParamsSchema,
@@ -1319,6 +1446,7 @@ export {
   SessionsAbortParamsSchema,
   SessionsPatchParamsSchema,
   SessionsResetParamsSchema,
+  SessionsRuntimeResetParamsSchema,
   SessionsDeleteParamsSchema,
   SessionsCompactParamsSchema,
   SessionsUsageParamsSchema,
@@ -1381,6 +1509,20 @@ export {
   CronRemoveParamsSchema,
   CronRunParamsSchema,
   CronRunsParamsSchema,
+  CanonicalTaskStatusSchema,
+  CanonicalTaskSummarySchema,
+  TaskSchema,
+  TaskExecutionSchema,
+  TaskExecutionKindSchema,
+  TaskExecutionStatusSchema,
+  TaskAssignmentSchema,
+  TaskAssignmentStatusSchema,
+  TaskApprovalSchema,
+  TaskApprovalStatusSchema,
+  TaskEventSchema,
+  TaskEventKindV2Schema,
+  TaskDependencySchema,
+  TaskDependencyKindSchema,
   TaskRuntimeSchema,
   TaskStatusSchema,
   TaskDeliveryStatusSchema,
@@ -1400,10 +1542,32 @@ export {
   TaskMaintenanceSummarySchema,
   TasksOverviewParamsSchema,
   TasksOverviewResultSchema,
+  TasksCreateParamsSchema,
+  TasksCreateResultSchema,
+  TasksUpdateParamsSchema,
+  TasksUpdateResultSchema,
+  TasksClaimParamsSchema,
+  TasksClaimResultSchema,
+  TasksReleaseParamsSchema,
+  TasksReleaseResultSchema,
+  TasksSpawnChildParamsSchema,
+  TasksSpawnChildResultSchema,
+  TasksExecutionStartParamsSchema,
+  TasksExecutionStartResultSchema,
+  TasksExecutionEndParamsSchema,
+  TasksExecutionEndResultSchema,
+  TasksExecutionCancelParamsSchema,
+  TasksExecutionCancelResultSchema,
+  TasksApprovalRequestParamsSchema,
+  TasksApprovalRequestResultSchema,
+  TasksApprovalDecideParamsSchema,
+  TasksApprovalDecideResultSchema,
   TasksCancelParamsSchema,
   TasksCancelResultSchema,
   TasksNotifyParamsSchema,
   TasksNotifyResultSchema,
+  TasksLaunchFromProposalParamsSchema,
+  TasksLaunchFromProposalResultSchema,
   TasksProposalUpsertParamsSchema,
   TasksProposalUpsertResultSchema,
   TasksProposalResolveParamsSchema,
@@ -1677,6 +1841,7 @@ export type {
   SessionsPatchParams,
   SessionsPatchResult,
   SessionsResetParams,
+  SessionsRuntimeResetParams,
   SessionsDeleteParams,
   SessionsCompactParams,
   SessionsUsageParams,
@@ -1689,6 +1854,20 @@ export type {
   CronRunParams,
   CronRunsParams,
   CronRunLogEntry,
+  CanonicalTaskStatus,
+  CanonicalTaskSummary,
+  Task,
+  TaskExecution,
+  TaskExecutionKind,
+  TaskExecutionStatus,
+  TaskAssignment,
+  TaskAssignmentStatus,
+  TaskApproval,
+  TaskApprovalStatus,
+  TaskEvent,
+  TaskEventKindV2,
+  TaskDependency,
+  TaskDependencyKind,
   TaskRuntime,
   TaskStatus,
   TaskDeliveryStatus,
@@ -1708,10 +1887,32 @@ export type {
   TaskMaintenanceSummary,
   TasksOverviewParams,
   TasksOverviewResult,
+  TasksCreateParams,
+  TasksCreateResult,
+  TasksUpdateParams,
+  TasksUpdateResult,
+  TasksClaimParams,
+  TasksClaimResult,
+  TasksReleaseParams,
+  TasksReleaseResult,
+  TasksSpawnChildParams,
+  TasksSpawnChildResult,
+  TasksExecutionStartParams,
+  TasksExecutionStartResult,
+  TasksExecutionEndParams,
+  TasksExecutionEndResult,
+  TasksExecutionCancelParams,
+  TasksExecutionCancelResult,
+  TasksApprovalRequestParams,
+  TasksApprovalRequestResult,
+  TasksApprovalDecideParams,
+  TasksApprovalDecideResult,
   TasksCancelParams,
   TasksCancelResult,
   TasksNotifyParams,
   TasksNotifyResult,
+  TasksLaunchFromProposalParams,
+  TasksLaunchFromProposalResult,
   TasksProposalUpsertParams,
   TasksProposalUpsertResult,
   TasksProposalResolveParams,

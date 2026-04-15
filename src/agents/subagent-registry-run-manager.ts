@@ -1,7 +1,9 @@
 import { loadConfig } from "../config/config.js";
+import { resolveAgentIdFromSessionKey } from "../config/sessions.js";
 import { callGateway } from "../gateway/call.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { createRunningTaskRun } from "../tasks/task-executor.js";
+import { createTaskWithExecution } from "../tasks/task-service.js";
 import { type DeliveryContext, normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { ensureRuntimePluginsLoaded } from "./runtime-plugins.js";
 import type { SubagentRunOutcome } from "./subagent-announce.js";
@@ -319,6 +321,29 @@ export function createSubagentRunManager(params: {
       attachmentsRootDir: registerParams.attachmentsRootDir,
       retainAttachmentsOnKeep: registerParams.retainAttachmentsOnKeep,
     });
+    try {
+      createTaskWithExecution({
+        title: registerParams.label ?? registerParams.task,
+        summary: registerParams.task,
+        requesterSessionKey: registerParams.requesterSessionKey,
+        requestedBy: registerParams.requesterDisplayKey,
+        ownerAgentId: resolveAgentIdFromSessionKey(registerParams.childSessionKey),
+        orchestratorSessionKey: registerParams.childSessionKey,
+        parentSessionKey: registerParams.requesterSessionKey,
+        executionKind: "subagent",
+        executionSourceId: registerParams.runId,
+        executionRunId: registerParams.runId,
+        executionSessionKey: registerParams.childSessionKey,
+        executionAgentId: resolveAgentIdFromSessionKey(registerParams.childSessionKey),
+        executionLabel: registerParams.label,
+        executionSummary: registerParams.task,
+      });
+    } catch (error) {
+      log.warn("Failed to create canonical task for subagent run", {
+        runId: registerParams.runId,
+        error,
+      });
+    }
     try {
       createRunningTaskRun({
         runtime: "subagent",

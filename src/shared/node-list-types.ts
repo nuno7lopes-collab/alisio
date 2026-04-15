@@ -64,6 +64,11 @@ export type PairedNode = {
   version?: string;
   coreVersion?: string;
   uiVersion?: string;
+  deviceFamily?: string;
+  modelIdentifier?: string;
+  caps?: string[];
+  capabilities?: NodeCapabilitySummary[];
+  commands?: string[];
   remoteIp?: string;
   permissions?: Record<string, boolean>;
   createdAtMs?: number;

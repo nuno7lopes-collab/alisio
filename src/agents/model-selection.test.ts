@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
-import { buildAlisioCurrentProviderId } from "../shared/alisio-dynamic-provider.js";
 import { resetLogger, setLoggerOverride } from "../logging/logger.js";
+import { buildAlisioCurrentProviderId } from "../shared/alisio-dynamic-provider.js";
 import {
   buildAllowedModelSet,
   inferUniqueProviderFromConfiguredModels,
@@ -422,6 +422,38 @@ describe("model-selection", () => {
       expect(result.allowedCatalog).toEqual([{ provider: "openai", id: "gpt-4o", name: "GPT-4o" }]);
     });
 
+    it("keeps runtime-available local dynamic models even when the allowlist is static", () => {
+      const provider = buildAlisioCurrentProviderId();
+      const cfg = {
+        agents: {
+          defaults: {
+            model: { primary: "openai/gpt-4o" },
+            models: {
+              "openai/gpt-4o": {},
+            },
+          },
+        },
+      } as AlisioConfig;
+
+      const result = buildAllowedModelSet({
+        cfg,
+        catalog: [
+          { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+          { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+        ],
+        defaultProvider: "openai",
+        defaultModel: "gpt-4o",
+      });
+
+      expect(result.allowAny).toBe(false);
+      expect(result.allowedKeys.has("openai/gpt-4o")).toBe(true);
+      expect(result.allowedKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(true);
+      expect(result.allowedCatalog).toEqual([
+        { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+        { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+      ]);
+    });
+
     it("includes fallback models in allowed set", () => {
       const cfg = createAgentFallbackConfig({
         fallbacks: ["anthropic/claude-sonnet-4-6", "google/gemini-3-pro"],
@@ -502,6 +534,36 @@ describe("model-selection", () => {
 
       expect(result).toEqual({
         error: `model unavailable: ${provider}/qwen3-4b-q4-k-m`,
+      });
+    });
+
+    it("accepts runtime-available local dynamic models even when they are not in the static allowlist", () => {
+      const provider = buildAlisioCurrentProviderId();
+      const cfg = {
+        agents: {
+          defaults: {
+            model: { primary: "openai/gpt-4o" },
+            models: {
+              "openai/gpt-4o": {},
+            },
+          },
+        },
+      } as AlisioConfig;
+
+      const result = resolveAllowedModelRef({
+        cfg,
+        catalog: [
+          { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+          { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+        ],
+        raw: `${provider}/qwen3-4b-q4-k-m`,
+        defaultProvider: "openai",
+        defaultModel: "gpt-4o",
+      });
+
+      expect(result).toEqual({
+        key: `${provider}/qwen3-4b-q4-k-m`,
+        ref: { provider, model: "qwen3-4b-q4-k-m" },
       });
     });
 

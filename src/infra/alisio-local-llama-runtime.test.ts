@@ -3,23 +3,27 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const resolveModelFileMock = vi.hoisted(() =>
-  vi.fn(async (_sourceUri: string, options?: string | { directory?: string }) => {
-    const directory =
-      typeof options === "string" ? options : options?.directory?.trim() || "/tmp/alisio-models";
-    return `${directory}/resolved.gguf`;
-  }),
-);
+const { resolveModelFileMock, getLlamaMock } = vi.hoisted(() => ({
+  resolveModelFileMock: vi.fn(
+    async (_sourceUri: string, options?: string | { directory?: string }) => {
+      const directory =
+        typeof options === "string" ? options : options?.directory?.trim() || "/tmp/alisio-models";
+      return `${directory}/resolved.gguf`;
+    },
+  ),
+  getLlamaMock: vi.fn(),
+}));
 
 vi.mock("./llama-cpp.runtime.js", () => ({
   resolveModelFile: resolveModelFileMock,
-  getLlama: vi.fn(),
+  getLlama: getLlamaMock,
   LlamaLogLevel: { error: 0 },
   LlamaChatSession: class {},
 }));
 
 import {
   installAlisioLocalModel,
+  inspectManagedLocalModelRuntime,
   listInstalledAlisioLocalModels,
   uninstallAlisioLocalModel,
 } from "./alisio-local-llama-runtime.js";
@@ -29,6 +33,7 @@ describe("installAlisioLocalModel", () => {
 
   beforeEach(async () => {
     resolveModelFileMock.mockClear();
+    getLlamaMock.mockReset();
     stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-alisio-llama-"));
   });
 
@@ -129,6 +134,109 @@ describe("installAlisioLocalModel", () => {
       await fs.readFile(path.join(modelsDir, "installed.json"), "utf8"),
     ) as { installed: Array<{ modelId: string }> };
     expect(manifest.installed.map((entry) => entry.modelId)).toEqual(["qwen3-4b-q4-k-m"]);
+  });
+
+  it("marks the runtime as ready only after llama.cpp initializes and exposes hardware details", async () => {
+    const env = {
+      ALISIO_STATE_DIR: stateDir,
+      ALISIO_TEST_FAST: "1",
+      HOME: stateDir,
+    } as NodeJS.ProcessEnv;
+    const modelsDir = path.join(stateDir, "models", "llama.cpp");
+    await fs.mkdir(modelsDir, { recursive: true });
+    await fs.writeFile(path.join(modelsDir, "ready.gguf"), "model-bytes");
+    await fs.writeFile(
+      path.join(modelsDir, "installed.json"),
+      JSON.stringify(
+        {
+          version: 1,
+          installed: [
+            {
+              modelId: "qwen3-4b-q4-k-m",
+              modelPath: path.join(modelsDir, "ready.gguf"),
+              sourceUri: "hf:Qwen/Qwen3-4B-GGUF:Q4_K_M",
+              installedAt: "2026-04-06T10:00:00.000Z",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+    getLlamaMock.mockResolvedValueOnce({
+      gpu: "metal",
+      systemInfo: "MTL : EMBED_LIBRARY = 1 | CPU : NEON = 1 | DOTPROD = 1 | ",
+      getVramState: vi.fn(async () => ({
+        total: 4 * 1024 ** 3,
+        used: 1 * 1024 ** 3,
+        free: 3 * 1024 ** 3,
+        unifiedSize: 2 * 1024 ** 3,
+      })),
+      getGpuDeviceNames: vi.fn(async () => ["Apple M1"]),
+    });
+
+    const inspection = await inspectManagedLocalModelRuntime(env);
+
+    expect(inspection.status).toBe("ready");
+    expect(inspection.models).toEqual([
+      {
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        ownedBy: "llama.cpp",
+      },
+    ]);
+    expect(inspection.hardware).toEqual(
+      expect.objectContaining({
+        gpuBackend: "metal",
+        vramTotalGb: 4,
+        vramFreeGb: 3,
+        vramUnifiedGb: 2,
+        gpuDevices: ["Apple M1"],
+        cpuFlags: ["EMBED_LIBRARY", "NEON", "DOTPROD"],
+      }),
+    );
+  });
+
+  it("returns an explicit runtime error when installed models exist but llama.cpp cannot start", async () => {
+    const env = {
+      ALISIO_STATE_DIR: stateDir,
+      ALISIO_TEST_FAST: "1",
+      HOME: stateDir,
+    } as NodeJS.ProcessEnv;
+    const modelsDir = path.join(stateDir, "models", "llama.cpp");
+    await fs.mkdir(modelsDir, { recursive: true });
+    await fs.writeFile(path.join(modelsDir, "ready.gguf"), "model-bytes");
+    await fs.writeFile(
+      path.join(modelsDir, "installed.json"),
+      JSON.stringify(
+        {
+          version: 1,
+          installed: [
+            {
+              modelId: "qwen3-4b-q4-k-m",
+              modelPath: path.join(modelsDir, "ready.gguf"),
+              sourceUri: "hf:Qwen/Qwen3-4B-GGUF:Q4_K_M",
+              installedAt: "2026-04-06T10:00:00.000Z",
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    );
+    getLlamaMock.mockRejectedValueOnce(new Error("metal backend unavailable"));
+
+    const inspection = await inspectManagedLocalModelRuntime(env);
+
+    expect(inspection.status).toBe("error");
+    expect(inspection.message).toContain("GPU backend could not be initialized");
+    expect(inspection.models).toEqual([
+      {
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        ownedBy: "llama.cpp",
+      },
+    ]);
   });
 
   it("removes the model from the manifest and deletes its file on uninstall", async () => {

@@ -3,6 +3,11 @@ import { MODEL_CONTEXT_TOKEN_CACHE } from "../../agents/context-cache.js";
 import { loadModelCatalog } from "../../agents/model-catalog.js";
 import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import {
+  clearAlisioDynamicModelProviders,
+  setAlisioDynamicModelProviders,
+} from "../../infra/alisio-model-providers.js";
+import { buildAlisioCurrentProviderId } from "../../shared/alisio-dynamic-provider.js";
 import { createModelSelectionState, resolveContextTokens } from "./model-selection.js";
 
 vi.mock("../../agents/model-catalog.js", () => ({
@@ -19,6 +24,7 @@ vi.mock("../../agents/model-catalog.js", () => ({
 
 afterEach(() => {
   MODEL_CONTEXT_TOKEN_CACHE.clear();
+  clearAlisioDynamicModelProviders();
 });
 
 const makeConfiguredModel = (overrides: Record<string, unknown> = {}) => ({
@@ -469,6 +475,151 @@ describe("createModelSelectionState respects session model override", () => {
       hasModelDirective: false,
     });
 
+    expect(state.resetModelOverride).toBe(true);
+    expect(sessionStore[sessionKey]?.modelOverride).toBeUndefined();
+    expect(sessionStore[sessionKey]?.providerOverride).toBeUndefined();
+  });
+
+  it("keeps a runtime-available local dynamic override when the allowlist is static", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+      { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+      { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+    ]);
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-4o" },
+          models: {
+            "openai/gpt-4o": {},
+          },
+        },
+      },
+    } as AlisioConfig;
+    const sessionKey = "agent:main:telegram:direct:2";
+    const sessionEntry = makeEntry({
+      providerOverride: provider,
+      modelOverride: "qwen3-4b-q4-k-m",
+    });
+    const sessionStore = { [sessionKey]: sessionEntry };
+
+    const state = await createModelSelectionState({
+      cfg,
+      agentCfg: cfg.agents?.defaults,
+      sessionEntry,
+      sessionStore,
+      sessionKey,
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o",
+      provider: "openai",
+      model: "gpt-4o",
+      hasModelDirective: false,
+    });
+
+    expect(state.needsModelCatalog).toBe(true);
+    expect(state.provider).toBe(provider);
+    expect(state.model).toBe("qwen3-4b-q4-k-m");
+    expect(state.allowedModelKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(true);
+    expect(state.resetModelOverride).toBe(false);
+  });
+
+  it("keeps a published local dynamic override even when loadModelCatalog is stale", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+      { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+    ]);
+    setAlisioDynamicModelProviders([
+      {
+        kind: "managed-local",
+        location: "current",
+        providerId: provider,
+        providerLabel: "This device",
+        targetId: "current::llama.cpp",
+        catalogEntries: [
+          {
+            provider,
+            providerLabel: "This device",
+            id: "qwen3-4b-q4-k-m",
+            name: "Qwen3 4B",
+            input: ["text"],
+          },
+        ],
+      },
+    ]);
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-4o" },
+          models: {
+            "openai/gpt-4o": {},
+          },
+        },
+      },
+    } as AlisioConfig;
+    const sessionKey = "agent:main:telegram:direct:runtime-dynamic";
+    const sessionEntry = makeEntry({
+      providerOverride: provider,
+      modelOverride: "qwen3-4b-q4-k-m",
+    });
+    const sessionStore = { [sessionKey]: sessionEntry };
+
+    const state = await createModelSelectionState({
+      cfg,
+      agentCfg: cfg.agents?.defaults,
+      sessionEntry,
+      sessionStore,
+      sessionKey,
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o",
+      provider: "openai",
+      model: "gpt-4o",
+      hasModelDirective: false,
+    });
+
+    expect(state.provider).toBe(provider);
+    expect(state.model).toBe("qwen3-4b-q4-k-m");
+    expect(state.allowedModelKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(true);
+    expect(state.resetModelOverride).toBe(false);
+  });
+
+  it("resets an unavailable local dynamic override after checking the runtime catalog", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+      { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+    ]);
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-4o" },
+          models: {
+            "openai/gpt-4o": {},
+          },
+        },
+      },
+    } as AlisioConfig;
+    const sessionKey = "agent:main:telegram:direct:3";
+    const sessionEntry = makeEntry({
+      providerOverride: provider,
+      modelOverride: "qwen3-4b-q4-k-m",
+    });
+    const sessionStore = { [sessionKey]: sessionEntry };
+
+    const state = await createModelSelectionState({
+      cfg,
+      agentCfg: cfg.agents?.defaults,
+      sessionEntry,
+      sessionStore,
+      sessionKey,
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o",
+      provider: "openai",
+      model: "gpt-4o",
+      hasModelDirective: false,
+    });
+
+    expect(state.needsModelCatalog).toBe(true);
+    expect(state.provider).toBe("openai");
+    expect(state.model).toBe("gpt-4o");
     expect(state.resetModelOverride).toBe(true);
     expect(sessionStore[sessionKey]?.modelOverride).toBeUndefined();
     expect(sessionStore[sessionKey]?.providerOverride).toBeUndefined();

@@ -7,13 +7,13 @@ import type {
   TaskProposalSummary,
   TaskProposalView,
 } from "./task-proposals.types.js";
-import { findTaskByRunId } from "./task-registry.js";
 import {
   getTaskProposalRecordByClientKeyFromSqlite,
   getTaskProposalRecordByIdFromSqlite,
   listTaskProposalRecordsFromSqlite,
   upsertTaskProposalRecordToSqlite,
 } from "./task-registry.store.sqlite.js";
+import { getTask } from "./task-service.js";
 
 const MAX_TITLE_LENGTH = 200;
 const MAX_SUMMARY_LENGTH = 800;
@@ -57,7 +57,8 @@ function buildProposalContentFields(params: {
   launchPrompt?: string;
   agentId?: string;
 }) {
-  if (params.existing?.launchedRunId?.trim()) {
+  const nextKind: TaskProposalKind = params.kind === "project" ? "project" : "task";
+  if (params.existing?.launchedTaskId?.trim() || params.existing?.launchedRunId?.trim()) {
     return {
       ...(params.existing.sourceMessageId
         ? { sourceMessageId: params.existing.sourceMessageId }
@@ -73,7 +74,7 @@ function buildProposalContentFields(params: {
   }
   return {
     ...(params.sourceMessageId ? { sourceMessageId: params.sourceMessageId } : {}),
-    kind: params.kind === "project" ? "project" : "task",
+    kind: nextKind,
     title: params.title,
     ...(params.summary ? { summary: params.summary } : {}),
     ...(params.rationale ? { rationale: params.rationale } : {}),
@@ -92,8 +93,8 @@ function cloneTaskProposalRecord(record: TaskProposalRecord): TaskProposalRecord
 
 function toTaskProposalView(record: TaskProposalRecord): TaskProposalView {
   const linkedTask =
-    typeof record.launchedRunId === "string" && record.launchedRunId.trim()
-      ? findTaskByRunId(record.launchedRunId)
+    typeof record.launchedTaskId === "string" && record.launchedTaskId.trim()
+      ? getTask(record.launchedTaskId)
       : undefined;
   return {
     ...cloneTaskProposalRecord(record),
@@ -130,7 +131,7 @@ export function summarizeTaskProposals(records: Iterable<TaskProposalRecord>): T
   for (const record of records) {
     summary.total += 1;
     summary[record.decision] += 1;
-    if (record.launchedRunId?.trim()) {
+    if (record.launchedTaskId?.trim() || record.launchedRunId?.trim()) {
       summary.launched += 1;
     }
   }
@@ -180,7 +181,7 @@ export function upsertTaskProposal(params: UpsertTaskProposalParams): TaskPropos
     clientKey,
   });
   const now = Date.now();
-  const launched = Boolean(existing?.launchedRunId?.trim());
+  const launched = Boolean(existing?.launchedTaskId?.trim() || existing?.launchedRunId?.trim());
   const next: TaskProposalRecord = {
     proposalId: existing?.proposalId ?? crypto.randomUUID(),
     clientKey,
@@ -202,6 +203,7 @@ export function upsertTaskProposal(params: UpsertTaskProposalParams): TaskPropos
     updatedAt: launched ? (existing?.updatedAt ?? now) : now,
     ...(existing?.resolvedAt != null ? { resolvedAt: existing.resolvedAt } : {}),
     ...(existing?.resolvedBy ? { resolvedBy: existing.resolvedBy } : {}),
+    ...(existing?.launchedTaskId ? { launchedTaskId: existing.launchedTaskId } : {}),
     ...(existing?.launchedRunId ? { launchedRunId: existing.launchedRunId } : {}),
     ...(existing?.launchedSessionKey ? { launchedSessionKey: existing.launchedSessionKey } : {}),
     ...(existing?.launchedAt != null ? { launchedAt: existing.launchedAt } : {}),
@@ -222,7 +224,10 @@ export function resolveTaskProposalDecision(params: {
   if (current.decision === params.decision) {
     return toTaskProposalView(current);
   }
-  if (current.launchedRunId?.trim() && params.decision === "rejected") {
+  if (
+    (current.launchedTaskId?.trim() || current.launchedRunId?.trim()) &&
+    params.decision === "rejected"
+  ) {
     throw new Error("Cannot reject a task proposal after it has launched.");
   }
   const resolvedBy = trimToUndefined(params.resolvedBy, 160);
@@ -240,7 +245,8 @@ export function resolveTaskProposalDecision(params: {
 
 export function attachTaskProposalLaunch(params: {
   proposalId: string;
-  runId: string;
+  taskId: string;
+  runId?: string | null;
   sessionKey?: string | null;
 }): TaskProposalView {
   const current = getTaskProposalRecordByIdFromSqlite(params.proposalId.trim());
@@ -250,12 +256,16 @@ export function attachTaskProposalLaunch(params: {
   if (current.decision === "rejected") {
     throw new Error("Cannot launch a rejected task proposal.");
   }
+  const taskId = trimToUndefined(params.taskId, 160);
   const runId = trimToUndefined(params.runId, 240);
   const sessionKey = trimToUndefined(params.sessionKey, 240);
-  if (!runId) {
-    throw new Error("Task proposal launch requires runId.");
+  if (!taskId) {
+    throw new Error("Task proposal launch requires taskId.");
   }
-  if (current.launchedRunId?.trim() && current.launchedRunId !== runId) {
+  if (current.launchedTaskId?.trim() && current.launchedTaskId !== taskId) {
+    throw new Error("Task proposal is already linked to another launched task.");
+  }
+  if (current.launchedRunId?.trim() && runId && current.launchedRunId !== runId) {
     throw new Error("Task proposal is already linked to another launched run.");
   }
   if (
@@ -265,8 +275,15 @@ export function attachTaskProposalLaunch(params: {
   ) {
     throw new Error("Task proposal is already linked to another launched session.");
   }
-  if (current.launchedRunId === runId) {
-    if (!sessionKey || current.launchedSessionKey?.trim() === sessionKey) {
+  if (
+    current.launchedTaskId === taskId &&
+    (!runId || current.launchedRunId === runId) &&
+    (!sessionKey || current.launchedSessionKey?.trim() === sessionKey)
+  ) {
+    return toTaskProposalView(current);
+  }
+  if (current.launchedTaskId === taskId) {
+    if (!runId && (!sessionKey || current.launchedSessionKey?.trim() === sessionKey)) {
       return toTaskProposalView(current);
     }
     const backfilled: TaskProposalRecord = {
@@ -274,8 +291,17 @@ export function attachTaskProposalLaunch(params: {
       decision: "approved",
       updatedAt: Date.now(),
       ...(current.resolvedAt != null ? { resolvedAt: current.resolvedAt } : {}),
-      launchedRunId: runId,
-      launchedSessionKey: sessionKey,
+      launchedTaskId: taskId,
+      ...(runId
+        ? { launchedRunId: runId }
+        : current.launchedRunId
+          ? { launchedRunId: current.launchedRunId }
+          : {}),
+      ...(sessionKey
+        ? { launchedSessionKey: sessionKey }
+        : current.launchedSessionKey
+          ? { launchedSessionKey: current.launchedSessionKey }
+          : {}),
       launchedAt: current.launchedAt ?? Date.now(),
     };
     upsertTaskProposalRecordToSqlite(backfilled);
@@ -289,7 +315,8 @@ export function attachTaskProposalLaunch(params: {
     ...(current.resolvedAt != null
       ? { resolvedAt: current.resolvedAt }
       : { resolvedAt: launchedAt }),
-    launchedRunId: runId,
+    launchedTaskId: taskId,
+    ...(runId ? { launchedRunId: runId } : {}),
     ...(sessionKey ? { launchedSessionKey: sessionKey } : {}),
     launchedAt,
   };

@@ -115,14 +115,16 @@ function resolveOptionalInitialSessionMessage(params: {
   task?: unknown;
   message?: unknown;
 }): string | undefined {
-  if (typeof params.task === "string" && params.task.trim()) {
-    return params.task;
-  }
   if (typeof params.message === "string" && params.message.trim()) {
     return params.message;
   }
+  if (typeof params.task === "string" && params.task.trim()) {
+    return params.task;
+  }
   return undefined;
 }
+
+type CreatedSessionConversationMode = "root" | "child" | "task";
 
 function shouldRefreshDynamicCatalogForModel(rawModel: unknown): boolean {
   if (typeof rawModel !== "string") {
@@ -276,21 +278,21 @@ function buildCreatedSessionConversationPatch(params: {
   key: string;
   entry: SessionEntry;
   parentSessionKey?: string;
-  taskRequested: boolean;
+  conversationMode: CreatedSessionConversationMode;
 }) {
   const modeled = deriveSessionConversationModel({
     sessionKey: params.key,
     entry: params.entry,
   });
   return {
-    category: params.taskRequested ? "task" : modeled.category,
+    category: params.conversationMode === "task" ? "task" : modeled.category,
     surfaceRef: modeled.surfaceRef ?? {
       type: "dashboard_chat" as const,
       id: params.key,
     },
     relationship: params.parentSessionKey
       ? {
-          kind: params.taskRequested ? ("task" as const) : ("child" as const),
+          kind: params.conversationMode === "task" ? ("task" as const) : ("child" as const),
           parentConversationId: params.parentSessionKey,
         }
       : { kind: "root" as const },
@@ -333,6 +335,185 @@ function ensureSessionTranscriptFile(params: {
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+export async function createGatewaySessionEntry(params: {
+  context: GatewayRequestHandlerOptions["context"];
+  key?: string | null;
+  agentId?: string | null;
+  label?: string | null;
+  model?: string | null;
+  parentSessionKey?: string | null;
+  conversationMode?: CreatedSessionConversationMode;
+}) {
+  const cfg = loadConfig();
+  const requestedKey =
+    typeof params.key === "string" && params.key.trim() ? params.key.trim() : undefined;
+  const explicitAgentId =
+    typeof params.agentId === "string" && params.agentId.trim()
+      ? normalizeAgentId(params.agentId)
+      : undefined;
+  const requestedAgentId = requestedKey ? parseAgentSessionKey(requestedKey)?.agentId : undefined;
+  const agentId =
+    explicitAgentId ?? normalizeAgentId(requestedAgentId ?? resolveDefaultAgentId(cfg));
+  if (requestedKey) {
+    if (requestedAgentId && explicitAgentId && requestedAgentId !== explicitAgentId) {
+      throw new Error(
+        `sessions.create key agent (${requestedAgentId}) does not match agentId (${agentId})`,
+      );
+    }
+  }
+
+  const parentSessionKey =
+    typeof params.parentSessionKey === "string" && params.parentSessionKey.trim()
+      ? params.parentSessionKey.trim()
+      : undefined;
+  let canonicalParentSessionKey: string | undefined;
+  if (parentSessionKey) {
+    const parent = loadSessionEntry(parentSessionKey);
+    if (!parent.entry?.sessionId) {
+      throw new Error(`unknown parent session: ${parentSessionKey}`);
+    }
+    canonicalParentSessionKey = parent.canonicalKey;
+  }
+
+  const key = requestedKey ?? buildDashboardSessionKey(agentId);
+  if (shouldRefreshDynamicCatalogForModel(params.model)) {
+    await publishAlisioDynamicModelProvidersForContext(params.context, { force: true });
+  }
+  const target = resolveGatewaySessionStoreTarget({ cfg, key });
+  const targetAgentId = resolveAgentIdFromSessionKey(target.canonicalKey);
+  const conversationMode =
+    params.conversationMode ?? (canonicalParentSessionKey ? "child" : "root");
+  const created = await updateSessionStore(target.storePath, async (store) => {
+    const patched = await applySessionsPatchToStore({
+      cfg,
+      store,
+      storeKey: target.canonicalKey,
+      patch: {
+        key: target.canonicalKey,
+        label: typeof params.label === "string" ? params.label.trim() : undefined,
+        model: typeof params.model === "string" ? params.model.trim() : undefined,
+      },
+      loadGatewayModelCatalog: params.context.loadGatewayModelCatalog,
+    });
+    if (!patched.ok) {
+      return patched;
+    }
+    const nextEntry: SessionEntry = {
+      ...patched.entry,
+      parentSessionKey: canonicalParentSessionKey,
+      ...buildCreatedSessionConversationPatch({
+        key: target.canonicalKey,
+        entry: {
+          ...patched.entry,
+          parentSessionKey: canonicalParentSessionKey,
+        },
+        parentSessionKey: canonicalParentSessionKey,
+        conversationMode,
+      }),
+    };
+    store[target.canonicalKey] = nextEntry;
+    return {
+      ...patched,
+      entry: nextEntry,
+    };
+  });
+  if (!created.ok) {
+    throw new Error(created.error?.message ?? "failed to create gateway session");
+  }
+  const ensured = ensureSessionTranscriptFile({
+    sessionId: created.entry.sessionId,
+    storePath: target.storePath,
+    sessionFile: created.entry.sessionFile,
+    agentId: targetAgentId,
+  });
+  if (!ensured.ok) {
+    await updateSessionStore(target.storePath, (store) => {
+      delete store[target.canonicalKey];
+    });
+    throw new Error(`failed to create session transcript: ${ensured.error}`);
+  }
+
+  const entry =
+    created.entry.sessionFile === ensured.transcriptPath
+      ? created.entry
+      : {
+          ...created.entry,
+          sessionFile: ensured.transcriptPath,
+        };
+  if (entry !== created.entry) {
+    await updateSessionStore(target.storePath, (store) => {
+      const existing = store[target.canonicalKey];
+      if (existing) {
+        store[target.canonicalKey] = {
+          ...existing,
+          sessionFile: ensured.transcriptPath,
+        };
+      }
+    });
+  }
+
+  return {
+    cfg,
+    key: target.canonicalKey,
+    storePath: target.storePath,
+    entry,
+    sessionId: entry.sessionId,
+  };
+}
+
+export async function sendGatewaySessionMessage(params: {
+  req: GatewayRequestHandlerOptions["req"];
+  context: GatewayRequestHandlerOptions["context"];
+  client: GatewayRequestHandlerOptions["client"];
+  isWebchatConnect: GatewayRequestHandlerOptions["isWebchatConnect"];
+  sessionKey: string;
+  storePath: string;
+  entry: SessionEntry;
+  message: string;
+  idempotencyKey?: string;
+}) {
+  const runState: {
+    payload?: Record<string, unknown>;
+    error?: unknown;
+    meta?: Record<string, unknown>;
+  } = {};
+  const messageSeq =
+    readSessionMessages(params.entry.sessionId, params.storePath, params.entry.sessionFile).length +
+    1;
+  await chatHandlers["chat.send"]({
+    req: params.req,
+    params: {
+      sessionKey: params.sessionKey,
+      message: params.message,
+      idempotencyKey: params.idempotencyKey ?? randomUUID(),
+    },
+    respond: (ok, payload, error, meta) => {
+      if (ok && payload && typeof payload === "object") {
+        runState.payload = payload as Record<string, unknown>;
+      } else if (error) {
+        runState.error = error;
+      }
+      if (meta && typeof meta === "object") {
+        runState.meta = meta;
+      }
+    },
+    context: params.context,
+    client: params.client,
+    isWebchatConnect: params.isWebchatConnect,
+  });
+  const runStarted =
+    runState.payload !== undefined &&
+    shouldAttachPendingMessageSeq({
+      payload: runState.payload,
+      cached: runState.meta?.cached === true,
+    });
+  return {
+    ...runState,
+    messageSeq,
+    runStarted,
+  };
 }
 
 function resolveAbortSessionKey(params: {
@@ -726,171 +907,61 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       return;
     }
     const p = params;
-    const cfg = loadConfig();
-    const requestedKey = typeof p.key === "string" && p.key.trim() ? p.key.trim() : undefined;
-    const agentId = normalizeAgentId(
-      typeof p.agentId === "string" && p.agentId.trim() ? p.agentId : resolveDefaultAgentId(cfg),
-    );
-    if (requestedKey) {
-      const requestedAgentId = parseAgentSessionKey(requestedKey)?.agentId;
-      if (
-        requestedAgentId &&
-        requestedAgentId !== agentId &&
-        typeof p.agentId === "string" &&
-        p.agentId.trim()
-      ) {
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.INVALID_REQUEST,
-            `sessions.create key agent (${requestedAgentId}) does not match agentId (${agentId})`,
-          ),
-        );
-        return;
-      }
-    }
-    const parentSessionKey =
-      typeof p.parentSessionKey === "string" && p.parentSessionKey.trim()
-        ? p.parentSessionKey.trim()
-        : undefined;
-    let canonicalParentSessionKey: string | undefined;
-    if (parentSessionKey) {
-      const parent = loadSessionEntry(parentSessionKey);
-      if (!parent.entry?.sessionId) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, `unknown parent session: ${parentSessionKey}`),
-        );
-        return;
-      }
-      canonicalParentSessionKey = parent.canonicalKey;
-    }
-    const key = requestedKey ?? buildDashboardSessionKey(agentId);
-    if (shouldRefreshDynamicCatalogForModel(p.model)) {
-      await publishAlisioDynamicModelProvidersForContext(context, { force: true });
-    }
-    const target = resolveGatewaySessionStoreTarget({ cfg, key });
-    const targetAgentId = resolveAgentIdFromSessionKey(target.canonicalKey);
-    const created = await updateSessionStore(target.storePath, async (store) => {
-      const patched = await applySessionsPatchToStore({
-        cfg,
-        store,
-        storeKey: target.canonicalKey,
-        patch: {
-          key: target.canonicalKey,
-          label: typeof p.label === "string" ? p.label.trim() : undefined,
-          model: typeof p.model === "string" ? p.model.trim() : undefined,
-        },
-        loadGatewayModelCatalog: context.loadGatewayModelCatalog,
+    const initialMessage = resolveOptionalInitialSessionMessage(p);
+    let created;
+    try {
+      created = await createGatewaySessionEntry({
+        context,
+        key: typeof p.key === "string" ? p.key : undefined,
+        agentId: typeof p.agentId === "string" ? p.agentId : undefined,
+        label: typeof p.label === "string" ? p.label : undefined,
+        model: typeof p.model === "string" ? p.model : undefined,
+        parentSessionKey: typeof p.parentSessionKey === "string" ? p.parentSessionKey : undefined,
+        conversationMode:
+          typeof p.task === "string" && p.task.trim().length > 0
+            ? "task"
+            : typeof p.parentSessionKey === "string" && p.parentSessionKey.trim().length > 0
+              ? "child"
+              : "root",
       });
-      if (!patched.ok) {
-        return patched;
-      }
-      const nextEntry: SessionEntry = {
-        ...patched.entry,
-        parentSessionKey: canonicalParentSessionKey,
-        ...buildCreatedSessionConversationPatch({
-          key: target.canonicalKey,
-          entry: {
-            ...patched.entry,
-            parentSessionKey: canonicalParentSessionKey,
-          },
-          parentSessionKey: canonicalParentSessionKey,
-          taskRequested: typeof p.task === "string" && p.task.trim().length > 0,
-        }),
-      };
-      store[target.canonicalKey] = nextEntry;
-      return {
-        ...patched,
-        entry: nextEntry,
-      };
-    });
-    if (!created.ok) {
-      respond(false, undefined, created.error);
-      return;
-    }
-    const ensured = ensureSessionTranscriptFile({
-      sessionId: created.entry.sessionId,
-      storePath: target.storePath,
-      sessionFile: created.entry.sessionFile,
-      agentId: targetAgentId,
-    });
-    if (!ensured.ok) {
-      await updateSessionStore(target.storePath, (store) => {
-        delete store[target.canonicalKey];
-      });
+    } catch (error) {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, `failed to create session transcript: ${ensured.error}`),
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          error instanceof Error ? error.message : String(error),
+        ),
       );
       return;
     }
-
-    const createdEntry =
-      created.entry.sessionFile === ensured.transcriptPath
-        ? created.entry
-        : {
-            ...created.entry,
-            sessionFile: ensured.transcriptPath,
-          };
-    if (createdEntry !== created.entry) {
-      await updateSessionStore(target.storePath, (store) => {
-        const existing = store[target.canonicalKey];
-        if (existing) {
-          store[target.canonicalKey] = {
-            ...existing,
-            sessionFile: ensured.transcriptPath,
-          };
-        }
-      });
-    }
-
-    const initialMessage = resolveOptionalInitialSessionMessage(p);
+    const createdEntry = created.entry;
     let runPayload: Record<string, unknown> | undefined;
     let runError: unknown;
-    let runMeta: Record<string, unknown> | undefined;
-    const messageSeq = initialMessage
-      ? readSessionMessages(createdEntry.sessionId, target.storePath, createdEntry.sessionFile)
-          .length + 1
-      : undefined;
-
+    let messageSeq: number | undefined;
+    let runStarted = false;
     if (initialMessage) {
-      await chatHandlers["chat.send"]({
+      const sendResult = await sendGatewaySessionMessage({
         req,
-        params: {
-          sessionKey: target.canonicalKey,
-          message: initialMessage,
-          idempotencyKey: randomUUID(),
-        },
-        respond: (ok, payload, error, meta) => {
-          if (ok && payload && typeof payload === "object") {
-            runPayload = payload as Record<string, unknown>;
-          } else {
-            runError = error;
-          }
-          runMeta = meta;
-        },
         context,
         client,
         isWebchatConnect,
+        sessionKey: created.key,
+        storePath: created.storePath,
+        entry: createdEntry,
+        message: initialMessage,
       });
+      runPayload = sendResult.payload;
+      runError = sendResult.error;
+      messageSeq = sendResult.messageSeq;
+      runStarted = sendResult.runStarted;
     }
-
-    const runStarted =
-      runPayload !== undefined &&
-      shouldAttachPendingMessageSeq({
-        payload: runPayload,
-        cached: runMeta?.cached === true,
-      });
 
     respond(
       true,
       {
         ok: true,
-        key: target.canonicalKey,
+        key: created.key,
         sessionId: createdEntry.sessionId,
         entry: createdEntry,
         runStarted,
@@ -901,17 +972,17 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       undefined,
     );
     emitSessionsChanged(context, {
-      sessionKey: target.canonicalKey,
+      sessionKey: created.key,
       reason: "create",
       lifecycle: {
         kind: "conversation.created",
-        conversationId: target.canonicalKey,
+        conversationId: created.key,
         transcriptId: createdEntry.sessionId,
       },
     });
     if (runStarted) {
       emitSessionsChanged(context, {
-        sessionKey: target.canonicalKey,
+        sessionKey: created.key,
         reason: "send",
       });
     }

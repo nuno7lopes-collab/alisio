@@ -46,20 +46,24 @@ describe("alisio-sharing-cloud", () => {
       },
       targets: [
         {
-          targetId: "local:nunos-macbook-air.local",
-          label: "Nunos-MacBook-Air.local",
-          platform: "macOS",
-          sourceKind: "current",
+          targetId: "windows-node-shell",
+          computerId: "local:windows-box",
+          computerLabel: "Windows Box",
+          label: "Windows Box",
+          platform: "Windows",
+          sourceKind: "node",
           connected: true,
-          current: true,
+          current: false,
         },
         {
-          targetId: "local:nunos-macbook-air.local",
-          label: "Nunos-MacBook-Air.local",
-          platform: "macOS",
-          sourceKind: "current",
+          targetId: "windows-node-shell",
+          computerId: "local:windows-box",
+          computerLabel: "Windows Box",
+          label: "Windows Box",
+          platform: "Windows",
+          sourceKind: "node",
           connected: true,
-          current: true,
+          current: false,
         },
       ],
       fetchImpl: fetchMock,
@@ -81,11 +85,13 @@ describe("alisio-sharing-cloud", () => {
     const payload = JSON.parse(payloadBody as string) as Array<Record<string, unknown>>;
     expect(payload).toHaveLength(1);
     expect(payload[0]).toMatchObject({
-      target_id: "local:nunos-macbook-air.local",
+      target_id: "windows-node-shell",
+      computer_id: "local:windows-box",
+      computer_label: "Windows Box",
       owner_key: "user:user-1",
-      source_kind: "current",
+      source_kind: "node",
       connected: true,
-      current: true,
+      current: false,
     });
   });
 });

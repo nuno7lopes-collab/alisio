@@ -10,6 +10,7 @@ import { listRegisteredMemoryEmbeddingProviders } from "../plugins/memory-embedd
 import type { PluginRegistry } from "../plugins/registry.js";
 import { getActivePluginRegistry } from "../plugins/runtime.js";
 import {
+  resolveAlisioConnectorSurfaceUiStatus,
   resolveAlisioConnectorUiStatus,
   type AlisioConnectorUiStatus,
 } from "../shared/alisio-connector-status.js";
@@ -121,13 +122,6 @@ type ProviderAggregate = {
 
 const DEFAULT_USAGE_TIMEOUT_MS = 1_500;
 const USAGE_SUMMARY_TIMEOUT_GRACE_MS = 250;
-const CONNECTOR_RUNTIME_READY_IDS = new Set([
-  "gmail-modify",
-  "gmail-read",
-  "gmail-send",
-  "google-docs",
-]);
-
 function humanizeToken(value: string): string {
   return value
     .trim()
@@ -191,10 +185,6 @@ function mapConnectorStatus(status: AlisioConnectorUiStatus): AlisioProviderOver
     default:
       return "unavailable";
   }
-}
-
-function isConnectorRuntimeReady(connectorId: string): boolean {
-  return CONNECTOR_RUNTIME_READY_IDS.has(connectorId);
 }
 
 function resolveConfigSnapshotConfig(snapshot: ConfigSnapshotLike): {
@@ -413,13 +403,11 @@ function buildAppItems(params: {
         definition,
         authorization,
       });
-      const runtimeReady = isConnectorRuntimeReady(definition.id);
-      const status =
-        definition.availability === "unavailable"
-          ? "unavailable"
-          : definition.availability === "in_review" || !runtimeReady
-            ? "coming_soon"
-            : mapConnectorStatus(connectorStatus);
+      const surfaceStatus = resolveAlisioConnectorSurfaceUiStatus({
+        definition,
+        authorization,
+      });
+      const status = mapConnectorStatus(surfaceStatus);
       const accountLabel = authorization?.connectedAccount?.label?.trim();
       const accountEmail = authorization?.connectedAccount?.email?.trim();
       return {
@@ -438,7 +426,7 @@ function buildAppItems(params: {
         chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
         usageWindows: [],
         current: false,
-        active: runtimeReady && connectorStatus === "connected",
+        active: surfaceStatus === "connected" && connectorStatus === "connected",
       };
     }),
   );

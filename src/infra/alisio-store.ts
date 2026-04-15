@@ -29,7 +29,7 @@ import {
   type AlisioThemeMode,
 } from "../shared/alisio-appearance.js";
 import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.js";
-import { summarizeAlisioConnectorUiStatuses } from "../shared/alisio-connector-status.js";
+import { summarizeAlisioConnectorSurfaceUiStatuses } from "../shared/alisio-connector-status.js";
 import {
   ALISIO_REQUIRED_SUPABASE_ENV_VARS,
   AlisioAccountCloudError,
@@ -1928,7 +1928,7 @@ function isAlisioAiReady(state: AlisioAiState | null | undefined) {
 function summarizeConnectorAuthorizations(
   authorizations: readonly AlisioConnectorAuthorization[],
 ): AlisioBootstrapConnectorSummary {
-  return summarizeAlisioConnectorUiStatuses({
+  return summarizeAlisioConnectorSurfaceUiStatuses({
     definitions: CONNECTOR_CATALOG,
     authorizations,
   });
@@ -2228,7 +2228,7 @@ export async function getAlisioDoctorSummary(
     issues.push({
       code: "connectors_in_review",
       severity: "info",
-      title: "Some connectors are still in review",
+      title: "Some connectors are coming soon",
       message: `${bootstrap.connectorSummary.inReview} connector${bootstrap.connectorSummary.inReview === 1 ? "" : "s"} are not production-ready yet.`,
       step: "connectors",
     });
@@ -5402,6 +5402,8 @@ function syncAlisioSharingTargetsOnState(
     }
     seenTargetIds.add(targetId);
     const existing = sharing.targets?.[targetId];
+    const incomingComputerId = normalizeSharingOptionalString(target.computerId);
+    const incomingComputerLabel = normalizeSharingOptionalString(target.computerLabel);
     const owner =
       target.current || !existing
         ? viewer
@@ -5414,11 +5416,11 @@ function syncAlisioSharingTargetsOnState(
     const nextTarget = canonicalizeSharingTarget(
       {
         targetId,
-        ...(normalizeSharingOptionalString(target.computerId)
-          ? { computerId: normalizeSharingOptionalString(target.computerId) }
+        ...((incomingComputerId ?? existing?.computerId)
+          ? { computerId: incomingComputerId ?? existing?.computerId }
           : {}),
-        ...(normalizeSharingOptionalString(target.computerLabel)
-          ? { computerLabel: normalizeSharingOptionalString(target.computerLabel) }
+        ...((incomingComputerLabel ?? existing?.computerLabel)
+          ? { computerLabel: incomingComputerLabel ?? existing?.computerLabel }
           : {}),
         label: target.label.trim() || existing?.label || targetId,
         ...(target.platform?.trim() ? { platform: target.platform.trim() } : {}),

@@ -1,6 +1,5 @@
 import crypto from "node:crypto";
 import path from "node:path";
-import { normalizeConversationText } from "../../acp/conversation-id.js";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshotOnSessionRollover } from "../../agents/bootstrap-cache.js";
 import { disposeSessionMcpRuntime } from "../../agents/pi-bundle-mcp-tools.js";
@@ -36,7 +35,6 @@ import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.js"
 import { isInternalMessageChannel } from "../../utils/message-channel.js";
 import { resolveCommandAuthorization } from "../command-auth.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
-import { resolveEffectiveResetTargetSessionKey } from "./acp-reset-target.js";
 import { resolveConversationBindingContextFromMessage } from "./conversation-binding-input.js";
 import { normalizeInboundTextNewlines } from "./inbound-text.js";
 import { stripMentions, stripStructuralPrefixes } from "./mentions.js";
@@ -124,32 +122,6 @@ function resolveSessionConversationBindingContext(
       ? { parentConversationId: bindingContext.parentConversationId }
       : {}),
   };
-}
-
-function resolveBoundAcpSessionForReset(params: {
-  cfg: AlisioConfig;
-  ctx: MsgContext;
-  bindingContext?: {
-    channel: string;
-    accountId: string;
-    conversationId: string;
-    parentConversationId?: string;
-  } | null;
-}): string | undefined {
-  const activeSessionKey = normalizeConversationText(params.ctx.SessionKey);
-  const bindingContext =
-    params.bindingContext ?? resolveSessionConversationBindingContext(params.cfg, params.ctx);
-  return resolveEffectiveResetTargetSessionKey({
-    cfg: params.cfg,
-    channel: bindingContext?.channel,
-    accountId: bindingContext?.accountId,
-    conversationId: bindingContext?.conversationId,
-    parentConversationId: bindingContext?.parentConversationId,
-    activeSessionKey,
-    allowNonAcpBindingSessionKey: false,
-    skipConfiguredFallbackWhenActiveSessionNonAcp: true,
-    fallbackToActiveAcpWhenUnbound: false,
-  });
 }
 
 function resolveBoundConversationSessionKey(params: {
@@ -263,6 +235,9 @@ export async function initSessionState(params: {
   let persistedSubagentRole: SessionEntry["subagentRole"];
   let persistedSubagentControlScope: SessionEntry["subagentControlScope"];
   let persistedDisplayName: SessionEntry["displayName"];
+  let persistedCategory: SessionEntry["category"];
+  let persistedSurfaceRef: SessionEntry["surfaceRef"];
+  let persistedRelationship: SessionEntry["relationship"];
 
   const normalizedChatType = normalizeChatType(ctx.ChatType);
   const isGroup =
@@ -289,17 +264,6 @@ export async function initSessionState(params: {
   const strippedForReset = isGroup
     ? stripMentions(triggerBodyNormalized, ctx, cfg, agentId)
     : triggerBodyNormalized;
-  const shouldUseAcpInPlaceReset = Boolean(
-    resolveBoundAcpSessionForReset({
-      cfg,
-      ctx: sessionCtxForState,
-      bindingContext: conversationBindingContext,
-    }),
-  );
-  const shouldBypassAcpResetForTrigger = (triggerLower: string): boolean =>
-    shouldUseAcpInPlaceReset &&
-    DEFAULT_RESET_TRIGGERS.some((defaultTrigger) => defaultTrigger.toLowerCase() === triggerLower);
-
   // Reset triggers are configured as lowercased commands (e.g. "/new"), but users may type
   // "/NEW" etc. Match case-insensitively while keeping the original casing for any stripped body.
   const trimmedBodyLower = trimmedBody.toLowerCase();
@@ -314,12 +278,6 @@ export async function initSessionState(params: {
     }
     const triggerLower = trigger.toLowerCase();
     if (trimmedBodyLower === triggerLower || strippedForResetLower === triggerLower) {
-      if (shouldBypassAcpResetForTrigger(triggerLower)) {
-        // ACP-bound conversations handle /new and /reset in command handling
-        // so the bound ACP runtime can be reset in place without rotating the
-        // normal Alisio session/transcript.
-        break;
-      }
       isNewSession = true;
       bodyStripped = "";
       resetTriggered = true;
@@ -330,9 +288,6 @@ export async function initSessionState(params: {
       trimmedBodyLower.startsWith(triggerPrefixLower) ||
       strippedForResetLower.startsWith(triggerPrefixLower)
     ) {
-      if (shouldBypassAcpResetForTrigger(triggerLower)) {
-        break;
-      }
       isNewSession = true;
       bodyStripped = strippedForReset.slice(trigger.length).trimStart();
       resetTriggered = true;
@@ -440,6 +395,9 @@ export async function initSessionState(params: {
       persistedSubagentRole = entry.subagentRole;
       persistedSubagentControlScope = entry.subagentControlScope;
       persistedDisplayName = entry.displayName;
+      persistedCategory = entry.category;
+      persistedSurfaceRef = entry.surfaceRef;
+      persistedRelationship = entry.relationship;
     }
   }
 
@@ -512,6 +470,9 @@ export async function initSessionState(params: {
     queueCap: baseEntry?.queueCap,
     queueDrop: baseEntry?.queueDrop,
     displayName: persistedDisplayName ?? baseEntry?.displayName,
+    category: persistedCategory ?? baseEntry?.category,
+    surfaceRef: persistedSurfaceRef ?? baseEntry?.surfaceRef,
+    relationship: persistedRelationship ?? baseEntry?.relationship,
     chatType: baseEntry?.chatType,
     channel: baseEntry?.channel,
     groupId: baseEntry?.groupId,
@@ -530,6 +491,7 @@ export async function initSessionState(params: {
     sessionKey,
     existing: sessionEntry,
     groupResolution,
+    bindingContext: conversationBindingContext,
   });
   if (metaPatch) {
     sessionEntry = { ...sessionEntry, ...metaPatch };

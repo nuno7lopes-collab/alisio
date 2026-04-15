@@ -579,6 +579,8 @@ async function resolveKnownNodeSharingAccess(params: {
     targets: [
       {
         targetId: node.nodeId,
+        computerId: node.computerId,
+        computerLabel: node.computerLabel,
         label: node.displayName ?? node.nodeId,
         platform: node.platform,
         sourceKind: "node",
@@ -779,6 +781,8 @@ export const nodeHandlers: GatewayRequestHandlers = {
       const accessIndex = await getAlisioSharingTargetAccessIndex({
         targets: nodes.map((node) => ({
           targetId: node.nodeId,
+          computerId: node.computerId,
+          computerLabel: node.computerLabel,
           label: node.displayName ?? node.nodeId,
           platform: node.platform,
           sourceKind: "node",
@@ -823,6 +827,8 @@ export const nodeHandlers: GatewayRequestHandlers = {
         targets: [
           {
             targetId: node.nodeId,
+            computerId: node.computerId,
+            computerLabel: node.computerLabel,
             label: node.displayName ?? node.nodeId,
             platform: node.platform,
             sourceKind: "node",

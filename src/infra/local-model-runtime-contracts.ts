@@ -18,6 +18,7 @@ export interface AvailableModel extends InstalledModel {
   quantization?: string;
   diskGb?: number;
   memoryGb?: number;
+  vramGb?: number;
   recommendation?: {
     modelId: string;
     grade: "recommended" | "works" | "slow" | "unsupported";

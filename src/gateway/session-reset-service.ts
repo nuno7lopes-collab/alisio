@@ -8,6 +8,7 @@ import { clearBootstrapSnapshot } from "../agents/bootstrap-cache.js";
 import { abortEmbeddedPiRun, waitForEmbeddedPiRunEnd } from "../agents/pi-embedded.js";
 import { stopSubagentsForRequester } from "../auto-reply/reply/abort.js";
 import { clearSessionQueues } from "../auto-reply/reply/queue.js";
+import { resetConfiguredBindingTargetInPlace } from "../channels/plugins/binding-targets.js";
 import { loadConfig } from "../config/config.js";
 import {
   snapshotSessionOrigin,
@@ -259,7 +260,7 @@ export async function performGatewaySessionReset(params: {
   reason: "new" | "reset";
   commandSource: string;
 }): Promise<
-  | { ok: true; key: string; entry: SessionEntry }
+  | { ok: true; key: string; entry: SessionEntry; previousSessionId?: string }
   | { ok: false; error: ReturnType<typeof errorShape> }
 > {
   const { cfg, target, storePath } = (() => {
@@ -361,6 +362,9 @@ export async function performGatewaySessionReset(params: {
       subagentControlScope: currentEntry?.subagentControlScope,
       label: currentEntry?.label,
       displayName: currentEntry?.displayName,
+      category: currentEntry?.category,
+      surfaceRef: currentEntry?.surfaceRef,
+      relationship: currentEntry?.relationship,
       channel: currentEntry?.channel,
       groupId: currentEntry?.groupId,
       subject: currentEntry?.subject,
@@ -413,5 +417,54 @@ export async function performGatewaySessionReset(params: {
       reason: "session-reset",
     });
   }
-  return { ok: true, key: target.canonicalKey, entry: next };
+  return {
+    ok: true,
+    key: target.canonicalKey,
+    entry: next,
+    previousSessionId: oldSessionId,
+  };
+}
+
+export async function performGatewaySessionRuntimeReset(params: {
+  key: string;
+  rotateTranscript?: boolean;
+  commandSource: string;
+}): Promise<
+  | { ok: true; key: string; entry?: SessionEntry; previousSessionId?: string }
+  | { ok: false; error: ReturnType<typeof errorShape> }
+> {
+  const cfg = loadConfig();
+  const { canonicalKey } = loadSessionEntry(params.key);
+  const sessionKey = canonicalKey ?? params.key;
+  const runtimeReset = await resetConfiguredBindingTargetInPlace({
+    cfg,
+    sessionKey,
+    reason: "reset",
+  });
+  if (!runtimeReset.ok) {
+    return {
+      ok: false,
+      error: errorShape(
+        runtimeReset.skipped ? ErrorCodes.INVALID_REQUEST : ErrorCodes.UNAVAILABLE,
+        runtimeReset.skipped
+          ? `Session ${sessionKey} does not expose a resettable runtime.`
+          : runtimeReset.error || `Runtime reset failed for ${sessionKey}.`,
+      ),
+    };
+  }
+
+  if (params.rotateTranscript) {
+    return await performGatewaySessionReset({
+      key: sessionKey,
+      reason: "reset",
+      commandSource: params.commandSource,
+    });
+  }
+
+  const refreshed = loadSessionEntry(sessionKey);
+  return {
+    ok: true,
+    key: refreshed.canonicalKey,
+    entry: refreshed.entry,
+  };
 }

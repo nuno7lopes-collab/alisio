@@ -145,6 +145,14 @@ export const SessionsResetParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const SessionsRuntimeResetParamsSchema = Type.Object(
+  {
+    key: NonEmptyString,
+    rotateTranscript: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
 export const SessionsDeleteParamsSchema = Type.Object(
   {
     key: NonEmptyString,

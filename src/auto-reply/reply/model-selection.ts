@@ -16,8 +16,13 @@ import {
 } from "../../agents/model-selection.js";
 import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
+import {
+  ensureAlisioDynamicProviderSource,
+  listAlisioDynamicCatalogEntries,
+} from "../../infra/alisio-model-providers.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { resolveThreadParentSessionKey } from "../../sessions/session-key-utils.js";
+import { isAlisioDynamicProvider } from "../../shared/alisio-dynamic-provider.js";
 import type { ThinkLevel } from "./directives.js";
 
 export type ModelDirectiveSelection = {
@@ -60,6 +65,51 @@ function loadModelCatalogRuntime() {
 function loadSessionStoreRuntime() {
   sessionStoreRuntimePromise ??= import("../../config/sessions/store.runtime.js");
   return sessionStoreRuntimePromise;
+}
+
+async function loadMergedRuntimeModelCatalog(params: {
+  cfg: AlisioConfig;
+  dynamicProviderIds?: string[];
+}): Promise<ModelCatalog> {
+  for (const providerId of params.dynamicProviderIds ?? []) {
+    if (!isAlisioDynamicProvider(providerId)) {
+      continue;
+    }
+    await ensureAlisioDynamicProviderSource(providerId);
+  }
+
+  const configuredCatalog = await (
+    await loadModelCatalogRuntime()
+  ).loadModelCatalog({
+    config: params.cfg,
+  });
+  const dynamicCatalog = listAlisioDynamicCatalogEntries();
+  if (dynamicCatalog.length === 0) {
+    return configuredCatalog;
+  }
+
+  const merged = new Map<string, ModelCatalogEntry>();
+  for (const entry of [...configuredCatalog, ...dynamicCatalog]) {
+    const key = modelKey(entry.provider, entry.id);
+    if (merged.has(key)) {
+      continue;
+    }
+    merged.set(key, entry);
+  }
+
+  return [...merged.values()].toSorted((left, right) => {
+    const provider = (left.providerLabel ?? left.provider).localeCompare(
+      right.providerLabel ?? right.provider,
+    );
+    if (provider !== 0) {
+      return provider;
+    }
+    const name = left.name.localeCompare(right.name);
+    if (name !== 0) {
+      return name;
+    }
+    return left.id.localeCompare(right.id);
+  });
 }
 
 const FUZZY_VARIANT_TOKENS = [
@@ -337,8 +387,32 @@ export async function createModelSelectionState(params: {
     parentSessionKey,
   });
   const hasStoredOverride = Boolean(initialStoredOverride);
+  const normalizedInitialStoredOverride = initialStoredOverride?.model
+    ? normalizeModelRef(
+        initialStoredOverride.provider || defaultProvider,
+        initialStoredOverride.model,
+      )
+    : null;
   const configuredModelCatalog = buildConfiguredModelCatalog({ cfg });
-  const needsModelCatalog = params.hasModelDirective;
+  const runtimeDynamicProviderIds = new Set<string>();
+  if (isAlisioDynamicProvider(provider)) {
+    runtimeDynamicProviderIds.add(provider);
+  }
+  if (
+    normalizedInitialStoredOverride &&
+    isAlisioDynamicProvider(normalizedInitialStoredOverride.provider)
+  ) {
+    runtimeDynamicProviderIds.add(normalizedInitialStoredOverride.provider);
+  }
+  const needsModelCatalog =
+    params.hasModelDirective ||
+    (hasStoredOverride &&
+      (hasAllowlist ||
+        Boolean(
+          normalizedInitialStoredOverride &&
+          isAlisioDynamicProvider(normalizedInitialStoredOverride.provider),
+        ))) ||
+    isAlisioDynamicProvider(provider);
 
   let allowedModelKeys = new Set<string>();
   let allowedModelCatalog: ModelCatalog = configuredModelCatalog;
@@ -347,7 +421,10 @@ export async function createModelSelectionState(params: {
   const agentEntry = params.agentId ? resolveAgentConfig(cfg, params.agentId) : undefined;
 
   if (needsModelCatalog) {
-    modelCatalog = await (await loadModelCatalogRuntime()).loadModelCatalog({ config: cfg });
+    modelCatalog = await loadMergedRuntimeModelCatalog({
+      cfg,
+      dynamicProviderIds: [...runtimeDynamicProviderIds],
+    });
     logStage("catalog-loaded", `entries=${modelCatalog.length}`);
     const allowed = buildAllowedModelSet({
       cfg,
@@ -453,7 +530,10 @@ export async function createModelSelectionState(params: {
     }
     let catalogForThinking = modelCatalog ?? allowedModelCatalog;
     if (!catalogForThinking || catalogForThinking.length === 0) {
-      modelCatalog = await (await loadModelCatalogRuntime()).loadModelCatalog({ config: cfg });
+      modelCatalog = await loadMergedRuntimeModelCatalog({
+        cfg,
+        dynamicProviderIds: [...runtimeDynamicProviderIds],
+      });
       logStage("catalog-loaded-for-thinking", `entries=${modelCatalog.length}`);
       catalogForThinking = modelCatalog;
     }
@@ -475,7 +555,10 @@ export async function createModelSelectionState(params: {
   const resolveDefaultReasoningLevel = async (): Promise<"on" | "off"> => {
     let catalogForReasoning = modelCatalog ?? allowedModelCatalog;
     if (!catalogForReasoning || catalogForReasoning.length === 0) {
-      modelCatalog = await (await loadModelCatalogRuntime()).loadModelCatalog({ config: cfg });
+      modelCatalog = await loadMergedRuntimeModelCatalog({
+        cfg,
+        dynamicProviderIds: [...runtimeDynamicProviderIds],
+      });
       logStage("catalog-loaded-for-reasoning", `entries=${modelCatalog.length}`);
       catalogForReasoning = modelCatalog;
     }

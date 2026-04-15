@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskProposalView } from "../../tasks/task-proposals.types.js";
 import type { TaskRecord } from "../../tasks/task-registry.types.js";
+import type {
+  Task,
+  TaskApproval,
+  TaskAssignment,
+  TaskExecution,
+} from "../../tasks/task-service.types.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
 const mocks = vi.hoisted(() => ({
@@ -17,8 +23,29 @@ const mocks = vi.hoisted(() => ({
   listTaskProposalViewsMock: vi.fn(),
   summarizeTaskProposalsMock: vi.fn(),
   upsertTaskProposalMock: vi.fn(),
+  getTaskProposalViewByIdMock: vi.fn(),
   resolveTaskProposalDecisionMock: vi.fn(),
   attachTaskProposalLaunchMock: vi.fn(),
+  createTaskMock: vi.fn(),
+  updateTaskMock: vi.fn(),
+  getTaskMock: vi.fn(),
+  getTaskBundleMock: vi.fn(),
+  getTaskExecutionByRunIdMock: vi.fn(),
+  listTasksMock: vi.fn(),
+  findTaskForSessionKeyMock: vi.fn(),
+  markTaskExecutionRunningByRunIdMock: vi.fn(),
+  bindTaskExecutionRunMock: vi.fn(),
+  cancelTaskTreeMock: vi.fn(),
+  claimTaskMock: vi.fn(),
+  releaseTaskMock: vi.fn(),
+  spawnChildTaskMock: vi.fn(),
+  startTaskExecutionMock: vi.fn(),
+  endTaskExecutionMock: vi.fn(),
+  cancelTaskExecutionMock: vi.fn(),
+  requestTaskApprovalMock: vi.fn(),
+  decideTaskApprovalMock: vi.fn(),
+  createGatewaySessionEntryMock: vi.fn(),
+  sendGatewaySessionMessageMock: vi.fn(),
 }));
 
 vi.mock("../../config/config.js", () => ({
@@ -47,11 +74,38 @@ vi.mock("../../tasks/task-registry.summary.js", () => ({
 }));
 
 vi.mock("../../tasks/task-proposals.js", () => ({
+  getTaskProposalViewById: mocks.getTaskProposalViewByIdMock,
   listTaskProposalViews: mocks.listTaskProposalViewsMock,
   summarizeTaskProposals: mocks.summarizeTaskProposalsMock,
   upsertTaskProposal: mocks.upsertTaskProposalMock,
   resolveTaskProposalDecision: mocks.resolveTaskProposalDecisionMock,
   attachTaskProposalLaunch: mocks.attachTaskProposalLaunchMock,
+}));
+
+vi.mock("../../tasks/task-service.js", () => ({
+  bindTaskExecutionRun: mocks.bindTaskExecutionRunMock,
+  cancelTaskTree: mocks.cancelTaskTreeMock,
+  createTask: mocks.createTaskMock,
+  claimTask: mocks.claimTaskMock,
+  cancelTaskExecution: mocks.cancelTaskExecutionMock,
+  decideTaskApproval: mocks.decideTaskApprovalMock,
+  endTaskExecution: mocks.endTaskExecutionMock,
+  findTaskForSessionKey: mocks.findTaskForSessionKeyMock,
+  getTask: mocks.getTaskMock,
+  getTaskBundle: mocks.getTaskBundleMock,
+  getTaskExecutionByRunId: mocks.getTaskExecutionByRunIdMock,
+  listTasks: mocks.listTasksMock,
+  markTaskExecutionRunningByRunId: mocks.markTaskExecutionRunningByRunIdMock,
+  releaseTask: mocks.releaseTaskMock,
+  requestTaskApproval: mocks.requestTaskApprovalMock,
+  spawnChildTask: mocks.spawnChildTaskMock,
+  startTaskExecution: mocks.startTaskExecutionMock,
+  updateTask: mocks.updateTaskMock,
+}));
+
+vi.mock("./sessions.js", () => ({
+  createGatewaySessionEntry: mocks.createGatewaySessionEntryMock,
+  sendGatewaySessionMessage: mocks.sendGatewaySessionMessageMock,
 }));
 
 import { tasksHandlers } from "./tasks.js";
@@ -163,6 +217,55 @@ function createProposal(overrides: Partial<TaskProposalView> = {}): TaskProposal
   };
 }
 
+function createCanonicalTask(overrides: Partial<Task> = {}): Task {
+  return {
+    taskId: "canonical-task-1",
+    rootTaskId: "canonical-task-1",
+    kind: "task",
+    title: "Canonical task",
+    acceptance: [],
+    status: "draft",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    ...overrides,
+  };
+}
+
+function createAssignment(overrides: Partial<TaskAssignment> = {}): TaskAssignment {
+  return {
+    assignmentId: "assignment-1",
+    taskId: "canonical-task-1",
+    agentId: "main",
+    status: "active",
+    claimedAt: 1_100,
+    leaseExpiresAt: 2_100,
+    ...overrides,
+  };
+}
+
+function createExecution(overrides: Partial<TaskExecution> = {}): TaskExecution {
+  return {
+    executionId: "execution-1",
+    taskId: "canonical-task-1",
+    kind: "subagent",
+    attempt: 1,
+    status: "running",
+    createdAt: 1_200,
+    startedAt: 1_200,
+    ...overrides,
+  };
+}
+
+function createApproval(overrides: Partial<TaskApproval> = {}): TaskApproval {
+  return {
+    approvalId: "approval-1",
+    taskId: "canonical-task-1",
+    status: "pending",
+    requestedAt: 1_300,
+    ...overrides,
+  };
+}
+
 describe("tasksHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -234,6 +337,73 @@ describe("tasksHandlers", () => {
       approved: 0,
       rejected: 0,
       launched: 0,
+    });
+    mocks.getTaskProposalViewByIdMock.mockReturnValue(null);
+    mocks.listTasksMock.mockReturnValue([]);
+    mocks.getTaskBundleMock.mockReturnValue(null);
+    mocks.getTaskMock.mockReturnValue(null);
+    mocks.getTaskExecutionByRunIdMock.mockReturnValue(null);
+    mocks.findTaskForSessionKeyMock.mockReturnValue(null);
+    mocks.createTaskMock.mockReturnValue(createCanonicalTask());
+    mocks.updateTaskMock.mockReturnValue(createCanonicalTask({ status: "ready" }));
+    mocks.bindTaskExecutionRunMock.mockImplementation(
+      ({ executionId, runId }: { executionId: string; runId: string }) => ({
+        task: createCanonicalTask({ taskId: "canonical-task-1" }),
+        execution: createExecution({ executionId, runId }),
+      }),
+    );
+    mocks.cancelTaskTreeMock.mockReturnValue(createCanonicalTask({ status: "cancelled" }));
+    mocks.claimTaskMock.mockReturnValue({
+      task: createCanonicalTask({ ownerAgentId: "main" }),
+      assignment: createAssignment(),
+    });
+    mocks.releaseTaskMock.mockReturnValue({
+      task: createCanonicalTask(),
+      assignment: createAssignment({ status: "released", releasedAt: 1_500 }),
+    });
+    mocks.spawnChildTaskMock.mockReturnValue({
+      task: createCanonicalTask({
+        taskId: "child-task-1",
+        rootTaskId: "canonical-task-1",
+        parentTaskId: "canonical-task-1",
+      }),
+      execution: undefined,
+    });
+    mocks.startTaskExecutionMock.mockReturnValue({
+      task: createCanonicalTask({ status: "in_progress", activeExecutionId: "execution-1" }),
+      execution: createExecution(),
+    });
+    mocks.endTaskExecutionMock.mockReturnValue({
+      task: createCanonicalTask({ status: "completed", latestExecutionId: "execution-1" }),
+      execution: createExecution({ status: "succeeded", endedAt: 1_400 }),
+    });
+    mocks.cancelTaskExecutionMock.mockReturnValue({
+      task: createCanonicalTask({ status: "cancelled", latestExecutionId: "execution-1" }),
+      execution: createExecution({ status: "cancelled", endedAt: 1_450 }),
+    });
+    mocks.requestTaskApprovalMock.mockReturnValue({
+      task: createCanonicalTask({ status: "pending_approval", latestApprovalId: "approval-1" }),
+      approval: createApproval(),
+    });
+    mocks.decideTaskApprovalMock.mockReturnValue({
+      task: createCanonicalTask({ status: "ready", latestApprovalId: "approval-1" }),
+      approval: createApproval({ status: "approved", decidedAt: 1_350 }),
+    });
+    mocks.markTaskExecutionRunningByRunIdMock.mockReturnValue({
+      task: createCanonicalTask({ status: "in_progress", activeExecutionId: "execution-1" }),
+      execution: createExecution({ status: "running" }),
+    });
+    mocks.createGatewaySessionEntryMock.mockResolvedValue({
+      key: "agent:main:task:1",
+      storePath: "/tmp/session-store",
+      entry: {
+        sessionId: "session-1",
+        sessionFile: "/tmp/session-file",
+      },
+    });
+    mocks.sendGatewaySessionMessageMock.mockResolvedValue({
+      payload: { runId: "run-task-1" },
+      runStarted: true,
     });
   });
 
@@ -324,6 +494,94 @@ describe("tasksHandlers", () => {
     );
   });
 
+  it("creates canonical tasks through the v2 handler", async () => {
+    const opts = createOptions("tasks.create", {
+      title: "Ship canonical task model",
+      requestedBy: "nuno",
+    });
+
+    await tasksHandlers["tasks.create"](opts);
+
+    expect(mocks.createTaskMock).toHaveBeenCalledWith({
+      title: "Ship canonical task model",
+      requestedBy: "nuno",
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      { task: expect.objectContaining({ taskId: "canonical-task-1" }) },
+      undefined,
+    );
+  });
+
+  it("claims canonical tasks through the v2 handler", async () => {
+    const opts = createOptions("tasks.claim", {
+      taskId: "canonical-task-1",
+      agentId: "main",
+      leaseMs: 60_000,
+    });
+
+    await tasksHandlers["tasks.claim"](opts);
+
+    expect(mocks.claimTaskMock).toHaveBeenCalledWith({
+      taskId: "canonical-task-1",
+      agentId: "main",
+      leaseMs: 60_000,
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        assignment: expect.objectContaining({ assignmentId: "assignment-1" }),
+      }),
+      undefined,
+    );
+  });
+
+  it("starts canonical executions through the v2 handler", async () => {
+    const opts = createOptions("tasks.execution.start", {
+      taskId: "canonical-task-1",
+      kind: "subagent",
+      runId: "run-1",
+    });
+
+    await tasksHandlers["tasks.execution.start"](opts);
+
+    expect(mocks.startTaskExecutionMock).toHaveBeenCalledWith({
+      taskId: "canonical-task-1",
+      kind: "subagent",
+      runId: "run-1",
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        execution: expect.objectContaining({ executionId: "execution-1" }),
+      }),
+      undefined,
+    );
+  });
+
+  it("requests task approvals through the v2 handler", async () => {
+    const opts = createOptions("tasks.approval.request", {
+      taskId: "canonical-task-1",
+      requestedBy: "nuno",
+      note: "precisa de aprovação",
+    });
+
+    await tasksHandlers["tasks.approval.request"](opts);
+
+    expect(mocks.requestTaskApprovalMock).toHaveBeenCalledWith({
+      taskId: "canonical-task-1",
+      requestedBy: "nuno",
+      note: "precisa de aprovação",
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        approval: expect.objectContaining({ approvalId: "approval-1" }),
+      }),
+      undefined,
+    );
+  });
+
   it("cancels a task with the current gateway config", async () => {
     const task = createTask({ taskId: "task-cancel" });
     const cancelResult = { found: true, cancelled: true, task };
@@ -339,6 +597,31 @@ describe("tasksHandlers", () => {
       taskId: "task-cancel",
     });
     expect(opts.respond).toHaveBeenCalledWith(true, cancelResult, undefined);
+  });
+
+  it("cancels canonical tasks before falling back to the legacy task ledger", async () => {
+    mocks.getTaskMock.mockReturnValue(createCanonicalTask({ taskId: "canonical-task-1" }));
+    mocks.cancelTaskTreeMock.mockReturnValue(
+      createCanonicalTask({ taskId: "canonical-task-1", status: "cancelled" }),
+    );
+    const opts = createOptions("tasks.cancel", { lookup: "canonical-task-1" });
+
+    await tasksHandlers["tasks.cancel"](opts);
+
+    expect(mocks.cancelTaskTreeMock).toHaveBeenCalledWith({
+      taskId: "canonical-task-1",
+      reason: "Cancelled via tasks.cancel (canonical-task-1)",
+    });
+    expect(mocks.cancelTaskByIdMock).not.toHaveBeenCalled();
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        found: true,
+        cancelled: true,
+        canonicalTask: expect.objectContaining({ taskId: "canonical-task-1" }),
+      }),
+      undefined,
+    );
   });
 
   it("updates the notify policy for the resolved task", async () => {
@@ -442,9 +725,146 @@ describe("tasksHandlers", () => {
     expect(opts.respond).toHaveBeenCalledWith(true, { proposal }, undefined);
   });
 
+  it("launches proposals through the task-first flow", async () => {
+    const pendingProposal = createProposal({
+      decision: "pending",
+      summary: "Launch the canonical task flow",
+      acceptance: ["Task exists first", "Execution binds to task"],
+      launchPrompt: "Implement the task-first launch flow.",
+    });
+    const approvedProposal = createProposal({
+      decision: "approved",
+      resolvedAt: 1_250,
+      resolvedBy: "control-ui",
+      summary: pendingProposal.summary,
+      acceptance: pendingProposal.acceptance,
+      launchPrompt: pendingProposal.launchPrompt,
+    });
+    const launchedProposal = createProposal({
+      decision: "approved",
+      resolvedAt: 1_250,
+      resolvedBy: "control-ui",
+      launchedTaskId: "canonical-task-1",
+      launchedRunId: "run-task-1",
+      launchedSessionKey: "agent:main:task:1",
+      launchedAt: 1_400,
+      summary: pendingProposal.summary,
+      acceptance: pendingProposal.acceptance,
+      launchPrompt: pendingProposal.launchPrompt,
+    });
+    mocks.getTaskProposalViewByIdMock.mockReturnValue(pendingProposal);
+    mocks.resolveTaskProposalDecisionMock.mockReturnValue(approvedProposal);
+    mocks.createTaskMock.mockReturnValue(
+      createCanonicalTask({
+        taskId: "canonical-task-1",
+        proposalId: pendingProposal.proposalId,
+      }),
+    );
+    mocks.updateTaskMock.mockReturnValue(
+      createCanonicalTask({
+        taskId: "canonical-task-1",
+        proposalId: pendingProposal.proposalId,
+        ownerAgentId: "main",
+        orchestratorSessionKey: "agent:main:task:1",
+        status: "ready",
+      }),
+    );
+    mocks.startTaskExecutionMock.mockReturnValue({
+      task: createCanonicalTask({
+        taskId: "canonical-task-1",
+        status: "ready",
+        activeExecutionId: "execution-1",
+      }),
+      execution: createExecution({
+        executionId: "execution-1",
+        taskId: "canonical-task-1",
+        kind: "orchestrator_session",
+        status: "queued",
+        sessionKey: "agent:main:task:1",
+      }),
+    });
+    mocks.attachTaskProposalLaunchMock.mockReturnValue(launchedProposal);
+    mocks.getTaskMock.mockReturnValue(
+      createCanonicalTask({
+        taskId: "canonical-task-1",
+        proposalId: pendingProposal.proposalId,
+        ownerAgentId: "main",
+        orchestratorSessionKey: "agent:main:task:1",
+        status: "in_progress",
+      }),
+    );
+    mocks.getTaskExecutionByRunIdMock.mockReturnValue(
+      createExecution({
+        executionId: "execution-1",
+        taskId: "canonical-task-1",
+        kind: "orchestrator_session",
+        status: "running",
+        runId: "run-task-1",
+        sessionKey: "agent:main:task:1",
+      }),
+    );
+    const opts = createOptions(
+      "tasks.launchFromProposal",
+      {
+        proposalId: pendingProposal.proposalId,
+        agentId: "main",
+      },
+      {
+        client: {
+          connect: {
+            client: {
+              id: "control-ui",
+              displayName: "Control UI",
+            },
+          },
+        } as GatewayRequestHandlerOptions["client"],
+      },
+    );
+
+    await tasksHandlers["tasks.launchFromProposal"](opts);
+
+    expect(mocks.resolveTaskProposalDecisionMock).toHaveBeenCalledWith({
+      proposalId: pendingProposal.proposalId,
+      decision: "approved",
+      resolvedBy: "Control UI",
+    });
+    expect(mocks.createTaskMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: pendingProposal.title,
+        proposalId: pendingProposal.proposalId,
+      }),
+    );
+    expect(mocks.createGatewaySessionEntryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentId: "main",
+        label: pendingProposal.title,
+        parentSessionKey: pendingProposal.requesterSessionKey,
+        conversationMode: "task",
+      }),
+    );
+    expect(mocks.attachTaskProposalLaunchMock).toHaveBeenCalledWith({
+      proposalId: pendingProposal.proposalId,
+      taskId: "canonical-task-1",
+      runId: "run-task-1",
+      sessionKey: "agent:main:task:1",
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        proposal: launchedProposal,
+        task: expect.objectContaining({ taskId: "canonical-task-1" }),
+        execution: expect.objectContaining({ runId: "run-task-1" }),
+        sessionKey: "agent:main:task:1",
+        runId: "run-task-1",
+      }),
+      undefined,
+    );
+  });
+
   it("attaches a launched run to a task proposal and broadcasts the change", async () => {
     const proposal = createProposal({
       decision: "approved",
+      launchedTaskId: "canonical-task-1",
       launchedRunId: "run-1",
       launchedSessionKey: "agent:main:dashboard:1",
       launchedAt: 3_000,
@@ -452,6 +872,7 @@ describe("tasksHandlers", () => {
     mocks.attachTaskProposalLaunchMock.mockReturnValue(proposal);
     const opts = createOptions("tasks.proposal.attachLaunch", {
       proposalId: proposal.proposalId,
+      taskId: "canonical-task-1",
       runId: "run-1",
       sessionKey: "agent:main:dashboard:1",
     });
@@ -460,6 +881,7 @@ describe("tasksHandlers", () => {
 
     expect(mocks.attachTaskProposalLaunchMock).toHaveBeenCalledWith({
       proposalId: proposal.proposalId,
+      taskId: "canonical-task-1",
       runId: "run-1",
       sessionKey: "agent:main:dashboard:1",
     });

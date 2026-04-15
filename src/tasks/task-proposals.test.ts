@@ -8,7 +8,8 @@ import {
   summarizeTaskProposals,
   upsertTaskProposal,
 } from "./task-proposals.js";
-import { createTaskRecord, findTaskByRunId, resetTaskRegistryForTests } from "./task-registry.js";
+import { resetTaskRegistryForTests } from "./task-registry.js";
+import { createTask } from "./task-service.js";
 
 const ORIGINAL_STATE_DIR = process.env.ALISIO_STATE_DIR;
 
@@ -80,6 +81,7 @@ describe("task proposals", () => {
       });
       const launched = attachTaskProposalLaunch({
         proposalId: approved.proposalId,
+        taskId: "task-proposal-1",
         runId: "run-proposal-1",
         sessionKey: "agent:main:dashboard:1",
       });
@@ -96,16 +98,11 @@ describe("task proposals", () => {
 
   it("links launched proposals back to task records", async () => {
     await withTaskProposalStateDir(async () => {
-      const task = createTaskRecord({
-        runtime: "subagent",
+      const task = createTask({
+        title: "Implement the inbox",
         requesterSessionKey: "agent:main:main",
-        childSessionKey: "agent:main:dashboard:1",
-        runId: "run-proposal-1",
-        task: "Implement the inbox",
-        status: "running",
-        deliveryStatus: "pending",
+        orchestratorSessionKey: "agent:main:dashboard:1",
       });
-      expect(findTaskByRunId("run-proposal-1")?.taskId).toBe(task.taskId);
 
       const proposal = upsertTaskProposal({
         clientKey: "msg:assistant:launch:0",
@@ -114,13 +111,14 @@ describe("task proposals", () => {
       });
       const launched = attachTaskProposalLaunch({
         proposalId: proposal.proposalId,
+        taskId: task.taskId,
         runId: "run-proposal-1",
         sessionKey: "agent:main:dashboard:1",
       });
 
       expect(launched.linkedTask).toMatchObject({
         taskId: task.taskId,
-        runId: "run-proposal-1",
+        orchestratorSessionKey: "agent:main:dashboard:1",
       });
       expect(getTaskProposalViewById(proposal.proposalId)?.linkedTask?.taskId).toBe(task.taskId);
     });
@@ -140,6 +138,7 @@ describe("task proposals", () => {
       expect(() =>
         attachTaskProposalLaunch({
           proposalId: rejected.proposalId,
+          taskId: "task-rejected",
           runId: "run-rejected",
         }),
       ).toThrow(/rejected/i);
@@ -151,6 +150,7 @@ describe("task proposals", () => {
       });
       attachTaskProposalLaunch({
         proposalId: proposal.proposalId,
+        taskId: "task-first",
         runId: "run-first",
         sessionKey: "agent:main:dashboard:first",
       });
@@ -158,6 +158,7 @@ describe("task proposals", () => {
       expect(() =>
         attachTaskProposalLaunch({
           proposalId: proposal.proposalId,
+          taskId: "task-second",
           runId: "run-second",
           sessionKey: "agent:main:dashboard:second",
         }),
@@ -186,6 +187,7 @@ describe("task proposals", () => {
 
       const launched = attachTaskProposalLaunch({
         proposalId: created.proposalId,
+        taskId: "task-original",
         runId: "run-original",
         sessionKey: "agent:main:dashboard:launched",
       });
@@ -205,6 +207,7 @@ describe("task proposals", () => {
       expect(updated.acceptance).toEqual(["Original acceptance"]);
       expect(updated.launchPrompt).toBe("Original launch prompt");
       expect(updated.kind).toBe("task");
+      expect(updated.launchedTaskId).toBe("task-original");
       expect(updated.launchedRunId).toBe("run-original");
       expect(updated.updatedAt).toBe(launched.updatedAt);
     });
@@ -232,15 +235,18 @@ describe("task proposals", () => {
 
       const launched = attachTaskProposalLaunch({
         proposalId: created.proposalId,
+        taskId: "task-idempotent",
         runId: "run-idempotent",
       });
       const launchedAgain = attachTaskProposalLaunch({
         proposalId: created.proposalId,
+        taskId: "task-idempotent",
         runId: "run-idempotent",
       });
 
       expect(launchedAgain.updatedAt).toBe(launched.updatedAt);
       expect(launchedAgain.launchedAt).toBe(launched.launchedAt);
+      expect(launchedAgain.launchedTaskId).toBe("task-idempotent");
       expect(launchedAgain.launchedRunId).toBe("run-idempotent");
     });
   });

@@ -26,6 +26,15 @@ Common uses:
 - Trigger follow-up automation when a session starts or ends
 - Write files into the agent workspace or call external APIs when events fire
 
+Important semantics:
+
+- `/new` and `/reset` mean "reset the current conversation"
+- reset keeps the same conversation and rotates to a new transcript
+- creating a real new chat is a separate operation
+- runtime reset is also a separate operation
+
+Hooks that listen to `command:new` and `command:reset` keep the established reset semantics. They do not silently become "new chat" hooks.
+
 If you can write a small TypeScript function, you can write a hook. Managed and bundled hooks are trusted local code. Workspace hooks are discovered automatically, but Alisio keeps them disabled until you explicitly enable them via the CLI or config.
 
 ## Overview
@@ -259,6 +268,25 @@ Triggered when agent commands are issued:
 - **`command:new`**: When `/new` command is issued
 - **`command:reset`**: When `/reset` command is issued
 - **`command:stop`**: When `/stop` command is issued
+
+For `command:new` and `command:reset`, the semantic meaning is:
+
+- same conversation
+- new transcript
+- hook compatibility preserved
+
+If you need to react to real chat creation or explicit runtime lifecycle changes, use Gateway session lifecycle payloads instead of overloading `command:new`.
+
+### Gateway session lifecycle payloads
+
+Gateway session change payloads now expose explicit lifecycle labels that are separate from hook command names:
+
+- `conversation.created`
+- `transcript.rotated`
+- `runtime.reset`
+- `surface.rebound`
+
+These lifecycle labels are intended for control-plane consumers and future memory/summarization boundaries. Existing hooks continue to use `command:new` and `command:reset` for reset behavior.
 
 ### Session Events
 

@@ -11,7 +11,10 @@ import type {
 } from "./alisio-local-model-runtime.js";
 import type { ChatHistoryItem, Llama, LlamaModel } from "./llama-cpp.runtime.js";
 import { buildRuntimeCapabilities } from "./local-model-runtime-contracts.js";
-import { inspectLocalModelHardwareProfile } from "./model-hardware.js";
+import {
+  enrichLocalModelHardwareProfile,
+  inspectLocalModelHardwareProfile,
+} from "./model-hardware.js";
 
 type InstalledLocalModelRecord = {
   modelId: string;
@@ -28,6 +31,17 @@ type InstalledLocalModelsManifest = {
 type LocalChatMessage = {
   role: "system" | "user" | "assistant";
   text: string;
+};
+
+type LocalRuntimeProbeLlama = {
+  gpu?: string | false;
+  systemInfo?: string;
+  getVramState?: () => Promise<{
+    total: number;
+    free: number;
+    unifiedSize: number;
+  }>;
+  getGpuDeviceNames?: () => Promise<string[]>;
 };
 
 const MANIFEST_VERSION = 1;
@@ -108,6 +122,38 @@ async function hasUsableInstalledModelFile(record: InstalledLocalModelRecord) {
   }
 }
 
+function formatLocalRuntimeFailureMessage(error: unknown): string {
+  const detail = (
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : error == null
+          ? ""
+          : JSON.stringify(error)
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  const lower = detail.toLowerCase();
+  if (
+    /binding|bindings|prebuild|compile|compiled|build failed|dlopen|native addon|module did not self-register|symbol not found/.test(
+      lower,
+    )
+  ) {
+    return detail
+      ? `Local llama.cpp runtime unavailable: bindings are unsupported or the native build failed. ${detail}`
+      : "Local llama.cpp runtime unavailable: bindings are unsupported or the native build failed.";
+  }
+  if (/metal|cuda|vulkan|gpu|backend|mps/.test(lower)) {
+    return detail
+      ? `Local llama.cpp runtime unavailable: the GPU backend could not be initialized. ${detail}`
+      : "Local llama.cpp runtime unavailable: the GPU backend could not be initialized.";
+  }
+  return detail
+    ? `Local llama.cpp runtime unavailable: failed to initialize the runtime. ${detail}`
+    : "Local llama.cpp runtime unavailable: failed to initialize the runtime.";
+}
+
 export async function listInstalledAlisioLocalModels(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<AlisioInstalledLocalModel[]> {
@@ -134,7 +180,7 @@ export async function inspectManagedLocalModelRuntime(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<AlisioLocalModelRuntimeInspection> {
   const models = await listInstalledAlisioLocalModels(env);
-  const hardware = inspectLocalModelHardwareProfile();
+  let hardware = inspectLocalModelHardwareProfile();
   if (models.length === 0) {
     return {
       backend: ALISIO_LOCAL_MODEL_BACKEND,
@@ -143,6 +189,50 @@ export async function inspectManagedLocalModelRuntime(
       status: "not_configured",
       message: "No local llama.cpp models are installed on this computer yet.",
       models: [],
+      availableModels: [],
+      hardware,
+      capabilities: buildRuntimeCapabilities({
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+      }),
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    };
+  }
+  try {
+    const runtime = await getLlamaRuntimeModule();
+    const llama = (await runtime.getLlama({
+      logLevel: runtime.LlamaLogLevel.error,
+    })) as LocalRuntimeProbeLlama;
+    const [vramState, gpuDevices] = await Promise.all([
+      llama.getVramState?.().catch(() => undefined),
+      llama.getGpuDeviceNames?.().catch(() => undefined),
+    ]);
+    hardware = enrichLocalModelHardwareProfile(hardware, {
+      gpuBackend: llama.gpu,
+      gpuDevices,
+      systemInfo: llama.systemInfo,
+      vram:
+        vramState && typeof vramState.total === "number"
+          ? {
+              total: vramState.total,
+              free: vramState.free,
+              unifiedSize: vramState.unifiedSize,
+            }
+          : undefined,
+    });
+  } catch (error) {
+    return {
+      backend: ALISIO_LOCAL_MODEL_BACKEND,
+      runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+      runtimeLabel: "Local GGUF",
+      status: "error",
+      message: formatLocalRuntimeFailureMessage(error),
+      models,
       availableModels: [],
       hardware,
       capabilities: buildRuntimeCapabilities({

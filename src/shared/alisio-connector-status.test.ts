@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveAlisioConnectorSurfaceUiStatus,
   resolveAlisioConnectorUiStatus,
+  summarizeAlisioConnectorSurfaceUiStatuses,
   summarizeAlisioConnectorUiStatuses,
 } from "./alisio-connector-status.js";
 
@@ -46,6 +48,41 @@ describe("resolveAlisioConnectorUiStatus", () => {
     expect(
       resolveAlisioConnectorUiStatus({
         definition: { availability: "unavailable" },
+      }),
+    ).toBe("unavailable");
+  });
+});
+
+describe("resolveAlisioConnectorSurfaceUiStatus", () => {
+  it("downgrades catalog-ready connectors without runtime support to in_review", () => {
+    expect(
+      resolveAlisioConnectorSurfaceUiStatus({
+        definition: { id: "acme-ready", availability: "ready" },
+      }),
+    ).toBe("in_review");
+  });
+
+  it("keeps runtime-backed connectors ready when they are truly usable", () => {
+    expect(
+      resolveAlisioConnectorSurfaceUiStatus({
+        definition: { id: "google-calendar", availability: "ready" },
+      }),
+    ).toBe("ready");
+    expect(
+      resolveAlisioConnectorSurfaceUiStatus({
+        definition: { id: "google-drive", availability: "ready" },
+      }),
+    ).toBe("ready");
+  });
+
+  it("hides connectors with missing local OAuth config from user-facing surfaces", () => {
+    expect(
+      resolveAlisioConnectorSurfaceUiStatus({
+        definition: { id: "github", availability: "ready" },
+        authorization: {
+          state: "not_connected",
+          health: "config_missing",
+        },
       }),
     ).toBe("unavailable");
   });
@@ -99,6 +136,51 @@ describe("summarizeAlisioConnectorUiStatuses", () => {
       inReview: 1,
       unavailable: 1,
       available: 3,
+    });
+  });
+});
+
+describe("summarizeAlisioConnectorSurfaceUiStatuses", () => {
+  it("counts runtime-unready ready connectors as in review instead of ready", () => {
+    expect(
+      summarizeAlisioConnectorSurfaceUiStatuses({
+        definitions: [
+          { id: "gmail-send", availability: "ready" },
+          { id: "acme-ready", availability: "ready" },
+        ],
+        authorizations: [],
+      }),
+    ).toMatchObject({
+      total: 2,
+      ready: 1,
+      connected: 0,
+      needsReconnect: 0,
+      inReview: 1,
+      unavailable: 0,
+      available: 2,
+    });
+  });
+
+  it("counts missing-config connectors as unavailable on user-facing surfaces", () => {
+    expect(
+      summarizeAlisioConnectorSurfaceUiStatuses({
+        definitions: [{ id: "github", availability: "ready" }],
+        authorizations: [
+          {
+            connectorId: "github",
+            state: "not_connected",
+            health: "config_missing",
+          },
+        ],
+      }),
+    ).toMatchObject({
+      total: 1,
+      ready: 0,
+      connected: 0,
+      needsReconnect: 0,
+      inReview: 0,
+      unavailable: 1,
+      available: 0,
     });
   });
 });

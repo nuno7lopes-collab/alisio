@@ -2,6 +2,11 @@ import crypto from "node:crypto";
 import type { Skill } from "@mariozechner/pi-coding-agent";
 import type { ChatType } from "../../channels/chat-type.js";
 import type { ChannelId } from "../../channels/plugins/types.js";
+import type {
+  ConversationCategory,
+  ConversationRelationship,
+  ConversationSurfaceRef,
+} from "../../shared/conversation-model.js";
 import type { DeliveryContext } from "../../utils/delivery-context.js";
 import type { TtsAutoMode } from "../types.tts.js";
 
@@ -177,6 +182,9 @@ export type SessionEntry = {
   claudeCliSessionId?: string;
   label?: string;
   displayName?: string;
+  category?: ConversationCategory;
+  surfaceRef?: ConversationSurfaceRef;
+  relationship?: ConversationRelationship;
   channel?: string;
   groupId?: string;
   subject?: string;

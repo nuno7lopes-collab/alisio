@@ -17,10 +17,16 @@ import { createCanvasTool } from "./tools/canvas-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createCronTool } from "./tools/cron-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
+import { createGitHubTool } from "./tools/github-tool.js";
 import { createGmailModifyTool } from "./tools/gmail-modify-tool.js";
 import { createGmailReadTool } from "./tools/gmail-read-tool.js";
 import { createGmailSendTool } from "./tools/gmail-send-tool.js";
+import { createGoogleAnalyticsTool } from "./tools/google-analytics-tool.js";
+import { createGoogleCalendarTool } from "./tools/google-calendar-tool.js";
 import { createGoogleDocsTool } from "./tools/google-docs-tool.js";
+import { createGoogleDriveTool } from "./tools/google-drive-tool.js";
+import { createGoogleFormsTool } from "./tools/google-forms-tool.js";
+import { createGoogleSheetsTool } from "./tools/google-sheets-tool.js";
 import { createImageGenerateTool } from "./tools/image-generate-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
@@ -35,6 +41,7 @@ import { createSessionsYieldTool } from "./tools/sessions-yield-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
+import { createYouTubeTool } from "./tools/youtube-tool.js";
 import { resolveWorkspaceRoot } from "./workspace-dir.js";
 
 type AlisioToolsDeps = {
@@ -205,10 +212,17 @@ export function createAlisioTools(
       agentChannel: options?.agentChannel,
       config: options?.config,
     }),
+    createGoogleAnalyticsTool(),
+    createGoogleCalendarTool(),
     createGoogleDocsTool(),
+    createGoogleDriveTool(),
+    createGoogleFormsTool(),
+    createGoogleSheetsTool(),
     createGmailReadTool(),
     createGmailModifyTool(),
     createGmailSendTool(),
+    createGitHubTool(),
+    createYouTubeTool(),
     ...(imageGenerateTool ? [imageGenerateTool] : []),
     createGatewayTool({
       agentSessionKey: options?.agentSessionKey,

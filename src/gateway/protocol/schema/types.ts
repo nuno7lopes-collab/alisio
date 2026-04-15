@@ -145,6 +145,7 @@ export type SessionsMessagesUnsubscribeParams = SchemaType<"SessionsMessagesUnsu
 export type SessionsAbortParams = SchemaType<"SessionsAbortParams">;
 export type SessionsPatchParams = SchemaType<"SessionsPatchParams">;
 export type SessionsResetParams = SchemaType<"SessionsResetParams">;
+export type SessionsRuntimeResetParams = SchemaType<"SessionsRuntimeResetParams">;
 export type SessionsDeleteParams = SchemaType<"SessionsDeleteParams">;
 export type SessionsCompactParams = SchemaType<"SessionsCompactParams">;
 export type SessionsUsageParams = SchemaType<"SessionsUsageParams">;

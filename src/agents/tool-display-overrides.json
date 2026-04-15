@@ -294,6 +294,136 @@
           "detailKeys": ["documentId", "maxChars"]
         }
       }
+    },
+    "github": {
+      "emoji": "🐙",
+      "title": "GitHub",
+      "actions": {
+        "profile": {
+          "label": "profile",
+          "detailKeys": []
+        },
+        "list_repos": {
+          "label": "repos",
+          "detailKeys": ["visibility", "limit"]
+        },
+        "repo": {
+          "label": "repo",
+          "detailKeys": ["repository"]
+        },
+        "list_issues": {
+          "label": "issues",
+          "detailKeys": ["repository", "state", "limit"]
+        },
+        "create_issue": {
+          "label": "issue create",
+          "detailKeys": ["repository", "title"]
+        },
+        "list_pulls": {
+          "label": "pulls",
+          "detailKeys": ["repository", "state", "limit"]
+        },
+        "read_file": {
+          "label": "file",
+          "detailKeys": ["repository", "path", "ref", "maxChars"]
+        }
+      }
+    },
+    "google_calendar": {
+      "emoji": "📅",
+      "title": "Google Calendar",
+      "actions": {
+        "list": {
+          "label": "list",
+          "detailKeys": ["calendarId", "query", "timeMin", "timeMax", "maxResults"]
+        },
+        "create": {
+          "label": "create",
+          "detailKeys": ["calendarId", "summary", "start", "end"]
+        }
+      }
+    },
+    "google_analytics": {
+      "emoji": "📈",
+      "title": "Google Analytics",
+      "actions": {
+        "list_accounts": {
+          "label": "accounts",
+          "detailKeys": ["pageSize"]
+        },
+        "run_report": {
+          "label": "report",
+          "detailKeys": ["propertyId", "dimensions", "metrics", "startDate", "endDate", "limit"]
+        }
+      }
+    },
+    "google_drive": {
+      "emoji": "📁",
+      "title": "Google Drive",
+      "actions": {
+        "search": {
+          "label": "search",
+          "detailKeys": ["query", "folderId", "maxResults"]
+        },
+        "read": {
+          "label": "read",
+          "detailKeys": ["fileId", "maxChars"]
+        },
+        "create_text": {
+          "label": "create",
+          "detailKeys": ["name", "folderId", "mimeType"]
+        }
+      }
+    },
+    "google_forms": {
+      "emoji": "📋",
+      "title": "Google Forms",
+      "actions": {
+        "create": {
+          "label": "create",
+          "detailKeys": ["title"]
+        },
+        "read": {
+          "label": "read",
+          "detailKeys": ["formId"]
+        }
+      }
+    },
+    "google_sheets": {
+      "emoji": "📊",
+      "title": "Google Sheets",
+      "actions": {
+        "create": {
+          "label": "create",
+          "detailKeys": ["title", "sheetTitle"]
+        },
+        "read": {
+          "label": "read",
+          "detailKeys": ["spreadsheetId", "range", "maxRows"]
+        },
+        "append": {
+          "label": "append",
+          "detailKeys": ["spreadsheetId", "range"]
+        }
+      }
+    },
+    "youtube": {
+      "emoji": "▶️",
+      "title": "YouTube",
+      "actions": {
+        "channel": {
+          "label": "channel",
+          "detailKeys": []
+        },
+        "list_uploads": {
+          "label": "uploads",
+          "detailKeys": ["maxResults"]
+        },
+        "video": {
+          "label": "video",
+          "detailKeys": ["videoId"]
+        }
+      }
     }
   }
 }

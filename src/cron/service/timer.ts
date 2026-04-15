@@ -7,6 +7,7 @@ import {
   createRunningTaskRun,
   failTaskRunByRunId,
 } from "../../tasks/task-executor.js";
+import { createTaskWithExecution, endTaskExecutionByRunId } from "../../tasks/task-service.js";
 import { resolveCronDeliveryPlan } from "../delivery.js";
 import { sweepCronRunSessions } from "../session-reaper.js";
 import type {
@@ -135,6 +136,26 @@ function tryCreateCronTaskRun(params: {
 }): string | undefined {
   const runId = createCronTaskRunId(params.job.id, params.startedAt);
   try {
+    createTaskWithExecution({
+      title: params.job.name || params.job.id,
+      summary: params.job.name || params.job.id,
+      ownerAgentId: params.job.agentId,
+      orchestratorSessionKey: params.job.sessionKey,
+      executionKind: "cron",
+      executionSourceId: params.job.id,
+      executionRunId: runId,
+      executionSessionKey: params.job.sessionKey,
+      executionAgentId: params.job.agentId,
+      executionLabel: params.job.name,
+      executionSummary: params.job.name || params.job.id,
+    });
+  } catch (error) {
+    params.state.deps.log.warn(
+      { jobId: params.job.id, error },
+      "cron: failed to create canonical task execution",
+    );
+  }
+  try {
     createRunningTaskRun({
       runtime: "cron",
       sourceId: params.job.id,
@@ -165,6 +186,32 @@ function tryFinishCronTaskRun(
 ): void {
   if (!result.taskRunId) {
     return;
+  }
+  try {
+    if (result.status === "ok" || result.status === "skipped") {
+      endTaskExecutionByRunId({
+        runId: result.taskRunId,
+        status: "succeeded",
+        summary: result.summary ?? undefined,
+        endedAt: result.endedAt,
+      });
+    } else {
+      endTaskExecutionByRunId({
+        runId: result.taskRunId,
+        status:
+          normalizeCronRunErrorText(result.error) === timeoutErrorMessage()
+            ? "timed_out"
+            : "failed",
+        summary: result.summary ?? undefined,
+        error: result.status === "error" ? normalizeCronRunErrorText(result.error) : undefined,
+        endedAt: result.endedAt,
+      });
+    }
+  } catch (error) {
+    state.deps.log.warn(
+      { runId: result.taskRunId, jobStatus: result.status, error },
+      "cron: failed to update canonical task execution",
+    );
   }
   try {
     if (result.status === "ok" || result.status === "skipped") {

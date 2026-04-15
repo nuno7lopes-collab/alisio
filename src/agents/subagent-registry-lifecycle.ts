@@ -6,6 +6,7 @@ import {
   failTaskRunByRunId,
   setDetachedTaskDeliveryStatusByRunId,
 } from "../tasks/task-executor.js";
+import { endTaskExecutionByRunId } from "../tasks/task-service.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 import {
   captureSubagentCompletionReply,
@@ -464,6 +465,20 @@ export function createSubagentRegistryLifecycleController(params: {
       params.persist();
     }
     if (completeParams.outcome.status === "ok") {
+      try {
+        endTaskExecutionByRunId({
+          runId: entry.runId,
+          status: "succeeded",
+          summary: entry.frozenResultText ?? undefined,
+          endedAt: entry.endedAt,
+        });
+      } catch (error) {
+        params.warn("failed to update canonical subagent task", {
+          err: error,
+          runId: entry.runId,
+          childSessionKey: entry.childSessionKey,
+        });
+      }
       completeTaskRunByRunId({
         runId: entry.runId,
         endedAt: entry.endedAt,
@@ -472,6 +487,22 @@ export function createSubagentRegistryLifecycleController(params: {
         terminalSummary: null,
       });
     } else {
+      try {
+        endTaskExecutionByRunId({
+          runId: entry.runId,
+          status: completeParams.outcome.status === "timeout" ? "timed_out" : "failed",
+          summary: entry.frozenResultText ?? undefined,
+          error:
+            completeParams.outcome.status === "error" ? completeParams.outcome.error : undefined,
+          endedAt: entry.endedAt,
+        });
+      } catch (error) {
+        params.warn("failed to update canonical subagent task", {
+          err: error,
+          runId: entry.runId,
+          childSessionKey: entry.childSessionKey,
+        });
+      }
       failTaskRunByRunId({
         runId: entry.runId,
         status: completeParams.outcome.status === "timeout" ? "timed_out" : "failed",

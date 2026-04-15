@@ -20,6 +20,7 @@ import {
   getAlisioAccountState,
   getAlisioAiState,
   getAlisioSharingState,
+  getAlisioSharingTargetAccessIndex,
   getAlisioConnectorAccessToken,
   getAlisioBootstrapSummary,
   getAlisioDoctorSummary,
@@ -859,6 +860,71 @@ describe("Alisio sharing state", () => {
     });
   });
 
+  it("preserves canonical computer metadata when access-index syncs omit it", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+
+      await getAlisioSharingState(
+        {
+          targets: [
+            createSharingTarget("owner-device", "Owner Device"),
+            {
+              targetId: "windows-node",
+              computerId: "local:windows-box",
+              computerLabel: "Windows Box",
+              label: "Windows Box",
+              platform: "Windows",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+            },
+          ],
+        },
+        env,
+      );
+
+      const accessIndex = await getAlisioSharingTargetAccessIndex(
+        {
+          targets: [
+            {
+              targetId: "windows-node",
+              label: "Windows Box",
+              platform: "Windows",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+            },
+          ],
+        },
+        env,
+      );
+
+      expect(accessIndex["windows-node"]).toEqual(
+        expect.objectContaining({
+          computerId: "local:windows-box",
+          computerLabel: "Windows Box",
+        }),
+      );
+
+      const persisted = JSON.parse(
+        await fs.readFile(alisioStateFile(root), "utf8"),
+      ) as AlisioStoredState;
+      expect(persisted.sharing?.targets?.["windows-node"]).toMatchObject({
+        computerId: "local:windows-box",
+        computerLabel: "Windows Box",
+      });
+    });
+  });
+
   it("persists denied requests with canonical audit actions", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
@@ -1049,7 +1115,18 @@ describe("Alisio sharing state", () => {
         });
         await getAlisioSharingState(
           {
-            targets: [createSharingTarget("cloud-device", "Cloud Device")],
+            targets: [
+              {
+                targetId: "cloud-windows-node",
+                computerId: "local:windows-box",
+                computerLabel: "Windows Box",
+                label: "Windows Box",
+                platform: "Windows",
+                sourceKind: "node",
+                connected: true,
+                current: false,
+              },
+            ],
           },
           env,
         );
@@ -1064,7 +1141,7 @@ describe("Alisio sharing state", () => {
         });
         const request = await requestAlisioSharingAccess(
           {
-            targetId: "cloud-device",
+            targetId: "cloud-windows-node",
             scopes: ["exec"],
           },
           env,
@@ -1098,7 +1175,9 @@ describe("Alisio sharing state", () => {
 
         expect(requesterState.devices.sharedWithMe).toEqual([
           expect.objectContaining({
-            targetId: "cloud-device",
+            targetId: "cloud-windows-node",
+            computerId: "local:windows-box",
+            computerLabel: "Windows Box",
             deviceAccess: "shared",
             modelAccess: "shared",
             execAccess: "requestable",
@@ -1114,14 +1193,16 @@ describe("Alisio sharing state", () => {
         expect(persisted.sharing).toBeUndefined();
         expect([...tables.alisio_sharing_targets.values()]).toEqual([
           expect.objectContaining({
-            target_id: "cloud-device",
+            target_id: "cloud-windows-node",
+            computer_id: "local:windows-box",
+            computer_label: "Windows Box",
             owner_key: "user:user-owner",
           }),
         ]);
         expect([...tables.alisio_sharing_requests.values()]).toEqual([
           expect.objectContaining({
             request_id: request.requestId,
-            target_id: "cloud-device",
+            target_id: "cloud-windows-node",
             status: "approved",
             scopes: ["read-only", "model-use"],
             grant_id: approval.grantId,
@@ -3692,7 +3773,7 @@ describe("beginAlisioConnectorSetup", () => {
 
     expect(summary).toMatchObject({
       connected: 0,
-      needsReconnect: 1,
+      needsReconnect: 0,
       inReview: expect.any(Number),
       unavailable: expect.any(Number),
     });

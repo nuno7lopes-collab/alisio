@@ -19,7 +19,19 @@ describe("session metadata origin handling", () => {
         ctx,
         sessionKey: "agent:main:main",
       }),
-    ).toBeNull();
+    ).toEqual({
+      category: "dashboard",
+      surfaceRef: {
+        type: "dashboard_chat",
+        id: "agent:main:main",
+        parent: undefined,
+        account: undefined,
+        channel: undefined,
+      },
+      relationship: {
+        kind: "root",
+      },
+    });
   });
 
   it("clears stale heartbeat placeholder identity on the next normal turn", () => {
@@ -47,10 +59,21 @@ describe("session metadata origin handling", () => {
     });
 
     expect(patch).toEqual({
+      category: "dashboard",
       origin: {
         provider: "webchat",
         surface: "webchat",
         chatType: "direct",
+      },
+      surfaceRef: {
+        type: "dashboard_chat",
+        id: "agent:main:main",
+        parent: undefined,
+        account: undefined,
+        channel: undefined,
+      },
+      relationship: {
+        kind: "root",
       },
     });
   });
@@ -69,6 +92,7 @@ describe("session metadata origin handling", () => {
     });
 
     expect(patch).toEqual({
+      category: "external_dm",
       origin: {
         label: "Nuno",
         provider: "telegram",
@@ -76,6 +100,51 @@ describe("session metadata origin handling", () => {
         chatType: "direct",
         from: "+351910000000",
         to: "123456789",
+      },
+      surfaceRef: {
+        type: "telegram_chat",
+        id: "123456789",
+        parent: undefined,
+        account: undefined,
+        channel: "telegram",
+      },
+      relationship: {
+        kind: "root",
+      },
+    });
+  });
+
+  it("derives typed topic surfaces from binding context instead of key heuristics", () => {
+    const patch = deriveSessionMetaPatch({
+      ctx: {
+        Provider: "telegram",
+        Surface: "telegram",
+        ChatType: "group",
+        From: "-100200300:topic:77",
+        To: "-100200300:topic:77",
+        MessageThreadId: 77,
+      },
+      sessionKey: "agent:main:telegram:group:-100200300:topic:77",
+      bindingContext: {
+        channel: "telegram",
+        accountId: "default",
+        conversationId: "-100200300:topic:77",
+        parentConversationId: "-100200300",
+        threadId: "77",
+      },
+    });
+
+    expect(patch).toMatchObject({
+      category: "topic",
+      surfaceRef: {
+        type: "telegram_topic",
+        id: "-100200300:topic:77",
+        parent: "-100200300",
+        account: "default",
+        channel: "telegram",
+      },
+      relationship: {
+        kind: "root",
       },
     });
   });
