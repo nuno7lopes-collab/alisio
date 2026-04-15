@@ -112,6 +112,24 @@ const GRAPH_EDGE = "#9aa7ba";
 const GRAPH_EDGE_HIGHLIGHT = "#8f5bff";
 const GRAPH_NOTE = "#8ba8ff";
 const GRAPH_ATTACHMENT = "#d8aa63";
+const GRAPH_SHADOW = "rgba(8, 14, 28, 0.22)";
+const GRAPH_OVERLAY_TOP = "rgba(0, 0, 0, 0.06)";
+const GRAPH_OVERLAY_BOTTOM = "rgba(0, 0, 0, 0.08)";
+const GRAPH_GRID_LINE = "rgba(173, 183, 198, 0.08)";
+
+type GraphThemePalette = {
+  surfaceElevated: string;
+  text: string;
+  textMuted: string;
+  edge: string;
+  edgeHighlight: string;
+  note: string;
+  attachment: string;
+  gridLine: string;
+  overlayTop: string;
+  overlayBottom: string;
+  shadow: string;
+};
 
 function hexToRgb(value: string) {
   const normalized = value.trim().replace("#", "");
@@ -149,6 +167,11 @@ function withAlpha(color: string, alpha: number) {
   return `rgba(${String(rgb.red)}, ${String(rgb.green)}, ${String(rgb.blue)}, ${String(
     clamp(alpha, 0, 1),
   )})`;
+}
+
+function resolveCssColorVar(target: Element, name: string, fallback: string, alpha?: number) {
+  const value = globalThis.getComputedStyle?.(target).getPropertyValue(name).trim() || fallback;
+  return alpha == null ? value : withAlpha(value, alpha);
 }
 
 function buildNodeGroups(view: MemoryGraphViewModel, mode: GraphGroupMode) {
@@ -1090,46 +1113,73 @@ export class AlisioMemoryGraphView extends LitElement {
     `;
   }
 
-  private resolveNodeTone(params: { groupId: string | null; kind: "note" | "attachment" }) {
+  private resolveNodeTone(
+    palette: GraphThemePalette,
+    params: { groupId: string | null; kind: "note" | "attachment" },
+  ) {
     if (params.groupId) {
       return resolveGraphColor(params.groupId);
     }
-    return params.kind === "attachment" ? GRAPH_ATTACHMENT : GRAPH_NOTE;
+    return params.kind === "attachment" ? palette.attachment : palette.note;
   }
 
-  private resolveNodeFill(tone: string, params: { focus: boolean; dimmed: boolean }) {
+  private resolveThemePalette(): GraphThemePalette {
+    const target = this.isConnected ? this : document.documentElement;
+    return {
+      surfaceElevated: resolveCssColorVar(target, "--panel-strong", GRAPH_SURFACE_ELEVATED),
+      text: resolveCssColorVar(target, "--text-strong", GRAPH_TEXT),
+      textMuted: resolveCssColorVar(target, "--muted", GRAPH_TEXT_MUTED),
+      edge: resolveCssColorVar(target, "--border-strong", GRAPH_EDGE),
+      edgeHighlight: resolveCssColorVar(target, "--accent", GRAPH_EDGE_HIGHLIGHT),
+      note: resolveCssColorVar(target, "--accent-2", GRAPH_NOTE),
+      attachment: resolveCssColorVar(target, "--warn", GRAPH_ATTACHMENT),
+      gridLine: resolveCssColorVar(target, "--grid-line", GRAPH_GRID_LINE),
+      overlayTop: resolveCssColorVar(target, "--text-strong", GRAPH_OVERLAY_TOP, 0.05),
+      overlayBottom: resolveCssColorVar(target, "--text-strong", GRAPH_OVERLAY_BOTTOM, 0.08),
+      shadow: resolveCssColorVar(target, "--text-strong", GRAPH_SHADOW, 0.16),
+    };
+  }
+
+  private resolveNodeFill(
+    tone: string,
+    palette: GraphThemePalette,
+    params: { focus: boolean; dimmed: boolean },
+  ) {
     const fill = params.focus
-      ? mixColors(GRAPH_SURFACE_ELEVATED, tone, 0.34)
-      : mixColors(GRAPH_SURFACE_ELEVATED, tone, 0.2);
+      ? mixColors(palette.surfaceElevated, tone, 0.34)
+      : mixColors(palette.surfaceElevated, tone, 0.2);
     return params.dimmed ? withAlpha(fill, 0.38) : fill;
   }
 
   private resolveNodeStroke(
     tone: string,
+    palette: GraphThemePalette,
     params: { focus: boolean; highlighted: boolean; dimmed: boolean },
   ) {
     const stroke = params.focus
-      ? mixColors(GRAPH_TEXT, tone, 0.62)
+      ? mixColors(palette.text, tone, 0.62)
       : params.highlighted
-        ? mixColors(GRAPH_TEXT, tone, 0.5)
-        : mixColors(GRAPH_TEXT_MUTED, tone, 0.28);
+        ? mixColors(palette.text, tone, 0.5)
+        : mixColors(palette.textMuted, tone, 0.28);
     return params.dimmed ? withAlpha(stroke, 0.4) : stroke;
   }
 
   private resolveEdgeColor(params: {
+    palette: GraphThemePalette;
     highlighted: boolean;
     attachmentEdge: boolean;
     dimmed: boolean;
   }) {
     const base = params.highlighted
-      ? GRAPH_EDGE_HIGHLIGHT
+      ? params.palette.edgeHighlight
       : params.attachmentEdge
-        ? mixColors(GRAPH_EDGE, GRAPH_ATTACHMENT, 0.35)
-        : GRAPH_EDGE;
+        ? mixColors(params.palette.edge, params.palette.attachment, 0.35)
+        : params.palette.edge;
     return params.dimmed ? withAlpha(base, 0.14) : withAlpha(base, params.highlighted ? 0.9 : 0.28);
   }
 
   private renderCanvas(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
+    const palette = this.resolveThemePalette();
     const focusNode = view.focusNode;
     const nodeGroups = buildNodeGroups(view, this.groupMode);
     const viewport = this.viewportViewBox();
@@ -1193,6 +1243,7 @@ export class AlisioMemoryGraphView extends LitElement {
                     !view.selectedEdge?.id &&
                     !view.highlightedEdgeIds.has(edge.id);
                   const edgeColor = this.resolveEdgeColor({
+                    palette,
                     highlighted,
                     attachmentEdge,
                     dimmed,
@@ -1227,7 +1278,7 @@ export class AlisioMemoryGraphView extends LitElement {
                     return nothing;
                   }
                   const groupId = nodeGroups[node.id] ?? null;
-                  const tone = this.resolveNodeTone({
+                  const tone = this.resolveNodeTone(palette, {
                     groupId,
                     kind: node.kind,
                   });
@@ -1251,13 +1302,13 @@ export class AlisioMemoryGraphView extends LitElement {
                   const labelOpacity = showLabel
                     ? 1
                     : clamp((this.zoom - this.textFadeThreshold + 0.25) / 0.35, 0, 0.72);
-                  const fill = this.resolveNodeFill(tone, { focus: focused, dimmed });
-                  const stroke = this.resolveNodeStroke(tone, {
+                  const fill = this.resolveNodeFill(tone, palette, { focus: focused, dimmed });
+                  const stroke = this.resolveNodeStroke(tone, palette, {
                     focus: focused,
                     highlighted,
                     dimmed,
                   });
-                  const labelColor = dimmed ? withAlpha(GRAPH_TEXT_MUTED, 0.36) : GRAPH_TEXT;
+                  const labelColor = dimmed ? withAlpha(palette.textMuted, 0.4) : palette.text;
                   return svg`
                     <g
                       class="alisio-memory-graph__node ${focused ? "is-focus" : ""} ${
@@ -1301,6 +1352,7 @@ export class AlisioMemoryGraphView extends LitElement {
   render() {
     const text = this.resolvedText;
     const view = this.ensureLayout();
+    const palette = this.resolveThemePalette();
 
     return html`
       <style>
@@ -1319,7 +1371,7 @@ export class AlisioMemoryGraphView extends LitElement {
             color-mix(in srgb, var(--surface-elevated) 88%, transparent),
             color-mix(in srgb, var(--surface-panel) 96%, transparent)
           );
-          box-shadow: 0 12px 32px rgba(10, 18, 30, 0.08);
+          box-shadow: 0 12px 32px ${withAlpha(palette.text, 0.08)};
         }
         .alisio-memory-graph.is-compact .alisio-memory-graph__card {
           padding: 14px 16px;
@@ -1456,7 +1508,7 @@ export class AlisioMemoryGraphView extends LitElement {
           position: relative;
           height: min(76vh, 900px);
           min-height: 640px;
-          color: ${GRAPH_TEXT_MUTED};
+          color: ${palette.textMuted};
           border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
           border-radius: 24px;
           overflow: hidden;
@@ -1485,14 +1537,14 @@ export class AlisioMemoryGraphView extends LitElement {
           inset: 0;
           pointer-events: none;
           background:
-            linear-gradient(180deg, rgba(0, 0, 0, 0.06), transparent 20%),
-            linear-gradient(0deg, rgba(0, 0, 0, 0.08), transparent 18%);
+            linear-gradient(180deg, ${palette.overlayTop}, transparent 20%),
+            linear-gradient(0deg, ${palette.overlayBottom}, transparent 18%);
         }
         .alisio-memory-graph__canvas svg:active {
           cursor: grabbing;
         }
         .alisio-memory-graph__grid line {
-          stroke: rgba(173, 183, 198, 0.08);
+          stroke: ${palette.gridLine};
           stroke-width: 1;
         }
         .alisio-memory-graph__edge-hit {
@@ -1540,7 +1592,7 @@ export class AlisioMemoryGraphView extends LitElement {
           border-radius: 16px;
           border: 1px solid color-mix(in srgb, var(--border-subtle) 84%, transparent);
           background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
-          box-shadow: 0 20px 40px rgba(8, 14, 28, 0.22);
+          box-shadow: 0 20px 40px ${palette.shadow};
         }
         @media (max-width: 980px) {
           .alisio-memory-graph__canvas {
