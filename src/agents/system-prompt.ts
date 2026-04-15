@@ -155,6 +155,25 @@ function buildVoiceSection(params: { isMinimal: boolean; ttsHint?: string }) {
   return ["## Voice (TTS)", hint, ""];
 }
 
+function buildTaskProposalSection(params: { isMinimal: boolean; runtimeChannel?: string }) {
+  if (params.isMinimal || params.runtimeChannel !== "webchat") {
+    return [];
+  }
+  return [
+    "## Task Proposals",
+    "When the user wants to capture planned work, backlog items, projects, or follow-ups instead of executing immediately, append a fenced `alisio-task` JSON block after your normal reply.",
+    "Use this only for work that should be saved, approved, and launched later from the Tasks UI. Do not use it for work you are already executing in this turn.",
+    "Each block must be valid JSON with: `title`, optional `summary`, `rationale`, `acceptance`, `launchPrompt`, `kind` (`task` or `project`), and `agentId`.",
+    "Keep `launchPrompt` execution-ready and specific enough to launch as a standalone task.",
+    "Prefer one block per item and keep the list short.",
+    "Example:",
+    "```alisio-task",
+    '{"title":"Ship the tasks tab","summary":"Expose the task inbox and run controls in the dashboard.","acceptance":["Tasks tab exists","Approved proposals can launch"],"launchPrompt":"Implement the Tasks tab in the Control UI, wire it to tasks.overview, and support approve/reject/launch actions for task proposals.","kind":"project"}',
+    "```",
+    "",
+  ];
+}
+
 function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readToolName: string }) {
   const docsPath = params.docsPath?.trim();
   if (!docsPath || params.isMinimal) {
@@ -545,6 +564,7 @@ export function buildAgentSystemPrompt(params: {
       runtimeChannel,
       messageToolHints: params.messageToolHints,
     }),
+    ...buildTaskProposalSection({ isMinimal, runtimeChannel }),
     ...buildVoiceSection({ isMinimal, ttsHint: params.ttsHint }),
   ];
 

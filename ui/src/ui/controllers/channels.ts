@@ -45,7 +45,7 @@ type ChannelPairingResult = {
   requestId?: string | null;
 };
 
-const CHANNELS_CACHE_TTL_MS = 15_000;
+const CHANNELS_CACHE_TTL_MS = 30_000;
 const CHANNEL_SETUP_REQUEST_TIMEOUT_MS = 8_000;
 
 function isWizardTerminalStatus(status: string | null | undefined) {

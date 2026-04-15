@@ -321,6 +321,16 @@ import {
   TaskAuditFindingSchema,
   type TaskAuditSummary,
   TaskAuditSummarySchema,
+  type TaskProposalCreatedBy,
+  TaskProposalCreatedBySchema,
+  type TaskProposalDecision,
+  TaskProposalDecisionSchema,
+  type TaskProposalKind,
+  TaskProposalKindSchema,
+  type TaskProposalRecord,
+  TaskProposalRecordSchema,
+  type TaskProposalSummary,
+  TaskProposalSummarySchema,
   type TaskDeliveryStatus,
   TaskDeliveryStatusSchema,
   type TaskMaintenanceSummary,
@@ -349,6 +359,18 @@ import {
   TasksNotifyParamsSchema,
   type TasksNotifyResult,
   TasksNotifyResultSchema,
+  type TasksProposalAttachLaunchParams,
+  TasksProposalAttachLaunchParamsSchema,
+  type TasksProposalAttachLaunchResult,
+  TasksProposalAttachLaunchResultSchema,
+  type TasksProposalResolveParams,
+  TasksProposalResolveParamsSchema,
+  type TasksProposalResolveResult,
+  TasksProposalResolveResultSchema,
+  type TasksProposalUpsertParams,
+  TasksProposalUpsertParamsSchema,
+  type TasksProposalUpsertResult,
+  TasksProposalUpsertResultSchema,
   type TasksOverviewParams,
   TasksOverviewParamsSchema,
   type TasksOverviewResult,
@@ -988,6 +1010,24 @@ export const validateTasksCancelParams = ajv.compile<TasksCancelParams>(TasksCan
 export const validateTasksCancelResult = ajv.compile<TasksCancelResult>(TasksCancelResultSchema);
 export const validateTasksNotifyParams = ajv.compile<TasksNotifyParams>(TasksNotifyParamsSchema);
 export const validateTasksNotifyResult = ajv.compile<TasksNotifyResult>(TasksNotifyResultSchema);
+export const validateTasksProposalUpsertParams = ajv.compile<TasksProposalUpsertParams>(
+  TasksProposalUpsertParamsSchema,
+);
+export const validateTasksProposalUpsertResult = ajv.compile<TasksProposalUpsertResult>(
+  TasksProposalUpsertResultSchema,
+);
+export const validateTasksProposalResolveParams = ajv.compile<TasksProposalResolveParams>(
+  TasksProposalResolveParamsSchema,
+);
+export const validateTasksProposalResolveResult = ajv.compile<TasksProposalResolveResult>(
+  TasksProposalResolveResultSchema,
+);
+export const validateTasksProposalAttachLaunchParams = ajv.compile<TasksProposalAttachLaunchParams>(
+  TasksProposalAttachLaunchParamsSchema,
+);
+export const validateTasksProposalAttachLaunchResult = ajv.compile<TasksProposalAttachLaunchResult>(
+  TasksProposalAttachLaunchResultSchema,
+);
 export const validateDevicePairListParams = ajv.compile<DevicePairListParams>(
   DevicePairListParamsSchema,
 );
@@ -1346,10 +1386,15 @@ export {
   TaskDeliveryStatusSchema,
   TaskNotifyPolicySchema,
   TaskTerminalOutcomeSchema,
+  TaskProposalKindSchema,
+  TaskProposalDecisionSchema,
+  TaskProposalCreatedBySchema,
   TaskStatusCountsSchema,
   TaskRuntimeCountsSchema,
   TaskRegistrySummarySchema,
+  TaskProposalSummarySchema,
   TaskRecordSchema,
+  TaskProposalRecordSchema,
   TaskAuditFindingSchema,
   TaskAuditSummarySchema,
   TaskMaintenanceSummarySchema,
@@ -1359,6 +1404,12 @@ export {
   TasksCancelResultSchema,
   TasksNotifyParamsSchema,
   TasksNotifyResultSchema,
+  TasksProposalUpsertParamsSchema,
+  TasksProposalUpsertResultSchema,
+  TasksProposalResolveParamsSchema,
+  TasksProposalResolveResultSchema,
+  TasksProposalAttachLaunchParamsSchema,
+  TasksProposalAttachLaunchResultSchema,
   LogsTailParamsSchema,
   LogsTailResultSchema,
   MemoryBackendSchema,
@@ -1643,10 +1694,15 @@ export type {
   TaskDeliveryStatus,
   TaskNotifyPolicy,
   TaskTerminalOutcome,
+  TaskProposalKind,
+  TaskProposalDecision,
+  TaskProposalCreatedBy,
   TaskStatusCounts,
   TaskRuntimeCounts,
   TaskRegistrySummary,
+  TaskProposalSummary,
   TaskRecord,
+  TaskProposalRecord,
   TaskAuditFinding,
   TaskAuditSummary,
   TaskMaintenanceSummary,
@@ -1656,6 +1712,12 @@ export type {
   TasksCancelResult,
   TasksNotifyParams,
   TasksNotifyResult,
+  TasksProposalUpsertParams,
+  TasksProposalUpsertResult,
+  TasksProposalResolveParams,
+  TasksProposalResolveResult,
+  TasksProposalAttachLaunchParams,
+  TasksProposalAttachLaunchResult,
   ExecApprovalsGetParams,
   ExecApprovalsSetParams,
   ExecApprovalsSnapshot,

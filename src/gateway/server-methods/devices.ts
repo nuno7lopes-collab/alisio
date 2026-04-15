@@ -89,6 +89,8 @@ async function loadSharingStateForContext(
         ? [
             {
               targetId: currentDevice.id,
+              computerId: currentDevice.id,
+              computerLabel: currentDevice.label,
               label: currentDevice.label,
               platform: currentDevice.platform,
               sourceKind: "current" as const,
@@ -99,6 +101,8 @@ async function loadSharingStateForContext(
         : []),
       ...knownNodes.map((node) => ({
         targetId: node.nodeId,
+        computerId: node.computerId ?? node.nodeId,
+        computerLabel: node.computerLabel ?? node.displayName ?? node.nodeId,
         label: node.displayName ?? node.nodeId,
         platform: node.platform,
         sourceKind: "node" as const,

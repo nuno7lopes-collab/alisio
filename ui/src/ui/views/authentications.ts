@@ -23,7 +23,6 @@ import {
   renderSkeletonButton,
   renderSkeletonLines,
   renderSkeletonPill,
-  renderSkeletonStatCards,
 } from "./loading-skeleton.ts";
 
 function categoryLabel(category: string) {
@@ -207,6 +206,7 @@ function renderConnectorCard(
     overviewStatus?: AlisioProviderOverviewItem["status"];
     subtitle?: string;
     connectLabel?: string;
+    actionStatus?: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
   },
   text: {
     revoke: string;
@@ -231,16 +231,7 @@ function renderConnectorCard(
             ? "unavailable"
             : "ready";
   const status = props.overviewStatus ?? fallbackStatus;
-  const actionStatus =
-    props.overviewStatus === "attention"
-      ? "needs_reconnect"
-      : props.overviewStatus === "coming_soon"
-        ? "in_review"
-        : props.overviewStatus === "connected" ||
-            props.overviewStatus === "ready" ||
-            props.overviewStatus === "unavailable"
-          ? props.overviewStatus
-          : row.status;
+  const actionStatus = props.actionStatus ?? row.status;
 
   return html`
     <article
@@ -280,6 +271,7 @@ function resolveConnectorCardState(
 ): {
   status: AlisioProviderOverviewItem["status"];
   connected: boolean;
+  actionStatus: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
 } {
   const fallbackStatus =
     row.status === "connected"
@@ -294,7 +286,17 @@ function resolveConnectorCardState(
   const status = item?.status ?? fallbackStatus;
   return {
     status,
-    connected: status === "connected",
+    connected: row.status === "connected" ? item?.active !== false : status === "connected",
+    actionStatus:
+      row.status === "connected"
+        ? "connected"
+        : status === "attention"
+          ? "needs_reconnect"
+          : status === "coming_soon"
+            ? "in_review"
+            : status === "connected" || status === "ready" || status === "unavailable"
+              ? status
+              : row.status,
   };
 }
 
@@ -354,6 +356,7 @@ function renderConnectorSection(params: {
               overviewStatus: state.status,
               subtitle: item?.subtitle,
               connectLabel: item?.connectLabel,
+              actionStatus: state.actionStatus,
             },
             {
               revoke: params.text.revoke,
@@ -378,21 +381,14 @@ export function renderAuthentications(props: {
   onSearchChange: (value: string) => void;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
-  onOpenConnections: () => void;
 }) {
   const text = {
-    eyebrow: t("alisio.authentications.eyebrow"),
     title: t("alisio.authentications.title"),
-    subtitle: t("alisio.authentications.subtitle"),
-    summaryConnected: t("alisio.authentications.summary.connected"),
-    summaryReady: t("alisio.authentications.summary.ready"),
-    summaryAttention: t("alisio.authentications.summary.attention"),
     searchPlaceholder: t("alisio.authentications.searchPlaceholder"),
     emptyFiltered: t("alisio.authentications.emptyFiltered"),
     authorizedTitle: t("alisio.authentications.authorizedTitle"),
     authorizedSubtitle: t("alisio.authentications.authorizedSubtitle"),
     availableTitle: t("alisio.authentications.availableTitle"),
-    openConnections: t("alisio.authentications.actions.openConnections"),
     revoke: t("alisio.authentications.actions.revoke"),
     reconnect: t("alisio.authentications.actions.reconnect"),
     reviewSetup: t("alisio.authentications.actions.reviewSetup"),
@@ -457,13 +453,6 @@ export function renderAuthentications(props: {
   const connectedConnectorEntries = connectorEntries.filter((entry) => entry.state.connected);
   const availableConnectorEntries = connectorEntries.filter((entry) => !entry.state.connected);
 
-  const summary = {
-    connected: connectorRows.filter((row) => row.status === "connected").length,
-    ready: connectorRows.filter((row) => row.status === "ready").length,
-    attention: connectorRows.filter(
-      (row) => row.status === "needs_reconnect" || row.status === "setup_required",
-    ).length,
-  };
   const showInitialLoading = props.loading && !overview;
   const currentPlan = normalizeAlisioPlan(props.account?.profile.plan);
   const connectorLimit = alisioConnectorLimit(currentPlan);
@@ -477,40 +466,6 @@ export function renderAuthentications(props: {
 
   return html`
     <section class="alisio-page alisio-auth-page">
-      <section class="card">
-        <div class="alisio-page__eyebrow">${text.eyebrow}</div>
-        <div
-          class="row"
-          style="justify-content: space-between; align-items: flex-start; gap: 16px;"
-        >
-          <div class="alisio-auth-page__copy">
-            <div class="card-title">${text.title}</div>
-            <div class="card-sub">${text.subtitle}</div>
-          </div>
-          <button class="btn btn--sm" @click=${props.onOpenConnections}>
-            ${text.openConnections}
-          </button>
-        </div>
-        <div class="alisio-summary-grid alisio-summary-grid--spacious">
-          ${showInitialLoading
-            ? renderSkeletonStatCards(3)
-            : html`
-                <article class="list-item">
-                  <div class="list-title">${summary.connected}</div>
-                  <div class="list-sub">${text.summaryConnected}</div>
-                </article>
-                <article class="list-item">
-                  <div class="list-title">${summary.ready}</div>
-                  <div class="list-sub">${text.summaryReady}</div>
-                </article>
-                <article class="list-item">
-                  <div class="list-title">${summary.attention}</div>
-                  <div class="list-sub">${text.summaryAttention}</div>
-                </article>
-              `}
-        </div>
-      </section>
-
       <header class="alisio-auth-page__header">
         <div class="alisio-auth-page__copy">
           <div class="card-title">${t("alisio.authentications.sections.apps")}</div>

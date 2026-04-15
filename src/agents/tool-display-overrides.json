@@ -236,6 +236,64 @@
       "emoji": "🩹",
       "title": "Apply Patch",
       "detailKeys": []
+    },
+    "gmail_read": {
+      "emoji": "📥",
+      "title": "Gmail Read",
+      "actions": {
+        "search": {
+          "label": "search",
+          "detailKeys": ["query", "labelIds", "maxResults"]
+        },
+        "get": {
+          "label": "get",
+          "detailKeys": ["messageId", "maxChars"]
+        }
+      }
+    },
+    "gmail_modify": {
+      "emoji": "🗃️",
+      "title": "Gmail Modify",
+      "actions": {
+        "archive": {
+          "label": "archive",
+          "detailKeys": ["messageId"]
+        },
+        "trash": {
+          "label": "trash",
+          "detailKeys": ["messageId"]
+        },
+        "mark_read": {
+          "label": "mark read",
+          "detailKeys": ["messageId"]
+        },
+        "mark_unread": {
+          "label": "mark unread",
+          "detailKeys": ["messageId"]
+        },
+        "add_labels": {
+          "label": "add labels",
+          "detailKeys": ["messageId", "labelIds"]
+        },
+        "remove_labels": {
+          "label": "remove labels",
+          "detailKeys": ["messageId", "labelIds"]
+        }
+      }
+    },
+    "google_docs": {
+      "emoji": "📝",
+      "title": "Google Docs",
+      "actions": {
+        "create": {
+          "label": "create",
+          "detailKeys": ["title"]
+        },
+        "read": {
+          "label": "read",
+          "detailKeys": ["documentId", "maxChars"]
+        }
+      }
     }
   }
 }

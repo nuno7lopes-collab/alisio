@@ -16,6 +16,7 @@ import { z } from "zod";
 import { safeParseJsonWithSchema } from "../../utils/zod-parse.js";
 
 const LEADING_TIMESTAMP_PREFIX_RE = /^\[[A-Za-z]{3} \d{4}-\d{2}-\d{2} \d{2}:\d{2}[^\]]*\] */;
+const LEADING_SYSTEM_EVENT_LINE_RE = /^System: \[[^\]]+\]\s+/;
 
 /**
  * Sentinel strings that identify the start of an injected metadata block.
@@ -95,6 +96,43 @@ function shouldStripTrailingUntrustedContext(lines: string[], index: number): bo
   return /<<<EXTERNAL_UNTRUSTED_CONTENT|UNTRUSTED channel metadata \(|Source:\s+/.test(probe);
 }
 
+function stripLeadingInjectedSystemEventLines(text: string): string {
+  if (!text.includes("System: [")) {
+    return text;
+  }
+
+  const lines = text.split("\n");
+  let index = 0;
+  while (index < lines.length && lines[index]?.trim() === "") {
+    index += 1;
+  }
+
+  let probe = index;
+  let strippedCount = 0;
+  while (probe < lines.length && LEADING_SYSTEM_EVENT_LINE_RE.test(lines[probe]?.trim() ?? "")) {
+    strippedCount += 1;
+    probe += 1;
+    while (probe < lines.length && lines[probe]?.trim() === "") {
+      probe += 1;
+    }
+  }
+
+  if (strippedCount === 0) {
+    return text;
+  }
+
+  const nextLine = lines[probe]?.trim() ?? "";
+  const looksInjectedContinuation =
+    strippedCount >= 2 ||
+    LEADING_TIMESTAMP_PREFIX_RE.test(nextLine) ||
+    isInboundMetaSentinelLine(nextLine);
+  if (!looksInjectedContinuation) {
+    return text;
+  }
+
+  return lines.slice(probe).join("\n");
+}
+
 function stripTrailingUntrustedContextSuffix(lines: string[]): string[] {
   for (let i = 0; i < lines.length; i++) {
     if (!shouldStripTrailingUntrustedContext(lines, i)) {
@@ -129,7 +167,8 @@ export function stripInboundMetadata(text: string): string {
     return text;
   }
 
-  const withoutTimestamp = text.replace(LEADING_TIMESTAMP_PREFIX_RE, "");
+  const withoutSystemEvents = stripLeadingInjectedSystemEventLines(text);
+  const withoutTimestamp = withoutSystemEvents.replace(LEADING_TIMESTAMP_PREFIX_RE, "");
   if (!SENTINEL_FAST_RE.test(withoutTimestamp)) {
     return withoutTimestamp;
   }

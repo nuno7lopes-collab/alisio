@@ -17,7 +17,7 @@ import {
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { AlisioApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
-import { loadAgentMemoryFiles, resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
+import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
@@ -29,13 +29,13 @@ import {
   loadAlisioSharing,
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
-import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
+import { loadConfig } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
-import { loadMemoryGraph, loadMemoryStatus } from "./controllers/memory-runtime.ts";
+import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -44,11 +44,6 @@ import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadTasksOverview } from "./controllers/tasks.ts";
 import { loadUsage } from "./controllers/usage.ts";
-import {
-  humanizeMemoryNoteTitle,
-  isMemoryNoteFileName,
-  PRIMARY_MEMORY_FILE_NAME,
-} from "./memory-files.ts";
 import {
   inferBasePathFromPathname,
   normalizePath,
@@ -100,7 +95,6 @@ type SettingsHost = {
   assistantAgentId?: string | null;
   agentsList?: AgentsListResult | null;
   memorySelectedAgentId?: string | null;
-  memoryActive?: string | null;
   agentsSelectedId?: string | null;
   agentsPanel?: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
   pendingGatewayUrl?: string | null;
@@ -148,14 +142,6 @@ function normalizeSetupStep(
     default:
       return null;
   }
-}
-
-function resolveMemoryGraphQuery(name: string | null | undefined): string | null {
-  if (!name || !isMemoryNoteFileName(name)) {
-    return null;
-  }
-  const title = humanizeMemoryNoteTitle(name).trim();
-  return title || null;
 }
 
 function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootstrapStep | null {
@@ -401,11 +387,7 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     ]);
   }
   if (host.tab === "memory") {
-    await Promise.allSettled([
-      loadAgents(host as unknown as AlisioApp),
-      loadConfig(host as unknown as AlisioApp),
-      loadConfigSchema(host as unknown as AlisioApp),
-    ]);
+    await loadAgents(host as unknown as AlisioApp);
     const agentId = resolvePreferredMemoryAgentId({
       agentsList: host.agentsList ?? null,
       memorySelectedAgentId: host.memorySelectedAgentId ?? null,
@@ -414,20 +396,16 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     });
     if (agentId) {
       host.memorySelectedAgentId = agentId;
-      await Promise.allSettled([
-        loadAgentMemoryFiles(host as unknown as AlisioApp, agentId, {
-          preferredName: host.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
-        }),
-        loadMemoryStatus(host as unknown as AlisioApp, agentId, { reset: true }),
-      ]);
-      await loadMemoryGraph(host as unknown as AlisioApp, {
-        agentId,
-        query: resolveMemoryGraphQuery(host.memoryActive ?? null),
-      });
+      await loadMemoryStatus(host as unknown as AlisioApp, agentId, { reset: true });
     }
   }
   if (host.tab === "tasks") {
     await loadTasksOverview(host as unknown as Parameters<typeof loadTasksOverview>[0]);
+  }
+  if (host.tab === "chat") {
+    await loadTasksOverview(host as unknown as Parameters<typeof loadTasksOverview>[0], {
+      quiet: true,
+    });
   }
   if (host.tab === "capabilities") {
     await Promise.allSettled([

@@ -327,7 +327,7 @@ describe("connectGateway", () => {
     expect(client.options.bootstrapToken).toBe("fresh-bootstrap-token");
   });
 
-  it("preserves approval prompts, clears stale run indicators, and resumes queued work after seq-gap reconnect", () => {
+  it("preserves approval prompts, clears stale run indicators, and resumes queued work after seq-gap reconnect", async () => {
     const host = createHost();
     const chatHost = host as typeof host & {
       chatRunId: string | null;
@@ -379,14 +379,48 @@ describe("connectGateway", () => {
 
     reconnectClient.emitHello();
 
-    expect(reconnectClient.request).toHaveBeenCalledWith("chat.send", {
-      sessionKey: "main",
-      message: "follow up",
-      deliver: false,
-      idempotencyKey: expect.any(String),
-      attachments: undefined,
+    await vi.waitFor(() => {
+      expect(
+        reconnectClient.request.mock.calls.some(
+          ([method, params]) =>
+            method === "chat.send" &&
+            (params as Record<string, unknown>).message === "follow up" &&
+            (params as Record<string, unknown>).sessionKey === "main",
+        ),
+      ).toBe(true);
     });
     expect(chatHost.chatQueue).toHaveLength(0);
+  });
+
+  it("keeps visible chat stream state during seq-gap reconnect until history resync lands", () => {
+    const host = createHost();
+    host.tab = "chat";
+    host.chatRunId = "run-1";
+    host.chatStream = "A continuar...";
+    host.chatStreamStartedAt = 123;
+    host.toolStreamOrder = ["tool-1"];
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitGap(20, 24);
+
+    expect(host.chatRunId).toBeNull();
+    expect(host.chatFinalizing).toBe(false);
+    expect(host.chatStream).toBe("A continuar...");
+    expect(host.chatStreamStartedAt).toBe(123);
+    expect(host.toolStreamOrder).toEqual(["tool-1"]);
+
+    const reconnectClient = gatewayClientInstances[1];
+    expect(reconnectClient).toBeDefined();
+
+    reconnectClient.emitHello();
+
+    expect(host.chatStream).toBe("A continuar...");
+    expect(host.chatStreamStartedAt).toBe(123);
+    expect(host.toolStreamOrder).toEqual(["tool-1"]);
+    expect(refreshActiveTabMock).toHaveBeenLastCalledWith(host, { includeChatHistory: true });
   });
 
   it("holds queued work until the final history reload finishes", async () => {
@@ -975,6 +1009,51 @@ describe("connectGateway", () => {
     });
 
     expect(loadChatHistoryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("commits the buffered assistant stream locally instead of reloading stale history", () => {
+    const { host, client } = connectHostGateway();
+    host.chatRunId = "engine-run-1";
+    host.chatStream = "Olá 👋";
+    host.chatStreamStartedAt = 12;
+
+    client.emitEvent({
+      event: "chat",
+      payload: {
+        runId: "engine-run-1",
+        sessionKey: "main",
+        state: "final",
+      },
+    });
+
+    expect(loadChatHistoryMock).not.toHaveBeenCalled();
+    expect(host.chatMessages).toEqual([
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Olá 👋" }],
+        timestamp: expect.any(Number),
+      },
+    ]);
+    expect(host.chatRunId).toBeNull();
+    expect(host.chatStream).toBeNull();
+    expect(host.chatFinalizing).toBe(false);
+  });
+
+  it("still reloads history when the final event has no message and no buffered stream", () => {
+    const { host, client } = connectHostGateway();
+    host.chatRunId = "engine-run-1";
+
+    client.emitEvent({
+      event: "chat",
+      payload: {
+        runId: "engine-run-1",
+        sessionKey: "main",
+        state: "final",
+      },
+    });
+
+    expect(loadChatHistoryMock).toHaveBeenCalledTimes(1);
+    expect(host.chatFinalizing).toBe(true);
   });
 
   it("reloads secondary-run history without clearing the active run state", () => {

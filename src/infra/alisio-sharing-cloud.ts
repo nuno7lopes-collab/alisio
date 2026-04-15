@@ -30,6 +30,8 @@ export type AlisioSharingCloudPrincipal = {
 
 export type AlisioSharingCloudRuntimeTarget = {
   targetId: string;
+  computerId?: string;
+  computerLabel?: string;
   label: string;
   platform?: string;
   sourceKind: SharingTargetSourceKind;
@@ -562,6 +564,8 @@ function mergeSharingRuntimeTarget(
 ): AlisioSharingCloudRuntimeTarget {
   return {
     targetId: current.targetId,
+    computerId: current.computerId ?? incoming.computerId,
+    computerLabel: current.computerLabel ?? incoming.computerLabel,
     label: current.label || incoming.label,
     platform: current.platform ?? incoming.platform,
     sourceKind:
@@ -584,6 +588,8 @@ function dedupeSharingRuntimeTargets(
     }
     const normalized: AlisioSharingCloudRuntimeTarget = {
       targetId,
+      ...(asString(target.computerId) ? { computerId: asString(target.computerId) } : {}),
+      ...(asString(target.computerLabel) ? { computerLabel: asString(target.computerLabel) } : {}),
       label: target.label.trim() || targetId,
       ...(target.platform?.trim() ? { platform: target.platform.trim() } : {}),
       sourceKind: target.sourceKind,

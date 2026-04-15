@@ -22,6 +22,9 @@ describe("method scope resolution", () => {
     ["sessions.create", ["operator.write"]],
     ["sessions.send", ["operator.write"]],
     ["sessions.abort", ["operator.write"]],
+    ["tasks.proposal.upsert", ["operator.write"]],
+    ["tasks.proposal.resolve", ["operator.write"]],
+    ["tasks.proposal.attachLaunch", ["operator.write"]],
     ["memory.e2ee.setup", ["operator.write"]],
     ["memory.e2ee.exportPairingCode", ["operator.write"]],
     ["memory.e2ee.importPairingCode", ["operator.write"]],
@@ -98,6 +101,9 @@ describe("operator scope authorization", () => {
     ["devices.share.revoke", ["operator.write"], { allowed: true }],
     ["devices.policy.set", ["operator.write"], { allowed: true }],
     ["connectors.begin", ["operator.write"], { allowed: true }],
+    ["tasks.proposal.upsert", ["operator.write"], { allowed: true }],
+    ["tasks.proposal.resolve", ["operator.write"], { allowed: true }],
+    ["tasks.proposal.attachLaunch", ["operator.write"], { allowed: true }],
     ["config.patch", ["operator.admin"], { allowed: true }],
   ])("authorizes %s for scopes %j", (method, scopes, expected) => {
     expect(authorizeOperatorScopesForMethod(method, scopes)).toEqual(expected);
@@ -192,6 +198,9 @@ describe("plugin approval method registration", () => {
     expect(isGatewayMethodClassified("plugin.approval.request")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.waitDecision")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.resolve")).toBe(true);
+    expect(isGatewayMethodClassified("tasks.proposal.upsert")).toBe(true);
+    expect(isGatewayMethodClassified("tasks.proposal.resolve")).toBe(true);
+    expect(isGatewayMethodClassified("tasks.proposal.attachLaunch")).toBe(true);
   });
 });
 

@@ -187,4 +187,108 @@ describe("remote computer controller", () => {
       }),
     );
   });
+
+  it("groups same-account targets by computerId and keeps the best action target", () => {
+    const computers = resolveRemoteComputerRecords({
+      sharing: {
+        viewer: {
+          ownerKey: "user:1",
+          ownerScope: "user",
+          label: "Nuno",
+        },
+        planSupported: true,
+        policy: {
+          allowExternalUse: false,
+          editable: true,
+        },
+        devices: {
+          owned: [],
+          sharedWithMe: [
+            {
+              targetId: "office-node-shell",
+              computerId: "local:office-mac",
+              computerLabel: "Office Mac",
+              label: "Office Mac",
+              sourceKind: "node",
+              connected: false,
+              current: false,
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "shared",
+              modelAccess: "shared",
+              execAccess: "requestable",
+              grantScopes: ["read-only", "model-use"],
+            },
+            {
+              targetId: "office-node-exec",
+              computerId: "local:office-mac",
+              computerLabel: "Office Mac",
+              label: "Office Mac",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "shared",
+              modelAccess: "shared",
+              execAccess: "shared",
+              grantScopes: ["read-only", "model-use", "exec"],
+              grantId: "grant-1",
+            },
+          ],
+          available: [],
+        },
+        incomingRequests: [],
+        outgoingRequests: [],
+        approvals: [],
+        grants: [],
+        audit: [],
+      },
+      nodes: [
+        {
+          nodeId: "office-node-exec",
+          computerId: "local:office-mac",
+          computerLabel: "Office Mac",
+          displayName: "Office Mac",
+          connected: true,
+          commands: ["system.run"],
+        },
+      ],
+      devicesList: {
+        pending: [],
+        paired: [
+          {
+            deviceId: "office-node-exec",
+            computerId: "local:office-mac",
+            computerLabel: "Office Mac",
+            displayName: "Office Mac",
+            roles: ["node"],
+            tokens: [],
+          },
+        ],
+      },
+    });
+
+    expect(computers).toHaveLength(1);
+    expect(computers[0]).toEqual(
+      expect.objectContaining({
+        id: "local:office-mac",
+        computerId: "local:office-mac",
+        targetId: "office-node-exec",
+        targetIds: ["office-node-exec", "office-node-shell"],
+        nodeId: "office-node-exec",
+        phase: "ready",
+        connected: true,
+        supportsExec: true,
+        trusted: true,
+        grantId: "grant-1",
+      }),
+    );
+  });
 });

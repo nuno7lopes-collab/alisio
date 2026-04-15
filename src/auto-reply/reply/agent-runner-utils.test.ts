@@ -83,7 +83,11 @@ describe("agent-runner-utils", () => {
   });
 
   it("builds embedded run base params with auth profile and run metadata", () => {
-    const run = makeRun({ enforceFinalTag: true });
+    const run = makeRun({
+      enforceFinalTag: true,
+      persistedUserPrompt: "ola",
+      persistedMessageId: "msg-1",
+    });
     const authProfile = resolveProviderScopedAuthProfile({
       provider: "openai",
       primaryProvider: "openai",
@@ -105,6 +109,8 @@ describe("agent-runner-utils", () => {
       agentDir: run.agentDir,
       config: run.config,
       skillsSnapshot: run.skillsSnapshot,
+      persistedUserPrompt: "ola",
+      persistedMessageId: "msg-1",
       ownerNumbers: run.ownerNumbers,
       enforceFinalTag: true,
       provider: "openai",

@@ -3,7 +3,6 @@ import {
   listProfilesForProvider,
   type AuthProfileStore,
 } from "../agents/auth-profiles.js";
-import { hasAvailableAuthForProvider } from "../agents/model-auth.js";
 import { resolveProviderAuthOverview } from "../commands/models/list.auth-overview.js";
 import { readConfigFileSnapshot, type AlisioConfig } from "../config/config.js";
 import { NodeRegistry } from "../gateway/node-registry.js";
@@ -30,6 +29,7 @@ import {
   type AlisioConnectorDefinition,
 } from "./alisio-store.js";
 import { loadProviderUsageSummary } from "./provider-usage.js";
+import { withTimeout } from "./provider-usage.shared.js";
 import type { ProviderUsageSnapshot, UsageSummary } from "./provider-usage.types.js";
 
 export type AlisioProviderOverviewStatus =
@@ -108,7 +108,6 @@ type AlisioProviderOverviewDeps = {
   loadAlisioModelProviderSnapshot: typeof loadAlisioModelProviderSnapshot;
   getActivePluginRegistry: typeof getActivePluginRegistry;
   listRegisteredMemoryEmbeddingProviders: typeof listRegisteredMemoryEmbeddingProviders;
-  hasAvailableAuthForProvider: typeof hasAvailableAuthForProvider;
   resolveProviderAuthOverview: typeof resolveProviderAuthOverview;
   loadProviderUsageSummary: typeof loadProviderUsageSummary;
 };
@@ -121,6 +120,13 @@ type ProviderAggregate = {
 };
 
 const DEFAULT_USAGE_TIMEOUT_MS = 1_500;
+const USAGE_SUMMARY_TIMEOUT_GRACE_MS = 250;
+const CONNECTOR_RUNTIME_READY_IDS = new Set([
+  "gmail-modify",
+  "gmail-read",
+  "gmail-send",
+  "google-docs",
+]);
 
 function humanizeToken(value: string): string {
   return value
@@ -185,6 +191,10 @@ function mapConnectorStatus(status: AlisioConnectorUiStatus): AlisioProviderOver
     default:
       return "unavailable";
   }
+}
+
+function isConnectorRuntimeReady(connectorId: string): boolean {
+  return CONNECTOR_RUNTIME_READY_IDS.has(connectorId);
 }
 
 function resolveConfigSnapshotConfig(snapshot: ConfigSnapshotLike): {
@@ -293,11 +303,10 @@ function resolveProviderDetail(params: {
 }
 
 function resolveProviderStatus(params: {
-  hasAuth: boolean;
   authSource: AlisioProviderOverviewAuthSource;
   usage?: ProviderUsageSnapshot;
 }): AlisioProviderOverviewStatus {
-  if ((params.usage?.windows.length ?? 0) > 0 || params.hasAuth) {
+  if ((params.usage?.windows.length ?? 0) > 0) {
     return "connected";
   }
   if (params.authSource !== "none") {
@@ -400,10 +409,17 @@ function buildAppItems(params: {
   return sortItems(
     params.definitions.map((definition) => {
       const authorization = byConnectorId.get(definition.id);
-      const status = resolveAlisioConnectorUiStatus({
+      const connectorStatus = resolveAlisioConnectorUiStatus({
         definition,
         authorization,
       });
+      const runtimeReady = isConnectorRuntimeReady(definition.id);
+      const status =
+        definition.availability === "unavailable"
+          ? "unavailable"
+          : definition.availability === "in_review" || !runtimeReady
+            ? "coming_soon"
+            : mapConnectorStatus(connectorStatus);
       const accountLabel = authorization?.connectedAccount?.label?.trim();
       const accountEmail = authorization?.connectedAccount?.email?.trim();
       return {
@@ -411,7 +427,7 @@ function buildAppItems(params: {
         title: definition.title,
         subtitle: definition.summary,
         detail: definition.detail?.trim() || undefined,
-        status: mapConnectorStatus(status),
+        status,
         connectorId: definition.id,
         connectLabel: definition.connectLabel,
         providerLabel: definition.providerLabel,
@@ -422,7 +438,7 @@ function buildAppItems(params: {
         chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
         usageWindows: [],
         current: false,
-        active: status === "connected",
+        active: runtimeReady && connectorStatus === "connected",
       };
     }),
   );
@@ -578,13 +594,7 @@ async function buildProviderItems(params: {
         store: params.store,
         modelsPath: params.modelsPath,
       });
-      const hasAuth = await params.deps
-        .hasAvailableAuthForProvider({
-          provider: provider.id,
-          cfg: params.cfg,
-          store: params.store,
-        })
-        .catch(() => false);
+      const hasConfiguredAuth = overview.effective.kind !== "missing";
       const authSource: AlisioProviderOverviewAuthSource =
         overview.effective.kind === "profiles"
           ? "profiles"
@@ -606,14 +616,13 @@ async function buildProviderItems(params: {
           toUniqueList(provider.capabilities).join(" · ") || "Model provider available in runtime.",
         detail: resolveProviderDetail({
           authSource,
-          hasAuth,
+          hasAuth: hasConfiguredAuth,
           usage,
           profileCount: overview.profiles.count,
           accountLabel: account.accountLabel,
           accountEmail: account.accountEmail,
         }),
         status: resolveProviderStatus({
-          hasAuth,
           authSource,
           usage,
         }),
@@ -635,7 +644,7 @@ async function buildProviderItems(params: {
           ...(typeof window.resetAt === "number" ? { resetAt: window.resetAt } : {}),
         })),
         current: false,
-        active: hasAuth || (usage?.windows.length ?? 0) > 0,
+        active: hasConfiguredAuth || (usage?.windows.length ?? 0) > 0,
       } satisfies AlisioProviderOverviewItem;
     }),
   );
@@ -655,6 +664,7 @@ export async function loadAlisioProviderOverview(params?: {
   nodeRegistry?: NodeRegistry;
   env?: NodeJS.ProcessEnv;
   usageTimeoutMs?: number;
+  includeUsage?: boolean;
   deps?: Partial<AlisioProviderOverviewDeps>;
 }): Promise<AlisioProviderOverviewState> {
   const deps: AlisioProviderOverviewDeps = {
@@ -667,7 +677,6 @@ export async function loadAlisioProviderOverview(params?: {
     loadAlisioModelProviderSnapshot,
     getActivePluginRegistry,
     listRegisteredMemoryEmbeddingProviders,
-    hasAvailableAuthForProvider,
     resolveProviderAuthOverview,
     loadProviderUsageSummary,
     ...params?.deps,
@@ -692,13 +701,22 @@ export async function loadAlisioProviderOverview(params?: {
         }) satisfies AlisioAiState,
     ),
     deps.listAlisioConnectorAuthorizations(env).catch(() => []),
-    deps
-      .loadProviderUsageSummary({
-        timeoutMs: params?.usageTimeoutMs ?? DEFAULT_USAGE_TIMEOUT_MS,
-        config: configSnapshot.cfg,
-        env,
-      })
-      .catch(() => null),
+    params?.includeUsage === true
+      ? // Usage is additive metadata for the overview, not a hard dependency
+        // for opening the Apps tab. Bound the whole summary load so a slow
+        // provider never stalls the page when callers explicitly opt in.
+        withTimeout(
+          deps
+            .loadProviderUsageSummary({
+              timeoutMs: params?.usageTimeoutMs ?? DEFAULT_USAGE_TIMEOUT_MS,
+              config: configSnapshot.cfg,
+              env,
+            })
+            .catch(() => null),
+          (params?.usageTimeoutMs ?? DEFAULT_USAGE_TIMEOUT_MS) + USAGE_SUMMARY_TIMEOUT_GRACE_MS,
+          null,
+        )
+      : Promise.resolve(null),
   ]);
   const definitions = [...deps.listAlisioConnectorDefinitions()];
   const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
@@ -714,7 +732,6 @@ export async function loadAlisioProviderOverview(params?: {
           }
         : undefined,
       env,
-      force: true,
     })
     .catch(() => buildEmptyModelSnapshot());
 

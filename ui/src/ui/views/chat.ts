@@ -35,7 +35,12 @@ import type {
 } from "../controllers/security-access.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
-import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
+import type {
+  GatewaySessionRow,
+  SessionsListResult,
+  TaskProposalDraft,
+  TaskProposalRecord,
+} from "../types.ts";
 import type { ChatItem, ChatRunActivity, MessageGroup } from "../types/chat-types.ts";
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { agentLogoUrl, resolveAgentAvatarUrl } from "./agents-utils.ts";
@@ -90,6 +95,8 @@ export type ChatProps = {
   nativeShellLoading?: boolean;
   nativeShellError?: string | null;
   nativeShellState?: import("../types.ts").NativeShellState | null;
+  taskProposals?: TaskProposalRecord[] | null;
+  taskProposalBusy?: boolean;
   disabledReason: string | null;
   error: string | null;
   runtimeSetupHint?: ChatRuntimeSetupHint | null;
@@ -112,6 +119,14 @@ export type ChatProps = {
     entry: ExecApprovalRequest,
     decision: "allow-once" | "allow-always" | "deny",
   ) => void;
+  onSaveTaskProposal?: (proposal: TaskProposalDraft) => void;
+  onResolveTaskProposal?: (proposal: TaskProposalDraft, decision: "approved" | "rejected") => void;
+  onLaunchTaskProposal?: (
+    proposal: TaskProposalDraft,
+    persisted: TaskProposalRecord | null,
+  ) => void;
+  onOpenTasks?: () => void;
+  onOpenTaskSession?: (sessionKey: string) => void;
   onOpenNativeSettings?: () => void;
   getDraft?: () => string;
   onDraftChange: (next: string) => void;
@@ -1231,6 +1246,14 @@ export function renderChat(props: ChatProps) {
                   deleted.delete(item.key);
                   requestUpdate();
                 },
+                sessionKey: props.sessionKey,
+                taskProposals: props.taskProposals,
+                taskProposalBusy: props.taskProposalBusy,
+                onSaveTaskProposal: props.onSaveTaskProposal,
+                onResolveTaskProposal: props.onResolveTaskProposal,
+                onLaunchTaskProposal: props.onLaunchTaskProposal,
+                onOpenTaskSession: props.onOpenTaskSession,
+                onOpenTasks: props.onOpenTasks,
               });
             }
             return nothing;

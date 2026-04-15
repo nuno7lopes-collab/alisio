@@ -61,6 +61,10 @@ export type FollowupRun = {
     workspaceDir: string;
     config: AlisioConfig;
     skillsSnapshot?: SkillSnapshot;
+    /** Canonical user-visible turn text to persist, separate from the model-facing prompt. */
+    persistedUserPrompt?: string;
+    /** Stable user-turn identifier to persist for exact transcript/history matching. */
+    persistedMessageId?: string;
     provider: string;
     model: string;
     authProfileId?: string;

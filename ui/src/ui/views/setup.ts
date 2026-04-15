@@ -19,6 +19,7 @@ import {
 import { alisioSetupStepLabel } from "../alisio-setup-step-label.ts";
 import type {
   AlisioAccountState,
+  AlisioAuthStage,
   AlisioBootstrapState,
   AlisioBootstrapStep,
   AlisioConnectorsBeginResult,
@@ -31,6 +32,7 @@ import type {
   WizardStep,
 } from "../types.ts";
 import { type AccountProfileField, renderAccountProfileFields } from "./account-profile-fields.ts";
+import { getConnectorActionBranding } from "./connector-branding.ts";
 import {
   buildConnectorRows,
   connectorStatusHint,
@@ -75,7 +77,7 @@ type SetupProps = {
   authEmail: string;
   authPendingEmail: string;
   authCode: string;
-  authStage: "entry" | "email-code";
+  authStage: AlisioAuthStage;
   passwordResetRequired: boolean;
   termsAccepted: boolean;
   marketingOptIn: boolean;
@@ -100,7 +102,7 @@ type SetupProps = {
   onAuthEmailChange: (value: string) => void;
   onAuthPendingEmailChange: (value: string) => void;
   onAuthCodeChange: (value: string) => void;
-  onAuthStageChange: (value: "entry" | "email-code") => void;
+  onAuthStageChange: (value: AlisioAuthStage) => void;
   onTermsAcceptedChange: (value: boolean) => void;
   onMarketingOptInChange: (value: boolean) => void;
   onBirthdateChange: (value: string) => void;
@@ -280,12 +282,14 @@ function renderAccountStep(props: SetupProps) {
   const emailError = validateAlisioEmail(authEmail);
   const suggestedEmail =
     props.account?.profile.email ?? props.startupBootstrap?.account?.email ?? "";
-  const isEmailCodeStage = props.authStage === "email-code";
+  const googleBranding = getConnectorActionBranding("google", "Google");
+  const isEmailLinkStage = props.authStage === "email-link";
+  const hasCodeValue = authCode.trim().length > 0;
   const canBeginEmail = props.connected && !emailError;
   const canVerifyEmail = props.connected && authCode.trim().length > 0;
   const statusMessage =
     props.accountError ??
-    props.accountNotice ??
+    (!isEmailLinkStage ? props.accountNotice : null) ??
     (!props.connected ? t("alisio.setup.account.waitForConnection") : null);
   const cloudState = currentAccountCloudState(props);
   const cloudUnavailable = cloudState?.available === false;
@@ -334,15 +338,15 @@ function renderAccountStep(props: SetupProps) {
   return html`
     <section class="card alisio-setup-card">
       ${renderSetupCardHeader(
-        isEmailCodeStage ? t("alisio.setup.account.verifyTitle") : t("alisio.setup.account.title"),
-        isEmailCodeStage ? null : t("alisio.setup.account.subtitle"),
+        isEmailLinkStage ? t("alisio.setup.account.verifyTitle") : t("alisio.setup.account.title"),
+        isEmailLinkStage ? null : t("alisio.setup.account.subtitle"),
       )}
       ${statusMessage
         ? html`
             <div class="callout ${props.accountError ? "danger" : "info"}">${statusMessage}</div>
           `
         : nothing}
-      ${isEmailCodeStage
+      ${isEmailLinkStage
         ? html`
             <form class="alisio-setup-account" @submit=${handleCodeSubmit}>
               <div class="alisio-setup-account__inline-row">
@@ -357,7 +361,19 @@ function renderAccountStep(props: SetupProps) {
                   ${t("alisio.setup.account.useAnotherEmail")}
                 </button>
               </div>
-              <div class="alisio-setup-surface-card">
+              <div class="alisio-setup-surface-card alisio-setup-account__verify-guide">
+                <div class="alisio-setup-account__verify-guide-title">
+                  ${t("alisio.setup.account.verifyLinkTitle")}
+                </div>
+                <div class="alisio-setup-account__verify-guide-note">
+                  ${t("alisio.setup.account.verifyLinkNote", { email: authPendingEmail })}
+                </div>
+                <div class="alisio-setup-account__verify-guide-hint">
+                  ${t("alisio.setup.account.verifyLinkAuto")}
+                </div>
+              </div>
+              <details class="alisio-setup-advanced" ?open=${hasCodeValue}>
+                <summary>${t("alisio.setup.account.codeFallbackSummary")}</summary>
                 <fieldset
                   class="form-fieldset-reset alisio-setup-account__fields"
                   ?disabled=${props.accountLoading}
@@ -381,17 +397,19 @@ function renderAccountStep(props: SetupProps) {
                     <small class="field-note">${t("alisio.setup.account.codeNote")}</small>
                   </label>
                 </fieldset>
-              </div>
+                <div class="alisio-setup-actions">
+                  <button
+                    class="btn primary"
+                    type="submit"
+                    ?disabled=${props.accountLoading || !canVerifyEmail}
+                  >
+                    ${props.accountLoading
+                      ? t("alisio.setup.account.working")
+                      : t("alisio.setup.account.verifyAction")}
+                  </button>
+                </div>
+              </details>
               <div class="alisio-setup-actions">
-                <button
-                  class="btn primary"
-                  type="submit"
-                  ?disabled=${props.accountLoading || !canVerifyEmail}
-                >
-                  ${props.accountLoading
-                    ? t("alisio.setup.account.working")
-                    : t("alisio.setup.account.verifyAction")}
-                </button>
                 <button
                   type="button"
                   class="btn"
@@ -408,14 +426,25 @@ function renderAccountStep(props: SetupProps) {
               <div class="alisio-setup-surface-card">
                 <button
                   type="button"
-                  class="btn alisio-setup-account__method-btn"
+                  class="btn alisio-setup-account__method-btn alisio-setup-account__method-btn--google"
                   ?disabled=${props.accountLoading || !props.connected}
                   @click=${props.onBeginGoogleAuth}
                 >
+                  <span class="alisio-setup-account__method-logo-frame" aria-hidden="true">
+                    <img
+                      class="alisio-setup-account__method-logo"
+                      src=${googleBranding.logoUrl}
+                      alt=""
+                      width="18"
+                      height="18"
+                    />
+                  </span>
                   <span class="alisio-setup-account__method-copy">
-                    <span class="alisio-setup-account__method-label">Google</span>
                     <span class="alisio-setup-account__method-title">
                       ${t("alisio.setup.account.googleAction")}
+                    </span>
+                    <span class="alisio-setup-account__method-note">
+                      ${t("alisio.setup.account.googleNote")}
                     </span>
                   </span>
                 </button>
@@ -425,6 +454,14 @@ function renderAccountStep(props: SetupProps) {
               </div>
               <form class="alisio-setup-account" @submit=${handleEntrySubmit}>
                 <div class="alisio-setup-surface-card">
+                  <div class="alisio-setup-account__email-heading">
+                    <div class="alisio-setup-account__email-title">
+                      ${t("alisio.setup.account.emailMethodTitle")}
+                    </div>
+                    <div class="alisio-setup-account__email-copy">
+                      ${t("alisio.setup.account.emailMethodNote")}
+                    </div>
+                  </div>
                   <fieldset
                     class="form-fieldset-reset alisio-setup-account__fields"
                     ?disabled=${props.accountLoading}

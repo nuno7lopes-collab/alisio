@@ -95,6 +95,7 @@ import {
   upsertAlisioSharingCloudGrant,
   upsertAlisioSharingCloudPolicy,
   upsertAlisioSharingCloudRequest,
+  type AlisioSharingCloudState,
   type AlisioSharingCloudPrincipal,
   type AlisioSharingCloudRuntimeTarget,
 } from "./alisio-sharing-cloud.js";
@@ -301,6 +302,8 @@ export type AlisioSharingPrincipal = {
 
 export type AlisioSharingRuntimeTarget = {
   targetId: string;
+  computerId?: string;
+  computerLabel?: string;
   label: string;
   platform?: string;
   sourceKind: AlisioSharingTargetSourceKind;
@@ -423,6 +426,8 @@ export type AlisioSharingState = {
 
 type AlisioStoredSharingTarget = {
   targetId: string;
+  computerId?: string;
+  computerLabel?: string;
   label: string;
   platform?: string;
   sourceKind: AlisioSharingTargetSourceKind;
@@ -3140,6 +3145,135 @@ function buildCurrentSharingPrincipal(state: AlisioStoredState): AlisioSharingPr
   return buildSharingPrincipalForOwner(state, resolveCurrentOwnerContext(state));
 }
 
+type AlisioSharingCanonicalTargetLike = {
+  targetId: string;
+  computerId?: string;
+  computerLabel?: string;
+  label: string;
+  sourceKind: AlisioSharingTargetSourceKind;
+  current: boolean;
+  ownerKey: string;
+  ownerScope: AlisioSharingOwnerScope;
+  ownerLabel: string;
+  ownerEmail?: string;
+};
+
+function normalizeSharingOptionalString(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeSharingMachineToken(value: string | null | undefined): string | null {
+  const trimmed = value?.trim().toLowerCase();
+  if (!trimmed) {
+    return null;
+  }
+  const withoutLocalSuffix = trimmed.replace(/\.local$/i, "");
+  const collapsed = withoutLocalSuffix.replace(/[^a-z0-9]+/g, "");
+  return collapsed || null;
+}
+
+function hasLegacySameViewerSharingOwner(params: {
+  target: Pick<AlisioSharingCanonicalTargetLike, "ownerKey" | "ownerEmail">;
+  viewer: Pick<AlisioSharingPrincipal, "ownerKey" | "email">;
+}) {
+  if (params.target.ownerKey === params.viewer.ownerKey) {
+    return true;
+  }
+  const viewerEmail = normalizeSharingOptionalString(params.viewer.email)?.toLowerCase();
+  const targetOwnerEmail = normalizeSharingOptionalString(params.target.ownerEmail)?.toLowerCase();
+  if (viewerEmail && targetOwnerEmail === viewerEmail) {
+    return true;
+  }
+  return Boolean(
+    viewerEmail &&
+    (params.target.ownerKey === `email:${viewerEmail}` ||
+      params.target.ownerKey === `user:${viewerEmail}`),
+  );
+}
+
+function isLegacyCurrentComputerSharingTarget(params: {
+  target: AlisioSharingCanonicalTargetLike;
+  viewer: AlisioSharingPrincipal;
+}) {
+  if (
+    !hasLegacySameViewerSharingOwner({
+      target: params.target,
+      viewer: params.viewer,
+    })
+  ) {
+    return false;
+  }
+  if (params.target.current) {
+    return true;
+  }
+  if (params.target.sourceKind === "current") {
+    return true;
+  }
+  if (params.target.sourceKind !== "node") {
+    return false;
+  }
+  const currentComputerToken = normalizeSharingMachineToken(resolveCurrentComputerFallbackLabel());
+  const targetToken = normalizeSharingMachineToken(
+    params.target.computerLabel ?? params.target.label ?? params.target.targetId,
+  );
+  return Boolean(currentComputerToken && targetToken && currentComputerToken === targetToken);
+}
+
+function resolveCanonicalSharingComputerFields(params: {
+  target: AlisioSharingCanonicalTargetLike;
+  viewer: AlisioSharingPrincipal;
+}) {
+  const explicitComputerId = normalizeSharingOptionalString(params.target.computerId);
+  const explicitComputerLabel = normalizeSharingOptionalString(params.target.computerLabel);
+  const currentComputerId = resolveCurrentComputerId();
+  const currentComputerLabel = resolveCurrentComputerFallbackLabel();
+  if (explicitComputerId) {
+    return {
+      computerId: explicitComputerId,
+      computerLabel: explicitComputerLabel ?? normalizeSharingOptionalString(params.target.label),
+    };
+  }
+  if (isLegacyCurrentComputerSharingTarget(params)) {
+    return {
+      computerId: currentComputerId,
+      computerLabel: explicitComputerLabel ?? currentComputerLabel,
+    };
+  }
+  return {
+    computerId: normalizeSharingOptionalString(params.target.targetId) ?? currentComputerId,
+    computerLabel:
+      explicitComputerLabel ??
+      normalizeSharingOptionalString(params.target.label) ??
+      currentComputerLabel,
+  };
+}
+
+function canonicalizeSharingTarget<T extends AlisioSharingCanonicalTargetLike>(
+  target: T,
+  viewer: AlisioSharingPrincipal,
+): T {
+  const canonicalComputer = resolveCanonicalSharingComputerFields({ target, viewer });
+  const nextTarget = {
+    ...target,
+    computerId: canonicalComputer.computerId,
+    ...(canonicalComputer.computerLabel ? { computerLabel: canonicalComputer.computerLabel } : {}),
+  };
+  if (
+    canonicalComputer.computerId !== resolveCurrentComputerId() ||
+    !hasLegacySameViewerSharingOwner({ target, viewer })
+  ) {
+    return nextTarget;
+  }
+  return {
+    ...nextTarget,
+    ownerKey: viewer.ownerKey,
+    ownerScope: viewer.ownerScope,
+    ownerLabel: viewer.label,
+    ...(viewer.email ? { ownerEmail: viewer.email } : {}),
+  };
+}
+
 const ALISIO_SHARING_SCOPE_ORDER: readonly AlisioSharingScope[] = [
   "read-only",
   "model-use",
@@ -3326,6 +3460,8 @@ function toAlisioSharingCloudRuntimeTarget(
 ): AlisioSharingCloudRuntimeTarget {
   return {
     targetId: target.targetId,
+    computerId: target.computerId,
+    computerLabel: target.computerLabel,
     label: target.label,
     platform: target.platform,
     sourceKind: target.sourceKind,
@@ -3357,6 +3493,34 @@ function mergeRemoteAndLocalSharingPolicies(
   return merged;
 }
 
+function mergeRemoteAndLocalSharingTargets(params: {
+  remote: AlisioSharingCloudState;
+  viewer: AlisioSharingPrincipal;
+  runtimeTargets?: readonly AlisioSharingRuntimeTarget[];
+}) {
+  const runtimeTargetById = new Map(
+    (params.runtimeTargets ?? [])
+      .map((target) => [target.targetId.trim(), target] as const)
+      .filter(([targetId]) => targetId.length > 0),
+  );
+  return Object.fromEntries(
+    Object.entries(params.remote.targets).map(([targetId, target]) => {
+      const runtime = runtimeTargetById.get(targetId);
+      return [
+        targetId,
+        canonicalizeSharingTarget(
+          {
+            ...target,
+            ...(runtime?.computerId ? { computerId: runtime.computerId } : {}),
+            ...(runtime?.computerLabel ? { computerLabel: runtime.computerLabel } : {}),
+          },
+          params.viewer,
+        ),
+      ] as const;
+    }),
+  );
+}
+
 async function loadAlisioSharingStateFromCloud(
   state: AlisioStoredState,
   input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
@@ -3377,6 +3541,11 @@ async function loadAlisioSharingStateFromCloud(
   });
   return {
     ...remote,
+    targets: mergeRemoteAndLocalSharingTargets({
+      remote,
+      viewer,
+      runtimeTargets: input?.targets,
+    }),
     policies: mergeRemoteAndLocalSharingPolicies(remote.policies, state.sharing?.policies),
   };
 }
@@ -3645,15 +3814,16 @@ function buildAlisioSharingTargetState(params: {
         ? "requestable"
         : "blocked";
   const normalizedRequest = latestRequest ? toAlisioSharingRequestState(latestRequest) : null;
+  const pendingRequest = normalizedRequest?.status === "pending" ? normalizedRequest : null;
   return {
     ...params.target,
     deviceAccess,
     modelAccess,
     execAccess,
-    ...(normalizedRequest
+    ...(pendingRequest
       ? {
-          requestId: normalizedRequest.requestId,
-          requestStatus: normalizedRequest.status,
+          requestId: pendingRequest.requestId,
+          requestStatus: pendingRequest.status,
         }
       : {}),
     ...(activeGrant
@@ -3687,6 +3857,56 @@ function hasRequestableAlisioTargetAccess(
     target.modelAccess === "requestable" ||
     target.execAccess === "requestable"
   );
+}
+
+function isHiddenCurrentComputerDuplicateSharingTarget(params: {
+  target: Pick<AlisioSharingTargetState, "targetId" | "computerId" | "ownerKey" | "current">;
+  viewer: Pick<AlisioSharingPrincipal, "ownerKey">;
+}) {
+  return (
+    !params.target.current &&
+    params.target.ownerKey === params.viewer.ownerKey &&
+    normalizeSharingOptionalString(params.target.computerId) === resolveCurrentComputerId()
+  );
+}
+
+function collectHiddenCurrentComputerDuplicateTargetIds(params: {
+  targets: readonly AlisioSharingTargetState[];
+  viewer: AlisioSharingPrincipal;
+}) {
+  const hidden = new Set<string>();
+  for (const target of params.targets) {
+    const targetId = normalizeSharingOptionalString(target.targetId);
+    if (!targetId) {
+      continue;
+    }
+    if (
+      isHiddenCurrentComputerDuplicateSharingTarget({
+        target,
+        viewer: params.viewer,
+      })
+    ) {
+      hidden.add(targetId);
+    }
+  }
+  return hidden;
+}
+
+function isVisiblePendingAlisioSharingRequest(params: {
+  request: AlisioStoredSharingRequest;
+  hiddenTargetIds: ReadonlySet<string>;
+}) {
+  return (
+    normalizeAlisioSharingRequestStatus(params.request.status) === "pending" &&
+    !params.hiddenTargetIds.has(params.request.targetId.trim())
+  );
+}
+
+function isVisibleAlisioSharingGrant(params: {
+  grant: AlisioStoredSharingGrant;
+  hiddenTargetIds: ReadonlySet<string>;
+}) {
+  return !params.hiddenTargetIds.has(params.grant.targetId.trim());
 }
 
 function buildAlisioSharingSuggestions(params: {
@@ -3793,17 +4013,27 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
       planSupported,
     }),
   );
+  const hiddenTargetIds = collectHiddenCurrentComputerDuplicateTargetIds({ targets, viewer });
   const incomingRequests = Object.values(state.sharing?.requests ?? {})
-    .filter((request) => request.owner.ownerKey === viewer.ownerKey)
+    .filter(
+      (request) =>
+        request.owner.ownerKey === viewer.ownerKey &&
+        isVisiblePendingAlisioSharingRequest({ request, hiddenTargetIds }),
+    )
     .map(toAlisioSharingRequestState);
   const outgoingRequests = Object.values(state.sharing?.requests ?? {})
-    .filter((request) => request.requester.ownerKey === viewer.ownerKey)
+    .filter(
+      (request) =>
+        request.requester.ownerKey === viewer.ownerKey &&
+        isVisiblePendingAlisioSharingRequest({ request, hiddenTargetIds }),
+    )
     .map(toAlisioSharingRequestState);
   const grants = Object.values(state.sharing?.grants ?? {})
     .filter(
       (grant) =>
         !grant.revokedAt &&
-        (grant.owner.ownerKey === viewer.ownerKey || grant.grantee.ownerKey === viewer.ownerKey),
+        (grant.owner.ownerKey === viewer.ownerKey || grant.grantee.ownerKey === viewer.ownerKey) &&
+        isVisibleAlisioSharingGrant({ grant, hiddenTargetIds }),
     )
     .map(toAlisioSharingGrantState);
   const approvals = grants;
@@ -3832,6 +4062,7 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
         targets.filter(
           (target) =>
             (target.ownerKey !== viewer.ownerKey || !target.current) &&
+            !hiddenTargetIds.has(target.targetId.trim()) &&
             hasSharedAlisioTargetAccess(target),
         ),
       ),
@@ -3839,6 +4070,7 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
         targets.filter(
           (target) =>
             (target.ownerKey !== viewer.ownerKey || !target.current) &&
+            !hiddenTargetIds.has(target.targetId.trim()) &&
             !hasSharedAlisioTargetAccess(target) &&
             hasRequestableAlisioTargetAccess(target),
         ),
@@ -4522,7 +4754,7 @@ export async function verifyAlisioAccountEmailAuth(
       throw new AlisioAccountValidationError(validationError);
     }
     if (!code) {
-      throw new AlisioAccountValidationError("Enter the verification code from your email.");
+      throw new AlisioAccountValidationError("Enter the 6-digit code from your email.");
     }
     return await applySignedInCloudAccountResult({
       state,
@@ -5179,22 +5411,33 @@ function syncAlisioSharingTargetsOnState(
             label: existing.ownerLabel,
             ...(existing.ownerEmail ? { email: existing.ownerEmail } : {}),
           };
-    const nextTarget: AlisioStoredSharingTarget = {
-      targetId,
-      label: target.label.trim() || existing?.label || targetId,
-      ...(target.platform?.trim() ? { platform: target.platform.trim() } : {}),
-      sourceKind: target.sourceKind,
-      connected: target.connected,
-      current: target.current,
-      ownerKey: owner.ownerKey,
-      ownerScope: owner.ownerScope,
-      ownerLabel: owner.label,
-      ...(owner.email ? { ownerEmail: owner.email } : {}),
-      registeredAt: existing?.registeredAt ?? now,
-      updatedAt: existing?.updatedAt ?? now,
-    };
+    const nextTarget = canonicalizeSharingTarget(
+      {
+        targetId,
+        ...(normalizeSharingOptionalString(target.computerId)
+          ? { computerId: normalizeSharingOptionalString(target.computerId) }
+          : {}),
+        ...(normalizeSharingOptionalString(target.computerLabel)
+          ? { computerLabel: normalizeSharingOptionalString(target.computerLabel) }
+          : {}),
+        label: target.label.trim() || existing?.label || targetId,
+        ...(target.platform?.trim() ? { platform: target.platform.trim() } : {}),
+        sourceKind: target.sourceKind,
+        connected: target.connected,
+        current: target.current,
+        ownerKey: owner.ownerKey,
+        ownerScope: owner.ownerScope,
+        ownerLabel: owner.label,
+        ...(owner.email ? { ownerEmail: owner.email } : {}),
+        registeredAt: existing?.registeredAt ?? now,
+        updatedAt: existing?.updatedAt ?? now,
+      } satisfies AlisioStoredSharingTarget,
+      viewer,
+    );
     const targetChanged =
       !existing ||
+      existing.computerId !== nextTarget.computerId ||
+      existing.computerLabel !== nextTarget.computerLabel ||
       existing.label !== nextTarget.label ||
       existing.platform !== nextTarget.platform ||
       existing.sourceKind !== nextTarget.sourceKind ||
@@ -5235,6 +5478,33 @@ function syncAlisioSharingTargetsOnState(
     changed = true;
   }
 
+  return changed;
+}
+
+function canonicalizeAlisioSharingTargetsOnState(state: AlisioStoredState) {
+  if (!state.sharing?.targets) {
+    return false;
+  }
+  const viewer = buildCurrentSharingPrincipal(state);
+  let changed = false;
+  for (const [targetId, target] of Object.entries(state.sharing.targets)) {
+    const nextTarget = canonicalizeSharingTarget(target, viewer);
+    if (
+      target.computerId === nextTarget.computerId &&
+      target.computerLabel === nextTarget.computerLabel &&
+      target.ownerKey === nextTarget.ownerKey &&
+      target.ownerScope === nextTarget.ownerScope &&
+      target.ownerLabel === nextTarget.ownerLabel &&
+      target.ownerEmail === nextTarget.ownerEmail
+    ) {
+      continue;
+    }
+    state.sharing.targets = {
+      ...state.sharing.targets,
+      [targetId]: nextTarget,
+    };
+    changed = true;
+  }
   return changed;
 }
 
@@ -5794,7 +6064,8 @@ export async function getAlisioSharingState(
         sharing: remoteSharing,
       });
     }
-    const changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
+    let changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
+    changed = canonicalizeAlisioSharingTargetsOnState(state) || changed;
     if (changed) {
       await persistState(state, env);
     }
@@ -5815,7 +6086,8 @@ export async function getAlisioSharingTargetAccessIndex(
         sharing: remoteSharing,
       });
     }
-    const changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
+    let changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
+    changed = canonicalizeAlisioSharingTargetsOnState(state) || changed;
     if (changed) {
       await persistState(state, env);
     }

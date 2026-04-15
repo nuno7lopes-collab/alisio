@@ -14,6 +14,8 @@ export type NodeCapabilitySummary = {
 
 export type NodeListNode = {
   nodeId: string;
+  computerId?: string;
+  computerLabel?: string;
   displayName?: string;
   platform?: string;
   version?: string;

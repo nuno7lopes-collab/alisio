@@ -2,6 +2,7 @@ import { chmodSync, existsSync, mkdirSync } from "node:fs";
 import type { DatabaseSync, StatementSync } from "node:sqlite";
 import { requireNodeSqlite } from "../infra/node-sqlite.js";
 import type { DeliveryContext } from "../utils/delivery-context.js";
+import type { TaskProposalRecord } from "./task-proposals.types.js";
 import { resolveTaskRegistryDir, resolveTaskRegistrySqlitePath } from "./task-registry.paths.js";
 import type { TaskRegistryStoreSnapshot } from "./task-registry.store.js";
 import type { TaskDeliveryState, TaskRecord } from "./task-registry.types.js";
@@ -37,11 +38,38 @@ type TaskDeliveryStateRow = {
   last_notified_event_at: number | bigint | null;
 };
 
+type TaskProposalRow = {
+  proposal_id: string;
+  client_key: string;
+  requester_session_key: string;
+  source_message_id: string | null;
+  kind: TaskProposalRecord["kind"];
+  title: string;
+  summary: string | null;
+  rationale: string | null;
+  acceptance_json: string | null;
+  launch_prompt: string | null;
+  agent_id: string | null;
+  created_by: TaskProposalRecord["createdBy"];
+  decision: TaskProposalRecord["decision"];
+  created_at: number | bigint;
+  updated_at: number | bigint;
+  resolved_at: number | bigint | null;
+  resolved_by: string | null;
+  launched_run_id: string | null;
+  launched_session_key: string | null;
+  launched_at: number | bigint | null;
+};
+
 type TaskRegistryStatements = {
   selectAll: StatementSync;
   selectAllDeliveryStates: StatementSync;
+  selectAllProposals: StatementSync;
+  selectProposalById: StatementSync;
+  selectProposalByClientKey: StatementSync;
   upsertRow: StatementSync;
   replaceDeliveryState: StatementSync;
+  upsertProposal: StatementSync;
   deleteRow: StatementSync;
   deleteDeliveryState: StatementSync;
   clearRows: StatementSync;
@@ -122,6 +150,33 @@ function rowToTaskDeliveryState(row: TaskDeliveryStateRow): TaskDeliveryState {
   };
 }
 
+function rowToTaskProposalRecord(row: TaskProposalRow): TaskProposalRecord {
+  const resolvedAt = normalizeNumber(row.resolved_at);
+  const launchedAt = normalizeNumber(row.launched_at);
+  return {
+    proposalId: row.proposal_id,
+    clientKey: row.client_key,
+    requesterSessionKey: row.requester_session_key,
+    ...(row.source_message_id ? { sourceMessageId: row.source_message_id } : {}),
+    kind: row.kind,
+    title: row.title,
+    ...(row.summary ? { summary: row.summary } : {}),
+    ...(row.rationale ? { rationale: row.rationale } : {}),
+    acceptance: parseJsonValue<string[]>(row.acceptance_json) ?? [],
+    ...(row.launch_prompt ? { launchPrompt: row.launch_prompt } : {}),
+    ...(row.agent_id ? { agentId: row.agent_id } : {}),
+    createdBy: row.created_by,
+    decision: row.decision,
+    createdAt: normalizeNumber(row.created_at) ?? 0,
+    updatedAt: normalizeNumber(row.updated_at) ?? 0,
+    ...(resolvedAt != null ? { resolvedAt } : {}),
+    ...(row.resolved_by ? { resolvedBy: row.resolved_by } : {}),
+    ...(row.launched_run_id ? { launchedRunId: row.launched_run_id } : {}),
+    ...(row.launched_session_key ? { launchedSessionKey: row.launched_session_key } : {}),
+    ...(launchedAt != null ? { launchedAt } : {}),
+  };
+}
+
 function bindTaskRecord(record: TaskRecord) {
   return {
     task_id: record.taskId,
@@ -154,6 +209,31 @@ function bindTaskDeliveryState(state: TaskDeliveryState) {
     task_id: state.taskId,
     requester_origin_json: serializeJson(state.requesterOrigin),
     last_notified_event_at: state.lastNotifiedEventAt ?? null,
+  };
+}
+
+function bindTaskProposalRecord(record: TaskProposalRecord) {
+  return {
+    proposal_id: record.proposalId,
+    client_key: record.clientKey,
+    requester_session_key: record.requesterSessionKey,
+    source_message_id: record.sourceMessageId ?? null,
+    kind: record.kind,
+    title: record.title,
+    summary: record.summary ?? null,
+    rationale: record.rationale ?? null,
+    acceptance_json: serializeJson(record.acceptance),
+    launch_prompt: record.launchPrompt ?? null,
+    agent_id: record.agentId ?? null,
+    created_by: record.createdBy,
+    decision: record.decision,
+    created_at: record.createdAt,
+    updated_at: record.updatedAt,
+    resolved_at: record.resolvedAt ?? null,
+    resolved_by: record.resolvedBy ?? null,
+    launched_run_id: record.launchedRunId ?? null,
+    launched_session_key: record.launchedSessionKey ?? null,
+    launched_at: record.launchedAt ?? null,
   };
 }
 
@@ -193,6 +273,83 @@ function createStatements(db: DatabaseSync): TaskRegistryStatements {
         last_notified_event_at
       FROM task_delivery_state
       ORDER BY task_id ASC
+    `),
+    selectAllProposals: db.prepare(`
+      SELECT
+        proposal_id,
+        client_key,
+        requester_session_key,
+        source_message_id,
+        kind,
+        title,
+        summary,
+        rationale,
+        acceptance_json,
+        launch_prompt,
+        agent_id,
+        created_by,
+        decision,
+        created_at,
+        updated_at,
+        resolved_at,
+        resolved_by,
+        launched_run_id,
+        launched_session_key,
+        launched_at
+      FROM task_proposals
+      ORDER BY updated_at DESC, created_at DESC, proposal_id DESC
+    `),
+    selectProposalById: db.prepare(`
+      SELECT
+        proposal_id,
+        client_key,
+        requester_session_key,
+        source_message_id,
+        kind,
+        title,
+        summary,
+        rationale,
+        acceptance_json,
+        launch_prompt,
+        agent_id,
+        created_by,
+        decision,
+        created_at,
+        updated_at,
+        resolved_at,
+        resolved_by,
+        launched_run_id,
+        launched_session_key,
+        launched_at
+      FROM task_proposals
+      WHERE proposal_id = ?
+      LIMIT 1
+    `),
+    selectProposalByClientKey: db.prepare(`
+      SELECT
+        proposal_id,
+        client_key,
+        requester_session_key,
+        source_message_id,
+        kind,
+        title,
+        summary,
+        rationale,
+        acceptance_json,
+        launch_prompt,
+        agent_id,
+        created_by,
+        decision,
+        created_at,
+        updated_at,
+        resolved_at,
+        resolved_by,
+        launched_run_id,
+        launched_session_key,
+        launched_at
+      FROM task_proposals
+      WHERE requester_session_key = ? AND client_key = ?
+      LIMIT 1
     `),
     upsertRow: db.prepare(`
       INSERT INTO task_runs (
@@ -276,6 +433,71 @@ function createStatements(db: DatabaseSync): TaskRegistryStatements {
         @last_notified_event_at
       )
     `),
+    upsertProposal: db.prepare(`
+      INSERT INTO task_proposals (
+        proposal_id,
+        client_key,
+        requester_session_key,
+        source_message_id,
+        kind,
+        title,
+        summary,
+        rationale,
+        acceptance_json,
+        launch_prompt,
+        agent_id,
+        created_by,
+        decision,
+        created_at,
+        updated_at,
+        resolved_at,
+        resolved_by,
+        launched_run_id,
+        launched_session_key,
+        launched_at
+      ) VALUES (
+        @proposal_id,
+        @client_key,
+        @requester_session_key,
+        @source_message_id,
+        @kind,
+        @title,
+        @summary,
+        @rationale,
+        @acceptance_json,
+        @launch_prompt,
+        @agent_id,
+        @created_by,
+        @decision,
+        @created_at,
+        @updated_at,
+        @resolved_at,
+        @resolved_by,
+        @launched_run_id,
+        @launched_session_key,
+        @launched_at
+      )
+      ON CONFLICT(proposal_id) DO UPDATE SET
+        client_key = excluded.client_key,
+        requester_session_key = excluded.requester_session_key,
+        source_message_id = excluded.source_message_id,
+        kind = excluded.kind,
+        title = excluded.title,
+        summary = excluded.summary,
+        rationale = excluded.rationale,
+        acceptance_json = excluded.acceptance_json,
+        launch_prompt = excluded.launch_prompt,
+        agent_id = excluded.agent_id,
+        created_by = excluded.created_by,
+        decision = excluded.decision,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at,
+        resolved_at = excluded.resolved_at,
+        resolved_by = excluded.resolved_by,
+        launched_run_id = excluded.launched_run_id,
+        launched_session_key = excluded.launched_session_key,
+        launched_at = excluded.launched_at
+    `),
     deleteRow: db.prepare(`DELETE FROM task_runs WHERE task_id = ?`),
     deleteDeliveryState: db.prepare(`DELETE FROM task_delivery_state WHERE task_id = ?`),
     clearRows: db.prepare(`DELETE FROM task_runs`),
@@ -317,6 +539,30 @@ function ensureSchema(db: DatabaseSync) {
       last_notified_event_at INTEGER
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS task_proposals (
+      proposal_id TEXT PRIMARY KEY,
+      client_key TEXT NOT NULL,
+      requester_session_key TEXT NOT NULL,
+      source_message_id TEXT,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      rationale TEXT,
+      acceptance_json TEXT,
+      launch_prompt TEXT,
+      agent_id TEXT,
+      created_by TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      resolved_at INTEGER,
+      resolved_by TEXT,
+      launched_run_id TEXT,
+      launched_session_key TEXT,
+      launched_at INTEGER
+    );
+  `);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_runs_run_id ON task_runs(run_id);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_runs_runtime_status ON task_runs(runtime, status);`);
@@ -324,6 +570,16 @@ function ensureSchema(db: DatabaseSync) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_runs_last_event_at ON task_runs(last_event_at);`);
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_task_runs_child_session_key ON task_runs(child_session_key);`,
+  );
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_task_proposals_session_client ON task_proposals(requester_session_key, client_key);`,
+  );
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_task_proposals_decision ON task_proposals(decision);`);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_proposals_updated_at ON task_proposals(updated_at DESC);`,
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_proposals_launched_run_id ON task_proposals(launched_run_id);`,
   );
 }
 
@@ -417,6 +673,38 @@ export function deleteTaskRegistryRecordFromSqlite(taskId: string) {
 export function upsertTaskDeliveryStateToSqlite(state: TaskDeliveryState) {
   const store = openTaskRegistryDatabase();
   store.statements.replaceDeliveryState.run(bindTaskDeliveryState(state));
+  ensureTaskRegistryPermissions(store.path);
+}
+
+export function listTaskProposalRecordsFromSqlite(): TaskProposalRecord[] {
+  const { statements } = openTaskRegistryDatabase();
+  const proposalRows = statements.selectAllProposals.all() as TaskProposalRow[];
+  return proposalRows.map((row) => rowToTaskProposalRecord(row));
+}
+
+export function getTaskProposalRecordByIdFromSqlite(
+  taskProposalId: string,
+): TaskProposalRecord | null {
+  const { statements } = openTaskRegistryDatabase();
+  const row = statements.selectProposalById.get(taskProposalId) as TaskProposalRow | undefined;
+  return row ? rowToTaskProposalRecord(row) : null;
+}
+
+export function getTaskProposalRecordByClientKeyFromSqlite(params: {
+  requesterSessionKey: string;
+  clientKey: string;
+}): TaskProposalRecord | null {
+  const { statements } = openTaskRegistryDatabase();
+  const row = statements.selectProposalByClientKey.get(
+    params.requesterSessionKey,
+    params.clientKey,
+  ) as TaskProposalRow | undefined;
+  return row ? rowToTaskProposalRecord(row) : null;
+}
+
+export function upsertTaskProposalRecordToSqlite(record: TaskProposalRecord) {
+  const store = openTaskRegistryDatabase();
+  store.statements.upsertProposal.run(bindTaskProposalRecord(record));
   ensureTaskRegistryPermissions(store.path);
 }
 

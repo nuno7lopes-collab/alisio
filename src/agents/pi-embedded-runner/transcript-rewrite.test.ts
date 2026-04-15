@@ -15,6 +15,9 @@ let rewriteTranscriptEntriesInSessionFile: typeof import("./transcript-rewrite.j
 let rewriteTranscriptEntriesInSessionManager: typeof import("./transcript-rewrite.js").rewriteTranscriptEntriesInSessionManager;
 let restoreTranscriptLeafInSessionFile: typeof import("./transcript-rewrite.js").restoreTranscriptLeafInSessionFile;
 let restoreTranscriptLeafInSessionManager: typeof import("./transcript-rewrite.js").restoreTranscriptLeafInSessionManager;
+let findLatestUserMessageEntryMatchingPrompt: typeof import("./transcript-rewrite.js").findLatestUserMessageEntryMatchingPrompt;
+let replaceUserMessageTextPreservingMedia: typeof import("./transcript-rewrite.js").replaceUserMessageTextPreservingMedia;
+let rewriteLatestUserPromptInMessages: typeof import("./transcript-rewrite.js").rewriteLatestUserPromptInMessages;
 let onSessionTranscriptUpdate: typeof import("../../sessions/transcript-events.js").onSessionTranscriptUpdate;
 let installSessionToolResultGuard: typeof import("../session-tool-result-guard.js").installSessionToolResultGuard;
 
@@ -26,8 +29,11 @@ async function loadFreshTranscriptRewriteModuleForTest() {
   ({ onSessionTranscriptUpdate } = await import("../../sessions/transcript-events.js"));
   ({ installSessionToolResultGuard } = await import("../session-tool-result-guard.js"));
   ({
+    findLatestUserMessageEntryMatchingPrompt,
+    replaceUserMessageTextPreservingMedia,
     rewriteTranscriptEntriesInSessionFile,
     rewriteTranscriptEntriesInSessionManager,
+    rewriteLatestUserPromptInMessages,
     restoreTranscriptLeafInSessionFile,
     restoreTranscriptLeafInSessionManager,
   } = await import("./transcript-rewrite.js"));
@@ -273,6 +279,87 @@ describe("rewriteTranscriptEntriesInSessionManager", () => {
     expect(branchMessages[2]).toMatchObject({
       role: "assistant",
       content: [{ type: "text", text: "summarized" }],
+    });
+  });
+});
+
+describe("user prompt canonicalization helpers", () => {
+  it("finds the latest appended user turn by its persisted prompt text", () => {
+    const sessionManager = SessionManager.inMemory();
+    const [firstUserId, , latestUserId] = appendSessionMessages(sessionManager, [
+      asAppendMessage({ role: "user", content: "older ask", timestamp: 1 }),
+      asAppendMessage({
+        role: "assistant",
+        content: createTextContent("older answer"),
+        timestamp: 2,
+      }),
+      asAppendMessage({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: "System: [2026-04-14 23:31:26 GMT+1] reason connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola",
+          },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+        ],
+        timestamp: 3,
+      }),
+    ]);
+
+    const matched = findLatestUserMessageEntryMatchingPrompt({
+      sessionManager,
+      afterEntryId: firstUserId,
+      promptText:
+        "System: [2026-04-14 23:31:26 GMT+1] reason connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola",
+    });
+
+    expect(matched?.id).toBe(latestUserId);
+  });
+
+  it("replaces only the text blocks while preserving user media blocks", () => {
+    const rewritten = replaceUserMessageTextPreservingMedia(
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "System: [t] connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+        ],
+        timestamp: 1,
+      },
+      "ola",
+    );
+
+    expect(rewritten).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "ola" },
+        { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+      ],
+      timestamp: 1,
+    });
+  });
+
+  it("rewrites the latest matching user prompt in in-memory snapshots", () => {
+    const messages = rewriteLatestUserPromptInMessages({
+      messages: [
+        { role: "user", content: "older ask", timestamp: 1 },
+        { role: "assistant", content: createTextContent("older answer"), timestamp: 2 },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "System: [t] connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola" },
+          ],
+          timestamp: 3,
+        },
+      ] as AgentMessage[],
+      promptText: "System: [t] connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola",
+      replacementText: "ola",
+    });
+
+    expect(messages.at(-1)).toEqual({
+      role: "user",
+      content: [{ type: "text", text: "ola" }],
+      timestamp: 3,
     });
   });
 });

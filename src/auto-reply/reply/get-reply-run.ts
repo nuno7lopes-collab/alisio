@@ -518,6 +518,8 @@ export async function runPreparedReply(
     isNewSession,
   });
   const authProfileIdSource = sessionEntry?.authProfileOverrideSource;
+  const persistedUserPrompt =
+    ctx.RawBody ?? ctx.BodyForCommands ?? ctx.CommandBody ?? ctx.Body ?? "";
   const followupRun = {
     prompt: queuedBody,
     messageId: sessionCtx.MessageSidFull ?? sessionCtx.MessageSid,
@@ -554,6 +556,8 @@ export async function runPreparedReply(
       workspaceDir,
       config: cfg,
       skillsSnapshot,
+      persistedUserPrompt,
+      persistedMessageId: sessionCtx.MessageSidFull ?? sessionCtx.MessageSid,
       provider,
       model,
       authProfileId,

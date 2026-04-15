@@ -18,6 +18,7 @@ import { MAX_IMAGE_BYTES } from "../../../media/constants.js";
 import { getGlobalHookRunner } from "../../../plugins/hook-runner-global.js";
 import { resolveToolCallArgumentsEncoding } from "../../../plugins/provider-model-compat.js";
 import { isSubagentSessionKey } from "../../../routing/session-key.js";
+import { emitSessionTranscriptUpdate } from "../../../sessions/transcript-events.js";
 import { buildTtsSystemPromptHint } from "../../../tts/tts.js";
 import { resolveUserPath } from "../../../utils.js";
 import { normalizeMessageChannel } from "../../../utils/message-channel.js";
@@ -124,6 +125,12 @@ import { dropThinkingBlocks } from "../thinking.js";
 import { collectAllowedToolNames } from "../tool-name-allowlist.js";
 import { installToolResultContextGuard } from "../tool-result-context-guard.js";
 import { splitSdkTools } from "../tool-split.js";
+import {
+  findLatestUserMessageEntryMatchingPrompt,
+  replaceUserMessageTextPreservingMedia,
+  rewriteLatestUserPromptInMessages,
+  rewriteTranscriptEntriesInSessionManager,
+} from "../transcript-rewrite.js";
 import { describeUnknownError, mapThinkingLevel } from "../utils.js";
 import { flushPendingToolResultsAfterIdle } from "../wait-for-idle-before-flush.js";
 import {
@@ -1339,6 +1346,7 @@ export async function runEmbeddedAttempt(
       let messagesSnapshot: AgentMessage[] = [];
       let sessionIdUsed = activeSession.sessionId;
       let prePromptTranscriptLeafId: string | null | undefined;
+      let promptTextForPersistence = params.prompt;
       const onAbort = () => {
         const reason = params.abortSignal ? getAbortReason(params.abortSignal) : undefined;
         const timeout = reason ? isTimeoutError(reason) : false;
@@ -1429,6 +1437,7 @@ export async function runEmbeddedAttempt(
         }
 
         log.debug(`embedded run prompt start: runId=${params.runId} sessionId=${params.sessionId}`);
+        promptTextForPersistence = effectivePrompt;
         cacheTrace?.recordStage("prompt:before", {
           prompt: effectivePrompt,
           messages: activeSession.messages,
@@ -1655,6 +1664,60 @@ export async function runEmbeddedAttempt(
           isCacheTtlEligibleProvider,
         });
 
+        const persistedMessageId =
+          typeof params.persistedMessageId === "string" && params.persistedMessageId.trim()
+            ? params.persistedMessageId.trim()
+            : undefined;
+        const shouldCanonicalizePersistedPrompt =
+          typeof params.persistedUserPrompt === "string" &&
+          params.persistedUserPrompt !== promptTextForPersistence;
+        if (shouldCanonicalizePersistedPrompt || persistedMessageId) {
+          const latestUserEntry = findLatestUserMessageEntryMatchingPrompt({
+            sessionManager,
+            promptText: promptTextForPersistence,
+            afterEntryId: prePromptTranscriptLeafId ?? null,
+          });
+          if (latestUserEntry) {
+            let rewrittenUserMessage = latestUserEntry.message;
+            let needsRewrite = false;
+            if (shouldCanonicalizePersistedPrompt) {
+              rewrittenUserMessage = replaceUserMessageTextPreservingMedia(
+                rewrittenUserMessage,
+                params.persistedUserPrompt!,
+              );
+              needsRewrite = true;
+            }
+            if (
+              persistedMessageId &&
+              (rewrittenUserMessage as { idempotencyKey?: unknown }).idempotencyKey !==
+                persistedMessageId
+            ) {
+              rewrittenUserMessage = {
+                ...rewrittenUserMessage,
+                idempotencyKey: persistedMessageId,
+              };
+              needsRewrite = true;
+            }
+            if (needsRewrite) {
+              const rewriteResult = rewriteTranscriptEntriesInSessionManager({
+                sessionManager,
+                replacements: [
+                  {
+                    entryId: latestUserEntry.id,
+                    message: rewrittenUserMessage,
+                  },
+                ],
+              });
+              if (rewriteResult.changed) {
+                emitSessionTranscriptUpdate(params.sessionFile);
+                log.debug(
+                  `embedded run canonicalized persisted user turn: runId=${params.runId} sessionId=${params.sessionId} entryId=${latestUserEntry.id}`,
+                );
+              }
+            }
+          }
+        }
+
         // If timeout occurred during compaction, use pre-compaction snapshot when available
         // (compaction restructures messages but does not add user/assistant turns).
         const snapshotSelection = selectCompactionTimeoutSnapshot({
@@ -1671,7 +1734,11 @@ export async function runEmbeddedAttempt(
             );
           }
         }
-        messagesSnapshot = snapshotSelection.messagesSnapshot;
+        messagesSnapshot = rewriteLatestUserPromptInMessages({
+          messages: snapshotSelection.messagesSnapshot,
+          promptText: promptTextForPersistence,
+          replacementText: params.persistedUserPrompt ?? promptTextForPersistence,
+        });
         sessionIdUsed = snapshotSelection.sessionIdUsed;
 
         if (promptError && promptErrorSource === "prompt" && !compactionOccurredThisAttempt) {

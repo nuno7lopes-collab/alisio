@@ -315,6 +315,23 @@ describe("handleSendChat", () => {
     });
   });
 
+  it("opens the tasks view locally for /tasks", async () => {
+    const onSlashAction = vi.fn();
+    const host = makeHost({
+      connected: true,
+      chatMessage: "/tasks",
+      onSlashAction,
+    });
+
+    await handleSendChat(host);
+
+    expect(onSlashAction).toHaveBeenCalledWith("open-tasks");
+    expect(host.chatMessages.at(-1)).toMatchObject({
+      role: "system",
+      content: expect.stringContaining("Tasks"),
+    });
+  });
+
   it("shows a visible pending item for /steer on the active run", async () => {
     vi.doMock("./chat/slash-command-executor.ts", async () => {
       const actual = await vi.importActual<typeof import("./chat/slash-command-executor.ts")>(

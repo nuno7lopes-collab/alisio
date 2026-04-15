@@ -627,6 +627,9 @@ function renderChatModelSelect(
 ) {
   const { currentOverride, defaultLabel, options } = resolveChatModelSelectState(state);
   const variant = opts.variant ?? "toolbar";
+  const compactLabels = variant === "composer";
+  const selectDefaultLabel = compactLabels ? "Default" : defaultLabel;
+  const selectOptions = compactLabels ? buildCompactComposerModelOptions(options) : options;
   const switchingModel = isChatModelSwitchPending(state);
   const busy =
     state.chatLoading ||
@@ -640,6 +643,7 @@ function renderChatModelSelect(
   return html`
     <label
       class="chat-select-chip chat-select-chip--model chat-controls__model chat-controls__model--${variant}"
+      title=${defaultLabel}
     >
       <select
         data-chat-model-select="true"
@@ -650,9 +654,9 @@ function renderChatModelSelect(
           await switchChatModel(state, next);
         }}
       >
-        <option value="" ?selected=${currentOverride === ""}>${defaultLabel}</option>
+        <option value="" ?selected=${currentOverride === ""}>${selectDefaultLabel}</option>
         ${repeat(
-          options,
+          selectOptions,
           (entry) => entry.value,
           (entry) =>
             html`<option value=${entry.value} ?selected=${entry.value === currentOverride}>
@@ -663,6 +667,45 @@ function renderChatModelSelect(
       <span class="chat-select-chip__chevron" aria-hidden="true">${icons.chevronDown}</span>
     </label>
   `;
+}
+
+function buildCompactComposerModelOptions(
+  options: readonly { value: string; label: string }[],
+): Array<{ value: string; label: string }> {
+  const compacted = options.map((option) => ({
+    value: option.value,
+    label: compactComposerModelLabel(option.label, option.value),
+    originalLabel: option.label,
+  }));
+
+  const counts = new Map<string, number>();
+  for (const option of compacted) {
+    counts.set(option.label, (counts.get(option.label) ?? 0) + 1);
+  }
+
+  return compacted.map((option) => ({
+    value: option.value,
+    label: (counts.get(option.label) ?? 0) > 1 ? option.originalLabel : option.label,
+  }));
+}
+
+function compactComposerModelLabel(label: string, value: string): string {
+  const trimmedLabel = label.trim();
+  if (!trimmedLabel) {
+    return value.trim();
+  }
+  if (trimmedLabel.startsWith("Default (")) {
+    return "Default";
+  }
+  const separator = trimmedLabel.indexOf(" · ");
+  if (separator > 0) {
+    return trimmedLabel.slice(0, separator).trim();
+  }
+  const qualifiedSeparator = value.indexOf("/");
+  if (qualifiedSeparator > 0) {
+    return value.slice(qualifiedSeparator + 1).trim();
+  }
+  return trimmedLabel;
 }
 
 async function switchChatModel(state: AppViewState, nextModel: string) {

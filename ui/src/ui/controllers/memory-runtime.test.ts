@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { GatewayRequestError } from "../gateway.ts";
 import {
   loadMemoryGraph,
@@ -39,6 +39,10 @@ function createState(): { state: MemoryRuntimeState; request: ReturnType<typeof 
 }
 
 describe("memory-runtime controller", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("ignores stale status responses after switching agents", async () => {
     const mainStatus = deferred<unknown>();
     const { state, request } = createState();
@@ -152,6 +156,22 @@ describe("memory-runtime controller", () => {
     expect(state.memorySyncAvailable).toBe(false);
   });
 
+  it("reuses a fresh memory status snapshot unless a forced reload is requested", async () => {
+    vi.useFakeTimers();
+    const { state, request } = createState();
+    request.mockResolvedValue({
+      agentId: "main",
+      enabled: true,
+      embedding: { ok: true },
+    });
+
+    await loadMemoryStatus(state, "main");
+    await loadMemoryStatus(state, "main");
+    await loadMemoryStatus(state, "main", { force: true });
+
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it("loads the canonical memory graph for the selected agent", async () => {
     const { state, request } = createState();
 
@@ -251,6 +271,32 @@ describe("memory-runtime controller", () => {
         includeAttachments: true,
       }),
     );
+  });
+
+  it("dedupes concurrent memory notes list requests for the same agent and query", async () => {
+    const { request } = createState();
+    const pending = deferred<unknown>();
+
+    request.mockImplementation((method: string) => {
+      if (method === "memory.notes.list") {
+        return pending.promise;
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    const client = { request } as unknown as NonNullable<MemoryRuntimeState["client"]>;
+    const first = requestMemoryNotesList(client, { agentId: "main", query: "atlas" });
+    const second = requestMemoryNotesList(client, { agentId: "main", query: "atlas" });
+
+    pending.resolve({
+      agentId: "main",
+      notes: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
+    });
+
+    const [left, right] = await Promise.all([first, second]);
+
+    expect(left).toEqual(right);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it("falls back from memory.notes.list to memory.wiki.list during transition", async () => {

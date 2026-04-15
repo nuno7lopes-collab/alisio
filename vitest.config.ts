@@ -127,6 +127,7 @@ export default defineConfig({
       "ui/src/ui/controllers/chat.test.ts",
       "ui/src/ui/controllers/memory-graph-controller.test.ts",
       "ui/src/ui/controllers/memory-runtime.test.ts",
+      "ui/src/ui/controllers/tasks.test.ts",
       "ui/src/ui/controllers/skills.test.ts",
       "ui/src/ui/controllers/sessions.test.ts",
       "ui/src/ui/app-gateway.node.test.ts",

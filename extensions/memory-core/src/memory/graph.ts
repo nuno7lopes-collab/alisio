@@ -494,11 +494,7 @@ function buildAttachmentCatalog(db: DatabaseSync): GraphAttachmentEntry[] {
 
 function noteReferencesAttachment(noteBody: string, attachment: GraphAttachmentEntry) {
   const loweredBody = noteBody.toLowerCase();
-  const candidates = [
-    attachment.attachmentId,
-    attachment.fileName,
-    attachment.sha256,
-  ]
+  const candidates = [attachment.attachmentId, attachment.fileName, attachment.sha256]
     .map((value) => value.trim().toLowerCase())
     .filter(Boolean);
   return candidates.some((candidate) => loweredBody.includes(candidate));
@@ -787,13 +783,7 @@ function buildSeedIds(params: {
     return uniqueStrings([params.focusId]);
   }
 
-  const seedLimit = Math.min(params.nodeLimit, Math.max(params.matches.length, 12));
-  const globalSeedIds =
-    params.matches.length > 0
-      ? params.matches.slice(0, seedLimit).map((match) => match.entityId)
-      : params.catalog.slice(0, seedLimit).map((entry) => entry.pageId);
-
-  return uniqueStrings([params.focusId, params.requestedFocusId, ...globalSeedIds]);
+  return uniqueStrings(params.catalog.map((entry) => entry.pageId));
 }
 
 function finalizeGraph(params: {
@@ -939,9 +929,15 @@ export function queryCanonicalMemoryGraphFromStore(params: {
       return buildEmptyGraph({ status: params.status, query, scope });
     }
 
+    const relationLimit =
+      typeof params.relationLimit === "number" && Number.isFinite(params.relationLimit)
+        ? Math.max(1, Math.floor(params.relationLimit))
+        : scope === "global"
+          ? Number.MAX_SAFE_INTEGER
+          : undefined;
     const relationLimits = resolveRelationLimits({
       direction: params.direction,
-      relationLimit: params.relationLimit,
+      relationLimit,
     });
     const matchLimit =
       typeof params.matchLimit === "number" && Number.isFinite(params.matchLimit)
@@ -950,11 +946,15 @@ export function queryCanonicalMemoryGraphFromStore(params: {
     const nodeLimit =
       typeof params.nodeLimit === "number" && Number.isFinite(params.nodeLimit)
         ? Math.max(1, Math.floor(params.nodeLimit))
-        : 24;
+        : scope === "global"
+          ? Number.MAX_SAFE_INTEGER
+          : 24;
     const edgeLimit =
       typeof params.edgeLimit === "number" && Number.isFinite(params.edgeLimit)
         ? Math.max(1, Math.floor(params.edgeLimit))
-        : 48;
+        : scope === "global"
+          ? Number.MAX_SAFE_INTEGER
+          : 48;
     const maxDepth = resolveDepth(scope, params.depth);
     const catalogById = new Map(catalog.map((entry) => [entry.pageId, entry]));
     const matches = buildMatches({
@@ -969,8 +969,7 @@ export function queryCanonicalMemoryGraphFromStore(params: {
 
     const focusId =
       (requestedFocusId && catalogById.has(requestedFocusId) ? requestedFocusId : null) ??
-      matches[0]?.entityId ??
-      (scope === "global" ? (catalog[0]?.pageId ?? null) : null);
+      (query ? (matches[0]?.entityId ?? null) : null);
 
     if (scope === "local" && !focusId) {
       return buildEmptyGraph({ status: params.status, query, scope });

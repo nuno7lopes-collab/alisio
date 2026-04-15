@@ -1,7 +1,12 @@
 import { html, nothing } from "lit";
 import type { TaskRuntimeFilter, TaskStatusFilter } from "../controllers/tasks.ts";
 import { formatMs, formatRelativeTimestamp } from "../format.ts";
-import type { TaskNotifyPolicy, TaskRecord, TasksOverviewResult } from "../types.ts";
+import type {
+  TaskNotifyPolicy,
+  TaskProposalRecord,
+  TaskRecord,
+  TasksOverviewResult,
+} from "../types.ts";
 
 type TasksViewProps = {
   loading: boolean;
@@ -19,6 +24,8 @@ type TasksViewProps = {
   onSelectTask: (taskId: string) => void;
   onCancelTask: (taskId: string) => void;
   onNotifyPolicyChange: (taskId: string, notify: TaskNotifyPolicy) => void;
+  onResolveProposal: (proposal: TaskProposalRecord, decision: "approved" | "rejected") => void;
+  onLaunchProposal: (proposal: TaskProposalRecord) => void;
   onOpenRequesterSession?: (sessionKey: string) => void;
   onOpenChildSession?: (sessionKey: string) => void;
 };
@@ -77,6 +84,104 @@ function renderSummaryCard(label: string, value: string | number, detail: string
       <div class="card-title">${label}</div>
       <div style="font-size: 32px; font-weight: 700; margin-top: 8px;">${value}</div>
       <div class="card-sub" style="margin-top: 8px;">${detail}</div>
+    </div>
+  `;
+}
+
+function describeTaskProposal(proposal: TaskProposalRecord): string {
+  return proposal.summary?.trim() || proposal.rationale?.trim() || proposal.title.trim();
+}
+
+function renderProposalActionButton(
+  label: string,
+  disabled: boolean,
+  onClick: () => void,
+  variant?: "primary" | "quiet",
+) {
+  const className = variant === "primary" ? "btn btn--primary" : "btn";
+  return html`
+    <button class=${className} ?disabled=${disabled} @click=${onClick}>${label}</button>
+  `;
+}
+
+function renderProposalCard(props: TasksViewProps, proposal: TaskProposalRecord) {
+  const launchable = proposal.decision === "approved" && !proposal.launchedRunId?.trim();
+  const launchedSessionKey =
+    proposal.launchedSessionKey?.trim() || proposal.linkedTask?.childSessionKey?.trim() || null;
+  const requestChatKey = proposal.requesterSessionKey.trim();
+  const updatedAt = proposal.updatedAt || proposal.createdAt;
+  return html`
+    <div class="list-item">
+      <div class="list-title" style="display: flex; justify-content: space-between; gap: 12px;">
+        <span>${proposal.title}</span>
+        <span class="muted">${proposal.decision}</span>
+      </div>
+      <div class="list-sub">
+        ${proposal.kind} proposal · ${formatRelativeTimestamp(updatedAt)} ·
+        ${proposal.createdBy === "assistant" ? "proposed by assistant" : "created by user"}
+      </div>
+      <div style="margin-top: 10px; display: grid; gap: 8px;">
+        <div>${describeTaskProposal(proposal)}</div>
+        ${proposal.acceptance.length > 0
+          ? html`
+              <div class="list-sub">
+                ${proposal.acceptance
+                  .slice(0, 3)
+                  .map(
+                    (item, index) =>
+                      html`${index > 0 ? html`<span> · </span>` : nothing}<span>${item}</span>`,
+                  )}
+              </div>
+            `
+          : nothing}
+        ${proposal.linkedTask
+          ? html`
+              <div class="list-sub">
+                Linked task: ${proposal.linkedTask.status} · ${proposal.linkedTask.runtime} ·
+                ${proposal.linkedTask.taskId}
+              </div>
+            `
+          : proposal.launchedRunId?.trim()
+            ? html`<div class="list-sub">Launched run: ${proposal.launchedRunId}</div>`
+            : nothing}
+      </div>
+      <div class="row" style="margin-top: 14px; gap: 10px; flex-wrap: wrap;">
+        ${proposal.decision === "pending"
+          ? [
+              renderProposalActionButton(
+                "Approve",
+                props.busy,
+                () => {
+                  props.onResolveProposal(proposal, "approved");
+                },
+                "primary",
+              ),
+              renderProposalActionButton("Reject", props.busy, () => {
+                props.onResolveProposal(proposal, "rejected");
+              }),
+            ]
+          : nothing}
+        ${launchable
+          ? renderProposalActionButton(
+              "Launch",
+              props.busy,
+              () => {
+                props.onLaunchProposal(proposal);
+              },
+              "primary",
+            )
+          : nothing}
+        ${requestChatKey && props.onOpenRequesterSession
+          ? renderProposalActionButton("Open source chat", props.busy, () => {
+              props.onOpenRequesterSession?.(requestChatKey);
+            })
+          : nothing}
+        ${launchedSessionKey && props.onOpenChildSession
+          ? renderProposalActionButton("Open launched chat", props.busy, () => {
+              props.onOpenChildSession?.(launchedSessionKey);
+            })
+          : nothing}
+      </div>
     </div>
   `;
 }
@@ -202,6 +307,7 @@ function renderTaskDetail(props: TasksViewProps, task: TaskRecord | null) {
 export function renderTasks(props: TasksViewProps) {
   const overview = props.overview;
   const selectedTask = findSelectedTask(overview, props.selectedId);
+  const proposals = overview?.proposals ?? [];
   const tasks = overview?.tasks ?? [];
   const findings = overview?.findings ?? [];
 
@@ -261,6 +367,11 @@ export function renderTasks(props: TasksViewProps) {
 
       <div class="agents-overview-grid">
         ${renderSummaryCard(
+          "Inbox",
+          overview?.proposalSummary.pending ?? 0,
+          `${overview?.proposalSummary.approved ?? 0} approved · ${overview?.proposalSummary.launched ?? 0} launched`,
+        )}
+        ${renderSummaryCard(
           "Active",
           overview?.summary.active ?? 0,
           `${overview?.summary.byStatus.running ?? 0} running · ${overview?.summary.byStatus.queued ?? 0} queued`,
@@ -280,6 +391,24 @@ export function renderTasks(props: TasksViewProps) {
           overview?.audit.total ?? 0,
           `${overview?.audit.errors ?? 0} errors · ${overview?.audit.warnings ?? 0} warnings`,
         )}
+      </div>
+
+      <div class="card">
+        <div class="card-title">Task inbox</div>
+        <div class="card-sub">
+          Proposed work that still needs a decision before it turns into an execution run.
+        </div>
+        ${props.loading && !overview
+          ? html`<div class="empty-state" style="margin-top: 16px;">Loading proposals…</div>`
+          : proposals.length === 0
+            ? html`<div class="empty-state" style="margin-top: 16px;">
+                No saved task proposals right now.
+              </div>`
+            : html`
+                <div style="display: grid; gap: 12px; margin-top: 16px;">
+                  ${proposals.map((proposal) => renderProposalCard(props, proposal))}
+                </div>
+              `}
       </div>
 
       <div class="card">

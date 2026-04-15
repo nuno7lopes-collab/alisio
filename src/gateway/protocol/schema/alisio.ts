@@ -725,6 +725,8 @@ export const SharingSuggestionKindSchema = Type.Union([
 export const AlisioSharingTargetSchema = Type.Object(
   {
     targetId: NonEmptyString,
+    computerId: Type.Optional(Type.String()),
+    computerLabel: Type.Optional(Type.String()),
     label: NonEmptyString,
     platform: Type.Optional(Type.String()),
     sourceKind: SharingTargetSourceKindSchema,

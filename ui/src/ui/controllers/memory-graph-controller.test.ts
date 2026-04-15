@@ -130,10 +130,9 @@ const graph = {
 };
 
 describe("memory graph controller", () => {
-  it("filters by relation type and preserves focus visibility", () => {
+  it("filters by tag and preserves focus visibility", () => {
     const filters = createMemoryGraphFilterState();
-    filters.relationTypes = ["depends-on"];
-    filters.showOrphans = false;
+    filters.tags = ["planning"];
 
     const view = buildMemoryGraphViewModel(graph, filters);
 
@@ -142,15 +141,14 @@ describe("memory graph controller", () => {
     expect(view.focusNode?.id).toBe("atlas");
   });
 
-  it("limits the graph to the focused neighborhood when requested", () => {
+  it("highlights the hovered neighbourhood around the focused node", () => {
     const filters = createMemoryGraphFilterState();
-    filters.tags = ["launch"];
-    filters.neighbourhoodOnly = true;
+    filters.hoveredNodeId = "launch";
 
     const view = buildMemoryGraphViewModel(graph, filters);
 
-    expect(view.nodes.map((node) => node.id)).toEqual(["atlas", "launch"]);
-    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-launch"]);
+    expect(view.nodes.map((node) => node.id)).toEqual(["atlas", "roadmap", "launch"]);
+    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-roadmap", "edge-atlas-launch"]);
     expect(view.highlightedNodeIds.has("atlas")).toBe(true);
     expect(view.highlightedNodeIds.has("launch")).toBe(true);
   });
@@ -166,10 +164,9 @@ describe("memory graph controller", () => {
     expect(view.focusNode?.id).toBe("atlas");
   });
 
-  it("includes attachment nodes when attachment relations are selected", () => {
+  it("includes attachment nodes when tag filters match them", () => {
     const filters = createMemoryGraphFilterState();
-    filters.relationTypes = ["references-attachment"];
-    filters.showOrphans = false;
+    filters.tags = ["application/pdf"];
 
     const graphWithAttachment = {
       ...graph,
@@ -237,13 +234,25 @@ describe("memory graph controller", () => {
     expect(view.focusNode?.id).toBe("atlas");
   });
 
-  it("keeps orphan notes visible by default", () => {
+  it("keeps non-matching notes visible when no filters are active", () => {
     const filters = createMemoryGraphFilterState();
-    filters.relationTypes = ["depends-on"];
 
     const view = buildMemoryGraphViewModel(graph, filters);
 
+    expect(view.nodes.map((node) => node.id)).toEqual(["atlas", "roadmap", "launch"]);
+    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-roadmap", "edge-atlas-launch"]);
+    expect(view.focusNode?.id).toBe("atlas");
+  });
+
+  it("selecting an edge highlights both endpoint nodes", () => {
+    const filters = createMemoryGraphFilterState();
+    filters.selectedEdgeId = "edge-atlas-roadmap";
+
+    const view = buildMemoryGraphViewModel(graph, filters);
+
+    expect(view.selectedEdge?.id).toBe("edge-atlas-roadmap");
+    expect(view.highlightedNodeIds.has("atlas")).toBe(true);
+    expect(view.highlightedNodeIds.has("roadmap")).toBe(true);
     expect(view.nodes.map((node) => node.id)).toContain("launch");
-    expect(view.edges.map((edge) => edge.id)).toEqual(["edge-atlas-roadmap"]);
   });
 });

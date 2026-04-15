@@ -2,9 +2,9 @@ import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { splitShellArgs } from "../../../../src/utils/shell-argv.js";
 import { t } from "../../i18n/index.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
+import type { AlisioSharingState } from "../types.ts";
 import { generateUUID } from "../uuid.ts";
 import type { DevicePairingList } from "./devices.ts";
-import type { AlisioSharingState } from "../types.ts";
 
 type SharingTarget = AlisioSharingState["devices"]["owned"][number];
 type SharingAccess = SharingTarget["execAccess"];
@@ -46,6 +46,9 @@ export type RemoteComputerTaskRecord = {
 
 export type RemoteComputerRecord = {
   id: string;
+  computerId: string;
+  targetId: string;
+  targetIds: string[];
   label: string;
   platform: string | null;
   sourceKind: SharingTarget["sourceKind"];
@@ -63,6 +66,11 @@ export type RemoteComputerRecord = {
   grantScopes: string[];
   phase: RemoteComputerPhase;
   nodeId: string | null;
+};
+
+type RemoteComputerCandidate = Omit<RemoteComputerRecord, "id" | "targetIds"> & {
+  ownerKey: string;
+  groupKey: string;
 };
 
 export type RemoteComputersState = {
@@ -136,7 +144,7 @@ function supportsExec(node: Pick<NodeListNode, "commands" | "capabilities"> | nu
 }
 
 function resolveTargetPhase(params: {
-  target: SharingTarget;
+  target: Pick<SharingTarget, "requestStatus" | "execAccess">;
   connected: boolean;
   supportsExec: boolean;
 }): RemoteComputerPhase {
@@ -169,6 +177,51 @@ function resolveDraft(
   computerId: string,
 ): RemoteComputerDraft {
   return drafts[computerId] ?? { command: "", cwd: "" };
+}
+
+function resolveAccessRank(access: RemoteComputerRecord["deviceAccess"]) {
+  switch (access) {
+    case "owner":
+      return 3;
+    case "shared":
+      return 2;
+    case "requestable":
+      return 1;
+    case "blocked":
+    default:
+      return 0;
+  }
+}
+
+function resolveMergedAccess(
+  current: RemoteComputerRecord["deviceAccess"],
+  next: RemoteComputerRecord["deviceAccess"],
+) {
+  return resolveAccessRank(next) > resolveAccessRank(current) ? next : current;
+}
+
+function compareRemoteComputerCandidates(a: RemoteComputerCandidate, b: RemoteComputerCandidate) {
+  if (a.connected !== b.connected) {
+    return a.connected ? -1 : 1;
+  }
+  if (a.supportsExec !== b.supportsExec) {
+    return a.supportsExec ? -1 : 1;
+  }
+  const execDiff = resolveAccessRank(b.execAccess) - resolveAccessRank(a.execAccess);
+  if (execDiff !== 0) {
+    return execDiff;
+  }
+  const deviceDiff = resolveAccessRank(b.deviceAccess) - resolveAccessRank(a.deviceAccess);
+  if (deviceDiff !== 0) {
+    return deviceDiff;
+  }
+  if (a.trusted !== b.trusted) {
+    return a.trusted ? -1 : 1;
+  }
+  if ((a.requestStatus === "pending") !== (b.requestStatus === "pending")) {
+    return a.requestStatus === "pending" ? -1 : 1;
+  }
+  return a.targetId.localeCompare(b.targetId);
 }
 
 function sortRemoteComputers(a: RemoteComputerRecord, b: RemoteComputerRecord) {
@@ -266,7 +319,9 @@ function extractTaskPayload(payload: unknown): TaskPayloadRecord | null {
   return isRecord(payload) ? (payload as TaskPayloadRecord) : null;
 }
 
-export function resolveRemoteComputerRecords(state: RemoteComputerCatalogState): RemoteComputerRecord[] {
+export function resolveRemoteComputerRecords(
+  state: RemoteComputerCatalogState,
+): RemoteComputerRecord[] {
   const nodeById = new Map(
     state.nodes.map((node) => [node.nodeId.trim(), node] as const).filter(([nodeId]) => nodeId),
   );
@@ -281,33 +336,102 @@ export function resolveRemoteComputerRecords(state: RemoteComputerCatalogState):
       .filter((deviceId) => deviceId.length > 0),
   );
   const viewerOwnerKey = state.sharing?.viewer.ownerKey ?? null;
+  const grouped = new Map<string, RemoteComputerCandidate[]>();
 
-  return collectSharingTargets(state.sharing)
-    .map((target) => {
-      const nodeId = target.targetId.trim();
-      const node = nodeById.get(nodeId) ?? null;
-      const connected = node?.connected === true;
-      const execReady = supportsExec(node);
-      return {
-        id: target.targetId,
-        label: target.label,
-        platform: normalizeString(target.platform),
-        sourceKind: target.sourceKind,
-        ownerLabel: normalizeString(target.ownerLabel),
-        sameAccount: viewerOwnerKey !== null && target.ownerKey === viewerOwnerKey,
-        connected,
-        supportsExec: execReady,
-        trusted: pairedDevices.has(target.targetId),
-        pairingPending: pendingDevices.has(target.targetId),
-        deviceAccess: target.deviceAccess,
-        modelAccess: target.modelAccess,
-        execAccess: target.execAccess,
-        requestStatus: target.requestStatus ?? null,
-        grantId: normalizeString(target.grantId),
-        grantScopes: [...(target.grantScopes ?? [])],
-        phase: resolveTargetPhase({ target, connected, supportsExec: execReady }),
-        nodeId: node ? node.nodeId : nodeId,
-      } satisfies RemoteComputerRecord;
+  for (const target of collectSharingTargets(state.sharing)) {
+    const targetId = target.targetId.trim();
+    if (!targetId) {
+      continue;
+    }
+    const node = nodeById.get(targetId) ?? null;
+    const connected = node?.connected === true;
+    const execReady = supportsExec(node);
+    const computerId = normalizeString(target.computerId) ?? targetId;
+    const sameAccount = viewerOwnerKey !== null && target.ownerKey === viewerOwnerKey;
+    const candidate = {
+      computerId,
+      targetId,
+      label: normalizeString(target.computerLabel) ?? target.label,
+      platform: normalizeString(target.platform),
+      sourceKind: target.sourceKind,
+      ownerLabel: normalizeString(target.ownerLabel),
+      ownerKey: target.ownerKey,
+      sameAccount,
+      connected,
+      supportsExec: execReady,
+      trusted: pairedDevices.has(targetId),
+      pairingPending: pendingDevices.has(targetId),
+      deviceAccess: target.deviceAccess,
+      modelAccess: target.modelAccess,
+      execAccess: target.execAccess,
+      requestStatus: target.requestStatus ?? null,
+      grantId: normalizeString(target.grantId),
+      grantScopes: [...(target.grantScopes ?? [])],
+      phase: resolveTargetPhase({ target, connected, supportsExec: execReady }),
+      nodeId: node ? node.nodeId : targetId,
+      groupKey: sameAccount ? computerId : `${target.ownerKey}:${computerId}`,
+    } satisfies RemoteComputerCandidate;
+    const current = grouped.get(candidate.groupKey);
+    if (current) {
+      current.push(candidate);
+    } else {
+      grouped.set(candidate.groupKey, [candidate]);
+    }
+  }
+
+  return [...grouped.values()]
+    .map((candidates) => {
+      const sorted = [...candidates].toSorted(compareRemoteComputerCandidates);
+      const primary = sorted[0];
+      const grantCandidate = sorted.find((candidate) => candidate.grantId) ?? null;
+      const requestStatus =
+        sorted.find((candidate) => candidate.requestStatus === "pending")?.requestStatus ??
+        sorted.find((candidate) => candidate.requestStatus)?.requestStatus ??
+        null;
+      const mergedGrantScopes = [...new Set(sorted.flatMap((candidate) => candidate.grantScopes))];
+      const merged: RemoteComputerRecord = {
+        id: primary.computerId,
+        computerId: primary.computerId,
+        targetId: primary.targetId,
+        targetIds: sorted.map((candidate) => candidate.targetId),
+        label: primary.label,
+        platform: primary.platform,
+        sourceKind: primary.sourceKind,
+        ownerLabel: primary.ownerLabel,
+        sameAccount: primary.sameAccount,
+        connected: sorted.some((candidate) => candidate.connected),
+        supportsExec: sorted.some((candidate) => candidate.supportsExec),
+        trusted: sorted.some((candidate) => candidate.trusted),
+        pairingPending: sorted.some((candidate) => candidate.pairingPending),
+        deviceAccess: sorted.reduce(
+          (access, candidate) => resolveMergedAccess(access, candidate.deviceAccess),
+          primary.deviceAccess,
+        ),
+        modelAccess: sorted.reduce(
+          (access, candidate) => resolveMergedAccess(access, candidate.modelAccess),
+          primary.modelAccess,
+        ),
+        execAccess: sorted.reduce(
+          (access, candidate) => resolveMergedAccess(access, candidate.execAccess),
+          primary.execAccess,
+        ),
+        requestStatus,
+        grantId: grantCandidate?.grantId ?? null,
+        grantScopes: mergedGrantScopes,
+        phase: resolveTargetPhase({
+          target: {
+            ...primary,
+            requestStatus: requestStatus ?? undefined,
+          },
+          connected: sorted.some((candidate) => candidate.connected),
+          supportsExec: sorted.some((candidate) => candidate.supportsExec),
+        }),
+        nodeId:
+          sorted.find((candidate) => candidate.connected && candidate.supportsExec)?.nodeId ??
+          sorted.find((candidate) => candidate.nodeId)?.nodeId ??
+          null,
+      };
+      return merged;
     })
     .toSorted(sortRemoteComputers);
 }
@@ -349,11 +473,7 @@ export async function runRemoteComputerCommand(
   }
   const argv = splitShellArgs(commandText);
   if (!argv || argv.length === 0) {
-    setRemoteComputerError(
-      state,
-      params.computerId,
-      t("alisio.connections.remote.invalidCommand"),
-    );
+    setRemoteComputerError(state, params.computerId, t("alisio.connections.remote.invalidCommand"));
     return;
   }
 
@@ -401,14 +521,14 @@ export async function runRemoteComputerCommand(
       Object.entries(state.remoteComputerTasks).map(([computerId, tasks]) => [
         computerId,
         tasks.map((task) =>
-          task.localId === localId ?
-            {
-              ...task,
-              taskId: acceptedTaskId,
-              phase: "running",
-              updatedAtMs: Date.now(),
-            }
-          : task,
+          task.localId === localId
+            ? {
+                ...task,
+                taskId: acceptedTaskId,
+                phase: "running",
+                updatedAtMs: Date.now(),
+              }
+            : task,
         ),
       ]),
     );
@@ -419,15 +539,15 @@ export async function runRemoteComputerCommand(
       Object.entries(state.remoteComputerTasks).map(([computerId, tasks]) => [
         computerId,
         tasks.map((task) =>
-          task.localId === localId ?
-            {
-              ...task,
-              phase: "failed",
-              updatedAtMs: Date.now(),
-              completedAtMs: Date.now(),
-              error: message,
-            }
-          : task,
+          task.localId === localId
+            ? {
+                ...task,
+                phase: "failed",
+                updatedAtMs: Date.now(),
+                completedAtMs: Date.now(),
+                error: message,
+              }
+            : task,
         ),
       ]),
     );
@@ -462,7 +582,9 @@ function coerceTaskUpdatedPayload(payload: unknown): TaskUpdatedEventPayload | n
     capabilityId: normalizeString(payload.capabilityId) ?? undefined,
     ok: payload.ok === true,
     payload: payload.payload,
-    error: isRecord(payload.error) ? { message: normalizeString(payload.error.message) ?? undefined } : null,
+    error: isRecord(payload.error)
+      ? { message: normalizeString(payload.error.message) ?? undefined }
+      : null,
   };
 }
 

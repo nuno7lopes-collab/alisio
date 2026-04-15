@@ -67,6 +67,8 @@ function mergeCapabilities(...items: Array<readonly NodeCapabilityLike[] | undef
 function buildPairedNodeRecord(entry: PairedDevice): NodeListNode {
   return {
     nodeId: entry.deviceId,
+    computerId: entry.computerId,
+    computerLabel: entry.computerLabel,
     displayName: entry.displayName,
     platform: entry.platform,
     version: undefined,
@@ -94,6 +96,8 @@ function buildKnownNodeEntry(params: {
   const { nodeId, paired, live } = params;
   return {
     nodeId,
+    computerId: paired?.computerId ?? nodeId,
+    computerLabel: paired?.computerLabel ?? live?.displayName ?? paired?.displayName,
     displayName: live?.displayName ?? paired?.displayName,
     platform: live?.platform ?? paired?.platform,
     version: live?.version ?? paired?.version,

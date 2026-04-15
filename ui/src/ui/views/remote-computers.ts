@@ -169,7 +169,7 @@ function renderRequestAction(computer: RemoteComputerRecord, props: NodesProps) 
     <button
       class="btn btn--sm"
       ?disabled=${computer.requestStatus === "pending" || Boolean(props.sharingLoading)}
-      @click=${() => props.onSharingRequest?.(computer.id, ["exec"])}
+      @click=${() => props.onSharingRequest?.(computer.targetId, ["exec"])}
     >
       ${computer.requestStatus === "pending"
         ? t("alisio.connections.remote.requestPendingCta")

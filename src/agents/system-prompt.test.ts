@@ -225,6 +225,31 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("do not forward raw internal metadata");
   });
 
+  it("includes webchat task proposal guidance only on webchat prompts", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/alisio",
+      runtimeInfo: {
+        channel: "webchat",
+      },
+    });
+
+    expect(prompt).toContain("## Task Proposals");
+    expect(prompt).toContain("```alisio-task");
+    expect(prompt).toContain("launchPrompt");
+  });
+
+  it("omits task proposal guidance outside webchat", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/alisio",
+      runtimeInfo: {
+        channel: "discord",
+      },
+    });
+
+    expect(prompt).not.toContain("## Task Proposals");
+    expect(prompt).not.toContain("```alisio-task");
+  });
+
   it("guides subagent workflows to avoid polling loops", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/alisio",

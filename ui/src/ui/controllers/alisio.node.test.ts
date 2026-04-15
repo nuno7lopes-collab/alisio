@@ -627,7 +627,7 @@ describe("alisio controller reconnect safety", () => {
       setupWizardDraftText: "draft",
       alisioAuthPendingEmail: "owner@example.com",
       alisioAuthCode: "654321",
-      alisioAuthStage: "email-code",
+      alisioAuthStage: "email-link",
       alisioTermsAccepted: true,
       alisioMarketingOptIn: true,
       alisioBirthdate: "1990-04-06",
@@ -893,7 +893,7 @@ describe("alisio controller reconnect safety", () => {
     await requestAlisioRecoveryEmail(state);
 
     expect(state.alisioAuthEmail).toBe("owner@example.com");
-    expect(state.alisioAccountNotice).toBe("Reset sent");
+    expect(state.alisioAccountNotice).toBe("Check your email for the Alisio recovery link.");
     expect(state.alisioAccountError).toBeNull();
   });
 
@@ -980,7 +980,9 @@ describe("alisio controller reconnect safety", () => {
     });
 
     expect(state.alisioPasswordResetRequired).toBe(true);
-    expect(state.alisioAccountNotice).toContain("Set a new password");
+    expect(state.alisioAccountNotice).toBe(
+      "Set a new password to finish recovering your Alisio account.",
+    );
   });
 
   it("limpa o código pendente depois de verificar o email", async () => {
@@ -1032,7 +1034,7 @@ describe("alisio controller reconnect safety", () => {
       alisioAuthEmail: "owner@example.com",
       alisioAuthPendingEmail: "owner@example.com",
       alisioAuthCode: "123456",
-      alisioAuthStage: "email-code",
+      alisioAuthStage: "email-link",
     });
 
     await verifyAlisioAccountEmailAuth(state);
@@ -1070,8 +1072,8 @@ describe("alisio controller reconnect safety", () => {
 
     await beginAlisioAccountEmailAuth(state);
 
-    expect(state.alisioAuthStage).toBe("email-code");
-    expect(state.alisioAccountNotice).toBe("Check your email.");
+    expect(state.alisioAuthStage).toBe("email-link");
+    expect(state.alisioAccountNotice).toBeNull();
   });
 
   it("mostra erro quando o backend cloud nao esta configurado para login por email", async () => {
@@ -1213,7 +1215,7 @@ describe("alisio controller reconnect safety", () => {
       alisioAuthEmail: "owner@example.com",
       alisioAuthPendingEmail: "owner@example.com",
       alisioAuthCode: "123456",
-      alisioAuthStage: "email-code",
+      alisioAuthStage: "email-link",
     });
 
     const completed = await completeAlisioAccountEmailLinkAuth(state, {
@@ -1434,7 +1436,7 @@ describe("alisio controller reconnect safety", () => {
 
     await changeAlisioAccountEmail(state, { email: "next@example.com" });
 
-    expect(state.alisioAccountNotice).toContain("confirm the change");
+    expect(state.alisioAccountNotice).toBe("Check your new email inbox to confirm the change.");
   });
 
   it("fecha o reset pendente quando grava a nova password", async () => {
@@ -1458,7 +1460,7 @@ describe("alisio controller reconnect safety", () => {
     await updateAlisioAccountPassword(state, { password: "password123" });
 
     expect(state.alisioPasswordResetRequired).toBe(false);
-    expect(state.alisioAccountNotice).toContain("password was updated");
+    expect(state.alisioAccountNotice).toBe("Your Alisio password was updated.");
   });
 });
 

@@ -541,6 +541,60 @@ describe("gateway server chat", () => {
     expect(textValues).toEqual(["hello", "real reply", "real text field reply", "NO_REPLY"]);
   });
 
+  test("chat.history hides heartbeat acknowledgements on interactive chat surfaces", async () => {
+    testState.channelsConfig = {
+      defaults: {
+        heartbeat: {
+          showOk: false,
+        },
+      },
+    };
+    try {
+      const historyMessages = await loadChatHistoryWithMessages([
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "HEARTBEAT_OK" }],
+          timestamp: 1,
+        },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Olá 👋" }],
+          timestamp: 2,
+        },
+      ]);
+
+      expect(collectHistoryTextValues(historyMessages)).toEqual(["Olá 👋"]);
+    } finally {
+      testState.channelsConfig = undefined;
+    }
+  });
+
+  test("chat.history keeps heartbeat-tagged assistant entries when they carry media", async () => {
+    testState.channelsConfig = {
+      defaults: {
+        heartbeat: {
+          showOk: false,
+        },
+      },
+    };
+    try {
+      const historyMessages = await loadChatHistoryWithMessages([
+        {
+          role: "assistant",
+          content: [
+            { type: "text", text: "HEARTBEAT_OK" },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+          ],
+          timestamp: 1,
+        },
+      ]);
+
+      expect(historyMessages).toHaveLength(1);
+    } finally {
+      testState.channelsConfig = undefined;
+    }
+  });
+
   test("routes chat.send slash commands without agent runs", async () => {
     await withMainSessionStore(async () => {
       const spy = vi.mocked(agentCommand);
@@ -806,7 +860,7 @@ describe("gateway server chat", () => {
     });
   });
 
-  test("chat.history does not synthesize text for non-image attachments", async () => {
+  test("chat.history rehydrates non-image attachments as structured attachment blocks", async () => {
     const saved = await saveMediaBuffer(
       Buffer.from("%PDF-1.4\n"),
       "application/pdf",
@@ -831,11 +885,13 @@ describe("gateway server chat", () => {
       expect(historyMessages).toHaveLength(1);
       expect(historyMessages[0]).toMatchObject({
         role: "user",
-        content: "",
-        MediaPath: saved.path,
-        MediaPaths: [saved.path],
-        MediaType: "application/pdf",
-        MediaTypes: ["application/pdf"],
+        content: [
+          {
+            type: "attachment",
+            mimeType: "application/pdf",
+            fileName: expect.stringContaining("brief.pdf"),
+          },
+        ],
       });
     } finally {
       await fs.rm(saved.path, { force: true }).catch(() => {});

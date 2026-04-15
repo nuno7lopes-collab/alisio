@@ -161,6 +161,9 @@ const BASE_METHODS = [
   "cron.run",
   "cron.runs",
   "tasks.overview",
+  "tasks.proposal.upsert",
+  "tasks.proposal.resolve",
+  "tasks.proposal.attachLaunch",
   "tasks.cancel",
   "tasks.notify",
   "gateway.identity.get",
@@ -208,6 +211,7 @@ export const GATEWAY_EVENTS = [
   "exec.approval.resolved",
   "plugin.approval.requested",
   "plugin.approval.resolved",
+  "tasks.proposal.changed",
   GATEWAY_EVENT_ALISIO_MODELS_OPERATION,
   GATEWAY_EVENT_UPDATE_AVAILABLE,
 ];

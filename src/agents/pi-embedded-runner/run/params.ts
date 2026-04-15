@@ -77,6 +77,10 @@ export type RunEmbeddedPiAgentParams = {
   config?: AlisioConfig;
   skillsSnapshot?: SkillSnapshot;
   prompt: string;
+  /** Canonical user-visible turn text to persist, separate from the model-facing prompt. */
+  persistedUserPrompt?: string;
+  /** Stable user-turn identifier to persist for exact transcript/history matching. */
+  persistedMessageId?: string;
   images?: ImageContent[];
   /** Optional client-provided tools (OpenResponses hosted tools). */
   clientTools?: ClientToolDefinition[];

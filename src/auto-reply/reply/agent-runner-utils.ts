@@ -123,6 +123,8 @@ export function buildEmbeddedRunBaseParams(params: {
     agentDir: params.run.agentDir,
     config: params.run.config,
     skillsSnapshot: params.run.skillsSnapshot,
+    persistedUserPrompt: params.run.persistedUserPrompt,
+    persistedMessageId: params.run.persistedMessageId,
     ownerNumbers: params.run.ownerNumbers,
     inputProvenance: params.run.inputProvenance,
     senderIsOwner: params.run.senderIsOwner,

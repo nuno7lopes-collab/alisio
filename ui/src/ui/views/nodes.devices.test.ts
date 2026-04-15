@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import { countAccountComputers, countPendingComputerAccess } from "./connections-computers.ts";
 import { renderConnections } from "./connections.ts";
 import { renderNodes, type NodesProps } from "./nodes.ts";
 
@@ -166,6 +167,168 @@ describe("nodes devices pending rendering", () => {
     expect(text).toContain("Execution");
     expect(text).toContain("Alisio nodes");
     expect(text).toContain("Node requests");
+  });
+
+  it("counts the same-account current Mac once when sharing still exposes legacy node targets", () => {
+    const props = baseProps({
+      currentDeviceId: "current-browser",
+      devicesList: {
+        pending: [],
+        paired: [
+          {
+            deviceId: "current-browser",
+            computerId: "local:nunos-macbook-air",
+            computerLabel: "Nuno's MacBook Air",
+            displayName: "Nuno's MacBook Air",
+            roles: ["operator"],
+            scopes: ["operator.read"],
+            tokens: [],
+          },
+        ],
+      },
+      sharing: {
+        viewer: {
+          ownerKey: "user:1",
+          ownerScope: "user",
+          label: "Nuno",
+        },
+        planSupported: true,
+        policy: {
+          allowExternalUse: false,
+          editable: true,
+        },
+        devices: {
+          owned: [],
+          sharedWithMe: [
+            {
+              targetId: "legacy-node-1",
+              computerId: "local:nunos-macbook-air",
+              computerLabel: "Nuno's MacBook Air",
+              label: "Nuno's MacBook Air",
+              sourceKind: "node",
+              connected: false,
+              current: false,
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "shared",
+              modelAccess: "shared",
+              execAccess: "requestable",
+              grantScopes: ["read-only", "model-use"],
+            },
+            {
+              targetId: "legacy-node-2",
+              computerId: "local:nunos-macbook-air",
+              computerLabel: "Nuno's MacBook Air",
+              label: "Nuno's MacBook Air",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "shared",
+              modelAccess: "shared",
+              execAccess: "shared",
+              grantScopes: ["read-only", "model-use", "exec"],
+            },
+          ],
+          available: [],
+        },
+        incomingRequests: [],
+        outgoingRequests: [],
+        approvals: [],
+        grants: [],
+        audit: [],
+      },
+      nodes: [
+        {
+          nodeId: "legacy-node-2",
+          computerId: "local:nunos-macbook-air",
+          computerLabel: "Nuno's MacBook Air",
+          displayName: "Nuno's MacBook Air",
+          connected: true,
+          commands: ["system.run"],
+        },
+      ],
+    });
+
+    expect(countAccountComputers(props)).toBe(1);
+  });
+
+  it("ignores approved self-sharing requests when counting pending computer access", () => {
+    const props = baseProps({
+      sharing: {
+        viewer: {
+          ownerKey: "user:1",
+          ownerScope: "user",
+          label: "Nuno",
+        },
+        planSupported: true,
+        policy: {
+          allowExternalUse: false,
+          editable: true,
+        },
+        devices: {
+          owned: [],
+          sharedWithMe: [],
+          available: [],
+        },
+        incomingRequests: [
+          {
+            requestId: "req-1",
+            targetId: "legacy-node-1",
+            targetLabel: "Nuno's MacBook Air",
+            targetSourceKind: "node",
+            requester: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            owner: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            scopes: ["read-only", "model-use", "exec"],
+            status: "approved",
+            createdAt: "2026-04-08T10:00:00.000Z",
+            grantId: "grant-1",
+          },
+        ],
+        outgoingRequests: [
+          {
+            requestId: "req-1",
+            targetId: "legacy-node-1",
+            targetLabel: "Nuno's MacBook Air",
+            targetSourceKind: "node",
+            requester: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            owner: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            scopes: ["read-only", "model-use", "exec"],
+            status: "approved",
+            createdAt: "2026-04-08T10:00:00.000Z",
+            grantId: "grant-1",
+          },
+        ],
+        approvals: [],
+        grants: [],
+        audit: [],
+      },
+    });
+
+    expect(countPendingComputerAccess(props)).toBe(0);
   });
 
   it("surfaces a ready remote computer with a command runner", () => {

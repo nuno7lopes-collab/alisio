@@ -164,6 +164,26 @@ Hello`;
 [Thu 2026-03-12 07:00 UTC] what time is it?`;
     expect(stripInboundMetadata(input)).toBe("what time is it?");
   });
+
+  it("strips leading injected System event lines before the real user turn", () => {
+    const input = `System: [2026-04-14 23:31:26 GMT+1] Node connected
+
+[Tue 2026-04-14 23:45 GMT+1] ola`;
+    expect(stripInboundMetadata(input)).toBe("ola");
+  });
+
+  it("strips consecutive injected System event lines before the real user turn", () => {
+    const input = `System: [2026-04-14 23:31:26 GMT+1] Node: Nuno's MacBook Air
+System: [2026-04-14 23:37:05 GMT+1] reason connect
+
+[Tue 2026-04-14 23:45 GMT+1] ola`;
+    expect(stripInboundMetadata(input)).toBe("ola");
+  });
+
+  it("does not strip a plain user message that merely starts with System", () => {
+    const input = "System: [manual note] keep this text";
+    expect(stripInboundMetadata(input)).toBe(input);
+  });
 });
 
 describe("extractInboundSenderLabel", () => {

@@ -1,12 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveProviderAuthOverview } from "../commands/models/list.auth-overview.js";
 import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../shared/alisio-appearance.js";
 import { loadAlisioProviderOverview } from "./alisio-provider-overview.js";
 
 describe("loadAlisioProviderOverview", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("builds a unified overview from real provider, runtime, and connector signals", async () => {
     const result = await loadAlisioProviderOverview({
       usageTimeoutMs: 10,
+      includeUsage: true,
       deps: {
         ensureAuthProfileStore: () =>
           ({
@@ -122,6 +127,16 @@ describe("loadAlisioProviderOverview", () => {
         listAlisioConnectorDefinitions: () =>
           [
             {
+              id: "google-docs",
+              title: "Google Docs",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Read and create document workflows in Google Docs.",
+              availability: "ready",
+              scopes: ["https://www.googleapis.com/auth/documents", "openid", "email"],
+            },
+            {
               id: "google-calendar",
               title: "Google Calendar",
               providerLabel: "Google",
@@ -134,6 +149,16 @@ describe("loadAlisioProviderOverview", () => {
           ] as never,
         listAlisioConnectorAuthorizations: async () =>
           [
+            {
+              connectorId: "google-docs",
+              state: "connected",
+              health: "healthy",
+              scopes: ["https://www.googleapis.com/auth/documents", "openid", "email"],
+              connectedAccount: {
+                label: "Nuno",
+                email: "nuno@example.com",
+              },
+            },
             {
               connectorId: "google-calendar",
               state: "connected",
@@ -244,7 +269,6 @@ describe("loadAlisioProviderOverview", () => {
               ownerPluginId: "openai",
             },
           ] as never,
-        hasAvailableAuthForProvider: async ({ provider }) => provider !== "anthropic",
         resolveProviderAuthOverview,
         loadProviderUsageSummary: async () =>
           ({
@@ -274,7 +298,120 @@ describe("loadAlisioProviderOverview", () => {
     expect(result.providers.find((item) => item.id === "openai")?.chips).toContain("Image");
     expect(result.providers.find((item) => item.id === "anthropic")?.status).toBe("attention");
     expect(result.runtimes.map((item) => item.title)).toContain("MacBook Pro");
-    expect(result.apps[0]?.connectorId).toBe("google-calendar");
-    expect(result.connectors.catalog).toHaveLength(1);
+    expect(result.apps.find((item) => item.connectorId === "google-docs")?.status).toBe(
+      "connected",
+    );
+    expect(result.apps.find((item) => item.connectorId === "google-calendar")?.status).toBe(
+      "coming_soon",
+    );
+    expect(result.apps.find((item) => item.connectorId === "google-calendar")?.active).toBe(false);
+    expect(result.connectors.catalog).toHaveLength(2);
+  });
+
+  it("falls back quickly when usage or auth probes stall", async () => {
+    vi.useFakeTimers();
+
+    const never = new Promise<never>(() => undefined);
+    const resultPromise = loadAlisioProviderOverview({
+      usageTimeoutMs: 1,
+      includeUsage: true,
+      deps: {
+        ensureAuthProfileStore: () =>
+          ({
+            version: 1,
+            profiles: {},
+          }) as never,
+        readConfigFileSnapshot: async () =>
+          ({
+            path: "/tmp/models.json",
+            valid: true,
+            config: {
+              models: {
+                providers: {
+                  openai: {},
+                },
+              },
+            },
+            runtimeConfig: {
+              models: {
+                providers: {
+                  openai: {},
+                },
+              },
+            },
+          }) as never,
+        getAlisioAccountState: async () =>
+          ({
+            profile: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: new Date().toISOString(),
+              plan: "free",
+            },
+            preferences: {
+              language: "en",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "system",
+              themeAccents: DEFAULT_THEME_ACCENTS,
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+            },
+            devices: [],
+            cloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
+          }) as never,
+        getAlisioAiState: async () =>
+          ({
+            provider: "openai",
+            status: "connected",
+            profiles: [],
+          }) as never,
+        listAlisioConnectorDefinitions: () => [] as never,
+        listAlisioConnectorAuthorizations: async () => [] as never,
+        loadAlisioModelProviderSnapshot: async () =>
+          ({
+            catalog: [],
+            dynamicSources: [],
+            dynamicCatalogEntries: [],
+            targets: [],
+          }) as never,
+        getActivePluginRegistry: () =>
+          ({
+            providers: [
+              {
+                pluginId: "openai",
+                provider: {
+                  id: "openai",
+                  label: "OpenAI",
+                  auth: [],
+                  docsPath: "/providers/openai",
+                },
+              },
+            ],
+            speechProviders: [],
+            imageGenerationProviders: [],
+            mediaUnderstandingProviders: [],
+            webSearchProviders: [],
+          }) as never,
+        listRegisteredMemoryEmbeddingProviders: () => [],
+        resolveProviderAuthOverview,
+        loadProviderUsageSummary: async () => await never,
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    const result = await resultPromise;
+
+    expect(result.providers).toHaveLength(1);
+    expect(result.providers[0]?.providerId).toBe("openai");
+    expect(result.providers[0]?.usageWindows).toEqual([]);
+    expect(result.providers[0]?.status).toBe("ready");
   });
 });

@@ -87,8 +87,8 @@ function extractComparableMessageText(message: unknown): string {
   if (!text || role !== "user") {
     return text;
   }
-  // Optimistic local sends append attachment summaries that the persisted
-  // transcript may not mirror verbatim. Strip those for semantic matching.
+  // Back-compat for older optimistic sends that encoded attachment summaries
+  // as text instead of structured attachment blocks.
   return text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -127,7 +127,7 @@ function resolveComparableMediaCount(message: unknown): number {
       return false;
     }
     const type = (item as { type?: unknown }).type;
-    return type === "image" || type === "image_url";
+    return type === "image" || type === "image_url" || type === "attachment";
   }).length;
 }
 
@@ -297,25 +297,6 @@ function appendChatMessageIfDistinct(state: ChatState, message: unknown): void {
   state.chatMessages = [...state.chatMessages, message];
 }
 
-function buildNonImageAttachmentSummary(attachments: ChatAttachment[]): string | null {
-  const nonImageAttachments = attachments.filter(
-    (attachment) => !isImageChatAttachmentMimeType(attachment.mimeType),
-  );
-  if (nonImageAttachments.length === 0) {
-    return null;
-  }
-  const named = nonImageAttachments
-    .map((attachment) => attachment.fileName?.trim())
-    .filter((value): value is string => Boolean(value));
-  if (named.length === 1) {
-    return `Attachment: ${named[0]}`;
-  }
-  if (named.length > 1) {
-    return `Attachments: ${named.slice(0, 2).join(", ")}${named.length > 2 ? ", ..." : ""}`;
-  }
-  return `Attachments: ${nonImageAttachments.length} file${nonImageAttachments.length === 1 ? "" : "s"}`;
-}
-
 export type ChatState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -339,6 +320,37 @@ export type ChatRuntimeSetupHint = {
   message: string;
   ctaLabel: string;
 };
+
+const chatHistoryRequestSeq = new WeakMap<object, number>();
+
+function beginChatHistoryRequest(state: ChatState): {
+  client: NonNullable<ChatState["client"]>;
+  sessionKey: string;
+  token: number;
+} {
+  const token = (chatHistoryRequestSeq.get(state as object) ?? 0) + 1;
+  chatHistoryRequestSeq.set(state as object, token);
+  return {
+    client: state.client as NonNullable<ChatState["client"]>,
+    sessionKey: state.sessionKey,
+    token,
+  };
+}
+
+function isCurrentChatHistoryRequest(
+  state: ChatState,
+  requestState: {
+    client: NonNullable<ChatState["client"]>;
+    sessionKey: string;
+    token: number;
+  },
+): boolean {
+  return (
+    chatHistoryRequestSeq.get(state as object) === requestState.token &&
+    state.client === requestState.client &&
+    state.sessionKey === requestState.sessionKey
+  );
+}
 
 export type ChatEventPayload = {
   runId: string;
@@ -407,6 +419,7 @@ export async function loadChatHistory(
   if (!state.client || !state.connected) {
     return;
   }
+  const requestState = beginChatHistoryRequest(state);
   const silent = opts?.silent ?? false;
   const preserveEphemeral =
     opts?.preserveEphemeral ?? Boolean(state.chatRunId || state.chatFinalizing);
@@ -416,13 +429,16 @@ export async function loadChatHistory(
   state.lastError = null;
   state.chatRuntimeSetupHint = null;
   try {
-    const res = await state.client.request<{ messages?: Array<unknown>; thinkingLevel?: string }>(
-      "chat.history",
-      {
-        sessionKey: state.sessionKey,
-        limit: 200,
-      },
-    );
+    const res = await requestState.client.request<{
+      messages?: Array<unknown>;
+      thinkingLevel?: string;
+    }>("chat.history", {
+      sessionKey: requestState.sessionKey,
+      limit: 200,
+    });
+    if (!isCurrentChatHistoryRequest(state, requestState)) {
+      return;
+    }
     const messages = Array.isArray(res.messages) ? res.messages : [];
     const historyMessages = dedupeAdjacentChatMessages(
       messages.filter((message) => !isAssistantSilentReply(message)),
@@ -443,6 +459,9 @@ export async function loadChatHistory(
       state.chatFinalizing = false;
     }
   } catch (err) {
+    if (!isCurrentChatHistoryRequest(state, requestState)) {
+      return;
+    }
     if (isMissingOperatorReadScopeError(err)) {
       state.chatMessages = [];
       state.chatThinkingLevel = null;
@@ -451,7 +470,7 @@ export async function loadChatHistory(
       state.lastError = String(err);
     }
   } finally {
-    if (!silent) {
+    if (!silent && isCurrentChatHistoryRequest(state, requestState)) {
       state.chatLoading = false;
     }
   }
@@ -529,26 +548,34 @@ export async function sendChatMessage(
   }
 
   const now = Date.now();
+  const runId = generateUUID();
 
   // Build user message content blocks
-  const contentBlocks: Array<{ type: string; text?: string; source?: unknown }> = [];
+  const contentBlocks: Array<{
+    type: string;
+    text?: string;
+    source?: unknown;
+    mimeType?: string;
+    fileName?: string;
+  }> = [];
   if (msg) {
     contentBlocks.push({ type: "text", text: msg });
   }
-  // Add image previews to the message for display
+  // Add structured attachment blocks so optimistic UI matches persisted history.
   if (hasAttachments) {
     for (const att of attachments) {
-      if (!isImageChatAttachmentMimeType(att.mimeType)) {
+      if (isImageChatAttachmentMimeType(att.mimeType)) {
+        contentBlocks.push({
+          type: "image",
+          source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
+        });
         continue;
       }
       contentBlocks.push({
-        type: "image",
-        source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
+        type: "attachment",
+        mimeType: att.mimeType,
+        ...(att.fileName ? { fileName: att.fileName } : {}),
       });
-    }
-    const nonImageSummary = buildNonImageAttachmentSummary(attachments);
-    if (nonImageSummary) {
-      contentBlocks.push({ type: "text", text: nonImageSummary });
     }
   }
 
@@ -558,6 +585,7 @@ export async function sendChatMessage(
       role: "user",
       content: contentBlocks,
       timestamp: now,
+      idempotencyKey: runId,
     },
   ];
 
@@ -565,7 +593,6 @@ export async function sendChatMessage(
   state.lastError = null;
   state.chatRuntimeSetupHint = null;
   state.chatFinalizing = false;
-  const runId = generateUUID();
   state.chatRunId = runId;
   state.chatStream = "";
   state.chatStreamStartedAt = now;

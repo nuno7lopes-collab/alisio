@@ -25,6 +25,9 @@ export type AgentsState = {
   agentsLoading: boolean;
   agentsError: string | null;
   agentsList: AgentsListResult | null;
+  agentsLoadPromise?: Promise<void>;
+  agentsReloadQueued?: boolean;
+  agentsLastSuccessAt?: number;
   agentsSelectedId: string | null;
   toolsCatalogLoading: boolean;
   toolsCatalogLoadingAgentId?: string | null;
@@ -42,35 +45,59 @@ export type AgentsState = {
   agentsPanel?: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
 };
 
+const AGENTS_CACHE_TTL_MS = 30_000;
+
 export type AgentsConfigSaveState = AgentsState & ConfigState;
 
-export async function loadAgents(state: AgentsState) {
+export async function loadAgents(state: AgentsState, options?: { force?: boolean }) {
   if (!state.client || !state.connected) {
     return;
   }
-  if (state.agentsLoading) {
+  if (
+    !options?.force &&
+    state.agentsList &&
+    typeof state.agentsLastSuccessAt === "number" &&
+    Date.now() - state.agentsLastSuccessAt < AGENTS_CACHE_TTL_MS
+  ) {
+    return;
+  }
+  const client = state.client;
+  if (state.agentsLoadPromise) {
+    state.agentsReloadQueued ||= Boolean(options?.force);
+    await state.agentsLoadPromise;
     return;
   }
   state.agentsLoading = true;
-  state.agentsError = null;
-  try {
-    const res = await state.client.request<AgentsListResult>("agents.list", {});
-    if (res) {
-      state.agentsList = res;
-      const selected = state.agentsSelectedId;
-      const known = res.agents.some((entry) => entry.id === selected);
-      if (!selected || !known) {
-        state.agentsSelectedId = res.defaultId ?? res.agents[0]?.id ?? null;
+  state.agentsLoadPromise = (async () => {
+    do {
+      state.agentsReloadQueued = false;
+      state.agentsError = null;
+      try {
+        const res = await client.request<AgentsListResult>("agents.list", {});
+        if (res && Array.isArray(res.agents)) {
+          state.agentsList = res;
+          state.agentsLastSuccessAt = Date.now();
+          const selected = state.agentsSelectedId;
+          const known = res.agents.some((entry) => entry.id === selected);
+          if (!selected || !known) {
+            state.agentsSelectedId = res.defaultId ?? res.agents[0]?.id ?? null;
+          }
+        }
+      } catch (err) {
+        if (isMissingOperatorReadScopeError(err)) {
+          state.agentsList = null;
+          state.agentsError = formatMissingOperatorReadScopeMessage("agent list");
+        } else {
+          state.agentsError = String(err);
+        }
       }
-    }
-  } catch (err) {
-    if (isMissingOperatorReadScopeError(err)) {
-      state.agentsList = null;
-      state.agentsError = formatMissingOperatorReadScopeMessage("agent list");
-    } else {
-      state.agentsError = String(err);
-    }
+    } while (state.agentsReloadQueued && state.connected && state.client === client);
+  })();
+  try {
+    await state.agentsLoadPromise;
   } finally {
+    state.agentsLoadPromise = undefined;
+    state.agentsReloadQueued = false;
     state.agentsLoading = false;
   }
 }

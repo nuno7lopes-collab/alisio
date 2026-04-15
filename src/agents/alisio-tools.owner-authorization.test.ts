@@ -10,7 +10,10 @@ describe("createAlisioTools owner authorization", () => {
   it("marks owner-only core tools in raw registration", () => {
     const tools = readToolByName();
     expect(tools.get("cron")?.ownerOnly).toBe(true);
+    expect(tools.get("gmail_modify")?.ownerOnly).toBe(true);
+    expect(tools.get("gmail_read")?.ownerOnly).toBe(true);
     expect(tools.get("gmail_send")?.ownerOnly).toBe(true);
+    expect(tools.get("google_docs")?.ownerOnly).toBe(true);
     expect(tools.get("gateway")?.ownerOnly).toBe(true);
     expect(tools.get("nodes")?.ownerOnly).toBe(true);
   });

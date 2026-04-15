@@ -193,7 +193,7 @@ describe("alisio-account-cloud", () => {
       ok: true,
       email: "owner@example.com",
       message:
-        "Check your email for the Alisio sign-in link. If the email also includes a 6-digit code, you can enter it in the app.",
+        "Check your email for the Alisio sign-in link. If the email also includes a 6-digit backup code, you can enter it in the app instead.",
     });
   });
 

@@ -17,7 +17,10 @@ import { createCanvasTool } from "./tools/canvas-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createCronTool } from "./tools/cron-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
+import { createGmailModifyTool } from "./tools/gmail-modify-tool.js";
+import { createGmailReadTool } from "./tools/gmail-read-tool.js";
 import { createGmailSendTool } from "./tools/gmail-send-tool.js";
+import { createGoogleDocsTool } from "./tools/google-docs-tool.js";
 import { createImageGenerateTool } from "./tools/image-generate-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
@@ -202,6 +205,9 @@ export function createAlisioTools(
       agentChannel: options?.agentChannel,
       config: options?.config,
     }),
+    createGoogleDocsTool(),
+    createGmailReadTool(),
+    createGmailModifyTool(),
     createGmailSendTool(),
     ...(imageGenerateTool ? [imageGenerateTool] : []),
     createGatewayTool({

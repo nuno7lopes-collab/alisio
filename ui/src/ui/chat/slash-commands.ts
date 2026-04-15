@@ -70,6 +70,7 @@ const LOCAL_COMMANDS = new Set([
   "redirect",
   "permissions",
   "approvals",
+  "tasks",
 ]);
 
 const UI_ONLY_COMMANDS: SlashCommandDef[] = [
@@ -109,6 +110,13 @@ const UI_ONLY_COMMANDS: SlashCommandDef[] = [
     category: "tools",
     executeLocal: true,
   },
+  {
+    key: "tasks",
+    name: "tasks",
+    description: "Open the task inbox and background task view",
+    category: "tools",
+    executeLocal: true,
+  },
 ];
 
 const CATEGORY_OVERRIDES: Partial<Record<string, SlashCommandCategory>> = {
@@ -127,6 +135,7 @@ const CATEGORY_OVERRIDES: Partial<Record<string, SlashCommandCategory>> = {
   redirect: "agents",
   permissions: "tools",
   approvals: "tools",
+  tasks: "tools",
   session: "session",
   stop: "session",
   reset: "session",

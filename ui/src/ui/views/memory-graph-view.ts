@@ -7,7 +7,7 @@ import {
   type MemoryGraphViewModel,
 } from "../controllers/memory-graph-controller.ts";
 import { icons } from "../icons.ts";
-import type { MemoryGraphBranch, MemoryGraphState } from "../types.ts";
+import type { MemoryGraphState } from "../types.ts";
 import { buildMemoryGraphLayout, type MemoryGraphLayout } from "./memory-graph-layout.ts";
 import {
   createMemoryGraphSimulation,
@@ -17,7 +17,6 @@ import {
 
 export type MemoryGraphViewText = {
   graphTitle: string;
-  graphDescription?: string;
   graphLoading: string;
   graphUnavailable: string;
   graphEmpty: string;
@@ -26,13 +25,6 @@ export type MemoryGraphViewText = {
   graphLocal: string;
   graphDepth?: string;
   graphResetView: string;
-  graphNeighbourhood: string;
-  graphOrphans?: string;
-  graphBranches: string;
-  graphBranchesEmpty: string;
-  graphEdgeReason: string;
-  graphEdgeReasonEmpty: string;
-  graphFilterRelations: string;
   graphFilterTags: string;
   graphGroups?: string;
   graphColorBy?: string;
@@ -46,47 +38,10 @@ export type MemoryGraphViewText = {
   graphContextMenuOpen?: string;
   graphContextMenuCenter?: string;
   graphContextMenuLocal?: string;
-  graphDisplay?: string;
-  graphArrows?: string;
-  graphTextFadeThreshold?: string;
-  graphNodeSize?: string;
-  graphLinkThickness?: string;
-  graphForces?: string;
-  graphCenterForce?: string;
-  graphRepelForce?: string;
-  graphLinkForce?: string;
-  graphLinkDistance?: string;
   graphNodesCount: string;
   graphEdgesCount: string;
-  graphTruncated: string;
-  graphSource: string;
-  graphTarget: string;
-  graphRelationType: string;
-  graphClusters?: string;
-  graphSuggestions?: string;
-  graphSpotlight?: string;
-  graphIncoming?: string;
-  graphOutgoing?: string;
-  graphDegree?: string;
-  graphZoomIn?: string;
-  graphZoomOut?: string;
   graphCenterFocus?: string;
-  graphCanvasHint?: string;
   graphShowAttachments?: string;
-  graphAliases?: string;
-  graphTags?: string;
-  graphRelations?: string;
-  searchPlaceholder?: string;
-  wikiOpenPage?: string;
-  none?: string;
-  ready?: string;
-  unavailable?: string;
-  builtin?: string;
-  localFirst?: string;
-  localOnly?: string;
-  cloudSyncEnabled?: string;
-  cloudSyncUnavailable?: string;
-  cloudSyncError?: string;
 };
 
 type GraphGroupMode = "none" | "folder" | "tag" | "kind" | "source";
@@ -235,51 +190,6 @@ function buildNodeGroups(view: MemoryGraphViewModel, mode: GraphGroupMode) {
   return groups;
 }
 
-function resolveBranchLabel(
-  branch: MemoryGraphBranch,
-  text: Pick<MemoryGraphViewText, "graphIncoming" | "graphOutgoing">,
-) {
-  const direction = branch.direction === "incoming" ? text.graphIncoming : text.graphOutgoing;
-  return `${direction ?? branch.direction} · ${branch.relationType}`;
-}
-
-function resolveGraphStateLabel(
-  graph: MemoryGraphState,
-  text: Pick<
-    MemoryGraphViewText,
-    | "ready"
-    | "builtin"
-    | "localFirst"
-    | "localOnly"
-    | "cloudSyncEnabled"
-    | "cloudSyncUnavailable"
-    | "cloudSyncError"
-  >,
-) {
-  const parts = [
-    graph.state === "ready" ? (text.ready ?? "Ready") : graph.state,
-    graph.backend === "builtin" ? (text.builtin ?? "Built-in") : graph.backend,
-    graph.syncMode === "local-first"
-      ? (text.localFirst ?? "Local-first")
-      : graph.syncMode === "local-only"
-        ? (text.localOnly ?? "Local-only")
-        : graph.syncMode,
-  ].filter(Boolean);
-
-  const cloudSync =
-    graph.cloudSync === "enabled"
-      ? text.cloudSyncEnabled
-      : graph.cloudSync === "unavailable"
-        ? text.cloudSyncUnavailable
-        : graph.cloudSync === "error"
-          ? text.cloudSyncError
-          : graph.cloudSync;
-  if (cloudSync) {
-    parts.push(cloudSync);
-  }
-  return parts.join(" · ");
-}
-
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof HTMLElement &&
@@ -384,13 +294,6 @@ export class AlisioMemoryGraphView extends LitElement {
         graphLocal: "Local",
         graphDepth: "Local depth",
         graphResetView: "Reset view",
-        graphNeighbourhood: "Neighborhood",
-        graphOrphans: "Show orphans",
-        graphBranches: "Branches",
-        graphBranchesEmpty: "No branches available.",
-        graphEdgeReason: "Why this link exists",
-        graphEdgeReasonEmpty: "Select an edge to inspect the canonical link behind it.",
-        graphFilterRelations: "Relation filters",
         graphFilterTags: "Tag filters",
         graphGroups: "Groups",
         graphColorBy: "Color by",
@@ -404,44 +307,10 @@ export class AlisioMemoryGraphView extends LitElement {
         graphContextMenuOpen: "Open",
         graphContextMenuCenter: "Center node",
         graphContextMenuLocal: "Open local graph",
-        graphDisplay: "Display",
-        graphArrows: "Arrows",
-        graphTextFadeThreshold: "Text fade",
-        graphNodeSize: "Node size",
-        graphLinkThickness: "Link thickness",
-        graphForces: "Forces",
-        graphCenterForce: "Center force",
-        graphRepelForce: "Repel force",
-        graphLinkForce: "Link force",
-        graphLinkDistance: "Link distance",
         graphNodesCount: "Nodes",
         graphEdgesCount: "Edges",
-        graphTruncated: "Truncated to keep the graph responsive.",
-        graphSource: "Source",
-        graphTarget: "Target",
-        graphRelationType: "Relation",
-        graphSuggestions: "Suggested routes",
-        graphSpotlight: "Spotlight",
-        graphIncoming: "Incoming",
-        graphOutgoing: "Outgoing",
-        graphDegree: "Degree",
-        graphZoomIn: "Zoom in",
-        graphZoomOut: "Zoom out",
         graphCenterFocus: "Center focus",
-        graphCanvasHint:
-          "Drag to pan, scroll to zoom, click to open a page, and right-click a node for more actions.",
         graphShowAttachments: "Attachments",
-        graphAliases: "Aliases",
-        graphTags: "Tags",
-        graphRelations: "Relations",
-        none: "None",
-        ready: "Ready",
-        builtin: "Built-in",
-        localFirst: "Local-first",
-        localOnly: "Local-only",
-        cloudSyncEnabled: "Cloud sync active",
-        cloudSyncUnavailable: "Cloud sync unavailable",
-        cloudSyncError: "Cloud sync error",
       }
     );
   }
@@ -670,10 +539,7 @@ export class AlisioMemoryGraphView extends LitElement {
       scope: this.activeScope,
       focus: view.focusNode?.id ?? null,
       searchQuery: filters.searchQuery.trim(),
-      relationTypes: [...filters.relationTypes].toSorted(),
       tags: [...filters.tags].toSorted(),
-      neighbourhoodOnly: filters.neighbourhoodOnly,
-      showOrphans: filters.showOrphans,
       groupMode: this.groupMode,
       nodes: view.nodes.map((node) => node.id),
       edges: view.edges.map((edge) => edge.id),
@@ -1007,63 +873,6 @@ export class AlisioMemoryGraphView extends LitElement {
     `;
   }
 
-  private renderMetaCard(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
-    const focusNode = view.focusNode;
-    return html`
-      <section class="alisio-memory-graph__card">
-        <div class="alisio-memory-group__header"><h2>${text.graphTitle}</h2></div>
-        ${text.graphDescription
-          ? html`<p class="alisio-memory-graph__lede">${text.graphDescription}</p>`
-          : nothing}
-        <div class="alisio-memory-graph__scope">
-          <button
-            type="button"
-            class="btn btn--sm ${this.activeScope === "global" ? "primary" : ""}"
-            @click=${() => this.dispatchScopeChange("global")}
-          >
-            ${text.graphGlobal}
-          </button>
-          <button
-            type="button"
-            class="btn btn--sm ${this.activeScope === "local" ? "primary" : ""}"
-            ?disabled=${!this.localAvailable}
-            @click=${() => this.dispatchScopeChange("local")}
-          >
-            ${text.graphLocal}
-          </button>
-          <button type="button" class="btn btn--sm" @click=${() => this.resetViewport()}>
-            ${text.graphResetView}
-          </button>
-        </div>
-        <div class="alisio-memory-graph__toolbar">
-          <button type="button" class="btn btn--sm" @click=${() => this.adjustZoom(1.08)}>
-            ${text.graphZoomIn ?? "+"}
-          </button>
-          <button type="button" class="btn btn--sm" @click=${() => this.adjustZoom(0.92)}>
-            ${text.graphZoomOut ?? "-"}
-          </button>
-          <button
-            type="button"
-            class="btn btn--sm"
-            ?disabled=${!focusNode}
-            @click=${() => this.centerFocus()}
-          >
-            ${text.graphCenterFocus ?? text.graphFocus}
-          </button>
-        </div>
-        <div class="alisio-memory-graph__meta">
-          <span>${text.graphNodesCount}: ${view.nodes.length}</span>
-          <span>${text.graphEdgesCount}: ${view.edges.length}</span>
-          <span>${resolveGraphStateLabel(this.graph!, text)}</span>
-        </div>
-        ${this.graph!.truncated.nodes || this.graph!.truncated.edges
-          ? html`<div class="muted">${text.graphTruncated}</div>`
-          : nothing}
-        ${text.graphCanvasHint ? html`<div class="muted">${text.graphCanvasHint}</div>` : nothing}
-      </section>
-    `;
-  }
-
   private renderFiltersCard(_view: MemoryGraphViewModel, text: MemoryGraphViewText) {
     const selectedTags = new Set(this.filters.tags);
     const hasTagFilters = this.graph!.availableTags.length > 0;
@@ -1231,103 +1040,6 @@ export class AlisioMemoryGraphView extends LitElement {
             params.onInput(Number((event.currentTarget as HTMLInputElement).value))}
         />
       </label>
-    `;
-  }
-
-  private renderBranchesCard(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
-    return html`
-      <section class="alisio-memory-graph__card">
-        <div class="alisio-memory-group__header"><h2>${text.graphBranches}</h2></div>
-        <div class="alisio-memory-graph__branch-list">
-          ${view.branches.length === 0
-            ? html`<div class="alisio-memory-empty">${text.graphBranchesEmpty}</div>`
-            : view.branches.map(
-                (branch) => html`
-                  <article class="alisio-memory-graph__branch">
-                    <strong>${resolveBranchLabel(branch, text)}</strong>
-                    <div class="alisio-memory-graph__chips">
-                      ${branch.nodeIds.map((nodeId) => {
-                        const node = view.nodes.find((entry) => entry.id === nodeId);
-                        return html`
-                          <button
-                            type="button"
-                            class="btn btn--sm"
-                            @click=${() => this.dispatchNodeOpen(nodeId)}
-                          >
-                            ${node?.title ?? nodeId}
-                          </button>
-                        `;
-                      })}
-                    </div>
-                  </article>
-                `,
-              )}
-        </div>
-      </section>
-    `;
-  }
-
-  private renderSpotlightCard(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
-    const focusNode = view.focusNode;
-    const selectedEdge = view.selectedEdge;
-    return html`
-      <section class="alisio-memory-graph__card">
-        <div class="alisio-memory-group__header">
-          <h2>${selectedEdge ? text.graphEdgeReason : (text.graphSpotlight ?? text.graphFocus)}</h2>
-        </div>
-        ${selectedEdge
-          ? html`
-              <div class="alisio-memory-graph__edge-reason">
-                <strong>
-                  ${selectedEdge.reason.sourceTitle} ${selectedEdge.relationType}
-                  ${selectedEdge.reason.targetTitle}
-                </strong>
-                <div>${text.graphRelationType}: ${selectedEdge.reason.relationType}</div>
-                <div>${text.graphSource}: ${selectedEdge.reason.sourcePath}</div>
-                <div>${text.graphTarget}: ${selectedEdge.reason.targetPath}</div>
-              </div>
-            `
-          : !focusNode
-            ? html`<div class="alisio-memory-empty">${text.graphEdgeReasonEmpty}</div>`
-            : html`
-                <div class="alisio-memory-graph__spotlight">
-                  <strong>${focusNode.title}</strong>
-                  <span>${focusNode.sourcePath}</span>
-                  <div class="alisio-memory-graph__meta">
-                    <span>${text.graphDegree ?? "Degree"}: ${focusNode.degree}</span>
-                    <span>
-                      ${text.graphIncoming ?? "Incoming"}: ${String(focusNode.incoming)}
-                    </span>
-                    <span>
-                      ${text.graphOutgoing ?? "Outgoing"}: ${String(focusNode.outgoing)}
-                    </span>
-                  </div>
-                  ${focusNode.aliases.length > 0
-                    ? html`
-                        <div class="alisio-memory-graph__meta-block">
-                          <strong>${text.graphAliases ?? "Aliases"}</strong>
-                          <span>${focusNode.aliases.join(", ")}</span>
-                        </div>
-                      `
-                    : nothing}
-                  ${focusNode.tags.length > 0
-                    ? html`
-                        <div class="alisio-memory-graph__meta-block">
-                          <strong>${text.graphTags ?? "Tags"}</strong>
-                          <span>${focusNode.tags.join(", ")}</span>
-                        </div>
-                      `
-                    : nothing}
-                  <button
-                    type="button"
-                    class="btn btn--sm primary"
-                    @click=${() => this.dispatchNodeOpen(focusNode.id)}
-                  >
-                    ${text.wikiOpenPage ?? text.graphFocus}
-                  </button>
-                </div>
-              `}
-      </section>
     `;
   }
 
@@ -1724,25 +1436,6 @@ export class AlisioMemoryGraphView extends LitElement {
         .alisio-memory-graph__slider em {
           color: var(--text-muted);
           font-style: normal;
-        }
-        .alisio-memory-graph__search-indicator,
-        .alisio-memory-graph__spotlight,
-        .alisio-memory-graph__branch,
-        .alisio-memory-graph__edge-reason {
-          display: grid;
-          gap: 8px;
-          padding: 12px 14px;
-          border-radius: 16px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
-          background: color-mix(in srgb, var(--surface-elevated) 76%, transparent);
-        }
-        .alisio-memory-graph__search-indicator span {
-          color: var(--text-muted);
-          overflow-wrap: anywhere;
-        }
-        .alisio-memory-graph__branch-list {
-          display: grid;
-          gap: 10px;
         }
         .alisio-memory-graph__settings {
           position: absolute;

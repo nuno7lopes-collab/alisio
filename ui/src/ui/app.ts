@@ -86,7 +86,6 @@ import type {
 import type { SkillMessage } from "./controllers/skills.ts";
 import "./alisio-host.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import { todayMemoryDate } from "./memory-files.ts";
 import type { ModelProviderId } from "./models-view-types.ts";
 import type { ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
@@ -116,6 +115,7 @@ import type {
   TasksOverviewResult,
   ToolsCatalogResult,
   ToolsEffectiveResult,
+  AlisioAuthStage,
 } from "./types.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 import { generateUUID } from "./uuid.ts";
@@ -187,7 +187,7 @@ export class AlisioApp extends LitElement {
   @state() alisioAuthEmail = "";
   @state() alisioAuthPendingEmail = "";
   @state() alisioAuthCode = "";
-  @state() alisioAuthStage: "entry" | "email-code" = "entry";
+  @state() alisioAuthStage: AlisioAuthStage = "entry";
   @state() alisioPasswordResetRequired = false;
   @state() alisioTermsAccepted = false;
   @state() alisioMarketingOptIn = false;
@@ -383,15 +383,6 @@ export class AlisioApp extends LitElement {
   @state() agentsError: string | null = null;
   @state() agentsSelectedId: string | null = null;
   @state() memorySelectedAgentId: string | null = null;
-  @state() memoryAgentId: string | null = null;
-  @state() memoryLoading = false;
-  @state() memoryError: string | null = null;
-  @state() memoryList: AgentsFilesListResult | null = null;
-  @state() memoryContents: Record<string, string> = {};
-  @state() memoryDrafts: Record<string, string> = {};
-  @state() memoryActive: string | null = null;
-  @state() memorySaving = false;
-  @state() memoryDeleting = false;
   @state() memoryStatusLoading = false;
   @state() memoryStatusError: string | null = null;
   @state() memoryStatus: import("./types.ts").MemoryStatusState | null = null;
@@ -401,9 +392,6 @@ export class AlisioApp extends LitElement {
   @state() memoryGraphError: string | null = null;
   @state() memoryGraph: import("./types.ts").MemoryGraphState | null = null;
   @state() memorySearchQuery = "";
-  @state() memoryComposerOpen = false;
-  @state() memoryComposerDate = todayMemoryDate();
-  @state() memoryComposerTitle = "";
   @state() toolsCatalogLoading = false;
   @state() toolsCatalogError: string | null = null;
   @state() toolsCatalogResult: ToolsCatalogResult | null = null;
@@ -664,6 +652,9 @@ export class AlisioApp extends LitElement {
         }
         case "open-security":
           this.setTab("security");
+          break;
+        case "open-tasks":
+          this.setTab("tasks");
           break;
       }
     };

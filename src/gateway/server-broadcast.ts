@@ -22,6 +22,7 @@ const EVENT_SCOPE_GUARDS: Record<string, string[]> = {
   "devices.changed": [READ_SCOPE],
   "alisio.models.operation": [WRITE_SCOPE],
   "sessions.changed": [READ_SCOPE],
+  "tasks.proposal.changed": [READ_SCOPE],
   "session.message": [READ_SCOPE],
   "session.tool": [READ_SCOPE],
 };

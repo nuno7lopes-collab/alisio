@@ -8,28 +8,17 @@ import {
 } from "../controllers/memory-files-preview.ts";
 import {
   MemoryEndpointUnavailableError,
-  type MemoryClaimItem,
-  type MemoryEvidenceItem,
-  type MemoryExportFormat,
-  type MemoryExportResult,
   type MemoryFileDetail,
   type MemoryNote,
   type MemoryNoteAttachment,
   type MemoryNoteBacklink,
-  type MemoryNoteHistoryEntry,
   type MemoryNoteListEntry,
   type MemoryNotesListResult,
-  type MemoryReasonTag,
-  type MemorySyncSurface,
-  type MemoryTraceResult,
-  requestMemoryExport,
   requestMemoryFile,
   requestMemoryGraph,
   requestMemoryNote,
-  requestMemoryNoteHistory,
   requestMemoryNotesList,
   requestMemoryNoteUpdate,
-  requestMemoryTrace,
 } from "../controllers/memory-runtime.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
@@ -51,133 +40,39 @@ type NoteMode = "markdown" | "reading";
 function memoryText() {
   return {
     agent: t("alisio.memory.agent"),
-    loading: t("alisio.memory.loading"),
-    refresh: t("common.refresh"),
-    searchPlaceholder: t("alisio.memory.searchPlaceholder"),
-    save: t("alisio.memory.save"),
-    saving: t("alisio.memory.saving"),
-    reset: t("alisio.memory.reset"),
-    preview: t("alisio.memory.preview"),
-    previewEmpty: t("alisio.memory.previewEmpty"),
-    unsaved: t("alisio.memory.unsaved"),
-    missing: t("alisio.memory.missing"),
-    emptyAgents: t("alisio.memory.emptyAgents"),
-    statusLoading: t("alisio.memory.statusLoading"),
-    runtimeUnavailable: t("alisio.memory.runtimeUnavailable"),
-    runtimeTitle: t("alisio.memory.runtimeTitle"),
-    backend: t("alisio.memory.backend"),
-    builtin: t("alisio.memory.builtin"),
-    provider: t("alisio.memory.provider"),
-    embedding: t("alisio.memory.embedding"),
-    ready: t("alisio.memory.ready"),
-    unavailable: t("alisio.memory.unavailable"),
-    localFirst: t("alisio.memory.localFirst"),
-    localOnly: t("alisio.memory.localOnly"),
-    cloudSyncEnabled: t("alisio.memory.cloudSyncEnabled"),
-    cloudSyncUnavailable: t("alisio.memory.cloudSyncUnavailable"),
-    cloudSyncError: t("alisio.memory.cloudSyncError"),
-    syncNow: t("alisio.memory.syncNow"),
-    syncing: t("alisio.memory.syncing"),
+    cancelCreate: t("alisio.memory.cancelCreate"),
+    filesAttached: t("alisio.memory.files.attached"),
+    filesDownload: t("alisio.memory.files.download"),
+    filesFocusGraph: t("alisio.memory.files.focusGraph"),
+    filesMediaType: t("alisio.memory.files.mediaType"),
+    filesMentioned: t("alisio.memory.files.mentioned"),
+    filesOpen: t("alisio.memory.files.open"),
+    filesOpenPage: t("alisio.memory.files.openPage"),
+    filesPreviewTruncated: t("alisio.memory.files.previewTruncated"),
+    filesPreviewUnavailable: t("alisio.memory.files.previewUnavailable"),
+    filesRelatedPages: t("alisio.memory.files.relatedPages"),
+    filesSize: t("alisio.memory.files.size"),
+    filesTitle: t("alisio.memory.files.title"),
+    filesUnlinked: t("alisio.memory.files.unlinked"),
+    graphCenterFocus: t("alisio.memory.graph.centerFocus"),
+    graphColorBy: t("alisio.memory.graph.colorBy"),
+    graphContextMenuCenter: t("alisio.memory.graph.contextMenuCenter"),
+    graphContextMenuLocal: t("alisio.memory.graph.contextMenuLocal"),
+    graphContextMenuOpen: t("alisio.memory.graph.contextMenuOpen"),
+    graphDepth: t("alisio.memory.graph.depth"),
+    graphEdgesCount: t("alisio.memory.graph.edgesCount"),
     graphTitle: t("alisio.memory.graphTitle"),
     graphLoading: t("alisio.memory.graphLoading"),
     graphEmpty: t("alisio.memory.graphEmpty"),
     graphUnavailable: t("alisio.memory.graphUnavailable"),
-    graphAliases: t("alisio.memory.graphAliases"),
-    graphTags: t("alisio.memory.graphTags"),
-    graphRelations: t("alisio.memory.graphRelations"),
-    none: t("common.none"),
-    na: t("common.na"),
-    views: {
-      wiki: t("alisio.memory.views.wiki"),
-      graph: t("alisio.memory.views.graph"),
-    },
-    viewDescriptions: {
-      wiki: t("alisio.memory.views.wikiDescription"),
-      graph: t("alisio.memory.views.graphDescription"),
-    },
-    notesListTitle: t("alisio.memory.wiki.listTitle"),
-    notesEmpty: t("alisio.memory.wiki.empty"),
-    notesCreate: t("alisio.memory.wiki.create"),
-    notesCreatePlaceholder: t("alisio.memory.wiki.createPlaceholder"),
-    notesCreateConfirm: t("alisio.memory.wiki.createConfirm"),
-    noteMarkdown: t("alisio.memory.wiki.editorTitle"),
-    noteReading: t("alisio.memory.wiki.readMode"),
-    noteBacklinks: t("alisio.memory.wiki.backlinks"),
-    noteClaims: t("alisio.memory.wiki.claims"),
-    noteEvidence: t("alisio.memory.wiki.evidence"),
-    noteProvenance: t("alisio.memory.wiki.provenance"),
-    noteHistory: t("alisio.memory.wiki.history"),
-    noteContext: t("alisio.memory.wiki.context"),
-    noteRevision: t("alisio.memory.wiki.revision"),
-    noteOpen: t("alisio.memory.wiki.openPage"),
-    noteNoSelection: t("alisio.memory.wiki.noSelection"),
-    noteHistoryEmpty: t("alisio.memory.wiki.historyEmpty"),
-    noteBacklinksEmpty: t("alisio.memory.wiki.backlinksEmpty"),
-    noteClaimsEmpty: t("alisio.memory.wiki.claimsEmpty"),
-    noteEvidenceEmpty: t("alisio.memory.wiki.evidenceEmpty"),
-    noteProvenanceEmpty: t("alisio.memory.wiki.provenanceEmpty"),
-    noteUpdated: t("alisio.memory.wiki.updated"),
-    notePath: t("alisio.memory.wiki.path"),
-    filesTitle: t("alisio.memory.files.title"),
-    filesEmpty: t("alisio.memory.files.empty"),
-    filesProvenance: t("alisio.memory.files.provenance"),
-    filesRelatedPages: t("alisio.memory.files.relatedPages"),
-    filesMediaType: t("alisio.memory.files.mediaType"),
-    filesSize: t("alisio.memory.files.size"),
-    filesUpdated: t("alisio.memory.files.updated"),
-    filesSummary: t("alisio.memory.files.summary"),
-    filesHash: t("alisio.memory.files.hash"),
-    filesPreviewKind: t("alisio.memory.files.previewKind"),
-    filesOpen: t("alisio.memory.files.open"),
-    filesDownload: t("alisio.memory.files.download"),
-    filesOpenPage: t("alisio.memory.files.openPage"),
-    filesFocusGraph: t("alisio.memory.files.focusGraph"),
-    filesPreviewUnavailable: t("alisio.memory.files.previewUnavailable"),
-    filesPreviewTruncated: t("alisio.memory.files.previewTruncated"),
-    filesNoSelection: t("alisio.memory.files.noSelection"),
-    filesAttached: t("alisio.memory.files.attached"),
-    filesMentioned: t("alisio.memory.files.mentioned"),
-    filesUnlinked: t("alisio.memory.files.unlinked"),
-    exportLabel: t("alisio.memory.export.label"),
-    exportFormats: {
-      zip: t("alisio.memory.export.zip"),
-      json: t("alisio.memory.export.json"),
-      markdown: t("alisio.memory.export.markdown"),
-    },
-    exportReady: t("alisio.memory.export.ready"),
-    syncLamport: t("alisio.memory.sync.lamport"),
-    syncE2ee: t("alisio.memory.sync.e2ee"),
-    syncE2eeRequired: t("alisio.memory.sync.e2eeRequired"),
-    syncState: t("alisio.memory.sync.state"),
-    syncDetail: t("alisio.memory.sync.detail"),
-    reasonTags: t("alisio.memory.trace.reasonTags"),
-    whySurfaced: t("alisio.memory.trace.whySurfaced"),
-    viewTrace: t("alisio.memory.trace.view"),
-    traceTitle: t("alisio.memory.trace.title"),
-    traceSummary: t("alisio.memory.trace.summary"),
-    traceQuery: t("alisio.memory.trace.query"),
-    traceReasons: t("alisio.memory.trace.reasons"),
-    traceHits: t("alisio.memory.trace.hits"),
-    traceRaw: t("alisio.memory.trace.raw"),
-    traceClose: t("alisio.memory.trace.close"),
-    traceUnavailable: t("alisio.memory.trace.unavailable"),
-    confidenceLabel: t("alisio.memory.claims.confidence"),
-    graphHint: t("alisio.memory.graph.hint"),
     graphFocus: t("alisio.memory.graph.focus"),
     graphGlobal: t("alisio.memory.graph.global"),
     graphLocal: t("alisio.memory.graph.local"),
-    graphDepth: t("alisio.memory.graph.depth"),
+    graphNodesCount: t("alisio.memory.graph.nodesCount"),
     graphResetView: t("alisio.memory.graph.resetView"),
-    graphNeighbourhood: t("alisio.memory.graph.neighbourhood"),
-    graphOrphans: t("alisio.memory.graph.orphans"),
-    graphBranches: t("alisio.memory.graph.branches"),
-    graphBranchesEmpty: t("alisio.memory.graph.branchesEmpty"),
-    graphEdgeReason: t("alisio.memory.graph.edgeReason"),
-    graphEdgeReasonEmpty: t("alisio.memory.graph.edgeReasonEmpty"),
-    graphFilterRelations: t("alisio.memory.graph.filterRelations"),
+    graphShowAttachments: t("alisio.memory.graph.showAttachments"),
     graphFilterTags: t("alisio.memory.graph.filterTags"),
     graphGroups: t("alisio.memory.graph.groups"),
-    graphColorBy: t("alisio.memory.graph.colorBy"),
     graphGroupNone: t("alisio.memory.graph.groupNone"),
     graphGroupFolder: t("alisio.memory.graph.groupFolder"),
     graphGroupTag: t("alisio.memory.graph.groupTag"),
@@ -185,67 +80,33 @@ function memoryText() {
     graphGroupSource: t("alisio.memory.graph.groupSource"),
     graphGroupNote: t("alisio.memory.graph.groupNote"),
     graphGroupAttachment: t("alisio.memory.graph.groupAttachment"),
-    graphContextMenuOpen: t("alisio.memory.graph.contextMenuOpen"),
-    graphContextMenuCenter: t("alisio.memory.graph.contextMenuCenter"),
-    graphContextMenuLocal: t("alisio.memory.graph.contextMenuLocal"),
-    graphDisplay: t("alisio.memory.graph.display"),
-    graphArrows: t("alisio.memory.graph.arrows"),
-    graphTextFadeThreshold: t("alisio.memory.graph.textFadeThreshold"),
-    graphNodeSize: t("alisio.memory.graph.nodeSize"),
-    graphLinkThickness: t("alisio.memory.graph.linkThickness"),
-    graphForces: t("alisio.memory.graph.forces"),
-    graphCenterForce: t("alisio.memory.graph.centerForce"),
-    graphRepelForce: t("alisio.memory.graph.repelForce"),
-    graphLinkForce: t("alisio.memory.graph.linkForce"),
-    graphLinkDistance: t("alisio.memory.graph.linkDistance"),
-    graphNodesCount: t("alisio.memory.graph.nodesCount"),
-    graphEdgesCount: t("alisio.memory.graph.edgesCount"),
-    graphTruncated: t("alisio.memory.graph.truncated"),
-    graphSource: t("alisio.memory.graph.source"),
-    graphTarget: t("alisio.memory.graph.target"),
-    graphRelationType: t("alisio.memory.graph.relationType"),
-    graphClusters: t("alisio.memory.graph.clusters"),
-    graphSuggestions: t("alisio.memory.graph.suggestions"),
-    graphSpotlight: t("alisio.memory.graph.spotlight"),
-    graphIncoming: t("alisio.memory.graph.incoming"),
-    graphOutgoing: t("alisio.memory.graph.outgoing"),
-    graphDegree: t("alisio.memory.graph.degree"),
-    graphZoomIn: t("alisio.memory.graph.zoomIn"),
-    graphZoomOut: t("alisio.memory.graph.zoomOut"),
-    graphCenterFocus: t("alisio.memory.graph.centerFocus"),
-    graphCanvasHint: t("alisio.memory.graph.canvasHint"),
-    graphShowAttachments: t("alisio.memory.graph.showAttachments"),
-    cancelCreate: t("alisio.memory.cancelCreate"),
-    shellTitle: t("alisio.memory.shell.title"),
-    shellSubtitle: t("alisio.memory.shell.subtitle"),
+    none: t("common.none"),
+    na: t("common.na"),
+    noteBacklinks: t("alisio.memory.wiki.backlinks"),
+    noteBacklinksEmpty: t("alisio.memory.wiki.backlinksEmpty"),
+    noteMarkdown: t("alisio.memory.wiki.editorTitle"),
+    noteNoSelection: t("alisio.memory.wiki.noSelection"),
+    notePath: t("alisio.memory.wiki.path"),
+    noteUpdated: t("alisio.memory.wiki.updated"),
+    notesCreate: t("alisio.memory.wiki.create"),
+    notesCreateConfirm: t("alisio.memory.wiki.createConfirm"),
+    notesCreatePlaceholder: t("alisio.memory.wiki.createPlaceholder"),
+    notesListTitle: t("alisio.memory.wiki.listTitle"),
+    preview: t("alisio.memory.preview"),
+    previewEmpty: t("alisio.memory.previewEmpty"),
+    refresh: t("common.refresh"),
+    reset: t("alisio.memory.reset"),
+    save: t("alisio.memory.save"),
+    saving: t("alisio.memory.saving"),
+    searchPlaceholder: t("alisio.memory.searchPlaceholder"),
+    unsaved: t("alisio.memory.unsaved"),
+    views: {
+      wiki: t("alisio.memory.views.wiki"),
+      graph: t("alisio.memory.views.graph"),
+    },
     workspaceExplorer: t("alisio.memory.workspace.explorer"),
-    workspaceInspector: t("alisio.memory.workspace.inspector"),
-    workspaceGraphPane: t("alisio.memory.workspace.graphPane"),
     workspaceVault: t("alisio.memory.workspace.vault"),
   };
-}
-
-function readNestedValue(
-  record: Record<string, unknown> | null | undefined,
-  path: readonly string[],
-): unknown {
-  let current: unknown = record;
-  for (const segment of path) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return current;
-}
-
-function readMemoryUiFlag(
-  record: Record<string, unknown> | null | undefined,
-  path: readonly string[],
-  fallback: boolean,
-) {
-  const value = readNestedValue(record, path);
-  return typeof value === "boolean" ? value : fallback;
 }
 
 function formatTimestamp(value: string | null | undefined) {
@@ -308,7 +169,7 @@ function emitMemoryTelemetry(event: string, detail: Record<string, unknown> = {}
   );
 }
 
-function formatReasonLabel(tag: MemoryReasonTag) {
+function formatReasonLabel(tag: NonNullable<MemoryNote["reasonTags"]>[number]) {
   const localized = t(`alisio.memory.trace.codes.${tag.code}`);
   if (localized && localized !== `alisio.memory.trace.codes.${tag.code}`) {
     return localized;
@@ -316,185 +177,23 @@ function formatReasonLabel(tag: MemoryReasonTag) {
   return tag.label?.trim() || tag.code.trim();
 }
 
-function normalizeSummaryLines(value: unknown) {
-  if (!Array.isArray(value)) {
-    return [] as string[];
-  }
-  return value.map((entry) => String(entry).trim()).filter(Boolean);
-}
-
-function buildTraceSummary(
-  trace: MemoryTraceResult | null,
-  text: Pick<ReturnType<typeof memoryText>, "traceQuery" | "traceReasons" | "traceHits">,
-) {
-  const lines: string[] = [];
-  const raw =
-    trace?.raw && typeof trace.raw === "object" && !Array.isArray(trace.raw)
-      ? (trace.raw as Record<string, unknown>)
-      : null;
-  if (!raw) {
-    return normalizeSummaryLines(trace?.summary);
-  }
-  const query = typeof raw.query === "string" ? raw.query.trim() : "";
-  if (query) {
-    lines.push(`${text.traceQuery}: ${query}`);
-  }
-  const reasonTags = Array.isArray(trace?.reasonTags) ? trace.reasonTags.filter(Boolean) : [];
-  const reasons =
-    reasonTags.length > 0
-      ? reasonTags.map((tag) => formatReasonLabel(tag))
-      : Array.isArray(raw.reasons)
-        ? raw.reasons.map((entry) => String(entry).trim()).filter(Boolean)
-        : [];
-  if (reasons.length > 0) {
-    lines.push(`${text.traceReasons}: ${reasons.join(", ")}`);
-  }
-  const hits =
-    typeof raw.hitCount === "number"
-      ? raw.hitCount
-      : Array.isArray(raw.hits)
-        ? raw.hits.length
-        : null;
-  if (typeof hits === "number") {
-    lines.push(`${text.traceHits}: ${hits}`);
-  }
-  return lines.length > 0 ? lines : normalizeSummaryLines(trace?.summary);
-}
-
-function buildContextPreviewSummary(
-  text: Pick<ReturnType<typeof memoryText>, "na">,
-  note: MemoryNote | null,
-  summary?: string | null,
-) {
-  const explicit = typeof summary === "string" ? summary.trim() : "";
-  if (explicit) {
-    return explicit;
-  }
-  const traceSummary = note?.contextPreview?.traceSummary?.find(
-    (entry) => typeof entry === "string" && entry.trim(),
-  );
-  if (traceSummary) {
-    return traceSummary;
-  }
-  const noteSummary = typeof note?.summary === "string" ? note.summary.trim() : "";
-  return noteSummary || text.na;
-}
-
-function mergeSyncSurfaces(
-  ...surfaces: Array<MemorySyncSurface | null | undefined>
-): MemorySyncSurface | null {
-  const merged: MemorySyncSurface = {};
-  for (const surface of surfaces) {
-    if (!surface) {
-      continue;
-    }
-    if (merged.lastSyncedLamport == null && surface.lastSyncedLamport != null) {
-      merged.lastSyncedLamport = surface.lastSyncedLamport;
-    }
-    if (merged.e2eeRequired == null && surface.e2eeRequired != null) {
-      merged.e2eeRequired = surface.e2eeRequired;
-    }
-    if (merged.state == null && surface.state != null) {
-      merged.state = surface.state;
-    }
-    if (merged.mode == null && surface.mode != null) {
-      merged.mode = surface.mode;
-    }
-    if (merged.blockedReason == null && surface.blockedReason != null) {
-      merged.blockedReason = surface.blockedReason;
-    }
-    if (merged.lastSuccessAt == null && surface.lastSuccessAt != null) {
-      merged.lastSuccessAt = surface.lastSuccessAt;
-    }
-    if (merged.lastAckLamport == null && surface.lastAckLamport != null) {
-      merged.lastAckLamport = surface.lastAckLamport;
-    }
-    if (merged.pendingBacklog == null && surface.pendingBacklog != null) {
-      merged.pendingBacklog = surface.pendingBacklog;
-    }
-    if (merged.detail == null && surface.detail != null) {
-      merged.detail = surface.detail;
-    }
-  }
-  return Object.keys(merged).length > 0 ? merged : null;
-}
-
-function buildCanonicalStatusSyncDetail(
-  canonicalStore:
-    | NonNullable<NonNullable<MemoryHubProps["memoryStatus"]>["runtime"]>["canonicalStore"]
-    | null
-    | undefined,
-) {
-  if (!canonicalStore) {
-    return null;
-  }
-  const parts = [
-    `mode ${canonicalStore.syncModeConfigured}`,
-    ...(canonicalStore.syncBlockedReason ? [`blocked ${canonicalStore.syncBlockedReason}`] : []),
-    ...(typeof canonicalStore.lastAckLamport === "number"
-      ? [`ack ${String(canonicalStore.lastAckLamport)}`]
-      : []),
-    ...(typeof canonicalStore.pendingBacklog === "number"
-      ? [`backlog ${String(canonicalStore.pendingBacklog)}`]
-      : []),
-    ...(canonicalStore.lastSyncSuccessAt
-      ? [`last success ${canonicalStore.lastSyncSuccessAt}`]
-      : []),
-    ...(canonicalStore.lastError ? [canonicalStore.lastError] : []),
-  ];
-  return parts.length > 0 ? parts.join("; ") : null;
-}
-
-function deriveStatusSyncSurface(
-  status: MemoryHubProps["memoryStatus"] | null | undefined,
-  graph: MemoryGraphState | null | undefined,
-): MemorySyncSurface | null {
-  return mergeSyncSurfaces(
-    status?.runtime?.canonicalStore
-      ? {
-          lastSyncedLamport: status.runtime.canonicalStore.lastSyncedLamport,
-          e2eeRequired: status.runtime.canonicalStore.e2eeRequired,
-          state: status.runtime.canonicalStore.syncAvailability,
-          mode: status.runtime.canonicalStore.syncModeConfigured,
-          blockedReason: status.runtime.canonicalStore.syncBlockedReason,
-          lastSuccessAt: status.runtime.canonicalStore.lastSyncSuccessAt,
-          lastAckLamport: status.runtime.canonicalStore.lastAckLamport,
-          pendingBacklog: status.runtime.canonicalStore.pendingBacklog,
-          detail: buildCanonicalStatusSyncDetail(status.runtime.canonicalStore),
-        }
-      : null,
-    graph
-      ? {
-          lastSyncedLamport: graph.lastSyncedLamport,
-          e2eeRequired: graph.e2eeRequired,
-          state: graph.state,
-          detail: graph.lastError,
-        }
-      : null,
-  );
-}
-
 function resolveSyncInvalidationMarker(
   props: Pick<MemoryHubProps, "memoryStatus" | "memoryGraph"> | null | undefined,
 ) {
-  const surface = deriveStatusSyncSurface(props?.memoryStatus, props?.memoryGraph);
-  if (!surface) {
+  const runtime = props?.memoryStatus?.runtime?.canonicalStore ?? null;
+  const graph = props?.memoryGraph ?? null;
+  if (!runtime && !graph) {
     return null;
   }
-  const state = surface.state?.trim() ?? "";
-  const lamport = surface.lastSyncedLamport == null ? "" : String(surface.lastSyncedLamport).trim();
-  const detail = surface.detail?.trim() ?? "";
-  return `${state}:${lamport}:${detail}`;
-}
-
-function downloadText(filename: string, content: string, mediaType: string) {
-  const blob = new Blob([content], { type: `${mediaType};charset=utf-8` });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  return [
+    runtime?.syncAvailability?.trim() ?? graph?.state?.trim() ?? "",
+    runtime?.lastSyncedLamport == null
+      ? graph?.lastSyncedLamport == null
+        ? ""
+        : String(graph.lastSyncedLamport)
+      : String(runtime.lastSyncedLamport),
+    runtime?.lastError?.trim() ?? graph?.lastError?.trim() ?? "",
+  ].join(":");
 }
 
 function downloadBase64(filename: string, data: string, mediaType: string) {
@@ -508,7 +207,7 @@ function downloadBase64(filename: string, data: string, mediaType: string) {
   URL.revokeObjectURL(url);
 }
 
-function renderReasonTags(tags: readonly MemoryReasonTag[] | null | undefined) {
+function renderReasonTags(tags: MemoryNote["reasonTags"] | null | undefined) {
   const entries = tags?.filter((tag) => tag.code.trim() || tag.label?.trim()) ?? [];
   if (entries.length === 0) {
     return nothing;
@@ -519,29 +218,6 @@ function renderReasonTags(tags: readonly MemoryReasonTag[] | null | undefined) {
         (tag) => html`<span class="alisio-memory-badge">${formatReasonLabel(tag)}</span>`,
       )}
     </span>
-  `;
-}
-
-function renderProvenanceRows(
-  rows: Array<{ label: string; value: string }> | null | undefined,
-  emptyLabel: string,
-) {
-  const entries =
-    rows?.filter((row) => row.label.trim() && row.value.trim()).map((row) => ({ ...row })) ?? [];
-  if (entries.length === 0) {
-    return html`<div class="alisio-memory-empty">${emptyLabel}</div>`;
-  }
-  return html`
-    <div class="alisio-memory-native__pairs">
-      ${entries.map(
-        (row) => html`
-          <div class="alisio-memory-native__pair">
-            <span>${row.label}</span>
-            <strong>${row.value}</strong>
-          </div>
-        `,
-      )}
-    </div>
   `;
 }
 
@@ -586,84 +262,6 @@ function renderNoteSkeleton() {
         className: "alisio-memory-skeleton-copy",
       })}
     </article>
-  `;
-}
-
-function resolveAllowedExportFormats(
-  list: { exportFormats?: string[] | null } | null,
-): MemoryExportFormat[] {
-  const allowed = new Set<MemoryExportFormat>(["zip", "json", "markdown"]);
-  if (!list?.exportFormats?.length) {
-    return [...allowed];
-  }
-  return list.exportFormats
-    .map((entry) => entry.trim().toLowerCase())
-    .filter((entry): entry is MemoryExportFormat => allowed.has(entry as MemoryExportFormat));
-}
-
-function renderSyncCard(params: {
-  text: ReturnType<typeof memoryText>;
-  sync: MemorySyncSurface | null;
-  status: MemoryHubProps["memoryStatus"];
-  noteCount: number;
-  syncing: boolean;
-  canSync: boolean;
-  exportBusy: boolean;
-  exportFormat: MemoryExportFormat;
-  exportFormats: MemoryExportFormat[];
-  exportMessage: string | null;
-  onSync: () => void;
-  onExportFormat: (value: MemoryExportFormat) => void;
-  onExport: () => void;
-}) {
-  const syncDetail = params.sync?.detail?.trim() ?? "";
-  const showCard = params.noteCount > 0 && (params.canSync || params.exportFormats.length > 0);
-  if (!showCard) {
-    return nothing;
-  }
-  return html`
-    <section class="alisio-memory-utilitybar">
-      <div class="alisio-memory-utilitybar__actions">
-        <button
-          class="btn btn--sm btn--ghost"
-          ?disabled=${params.syncing || !params.canSync}
-          title=${params.syncing ? params.text.syncing : params.text.syncNow}
-          aria-label=${params.syncing ? params.text.syncing : params.text.syncNow}
-          @click=${params.onSync}
-        >
-          ${icons.refresh}
-        </button>
-        <select
-          class="alisio-memory-utilitybar__select"
-          .value=${params.exportFormat}
-          ?disabled=${params.exportBusy}
-          @change=${(event: Event) =>
-            params.onExportFormat((event.target as HTMLSelectElement).value as MemoryExportFormat)}
-        >
-          ${params.exportFormats.map(
-            (format) => html`
-              <option value=${format}>
-                ${params.text.exportFormats[format as keyof typeof params.text.exportFormats]}
-              </option>
-            `,
-          )}
-        </select>
-        <button
-          class="btn btn--sm primary"
-          ?disabled=${params.exportBusy}
-          @click=${params.onExport}
-        >
-          ${params.exportBusy ? params.text.saving : params.text.exportReady}
-        </button>
-      </div>
-      ${params.exportMessage
-        ? html`<div class="alisio-memory-utilitybar__message">${params.exportMessage}</div>`
-        : params.syncing
-          ? html`<div class="alisio-memory-utilitybar__message">${params.text.syncing}</div>`
-          : syncDetail
-            ? html`<div class="alisio-memory-utilitybar__message">${syncDetail}</div>`
-            : nothing}
-    </section>
   `;
 }
 
@@ -792,29 +390,16 @@ export class AlisioMemoryNativeHub extends LitElement {
   @state() private noteLoading = false;
   @state() private noteError: string | null = null;
   @state() private note: MemoryNote | null = null;
-  @state() private noteMode: NoteMode = "markdown";
+  @state() private noteMode: NoteMode = "reading";
   @state() private noteSaving = false;
-  @state() private noteSync: MemorySyncSurface | null = null;
   @state() private noteDrafts: Record<string, string> = {};
   @state() private noteTitleDrafts: Record<string, string> = {};
-  @state() private historyLoading = false;
-  @state() private historyError: string | null = null;
-  @state() private history: MemoryNoteHistoryEntry[] = [];
   @state() private createOpen = false;
   @state() private createTitle = "";
   @state() private selectedAttachmentId: string | null = null;
   @state() private attachmentLoading = false;
   @state() private attachmentError: string | null = null;
   @state() private attachmentDetail: MemoryFileDetail | null = null;
-  @state() private traceOpen = false;
-  @state() private traceLoading = false;
-  @state() private traceError: string | null = null;
-  @state() private traceTitle = "";
-  @state() private traceData: MemoryTraceResult | null = null;
-  @state() private exportBusy = false;
-  @state() private exportMessage: string | null = null;
-  @state() private exportFormat: MemoryExportFormat = "zip";
-  @state() private mutationSync: MemorySyncSurface | null = null;
   @state() private graphLoading = false;
   @state() private graphError: string | null = null;
   @state() private graphData: MemoryGraphState | null = null;
@@ -825,9 +410,7 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private notesListToken = 0;
   private noteToken = 0;
-  private historyToken = 0;
   private attachmentToken = 0;
-  private traceToken = 0;
   private graphToken = 0;
   private searchReloadTimer: number | null = null;
 
@@ -859,12 +442,12 @@ export class AlisioMemoryNativeHub extends LitElement {
     const queryChanged = previous?.searchQuery !== this.props.searchQuery;
     const clientChanged =
       previous?.client !== this.props.client || previous?.connected !== this.props.connected;
-    const syncChanged =
-      resolveSyncInvalidationMarker(previous) !== resolveSyncInvalidationMarker(this.props);
+    const previousSyncMarker = resolveSyncInvalidationMarker(previous);
+    const syncChanged = previousSyncMarker !== resolveSyncInvalidationMarker(this.props);
 
     if (clientChanged || agentChanged) {
       if (this.props.connected && this.props.client && this.props.selectedAgentId) {
-        void this.reloadAll();
+        void this.reloadAll({ refreshGraph: false });
       }
       return;
     }
@@ -873,7 +456,16 @@ export class AlisioMemoryNativeHub extends LitElement {
       return;
     }
     if (syncChanged && this.props.connected && this.props.client && this.props.selectedAgentId) {
-      void this.reloadAll();
+      if (!previousSyncMarker) {
+        return;
+      }
+      if (!this.notesList && !this.note && !this.graphData) {
+        return;
+      }
+      void this.reloadAll({
+        force: true,
+        refreshGraph: this.shouldRefreshGraphForCurrentView(),
+      });
     }
   }
 
@@ -887,28 +479,16 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.noteLoading = false;
     this.noteError = null;
     this.note = null;
-    this.noteMode = "markdown";
+    this.noteMode = "reading";
     this.noteSaving = false;
-    this.noteSync = null;
     this.noteDrafts = {};
     this.noteTitleDrafts = {};
-    this.historyLoading = false;
-    this.historyError = null;
-    this.history = [];
     this.createOpen = false;
     this.createTitle = "";
     this.selectedAttachmentId = null;
     this.attachmentLoading = false;
     this.attachmentError = null;
     this.attachmentDetail = null;
-    this.traceOpen = false;
-    this.traceLoading = false;
-    this.traceError = null;
-    this.traceTitle = "";
-    this.traceData = null;
-    this.exportBusy = false;
-    this.exportMessage = null;
-    this.mutationSync = null;
     this.graphLoading = false;
     this.graphError = null;
     this.graphData = null;
@@ -921,9 +501,7 @@ export class AlisioMemoryNativeHub extends LitElement {
   private invalidatePendingRequests() {
     this.notesListToken += 1;
     this.noteToken += 1;
-    this.historyToken += 1;
     this.attachmentToken += 1;
-    this.traceToken += 1;
     this.graphToken += 1;
   }
 
@@ -939,7 +517,9 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.clearSearchReloadTimer();
     this.searchReloadTimer = window.setTimeout(() => {
       this.searchReloadTimer = null;
-      void this.reloadAll();
+      void this.reloadAll({
+        refreshGraph: this.shouldRefreshGraphForCurrentView(),
+      });
     }, 180);
   }
 
@@ -949,22 +529,6 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private get selectedAgentId() {
     return this.props?.selectedAgentId?.trim() ?? "";
-  }
-
-  private get tracesEnabled() {
-    return readMemoryUiFlag(this.props?.configForm, ["ui", "memory", "traces", "enabled"], true);
-  }
-
-  private get syncSurface(): MemorySyncSurface | null {
-    return mergeSyncSurfaces(
-      this.mutationSync,
-      this.noteSync,
-      this.notesList?.sync,
-      deriveStatusSyncSurface(
-        this.props?.memoryStatus,
-        this.graphData ?? this.props?.memoryGraph ?? null,
-      ),
-    );
   }
 
   private get currentNoteDraft() {
@@ -990,16 +554,38 @@ export class AlisioMemoryNativeHub extends LitElement {
     );
   }
 
-  private async reloadAll() {
-    await this.loadNotesList();
+  private shouldRefreshGraphForCurrentView() {
+    return this.mainPaneMode === "graph";
+  }
+
+  private async reloadGraphForCurrentContext(
+    focusNoteId?: string | null,
+    options?: { force?: boolean },
+  ) {
+    if (!this.shouldRefreshGraphForCurrentView()) {
+      return;
+    }
+    const noteId = focusNoteId ?? this.note?.id ?? this.selectedNoteId ?? null;
+    const keepLocal = this.mainPaneMode === "graph" && this.graphScope === "local" && noteId;
     await this.loadGraph({
-      scope: this.graphScope,
-      focusNoteId: this.selectedNoteId,
+      scope: keepLocal ? "local" : "global",
+      focusNoteId: keepLocal ? noteId : null,
       includeAttachments: this.graphIncludeAttachments,
+      depth: this.graphDepth,
+      force: options?.force,
     });
   }
 
-  private async loadNotesList() {
+  private async reloadAll(options?: { force?: boolean; refreshGraph?: boolean }) {
+    await this.loadNotesList({ force: options?.force });
+    if (options?.refreshGraph ?? this.shouldRefreshGraphForCurrentView()) {
+      await this.reloadGraphForCurrentContext(this.selectedNoteId, {
+        force: options?.force,
+      });
+    }
+  }
+
+  private async loadNotesList(options?: { force?: boolean }) {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
@@ -1008,37 +594,34 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.notesLoading = true;
     this.notesError = null;
     try {
-      const result = await requestMemoryNotesList(this.client, {
-        agentId: this.selectedAgentId,
-        query: this.props?.searchQuery.trim() || undefined,
-      });
+      const result = await requestMemoryNotesList(
+        this.client,
+        {
+          agentId: this.selectedAgentId,
+          query: this.props?.searchQuery.trim() || undefined,
+        },
+        options,
+      );
       if (token !== this.notesListToken) {
         return;
       }
       this.notesList = result;
-      const allowedFormats = resolveAllowedExportFormats(result);
-      if (!allowedFormats.includes(this.exportFormat)) {
-        this.exportFormat = allowedFormats[0] ?? "zip";
-      }
       const nextNoteId = result.notes.some((note) => note.id === this.selectedNoteId)
         ? this.selectedNoteId
         : (result.notes[0]?.id ?? null);
       this.selectedNoteId = nextNoteId;
       if (!nextNoteId) {
         this.note = null;
-        this.noteSync = null;
         this.noteError = null;
-        this.history = [];
-        this.historyError = null;
         this.selectedAttachmentId = null;
         this.attachmentDetail = null;
         this.attachmentError = null;
         return;
       }
-      await Promise.allSettled([
-        this.loadNote(nextNoteId, { preserveDraft: true }),
-        this.loadNoteHistory(nextNoteId),
-      ]);
+      await this.loadNote(nextNoteId, {
+        preserveDraft: true,
+        force: options?.force,
+      });
     } catch (err) {
       if (token !== this.notesListToken) {
         return;
@@ -1048,8 +631,6 @@ export class AlisioMemoryNativeHub extends LitElement {
         this.notesList = null;
         this.selectedNoteId = null;
         this.note = null;
-        this.noteSync = null;
-        this.history = [];
         this.attachmentDetail = null;
         this.attachmentError = null;
       }
@@ -1060,7 +641,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
-  private async loadNote(noteId: string, options?: { preserveDraft?: boolean }) {
+  private async loadNote(noteId: string, options?: { preserveDraft?: boolean; force?: boolean }) {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
@@ -1068,18 +649,21 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.noteLoading = true;
     this.noteError = null;
     try {
-      const result = await requestMemoryNote(this.client, {
-        agentId: this.selectedAgentId,
-        noteId,
-        query: this.props?.searchQuery.trim() || undefined,
-      });
+      const result = await requestMemoryNote(
+        this.client,
+        {
+          agentId: this.selectedAgentId,
+          noteId,
+          query: this.props?.searchQuery.trim() || undefined,
+        },
+        { force: options?.force },
+      );
       if (token !== this.noteToken) {
         return;
       }
       const preserveDraft =
         options?.preserveDraft && this.note?.id === result.note.id && this.noteDirty;
       this.note = result.note;
-      this.noteSync = result.sync ?? null;
       if (!preserveDraft) {
         this.noteDrafts = {
           ...this.noteDrafts,
@@ -1108,7 +692,6 @@ export class AlisioMemoryNativeHub extends LitElement {
       }
       this.noteError = describeMemoryError(err);
       this.note = null;
-      this.noteSync = null;
     } finally {
       if (token === this.noteToken) {
         this.noteLoading = false;
@@ -1116,36 +699,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
-  private async loadNoteHistory(noteId: string) {
-    if (!this.client || !this.selectedAgentId) {
-      return;
-    }
-    const token = ++this.historyToken;
-    this.historyLoading = true;
-    this.historyError = null;
-    try {
-      const result = await requestMemoryNoteHistory(this.client, {
-        agentId: this.selectedAgentId,
-        noteId,
-      });
-      if (token !== this.historyToken) {
-        return;
-      }
-      this.history = result.history;
-    } catch (err) {
-      if (token !== this.historyToken) {
-        return;
-      }
-      this.historyError = describeMemoryError(err);
-      this.history = [];
-    } finally {
-      if (token === this.historyToken) {
-        this.historyLoading = false;
-      }
-    }
-  }
-
-  private async loadAttachment(fileId: string) {
+  private async loadAttachment(fileId: string, options?: { force?: boolean }) {
     if (!this.client || !this.selectedAgentId) {
       return;
     }
@@ -1154,11 +708,15 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.attachmentLoading = true;
     this.attachmentError = null;
     try {
-      const result = await requestMemoryFile(this.client, {
-        agentId: this.selectedAgentId,
-        fileId,
-        query: this.props?.searchQuery.trim() || undefined,
-      });
+      const result = await requestMemoryFile(
+        this.client,
+        {
+          agentId: this.selectedAgentId,
+          fileId,
+          query: this.props?.searchQuery.trim() || undefined,
+        },
+        options,
+      );
       if (token !== this.attachmentToken) {
         return;
       }
@@ -1181,6 +739,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     focusNoteId?: string | null;
     includeAttachments?: boolean;
     depth?: number;
+    force?: boolean;
   }) {
     if (!this.client || !this.selectedAgentId) {
       this.graphData = null;
@@ -1191,6 +750,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     const requestedScope = options?.scope ?? this.graphScope;
     const focusNoteId = options?.focusNoteId ?? this.note?.id ?? this.selectedNoteId ?? null;
     const scope = requestedScope === "local" && focusNoteId ? "local" : "global";
+    const pageId = scope === "local" ? focusNoteId : null;
     const includeAttachments = options?.includeAttachments ?? this.graphIncludeAttachments;
     const depth =
       scope === "local" ? Math.max(1, Math.round(options?.depth ?? this.graphDepth)) : 1;
@@ -1202,17 +762,25 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.graphLoading = true;
     this.graphError = null;
     try {
-      const result = await requestMemoryGraph(this.client, {
-        agentId: this.selectedAgentId,
-        scope,
-        query: this.props?.searchQuery.trim() || undefined,
-        ...(focusNoteId ? { pageId: focusNoteId } : {}),
-        direction: "both",
-        depth,
-        nodeLimit: scope === "local" ? 48 : 140,
-        edgeLimit: scope === "local" ? 120 : 280,
-        ...(includeAttachments ? { includeAttachments: true } : {}),
-      });
+      const result = await requestMemoryGraph(
+        this.client,
+        {
+          agentId: this.selectedAgentId,
+          scope,
+          query: this.props?.searchQuery.trim() || undefined,
+          ...(pageId ? { pageId } : {}),
+          direction: "both",
+          depth,
+          ...(scope === "local"
+            ? {
+                nodeLimit: 48,
+                edgeLimit: 120,
+              }
+            : {}),
+          ...(includeAttachments ? { includeAttachments: true } : {}),
+        },
+        { force: options?.force },
+      );
       if (token !== this.graphToken) {
         return;
       }
@@ -1235,20 +803,16 @@ export class AlisioMemoryNativeHub extends LitElement {
   ) {
     this.selectedNoteId = noteId;
     if (!options?.preserveMode) {
-      this.noteMode = "markdown";
+      this.noteMode = "reading";
     }
     if (!options?.preservePane) {
       this.mainPaneMode = "note";
+      this.graphScope = "global";
     }
     emitMemoryTelemetry("ui_memory_note_opened", { noteId });
     await Promise.allSettled([
       this.loadNote(noteId, { preserveDraft: true }),
-      this.loadNoteHistory(noteId),
-      this.loadGraph({
-        scope: this.graphScope,
-        focusNoteId: noteId,
-        includeAttachments: this.graphIncludeAttachments,
-      }),
+      this.reloadGraphForCurrentContext(noteId),
     ]);
   }
 
@@ -1266,7 +830,6 @@ export class AlisioMemoryNativeHub extends LitElement {
         content: this.currentNoteDraft,
       });
       const savedNoteId = result.note?.id ?? this.note.id;
-      this.mutationSync = result.sync ?? null;
       this.noteDrafts = {
         ...this.noteDrafts,
         [savedNoteId]: this.currentNoteDraft,
@@ -1276,15 +839,11 @@ export class AlisioMemoryNativeHub extends LitElement {
         [savedNoteId]: this.currentNoteTitleDraft,
       };
       await Promise.allSettled([
-        this.loadNotesList(),
-        this.loadNote(savedNoteId, { preserveDraft: false }),
-        this.loadNoteHistory(savedNoteId),
-        this.loadGraph({
-          scope: this.graphScope,
-          focusNoteId: savedNoteId,
-          includeAttachments: this.graphIncludeAttachments,
-        }),
+        this.loadNotesList({ force: true }),
+        this.loadNote(savedNoteId, { preserveDraft: false, force: true }),
+        this.reloadGraphForCurrentContext(savedNoteId, { force: true }),
       ]);
+      this.noteMode = "reading";
       this.props?.onRefresh();
     } catch (err) {
       this.noteError = describeMemoryError(err);
@@ -1306,10 +865,9 @@ export class AlisioMemoryNativeHub extends LitElement {
         title,
         content: `# ${title}\n\n`,
       });
-      this.mutationSync = result.sync ?? null;
       this.createOpen = false;
       this.createTitle = "";
-      await this.loadNotesList();
+      await this.loadNotesList({ force: true });
       const nextId =
         result.note?.id ??
         this.notesList?.notes.find((note) => note.title.trim() === title)?.id ??
@@ -1323,136 +881,6 @@ export class AlisioMemoryNativeHub extends LitElement {
     } finally {
       this.noteSaving = false;
     }
-  }
-
-  private async openTrace(params: {
-    label: string;
-    traceId?: string | null;
-    trace?: unknown;
-    summary?: string[] | null;
-    reasonTags?: MemoryReasonTag[] | null;
-  }) {
-    const text = memoryText();
-    emitMemoryTelemetry("ui_trace_opened", { label: params.label });
-    this.traceOpen = true;
-    this.traceLoading = true;
-    this.traceError = null;
-    this.traceTitle = params.label;
-    if (!this.tracesEnabled) {
-      this.traceLoading = false;
-      this.traceError = text.traceUnavailable;
-      this.traceData = null;
-      return;
-    }
-    try {
-      if (params.traceId && this.client && this.selectedAgentId) {
-        const token = ++this.traceToken;
-        const trace = await requestMemoryTrace(this.client, {
-          agentId: this.selectedAgentId,
-          traceId: params.traceId,
-        });
-        if (token !== this.traceToken) {
-          return;
-        }
-        this.traceData = trace;
-      } else if (params.trace !== undefined) {
-        this.traceData = {
-          traceId: params.traceId,
-          summary: params.summary ?? [],
-          reasonTags: params.reasonTags ?? [],
-          raw: params.trace,
-        };
-      } else {
-        this.traceData = null;
-        this.traceError = text.traceUnavailable;
-      }
-    } catch (err) {
-      this.traceData = null;
-      this.traceError = describeMemoryError(err);
-    } finally {
-      this.traceLoading = false;
-    }
-  }
-
-  private renderTraceAction(
-    text: ReturnType<typeof memoryText>,
-    params: {
-      label: string;
-      traceId?: string | null;
-      trace?: unknown;
-      summary?: string[] | null;
-      reasonTags?: MemoryReasonTag[] | null;
-    },
-  ) {
-    if (!this.tracesEnabled || (!params.traceId && params.trace === undefined)) {
-      return nothing;
-    }
-    return html`
-      <div class="alisio-memory-native__result-actions">
-        <button
-          type="button"
-          class="btn btn--sm"
-          @click=${(event: Event) => {
-            event.stopPropagation();
-            void this.openTrace(params);
-          }}
-        >
-          ${text.viewTrace}
-        </button>
-      </div>
-    `;
-  }
-
-  private async exportMemory() {
-    if (!this.client || !this.selectedAgentId) {
-      return;
-    }
-    emitMemoryTelemetry("ui_export_clicked", { format: this.exportFormat });
-    this.exportBusy = true;
-    this.exportMessage = null;
-    try {
-      const result = await requestMemoryExport(this.client, {
-        agentId: this.selectedAgentId,
-        format: this.exportFormat,
-      });
-      this.finishExport(result);
-    } catch (err) {
-      this.exportMessage = describeMemoryError(err);
-    } finally {
-      this.exportBusy = false;
-    }
-  }
-
-  private finishExport(result: MemoryExportResult) {
-    const mediaType =
-      result.mediaType ??
-      (result.format === "json"
-        ? "application/json"
-        : result.format === "markdown"
-          ? "text/markdown"
-          : "application/zip");
-    const fileName =
-      result.fileName ??
-      `alisio-memory-export.${result.format === "markdown" ? "md" : result.format}`;
-    if (result.downloadUrl) {
-      const link = document.createElement("a");
-      link.href = result.downloadUrl;
-      link.download = fileName;
-      link.click();
-      this.exportMessage = fileName;
-      return;
-    }
-    if (result.bytesBase64) {
-      downloadBase64(fileName, result.bytesBase64, mediaType);
-      this.exportMessage = fileName;
-      return;
-    }
-    if (typeof result.content === "string") {
-      downloadText(fileName, result.content, mediaType);
-      this.exportMessage = fileName;
-      return;
-    }
-    this.exportMessage = result.savedPath ?? result.message ?? fileName;
   }
 
   private findMatchingNote(
@@ -1503,6 +931,25 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
+  private resolveGraphPrimaryNoteId(nodeId: string) {
+    const graph = this.graphData ?? this.props?.memoryGraph ?? null;
+    if (!graph) {
+      return null;
+    }
+    const nodesById = new Map(graph.nodes.map((entry) => [entry.id, entry]));
+    for (const edge of graph.edges) {
+      if (edge.fromId !== nodeId && edge.toId !== nodeId) {
+        continue;
+      }
+      const linkedNodeId = edge.fromId === nodeId ? edge.toId : edge.fromId;
+      const linkedNode = nodesById.get(linkedNodeId);
+      if (linkedNode?.kind === "note") {
+        return linkedNode.pageId;
+      }
+    }
+    return null;
+  }
+
   private async openGraphNode(nodeId: string) {
     const graph = this.graphData ?? this.props?.memoryGraph ?? null;
     const node = graph?.nodes.find((entry) => entry.id === nodeId) ?? null;
@@ -1510,16 +957,19 @@ export class AlisioMemoryNativeHub extends LitElement {
       return;
     }
     if (node.kind === "attachment" && node.attachmentId) {
-      await this.selectNote(node.pageId, {
-        preserveMode: true,
-        preservePane: true,
-      });
+      const noteId = this.resolveGraphPrimaryNoteId(node.id);
+      if (noteId) {
+        await this.selectNote(noteId, {
+          preserveMode: true,
+          preservePane: false,
+        });
+      }
       await this.loadAttachment(node.attachmentId);
       return;
     }
     await this.selectNote(node.pageId, {
       preserveMode: true,
-      preservePane: true,
+      preservePane: false,
     });
   }
 
@@ -1529,14 +979,19 @@ export class AlisioMemoryNativeHub extends LitElement {
     if (!node) {
       return;
     }
-    await this.selectNote(node.pageId, {
+    const pageId =
+      node.kind === "attachment" ? (this.resolveGraphPrimaryNoteId(node.id) ?? null) : node.pageId;
+    if (!pageId) {
+      return;
+    }
+    await this.selectNote(pageId, {
       preserveMode: true,
       preservePane: true,
     });
     this.mainPaneMode = "graph";
     await this.loadGraph({
       scope: "local",
-      focusNoteId: node.pageId,
+      focusNoteId: pageId,
       includeAttachments: this.graphIncludeAttachments,
       depth: this.graphDepth,
     });
@@ -1585,7 +1040,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
     await this.selectNote(pageId, {
       preserveMode: true,
-      preservePane: this.mainPaneMode === "graph",
+      preservePane: false,
     });
   }
 
@@ -1606,6 +1061,7 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private renderHeader(text: ReturnType<typeof memoryText>) {
     const agents = this.props?.agentsList?.agents ?? [];
+    const showAgentPicker = agents.length > 1;
     const visibleNotes = this.notesList ? this.notesList.notes.length : null;
     return html`
       <section class="alisio-memory-toolbar">
@@ -1633,9 +1089,10 @@ export class AlisioMemoryNativeHub extends LitElement {
               class="btn btn--sm ${this.mainPaneMode === "graph" ? "primary" : ""}"
               @click=${() => {
                 this.mainPaneMode = "graph";
+                this.graphScope = "global";
                 void this.loadGraph({
-                  scope: this.graphScope,
-                  focusNoteId: this.note?.id ?? this.selectedNoteId,
+                  scope: "global",
+                  focusNoteId: null,
                   includeAttachments: this.graphIncludeAttachments,
                   depth: this.graphDepth,
                 });
@@ -1646,21 +1103,23 @@ export class AlisioMemoryNativeHub extends LitElement {
           </div>
         </div>
         <div class="alisio-memory-toolbar__controls">
-          <label class="field field--inline">
-            <span>${text.agent}</span>
-            <select
-              .value=${this.props?.selectedAgentId ?? ""}
-              ?disabled=${agents.length === 0}
-              @change=${(event: Event) =>
-                this.props?.onSelectAgent((event.target as HTMLSelectElement).value)}
-            >
-              ${agents.length === 0
-                ? html`<option value="">${text.emptyAgents}</option>`
-                : agents.map(
-                    (agent) => html`<option value=${agent.id}>${agent.name ?? agent.id}</option>`,
-                  )}
-            </select>
-          </label>
+          ${showAgentPicker
+            ? html`
+                <label class="field field--inline">
+                  <span>${text.agent}</span>
+                  <select
+                    .value=${this.props?.selectedAgentId ?? ""}
+                    ?disabled=${agents.length === 0}
+                    @change=${(event: Event) =>
+                      this.props?.onSelectAgent((event.target as HTMLSelectElement).value)}
+                  >
+                    ${agents.map(
+                      (agent) => html`<option value=${agent.id}>${agent.name ?? agent.id}</option>`,
+                    )}
+                  </select>
+                </label>
+              `
+            : nothing}
           <label class="field field--with-icon alisio-memory-search">
             <span class="sr-only">${text.searchPlaceholder}</span>
             <span class="field__icon" aria-hidden="true">${icons.search}</span>
@@ -1677,7 +1136,10 @@ export class AlisioMemoryNativeHub extends LitElement {
             aria-label=${text.refresh}
             @click=${() => {
               this.props?.onRefresh();
-              void this.reloadAll();
+              void this.reloadAll({
+                force: true,
+                refreshGraph: this.shouldRefreshGraphForCurrentView(),
+              });
             }}
           >
             ${icons.refresh}
@@ -1743,9 +1205,7 @@ export class AlisioMemoryNativeHub extends LitElement {
   private renderExplorer(text: ReturnType<typeof memoryText>) {
     const tree = buildNoteExplorerTree(this.notesList?.notes ?? []);
     const explorerError =
-      this.notesError && !(this.notesList && isMemoryBusyError(this.notesError))
-        ? this.notesError
-        : null;
+      this.notesError && !isMemoryBusyError(this.notesError) ? this.notesError : null;
     const emptyAction = html`
       <button class="btn btn--sm primary" @click=${() => (this.createOpen = true)}>
         ${text.notesCreate}
@@ -1885,205 +1345,6 @@ export class AlisioMemoryNativeHub extends LitElement {
               </button>
             `;
           })}
-        </div>
-      </section>
-    `;
-  }
-
-  private renderClaims(
-    text: ReturnType<typeof memoryText>,
-    claims: MemoryClaimItem[] | null | undefined,
-  ) {
-    const items = claims ?? [];
-    if (items.length === 0) {
-      return nothing;
-    }
-    return html`
-      <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.noteClaims}</h2></div>
-        <div class="alisio-memory-native__stack">
-          ${items.map(
-            (claim) => html`
-              <article class="alisio-memory-runtime">
-                <strong>${claim.claim}</strong>
-                ${claim.confidence != null
-                  ? html`
-                      <span class="alisio-memory-runtime__meta-detail">
-                        ${text.confidenceLabel} ${String(claim.confidence)}
-                      </span>
-                    `
-                  : nothing}
-                ${claim.evidence?.length
-                  ? html`
-                      <div class="alisio-memory-native__stack">
-                        ${claim.evidence.map(
-                          (item) => html`
-                            <div class="alisio-memory-runtime__meta-item">
-                              <span class="alisio-memory-runtime__meta-label">
-                                ${item.title?.trim() || item.source?.trim() || text.noteEvidence}
-                              </span>
-                              <span class="alisio-memory-runtime__meta-detail">
-                                ${item.excerpt?.trim() || text.na}
-                              </span>
-                            </div>
-                          `,
-                        )}
-                      </div>
-                    `
-                  : nothing}
-              </article>
-            `,
-          )}
-        </div>
-      </section>
-    `;
-  }
-
-  private renderEvidence(
-    text: ReturnType<typeof memoryText>,
-    evidence: MemoryEvidenceItem[] | null | undefined,
-  ) {
-    const items = evidence ?? [];
-    if (items.length === 0) {
-      return nothing;
-    }
-    return html`
-      <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.noteEvidence}</h2></div>
-        <div class="alisio-memory-native__stack">
-          ${items.map(
-            (item) => html`
-              <article class="alisio-memory-runtime">
-                <strong>${item.title?.trim() || item.source?.trim() || text.noteEvidence}</strong>
-                <span class="alisio-memory-runtime__meta-detail">
-                  ${item.excerpt?.trim() || text.na}
-                </span>
-                ${item.source?.trim() && item.source !== item.title?.trim()
-                  ? html`<span class="alisio-memory-runtime__meta-detail">${item.source}</span>`
-                  : nothing}
-                ${item.provenance?.length
-                  ? renderProvenanceRows(item.provenance, text.noteProvenanceEmpty)
-                  : nothing}
-              </article>
-            `,
-          )}
-        </div>
-      </section>
-    `;
-  }
-
-  private renderRevision(text: ReturnType<typeof memoryText>) {
-    const revision = this.note?.revision ?? null;
-    if (!revision) {
-      return nothing;
-    }
-    return html`
-      <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.noteRevision}</h2></div>
-        <article class="alisio-memory-runtime__meta-item">
-          <span class="alisio-memory-runtime__meta-label">
-            ${revision.summary?.trim() || revision.eventId || text.noteRevision}
-          </span>
-          <strong class="alisio-memory-runtime__meta-value">
-            ${String(revision.lamport ?? text.na)}
-          </strong>
-          <span class="alisio-memory-runtime__meta-detail">
-            ${[formatTimestamp(revision.updatedAt), revision.author].filter(Boolean).join(" · ") ||
-            text.na}
-          </span>
-          ${revision.eventId
-            ? html`<span class="alisio-memory-runtime__meta-detail">${revision.eventId}</span>`
-            : nothing}
-        </article>
-      </section>
-    `;
-  }
-
-  private renderHistory(text: ReturnType<typeof memoryText>) {
-    if (this.historyLoading && this.history.length === 0) {
-      return html`
-        <section class="alisio-memory-group">
-          <div class="alisio-memory-group__header"><h2>${text.noteHistory}</h2></div>
-          ${renderSkeletonLines(["medium", "short", "medium"], { compact: true })}
-        </section>
-      `;
-    }
-    if (this.historyError) {
-      return html`
-        <section class="alisio-memory-group">
-          <div class="alisio-memory-group__header"><h2>${text.noteHistory}</h2></div>
-          ${renderMemoryNotice(this.historyError)}
-        </section>
-      `;
-    }
-    if (this.history.length === 0) {
-      return nothing;
-    }
-    return html`
-      <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.noteHistory}</h2></div>
-        <div class="alisio-memory-native__stack">
-          ${this.history.map(
-            (entry) => html`
-              <article class="alisio-memory-runtime__meta-item">
-                <span class="alisio-memory-runtime__meta-label">
-                  ${entry.summary?.trim() || entry.operation?.trim() || entry.eventId}
-                </span>
-                <strong class="alisio-memory-runtime__meta-value">
-                  ${String(entry.lamport ?? text.na)}
-                </strong>
-                <span class="alisio-memory-runtime__meta-detail">
-                  ${[formatTimestamp(entry.at), entry.author].filter(Boolean).join(" · ") ||
-                  text.na}
-                </span>
-                ${entry.diffSummary
-                  ? html`
-                      <span class="alisio-memory-runtime__meta-detail">${entry.diffSummary}</span>
-                    `
-                  : nothing}
-              </article>
-            `,
-          )}
-        </div>
-      </section>
-    `;
-  }
-
-  private renderContext(text: ReturnType<typeof memoryText>) {
-    const preview = this.note?.contextPreview ?? null;
-    if (!preview) {
-      return nothing;
-    }
-    return html`
-      <section class="alisio-memory-group">
-        <div class="alisio-memory-group__header"><h2>${text.noteContext}</h2></div>
-        <div class="alisio-memory-native__stack">
-          <div class="alisio-memory-runtime__meta-item">
-            <span class="alisio-memory-runtime__meta-label">${text.whySurfaced}</span>
-            <span class="alisio-memory-runtime__meta-detail">
-              ${buildContextPreviewSummary(text, this.note, preview.summary)}
-            </span>
-            ${renderReasonTags(preview.reasonTags)}
-            ${this.tracesEnabled && (preview.traceId || preview.trace)
-              ? html`
-                  <div class="alisio-memory-runtime__actions">
-                    <button
-                      class="btn btn--sm"
-                      @click=${() =>
-                        void this.openTrace({
-                          label: this.note?.title ?? text.traceTitle,
-                          traceId: preview.traceId,
-                          trace: preview.trace,
-                          summary: preview.traceSummary,
-                          reasonTags: preview.reasonTags,
-                        })}
-                    >
-                      ${text.viewTrace}
-                    </button>
-                  </div>
-                `
-              : nothing}
-          </div>
         </div>
       </section>
     `;
@@ -2231,21 +1492,27 @@ export class AlisioMemoryNativeHub extends LitElement {
             <div class="alisio-memory-note__eyebrow">
               ${this.note.path?.trim() || text.notePath}
             </div>
-            <label class="sr-only" for="memory-note-title">${text.notesCreatePlaceholder}</label>
-            <input
-              id="memory-note-title"
-              class="alisio-memory-note__title-input"
-              .value=${this.currentNoteTitleDraft}
-              @input=${(event: Event) => {
-                if (!this.note?.id) {
-                  return;
-                }
-                this.noteTitleDrafts = {
-                  ...this.noteTitleDrafts,
-                  [this.note.id]: (event.target as HTMLInputElement).value,
-                };
-              }}
-            />
+            ${this.noteMode === "markdown"
+              ? html`
+                  <label class="sr-only" for="memory-note-title"
+                    >${text.notesCreatePlaceholder}</label
+                  >
+                  <input
+                    id="memory-note-title"
+                    class="alisio-memory-note__title-input"
+                    .value=${this.currentNoteTitleDraft}
+                    @input=${(event: Event) => {
+                      if (!this.note?.id) {
+                        return;
+                      }
+                      this.noteTitleDrafts = {
+                        ...this.noteTitleDrafts,
+                        [this.note.id]: (event.target as HTMLInputElement).value,
+                      };
+                    }}
+                  />
+                `
+              : html`<h1 class="alisio-memory-note__title">${this.note.title}</h1>`}
             <div class="alisio-memory-note__meta">
               ${[revisionTime ? `${text.noteUpdated}: ${revisionTime}` : null]
                 .filter(Boolean)
@@ -2254,20 +1521,6 @@ export class AlisioMemoryNativeHub extends LitElement {
             ${renderReasonTags(this.note.reasonTags)}
           </div>
           <div class="alisio-memory-note__actions">
-            <div class="alisio-memory-note__mode-switch">
-              <button
-                class="btn btn--sm ${this.noteMode === "markdown" ? "primary" : ""}"
-                @click=${() => (this.noteMode = "markdown")}
-              >
-                ${text.noteMarkdown}
-              </button>
-              <button
-                class="btn btn--sm ${this.noteMode === "reading" ? "primary" : ""}"
-                @click=${() => (this.noteMode = "reading")}
-              >
-                ${text.noteReading}
-              </button>
-            </div>
             <div class="alisio-memory-note__utility-actions">
               <button
                 class="btn btn--sm"
@@ -2281,31 +1534,54 @@ export class AlisioMemoryNativeHub extends LitElement {
                   });
                 }}
               >
-                ${text.views.graph}
+                ${text.graphLocal}
               </button>
-              <button
-                class="btn btn--sm"
-                ?disabled=${!this.noteDirty || this.noteSaving}
-                @click=${() => {
-                  if (!this.note?.id) {
-                    return;
-                  }
-                  this.noteDrafts = { ...this.noteDrafts, [this.note.id]: this.note.content };
-                  this.noteTitleDrafts = {
-                    ...this.noteTitleDrafts,
-                    [this.note.id]: this.note.title,
-                  };
-                }}
-              >
-                ${text.reset}
-              </button>
-              <button
-                class="btn btn--sm primary"
-                ?disabled=${!this.noteDirty || this.noteSaving}
-                @click=${() => void this.saveNote()}
-              >
-                ${this.noteSaving ? text.saving : text.save}
-              </button>
+              ${this.noteMode === "reading"
+                ? html`
+                    <button
+                      class="btn btn--icon btn--ghost"
+                      title=${text.noteMarkdown}
+                      aria-label=${text.noteMarkdown}
+                      @click=${() => (this.noteMode = "markdown")}
+                    >
+                      ${icons.edit}
+                    </button>
+                  `
+                : html`
+                    <button
+                      class="btn btn--icon btn--ghost"
+                      title=${text.reset}
+                      aria-label=${text.reset}
+                      @click=${() => {
+                        if (!this.note?.id) {
+                          return;
+                        }
+                        this.noteDrafts = { ...this.noteDrafts, [this.note.id]: this.note.content };
+                        this.noteTitleDrafts = {
+                          ...this.noteTitleDrafts,
+                          [this.note.id]: this.note.title,
+                        };
+                        this.noteMode = "reading";
+                      }}
+                    >
+                      ${icons.x}
+                    </button>
+                    <button
+                      class="btn btn--icon primary"
+                      ?disabled=${this.noteSaving}
+                      title=${text.save}
+                      aria-label=${text.save}
+                      @click=${() => {
+                        if (this.noteDirty) {
+                          void this.saveNote();
+                          return;
+                        }
+                        this.noteMode = "reading";
+                      }}
+                    >
+                      ${this.noteSaving ? icons.refresh : icons.check}
+                    </button>
+                  `}
             </div>
           </div>
         </header>
@@ -2335,7 +1611,6 @@ export class AlisioMemoryNativeHub extends LitElement {
             `
           : html`
               <div class="alisio-memory-preview">
-                <span class="alisio-memory-preview__label">${text.noteReading}</span>
                 <div
                   class="alisio-memory-preview__body sidebar-markdown memory-note__article-markdown"
                   @click=${this.handlePreviewClick}
@@ -2344,19 +1619,9 @@ export class AlisioMemoryNativeHub extends LitElement {
                 </div>
               </div>
             `}
+        ${this.renderBacklinks(text, this.note.backlinks)}
+        ${this.renderAttachments(text, this.note.attachments)} ${this.renderAttachmentPreview(text)}
       </article>
-    `;
-  }
-
-  private renderNoteMeta(text: ReturnType<typeof memoryText>) {
-    if (!this.note && !this.attachmentDetail && !this.attachmentLoading && !this.attachmentError) {
-      return nothing;
-    }
-    return html`
-      <div class="alisio-memory-sidebar__stack">
-        ${this.renderAttachments(text, this.note?.attachments)}
-        ${this.renderAttachmentPreview(text)} ${this.renderBacklinks(text, this.note?.backlinks)}
-      </div>
     `;
   }
 
@@ -2382,7 +1647,6 @@ export class AlisioMemoryNativeHub extends LitElement {
         )}
         .text=${{
           graphTitle: text.graphTitle,
-          graphDescription: text.viewDescriptions.graph,
           graphLoading: text.graphLoading,
           graphUnavailable: text.graphUnavailable,
           graphEmpty: text.graphEmpty,
@@ -2391,13 +1655,6 @@ export class AlisioMemoryNativeHub extends LitElement {
           graphLocal: text.graphLocal,
           graphDepth: text.graphDepth,
           graphResetView: text.graphResetView,
-          graphNeighbourhood: text.graphNeighbourhood,
-          graphOrphans: text.graphOrphans,
-          graphBranches: text.graphBranches,
-          graphBranchesEmpty: text.graphBranchesEmpty,
-          graphEdgeReason: text.graphEdgeReason,
-          graphEdgeReasonEmpty: text.graphEdgeReasonEmpty,
-          graphFilterRelations: text.graphFilterRelations,
           graphFilterTags: text.graphFilterTags,
           graphGroups: text.graphGroups,
           graphColorBy: text.graphColorBy,
@@ -2411,47 +1668,10 @@ export class AlisioMemoryNativeHub extends LitElement {
           graphContextMenuOpen: text.graphContextMenuOpen,
           graphContextMenuCenter: text.graphContextMenuCenter,
           graphContextMenuLocal: text.graphContextMenuLocal,
-          graphDisplay: text.graphDisplay,
-          graphArrows: text.graphArrows,
-          graphTextFadeThreshold: text.graphTextFadeThreshold,
-          graphNodeSize: text.graphNodeSize,
-          graphLinkThickness: text.graphLinkThickness,
-          graphForces: text.graphForces,
-          graphCenterForce: text.graphCenterForce,
-          graphRepelForce: text.graphRepelForce,
-          graphLinkForce: text.graphLinkForce,
-          graphLinkDistance: text.graphLinkDistance,
           graphNodesCount: text.graphNodesCount,
           graphEdgesCount: text.graphEdgesCount,
-          graphTruncated: text.graphTruncated,
-          graphSource: text.graphSource,
-          graphTarget: text.graphTarget,
-          graphRelationType: text.graphRelationType,
-          graphClusters: text.graphClusters,
-          graphSuggestions: text.graphSuggestions,
-          graphSpotlight: text.graphSpotlight,
-          graphIncoming: text.graphIncoming,
-          graphOutgoing: text.graphOutgoing,
-          graphDegree: text.graphDegree,
-          graphZoomIn: text.graphZoomIn,
-          graphZoomOut: text.graphZoomOut,
           graphCenterFocus: text.graphCenterFocus,
-          graphCanvasHint: text.graphCanvasHint,
           graphShowAttachments: text.graphShowAttachments,
-          graphAliases: text.graphAliases,
-          graphTags: text.graphTags,
-          graphRelations: text.graphRelations,
-          searchPlaceholder: text.searchPlaceholder,
-          wikiOpenPage: text.noteOpen,
-          none: text.none,
-          ready: text.ready,
-          unavailable: text.unavailable,
-          builtin: text.builtin,
-          localFirst: text.localFirst,
-          localOnly: text.localOnly,
-          cloudSyncEnabled: text.cloudSyncEnabled,
-          cloudSyncUnavailable: text.cloudSyncUnavailable,
-          cloudSyncError: text.cloudSyncError,
         }}
         @alisio-memory-graph-open-node=${(event: CustomEvent<{ nodeId: string }>) => {
           const nodeId = event.detail?.nodeId?.trim();
@@ -2510,80 +1730,6 @@ export class AlisioMemoryNativeHub extends LitElement {
     `;
   }
 
-  private hasSidePaneContent() {
-    return (
-      this.attachmentLoading ||
-      Boolean(this.attachmentError) ||
-      Boolean(this.attachmentDetail) ||
-      (this.note?.attachments?.length ?? 0) > 0 ||
-      (this.note?.backlinks?.length ?? 0) > 0
-    );
-  }
-
-  private renderSidePane(text: ReturnType<typeof memoryText>) {
-    if (!this.hasSidePaneContent()) {
-      return nothing;
-    }
-    return html`
-      <aside class="alisio-memory-sidebar">
-        <div class="alisio-memory-sidebar__body">${this.renderNoteMeta(text)}</div>
-      </aside>
-    `;
-  }
-
-  private renderTraceDrawer(text: ReturnType<typeof memoryText>) {
-    if (!this.traceOpen) {
-      return nothing;
-    }
-    const summary = buildTraceSummary(this.traceData, text);
-    return html`
-      <section class="alisio-memory-runtime alisio-memory-native__drawer">
-        <div class="alisio-memory-runtime__header">
-          <div class="alisio-memory-runtime__copy">
-            <h3>${text.traceTitle}</h3>
-            <p>${this.traceTitle}</p>
-          </div>
-          <div class="alisio-memory-runtime__actions">
-            <button class="btn btn--sm" @click=${() => (this.traceOpen = false)}>
-              ${text.traceClose}
-            </button>
-          </div>
-        </div>
-        ${this.traceLoading
-          ? renderSkeletonLines(["medium", "long", "full"], { compact: true })
-          : this.traceError
-            ? renderMemoryNotice(this.traceError)
-            : !this.traceData
-              ? renderMemoryPlaceholder({
-                  icon: icons.brain,
-                  label: text.traceTitle,
-                  compact: true,
-                })
-              : html`
-                  ${renderReasonTags(this.traceData.reasonTags)}
-                  <div class="alisio-memory-native__trace-grid">
-                    <section class="alisio-memory-group">
-                      <div class="alisio-memory-group__header"><h2>${text.traceSummary}</h2></div>
-                      ${summary.length === 0
-                        ? html`<div class="alisio-memory-empty">${text.na}</div>`
-                        : html`
-                            <div class="alisio-memory-native__stack">
-                              ${summary.map((line) => html`<div>${line}</div>`)}
-                            </div>
-                          `}
-                    </section>
-                    <section class="alisio-memory-group">
-                      <div class="alisio-memory-group__header"><h2>${text.traceRaw}</h2></div>
-                      <pre class="alisio-memory-native__trace-raw">
-${JSON.stringify(this.traceData.raw, null, 2)}</pre
-                      >
-                    </section>
-                  </div>
-                `}
-      </section>
-    `;
-  }
-
   render() {
     const props = this.props;
     const text = memoryText();
@@ -2591,14 +1737,7 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
       return nothing;
     }
     const agentsError = sanitizeMemoryNotice(props.agentsError);
-    const memoryError = sanitizeMemoryNotice(props.memoryError);
     const memoryStatusError = sanitizeMemoryNotice(props.memoryStatusError);
-    const hasVisibleMemoryContent =
-      (this.notesList?.notes.length ?? 0) > 0 ||
-      Boolean(this.note) ||
-      Boolean(this.graphData ?? props.memoryGraph);
-    const showMemoryError =
-      Boolean(memoryError) && (!hasVisibleMemoryContent || !isMemoryBusyError(props.memoryError));
 
     return html`
       <style>
@@ -2620,31 +1759,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           display: grid;
           gap: 12px;
           margin-bottom: 16px;
-        }
-        .alisio-memory-native__pairs {
-          display: grid;
-          gap: 12px;
-        }
-        .alisio-memory-native__pair {
-          display: grid;
-          gap: 6px;
-        }
-        .alisio-memory-native__drawer {
-          margin-top: 18px;
-        }
-        .alisio-memory-native__trace-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 18px;
-        }
-        .alisio-memory-native__result-card {
-          display: grid;
-          gap: 8px;
-        }
-        .alisio-memory-native__result-actions {
-          display: flex;
-          gap: 8px;
-          justify-content: flex-end;
         }
         .alisio-memory-preview {
           display: grid;
@@ -2687,17 +1801,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
         }
         .alisio-memory-files-preview__audio {
           width: 100%;
-        }
-        .alisio-memory-preview__hint {
-          font-size: 0.82rem;
-          color: var(--text-muted);
-        }
-        .alisio-memory-native__trace-raw {
-          margin: 0;
-          overflow: auto;
-          border-radius: 16px;
-          padding: 14px;
-          background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
         }
         .alisio-memory-notice {
           margin-bottom: 12px;
@@ -2756,34 +1859,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
         .alisio-memory-note--skeleton {
           min-height: 360px;
         }
-        .alisio-memory-utilitybar {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 16px;
-          padding: 10px 12px;
-          border-radius: 16px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
-        }
-        .alisio-memory-utilitybar__actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .alisio-memory-utilitybar__select {
-          min-width: 92px;
-        }
-        .alisio-memory-utilitybar__message {
-          width: 100%;
-          color: var(--text-muted);
-          font-size: 0.82rem;
-          line-height: 1.4;
-          text-align: right;
-        }
         .alisio-memory-toolbar {
           display: flex;
           align-items: center;
@@ -2818,11 +1893,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
         .alisio-memory-vault__header h3 {
           margin: 0;
         }
-        .alisio-memory-sidebar__pane-head p {
-          margin: 0;
-          color: var(--text-muted);
-          line-height: 1.55;
-        }
         .alisio-memory-toolbar__count {
           display: inline-flex;
           align-items: center;
@@ -2852,17 +1922,11 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
         }
         .alisio-memory-layout {
           display: grid;
-          grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(320px, 380px);
+          grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
           gap: 16px;
           align-items: start;
         }
-        .alisio-memory-layout.is-no-sidebar {
-          grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-        }
         .alisio-memory-layout.is-graph-mode {
-          grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 360px);
-        }
-        .alisio-memory-layout.is-graph-mode.is-no-sidebar {
           grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
         }
         .alisio-memory-notes__explorer {
@@ -2993,52 +2057,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           gap: 12px;
           min-width: 0;
         }
-        .alisio-memory-sidebar {
-          position: sticky;
-          top: 12px;
-          display: grid;
-          gap: 10px;
-          min-width: 0;
-        }
-        .alisio-memory-sidebar__toolbar {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          padding: 8px;
-          border-radius: 16px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
-        }
-        .alisio-memory-sidebar__body {
-          display: grid;
-          gap: 12px;
-          min-width: 0;
-        }
-        .alisio-memory-sidebar__stack,
-        .alisio-memory-sidebar__pane {
-          display: grid;
-          gap: 12px;
-        }
-        .alisio-memory-sidebar__group,
-        .alisio-memory-sidebar__stack .alisio-memory-group {
-          padding: 12px 14px;
-          border-radius: 16px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 98%, transparent);
-          box-shadow: none;
-        }
-        .alisio-memory-sidebar__stack .alisio-memory-group__header h2,
-        .alisio-memory-sidebar__pane-head h3 {
-          margin: 0;
-          font-size: 0.82rem;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-        .alisio-memory-sidebar__pane-head {
-          display: grid;
-          gap: 10px;
-        }
         .alisio-memory-note {
           display: grid;
           gap: 14px;
@@ -3077,6 +2095,16 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
             Georgia,
             serif;
         }
+        .alisio-memory-note__title {
+          margin: 0;
+          font:
+            600 clamp(1.65rem, 2vw, 2.1rem) / 1.15 "Iowan Old Style",
+            "Palatino Linotype",
+            "Book Antiqua",
+            Palatino,
+            Georgia,
+            serif;
+        }
         .alisio-memory-note__meta {
           display: flex;
           gap: 8px;
@@ -3096,14 +2124,10 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           display: grid;
           gap: 10px;
         }
-        .alisio-memory-note__mode-switch,
         .alisio-memory-note__utility-actions {
           display: flex;
           flex-wrap: wrap;
           gap: 8px;
-        }
-        .alisio-memory-note__utility-actions .alisio-memory-native__result-actions {
-          justify-content: flex-start;
         }
         .alisio-memory-note__textarea {
           min-height: 560px;
@@ -3141,8 +2165,7 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           .alisio-memory-layout {
             grid-template-columns: 1fr;
           }
-          .alisio-memory-notes__explorer,
-          .alisio-memory-sidebar {
+          .alisio-memory-notes__explorer {
             position: static;
           }
         }
@@ -3155,9 +2178,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
             margin-left: 0;
             display: grid;
           }
-          .alisio-memory-native__trace-grid {
-            grid-template-columns: 1fr;
-          }
           .alisio-memory-note__header {
             flex-direction: column;
           }
@@ -3167,49 +2187,20 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           .alisio-memory-note__textarea {
             min-height: 420px;
           }
-          .alisio-memory-utilitybar {
-            grid-template-columns: 1fr;
-          }
         }
       </style>
       <section class="alisio-page alisio-memory-page">
         ${this.renderHeader(text)}
         ${agentsError ? renderMemoryNotice(agentsError, "danger") : nothing}
-        ${showMemoryError ? renderMemoryNotice(memoryError, "danger") : nothing}
         ${memoryStatusError ? renderMemoryNotice(memoryStatusError) : nothing}
-        <div
-          class="alisio-memory-layout ${this.mainPaneMode === "graph"
-            ? "is-graph-mode"
-            : ""} ${this.hasSidePaneContent() ? "" : "is-no-sidebar"}"
-        >
+        <div class="alisio-memory-layout ${this.mainPaneMode === "graph" ? "is-graph-mode" : ""}">
           ${this.renderExplorer(text)}
           <section class="alisio-memory-note-area">
             ${this.mainPaneMode === "graph"
               ? this.renderGraphWorkspace(text)
               : this.renderNoteBody(text)}
           </section>
-          ${this.renderSidePane(text)}
         </div>
-        ${renderSyncCard({
-          text,
-          sync: this.syncSurface,
-          status: props.memoryStatus,
-          noteCount: this.notesList?.notes.length ?? 0,
-          syncing: props.memorySyncing,
-          canSync: props.memorySyncAvailable && Boolean(props.memoryStatus?.enabled),
-          exportBusy: this.exportBusy,
-          exportFormat: this.exportFormat,
-          exportFormats: resolveAllowedExportFormats(this.notesList),
-          exportMessage: this.exportMessage,
-          onSync: () => {
-            props.onSync();
-            void this.reloadAll();
-          },
-          onExportFormat: (value) => {
-            this.exportFormat = value;
-          },
-          onExport: () => void this.exportMemory(),
-        })}
       </section>
     `;
   }

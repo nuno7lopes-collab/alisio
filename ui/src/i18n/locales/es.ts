@@ -1618,8 +1618,8 @@ export const es: TranslationMap = {
         subtitle: "Entra, verifica tu correo, conecta OpenAI y empieza la primera conversación.",
       },
       progress: {
-        oneOfThree: "1 de 3",
-        twoOfThree: "2 de 3",
+        oneOfThree: "1 de 2",
+        twoOfThree: "2 de 2",
       },
       gateway: {
         title: "Reconectar app",
@@ -1633,8 +1633,7 @@ export const es: TranslationMap = {
         title: "Entrar o crear cuenta",
         createTitle: "Entrar o crear cuenta",
         signInTitle: "Entrar o crear cuenta",
-        subtitle:
-          "Usa Google o correo. Si este correo es nuevo, creamos la cuenta automáticamente y terminamos el resto dentro de la app.",
+        subtitle: "Continúa con Google o recibe un enlace seguro de acceso por correo.",
         savedAccount:
           "Se encontró una cuenta guardada para {email}. Puedes volver a usar ese correo o cambiar a otro.",
         autoConnectHint:
@@ -1643,22 +1642,52 @@ export const es: TranslationMap = {
         signInTab: "Continuar",
         email: "Correo electrónico",
         emailPlaceholder: "nombre@ejemplo.com",
-        emailNote: "Usa el correo de tu cuenta de Alisio.",
+        emailNote: "Enviaremos un enlace seguro de acceso a esta dirección.",
+        emailMethodTitle: "Magic link por correo",
+        emailMethodNote:
+          "Sin contraseña. Abre el enlace recibido en tu correo para terminar el acceso.",
         googleAction: "Continuar con Google",
+        googleNote: "Usa tu cuenta de Google para entrar más rápido.",
         or: "o",
         emailAction: "Enviarme un enlace de acceso",
+        verifyTitle: "Revisa tu correo",
+        verifyLinkTitle: "El enlace del correo es el paso principal",
+        verifyLinkNote: "Abre el mensaje enviado a {email} y usa el enlace seguro para entrar.",
+        verifyLinkAuto:
+          "Si ese correo también incluye un código de 6 dígitos, puedes usarlo abajo como alternativa.",
         code: "Código de verificación",
         codePlaceholder: "Introduce el código de 6 dígitos",
-        codeNote:
-          "Abre el correo de acceso que enviamos a esta dirección. Si ese correo también incluye un código de 6 dígitos, puedes introducirlo abajo.",
+        codeNote: "Solo hace falta si el correo también incluye un código.",
+        codeFallbackSummary: "Tengo un código de 6 dígitos",
         useAnotherEmail: "Usar otro correo",
         waitForConnection: "Espera a que Alisio vuelva a conectarse y después continúa.",
         enterEmail: "Introduce tu correo para continuar.",
         validEmail: "Usa un correo válido como nombre@ejemplo.com.",
+        cloudUnavailable:
+          "El backend cloud de la cuenta de Alisio no está disponible en este entorno.",
+        cloudUnavailableConfigure:
+          "El backend cloud de la cuenta de Alisio no está disponible en este entorno. Configura: {vars}.",
         connecting: "Conectando…",
         working: "Procesando…",
-        verifyAction: "Verificar código",
-        resendAction: "Reenviar correo",
+        verifyAction: "Entrar con código",
+        resendAction: "Reenviar enlace",
+        passwordResetNotice:
+          "Define una nueva contraseña para terminar la recuperación de tu cuenta de Alisio.",
+        emailUpdatedNotice: "Tu correo de Alisio se ha actualizado.",
+        saveReconnectError:
+          "Alisio todavía se está reconectando. Espera un momento y vuelve a guardar tu perfil.",
+        signOutReconnectError:
+          "Alisio todavía se está reconectando. Espera un momento y vuelve a intentar cerrar sesión.",
+        signUpConfirmNotice:
+          "Revisa tu correo para confirmar la nueva cuenta de Alisio y después vuelve aquí.",
+        recoveryReconnectError:
+          "Alisio todavía se está reconectando. Espera un momento y vuelve a pedir el correo de recuperación.",
+        recoveryEmailRequired: "Introduce primero el correo de tu cuenta de Alisio.",
+        recoveryLinkNotice: "Revisa tu correo para abrir el enlace de recuperación de Alisio.",
+        recoveryEmailSentNotice: "Revisa tu correo para abrir el enlace de recuperación de Alisio.",
+        changeEmailNotice:
+          "Revisa la bandeja de entrada de tu nuevo correo para confirmar el cambio.",
+        passwordUpdatedNotice: "Tu contraseña de Alisio se ha actualizado.",
       },
       profile: {
         title: "Completa tu perfil",

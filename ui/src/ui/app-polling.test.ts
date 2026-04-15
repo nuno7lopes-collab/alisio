@@ -24,16 +24,28 @@ vi.mock("./controllers/tasks.ts", () => ({
   loadTasksOverview: loadTasksOverviewMock,
 }));
 
-import {
-  startChatRecoveryPolling,
-  startMemoryPolling,
-  startNodesPolling,
-  startTasksPolling,
-  stopChatRecoveryPolling,
-  stopMemoryPolling,
-  stopNodesPolling,
-  stopTasksPolling,
-} from "./app-polling.ts";
+let startChatRecoveryPolling!: typeof import("./app-polling.ts").startChatRecoveryPolling;
+let startMemoryPolling!: typeof import("./app-polling.ts").startMemoryPolling;
+let startNodesPolling!: typeof import("./app-polling.ts").startNodesPolling;
+let startTasksPolling!: typeof import("./app-polling.ts").startTasksPolling;
+let stopChatRecoveryPolling!: typeof import("./app-polling.ts").stopChatRecoveryPolling;
+let stopMemoryPolling!: typeof import("./app-polling.ts").stopMemoryPolling;
+let stopNodesPolling!: typeof import("./app-polling.ts").stopNodesPolling;
+let stopTasksPolling!: typeof import("./app-polling.ts").stopTasksPolling;
+
+async function loadSubject() {
+  vi.resetModules();
+  ({
+    startChatRecoveryPolling,
+    startMemoryPolling,
+    startNodesPolling,
+    startTasksPolling,
+    stopChatRecoveryPolling,
+    stopMemoryPolling,
+    stopNodesPolling,
+    stopTasksPolling,
+  } = await import("./app-polling.ts"));
+}
 
 type MockRequest = ReturnType<typeof vi.fn> &
   (<T>(method: string, params: Record<string, unknown>) => Promise<T>);
@@ -100,7 +112,8 @@ function setVisibilityState(value: "visible" | "hidden") {
 }
 
 describe("startNodesPolling", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadSubject();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: globalThis,
@@ -158,7 +171,8 @@ describe("startNodesPolling", () => {
 });
 
 describe("startMemoryPolling", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadSubject();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: globalThis,
@@ -216,7 +230,8 @@ describe("startMemoryPolling", () => {
 });
 
 describe("startTasksPolling", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadSubject();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: globalThis,
@@ -271,7 +286,8 @@ describe("startTasksPolling", () => {
 });
 
 describe("startChatRecoveryPolling", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await loadSubject();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: globalThis,

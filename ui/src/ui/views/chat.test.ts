@@ -3,13 +3,19 @@
 import { html, render } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSafeLocalStorage } from "../../local-storage.ts";
-import { renderChatDesktopToolbar, renderChatSessionSelect } from "../app-render.helpers.ts";
+import {
+  renderChatComposerModelSelect,
+  renderChatDesktopToolbar,
+  renderChatSessionSelect,
+} from "../app-render.helpers.ts";
 import type { AppViewState } from "../app-view-state.ts";
 import {
   createModelCatalog,
   createSessionsListResult,
   DEEPSEEK_CHAT_MODEL,
   DEFAULT_CHAT_MODEL_CATALOG,
+  OPENAI_GPT5_MINI_MODEL,
+  OPENAI_GPT5_MODEL,
 } from "../chat-model.test-helpers.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import { DEFAULT_THEME_SELECTION } from "../theme.ts";
@@ -1842,6 +1848,26 @@ describe("chat view", () => {
     expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
   });
 
+  it("renders compact model labels in the composer picker", () => {
+    const { state } = createChatHeaderState({
+      model: "gpt-5-mini",
+      modelProvider: "openai",
+      models: createModelCatalog(OPENAI_GPT5_MODEL, OPENAI_GPT5_MINI_MODEL, DEEPSEEK_CHAT_MODEL),
+    });
+    const container = document.createElement("div");
+    render(renderChatComposerModelSelect(state), container);
+
+    const select = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    const labels = Array.from(select?.querySelectorAll("option") ?? []).map((option) =>
+      option.textContent?.trim(),
+    );
+
+    expect(labels).toEqual(["Default", "GPT-5 Mini", "DeepSeek Chat"]);
+    expect(labels.some((label) => label?.includes("·"))).toBe(false);
+  });
+
   it("renders the Alisio chat shell wrappers for the redesigned layout", () => {
     const container = document.createElement("div");
     render(
@@ -1870,5 +1896,63 @@ describe("chat view", () => {
     expect(
       container.querySelector('.alisio-chat__composer-model select[data-chat-model-select="true"]'),
     ).not.toBeNull();
+  });
+
+  it("renders assistant task proposals inline and wires approve actions", () => {
+    const container = document.createElement("div");
+    const onResolveTaskProposal = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          messages: [
+            {
+              id: "assistant-msg",
+              role: "assistant",
+              timestamp: 1,
+              content: [
+                {
+                  type: "text",
+                  text: [
+                    "Vamos guardar isto como proposta.",
+                    "```alisio-task",
+                    JSON.stringify({
+                      title: "Implementar task inbox",
+                      summary: "Criar inbox e launch flow no chat.",
+                      acceptance: ["Existe inbox", "Approve funciona"],
+                      launchPrompt: "Implementa a task inbox no chat e na tab de tasks.",
+                      kind: "project",
+                    }),
+                    "```",
+                  ].join("\n"),
+                },
+              ],
+            },
+          ],
+          onResolveTaskProposal,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Vamos guardar isto como proposta.");
+    expect(container.textContent).toContain("Implementar task inbox");
+    expect(container.textContent).not.toContain("alisio-task");
+
+    const approveButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.trim() === "Approve",
+    );
+    expect(approveButton).toBeTruthy();
+
+    approveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(onResolveTaskProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientKey: "msg:assistant-msg:0",
+        requesterSessionKey: "main",
+        kind: "project",
+        title: "Implementar task inbox",
+      }),
+      "approved",
+    );
   });
 });

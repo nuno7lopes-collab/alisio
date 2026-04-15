@@ -731,6 +731,54 @@ describe("loadChatHistory", () => {
     ]);
   });
 
+  it("matches document-only optimistic turns with canonical history using the stable turn id", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Envia o ficheiro." }],
+      timestamp: 10,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "attachment", mimeType: "application/pdf", fileName: "brief.pdf" }],
+      timestamp: 20,
+      idempotencyKey: "run-doc-1",
+    };
+    const localAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Já li o PDF." }],
+      timestamp: 30,
+    };
+    const canonicalUserTurn = {
+      role: "user",
+      content: [{ type: "attachment", mimeType: "application/pdf", fileName: "brief.pdf" }],
+      timestamp: 21,
+      idempotencyKey: "run-doc-1",
+    };
+    const canonicalAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Já li o PDF." }],
+      timestamp: 31,
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [previousMessage, canonicalUserTurn, canonicalAssistantReply],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, optimisticUserTurn, localAssistantReply],
+      chatFinalizing: true,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: false });
+
+    expect(state.chatMessages).toEqual([
+      previousMessage,
+      canonicalUserTurn,
+      canonicalAssistantReply,
+    ]);
+  });
+
   it("does not toggle chatLoading for silent history refreshes", async () => {
     let resolveRequest!: (value: { messages: unknown[] }) => void;
     const request = vi.fn(
@@ -751,9 +799,137 @@ describe("loadChatHistory", () => {
     await pending;
     expect(state.chatLoading).toBe(false);
   });
+
+  it("ignores stale history responses after a reconnect swaps the client", async () => {
+    let resolveFirst!: (value: { messages: unknown[]; thinkingLevel?: string }) => void;
+    let resolveSecond!: (value: { messages: unknown[]; thinkingLevel?: string }) => void;
+    const firstClient = {
+      request: vi.fn(
+        () =>
+          new Promise<{ messages: unknown[]; thinkingLevel?: string }>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      ),
+    };
+    const secondClient = {
+      request: vi.fn(
+        () =>
+          new Promise<{ messages: unknown[]; thinkingLevel?: string }>((resolve) => {
+            resolveSecond = resolve;
+          }),
+      ),
+    };
+    const state = createState({
+      client: firstClient as unknown as ChatState["client"],
+      connected: true,
+    });
+
+    const firstPending = loadChatHistory(state);
+    state.client = secondClient as unknown as ChatState["client"];
+    const secondPending = loadChatHistory(state);
+
+    resolveFirst({
+      messages: [{ role: "assistant", content: [{ type: "text", text: "stale" }] }],
+      thinkingLevel: "low",
+    });
+    await firstPending;
+
+    expect(state.chatLoading).toBe(true);
+    expect(state.chatMessages).toEqual([]);
+    expect(state.chatThinkingLevel).toBeNull();
+
+    resolveSecond({
+      messages: [{ role: "assistant", content: [{ type: "text", text: "fresh" }] }],
+      thinkingLevel: "high",
+    });
+    await secondPending;
+
+    expect(state.chatLoading).toBe(false);
+    expect(state.chatMessages).toEqual([
+      { role: "assistant", content: [{ type: "text", text: "fresh" }] },
+    ]);
+    expect(state.chatThinkingLevel).toBe("high");
+  });
+
+  it("ignores stale history responses after the user switches sessions", async () => {
+    let resolveMain!: (value: { messages: unknown[] }) => void;
+    let resolveOther!: (value: { messages: unknown[] }) => void;
+    const request = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ messages: unknown[] }>((resolve) => {
+            resolveMain = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<{ messages: unknown[] }>((resolve) => {
+            resolveOther = resolve;
+          }),
+      );
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      sessionKey: "main",
+    });
+
+    const firstPending = loadChatHistory(state);
+    state.sessionKey = "other";
+    const secondPending = loadChatHistory(state);
+
+    resolveOther({
+      messages: [{ role: "assistant", content: [{ type: "text", text: "other session" }] }],
+    });
+    await secondPending;
+
+    expect(state.chatMessages).toEqual([
+      { role: "assistant", content: [{ type: "text", text: "other session" }] },
+    ]);
+    expect(state.chatLoading).toBe(false);
+
+    resolveMain({
+      messages: [{ role: "assistant", content: [{ type: "text", text: "main session" }] }],
+    });
+    await firstPending;
+
+    expect(state.chatMessages).toEqual([
+      { role: "assistant", content: [{ type: "text", text: "other session" }] },
+    ]);
+  });
 });
 
 describe("sendChatMessage", () => {
+  it("adds structured document attachment blocks to the optimistic user turn", async () => {
+    const request = vi.fn().mockResolvedValue({ status: "started" });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    const result = await sendChatMessage(state, "", [
+      {
+        id: "att-1",
+        dataUrl: `data:application/pdf;base64,${Buffer.from("%PDF-1.4\\n").toString("base64")}`,
+        mimeType: "application/pdf",
+        fileName: "brief.pdf",
+      },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(state.chatMessages.at(-1)).toMatchObject({
+      role: "user",
+      content: [
+        {
+          type: "attachment",
+          mimeType: "application/pdf",
+          fileName: "brief.pdf",
+        },
+      ],
+      idempotencyKey: result,
+    });
+  });
+
   it("formats structured non-auth connect failures for chat send", async () => {
     const request = vi.fn().mockRejectedValue(
       new GatewayRequestError({

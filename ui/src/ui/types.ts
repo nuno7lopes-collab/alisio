@@ -55,6 +55,7 @@ export type WizardStartResult = import("../../../src/gateway/protocol/index.js")
 export type WizardStatusResult =
   import("../../../src/gateway/protocol/index.js").WizardStatusResult;
 export type WizardStep = import("../../../src/gateway/protocol/index.js").WizardStep;
+export type AlisioAuthStage = "entry" | "email-link";
 import type { ProductChannelSurfaceMode } from "../../../src/channels/product-surface.shared.js";
 import type { CronJobBase } from "../../../src/cron/types-shared.js";
 import type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
@@ -692,15 +693,38 @@ export type TaskStatus = import("../../../src/gateway/protocol/index.js").TaskSt
 export type TaskDeliveryStatus =
   import("../../../src/gateway/protocol/index.js").TaskDeliveryStatus;
 export type TaskNotifyPolicy = import("../../../src/gateway/protocol/index.js").TaskNotifyPolicy;
+export type TaskProposalKind = import("../../../src/gateway/protocol/index.js").TaskProposalKind;
+export type TaskProposalDecision =
+  import("../../../src/gateway/protocol/index.js").TaskProposalDecision;
+export type TaskProposalCreatedBy =
+  import("../../../src/gateway/protocol/index.js").TaskProposalCreatedBy;
 export type TaskRegistrySummary =
   import("../../../src/gateway/protocol/index.js").TaskRegistrySummary;
+export type TaskProposalSummary =
+  import("../../../src/gateway/protocol/index.js").TaskProposalSummary;
 export type TaskRecord = import("../../../src/gateway/protocol/index.js").TaskRecord;
+export type TaskProposalRecord =
+  import("../../../src/gateway/protocol/index.js").TaskProposalRecord;
 export type TaskAuditFinding = import("../../../src/gateway/protocol/index.js").TaskAuditFinding;
 export type TaskAuditSummary = import("../../../src/gateway/protocol/index.js").TaskAuditSummary;
 export type TaskMaintenanceSummary =
   import("../../../src/gateway/protocol/index.js").TaskMaintenanceSummary;
 export type TasksOverviewResult =
   import("../../../src/gateway/protocol/index.js").TasksOverviewResult;
+
+export type TaskProposalDraft = {
+  clientKey: string;
+  requesterSessionKey: string;
+  sourceMessageId?: string;
+  kind: TaskProposalKind;
+  title: string;
+  summary?: string;
+  rationale?: string;
+  acceptance: string[];
+  launchPrompt?: string;
+  agentId?: string;
+  createdBy?: TaskProposalCreatedBy;
+};
 
 export type SkillsStatusConfigCheck = {
   path: string;

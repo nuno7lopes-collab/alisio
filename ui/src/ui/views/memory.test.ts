@@ -192,6 +192,16 @@ function clickButton(container: ParentNode, label: string) {
   button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 }
 
+function clickButtonByLabel(container: ParentNode, label: string) {
+  const button = Array.from(container.querySelectorAll("button")).find(
+    (entry) =>
+      entry.getAttribute("aria-label")?.includes(label) ||
+      entry.getAttribute("title")?.includes(label),
+  );
+  expect(button).toBeTruthy();
+  button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 function makeRequestMock() {
   return vi.fn((method: string, params?: Record<string, unknown>) => {
     const noteId = typeof params?.noteId === "string" ? params.noteId : "atlas";
@@ -442,14 +452,6 @@ function createProps(
       agents: [{ id: "main", name: "Main" }],
     },
     selectedAgentId: "main",
-    memoryLoading: false,
-    memoryError: null,
-    memoryList: null,
-    memoryActive: null,
-    memoryContents: {},
-    memoryDrafts: {},
-    memorySaving: false,
-    memoryDeleting: false,
     memoryStatusLoading: false,
     memoryStatusError: null,
     memoryStatus: {
@@ -522,36 +524,13 @@ function createProps(
         ok: true,
       },
     },
-    memorySyncing: false,
-    memorySyncAvailable: true,
     memoryGraphLoading: false,
     memoryGraphError: null,
     memoryGraph: makeGraphResult("global"),
-    memoryGraphQuery: "Project Atlas",
-    configForm: {
-      ui: {
-        memory: {
-          traces: { enabled: true },
-        },
-      },
-    },
     searchQuery: "",
-    composerOpen: false,
-    composerDate: "2026-04-11",
-    composerTitle: "",
     onSelectAgent: vi.fn(),
     onRefresh: vi.fn(),
     onSearchChange: vi.fn(),
-    onSelectFile: vi.fn(),
-    onDraftChange: vi.fn(),
-    onResetFile: vi.fn(),
-    onSaveFile: vi.fn(),
-    onDeleteFile: vi.fn(),
-    onComposerOpenChange: vi.fn(),
-    onComposerDateChange: vi.fn(),
-    onComposerTitleChange: vi.fn(),
-    onCreateNote: vi.fn(),
-    onSync: vi.fn(),
     ...overrides,
   };
 }
@@ -572,23 +551,46 @@ describe("renderMemoryHub", () => {
 
     expect(container.querySelector(".alisio-memory-notes__explorer")).toBeTruthy();
     expect(container.querySelectorAll(".alisio-memory-view-tab")).toHaveLength(0);
-    expect(container.querySelector(".alisio-memory-note__textarea")).toBeTruthy();
+    expect(container.querySelector(".memory-note__article-markdown")).toBeTruthy();
     expect(text).toContain("Notes");
     expect(text).toContain("Attachments");
     expect(text).toContain("Graph");
   });
 
-  it("opens the selected note in Markdown mode by default and keeps attachments secondary", async () => {
+  it("não pede o grafo no primeiro open enquanto a vista principal está nas notas", async () => {
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+
+    await mountNativeHub(props);
+
+    expect(client.request.mock.calls.some(([method]) => method === "memory.graph")).toBe(false);
+  });
+
+  it("reaproveita a lista e a nota em cache quando a tab é reaberta com o mesmo client", async () => {
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+    const firstMount = await mountNativeHub(props);
+
+    firstMount.container.remove();
+    client.request.mockClear();
+
+    const secondMount = await mountNativeHub(props);
+
+    expect(cleanText(secondMount.container)).toContain("Project Atlas");
+    expect(client.request.mock.calls.some(([method]) => method === "memory.notes.list")).toBe(
+      false,
+    );
+    expect(client.request.mock.calls.some(([method]) => method === "memory.notes.get")).toBe(false);
+  });
+
+  it("opens the selected note in reading mode by default and keeps attachments secondary", async () => {
     const { container } = await mountNativeHub(createProps());
-    const titleInput = container.querySelector(".alisio-memory-note input") as HTMLInputElement;
-    const markdown = container.querySelector(
-      ".alisio-memory-note__textarea",
-    ) as HTMLTextAreaElement;
+    const title = container.querySelector(".alisio-memory-note__title");
+    const markdown = container.querySelector(".alisio-memory-note__textarea");
     const text = cleanText(container);
 
-    expect(titleInput).toBeTruthy();
-    expect(titleInput.value).toBe("Project Atlas");
-    expect(markdown.value).toContain("# Project Atlas");
+    expect(title?.textContent).toContain("Project Atlas");
+    expect(markdown).toBeNull();
     expect(text).toContain("Backlinks");
     expect(text).toContain("Attachments");
     expect(text).toContain("product-brief.pdf");
@@ -599,19 +601,26 @@ describe("renderMemoryHub", () => {
     expect(text).not.toContain("Memory views");
   });
 
-  it("switches to reading mode for the same selected note", async () => {
+  it("entra em edição só quando se carrega em editar e volta à leitura depois de guardar", async () => {
     const { container } = await mountNativeHub(createProps());
 
-    clickButton(container, "Reading");
+    clickButtonByLabel(container, "Markdown");
     await flushMemoryHub();
 
     const title = container.querySelector(
       ".alisio-memory-note__title-input",
     ) as HTMLInputElement | null;
-    const article = container.querySelector(".memory-note__article-markdown");
     expect(title?.value).toBe("Project Atlas");
-    expect(article?.textContent).toContain("Project Atlas keeps the launch blockers in one place.");
-    expect(article?.textContent).toContain("Roadmap");
+    const markdown = container.querySelector(
+      ".alisio-memory-note__textarea",
+    ) as HTMLTextAreaElement;
+    expect(markdown.value).toContain("# Project Atlas");
+
+    clickButtonByLabel(container, "Save");
+    await flushMemoryHub();
+
+    expect(container.querySelector(".alisio-memory-note__title")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-note__textarea")).toBeNull();
   });
 
   it("loads an attachment preview inside the note detail instead of a separate primary files view", async () => {
@@ -627,7 +636,21 @@ describe("renderMemoryHub", () => {
     expect(text).toContain("Project Atlas");
   });
 
-  it("reloads the graph with attachments on demand and keeps the graph workspace active while opening nodes", async () => {
+  it("não recarrega o grafo ao mudar de nota enquanto o grafo não está aberto", async () => {
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+    const { container } = await mountNativeHub(props);
+
+    client.request.mockClear();
+
+    clickButton(container, "Roadmap");
+    await flushMemoryHub();
+
+    expect(client.request.mock.calls.some(([method]) => method === "memory.notes.get")).toBe(true);
+    expect(client.request.mock.calls.some(([method]) => method === "memory.graph")).toBe(false);
+  });
+
+  it("reloads the graph with attachments on demand and abre notas sem barra lateral", async () => {
     const props = createProps();
     const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
     const { container } = await mountNativeHub(props);
@@ -670,44 +693,44 @@ describe("renderMemoryHub", () => {
     expect(graph).toBeTruthy();
     graph?.dispatchEvent(
       new CustomEvent("alisio-memory-graph-open-node", {
-        detail: { nodeId: "roadmap", pageId: "roadmap" },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-    await flushMemoryHub();
-    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
-    expect(container.querySelector(".alisio-memory-graph__canvas")).toBeTruthy();
-    expect(cleanText(container)).toContain("Roadmap");
-
-    graph?.dispatchEvent(
-      new CustomEvent("alisio-memory-graph-open-node", {
         detail: { nodeId: "attachment:product-brief.pdf", pageId: "attachment:product-brief.pdf" },
         bubbles: true,
         composed: true,
       }),
     );
     await flushMemoryHub();
-    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
-    expect(container.querySelector(".alisio-memory-sidebar")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-graph-workspace")).toBeNull();
     expect(container.querySelector("iframe.alisio-memory-files-preview__frame")).toBeTruthy();
+    expect(cleanText(container)).toContain("Project Atlas");
   });
 
   it("opens the graph as a primary workspace view with its own canvas", async () => {
-    const { container } = await mountNativeHub(createProps());
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+    const { container } = await mountNativeHub(props);
 
     clickButton(container, "Graph");
     await flushMemoryHub();
 
     expect(container.querySelector(".alisio-memory-graph-workspace")).toBeTruthy();
     expect(container.querySelector(".alisio-memory-graph__canvas")).toBeTruthy();
-    expect(container.querySelector(".alisio-memory-sidebar")).toBeTruthy();
+    expect(container.querySelector(".alisio-memory-sidebar")).toBeNull();
+    expect(
+      client.request.mock.calls.some(
+        ([method, params]) =>
+          method === "memory.graph" &&
+          (params as Record<string, unknown>).scope === "global" &&
+          !("pageId" in ((params as Record<string, unknown>) ?? {})) &&
+          !("nodeLimit" in ((params as Record<string, unknown>) ?? {})) &&
+          !("edgeLimit" in ((params as Record<string, unknown>) ?? {})),
+      ),
+    ).toBe(true);
   });
 
   it("não mostra erros SQLite crus quando já existe conteúdo visível", async () => {
     const { container } = await mountNativeHub(
       createProps({
-        memoryError: "database is locked: code=ERR_SQLITE_ERROR",
+        memoryStatusError: "database is locked: code=ERR_SQLITE_ERROR",
       }),
     );
 
@@ -768,13 +791,6 @@ describe("renderMemoryHub", () => {
           },
         });
       }
-      if (method === "memory.notes.history") {
-        return Promise.resolve({
-          agentId: "main",
-          noteId,
-          history: [],
-        });
-      }
       if (method === "memory.graph") {
         return Promise.reject(new Error("temporary graph fetch failure"));
       }
@@ -797,10 +813,38 @@ describe("renderMemoryHub", () => {
     expect(cleanText(container)).not.toContain("temporary graph fetch failure");
   });
 
-  it("reloads notes and graph data when the sync marker changes", async () => {
+  it("reloads notes without touching the graph when the sync marker changes in note mode", async () => {
     const props = createProps();
     const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
     const { hub } = await mountNativeHub(props);
+    client.request.mockClear();
+
+    hub.props = {
+      ...props,
+      memoryStatus: {
+        ...props.memoryStatus!,
+        runtime: {
+          ...props.memoryStatus!.runtime!,
+          canonicalStore: {
+            ...props.memoryStatus!.runtime!.canonicalStore!,
+            lastSyncedLamport: 6,
+          },
+        },
+      },
+    };
+    await flushMemoryHub();
+
+    expect(client.request.mock.calls.some(([method]) => method === "memory.notes.list")).toBe(true);
+    expect(client.request.mock.calls.some(([method]) => method === "memory.graph")).toBe(false);
+  });
+
+  it("reloads the graph too when the sync marker changes with graph mode open", async () => {
+    const props = createProps();
+    const client = props.client as unknown as { request: ReturnType<typeof makeRequestMock> };
+    const { container, hub } = await mountNativeHub(props);
+
+    clickButton(container, "Graph");
+    await flushMemoryHub();
     client.request.mockClear();
 
     hub.props = {

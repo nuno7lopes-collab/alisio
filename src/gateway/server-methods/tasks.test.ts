@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TaskProposalView } from "../../tasks/task-proposals.types.js";
 import type { TaskRecord } from "../../tasks/task-registry.types.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
@@ -13,6 +14,11 @@ const mocks = vi.hoisted(() => ({
   reconcileTaskLookupTokenMock: vi.fn(),
   getInspectableTaskRegistrySummaryMock: vi.fn(),
   summarizeTaskRecordsMock: vi.fn(),
+  listTaskProposalViewsMock: vi.fn(),
+  summarizeTaskProposalsMock: vi.fn(),
+  upsertTaskProposalMock: vi.fn(),
+  resolveTaskProposalDecisionMock: vi.fn(),
+  attachTaskProposalLaunchMock: vi.fn(),
 }));
 
 vi.mock("../../config/config.js", () => ({
@@ -38,6 +44,14 @@ vi.mock("../../tasks/task-registry.maintenance.js", () => ({
 
 vi.mock("../../tasks/task-registry.summary.js", () => ({
   summarizeTaskRecords: mocks.summarizeTaskRecordsMock,
+}));
+
+vi.mock("../../tasks/task-proposals.js", () => ({
+  listTaskProposalViews: mocks.listTaskProposalViewsMock,
+  summarizeTaskProposals: mocks.summarizeTaskProposalsMock,
+  upsertTaskProposal: mocks.upsertTaskProposalMock,
+  resolveTaskProposalDecision: mocks.resolveTaskProposalDecisionMock,
+  attachTaskProposalLaunch: mocks.attachTaskProposalLaunchMock,
 }));
 
 import { tasksHandlers } from "./tasks.js";
@@ -128,6 +142,27 @@ function createOptions(
   } as unknown as GatewayRequestHandlerOptions;
 }
 
+function createProposal(overrides: Partial<TaskProposalView> = {}): TaskProposalView {
+  return {
+    proposalId: "proposal-1",
+    clientKey: "msg:assistant:1:0",
+    requesterSessionKey: "agent:main:main",
+    sourceMessageId: "message-1",
+    kind: "task",
+    title: "Ship task inbox",
+    summary: "Add task inbox governance on top of the task ledger.",
+    rationale: "Lets the agent propose work without mutating the execution ledger.",
+    acceptance: ["Inbox visible in Tasks tab", "Chat cards can approve and launch"],
+    launchPrompt: "Implement the inbox flow and keep the existing task ledger intact.",
+    agentId: "main",
+    createdBy: "assistant",
+    decision: "pending",
+    createdAt: 1_000,
+    updatedAt: 1_000,
+    ...overrides,
+  };
+}
+
 describe("tasksHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -192,6 +227,14 @@ describe("tasksHandlers", () => {
       cleanupStamped: 0,
       pruned: 0,
     });
+    mocks.listTaskProposalViewsMock.mockReturnValue([]);
+    mocks.summarizeTaskProposalsMock.mockReturnValue({
+      total: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      launched: 0,
+    });
   });
 
   it("filters and paginates the task overview", async () => {
@@ -226,10 +269,56 @@ describe("tasksHandlers", () => {
         limit: 1,
         offset: 0,
         hasMore: false,
+        proposalSummary: {
+          total: 0,
+          pending: 0,
+          approved: 0,
+          rejected: 0,
+          launched: 0,
+        },
+        proposals: [],
         runtime: "subagent",
         status: "running",
         query: "background",
         tasks: [matchingTask],
+      }),
+      undefined,
+    );
+  });
+
+  it("keeps task proposals complete in the overview even when tasks are filtered", async () => {
+    const matchingProposal = createProposal({
+      title: "Background research task",
+      summary: "Track the research flow for the chat.",
+    });
+    const nonMatchingProposal = createProposal({
+      proposalId: "proposal-2",
+      clientKey: "msg:assistant:2:0",
+      title: "Marketing backlog",
+      summary: "Something unrelated",
+    });
+    mocks.reconcileInspectableTasksMock.mockReturnValue([]);
+    mocks.listTaskProposalViewsMock.mockReturnValue([matchingProposal, nonMatchingProposal]);
+    mocks.summarizeTaskProposalsMock.mockReturnValue({
+      total: 2,
+      pending: 2,
+      approved: 0,
+      rejected: 0,
+      launched: 0,
+    });
+    const opts = createOptions("tasks.overview", {
+      query: "research",
+      limit: 10,
+      offset: 0,
+    });
+
+    await tasksHandlers["tasks.overview"](opts);
+
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        proposals: [matchingProposal, nonMatchingProposal],
+        proposalSummary: expect.objectContaining({ total: 2, pending: 2 }),
       }),
       undefined,
     );
@@ -289,5 +378,96 @@ describe("tasksHandlers", () => {
         message: "Task not found: missing-task",
       }),
     );
+  });
+
+  it("upserts a task proposal and broadcasts the change", async () => {
+    const proposal = createProposal();
+    mocks.upsertTaskProposalMock.mockReturnValue(proposal);
+    const opts = createOptions("tasks.proposal.upsert", {
+      clientKey: proposal.clientKey,
+      requesterSessionKey: proposal.requesterSessionKey,
+      sourceMessageId: proposal.sourceMessageId,
+      kind: proposal.kind,
+      title: proposal.title,
+      summary: proposal.summary,
+      rationale: proposal.rationale,
+      acceptance: proposal.acceptance,
+      launchPrompt: proposal.launchPrompt,
+      agentId: proposal.agentId,
+      createdBy: proposal.createdBy,
+    });
+
+    await tasksHandlers["tasks.proposal.upsert"](opts);
+
+    expect(mocks.upsertTaskProposalMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientKey: proposal.clientKey,
+        requesterSessionKey: proposal.requesterSessionKey,
+        title: proposal.title,
+      }),
+    );
+    expect(opts.context.broadcast).toHaveBeenCalledWith(
+      "tasks.proposal.changed",
+      { proposal },
+      { dropIfSlow: true },
+    );
+    expect(opts.respond).toHaveBeenCalledWith(true, { proposal }, undefined);
+  });
+
+  it("resolves a task proposal decision and broadcasts the change", async () => {
+    const proposal = createProposal({
+      decision: "approved",
+      resolvedAt: 2_000,
+      resolvedBy: "control-ui",
+    });
+    mocks.resolveTaskProposalDecisionMock.mockReturnValue(proposal);
+    const opts = createOptions("tasks.proposal.resolve", {
+      proposalId: proposal.proposalId,
+      decision: "approved",
+    });
+
+    await tasksHandlers["tasks.proposal.resolve"](opts);
+
+    expect(mocks.resolveTaskProposalDecisionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proposalId: proposal.proposalId,
+        decision: "approved",
+      }),
+    );
+    expect(opts.context.broadcast).toHaveBeenCalledWith(
+      "tasks.proposal.changed",
+      { proposal },
+      { dropIfSlow: true },
+    );
+    expect(opts.respond).toHaveBeenCalledWith(true, { proposal }, undefined);
+  });
+
+  it("attaches a launched run to a task proposal and broadcasts the change", async () => {
+    const proposal = createProposal({
+      decision: "approved",
+      launchedRunId: "run-1",
+      launchedSessionKey: "agent:main:dashboard:1",
+      launchedAt: 3_000,
+    });
+    mocks.attachTaskProposalLaunchMock.mockReturnValue(proposal);
+    const opts = createOptions("tasks.proposal.attachLaunch", {
+      proposalId: proposal.proposalId,
+      runId: "run-1",
+      sessionKey: "agent:main:dashboard:1",
+    });
+
+    await tasksHandlers["tasks.proposal.attachLaunch"](opts);
+
+    expect(mocks.attachTaskProposalLaunchMock).toHaveBeenCalledWith({
+      proposalId: proposal.proposalId,
+      runId: "run-1",
+      sessionKey: "agent:main:dashboard:1",
+    });
+    expect(opts.context.broadcast).toHaveBeenCalledWith(
+      "tasks.proposal.changed",
+      { proposal },
+      { dropIfSlow: true },
+    );
+    expect(opts.respond).toHaveBeenCalledWith(true, { proposal }, undefined);
   });
 });

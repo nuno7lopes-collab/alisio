@@ -269,6 +269,11 @@ describe("canonical memory store", () => {
         "# Gamma\n\nReference leaf.\n",
         "utf8",
       );
+      await fs.writeFile(
+        path.join(test.workspaceDir, "memory", "delta.md"),
+        "# Delta\n\nStandalone note.\n",
+        "utf8",
+      );
 
       const status = await syncCanonicalMemoryStore({
         cfg: test.cfg,
@@ -304,10 +309,13 @@ describe("canonical memory store", () => {
       const alphaId = nodeIdByTitle.get("Alpha");
       const betaId = nodeIdByTitle.get("Beta");
       const gammaId = nodeIdByTitle.get("Gamma");
+      const deltaId = nodeIdByTitle.get("Delta");
 
       expect(alphaId).toBeTruthy();
       expect(betaId).toBeTruthy();
       expect(gammaId).toBeTruthy();
+      expect(deltaId).toBeTruthy();
+      expect(graph.nodes).toHaveLength(5);
 
       const alphaBetaEdges = graph.edges.filter(
         (edge) => edge.fromId === alphaId && edge.toId === betaId,
@@ -318,7 +326,8 @@ describe("canonical memory store", () => {
 
       expect(alphaBetaEdges).toHaveLength(1);
       expect(betaGammaEdges).toHaveLength(1);
-      expect(graph.branches.length).toBeGreaterThan(0);
+      expect(graph.focus).toBeUndefined();
+      expect(graph.branches).toEqual([]);
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });
     }

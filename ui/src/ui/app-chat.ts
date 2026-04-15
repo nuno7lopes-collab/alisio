@@ -361,6 +361,11 @@ function accessModeLabel(mode: SecurityAccessMode) {
   return t("alisio.security.access.custom.label");
 }
 
+function handleLocalTasksCommand(host: ChatHost) {
+  host.onSlashAction?.("open-tasks");
+  injectCommandResult(host, "**Tasks**\n\nOpened the task inbox and background task view.");
+}
+
 async function handleLocalSecurityCommand(host: ChatHost, name: string, args: string) {
   if (name === "approvals") {
     injectCommandResult(host, buildSecuritySummaryMessage(host));
@@ -508,6 +513,7 @@ function shouldQueueLocalSlashCommand(name: string): boolean {
     "redirect",
     "permissions",
     "approvals",
+    "tasks",
   ].includes(name);
 }
 
@@ -549,6 +555,10 @@ async function dispatchSlashCommand(
     case "permissions":
     case "approvals":
       await handleLocalSecurityCommand(host, name, args);
+      scheduleChatScroll(host as unknown as Parameters<typeof scheduleChatScroll>[0]);
+      return;
+    case "tasks":
+      handleLocalTasksCommand(host);
       scheduleChatScroll(host as unknown as Parameters<typeof scheduleChatScroll>[0]);
       return;
   }

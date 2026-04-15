@@ -33,6 +33,7 @@ export type SkillsState = {
   skillConsentRequest: SkillConsentRequest | null;
   skillsLoadPromise?: Promise<void>;
   skillsReloadQueued?: boolean;
+  skillsLastSuccessAt?: number;
 };
 
 export type SkillMessage = {
@@ -44,7 +45,10 @@ export type SkillMessageMap = Record<string, SkillMessage>;
 
 type LoadSkillsOptions = {
   clearMessages?: boolean;
+  force?: boolean;
 };
+
+const SKILLS_CACHE_TTL_MS = 30_000;
 
 function setSkillMessage(state: SkillsState, key: string, message?: SkillMessage) {
   if (!key.trim()) {
@@ -91,6 +95,14 @@ export async function loadSkills(state: SkillsState, options?: LoadSkillsOptions
   if (!state.client || !state.connected) {
     return;
   }
+  if (
+    !options?.force &&
+    state.skillsReport &&
+    typeof state.skillsLastSuccessAt === "number" &&
+    Date.now() - state.skillsLastSuccessAt < SKILLS_CACHE_TTL_MS
+  ) {
+    return;
+  }
   const client = state.client;
 
   if (state.skillsLoadPromise) {
@@ -108,6 +120,7 @@ export async function loadSkills(state: SkillsState, options?: LoadSkillsOptions
         const res = await client.request<SkillStatusReport | undefined>("skills.status", {});
         if (res) {
           state.skillsReport = res;
+          state.skillsLastSuccessAt = Date.now();
           if (
             state.skillConsentRequest &&
             !(res.marketplaceCatalog ?? []).some(
@@ -265,7 +278,7 @@ export async function updateSkillEnabled(state: SkillsState, skillKey: string, e
   state.skillsError = null;
   try {
     await state.client.request("skills.update", { skillKey, enabled });
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     setSkillMessage(state, skillKey, {
       kind: "success",
       message: enabled
@@ -293,7 +306,7 @@ export async function saveSkillApiKey(state: SkillsState, skillKey: string) {
   try {
     const apiKey = state.skillEdits[skillKey] ?? "";
     await state.client.request("skills.update", { skillKey, apiKey });
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     clearSkillEdit(state, skillKey);
     setSkillMessage(state, skillKey, {
       kind: "success",
@@ -326,7 +339,7 @@ export async function saveSkillEnv(state: SkillsState, skillKey: string, envName
         [envName]: value,
       },
     });
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     clearSkillEdit(state, editKey);
     setSkillMessage(state, skillKey, {
       kind: "success",
@@ -359,7 +372,7 @@ export async function enableSkillConfigPath(
     if (!patched) {
       return;
     }
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     setSkillMessage(state, skillKey, {
       kind: "success",
       message: resolveSkillSuccessMessage(state, skillKey, "update"),
@@ -412,7 +425,7 @@ export async function allowBundledSkill(state: SkillsState, skillKey: string) {
       }),
       baseHash: snapshot.hash,
     });
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     setSkillMessage(state, skillKey, {
       kind: "success",
       message: resolveSkillSuccessMessage(state, skillKey, "update"),
@@ -446,7 +459,7 @@ export async function installSkill(
       installId,
       timeoutMs: 120000,
     });
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     const installerMessage = result?.message?.trim();
     const resolvedMessage = resolveSkillSuccessMessage(state, skillKey, "install");
     setSkillMessage(state, skillKey, {
@@ -600,7 +613,7 @@ async function runMarketplaceAction(
       }
     }
 
-    await loadSkills(state);
+    await loadSkills(state, { force: true });
     setSkillMessage(state, skill.skillKey, {
       kind: "success",
       message: resolveMarketplaceSuccessMessage(action, result),

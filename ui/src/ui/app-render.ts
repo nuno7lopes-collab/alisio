@@ -36,13 +36,7 @@ import {
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { buildChatModelOptions } from "./chat-model-select-state.ts";
-import {
-  loadAgentMemoryFiles,
-  loadAgentMemoryFileContent,
-  saveAgentMemoryFile,
-  deleteAgentMemoryFile,
-  resolvePreferredMemoryAgentId,
-} from "./controllers/agent-memory.ts";
+import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   beginAlisioAccountEmailAuth,
@@ -117,7 +111,7 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
-import { loadMemoryGraph, loadMemoryStatus, syncMemoryNow } from "./controllers/memory-runtime.ts";
+import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
 import {
   approveNodePairing,
   loadNodePairings,
@@ -149,14 +143,15 @@ import {
   updateSkillEnvEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
-import { cancelTask, loadTasksOverview, updateTaskNotifyPolicy } from "./controllers/tasks.ts";
-import { icons } from "./icons.ts";
 import {
-  buildMemoryNoteName,
-  humanizeMemoryNoteTitle,
-  isMemoryNoteFileName,
-  PRIMARY_MEMORY_FILE_NAME,
-} from "./memory-files.ts";
+  cancelTask,
+  launchTaskProposal,
+  loadTasksOverview,
+  resolveTaskProposal,
+  saveTaskProposal,
+  updateTaskNotifyPolicy,
+} from "./controllers/tasks.ts";
+import { icons } from "./icons.ts";
 import "./components/dashboard-header.ts";
 import { TAB_GROUPS, pathForTab, publicTabFor } from "./navigation.ts";
 import {
@@ -303,25 +298,6 @@ function scheduleOpenAiRefresh(state: AppViewState) {
   };
 
   tick();
-}
-
-function resolveMemoryGraphQuery(name: string | null | undefined): string | null {
-  if (!name || !isMemoryNoteFileName(name)) {
-    return null;
-  }
-  const title = humanizeMemoryNoteTitle(name).trim();
-  return title || null;
-}
-
-async function reloadMemoryGraphForSelection(
-  state: AppViewState,
-  agentId: string,
-  activeName: string | null | undefined,
-) {
-  await loadMemoryGraph(state, {
-    agentId,
-    query: resolveMemoryGraphQuery(activeName),
-  });
 }
 
 function scheduleAccountRefresh(state: AppViewState) {
@@ -865,10 +841,9 @@ export function renderApp(state: AppViewState) {
     sessionKey: state.sessionKey,
     assistantAgentId: state.assistantAgentId,
   });
-  const memoryGraphQuery = resolveMemoryGraphQuery(state.memoryActive);
   const refreshMemory = () => {
     void (async () => {
-      await loadAgents(state);
+      await loadAgents(state, { force: true });
       const agentId = resolvePreferredMemoryAgentId({
         agentsList: state.agentsList,
         memorySelectedAgentId: state.memorySelectedAgentId,
@@ -879,7 +854,7 @@ export function renderApp(state: AppViewState) {
         return;
       }
       state.memorySelectedAgentId = agentId;
-      await loadMemoryStatus(state, agentId, { reset: true });
+      await loadMemoryStatus(state, agentId, { reset: true, force: true });
     })();
   };
   if (shouldShowSetup) {
@@ -1159,9 +1134,6 @@ export function renderApp(state: AppViewState) {
               },
               onRevokeConnector: (connectorId) => {
                 void revokeAlisioConnector(state, connectorId);
-              },
-              onOpenConnections: () => {
-                state.setTab("connections" as import("./navigation.ts").Tab);
               },
             })
           : nothing}
@@ -1603,6 +1575,19 @@ export function renderApp(state: AppViewState) {
               onNotifyPolicyChange: (taskId, notify) => {
                 void updateTaskNotifyPolicy(state, taskId, notify);
               },
+              onResolveProposal: (proposal, decision) => {
+                void resolveTaskProposal(state, proposal, decision);
+              },
+              onLaunchProposal: (proposal) => {
+                void (async () => {
+                  const launched = await launchTaskProposal(state, proposal);
+                  if (!launched) {
+                    return;
+                  }
+                  state.sessionKey = launched.sessionKey;
+                  state.setTab?.("chat");
+                })();
+              },
               onOpenRequesterSession: (sessionKey) => {
                 state.sessionKey = sessionKey;
                 state.setTab?.("chat");
@@ -1714,6 +1699,8 @@ export function renderApp(state: AppViewState) {
                   nativeShellLoading: state.nativeShellLoading,
                   nativeShellError: state.nativeShellError,
                   nativeShellState: state.nativeShellState,
+                  taskProposals: state.tasksOverview?.proposals ?? [],
+                  taskProposalBusy: state.tasksBusy,
                   attachments: state.chatAttachments,
                   onAttachmentsChange: (next) => (state.chatAttachments = next),
                   composerModelSelect: renderChatComposerModelSelect(state),
@@ -1722,6 +1709,29 @@ export function renderApp(state: AppViewState) {
                   onAbort: () => void state.handleAbortChat(),
                   onResolveApproval: (entry, decision) => {
                     void resolveApprovalDecision(entry, decision);
+                  },
+                  onSaveTaskProposal: (proposal) => {
+                    void saveTaskProposal(state, proposal);
+                  },
+                  onResolveTaskProposal: (proposal, decision) => {
+                    void resolveTaskProposal(state, proposal, decision);
+                  },
+                  onLaunchTaskProposal: (proposal, persisted) => {
+                    void (async () => {
+                      const launched = await launchTaskProposal(state, persisted ?? proposal);
+                      if (!launched) {
+                        return;
+                      }
+                      state.sessionKey = launched.sessionKey;
+                      state.setTab("chat" as import("./navigation.ts").Tab);
+                    })();
+                  },
+                  onOpenTasks: () => {
+                    state.setTab("tasks" as import("./navigation.ts").Tab);
+                  },
+                  onOpenTaskSession: (sessionKey) => {
+                    state.sessionKey = sessionKey;
+                    state.setTab("chat" as import("./navigation.ts").Tab);
                   },
                   onOpenNativeSettings:
                     state.nativeShellState || state.nativeShellLoading || state.nativeShellError
@@ -1756,32 +1766,15 @@ export function renderApp(state: AppViewState) {
               agentsError: state.agentsError,
               agentsList: state.agentsList,
               selectedAgentId: resolvedMemoryAgentId,
-              memoryLoading: state.memoryLoading,
-              memoryError: state.memoryError,
-              memoryList: state.memoryList,
-              memoryActive: state.memoryActive,
-              memoryContents: state.memoryContents,
-              memoryDrafts: state.memoryDrafts,
-              memorySaving: state.memorySaving,
-              memoryDeleting: state.memoryDeleting,
               memoryStatusLoading: state.memoryStatusLoading,
               memoryStatusError: state.memoryStatusError,
               memoryStatus: state.memoryStatus,
-              memorySyncing: state.memorySyncing,
-              memorySyncAvailable: state.memorySyncAvailable,
               memoryGraphLoading: state.memoryGraphLoading,
               memoryGraphError: state.memoryGraphError,
               memoryGraph: state.memoryGraph,
-              memoryGraphQuery,
-              configForm: state.configForm,
               searchQuery: state.memorySearchQuery,
-              composerOpen: state.memoryComposerOpen,
-              composerDate: state.memoryComposerDate,
-              composerTitle: state.memoryComposerTitle,
               onSelectAgent: (agentId) => {
                 state.memorySelectedAgentId = agentId;
-                state.memoryComposerOpen = false;
-                state.memoryComposerTitle = "";
                 state.memoryGraph = null;
                 state.memoryGraphError = null;
                 state.memoryGraphLoading = false;
@@ -1790,105 +1783,6 @@ export function renderApp(state: AppViewState) {
               onRefresh: refreshMemory,
               onSearchChange: (value) => {
                 state.memorySearchQuery = value;
-              },
-              onSelectFile: (name) => {
-                const agentId = resolvedMemoryAgentId;
-                if (!agentId) {
-                  return;
-                }
-                state.memoryActive = name;
-                void (async () => {
-                  await Promise.allSettled([
-                    loadAgentMemoryFileContent(state, agentId, name, {
-                      preserveDraft: true,
-                    }),
-                    reloadMemoryGraphForSelection(state, agentId, name),
-                  ]);
-                })();
-              },
-              onDraftChange: (name, content) => {
-                state.memoryDrafts = { ...state.memoryDrafts, [name]: content };
-              },
-              onResetFile: (name) => {
-                state.memoryDrafts = {
-                  ...state.memoryDrafts,
-                  [name]: state.memoryContents[name] ?? "",
-                };
-              },
-              onSaveFile: (name) => {
-                const agentId = resolvedMemoryAgentId;
-                if (!agentId) {
-                  return;
-                }
-                void (async () => {
-                  await saveAgentMemoryFile(state, agentId, name, state.memoryDrafts[name] ?? "");
-                  await loadMemoryStatus(state, agentId);
-                  await reloadMemoryGraphForSelection(state, agentId, name);
-                })();
-              },
-              onDeleteFile: (name) => {
-                const agentId = resolvedMemoryAgentId;
-                if (!agentId) {
-                  return;
-                }
-                void (async () => {
-                  await deleteAgentMemoryFile(state, agentId, name);
-                  await Promise.allSettled([
-                    loadAgentMemoryFiles(state, agentId, {
-                      preferredName: PRIMARY_MEMORY_FILE_NAME,
-                    }),
-                    loadMemoryStatus(state, agentId, { reset: true }),
-                  ]);
-                  await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
-                })();
-              },
-              onComposerOpenChange: (open) => {
-                state.memoryComposerOpen = open;
-                if (!open) {
-                  state.memoryComposerTitle = "";
-                }
-              },
-              onComposerDateChange: (value) => {
-                state.memoryComposerDate = value;
-              },
-              onComposerTitleChange: (value) => {
-                state.memoryComposerTitle = value;
-              },
-              onCreateNote: () => {
-                const agentId = resolvedMemoryAgentId;
-                if (!agentId) {
-                  return;
-                }
-                const noteName = buildMemoryNoteName(
-                  state.memoryComposerDate,
-                  state.memoryComposerTitle,
-                  state.memoryList?.files.map((entry) => entry.name) ?? [],
-                );
-                const seededContent = state.memoryComposerTitle.trim()
-                  ? `# ${state.memoryComposerTitle.trim()}\n\n`
-                  : "";
-                void (async () => {
-                  await saveAgentMemoryFile(state, agentId, noteName, seededContent);
-                  state.memoryComposerOpen = false;
-                  state.memoryComposerTitle = "";
-                  await Promise.allSettled([
-                    loadAgentMemoryFiles(state, agentId, {
-                      preferredName: noteName,
-                    }),
-                    loadMemoryStatus(state, agentId, { reset: true }),
-                  ]);
-                  await reloadMemoryGraphForSelection(state, agentId, noteName);
-                })();
-              },
-              onSync: () => {
-                const agentId = resolvedMemoryAgentId;
-                if (!agentId) {
-                  return;
-                }
-                void (async () => {
-                  await syncMemoryNow(state, agentId);
-                  await loadMemoryStatus(state, agentId, { reset: true });
-                })();
               },
             })
           : nothing}

@@ -411,10 +411,16 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Sign in or create an account");
     expect(container.textContent).toContain("Email");
     expect(container.textContent).toContain("Continue with Google");
-    expect(container.textContent).toContain("Continue with email");
-    expect(container.textContent).toContain("Use your Alisio email.");
+    expect(container.textContent).toContain("Magic link by email");
+    expect(container.textContent).toContain("Send sign-in link");
+    expect(container.textContent).toContain("We will send a secure sign-in link");
     expect(container.textContent).toContain("Reconnect app");
     expect(container.textContent).toContain("Wait for Alisio to reconnect");
+    expect(
+      container.querySelector(
+        '.alisio-setup-account__method-btn--google img[src="brand-icons/google.svg"]',
+      ),
+    ).not.toBeNull();
   });
 
   it("submete o formulário de email quando o utilizador carrega Enter", () => {
@@ -544,7 +550,7 @@ describe("setup view", () => {
     render(
       renderSetup(
         createSetupProps({
-          authStage: "email-code",
+          authStage: "email-link",
           authPendingEmail: "nuno@example.com",
           authCode: "123456",
         }),
@@ -553,11 +559,16 @@ describe("setup view", () => {
     );
 
     expect(container.textContent).toContain("Check your email");
-    expect(container.textContent).toContain("Verification code");
-    expect(container.textContent).toContain("Resend email");
+    expect(container.textContent).toContain("The email link is the main sign-in step");
+    expect(container.textContent).toContain("I have a 6-digit code");
+    expect(container.textContent).toContain("Sign in with code");
+    expect(container.textContent).toContain("Resend link");
     expect(container.textContent).toContain("Change email");
     expect(container.textContent).toContain("nuno@example.com");
-    expect(container.querySelector("details.alisio-setup-advanced")).toBeNull();
+    expect(container.querySelector("details.alisio-setup-advanced")).not.toBeNull();
+    expect(container.querySelector("details.alisio-setup-advanced")?.hasAttribute("open")).toBe(
+      true,
+    );
   });
 
   it("mostra o formulário de nova password quando o recovery já abriu sessão", () => {

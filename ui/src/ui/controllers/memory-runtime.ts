@@ -285,6 +285,136 @@ export class MemoryEndpointUnavailableError extends Error {
   }
 }
 
+type CacheableMemoryRequestOptions = {
+  force?: boolean;
+};
+
+type MemoryRequestCacheEntry<T> = {
+  value?: T;
+  cachedAt?: number;
+  inFlight?: Promise<T>;
+};
+
+type MemoryStatusCacheEntry = {
+  agentId: string;
+  value: MemoryStatusState | null;
+  cachedAt: number;
+};
+
+const NOTES_LIST_CACHE_TTL_MS = 30_000;
+const NOTE_CACHE_TTL_MS = 30_000;
+const FILE_CACHE_TTL_MS = 30_000;
+const GRAPH_CACHE_TTL_MS = 20_000;
+const MEMORY_STATUS_CACHE_TTL_MS = 10_000;
+
+const endpointRequestCache = new WeakMap<
+  GatewayBrowserClient,
+  Map<string, MemoryRequestCacheEntry<unknown>>
+>();
+const memoryStatusCache = new WeakMap<MemoryRuntimeState, MemoryStatusCacheEntry>();
+
+function getClientRequestCache(client: GatewayBrowserClient) {
+  let cache = endpointRequestCache.get(client);
+  if (!cache) {
+    cache = new Map();
+    endpointRequestCache.set(client, cache);
+  }
+  return cache;
+}
+
+function buildMemoryRequestCacheKey(
+  method: string,
+  params: {
+    agentId: string;
+    query?: string;
+    noteId?: string;
+    fileId?: string;
+    pageId?: string;
+    entityId?: string;
+    scope?: "global" | "local";
+    depth?: number;
+    direction?: "incoming" | "outgoing" | "both";
+    matchLimit?: number;
+    relationLimit?: number;
+    nodeLimit?: number;
+    edgeLimit?: number;
+    includeAttachments?: boolean;
+  },
+) {
+  return `${params.agentId}::${method}::${JSON.stringify(params)}`;
+}
+
+async function requestWithMemoryCache<T>(
+  client: GatewayBrowserClient,
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>,
+  options?: CacheableMemoryRequestOptions,
+): Promise<T> {
+  const cache = getClientRequestCache(client);
+  const cached = cache.get(key) as MemoryRequestCacheEntry<T> | undefined;
+  const now = Date.now();
+  const hasFreshValue =
+    cached &&
+    Object.prototype.hasOwnProperty.call(cached, "value") &&
+    typeof cached.cachedAt === "number" &&
+    now - cached.cachedAt < ttlMs;
+  if (!options?.force && hasFreshValue) {
+    return cached.value as T;
+  }
+  if (!options?.force && cached?.inFlight) {
+    return cached.inFlight;
+  }
+  const request = loader()
+    .then((value) => {
+      cache.set(key, {
+        value,
+        cachedAt: Date.now(),
+      });
+      return value;
+    })
+    .catch((error) => {
+      const current = cache.get(key) as MemoryRequestCacheEntry<T> | undefined;
+      if (current?.inFlight === request) {
+        if (Object.prototype.hasOwnProperty.call(current, "value")) {
+          cache.set(key, {
+            value: current.value,
+            cachedAt: current.cachedAt,
+          });
+        } else {
+          cache.delete(key);
+        }
+      }
+      throw error;
+    });
+  cache.set(key, {
+    ...(hasFreshValue ? { value: cached?.value, cachedAt: cached?.cachedAt } : {}),
+    inFlight: request,
+  });
+  return request;
+}
+
+function invalidateClientMemoryRequestCache(
+  client: GatewayBrowserClient,
+  params?: { agentId?: string | null },
+) {
+  const cache = endpointRequestCache.get(client);
+  if (!cache) {
+    return;
+  }
+  const agentId = params?.agentId?.trim();
+  if (!agentId) {
+    cache.clear();
+    return;
+  }
+  const prefix = `${agentId}::`;
+  for (const key of cache.keys()) {
+    if (key.startsWith(prefix)) {
+      cache.delete(key);
+    }
+  }
+}
+
 function toMemoryNote(page: MemoryWikiPage): MemoryNote {
   const { relatedFiles, ...rest } = page;
   return {
@@ -424,68 +554,86 @@ export function isMemoryEndpointUnavailableError(
 export async function requestMemoryNotesList(
   client: GatewayBrowserClient,
   params: { agentId: string; query?: string },
+  options?: CacheableMemoryRequestOptions,
 ) {
-  try {
-    return await requestMemoryEndpoint<MemoryNotesListResult>(
-      client,
-      "memory.notes.list",
-      params,
-      "This version of Alisio does not expose native memory notes yet.",
-    );
-  } catch (err) {
-    if (!isMemoryEndpointUnavailableError(err)) {
-      throw err;
-    }
-    try {
-      return toMemoryNotesListResult(await requestMemoryWikiList(client, params));
-    } catch (fallbackErr) {
-      if (isMemoryEndpointUnavailableError(fallbackErr)) {
-        throw new MemoryEndpointUnavailableError(
+  return requestWithMemoryCache(
+    client,
+    buildMemoryRequestCacheKey("memory.notes.list", params),
+    NOTES_LIST_CACHE_TTL_MS,
+    async () => {
+      try {
+        return await requestMemoryEndpoint<MemoryNotesListResult>(
+          client,
           "memory.notes.list",
+          params,
           "This version of Alisio does not expose native memory notes yet.",
         );
+      } catch (err) {
+        if (!isMemoryEndpointUnavailableError(err)) {
+          throw err;
+        }
+        try {
+          return toMemoryNotesListResult(await requestMemoryWikiList(client, params));
+        } catch (fallbackErr) {
+          if (isMemoryEndpointUnavailableError(fallbackErr)) {
+            throw new MemoryEndpointUnavailableError(
+              "memory.notes.list",
+              "This version of Alisio does not expose native memory notes yet.",
+            );
+          }
+          throw fallbackErr;
+        }
       }
-      throw fallbackErr;
-    }
-  }
+    },
+    options,
+  );
 }
 
 export async function requestMemoryNote(
   client: GatewayBrowserClient,
   params: { agentId: string; noteId: string; query?: string },
+  options?: CacheableMemoryRequestOptions,
 ) {
-  try {
-    return await requestMemoryEndpoint<MemoryNotesGetResult>(
-      client,
-      "memory.notes.get",
-      params,
-      "This version of Alisio does not expose native memory note loading yet.",
-    );
-  } catch (err) {
-    if (!isMemoryEndpointUnavailableError(err)) {
-      throw err;
-    }
-    try {
-      const legacy = await requestMemoryWikiPage(client, {
-        agentId: params.agentId,
-        pageId: params.noteId,
-        ...(params.query ? { query: params.query } : {}),
-      });
-      return {
-        agentId: legacy.agentId,
-        note: toMemoryNote(legacy.page),
-        ...(legacy.sync ? { sync: legacy.sync } : {}),
-      } satisfies MemoryNotesGetResult;
-    } catch (fallbackErr) {
-      if (isMemoryEndpointUnavailableError(fallbackErr)) {
-        throw new MemoryEndpointUnavailableError(
+  return requestWithMemoryCache(
+    client,
+    buildMemoryRequestCacheKey("memory.notes.get", params),
+    NOTE_CACHE_TTL_MS,
+    async () => {
+      try {
+        return await requestMemoryEndpoint<MemoryNotesGetResult>(
+          client,
           "memory.notes.get",
+          params,
           "This version of Alisio does not expose native memory note loading yet.",
         );
+      } catch (err) {
+        if (!isMemoryEndpointUnavailableError(err)) {
+          throw err;
+        }
+        try {
+          const legacy = await requestMemoryWikiPage(client, {
+            agentId: params.agentId,
+            pageId: params.noteId,
+            ...(params.query ? { query: params.query } : {}),
+          });
+          return {
+            agentId: legacy.agentId,
+            note: toMemoryNote(legacy.page),
+            ...(legacy.sync ? { sync: legacy.sync } : {}),
+          } satisfies MemoryNotesGetResult;
+        } catch (fallbackErr) {
+          if (isMemoryEndpointUnavailableError(fallbackErr)) {
+            throw new MemoryEndpointUnavailableError(
+              "memory.notes.get",
+              "This version of Alisio does not expose native memory note loading yet.",
+            );
+          }
+          throw fallbackErr;
+        }
       }
-      throw fallbackErr;
-    }
-  }
+    },
+    options,
+  );
 }
 
 export async function requestMemoryNoteUpdate(
@@ -499,12 +647,14 @@ export async function requestMemoryNoteUpdate(
   },
 ) {
   try {
-    return await requestMemoryEndpoint<MemoryNotesUpdateResult>(
+    const result = await requestMemoryEndpoint<MemoryNotesUpdateResult>(
       client,
       "memory.notes.update",
       params,
       "This version of Alisio does not expose native memory note editing yet.",
     );
+    invalidateClientMemoryRequestCache(client, { agentId: params.agentId });
+    return result;
   } catch (err) {
     if (!isMemoryEndpointUnavailableError(err)) {
       throw err;
@@ -516,6 +666,7 @@ export async function requestMemoryNoteUpdate(
         title: params.title,
         content: params.content,
       });
+      invalidateClientMemoryRequestCache(client, { agentId: params.agentId });
       return {
         ok: legacy.ok,
         agentId: legacy.agentId,
@@ -640,12 +791,20 @@ export async function requestMemoryFilesList(
 export async function requestMemoryFile(
   client: GatewayBrowserClient,
   params: { agentId: string; fileId: string; query?: string },
+  options?: CacheableMemoryRequestOptions,
 ) {
-  return requestMemoryEndpoint<MemoryFilesGetResult>(
+  return requestWithMemoryCache(
     client,
-    "memory.files.get",
-    params,
-    "This version of Alisio does not expose native memory file details yet.",
+    buildMemoryRequestCacheKey("memory.files.get", params),
+    FILE_CACHE_TTL_MS,
+    () =>
+      requestMemoryEndpoint<MemoryFilesGetResult>(
+        client,
+        "memory.files.get",
+        params,
+        "This version of Alisio does not expose native memory file details yet.",
+      ),
+    options,
   );
 }
 
@@ -689,22 +848,45 @@ export async function requestMemoryGraph(
     edgeLimit?: number;
     includeAttachments?: boolean;
   },
+  options?: CacheableMemoryRequestOptions,
 ) {
-  return requestMemoryEndpoint<MemoryGraphState>(
+  return requestWithMemoryCache(
     client,
-    "memory.graph",
-    params,
-    "This version of Alisio does not expose the canonical memory graph yet.",
+    buildMemoryRequestCacheKey("memory.graph", params),
+    GRAPH_CACHE_TTL_MS,
+    () =>
+      requestMemoryEndpoint<MemoryGraphState>(
+        client,
+        "memory.graph",
+        params,
+        "This version of Alisio does not expose the canonical memory graph yet.",
+      ),
+    options,
   );
 }
 
 export async function loadMemoryStatus(
   state: MemoryRuntimeState,
   agentId: string,
-  options?: { reset?: boolean },
+  options?: { reset?: boolean; force?: boolean },
 ) {
   const resolvedAgentId = agentId.trim();
   if (!resolvedAgentId) {
+    return;
+  }
+  const cached = memoryStatusCache.get(state);
+  if (
+    !options?.force &&
+    cached?.agentId === resolvedAgentId &&
+    Date.now() - cached.cachedAt < MEMORY_STATUS_CACHE_TTL_MS
+  ) {
+    if (options?.reset) {
+      clearMemoryRuntimeState(state);
+    }
+    state.memoryStatus = cached.value;
+    state.memoryStatusError = null;
+    state.memorySyncAvailable = true;
+    state.memoryStatusLoading = false;
     return;
   }
   const request = beginTrackedRequest(state, statusRequests);
@@ -729,6 +911,11 @@ export async function loadMemoryStatus(
     }
     state.memoryStatus = res;
     state.memorySyncAvailable = true;
+    memoryStatusCache.set(state, {
+      agentId: resolvedAgentId,
+      value: res,
+      cachedAt: Date.now(),
+    });
   } catch (err) {
     if (isUnknownMethodError(err, "memory.status")) {
       if (isTrackedRequestCurrent(state, statusRequests, request)) {
@@ -775,6 +962,12 @@ export async function syncMemoryNow(state: MemoryRuntimeState, agentId: string) 
     }
     state.memoryStatus = res.status;
     state.memorySyncAvailable = true;
+    memoryStatusCache.set(state, {
+      agentId: resolvedAgentId,
+      value: res.status,
+      cachedAt: Date.now(),
+    });
+    invalidateClientMemoryRequestCache(request.client, { agentId: resolvedAgentId });
   } catch (err) {
     if (isTrackedRequestCurrent(state, syncRequests, request)) {
       state.memoryStatusError = isUnknownMethodError(err, "memory.sync")

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadAgents, loadToolsCatalog, loadToolsEffective, saveAgentsConfig } from "./agents.ts";
 import type { AgentsConfigSaveState, AgentsState } from "./agents.ts";
 
@@ -80,6 +80,10 @@ function createSaveState(): {
 }
 
 describe("loadAgents", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("preserves selected agent when it still exists in the list", async () => {
     const { state, request } = createState();
     state.agentsSelectedId = "kimi";
@@ -132,6 +136,53 @@ describe("loadAgents", () => {
     await loadAgents(state);
 
     expect(state.agentsSelectedId).toBe("main");
+  });
+
+  it("reuses a fresh agents snapshot unless a forced reload is requested", async () => {
+    vi.useFakeTimers();
+    const { state, request } = createState();
+    request.mockResolvedValue({
+      defaultId: "main",
+      mainKey: "main",
+      scope: "per-sender",
+      agents: [{ id: "main", name: "main" }],
+    });
+
+    await loadAgents(state);
+    await loadAgents(state);
+    await loadAgents(state, { force: true });
+
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("waits for an in-flight agents load instead of sending a duplicate request", async () => {
+    const { state, request } = createState();
+    let resolveRequest!: (value: {
+      defaultId: string;
+      mainKey: string;
+      scope: string;
+      agents: Array<{ id: string; name: string }>;
+    }) => void;
+    request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+
+    const first = loadAgents(state);
+    const second = loadAgents(state);
+
+    resolveRequest({
+      defaultId: "main",
+      mainKey: "main",
+      scope: "per-sender",
+      agents: [{ id: "main", name: "main" }],
+    });
+
+    await Promise.all([first, second]);
+
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });
 

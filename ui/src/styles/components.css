@@ -314,6 +314,39 @@
   background: color-mix(in srgb, var(--card) 82%, transparent);
 }
 
+.alisio-setup-account__method-btn--google {
+  align-items: center;
+  gap: 14px;
+  border-color: #8e918f;
+  background: #ffffff;
+  color: #1f1f1f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.alisio-setup-account__method-btn--google:hover:not(:disabled) {
+  background: #f8fafd;
+  border-color: #5f6368;
+}
+
+.alisio-setup-account__method-logo-frame {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.alisio-setup-account__method-logo {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
 .alisio-setup-account__method-copy {
   display: grid;
   gap: 2px;
@@ -333,6 +366,16 @@
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.alisio-setup-account__method-btn--google .alisio-setup-account__method-title {
+  color: #1f1f1f;
+}
+
+.alisio-setup-account__method-note {
+  color: rgba(31, 31, 31, 0.72);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .alisio-setup-account__divider {
@@ -357,6 +400,46 @@
 .alisio-setup-account__code-input {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.24em;
+}
+
+.alisio-setup-account__email-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-setup-account__email-title {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.alisio-setup-account__email-copy {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-setup-account__verify-guide {
+  gap: 8px;
+}
+
+.alisio-setup-account__verify-guide-title {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.alisio-setup-account__verify-guide-note,
+.alisio-setup-account__verify-guide-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.alisio-setup-account__verify-guide-hint {
+  color: var(--text);
 }
 
 .alisio-setup-consent {
@@ -454,6 +537,10 @@
 .alisio-setup-advanced[open] summary {
   margin-bottom: 10px;
   color: var(--text);
+}
+
+.alisio-setup-advanced[open] {
+  gap: 12px;
 }
 
 .setup-surface {

@@ -1,4 +1,5 @@
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import type { UserMessage } from "@mariozechner/pi-ai";
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 import type {
   TranscriptRewriteReplacement,
@@ -12,6 +13,132 @@ import { log } from "./logger.js";
 
 type SessionManagerLike = ReturnType<typeof SessionManager.open>;
 type SessionBranchEntry = ReturnType<SessionManagerLike["getBranch"]>[number];
+type UserSessionBranchEntry = Extract<SessionBranchEntry, { type: "message" }> & {
+  message: UserMessage;
+};
+
+function extractUserMessageText(message: UserMessage): string | undefined {
+  if (typeof message.content === "string") {
+    return message.content;
+  }
+  if (!Array.isArray(message.content)) {
+    return undefined;
+  }
+  const textBlocks = message.content
+    .map((block) =>
+      block && typeof block === "object" && "text" in block ? block.text : undefined,
+    )
+    .filter((text): text is string => typeof text === "string");
+  return textBlocks.length > 0 ? textBlocks.join("") : undefined;
+}
+
+function replaceUserMessageContentPreservingNonTextBlocks(
+  content: UserMessage["content"],
+  replacementText: string,
+): UserMessage["content"] {
+  if (typeof content === "string") {
+    return replacementText;
+  }
+  if (!Array.isArray(content)) {
+    return replacementText;
+  }
+
+  const nextContent: NonNullable<UserMessage["content"]> = [];
+  let insertedReplacementText = false;
+  for (const block of content) {
+    if (!block || typeof block !== "object") {
+      nextContent.push(block);
+      continue;
+    }
+    const typedBlock = block as { type?: unknown; text?: unknown };
+    if (typedBlock.type === "text") {
+      if (!insertedReplacementText && replacementText.length > 0) {
+        const textSignature =
+          typeof (block as { textSignature?: unknown }).textSignature === "string"
+            ? (block as { textSignature?: string }).textSignature
+            : undefined;
+        nextContent.push({
+          type: "text",
+          text: replacementText,
+          ...(textSignature ? { textSignature } : {}),
+        });
+        insertedReplacementText = true;
+      }
+      continue;
+    }
+    nextContent.push(block);
+  }
+
+  if (!insertedReplacementText && replacementText.length > 0) {
+    nextContent.unshift({ type: "text", text: replacementText });
+  }
+  return nextContent;
+}
+
+export function replaceUserMessageTextPreservingMedia(
+  message: UserMessage,
+  replacementText: string,
+): UserMessage {
+  return {
+    ...message,
+    content: replaceUserMessageContentPreservingNonTextBlocks(message.content, replacementText),
+  };
+}
+
+export function findLatestUserMessageEntryMatchingPrompt(params: {
+  sessionManager: SessionManagerLike;
+  promptText: string;
+  afterEntryId?: string | null;
+}): UserSessionBranchEntry | null {
+  const promptText = params.promptText;
+  if (promptText.length === 0) {
+    return null;
+  }
+
+  const branch = params.sessionManager.getBranch();
+  if (branch.length === 0) {
+    return null;
+  }
+
+  const afterIndex =
+    params.afterEntryId == null
+      ? -1
+      : branch.findIndex((entry) => entry.id === params.afterEntryId);
+  const searchStart = afterIndex >= 0 ? afterIndex + 1 : 0;
+  for (let index = branch.length - 1; index >= searchStart; index -= 1) {
+    const entry = branch[index];
+    if (entry?.type !== "message" || entry.message.role !== "user") {
+      continue;
+    }
+    if (extractUserMessageText(entry.message) === promptText) {
+      return entry as UserSessionBranchEntry;
+    }
+  }
+  return null;
+}
+
+export function rewriteLatestUserPromptInMessages(params: {
+  messages: AgentMessage[];
+  promptText: string;
+  replacementText: string;
+}): AgentMessage[] {
+  if (params.promptText.length === 0 || params.promptText === params.replacementText) {
+    return params.messages;
+  }
+
+  for (let index = params.messages.length - 1; index >= 0; index -= 1) {
+    const message = params.messages[index];
+    if (!message || message.role !== "user") {
+      continue;
+    }
+    if (extractUserMessageText(message) !== params.promptText) {
+      continue;
+    }
+    const rewritten = replaceUserMessageTextPreservingMedia(message, params.replacementText);
+    return params.messages.map((entry, entryIndex) => (entryIndex === index ? rewritten : entry));
+  }
+  return params.messages;
+}
 
 export type TranscriptLeafRestoreResult = {
   changed: boolean;

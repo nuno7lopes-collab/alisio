@@ -20,6 +20,7 @@ export const unitTestIncludePatterns = [
   "ui/src/ui/views/usage-render-details.test.ts",
   "ui/src/ui/controllers/agents.test.ts",
   "ui/src/ui/controllers/chat.test.ts",
+  "ui/src/ui/controllers/tasks.test.ts",
   "ui/src/ui/controllers/skills.test.ts",
 ];
 

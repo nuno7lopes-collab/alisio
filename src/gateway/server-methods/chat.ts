@@ -6,12 +6,17 @@ import { resolveThinkingDefault } from "../../agents/model-selection.js";
 import { rewriteTranscriptEntriesInSessionFile } from "../../agents/pi-embedded-runner/transcript-rewrite.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { dispatchInboundMessage } from "../../auto-reply/dispatch.js";
+import {
+  DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
+  stripHeartbeatToken,
+} from "../../auto-reply/heartbeat.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { readLocalFileSafely } from "../../infra/fs-safe.js";
+import { resolveHeartbeatVisibility } from "../../infra/heartbeat-visibility.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
 import { isWithinDir } from "../../infra/path-safety.js";
 import { detectMime, normalizeMimeType } from "../../media/mime.js";
@@ -374,12 +379,14 @@ function buildChatSendTranscriptMessage(params: {
   savedAttachments: SavedMedia[];
   imagePreviews: ChatHistoryImagePreview[];
   timestamp: number;
+  idempotencyKey?: string;
 }) {
   const mediaFields = resolveChatSendTranscriptMediaFields(params.savedAttachments);
   return {
     role: "user" as const,
     content: params.message,
     timestamp: params.timestamp,
+    ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
     ...mediaFields,
     ...(params.imagePreviews.length > 0 ? { MediaPreviewImages: params.imagePreviews } : {}),
   };
@@ -421,6 +428,7 @@ async function rewriteChatSendUserTurnMediaPaths(params: {
   sessionKey: string;
   message: string;
   savedAttachments: SavedMedia[];
+  idempotencyKey?: string;
 }) {
   const mediaFields = resolveChatSendTranscriptMediaFields(params.savedAttachments);
   if (!("MediaPath" in mediaFields)) {
@@ -428,9 +436,20 @@ async function rewriteChatSendUserTurnMediaPaths(params: {
   }
   const sessionManager = SessionManager.open(params.transcriptPath);
   const branch = sessionManager.getBranch();
+  const stableMessageId =
+    typeof params.idempotencyKey === "string" && params.idempotencyKey.trim()
+      ? params.idempotencyKey.trim()
+      : undefined;
   const target = [...branch].toReversed().find((entry) => {
     if (entry.type !== "message" || entry.message.role !== "user") {
       return false;
+    }
+    if (
+      stableMessageId &&
+      typeof (entry.message as { idempotencyKey?: unknown }).idempotencyKey === "string" &&
+      (entry.message as { idempotencyKey?: string }).idempotencyKey === stableMessageId
+    ) {
+      return true;
     }
     const existingPaths = Array.isArray((entry.message as { MediaPaths?: unknown }).MediaPaths)
       ? (entry.message as { MediaPaths?: unknown[] }).MediaPaths
@@ -451,6 +470,7 @@ async function rewriteChatSendUserTurnMediaPaths(params: {
   }
   const rewrittenMessage = {
     ...target.message,
+    ...(stableMessageId ? { idempotencyKey: stableMessageId } : {}),
     ...mediaFields,
   };
   await rewriteTranscriptEntriesInSessionFile({
@@ -581,6 +601,16 @@ function buildInlineChatHistoryImageBlock(
   };
 }
 
+function buildInlineChatHistoryAttachmentBlock(
+  attachment: ChatHistoryMediaDescriptor,
+): Record<string, unknown> {
+  return {
+    type: "attachment",
+    ...(attachment.fileName ? { fileName: attachment.fileName } : {}),
+    ...(attachment.mimeType ? { mimeType: attachment.mimeType } : {}),
+  };
+}
+
 function resolveChatHistoryPersistedImagePreviews(
   message: Record<string, unknown>,
 ): ChatHistoryImagePreview[] {
@@ -653,39 +683,73 @@ async function rehydrateChatHistoryMessageMedia(message: unknown): Promise<unkno
     return message;
   }
   const entry = message as Record<string, unknown>;
-  if (Array.isArray(entry.content)) {
-    return message;
-  }
-
   const attachments = resolveChatHistoryMediaDescriptors(entry);
   if (attachments.length === 0) {
     return message;
   }
 
-  const contentBlocks: Array<Record<string, unknown>> = [];
-  if (typeof entry.content === "string" && entry.content.trim().length > 0) {
+  const contentBlocks: Array<Record<string, unknown>> = Array.isArray(entry.content)
+    ? entry.content.filter((block): block is Record<string, unknown> =>
+        Boolean(block && typeof block === "object"),
+      )
+    : [];
+  if (
+    contentBlocks.length === 0 &&
+    typeof entry.content === "string" &&
+    entry.content.trim().length > 0
+  ) {
     contentBlocks.push({ type: "text", text: entry.content });
   }
 
+  const hasInlineImageBlock = contentBlocks.some((block) => {
+    const type = block.type;
+    return type === "image" || type === "image_url";
+  });
+  const existingAttachmentKeys = new Set(
+    contentBlocks
+      .map((block) => {
+        if (block.type !== "attachment") {
+          return null;
+        }
+        const fileName = typeof block.fileName === "string" ? block.fileName.trim() : "";
+        const mimeType = typeof block.mimeType === "string" ? block.mimeType.trim() : "";
+        return fileName || mimeType ? `${fileName}\u0001${mimeType}` : null;
+      })
+      .filter((key): key is string => key !== null),
+  );
+
   const persistedPreviews = resolveChatHistoryPersistedImagePreviews(entry);
-  if (persistedPreviews.length > 0) {
+  if (!hasInlineImageBlock && persistedPreviews.length > 0) {
     contentBlocks.push(
       ...persistedPreviews.map((preview) => buildInlineChatHistoryImageBlock(preview)),
     );
   }
 
-  for (const attachment of attachments) {
-    if (persistedPreviews.length > 0) {
-      break;
-    }
-    try {
-      const imageBlock = await buildInlineChatHistoryImageBlockFromAttachment(attachment);
-      if (imageBlock) {
-        contentBlocks.push(imageBlock);
+  if (!hasInlineImageBlock && persistedPreviews.length === 0) {
+    for (const attachment of attachments) {
+      try {
+        const imageBlock = await buildInlineChatHistoryImageBlockFromAttachment(attachment);
+        if (imageBlock) {
+          contentBlocks.push(imageBlock);
+          break;
+        }
+      } catch {
+        // Keep history shape unchanged when preview generation fails.
       }
-    } catch {
-      // Keep history shape unchanged when preview generation fails.
     }
+  }
+
+  for (const attachment of attachments) {
+    const normalizedMime = attachment.mimeType?.trim().toLowerCase();
+    if (normalizedMime?.startsWith("image/")) {
+      continue;
+    }
+    const attachmentKey = `${attachment.fileName?.trim() ?? ""}\u0001${normalizedMime ?? ""}`;
+    if (existingAttachmentKeys.has(attachmentKey)) {
+      continue;
+    }
+    existingAttachmentKeys.add(attachmentKey);
+    contentBlocks.push(buildInlineChatHistoryAttachmentBlock(attachment));
   }
 
   if (contentBlocks.length === 0) {
@@ -950,7 +1014,51 @@ function extractAssistantTextForSilentCheck(message: unknown): string | undefine
   return texts.length > 0 ? texts.join("\n") : undefined;
 }
 
-function sanitizeChatHistoryMessages(messages: unknown[]): unknown[] {
+function assistantHistoryMessageHasMedia(message: unknown): boolean {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+  const entry = message as Record<string, unknown>;
+  if (typeof entry.MediaPath === "string" && entry.MediaPath.trim().length > 0) {
+    return true;
+  }
+  if (
+    Array.isArray(entry.MediaPaths) &&
+    entry.MediaPaths.some((value) => typeof value === "string" && value.trim().length > 0)
+  ) {
+    return true;
+  }
+  if (!Array.isArray(entry.content)) {
+    return false;
+  }
+  return entry.content.some((block) => {
+    if (!block || typeof block !== "object") {
+      return false;
+    }
+    const type = (block as { type?: unknown }).type;
+    return type === "image" || type === "image_url" || type === "attachment";
+  });
+}
+
+function shouldHideHeartbeatHistoryMessage(
+  text: string,
+  cfg: Parameters<typeof resolveHeartbeatVisibility>[0]["cfg"],
+): boolean {
+  const visibility = resolveHeartbeatVisibility({ cfg, channel: "webchat" });
+  if (visibility.showOk) {
+    return false;
+  }
+  const stripped = stripHeartbeatToken(text, {
+    mode: "heartbeat",
+    maxAckChars: cfg.agents?.defaults?.heartbeat?.ackMaxChars ?? DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
+  });
+  return stripped.didStrip && stripped.shouldSkip;
+}
+
+function sanitizeChatHistoryMessages(
+  messages: unknown[],
+  cfg: Parameters<typeof resolveHeartbeatVisibility>[0]["cfg"],
+): unknown[] {
   if (messages.length === 0) {
     return messages;
   }
@@ -962,6 +1070,14 @@ function sanitizeChatHistoryMessages(messages: unknown[]): unknown[] {
     // Drop assistant messages whose entire visible text is the silent reply token.
     const text = extractAssistantTextForSilentCheck(res.message);
     if (text !== undefined && isSilentReplyText(text, SILENT_REPLY_TOKEN)) {
+      changed = true;
+      continue;
+    }
+    if (
+      text !== undefined &&
+      !assistantHistoryMessageHasMedia(res.message) &&
+      shouldHideHeartbeatHistoryMessage(text, cfg)
+    ) {
       changed = true;
       continue;
     }
@@ -1476,7 +1592,7 @@ export const chatHandlers: GatewayRequestHandlers = {
     const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
     const sanitized = stripEnvelopeFromMessages(sliced);
     const rehydrated = await rehydrateChatHistoryMessagesWithMedia(sanitized);
-    const normalized = sanitizeChatHistoryMessages(rehydrated);
+    const normalized = sanitizeChatHistoryMessages(rehydrated, cfg);
     const maxHistoryBytes = getMaxChatHistoryMessagesBytes();
     const perMessageHardCap = Math.min(CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES, maxHistoryBytes);
     const replaced = replaceOversizedChatHistoryMessages({
@@ -1890,6 +2006,7 @@ export const chatHandlers: GatewayRequestHandlers = {
               savedAttachments: persistedAttachments,
               imagePreviews,
               timestamp: now,
+              idempotencyKey: clientRunId,
             }),
           });
         })();
@@ -1920,6 +2037,7 @@ export const chatHandlers: GatewayRequestHandlers = {
           sessionKey,
           message: parsedMessage,
           savedAttachments: await persistedAttachmentsPromise,
+          idempotencyKey: clientRunId,
         });
       };
       const dispatcher = createReplyDispatcher({

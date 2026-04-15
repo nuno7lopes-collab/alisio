@@ -43,6 +43,7 @@ import {
   updateAlisioAccountPassword,
   updateAlisioAccountProfile,
 } from "./alisio-store.js";
+import { resolveCurrentComputerFallbackLabel, resolveCurrentComputerId } from "./local-computer.js";
 
 const CONNECTOR_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 
@@ -524,21 +525,12 @@ describe("Alisio sharing state", () => {
           deviceAccess: "shared",
           modelAccess: "shared",
           execAccess: "shared",
-          requestStatus: "approved",
           grantId: expect.any(String),
           grantScopes: ["read-only", "model-use", "exec"],
         }),
       ]);
       expect(grantedState.devices.available).toEqual([]);
-      expect(grantedState.outgoingRequests).toEqual([
-        expect.objectContaining({
-          requestId: request.requestId,
-          targetId: "linked-device",
-          status: "approved",
-          scopes: ["read-only", "model-use", "exec"],
-          grantId: expect.any(String),
-        }),
-      ]);
+      expect(grantedState.outgoingRequests).toEqual([]);
 
       await revokeAlisioSharingGrant(
         {
@@ -557,6 +549,153 @@ describe("Alisio sharing state", () => {
         }),
       ]);
       expect(revokedState.devices.available).toEqual([]);
+    });
+  });
+
+  it("canonicalizes legacy same-Mac targets to the current computer identity", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+
+      await updateStoredAlisioState(root, (state) => {
+        state.sharing = {
+          policies: {},
+          targets: {
+            "legacy-node-1": {
+              targetId: "legacy-node-1",
+              label: `${resolveCurrentComputerFallbackLabel()}.local`,
+              platform: "macOS",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+              ownerKey: "user:owner@example.com",
+              ownerScope: "user",
+              ownerLabel: "Owner User",
+              ownerEmail: "owner@example.com",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+            },
+          },
+          requests: {},
+          grants: {},
+          audit: [],
+        };
+      });
+
+      const sharingState = await getAlisioSharingState(undefined, env);
+      expect(sharingState.devices.sharedWithMe).toEqual([]);
+
+      const persisted = JSON.parse(
+        await fs.readFile(alisioStateFile(root), "utf8"),
+      ) as AlisioStoredState;
+      expect(persisted.sharing?.targets?.["legacy-node-1"]).toMatchObject({
+        computerId: resolveCurrentComputerId(),
+        computerLabel: resolveCurrentComputerFallbackLabel(),
+        ownerKey: "user:user-owner",
+        ownerEmail: "owner@example.com",
+      });
+    });
+  });
+
+  it("hides legacy self-sharing requests and grants for the current Mac", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+
+      await updateStoredAlisioState(root, (state) => {
+        state.sharing = {
+          policies: {},
+          targets: {
+            "legacy-node-1": {
+              targetId: "legacy-node-1",
+              label: `${resolveCurrentComputerFallbackLabel()}.local`,
+              platform: "macOS",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+              ownerKey: "user:owner@example.com",
+              ownerScope: "user",
+              ownerLabel: "Owner User",
+              ownerEmail: "owner@example.com",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+            },
+          },
+          requests: {
+            "req-legacy": {
+              requestId: "req-legacy",
+              targetId: "legacy-node-1",
+              targetLabel: `${resolveCurrentComputerFallbackLabel()}.local`,
+              targetPlatform: "macOS",
+              targetSourceKind: "node",
+              requester: {
+                ownerKey: "user:user-owner",
+                ownerScope: "user",
+                label: "Owner User",
+                email: "owner@example.com",
+              },
+              owner: {
+                ownerKey: "user:owner@example.com",
+                ownerScope: "user",
+                label: "Owner User",
+                email: "owner@example.com",
+              },
+              scopes: ["read-only", "model-use", "exec"],
+              status: "approved",
+              createdAt: "2026-04-08T10:00:00.000Z",
+              resolvedAt: "2026-04-08T10:01:00.000Z",
+              grantId: "grant-legacy",
+            },
+          },
+          grants: {
+            "grant-legacy": {
+              grantId: "grant-legacy",
+              requestId: "req-legacy",
+              targetId: "legacy-node-1",
+              targetLabel: `${resolveCurrentComputerFallbackLabel()}.local`,
+              targetPlatform: "macOS",
+              targetSourceKind: "node",
+              owner: {
+                ownerKey: "user:owner@example.com",
+                ownerScope: "user",
+                label: "Owner User",
+                email: "owner@example.com",
+              },
+              grantee: {
+                ownerKey: "user:user-owner",
+                ownerScope: "user",
+                label: "Owner User",
+                email: "owner@example.com",
+              },
+              scopes: ["read-only", "model-use", "exec"],
+              approvedAt: "2026-04-08T10:01:00.000Z",
+            },
+          },
+          audit: [],
+        };
+      });
+
+      const sharingState = await getAlisioSharingState(undefined, env);
+      expect(sharingState.devices.sharedWithMe).toEqual([]);
+      expect(sharingState.devices.available).toEqual([]);
+      expect(sharingState.incomingRequests).toEqual([]);
+      expect(sharingState.outgoingRequests).toEqual([]);
+      expect(sharingState.approvals).toEqual([]);
+      expect(sharingState.grants).toEqual([]);
     });
   });
 
@@ -711,13 +850,7 @@ describe("Alisio sharing state", () => {
 
       const revokedState = await getAlisioSharingState(undefined, env);
       expect(revokedState.devices.sharedWithMe).toEqual([]);
-      expect(revokedState.outgoingRequests).toEqual([
-        expect.objectContaining({
-          requestId: request.requestId,
-          status: "revoked",
-          grantId: approval.grantId,
-        }),
-      ]);
+      expect(revokedState.outgoingRequests).toEqual([]);
       expect(revokedState.audit.map((entry) => entry.action)).toEqual([
         "grant.revoked",
         "request.approved",
@@ -779,13 +912,7 @@ describe("Alisio sharing state", () => {
       const requesterState = await getAlisioSharingState(undefined, env);
 
       expect(requesterState.devices.sharedWithMe).toEqual([]);
-      expect(requesterState.outgoingRequests).toEqual([
-        expect.objectContaining({
-          requestId: request.requestId,
-          status: "denied",
-          scopes: ["read-only", "model-use", "exec"],
-        }),
-      ]);
+      expect(requesterState.outgoingRequests).toEqual([]);
       expect(requesterState.audit.map((entry) => entry.action)).toEqual([
         "request.denied",
         "request.created",
@@ -979,14 +1106,7 @@ describe("Alisio sharing state", () => {
             grantScopes: ["read-only", "model-use"],
           }),
         ]);
-        expect(requesterState.outgoingRequests).toEqual([
-          expect.objectContaining({
-            requestId: request.requestId,
-            status: "approved",
-            grantId: approval.grantId,
-            scopes: ["read-only", "model-use"],
-          }),
-        ]);
+        expect(requesterState.outgoingRequests).toEqual([]);
 
         const persisted = JSON.parse(
           await fs.readFile(alisioStateFile(root), "utf8"),

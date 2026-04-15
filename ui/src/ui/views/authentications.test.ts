@@ -12,7 +12,6 @@ describe("authentications view", () => {
 
   it("renders only external apps even when the overview includes assistant, providers, and runtimes", () => {
     const container = document.createElement("div");
-    const onOpenConnections = vi.fn();
 
     render(
       renderAuthentications({
@@ -119,7 +118,6 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenConnections,
       }),
       container,
     );
@@ -129,12 +127,6 @@ describe("authentications view", () => {
     expect(container.textContent).not.toContain("Primary assistant account");
     expect(container.textContent).not.toContain("Model providers");
     expect(container.textContent).not.toContain("Runtimes and nodes");
-
-    const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
-      candidate.textContent?.includes("Open connections"),
-    );
-    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onOpenConnections).toHaveBeenCalledOnce();
   });
 
   it("renders connected external apps from the overview and keeps revoke actions wired", () => {
@@ -207,7 +199,6 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector,
-        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -308,7 +299,6 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -415,7 +405,6 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector,
         onRevokeConnector: vi.fn(),
-        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -487,7 +476,6 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -560,7 +548,6 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -568,6 +555,89 @@ describe("authentications view", () => {
     const availableSection = container.querySelector('[data-section="available"]');
     expect(availableSection?.textContent).toContain("Coming soon");
     expect(availableSection?.querySelector(".alisio-auth-card__connect-btn")).toBeNull();
+  });
+
+  it("keeps revoke available for already linked apps that are still rolling out", () => {
+    const container = document.createElement("div");
+    const onRevokeConnector = vi.fn();
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 0,
+            ready: 0,
+            attention: 0,
+            total: 1,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [],
+            authorizations: [],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:google-calendar",
+              title: "Google Calendar",
+              subtitle: "Calendar access.",
+              status: "coming_soon",
+              authSource: "connector",
+              connectorId: "google-calendar",
+              connectLabel: "Connect with Google",
+              chips: ["Google"],
+              usageWindows: [],
+              current: false,
+              active: false,
+            },
+          ],
+        },
+        connectorCatalog: [
+          {
+            id: "google-calendar",
+            title: "Google Calendar",
+            providerLabel: "Google",
+            category: "google",
+            connectLabel: "Connect with Google",
+            summary: "Calendar access.",
+            availability: "ready",
+            scopes: ["openid", "email"],
+          },
+        ],
+        connectorAuthorizations: [
+          {
+            connectorId: "google-calendar",
+            state: "connected",
+            health: "healthy",
+            scopes: ["openid", "email"],
+            connectedAccount: {
+              label: "Nuno",
+              email: "nuno@example.com",
+            },
+          },
+        ],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector,
+      }),
+      container,
+    );
+
+    const availableSection = container.querySelector('[data-section="available"]');
+    expect(availableSection?.textContent).toContain("Coming soon");
+    const revokeButton = Array.from(availableSection?.querySelectorAll("button") ?? []).find(
+      (candidate) => candidate.textContent?.includes("Revoke"),
+    );
+    revokeButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onRevokeConnector).toHaveBeenCalledWith("google-calendar");
   });
 
   it("renders loading skeletons while the provider overview is still loading", () => {
@@ -585,12 +655,10 @@ describe("authentications view", () => {
         onSearchChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenConnections: vi.fn(),
       }),
       container,
     );
 
-    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(3);
     expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(3);
   });
 });

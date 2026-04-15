@@ -16,5 +16,8 @@ describe("gateway public method list", () => {
     expect(methods).not.toContain("alisio.connectors.revoke");
     expect(methods).not.toContain("alisio.sharing.get");
     expect(methods).not.toContain("alisio.sharing.request");
+    expect(methods).toContain("tasks.proposal.upsert");
+    expect(methods).toContain("tasks.proposal.resolve");
+    expect(methods).toContain("tasks.proposal.attachLaunch");
   });
 });

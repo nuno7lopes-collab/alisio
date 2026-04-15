@@ -7,8 +7,10 @@ import { icons } from "../icons.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import { openExternalUrlSafe } from "../open-external-url.ts";
 import { detectTextDirection } from "../text-direction.ts";
+import type { TaskProposalDraft, TaskProposalRecord } from "../types.ts";
 import type { ChatRunActivity, MessageGroup, ToolCard } from "../types/chat-types.ts";
 import { agentLogoUrl } from "../views/agents-utils.ts";
+import { isImageChatAttachmentMimeType } from "./attachment-support.ts";
 import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
   extractTextCached,
@@ -17,6 +19,7 @@ import {
 } from "./message-extract.ts";
 import { isToolResultMessage, normalizeRoleForGrouping } from "./message-normalizer.ts";
 import { isTtsSupported, speakText, stopTts, isTtsSpeaking } from "./speech.ts";
+import { extractTaskProposalBlocks, findPersistedTaskProposal } from "./task-proposals.ts";
 import { extractToolCards, renderToolCardStack } from "./tool-cards.ts";
 
 const chatText = (key: string, params?: Record<string, string>) => t(`alisio.chat.${key}`, params);
@@ -24,6 +27,11 @@ const chatText = (key: string, params?: Record<string, string>) => t(`alisio.cha
 type ImageBlock = {
   url: string;
   alt?: string;
+};
+
+type AttachmentBlock = {
+  label: string;
+  mimeType: string;
 };
 
 function extractImages(message: unknown): ImageBlock[] {
@@ -61,6 +69,37 @@ function extractImages(message: unknown): ImageBlock[] {
   }
 
   return images;
+}
+
+function extractAttachments(message: unknown): AttachmentBlock[] {
+  const m = message as Record<string, unknown>;
+  const content = m.content;
+  const attachments: AttachmentBlock[] = [];
+  if (!Array.isArray(content)) {
+    return attachments;
+  }
+
+  for (const block of content) {
+    if (!block || typeof block !== "object") {
+      continue;
+    }
+    const entry = block as Record<string, unknown>;
+    if (entry.type !== "attachment") {
+      continue;
+    }
+    const mimeType =
+      typeof entry.mimeType === "string" && entry.mimeType.trim()
+        ? entry.mimeType.trim()
+        : "application/octet-stream";
+    const fileName =
+      typeof entry.fileName === "string" && entry.fileName.trim() ? entry.fileName.trim() : null;
+    attachments.push({
+      label: fileName ?? mimeType,
+      mimeType,
+    });
+  }
+
+  return attachments;
 }
 
 function resolveRunActivityLabel(activity: ChatRunActivity): string {
@@ -162,6 +201,20 @@ export function renderMessageGroup(
     basePath?: string;
     contextWindow?: number | null;
     onDelete?: () => void;
+    sessionKey: string;
+    taskProposals?: readonly TaskProposalRecord[] | null;
+    taskProposalBusy?: boolean;
+    onSaveTaskProposal?: (proposal: TaskProposalDraft) => void;
+    onResolveTaskProposal?: (
+      proposal: TaskProposalDraft,
+      decision: "approved" | "rejected",
+    ) => void;
+    onLaunchTaskProposal?: (
+      proposal: TaskProposalDraft,
+      persisted: TaskProposalRecord | null,
+    ) => void;
+    onOpenTaskSession?: (sessionKey: string) => void;
+    onOpenTasks?: () => void;
   },
 ) {
   const normalizedRole = normalizeRoleForGrouping(group.role);
@@ -210,6 +263,14 @@ export function renderMessageGroup(
               showReasoning: opts.showReasoning,
               showToolCalls: opts.showToolCalls ?? true,
               onBeginConnector: opts.onBeginConnector,
+              sessionKey: opts.sessionKey,
+              taskProposals: opts.taskProposals,
+              taskProposalBusy: opts.taskProposalBusy,
+              onSaveTaskProposal: opts.onSaveTaskProposal,
+              onResolveTaskProposal: opts.onResolveTaskProposal,
+              onLaunchTaskProposal: opts.onLaunchTaskProposal,
+              onOpenTaskSession: opts.onOpenTaskSession,
+              onOpenTasks: opts.onOpenTasks,
             },
             opts.onOpenSidebar,
           ),
@@ -607,6 +668,29 @@ function renderMessageImages(images: ImageBlock[]) {
   `;
 }
 
+function renderMessageAttachments(attachments: AttachmentBlock[]) {
+  if (attachments.length === 0) {
+    return nothing;
+  }
+  return html`
+    <div class="chat-attachments-preview chat-message-attachments alisio-chat__attachments">
+      ${attachments.map((attachment) => {
+        const isImage = isImageChatAttachmentMimeType(attachment.mimeType);
+        const isAudio = attachment.mimeType.startsWith("audio/");
+        const icon = isImage ? icons.image : isAudio ? icons.radio : icons.fileText;
+        return html`
+          <div class="alisio-chat__attachment-pill">
+            <span class="alisio-chat__attachment-pill-media" aria-hidden="true">${icon}</span>
+            <span class="alisio-chat__attachment-pill-label" title=${attachment.label}>
+              ${attachment.label}
+            </span>
+          </div>
+        `;
+      })}
+    </div>
+  `;
+}
+
 /** Render tool cards inside a collapsed `<details>` element. */
 function renderToolCards(
   toolCards: ToolCard[],
@@ -725,6 +809,20 @@ function renderGroupedMessage(
     showReasoning: boolean;
     showToolCalls?: boolean;
     onBeginConnector?: (connectorId: string) => void;
+    sessionKey: string;
+    taskProposals?: readonly TaskProposalRecord[] | null;
+    taskProposalBusy?: boolean;
+    onSaveTaskProposal?: (proposal: TaskProposalDraft) => void;
+    onResolveTaskProposal?: (
+      proposal: TaskProposalDraft,
+      decision: "approved" | "rejected",
+    ) => void;
+    onLaunchTaskProposal?: (
+      proposal: TaskProposalDraft,
+      persisted: TaskProposalRecord | null,
+    ) => void;
+    onOpenTaskSession?: (sessionKey: string) => void;
+    onOpenTasks?: () => void;
   },
   onOpenSidebar?: (content: string) => void,
 ) {
@@ -742,10 +840,32 @@ function renderGroupedMessage(
   const hasToolCards = toolCards.length > 0;
   const images = extractImages(message);
   const hasImages = images.length > 0;
+  const attachments = extractAttachments(message);
+  const hasAttachments = attachments.length > 0;
 
   const extractedText = extractTextCached(message);
   const markdownBase = extractedText?.trim() ? extractedText : null;
-  const markdown = markdownBase;
+  const taskProposalBlock =
+    role === "assistant" && markdownBase
+      ? extractTaskProposalBlocks({
+          markdown: markdownBase,
+          requesterSessionKey: opts.sessionKey,
+          message,
+        })
+      : { cleanedMarkdown: markdownBase, proposals: [] };
+  const markdown = taskProposalBlock.cleanedMarkdown;
+  const taskProposalCards = taskProposalBlock.proposals.map((proposal) =>
+    renderTaskProposalCard({
+      proposal,
+      persisted: findPersistedTaskProposal(opts.taskProposals, proposal),
+      busy: Boolean(opts.taskProposalBusy),
+      onSave: opts.onSaveTaskProposal,
+      onResolve: opts.onResolveTaskProposal,
+      onLaunch: opts.onLaunchTaskProposal,
+      onOpenTaskSession: opts.onOpenTaskSession,
+      onOpenTasks: opts.onOpenTasks,
+    }),
+  );
   const canCopyMarkdown = role === "assistant" && !opts.isStreaming && Boolean(markdown?.trim());
   const canExpand =
     role === "assistant" && !opts.isStreaming && Boolean(onOpenSidebar && markdown?.trim());
@@ -765,7 +885,13 @@ function renderGroupedMessage(
 
   // Suppress empty bubbles when tool cards are the only content and toggle is off
   const visibleToolCards = hasToolCards && (opts.showToolCalls ?? true);
-  if (!markdown && !visibleToolCards && !hasImages) {
+  if (
+    !markdown &&
+    !visibleToolCards &&
+    !hasImages &&
+    !hasAttachments &&
+    taskProposalCards.length === 0
+  ) {
     return nothing;
   }
 
@@ -783,7 +909,8 @@ function renderGroupedMessage(
       ${isToolMessage
         ? html`
             <div class="chat-tool-msg-body chat-tool-msg-body--flat">
-              ${renderMessageImages(images)} ${thinkingPanel}
+              ${renderMessageImages(images)} ${renderMessageAttachments(attachments)}
+              ${thinkingPanel}
               ${hasToolCards
                 ? nothing
                 : jsonResult
@@ -802,10 +929,15 @@ function renderGroupedMessage(
               ${hasToolCards
                 ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
                 : nothing}
+              ${taskProposalCards.length > 0
+                ? html`<div style="display: grid; gap: 10px; margin-top: 12px;">
+                    ${taskProposalCards}
+                  </div>`
+                : nothing}
             </div>
           `
         : html`
-            ${renderMessageImages(images)} ${thinkingPanel}
+            ${renderMessageImages(images)} ${renderMessageAttachments(attachments)} ${thinkingPanel}
             ${jsonResult
               ? html`<details class="chat-json-collapse">
                   <summary class="chat-json-summary">
@@ -822,7 +954,125 @@ function renderGroupedMessage(
             ${hasToolCards
               ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
               : nothing}
+            ${taskProposalCards.length > 0
+              ? html`<div style="display: grid; gap: 10px; margin-top: 12px;">
+                  ${taskProposalCards}
+                </div>`
+              : nothing}
           `}
+    </div>
+  `;
+}
+
+function renderTaskProposalCard(params: {
+  proposal: TaskProposalDraft;
+  persisted: TaskProposalRecord | null;
+  busy: boolean;
+  onSave?: (proposal: TaskProposalDraft) => void;
+  onResolve?: (proposal: TaskProposalDraft, decision: "approved" | "rejected") => void;
+  onLaunch?: (proposal: TaskProposalDraft, persisted: TaskProposalRecord | null) => void;
+  onOpenTaskSession?: (sessionKey: string) => void;
+  onOpenTasks?: () => void;
+}) {
+  const proposal = params.proposal;
+  const persisted = params.persisted;
+  const launchedSessionKey = persisted?.launchedSessionKey?.trim() || null;
+  const launchable = persisted?.decision === "approved" && !persisted.launchedRunId?.trim();
+  const decisionLabel = persisted?.decision ?? "draft";
+  const details = proposal.summary?.trim() || proposal.rationale?.trim() || proposal.title;
+
+  return html`
+    <div
+      style="display: grid; gap: 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--hairline, rgba(255,255,255,0.12)); background: color-mix(in srgb, var(--card-bg, rgba(255,255,255,0.04)) 88%, transparent);"
+    >
+      <div style="display: flex; justify-content: space-between; gap: 12px;">
+        <div style="font-weight: 600;">${proposal.title}</div>
+        <div class="muted">${decisionLabel}</div>
+      </div>
+      <div class="list-sub">${proposal.kind} proposal</div>
+      <div>${details}</div>
+      ${proposal.acceptance.length > 0
+        ? html`
+            <div class="list-sub">
+              ${proposal.acceptance
+                .slice(0, 3)
+                .map(
+                  (item, index) =>
+                    html`${index > 0 ? html`<span> · </span>` : nothing}<span>${item}</span>`,
+                )}
+            </div>
+          `
+        : nothing}
+      ${persisted?.linkedTask
+        ? html`
+            <div class="list-sub">
+              Linked task: ${persisted.linkedTask.status} · ${persisted.linkedTask.runtime} ·
+              ${persisted.linkedTask.taskId}
+            </div>
+          `
+        : persisted?.launchedRunId?.trim()
+          ? html`<div class="list-sub">Launched run: ${persisted.launchedRunId}</div>`
+          : nothing}
+      <div class="row" style="gap: 8px; flex-wrap: wrap;">
+        ${!persisted && params.onSave
+          ? html`
+              <button
+                class="btn"
+                ?disabled=${params.busy}
+                @click=${() => params.onSave?.(proposal)}
+              >
+                Save to inbox
+              </button>
+            `
+          : nothing}
+        ${(persisted?.decision ?? "pending") === "pending" && params.onResolve
+          ? html`
+              <button
+                class="btn btn--primary"
+                ?disabled=${params.busy}
+                @click=${() => params.onResolve?.(proposal, "approved")}
+              >
+                Approve
+              </button>
+              <button
+                class="btn"
+                ?disabled=${params.busy}
+                @click=${() => params.onResolve?.(proposal, "rejected")}
+              >
+                Reject
+              </button>
+            `
+          : nothing}
+        ${launchable && params.onLaunch
+          ? html`
+              <button
+                class="btn btn--primary"
+                ?disabled=${params.busy}
+                @click=${() => params.onLaunch?.(proposal, persisted)}
+              >
+                Launch
+              </button>
+            `
+          : nothing}
+        ${launchedSessionKey && params.onOpenTaskSession
+          ? html`
+              <button
+                class="btn"
+                ?disabled=${params.busy}
+                @click=${() => params.onOpenTaskSession?.(launchedSessionKey)}
+              >
+                Open launched chat
+              </button>
+            `
+          : nothing}
+        ${params.onOpenTasks
+          ? html`
+              <button class="btn" ?disabled=${params.busy} @click=${() => params.onOpenTasks?.()}>
+                Open tasks
+              </button>
+            `
+          : nothing}
+      </div>
     </div>
   `;
 }

@@ -170,17 +170,17 @@ function shouldPollChatRecovery(host: PollingHost) {
 }
 
 function shouldRecoverChatFromSessionState(
-  host: Pick<PollingHost, "chatFinalizing" | "chatStreamStartedAt">,
+  host: Pick<PollingHost, "chatFinalizing" | "chatStreamStartedAt" | "chatRunId">,
   row: SessionsListResult["sessions"][number] | undefined,
 ) {
   if (!row) {
     return false;
   }
+  if (host.chatFinalizing) {
+    return row.status !== "running" || row.endedAt != null || Boolean(host.chatRunId);
+  }
   if (row.status === "running" && row.endedAt == null) {
     return false;
-  }
-  if (host.chatFinalizing) {
-    return true;
   }
   const localStart = host.chatStreamStartedAt ?? 0;
   if (localStart <= 0) {

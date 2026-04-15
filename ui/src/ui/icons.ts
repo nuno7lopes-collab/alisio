@@ -330,8 +330,8 @@ export const icons = {
   `,
   send: html`
     <svg data-ui-icon viewBox="0 0 24 24">
-      <path d="m22 2-7 20-4-9-9-4Z" />
-      <path d="M22 2 11 13" />
+      <path d="M12 19V5" />
+      <path d="m6 11 6-6 6 6" />
     </svg>
   `,
   stop: html`

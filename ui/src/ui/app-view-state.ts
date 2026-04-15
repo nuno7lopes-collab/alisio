@@ -22,7 +22,7 @@ import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ResolvedTheme, ThemeAccents, ThemeFamily, ThemeMode } from "./theme.ts";
-import type { ProviderUsageSummary } from "./types.ts";
+import type { AlisioAuthStage, ProviderUsageSummary } from "./types.ts";
 import type {
   AlisioAccountState,
   AlisioConnectorAuthorization,
@@ -96,7 +96,7 @@ export type AppViewState = {
   alisioAuthEmail: string;
   alisioAuthPendingEmail: string;
   alisioAuthCode: string;
-  alisioAuthStage: "entry" | "email-code";
+  alisioAuthStage: AlisioAuthStage;
   alisioPasswordResetRequired: boolean;
   alisioTermsAccepted: boolean;
   alisioMarketingOptIn: boolean;
@@ -282,15 +282,6 @@ export type AppViewState = {
   agentsError: string | null;
   agentsSelectedId: string | null;
   memorySelectedAgentId: string | null;
-  memoryAgentId: string | null;
-  memoryLoading: boolean;
-  memoryError: string | null;
-  memoryList: AgentsFilesListResult | null;
-  memoryContents: Record<string, string>;
-  memoryDrafts: Record<string, string>;
-  memoryActive: string | null;
-  memorySaving: boolean;
-  memoryDeleting: boolean;
   memoryStatusLoading: boolean;
   memoryStatusError: string | null;
   memoryStatus: import("./types.ts").MemoryStatusState | null;
@@ -300,9 +291,6 @@ export type AppViewState = {
   memoryGraphError: string | null;
   memoryGraph: import("./types.ts").MemoryGraphState | null;
   memorySearchQuery: string;
-  memoryComposerOpen: boolean;
-  memoryComposerDate: string;
-  memoryComposerTitle: string;
   toolsCatalogLoading: boolean;
   toolsCatalogError: string | null;
   toolsCatalogResult: ToolsCatalogResult | null;

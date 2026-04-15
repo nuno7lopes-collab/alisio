@@ -405,6 +405,32 @@ describe("skills controller", () => {
     expect(state.skillsReloadQueued).toBe(false);
   });
 
+  it("reuses a fresh skills snapshot unless a force reload is requested", async () => {
+    const request = vi.fn().mockResolvedValue({
+      workspaceDir: "/tmp/workspace",
+      managedSkillsDir: "/tmp/skills",
+      skills: [],
+    });
+    const state = createState({
+      client: {
+        request,
+      } as never,
+      skillsReport: {
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+      },
+      skillsLastSuccessAt: Date.now(),
+    });
+
+    await loadSkills(state);
+    expect(request).not.toHaveBeenCalled();
+
+    await loadSkills(state, { force: true });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("skills.status", {});
+  });
+
   it("stores a marketplace consent request when execution needs approval", async () => {
     const request = vi.fn().mockResolvedValue({
       status: "consent-required",

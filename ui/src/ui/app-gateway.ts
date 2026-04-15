@@ -22,14 +22,17 @@ import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app
 import type { AlisioApp } from "./app.ts";
 import { shouldReloadHistoryForFinalEvent } from "./chat-event-reload.ts";
 import { formatConnectError } from "./connect-error.ts";
+import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   applyAlisioModelOperation,
   loadAlisioDoctorSummary,
   loadAlisioModels,
+  loadAlisioProviderOverview,
   loadAlisioSharing,
 } from "./controllers/alisio.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
+import { loadChannels } from "./controllers/channels.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
@@ -46,10 +49,17 @@ import {
   removeExecApproval,
 } from "./controllers/exec-approval.ts";
 import { loadHealthState } from "./controllers/health.ts";
+import {
+  loadMemoryStatus,
+  requestMemoryNote,
+  requestMemoryNotesList,
+} from "./controllers/memory-runtime.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { applyRemoteComputerTaskUpdate } from "./controllers/remote-computers.ts";
 import { loadSessions, subscribeSessions } from "./controllers/sessions.ts";
+import { loadSkills } from "./controllers/skills.ts";
+import { loadTasksOverview } from "./controllers/tasks.ts";
 import { clearDeviceAuthToken } from "./device-auth.ts";
 import { loadManagedDeviceIdentity } from "./device-identity.ts";
 import {
@@ -129,6 +139,8 @@ type GatewayHostWithShutdownMessage = GatewayHost & {
 type ConnectGatewayOptions = {
   reason?: "initial" | "seq-gap";
 };
+
+const dashboardWarmupTimers = new WeakMap<GatewayHost, number>();
 
 export function resolveControlUiClientVersion(params: {
   gatewayUrl: string;
@@ -298,17 +310,87 @@ function applySessionDefaults(host: GatewayHost, defaults?: SessionDefaultsSnaps
   }
 }
 
+function clearDashboardWarmup(host: GatewayHost) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const timer = dashboardWarmupTimers.get(host);
+  if (timer == null) {
+    return;
+  }
+  window.clearTimeout(timer);
+  dashboardWarmupTimers.delete(host);
+}
+
+function scheduleDashboardWarmup(host: GatewayHost, client: GatewayBrowserClient) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  clearDashboardWarmup(host);
+  const timer = window.setTimeout(() => {
+    dashboardWarmupTimers.delete(host);
+    if (host.client !== client || !host.connected) {
+      return;
+    }
+    // Warm the heaviest non-chat tabs right after connect so first-open tab
+    // switches feel instant instead of waiting on cold RPCs.
+    void Promise.allSettled([
+      loadAlisioProviderOverview(host as unknown as AlisioApp),
+      loadChannels(host as unknown as AlisioApp, false),
+      loadSkills(host as unknown as AlisioApp),
+      warmMemoryDashboard(host, client),
+    ]);
+  }, 300);
+  dashboardWarmupTimers.set(host, timer);
+}
+
+async function warmMemoryDashboard(host: GatewayHost, client: GatewayBrowserClient) {
+  await loadAgents(host as unknown as AlisioApp);
+  if (host.client !== client || !host.connected) {
+    return;
+  }
+  const resolvedAgentId = resolvePreferredMemoryAgentId(
+    host as unknown as {
+      memorySelectedAgentId: string | null;
+      sessionKey?: string;
+      assistantAgentId?: string | null;
+      agentsList?: { defaultId?: string | null; agents: Array<{ id: string }> } | null;
+    },
+  );
+  if (!resolvedAgentId || host.client !== client || !host.connected) {
+    return;
+  }
+  await loadMemoryStatus(host as unknown as AlisioApp, resolvedAgentId);
+  if (host.client !== client || !host.connected) {
+    return;
+  }
+  const notes = await requestMemoryNotesList(client, { agentId: resolvedAgentId }).catch(
+    () => null,
+  );
+  const firstNoteId = notes?.notes[0]?.id?.trim();
+  if (!firstNoteId || host.client !== client || !host.connected) {
+    return;
+  }
+  await requestMemoryNote(client, {
+    agentId: resolvedAgentId,
+    noteId: firstNoteId,
+  }).catch(() => null);
+}
+
 export function connectGateway(host: GatewayHost, options?: ConnectGatewayOptions) {
   const shutdownHost = host as GatewayHostWithShutdownMessage;
   const reconnectReason = options?.reason ?? "initial";
   let receivedHello = false;
   let refreshChatHistoryOnReconnect = reconnectReason === "seq-gap";
+  const preserveChatVisualStateOnReconnect =
+    reconnectReason === "seq-gap" && shouldRefreshChatHistoryAfterReconnect(host);
   shutdownHost.pendingShutdownMessage = null;
   shutdownHost.resumeChatQueueAfterReconnect = false;
   host.lastError = reconnectReason === "seq-gap" ? "Resyncing live state…" : null;
   host.lastErrorCode = null;
   host.hello = null;
   host.connected = false;
+  clearDashboardWarmup(host);
   if (reconnectReason === "seq-gap") {
     // A seq gap means the socket stayed on the same gateway; preserve prompts
     // that only arrived as ephemeral events and clear stale run-scoped indicators.
@@ -317,6 +399,13 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       host as unknown as Parameters<typeof clearPendingQueueItemsForRun>[0],
       host.chatRunId ?? undefined,
     );
+    host.chatRunId = null;
+    host.chatFinalizing = false;
+    if (!preserveChatVisualStateOnReconnect) {
+      (host as unknown as { chatStream: string | null }).chatStream = null;
+      (host as unknown as { chatStreamStartedAt: number | null }).chatStreamStartedAt = null;
+      resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
+    }
     shutdownHost.resumeChatQueueAfterReconnect = true;
   } else {
     host.execApprovalQueue = [];
@@ -364,13 +453,20 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       host.lastErrorCode = null;
       host.hello = hello;
       applySnapshot(host, hello);
-      // Reset orphaned chat run state from before disconnect.
-      // Any in-flight run's final event was lost during the disconnect window.
-      host.chatRunId = null;
-      host.chatFinalizing = false;
-      (host as unknown as { chatStream: string | null }).chatStream = null;
-      (host as unknown as { chatStreamStartedAt: number | null }).chatStreamStartedAt = null;
-      resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
+      // Reset only if we are not resuming an in-flight run. If the reconnect
+      // happened while the current chat was still active, keep ephemeral state
+      // until history recovery decides whether to clear it.
+      const reconnectInterruptedActiveChat =
+        reconnectReason === "seq-gap"
+          ? shouldRefreshChatHistoryAfterReconnect(host)
+          : Boolean(host.chatRunId || host.chatFinalizing);
+      if (!reconnectInterruptedActiveChat) {
+        host.chatRunId = null;
+        host.chatFinalizing = false;
+        (host as unknown as { chatStream: string | null }).chatStream = null;
+        (host as unknown as { chatStreamStartedAt: number | null }).chatStreamStartedAt = null;
+        resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
+      }
       if (shutdownHost.resumeChatQueueAfterReconnect) {
         // The interrupted run will never emit its terminal event now that the
         // old client is gone, so resume any deferred commands after hello.
@@ -403,11 +499,13 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
           includeChatHistory,
         });
       }
+      scheduleDashboardWarmup(host, client);
     },
     onClose: ({ code, reason, error }) => {
       if (host.client !== client) {
         return;
       }
+      clearDashboardWarmup(host);
       if (receivedHello && host.tab === "chat") {
         refreshChatHistoryOnReconnect ||= shouldRefreshChatHistoryAfterReconnect(host);
       }
@@ -511,7 +609,7 @@ function handleTerminalChatEvent(
   host: GatewayHost,
   payload: ChatEventPayload | undefined,
   state: ReturnType<typeof handleChatEvent>,
-  opts: { isActiveRun: boolean },
+  opts: { isActiveRun: boolean; hadBufferedAssistantStream: boolean },
 ): boolean {
   if (state !== "final" && state !== "error" && state !== "aborted") {
     return false;
@@ -532,8 +630,15 @@ function handleTerminalChatEvent(
       });
     }
   }
+  const hasBufferedAssistantStream =
+    opts.isActiveRun &&
+    !hadToolEvents &&
+    state === "final" &&
+    shouldReloadHistoryForFinalEvent(payload) &&
+    opts.hadBufferedAssistantStream;
   const shouldRefreshHistory =
     state === "final" &&
+    !hasBufferedAssistantStream &&
     ((opts.isActiveRun && hadToolEvents) || shouldReloadHistoryForFinalEvent(payload));
   if (shouldRefreshHistory) {
     const preserveEphemeral = !opts.isActiveRun && Boolean(host.chatRunId || host.chatFinalizing);
@@ -579,6 +684,13 @@ function shouldDeferFinalChatCommit(
   }
   const toolHost = host as unknown as Parameters<typeof resetToolStream>[0];
   const hadToolEvents = toolHost.toolStreamOrder.length > 0;
+  if (
+    !hadToolEvents &&
+    shouldReloadHistoryForFinalEvent(payload) &&
+    Boolean((host as unknown as { chatStream?: string | null }).chatStream?.trim())
+  ) {
+    return false;
+  }
   return hadToolEvents || shouldReloadHistoryForFinalEvent(payload);
 }
 
@@ -618,6 +730,8 @@ function deferFinalChatCommit(host: GatewayHost, payload: ChatEventPayload): voi
 
 function handleChatGatewayEvent(host: GatewayHost, payload: ChatEventPayload | undefined) {
   const isActiveRun = Boolean(payload?.runId && payload.runId === host.chatRunId);
+  const hadBufferedAssistantStream =
+    isActiveRun && Boolean((host as unknown as { chatStream?: string | null }).chatStream?.trim());
   if (payload?.sessionKey) {
     setLastActiveSessionKey(
       host as unknown as Parameters<typeof setLastActiveSessionKey>[0],
@@ -629,7 +743,10 @@ function handleChatGatewayEvent(host: GatewayHost, payload: ChatEventPayload | u
     return;
   }
   const state = handleChatEvent(host as unknown as AlisioApp, payload);
-  const historyReloaded = handleTerminalChatEvent(host, payload, state, { isActiveRun });
+  const historyReloaded = handleTerminalChatEvent(host, payload, state, {
+    isActiveRun,
+    hadBufferedAssistantStream,
+  });
   if (historyReloaded) {
     return;
   }
@@ -684,6 +801,11 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
 
   if (evt.event === "sessions.changed") {
     void loadSessions(host as unknown as AlisioApp);
+    return;
+  }
+
+  if (evt.event === "tasks.proposal.changed") {
+    void loadTasksOverview(host as unknown as AlisioApp, { quiet: true });
     return;
   }
 
