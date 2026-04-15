@@ -49,6 +49,10 @@ function applyResolvedConfig(
           reason: `profile invariants changed: ${changed.join(", ")}`,
         };
         runtime.lastTargetId = null;
+        current.supervisor?.markProfileSessionState(name, "reconciling", {
+          lastTargetId: null,
+          reason: runtime.reconcile.reason,
+        });
       }
       runtime.profile = nextProfile;
       continue;
@@ -58,6 +62,10 @@ function applyResolvedConfig(
       reason: "profile removed from config",
     };
     runtime.lastTargetId = null;
+    current.supervisor?.markProfileSessionState(name, "reconciling", {
+      lastTargetId: null,
+      reason: runtime.reconcile.reason,
+    });
     if (!runtime.running) {
       current.profiles.delete(name);
     }

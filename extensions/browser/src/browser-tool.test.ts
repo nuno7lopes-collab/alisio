@@ -510,7 +510,7 @@ describe("browser tool url alias support", () => {
     expect(sessionTabRegistryMocks.trackSessionBrowserTab).toHaveBeenCalledWith({
       sessionKey: "agent:main:main",
       targetId: "tab-123",
-      baseUrl: undefined,
+      baseUrl: "http://127.0.0.1:40707",
       profile: undefined,
     });
   });
@@ -556,7 +556,7 @@ describe("browser tool url alias support", () => {
     expect(sessionTabRegistryMocks.untrackSessionBrowserTab).toHaveBeenCalledWith({
       sessionKey: "agent:main:main",
       targetId: "tab-xyz",
-      baseUrl: undefined,
+      baseUrl: "http://127.0.0.1:40707",
       profile: undefined,
     });
   });

@@ -1,4 +1,9 @@
 import type { Server } from "node:http";
+import {
+  registerBrowserSessionSupervisorForPort,
+  unregisterBrowserSessionSupervisorForPort,
+} from "./browser-session-runtime-registry.js";
+import { createBrowserSessionSupervisor } from "./browser-session-supervisor.js";
 import { isPwAiLoaded } from "./pw-ai-state.js";
 import type { BrowserServerState } from "./server-context.js";
 import { ensureExtensionRelayForProfiles, stopKnownBrowserProfiles } from "./server-lifecycle.js";
@@ -9,12 +14,18 @@ export async function createBrowserRuntimeState(params: {
   server?: Server | null;
   onWarn: (message: string) => void;
 }): Promise<BrowserServerState> {
+  const supervisor = createBrowserSessionSupervisor();
   const state: BrowserServerState = {
     server: params.server ?? null,
     port: params.port,
     resolved: params.resolved,
     profiles: new Map(),
+    supervisor,
   };
+  registerBrowserSessionSupervisorForPort({
+    port: params.port,
+    supervisor,
+  });
 
   await ensureExtensionRelayForProfiles({
     resolved: params.resolved,
@@ -47,6 +58,7 @@ export async function stopBrowserRuntime(params: {
   }
 
   params.clearState();
+  unregisterBrowserSessionSupervisorForPort(params.current.port);
 
   if (!isPwAiLoaded()) {
     return;

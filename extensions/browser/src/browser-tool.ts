@@ -351,6 +351,22 @@ function resolveBrowserBaseUrl(params: {
   return undefined;
 }
 
+function resolveTrackingBrowserBaseUrl(params: {
+  baseUrl?: string;
+  target?: "sandbox" | "host";
+}): string | undefined {
+  const explicitBaseUrl = params.baseUrl?.trim();
+  if (explicitBaseUrl) {
+    return explicitBaseUrl.replace(/\/$/, "");
+  }
+  if (params.target === "sandbox") {
+    return undefined;
+  }
+  const cfg = browserToolDeps.loadConfig();
+  const resolved = resolveBrowserConfig(cfg.browser, cfg);
+  return `http://127.0.0.1:${resolved.controlPort}`;
+}
+
 function shouldPreferHostForProfile(profileName: string | undefined) {
   if (!profileName) {
     return false;
@@ -427,6 +443,12 @@ export function createBrowserTool(opts?: {
             target: resolvedTarget,
             sandboxBridgeUrl: opts?.sandboxBridgeUrl,
             allowHostControl: opts?.allowHostControl,
+          });
+      const trackingBaseUrl = nodeTarget
+        ? undefined
+        : resolveTrackingBrowserBaseUrl({
+            baseUrl,
+            target: resolvedTarget,
           });
 
       const proxyRequest = nodeTarget
@@ -525,7 +547,7 @@ export function createBrowserTool(opts?: {
           browserToolDeps.trackSessionBrowserTab({
             sessionKey: opts?.agentSessionKey,
             targetId: opened.targetId,
-            baseUrl,
+            baseUrl: trackingBaseUrl,
             profile,
           });
           return jsonResult(opened);
@@ -568,7 +590,7 @@ export function createBrowserTool(opts?: {
             browserToolDeps.untrackSessionBrowserTab({
               sessionKey: opts?.agentSessionKey,
               targetId,
-              baseUrl,
+              baseUrl: trackingBaseUrl,
               profile,
             });
           } else {

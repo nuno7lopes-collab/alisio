@@ -1,4 +1,8 @@
 import { SsrFBlockedError } from "../infra/net/ssrf.js";
+import {
+  bindProfileRuntimeLastTargetId,
+  createBrowserSessionSupervisor,
+} from "./browser-session-supervisor.js";
 import { isChromeReachable, resolveAlisioUserDataDir } from "./chrome.js";
 import type { ResolvedBrowserProfile } from "./config.js";
 import { resolveProfile } from "./config.js";
@@ -40,6 +44,35 @@ export function listKnownProfileNames(state: BrowserServerState): string[] {
   return [...names];
 }
 
+function ensureBrowserSessionSupervisor(state: BrowserServerState) {
+  state.supervisor ??= createBrowserSessionSupervisor();
+  for (const [name, runtime] of state.profiles) {
+    bindProfileRuntimeLastTargetId({
+      runtime,
+      profileName: name,
+      supervisor: state.supervisor,
+    });
+  }
+  return state.supervisor;
+}
+
+function createProfileRuntimeState(
+  state: BrowserServerState,
+  profile: ResolvedBrowserProfile,
+): ProfileRuntimeState {
+  const runtime: ProfileRuntimeState = {
+    profile,
+    running: null,
+    reconcile: null,
+  };
+  bindProfileRuntimeLastTargetId({
+    runtime,
+    profileName: profile.name,
+    supervisor: ensureBrowserSessionSupervisor(state),
+  });
+  return runtime;
+}
+
 /**
  * Create a profile-scoped context for browser operations.
  */
@@ -52,6 +85,7 @@ function createProfileContext(
     if (!current) {
       throw new Error("Browser server not started");
     }
+    ensureBrowserSessionSupervisor(current);
     return current;
   };
 
@@ -59,8 +93,14 @@ function createProfileContext(
     const current = state();
     let profileState = current.profiles.get(profile.name);
     if (!profileState) {
-      profileState = { profile, running: null, lastTargetId: null, reconcile: null };
+      profileState = createProfileRuntimeState(current, profile);
       current.profiles.set(profile.name, profileState);
+    } else {
+      bindProfileRuntimeLastTargetId({
+        runtime: profileState,
+        profileName: profile.name,
+        supervisor: ensureBrowserSessionSupervisor(current),
+      });
     }
     return profileState;
   };
@@ -124,6 +164,7 @@ export function createBrowserRouteContext(opts: ContextOptions): BrowserRouteCon
     if (!current) {
       throw new Error("Browser server not started");
     }
+    ensureBrowserSessionSupervisor(current);
     return current;
   };
 

@@ -116,6 +116,10 @@ export function createProfileAvailability({
       return;
     }
     profileState.reconcile = null;
+    state().supervisor?.markProfileSessionState(profile.name, "reconciling", {
+      lastTargetId: null,
+      reason: reconcile.reason,
+    });
     profileState.lastTargetId = null;
 
     const previousProfile = reconcile.previousProfile;

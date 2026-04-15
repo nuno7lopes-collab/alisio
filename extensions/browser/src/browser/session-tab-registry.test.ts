@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerBrowserSessionSupervisorForPort } from "./browser-session-runtime-registry.js";
+import { createBrowserSessionSupervisor } from "./browser-session-supervisor.js";
 import {
   __countTrackedSessionBrowserTabsForTests,
   __resetTrackedSessionBrowserTabsForTests,
@@ -110,5 +112,51 @@ describe("session tab registry", () => {
     expect(closeTab).toHaveBeenCalledTimes(2);
     expect(warnings).toEqual([expect.stringContaining("network down")]);
     expect(__countTrackedSessionBrowserTabsForTests()).toBe(0);
+  });
+
+  it("isolates tracked tabs by registered runtime instead of a global active supervisor", async () => {
+    const controlSupervisor = createBrowserSessionSupervisor();
+    const bridgeSupervisor = createBrowserSessionSupervisor();
+    registerBrowserSessionSupervisorForPort({
+      port: 40707,
+      supervisor: controlSupervisor,
+    });
+    registerBrowserSessionSupervisorForPort({
+      port: 40708,
+      supervisor: bridgeSupervisor,
+    });
+
+    trackSessionBrowserTab({
+      sessionKey: "agent:main:main",
+      targetId: "tab-control",
+      baseUrl: "http://127.0.0.1:40707",
+    });
+    trackSessionBrowserTab({
+      sessionKey: "agent:main:main",
+      targetId: "tab-bridge",
+      baseUrl: "http://127.0.0.1:40708",
+    });
+
+    expect(controlSupervisor.getTrackedSession("agent:main:main")?.trackedTabs).toHaveLength(1);
+    expect(bridgeSupervisor.getTrackedSession("agent:main:main")?.trackedTabs).toHaveLength(1);
+
+    const closeTab = vi.fn(async () => {});
+    const closed = await closeTrackedBrowserTabsForSessions({
+      sessionKeys: ["agent:main:main"],
+      closeTab,
+    });
+
+    expect(closed).toBe(2);
+    expect(closeTab).toHaveBeenCalledTimes(2);
+    expect(closeTab).toHaveBeenCalledWith({
+      targetId: "tab-control",
+      baseUrl: "http://127.0.0.1:40707",
+      profile: undefined,
+    });
+    expect(closeTab).toHaveBeenCalledWith({
+      targetId: "tab-bridge",
+      baseUrl: "http://127.0.0.1:40708",
+      profile: undefined,
+    });
   });
 });

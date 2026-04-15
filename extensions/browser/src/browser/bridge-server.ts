@@ -3,6 +3,11 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import { isLoopbackHost } from "../gateway/net.js";
 import { deleteBridgeAuthForPort, setBridgeAuthForPort } from "./bridge-auth-registry.js";
+import {
+  registerBrowserSessionSupervisorForPort,
+  unregisterBrowserSessionSupervisorForPort,
+} from "./browser-session-runtime-registry.js";
+import { createBrowserSessionSupervisor } from "./browser-session-supervisor.js";
 import type { ResolvedBrowserConfig } from "./config.js";
 import { registerBrowserRoutes } from "./routes/index.js";
 import type { BrowserRouteRegistrar } from "./routes/types.js";
@@ -101,11 +106,13 @@ export async function startBrowserBridgeServer(params: {
   }
   installBrowserAuthMiddleware(app, { token: authToken, password: authPassword });
 
+  const supervisor = createBrowserSessionSupervisor();
   const state: BrowserServerState = {
     server: null as unknown as Server,
     port,
     resolved: params.resolved,
     profiles: new Map(),
+    supervisor,
   };
 
   const ctx = createBrowserRouteContext({
@@ -124,6 +131,10 @@ export async function startBrowserBridgeServer(params: {
   state.server = server;
   state.port = resolvedPort;
   state.resolved.controlPort = resolvedPort;
+  registerBrowserSessionSupervisorForPort({
+    port: resolvedPort,
+    supervisor,
+  });
 
   setBridgeAuthForPort(resolvedPort, { token: authToken, password: authPassword });
 
@@ -136,6 +147,7 @@ export async function stopBrowserBridgeServer(server: Server): Promise<void> {
     const address = server.address() as AddressInfo | null;
     if (address?.port) {
       deleteBridgeAuthForPort(address.port);
+      unregisterBrowserSessionSupervisorForPort(address.port);
     }
   } catch {
     // ignore
