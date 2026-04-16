@@ -612,6 +612,28 @@ describe("browser tool act compatibility", () => {
       expect.objectContaining({ profile: undefined }),
     );
   });
+
+  it("injects sessionKey and leaseOwner for agent-scoped act requests", async () => {
+    const tool = createBrowserTool({ agentSessionKey: "agent:main:main" });
+    await tool.execute?.("call-1", {
+      action: "act",
+      request: {
+        kind: "click",
+        ref: "legacy-ref",
+      },
+    });
+
+    expect(browserActionsMocks.browserAct).toHaveBeenCalledWith(
+      undefined,
+      {
+        kind: "click",
+        ref: "legacy-ref",
+        sessionKey: "agent:main:main",
+        leaseOwner: "agent:main:main",
+      },
+      expect.objectContaining({ profile: undefined }),
+    );
+  });
 });
 
 describe("browser tool snapshot labels", () => {

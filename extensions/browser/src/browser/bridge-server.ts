@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import express from "express";
 import { isLoopbackHost } from "../gateway/net.js";
 import { deleteBridgeAuthForPort, setBridgeAuthForPort } from "./bridge-auth-registry.js";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import {
   registerBrowserSessionSupervisorForPort,
   unregisterBrowserSessionSupervisorForPort,
@@ -113,6 +114,7 @@ export async function startBrowserBridgeServer(params: {
     resolved: params.resolved,
     profiles: new Map(),
     supervisor,
+    authCache: createBrowserSessionAuthCache(),
   };
 
   const ctx = createBrowserRouteContext({

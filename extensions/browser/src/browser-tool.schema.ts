@@ -41,6 +41,13 @@ const BROWSER_SNAPSHOT_MODES = ["efficient"] as const;
 const BROWSER_SNAPSHOT_REFS = ["role", "aria"] as const;
 
 const BROWSER_IMAGE_TYPES = ["png", "jpeg"] as const;
+const BROWSER_SECRET_REF_SOURCES = ["env", "file", "exec"] as const;
+
+const BrowserSecretRefSchema = Type.Object({
+  source: stringEnum(BROWSER_SECRET_REF_SOURCES),
+  provider: Type.String(),
+  id: Type.String(),
+});
 
 // NOTE: Using a flattened object schema instead of Type.Union([Type.Object(...), ...])
 // because Claude API on Vertex AI rejects nested anyOf schemas as invalid JSON Schema.
@@ -56,8 +63,10 @@ const BrowserActSchema = Type.Object({
   modifiers: Type.Optional(Type.Array(Type.String())),
   // type
   text: Type.Optional(Type.String()),
+  textRef: Type.Optional(BrowserSecretRefSchema),
   submit: Type.Optional(Type.Boolean()),
   slowly: Type.Optional(Type.Boolean()),
+  preferReuseSession: Type.Optional(Type.Boolean()),
   // press
   key: Type.Optional(Type.String()),
   delayMs: Type.Optional(Type.Number()),
@@ -78,6 +87,8 @@ const BrowserActSchema = Type.Object({
   loadState: Type.Optional(Type.String()),
   textGone: Type.Optional(Type.String()),
   timeoutMs: Type.Optional(Type.Number()),
+  sessionKey: Type.Optional(Type.String()),
+  leaseOwner: Type.Optional(Type.String()),
   // evaluate
   fn: Type.Optional(Type.String()),
 });
@@ -120,8 +131,10 @@ export const BrowserToolSchema = Type.Object({
   button: Type.Optional(Type.String()),
   modifiers: Type.Optional(Type.Array(Type.String())),
   text: Type.Optional(Type.String()),
+  textRef: Type.Optional(BrowserSecretRefSchema),
   submit: Type.Optional(Type.Boolean()),
   slowly: Type.Optional(Type.Boolean()),
+  preferReuseSession: Type.Optional(Type.Boolean()),
   key: Type.Optional(Type.String()),
   delayMs: Type.Optional(Type.Number()),
   startRef: Type.Optional(Type.String()),
@@ -134,5 +147,7 @@ export const BrowserToolSchema = Type.Object({
   textGone: Type.Optional(Type.String()),
   loadState: Type.Optional(Type.String()),
   fn: Type.Optional(Type.String()),
+  sessionKey: Type.Optional(Type.String()),
+  leaseOwner: Type.Optional(Type.String()),
   request: Type.Optional(BrowserActSchema),
 });

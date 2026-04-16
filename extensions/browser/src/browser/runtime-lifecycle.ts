@@ -1,4 +1,5 @@
 import type { Server } from "node:http";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import {
   registerBrowserSessionSupervisorForPort,
   unregisterBrowserSessionSupervisorForPort,
@@ -21,6 +22,7 @@ export async function createBrowserRuntimeState(params: {
     resolved: params.resolved,
     profiles: new Map(),
     supervisor,
+    authCache: createBrowserSessionAuthCache(),
   };
   registerBrowserSessionSupervisorForPort({
     port: params.port,

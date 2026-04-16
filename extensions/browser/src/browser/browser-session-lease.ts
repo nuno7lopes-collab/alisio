@@ -8,6 +8,18 @@ type InternalLeaseState = {
   lastFencingToken: number;
 };
 
+export class BrowserSessionLeaseConflictError extends Error {
+  readonly currentLease: BrowserSessionLeaseSnapshot;
+
+  constructor(currentLease: BrowserSessionLeaseSnapshot) {
+    super(
+      `Browser session "${currentLease.sessionKey}" is already controlled by "${currentLease.owner}".`,
+    );
+    this.name = "BrowserSessionLeaseConflictError";
+    this.currentLease = { ...currentLease };
+  }
+}
+
 export type BrowserSessionLeaseRegistry = {
   acquire: (params: { sessionKey: string; owner: string }) => BrowserSessionLeaseSnapshot;
   current: (sessionKey: string) => BrowserSessionLeaseSnapshot | null;
@@ -46,6 +58,12 @@ export function createBrowserSessionLeaseRegistry(params?: {
       const sessionKey = normalizeSessionKey(leaseParams.sessionKey);
       const owner = normalizeOwner(leaseParams.owner);
       const state = getLeaseState(sessionKey);
+      if (state.current) {
+        if (state.current.owner === owner) {
+          return { ...state.current };
+        }
+        throw new BrowserSessionLeaseConflictError(state.current);
+      }
       const next: BrowserSessionLeaseSnapshot = {
         sessionKey,
         owner,

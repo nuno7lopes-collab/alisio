@@ -1,3 +1,4 @@
+import type { BrowserActionExecutionSummary } from "./browser-action.types.js";
 import type { BrowserActRequest, BrowserFormField } from "./client-actions-core.js";
 import { DEFAULT_FILL_FIELD_TYPE } from "./form-fields.js";
 import { DEFAULT_UPLOAD_DIR, resolveStrictExistingPathsWithinRoot } from "./paths.js";
@@ -21,6 +22,8 @@ type TargetOpts = {
   cdpUrl: string;
   targetId?: string;
 };
+
+type ExecutionReporter = (summary: BrowserActionExecutionSummary) => void;
 
 const MAX_CLICK_DELAY_MS = 5_000;
 const MAX_WAIT_TIME_MS = 30_000;
@@ -95,6 +98,143 @@ function isAriaRefResolutionError(err: unknown): boolean {
 
 function normalizeAbortReason(reason: unknown): Error {
   return reason instanceof Error ? reason : new Error(String(reason ?? "aborted"));
+}
+
+function reportExecutionPath(
+  reporter: ExecutionReporter | undefined,
+  summary: BrowserActionExecutionSummary,
+): void {
+  reporter?.({ ...summary });
+}
+
+function shouldAttemptGeometricFallback(err: unknown): boolean {
+  const message = normalizeInteractionErrorMessage(err);
+  return (
+    isTransientTargetError(err) ||
+    isAriaRefResolutionError(err) ||
+    message.includes("not found or not visible") ||
+    message.includes("invalidated that snapshot ref") ||
+    message.includes("another element would receive the click") ||
+    message.includes("intercepts pointer events") ||
+    message.includes("not interactable (hidden or covered)") ||
+    message.includes("element is outside of the viewport")
+  );
+}
+
+function recoveryCodeForGeometricFallback(
+  err: unknown,
+): BrowserActionExecutionSummary["recoveryCode"] {
+  const message = normalizeInteractionErrorMessage(err);
+  if (isAriaRefResolutionError(err)) {
+    return "stale-dom";
+  }
+  if (
+    message.includes("not found or not visible") ||
+    message.includes("invalidated that snapshot ref")
+  ) {
+    return "stale-dom";
+  }
+  if (message.includes("frame has been detached")) {
+    return "detached-frame";
+  }
+  if (
+    message.includes("another element would receive the click") ||
+    message.includes("intercepts pointer events") ||
+    message.includes("not interactable (hidden or covered)")
+  ) {
+    return "overlay";
+  }
+  if (
+    message.includes("execution context was destroyed") ||
+    message.includes("most likely because of a navigation")
+  ) {
+    return "navigation-swap";
+  }
+  if (message.includes("session closed") || message.includes("closed the connection")) {
+    return "browser-disconnect";
+  }
+  if (
+    message.includes("target page, context or browser has been closed") ||
+    message.includes("browser has been closed")
+  ) {
+    return "browser-crash";
+  }
+  return "corrupted-state";
+}
+
+async function resolveLocatorForGeometry(opts: {
+  cdpUrl: string;
+  targetId?: string;
+  ref?: string;
+  selector?: string;
+}) {
+  const resolved = requireRefOrSelector(opts.ref, opts.selector);
+  const page = await getRestoredPageForTarget(opts);
+  if (resolved.ref) {
+    const ref = requireRef(resolved.ref);
+    const semantic = semanticRefLocator(page, ref);
+    if (semantic) {
+      return {
+        page,
+        locator: semantic,
+        label: ref,
+      };
+    }
+    return {
+      page,
+      locator: refLocator(page, ref),
+      label: ref,
+    };
+  }
+  return {
+    page,
+    locator: page.locator(resolved.selector!),
+    label: resolved.selector!,
+  };
+}
+
+async function resolveLocatorCenterPoint(opts: {
+  cdpUrl: string;
+  targetId?: string;
+  ref?: string;
+  selector?: string;
+  timeoutMs?: number;
+}) {
+  const { page, locator, label } = await resolveLocatorForGeometry(opts);
+  await locator.scrollIntoViewIfNeeded({
+    timeout: resolveInteractionTimeoutMs(opts.timeoutMs),
+  });
+  const box = await locator.boundingBox();
+  if (!box || box.width <= 0 || box.height <= 0) {
+    throw new Error(`Unable to resolve visible geometry for ${label}`);
+  }
+  return {
+    page,
+    locator,
+    label,
+    x: box.x + box.width / 2,
+    y: box.y + box.height / 2,
+  };
+}
+
+async function withPressedModifiers(
+  page: Awaited<ReturnType<typeof getRestoredPageForTarget>>,
+  modifiers: Array<"Alt" | "Control" | "ControlOrMeta" | "Meta" | "Shift"> | undefined,
+  work: () => Promise<void>,
+) {
+  const resolved = (modifiers ?? []).map((modifier) =>
+    modifier === "ControlOrMeta" ? (process.platform === "darwin" ? "Meta" : "Control") : modifier,
+  );
+  try {
+    for (const modifier of resolved) {
+      await page.keyboard.down(modifier);
+    }
+    await work();
+  } finally {
+    for (const modifier of [...resolved].reverse()) {
+      await page.keyboard.up(modifier).catch(() => {});
+    }
+  }
 }
 
 async function withAbortableInteraction<T>(
@@ -221,6 +361,7 @@ export async function clickViaPlaywright(opts: {
   delayMs?: number;
   timeoutMs?: number;
   signal?: AbortSignal;
+  onExecutionPath?: ExecutionReporter;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
   const label = resolved.ref ?? resolved.selector!;
@@ -247,15 +388,54 @@ export async function clickViaPlaywright(opts: {
   };
 
   if (resolved.ref) {
-    await withResolvedRefAction({
-      cdpUrl: opts.cdpUrl,
-      targetId: opts.targetId,
-      ref: resolved.ref,
-      signal: opts.signal,
-      abortReason: "click aborted",
-      action: clickLocator,
-    });
-    return;
+    try {
+      await withResolvedRefAction({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref: resolved.ref,
+        signal: opts.signal,
+        abortReason: "click aborted",
+        action: clickLocator,
+      });
+      reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
+      return;
+    } catch (err) {
+      if (!shouldAttemptGeometricFallback(err)) {
+        throw err;
+      }
+      const point = await resolveLocatorCenterPoint({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref: resolved.ref,
+        timeoutMs: opts.timeoutMs,
+      });
+      const delayMs = resolveBoundedDelayMs(opts.delayMs, "click delayMs", MAX_CLICK_DELAY_MS);
+      await withAbortableInteraction(
+        {
+          cdpUrl: opts.cdpUrl,
+          targetId: opts.targetId,
+          signal: opts.signal,
+          abortReason: "click aborted",
+        },
+        async () =>
+          await withPressedModifiers(point.page, opts.modifiers, async () => {
+            await point.page.mouse.move(point.x, point.y);
+            if (delayMs > 0) {
+              await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+            await point.page.mouse.click(point.x, point.y, {
+              button: opts.button,
+              clickCount: opts.doubleClick ? 2 : 1,
+            });
+          }),
+      );
+      reportExecutionPath(opts.onExecutionPath, {
+        layer: "geometric",
+        recovered: true,
+        recoveryCode: recoveryCodeForGeometricFallback(err),
+      });
+      return;
+    }
   }
 
   const page = await getRestoredPageForTarget(opts);
@@ -269,8 +449,42 @@ export async function clickViaPlaywright(opts: {
       },
       async () => await clickLocator(page.locator(resolved.selector!)),
     );
+    reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
   } catch (err) {
-    throw toAIFriendlyError(err, label);
+    if (!shouldAttemptGeometricFallback(err)) {
+      throw toAIFriendlyError(err, label);
+    }
+    const point = await resolveLocatorCenterPoint({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      selector: resolved.selector,
+      timeoutMs: opts.timeoutMs,
+    });
+    const delayMs = resolveBoundedDelayMs(opts.delayMs, "click delayMs", MAX_CLICK_DELAY_MS);
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "click aborted",
+      },
+      async () =>
+        await withPressedModifiers(point.page, opts.modifiers, async () => {
+          await point.page.mouse.move(point.x, point.y);
+          if (delayMs > 0) {
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+          await point.page.mouse.click(point.x, point.y, {
+            button: opts.button,
+            clickCount: opts.doubleClick ? 2 : 1,
+          });
+        }),
+    );
+    reportExecutionPath(opts.onExecutionPath, {
+      layer: "geometric",
+      recovered: true,
+      recoveryCode: recoveryCodeForGeometricFallback(err),
+    });
   }
 }
 
@@ -281,23 +495,54 @@ export async function hoverViaPlaywright(opts: {
   selector?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
+  onExecutionPath?: ExecutionReporter;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
   const label = resolved.ref ?? resolved.selector!;
   const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
 
   if (resolved.ref) {
-    await withResolvedRefAction({
-      cdpUrl: opts.cdpUrl,
-      targetId: opts.targetId,
-      ref: resolved.ref,
-      signal: opts.signal,
-      abortReason: "hover aborted",
-      action: async (locator) => {
-        await locator.hover({ timeout });
-      },
-    });
-    return;
+    try {
+      await withResolvedRefAction({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref: resolved.ref,
+        signal: opts.signal,
+        abortReason: "hover aborted",
+        action: async (locator) => {
+          await locator.hover({ timeout });
+        },
+      });
+      reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
+      return;
+    } catch (err) {
+      if (!shouldAttemptGeometricFallback(err)) {
+        throw err;
+      }
+      const point = await resolveLocatorCenterPoint({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref: resolved.ref,
+        timeoutMs: opts.timeoutMs,
+      });
+      await withAbortableInteraction(
+        {
+          cdpUrl: opts.cdpUrl,
+          targetId: opts.targetId,
+          signal: opts.signal,
+          abortReason: "hover aborted",
+        },
+        async () => {
+          await point.page.mouse.move(point.x, point.y);
+        },
+      );
+      reportExecutionPath(opts.onExecutionPath, {
+        layer: "geometric",
+        recovered: true,
+        recoveryCode: recoveryCodeForGeometricFallback(err),
+      });
+      return;
+    }
   }
 
   const page = await getRestoredPageForTarget(opts);
@@ -311,8 +556,33 @@ export async function hoverViaPlaywright(opts: {
       },
       async () => await page.locator(resolved.selector!).hover({ timeout }),
     );
+    reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
   } catch (err) {
-    throw toAIFriendlyError(err, label);
+    if (!shouldAttemptGeometricFallback(err)) {
+      throw toAIFriendlyError(err, label);
+    }
+    const point = await resolveLocatorCenterPoint({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      selector: resolved.selector,
+      timeoutMs: opts.timeoutMs,
+    });
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "hover aborted",
+      },
+      async () => {
+        await point.page.mouse.move(point.x, point.y);
+      },
+    );
+    reportExecutionPath(opts.onExecutionPath, {
+      layer: "geometric",
+      recovered: true,
+      recoveryCode: recoveryCodeForGeometricFallback(err),
+    });
   }
 }
 
@@ -325,6 +595,7 @@ export async function dragViaPlaywright(opts: {
   endSelector?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
+  onExecutionPath?: ExecutionReporter;
 }): Promise<void> {
   const resolvedStart = requireRefOrSelector(opts.startRef, opts.startSelector);
   const resolvedEnd = requireRefOrSelector(opts.endRef, opts.endSelector);
@@ -350,8 +621,44 @@ export async function dragViaPlaywright(opts: {
           timeout: resolveInteractionTimeoutMs(opts.timeoutMs),
         }),
     );
+    reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
   } catch (err) {
-    throw toAIFriendlyError(err, `${startLabel} -> ${endLabel}`);
+    if (!shouldAttemptGeometricFallback(err)) {
+      throw toAIFriendlyError(err, `${startLabel} -> ${endLabel}`);
+    }
+    const startPoint = await resolveLocatorCenterPoint({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolvedStart.ref,
+      selector: resolvedStart.selector,
+      timeoutMs: opts.timeoutMs,
+    });
+    const endPoint = await resolveLocatorCenterPoint({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      ref: resolvedEnd.ref,
+      selector: resolvedEnd.selector,
+      timeoutMs: opts.timeoutMs,
+    });
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "drag aborted",
+      },
+      async () => {
+        await startPoint.page.mouse.move(startPoint.x, startPoint.y);
+        await startPoint.page.mouse.down();
+        await startPoint.page.mouse.move(endPoint.x, endPoint.y, { steps: 12 });
+        await startPoint.page.mouse.up();
+      },
+    );
+    reportExecutionPath(opts.onExecutionPath, {
+      layer: "geometric",
+      recovered: true,
+      recoveryCode: recoveryCodeForGeometricFallback(err),
+    });
   }
 }
 
@@ -438,6 +745,7 @@ export async function typeViaPlaywright(opts: {
   slowly?: boolean;
   timeoutMs?: number;
   signal?: AbortSignal;
+  onExecutionPath?: ExecutionReporter;
 }): Promise<void> {
   const resolved = requireRefOrSelector(opts.ref, opts.selector);
   const text = String(opts.text ?? "");
@@ -456,15 +764,55 @@ export async function typeViaPlaywright(opts: {
   };
 
   if (resolved.ref) {
-    await withResolvedRefAction({
-      cdpUrl: opts.cdpUrl,
-      targetId: opts.targetId,
-      ref: resolved.ref,
-      signal: opts.signal,
-      abortReason: "type aborted",
-      action: typeIntoLocator,
-    });
-    return;
+    try {
+      await withResolvedRefAction({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref: resolved.ref,
+        signal: opts.signal,
+        abortReason: "type aborted",
+        action: typeIntoLocator,
+      });
+      reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
+      return;
+    } catch (err) {
+      if (!shouldAttemptGeometricFallback(err)) {
+        throw err;
+      }
+      const point = await resolveLocatorCenterPoint({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref: resolved.ref,
+        timeoutMs: opts.timeoutMs,
+      });
+      await withAbortableInteraction(
+        {
+          cdpUrl: opts.cdpUrl,
+          targetId: opts.targetId,
+          signal: opts.signal,
+          abortReason: "type aborted",
+        },
+        async () => {
+          await point.page.mouse.click(point.x, point.y);
+          await point.page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+          await point.page.keyboard.press("Backspace");
+          if (opts.slowly) {
+            await point.page.keyboard.type(text, { delay: 75 });
+          } else {
+            await point.page.keyboard.type(text);
+          }
+          if (opts.submit) {
+            await point.page.keyboard.press("Enter");
+          }
+        },
+      );
+      reportExecutionPath(opts.onExecutionPath, {
+        layer: "geometric",
+        recovered: true,
+        recoveryCode: recoveryCodeForGeometricFallback(err),
+      });
+      return;
+    }
   }
 
   const page = await getRestoredPageForTarget(opts);
@@ -478,8 +826,43 @@ export async function typeViaPlaywright(opts: {
       },
       async () => await typeIntoLocator(page.locator(resolved.selector!)),
     );
+    reportExecutionPath(opts.onExecutionPath, { layer: "semantic" });
   } catch (err) {
-    throw toAIFriendlyError(err, label);
+    if (!shouldAttemptGeometricFallback(err)) {
+      throw toAIFriendlyError(err, label);
+    }
+    const point = await resolveLocatorCenterPoint({
+      cdpUrl: opts.cdpUrl,
+      targetId: opts.targetId,
+      selector: resolved.selector,
+      timeoutMs: opts.timeoutMs,
+    });
+    await withAbortableInteraction(
+      {
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        signal: opts.signal,
+        abortReason: "type aborted",
+      },
+      async () => {
+        await point.page.mouse.click(point.x, point.y);
+        await point.page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+        await point.page.keyboard.press("Backspace");
+        if (opts.slowly) {
+          await point.page.keyboard.type(text, { delay: 75 });
+        } else {
+          await point.page.keyboard.type(text);
+        }
+        if (opts.submit) {
+          await point.page.keyboard.press("Enter");
+        }
+      },
+    );
+    reportExecutionPath(opts.onExecutionPath, {
+      layer: "geometric",
+      recovered: true,
+      recoveryCode: recoveryCodeForGeometricFallback(err),
+    });
   }
 }
 
@@ -489,8 +872,11 @@ export async function fillFormViaPlaywright(opts: {
   fields: BrowserFormField[];
   timeoutMs?: number;
   signal?: AbortSignal;
+  onExecutionPath?: ExecutionReporter;
 }): Promise<void> {
   const timeout = resolveInteractionTimeoutMs(opts.timeoutMs);
+  let usedGeometricFallback = false;
+  let recoveryCode: BrowserActionExecutionSummary["recoveryCode"] | null = null;
   for (const field of opts.fields) {
     const rawRef = field.ref.trim();
     if (!rawRef) {
@@ -508,6 +894,44 @@ export async function fillFormViaPlaywright(opts: {
     if (type === "checkbox" || type === "radio") {
       const checked =
         rawValue === true || rawValue === 1 || rawValue === "1" || rawValue === "true";
+      try {
+        await withResolvedRefAction({
+          cdpUrl: opts.cdpUrl,
+          targetId: opts.targetId,
+          ref,
+          signal: opts.signal,
+          abortReason: "fill aborted",
+          action: async (locator) => {
+            await locator.setChecked(checked, { timeout });
+          },
+        });
+      } catch (err) {
+        if (!shouldAttemptGeometricFallback(err)) {
+          throw err;
+        }
+        const point = await resolveLocatorCenterPoint({
+          cdpUrl: opts.cdpUrl,
+          targetId: opts.targetId,
+          ref,
+          timeoutMs: opts.timeoutMs,
+        });
+        await withAbortableInteraction(
+          {
+            cdpUrl: opts.cdpUrl,
+            targetId: opts.targetId,
+            signal: opts.signal,
+            abortReason: "fill aborted",
+          },
+          async () => {
+            await point.page.mouse.click(point.x, point.y);
+          },
+        );
+        usedGeometricFallback = true;
+        recoveryCode = recoveryCode ?? recoveryCodeForGeometricFallback(err);
+      }
+      continue;
+    }
+    try {
       await withResolvedRefAction({
         cdpUrl: opts.cdpUrl,
         targetId: opts.targetId,
@@ -515,22 +939,42 @@ export async function fillFormViaPlaywright(opts: {
         signal: opts.signal,
         abortReason: "fill aborted",
         action: async (locator) => {
-          await locator.setChecked(checked, { timeout });
+          await locator.fill(value, { timeout });
         },
       });
-      continue;
+    } catch (err) {
+      if (!shouldAttemptGeometricFallback(err)) {
+        throw err;
+      }
+      const point = await resolveLocatorCenterPoint({
+        cdpUrl: opts.cdpUrl,
+        targetId: opts.targetId,
+        ref,
+        timeoutMs: opts.timeoutMs,
+      });
+      await withAbortableInteraction(
+        {
+          cdpUrl: opts.cdpUrl,
+          targetId: opts.targetId,
+          signal: opts.signal,
+          abortReason: "fill aborted",
+        },
+        async () => {
+          await point.page.mouse.click(point.x, point.y);
+          await point.page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+          await point.page.keyboard.press("Backspace");
+          await point.page.keyboard.type(value);
+        },
+      );
+      usedGeometricFallback = true;
+      recoveryCode = recoveryCode ?? recoveryCodeForGeometricFallback(err);
     }
-    await withResolvedRefAction({
-      cdpUrl: opts.cdpUrl,
-      targetId: opts.targetId,
-      ref,
-      signal: opts.signal,
-      abortReason: "fill aborted",
-      action: async (locator) => {
-        await locator.fill(value, { timeout });
-      },
-    });
   }
+  reportExecutionPath(opts.onExecutionPath, {
+    layer: usedGeometricFallback ? "geometric" : "semantic",
+    recovered: usedGeometricFallback,
+    recoveryCode,
+  });
 }
 
 export async function evaluateViaPlaywright(opts: {

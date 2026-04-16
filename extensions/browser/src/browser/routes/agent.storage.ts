@@ -1,6 +1,12 @@
+import { createBrowserAuthBroker } from "../browser-auth-broker.js";
+import { BrowserSessionLeaseConflictError } from "../browser-session-lease.js";
+import type { BrowserSessionSupervisor } from "../browser-session.types.js";
 import type { BrowserRouteContext } from "../server-context.js";
 import {
   readBody,
+  resolveLeaseOwnerFromBody,
+  resolveSessionKeyFromBody,
+  resolveTabOrigin,
   resolveTargetIdFromBody,
   resolveTargetIdFromQuery,
   withPlaywrightRouteContext,
@@ -9,6 +15,14 @@ import type { BrowserRequest, BrowserResponse, BrowserRouteRegistrar } from "./t
 import { jsonError, toBoolean, toNumber, toStringOrEmpty } from "./utils.js";
 
 type StorageKind = "local" | "session";
+
+function getBrowserSessionSupervisor(ctx: BrowserRouteContext): BrowserSessionSupervisor {
+  const supervisor = ctx.state().supervisor;
+  if (!supervisor) {
+    throw new Error("Browser session supervisor unavailable");
+  }
+  return supervisor;
+}
 
 export function parseStorageKind(raw: string): StorageKind | null {
   if (raw === "local" || raw === "session") {
@@ -63,6 +77,34 @@ function parseStorageMutationFromRequest(req: BrowserRequest, res: BrowserRespon
   return { body, parsed };
 }
 
+function ensureStorageLeaseOrRespond(params: {
+  ctx: BrowserRouteContext;
+  body: Record<string, unknown>;
+  res: BrowserResponse;
+}): {
+  sessionKey?: string;
+  leaseOwner?: string;
+} | null {
+  const sessionKey = resolveSessionKeyFromBody(params.body);
+  const leaseOwner = resolveLeaseOwnerFromBody(params.body);
+  if (!sessionKey || !leaseOwner) {
+    return { sessionKey, leaseOwner };
+  }
+  try {
+    getBrowserSessionSupervisor(params.ctx).ensureSessionLease({
+      sessionKey,
+      owner: leaseOwner,
+    });
+  } catch (err) {
+    if (err instanceof BrowserSessionLeaseConflictError) {
+      jsonError(params.res, 409, err.message);
+      return null;
+    }
+    throw err;
+  }
+  return { sessionKey, leaseOwner };
+}
+
 export function registerBrowserAgentStorageRoutes(
   app: BrowserRouteRegistrar,
   ctx: BrowserRouteContext,
@@ -88,6 +130,10 @@ export function registerBrowserAgentStorageRoutes(
   app.post("/cookies/set", async (req, res) => {
     const body = readBody(req);
     const targetId = resolveTargetIdFromBody(body);
+    const lease = ensureStorageLeaseOrRespond({ ctx, body, res });
+    if (!lease) {
+      return;
+    }
     const cookie =
       body.cookie && typeof body.cookie === "object" && !Array.isArray(body.cookie)
         ? (body.cookie as Record<string, unknown>)
@@ -103,6 +149,7 @@ export function registerBrowserAgentStorageRoutes(
       targetId,
       feature: "cookies set",
       run: async ({ cdpUrl, tab, pw }) => {
+        const supervisor = getBrowserSessionSupervisor(ctx);
         await pw.cookiesSetViaPlaywright({
           cdpUrl,
           targetId: tab.targetId,
@@ -123,7 +170,23 @@ export function registerBrowserAgentStorageRoutes(
                 : undefined,
           },
         });
-        res.json({ ok: true, targetId: tab.targetId });
+        const auth = createBrowserAuthBroker({
+          authCache: ctx.state().authCache,
+        }).markCookieAuth({
+          sessionKey: lease.sessionKey,
+          origin: resolveTabOrigin(toStringOrEmpty(cookie.url)) ?? resolveTabOrigin(tab.url),
+        });
+        if (lease.sessionKey && auth) {
+          supervisor.recordSessionAuth({
+            sessionKey: lease.sessionKey,
+            origin: auth.origin,
+            status: auth.status,
+            method: auth.method,
+            targetId: tab.targetId,
+            fields: auth.fields,
+          });
+        }
+        res.json({ ok: true, targetId: tab.targetId, ...(auth ? { auth } : {}) });
       },
     });
   });
@@ -131,6 +194,10 @@ export function registerBrowserAgentStorageRoutes(
   app.post("/cookies/clear", async (req, res) => {
     const body = readBody(req);
     const targetId = resolveTargetIdFromBody(body);
+    const lease = ensureStorageLeaseOrRespond({ ctx, body, res });
+    if (!lease) {
+      return;
+    }
 
     await withPlaywrightRouteContext({
       req,
@@ -139,10 +206,22 @@ export function registerBrowserAgentStorageRoutes(
       targetId,
       feature: "cookies clear",
       run: async ({ cdpUrl, tab, pw }) => {
+        const supervisor = getBrowserSessionSupervisor(ctx);
         await pw.cookiesClearViaPlaywright({
           cdpUrl,
           targetId: tab.targetId,
         });
+        if (lease.sessionKey) {
+          ctx.state().authCache.clearSession(lease.sessionKey);
+          supervisor.recordSessionAuth({
+            sessionKey: lease.sessionKey,
+            origin: resolveTabOrigin(tab.url),
+            status: "none",
+            method: "cookies",
+            targetId: tab.targetId,
+            fields: 0,
+          });
+        }
         res.json({ ok: true, targetId: tab.targetId });
       },
     });
@@ -179,6 +258,14 @@ export function registerBrowserAgentStorageRoutes(
     if (!mutation) {
       return;
     }
+    const lease = ensureStorageLeaseOrRespond({
+      ctx,
+      body: mutation.body,
+      res,
+    });
+    if (!lease) {
+      return;
+    }
     const key = toStringOrEmpty(mutation.body.key);
     if (!key) {
       return jsonError(res, 400, "key is required");
@@ -192,6 +279,7 @@ export function registerBrowserAgentStorageRoutes(
       targetId: mutation.parsed.targetId,
       feature: "storage set",
       run: async ({ cdpUrl, tab, pw }) => {
+        const supervisor = getBrowserSessionSupervisor(ctx);
         await pw.storageSetViaPlaywright({
           cdpUrl,
           targetId: tab.targetId,
@@ -199,7 +287,25 @@ export function registerBrowserAgentStorageRoutes(
           key,
           value,
         });
-        res.json({ ok: true, targetId: tab.targetId });
+        const auth = createBrowserAuthBroker({
+          authCache: ctx.state().authCache,
+        }).markStorageAuth({
+          sessionKey: lease.sessionKey,
+          origin: resolveTabOrigin(tab.url),
+          key,
+          values: { [key]: value },
+        });
+        if (lease.sessionKey && auth) {
+          supervisor.recordSessionAuth({
+            sessionKey: lease.sessionKey,
+            origin: auth.origin,
+            status: auth.status,
+            method: auth.method,
+            targetId: tab.targetId,
+            fields: auth.fields,
+          });
+        }
+        res.json({ ok: true, targetId: tab.targetId, ...(auth ? { auth } : {}) });
       },
     });
   });
@@ -207,6 +313,14 @@ export function registerBrowserAgentStorageRoutes(
   app.post("/storage/:kind/clear", async (req, res) => {
     const mutation = parseStorageMutationFromRequest(req, res);
     if (!mutation) {
+      return;
+    }
+    const lease = ensureStorageLeaseOrRespond({
+      ctx,
+      body: mutation.body,
+      res,
+    });
+    if (!lease) {
       return;
     }
 
@@ -217,11 +331,23 @@ export function registerBrowserAgentStorageRoutes(
       targetId: mutation.parsed.targetId,
       feature: "storage clear",
       run: async ({ cdpUrl, tab, pw }) => {
+        const supervisor = getBrowserSessionSupervisor(ctx);
         await pw.storageClearViaPlaywright({
           cdpUrl,
           targetId: tab.targetId,
           kind: mutation.parsed.kind,
         });
+        if (lease.sessionKey) {
+          ctx.state().authCache.clearSession(lease.sessionKey);
+          supervisor.recordSessionAuth({
+            sessionKey: lease.sessionKey,
+            origin: resolveTabOrigin(tab.url),
+            status: "none",
+            method: "storage",
+            targetId: tab.targetId,
+            fields: 0,
+          });
+        }
         res.json({ ok: true, targetId: tab.targetId });
       },
     });
@@ -290,9 +416,10 @@ export function registerBrowserAgentStorageRoutes(
   app.post("/set/credentials", async (req, res) => {
     const body = readBody(req);
     const targetId = resolveTargetIdFromBody(body);
-    const clear = toBoolean(body.clear) ?? false;
-    const username = toStringOrEmpty(body.username) || undefined;
-    const password = typeof body.password === "string" ? body.password : undefined;
+    const lease = ensureStorageLeaseOrRespond({ ctx, body, res });
+    if (!lease) {
+      return;
+    }
 
     await withPlaywrightRouteContext({
       req,
@@ -301,14 +428,52 @@ export function registerBrowserAgentStorageRoutes(
       targetId,
       feature: "http credentials",
       run: async ({ cdpUrl, tab, pw }) => {
+        const supervisor = getBrowserSessionSupervisor(ctx);
+        const authBroker = createBrowserAuthBroker({
+          authCache: ctx.state().authCache,
+        });
+        const resolvedCredentials = await authBroker.resolveHttpCredentials({
+          username: body.username,
+          usernameRef: body.usernameRef,
+          password: body.password,
+          passwordRef: body.passwordRef,
+          clear: toBoolean(body.clear) ?? false,
+          sessionKey: lease.sessionKey,
+          origin: resolveTabOrigin(tab.url),
+        });
         await pw.setHttpCredentialsViaPlaywright({
           cdpUrl,
           targetId: tab.targetId,
-          username,
-          password,
-          clear,
+          username: resolvedCredentials.username,
+          password: resolvedCredentials.password,
+          clear: resolvedCredentials.clear,
         });
-        res.json({ ok: true, targetId: tab.targetId });
+        if (lease.sessionKey && resolvedCredentials.clear) {
+          ctx.state().authCache.clearSession(lease.sessionKey);
+          supervisor.recordSessionAuth({
+            sessionKey: lease.sessionKey,
+            origin: resolveTabOrigin(tab.url),
+            status: "none",
+            method: "http-credentials",
+            targetId: tab.targetId,
+            fields: 0,
+          });
+        }
+        if (lease.sessionKey && resolvedCredentials.auth) {
+          supervisor.recordSessionAuth({
+            sessionKey: lease.sessionKey,
+            origin: resolvedCredentials.auth.origin,
+            status: resolvedCredentials.auth.status,
+            method: resolvedCredentials.auth.method,
+            targetId: tab.targetId,
+            fields: resolvedCredentials.auth.fields,
+          });
+        }
+        res.json({
+          ok: true,
+          targetId: tab.targetId,
+          ...(resolvedCredentials.auth ? { auth: resolvedCredentials.auth } : {}),
+        });
       },
     });
   });

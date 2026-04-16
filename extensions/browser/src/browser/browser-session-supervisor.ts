@@ -1,4 +1,10 @@
+import type {
+  BrowserSessionActionSnapshot,
+  BrowserSessionAuthSnapshot,
+  BrowserSessionRecoverySnapshot,
+} from "./browser-action.types.js";
 import {
+  BrowserSessionLeaseConflictError,
   createBrowserSessionLeaseRegistry,
   type BrowserSessionLeaseRegistry,
 } from "./browser-session-lease.js";
@@ -20,6 +26,9 @@ type InternalTrackedSession = {
   updatedAt: number;
   lease: BrowserSessionLeaseSnapshot | null;
   trackedTabs: Map<string, BrowserTrackedSessionBrowserTab>;
+  lastAction: BrowserSessionActionSnapshot | null;
+  lastRecovery: BrowserSessionRecoverySnapshot | null;
+  auth: BrowserSessionAuthSnapshot | null;
 };
 
 const runtimeLinkState = new WeakMap<
@@ -75,6 +84,9 @@ function cloneTrackedSession(session: InternalTrackedSession): BrowserTrackedSes
     updatedAt: session.updatedAt,
     lease: session.lease ? { ...session.lease } : null,
     trackedTabs: [...session.trackedTabs.values()].map((tab) => ({ ...tab })),
+    lastAction: session.lastAction ? { ...session.lastAction } : null,
+    lastRecovery: session.lastRecovery ? { ...session.lastRecovery } : null,
+    auth: session.auth ? { ...session.auth } : null,
   };
 }
 
@@ -140,6 +152,9 @@ export function createBrowserSessionSupervisor(params?: {
         updatedAt: now(),
         lease: null,
         trackedTabs: new Map(),
+        lastAction: null,
+        lastRecovery: null,
+        auth: null,
       };
       trackedSessions.set(sessionKey, current);
     }
@@ -317,6 +332,28 @@ export function createBrowserSessionSupervisor(params?: {
       session.updatedAt = now();
       return { ...lease };
     },
+    ensureSessionLease(params) {
+      const rawSessionKey = params.sessionKey?.trim();
+      const rawOwner = params.owner?.trim();
+      if (!rawSessionKey || !rawOwner) {
+        return null;
+      }
+      const session = ensureTrackedSession(rawSessionKey);
+      const currentLease = leases.current(session.sessionKey);
+      if (currentLease) {
+        if (currentLease.owner !== normalizeOwner(rawOwner)) {
+          throw new BrowserSessionLeaseConflictError(currentLease);
+        }
+        session.lease = currentLease;
+        session.state = deriveTrackedSessionState(session);
+        session.updatedAt = now();
+        return currentLease;
+      }
+      return this.acquireSessionLease({
+        sessionKey: rawSessionKey,
+        owner: rawOwner,
+      });
+    },
     releaseSessionLease(params) {
       const sessionKey = normalizeSessionKey(params.sessionKey);
       const released = leases.release({
@@ -337,6 +374,95 @@ export function createBrowserSessionSupervisor(params?: {
     },
     getSessionLease(sessionKey) {
       return leases.current(sessionKey);
+    },
+    recordSessionAction(params) {
+      const rawSessionKey = params.sessionKey?.trim();
+      if (!rawSessionKey) {
+        return null;
+      }
+      const session = ensureTrackedSession(rawSessionKey);
+      const at = now();
+      session.lastAction = {
+        kind: params.kind.trim(),
+        layer: params.layer,
+        recovered: params.recovered === true,
+        recoveryCode: params.recoveryCode ?? null,
+        reusedAuth: params.reusedAuth === true,
+        blindFilled: params.blindFilled === true,
+        targetId: normalizeTargetId(params.targetId ?? null),
+        updatedAt: at,
+      };
+      session.updatedAt = at;
+      timeline.append({
+        at,
+        kind: "session.action",
+        sessionKey: session.sessionKey,
+        targetId: session.lastAction.targetId ?? null,
+        actionKind: session.lastAction.kind,
+        layer: session.lastAction.layer,
+        recovered: session.lastAction.recovered,
+        recoveryCode: session.lastAction.recoveryCode ?? null,
+        reusedAuth: session.lastAction.reusedAuth,
+        blindFilled: session.lastAction.blindFilled,
+      });
+      return cloneTrackedSession(session);
+    },
+    recordSessionRecovery(params) {
+      const rawSessionKey = params.sessionKey?.trim();
+      if (!rawSessionKey) {
+        return null;
+      }
+      const session = ensureTrackedSession(rawSessionKey);
+      const at = now();
+      session.lastRecovery = {
+        code: params.code,
+        targetId: normalizeTargetId(params.targetId ?? null),
+        recovered: params.recovered === true,
+        detail: params.detail?.trim() || null,
+        updatedAt: at,
+      };
+      session.updatedAt = at;
+      timeline.append({
+        at,
+        kind: "session.recovery",
+        sessionKey: session.sessionKey,
+        targetId: session.lastRecovery.targetId ?? null,
+        recoveryCode: session.lastRecovery.code,
+        recovered: session.lastRecovery.recovered,
+        detail: session.lastRecovery.detail ?? null,
+      });
+      return cloneTrackedSession(session);
+    },
+    recordSessionAuth(params) {
+      const rawSessionKey = params.sessionKey?.trim();
+      if (!rawSessionKey) {
+        return null;
+      }
+      const session = ensureTrackedSession(rawSessionKey);
+      const at = now();
+      session.auth = {
+        origin: params.origin?.trim() || null,
+        status: params.status,
+        method: params.method,
+        targetId: normalizeTargetId(params.targetId ?? null),
+        fields:
+          typeof params.fields === "number" && Number.isFinite(params.fields)
+            ? Math.max(0, Math.floor(params.fields))
+            : undefined,
+        updatedAt: at,
+      };
+      session.updatedAt = at;
+      timeline.append({
+        at,
+        kind: "session.auth",
+        sessionKey: session.sessionKey,
+        targetId: session.auth.targetId ?? null,
+        origin: session.auth.origin,
+        authMethod: session.auth.method,
+        state: session.auth.status,
+        fields: session.auth.fields,
+      });
+      return cloneTrackedSession(session);
     },
     listTimeline() {
       return timeline.list();

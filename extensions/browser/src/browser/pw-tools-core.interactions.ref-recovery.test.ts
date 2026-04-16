@@ -32,6 +32,7 @@ vi.mock("./pw-session.js", () => ({
 }));
 
 let fillFormViaPlaywright: typeof import("./pw-tools-core.interactions.js").fillFormViaPlaywright;
+let clickViaPlaywright: typeof import("./pw-tools-core.interactions.js").clickViaPlaywright;
 let typeViaPlaywright: typeof import("./pw-tools-core.interactions.js").typeViaPlaywright;
 
 describe("pw-tools-core interactions ref recovery", () => {
@@ -51,7 +52,7 @@ describe("pw-tools-core interactions ref recovery", () => {
     semanticRefLocator.mockImplementation(
       (_: unknown, ref: string) => semanticLocators.get(ref) ?? null,
     );
-    ({ fillFormViaPlaywright, typeViaPlaywright } =
+    ({ clickViaPlaywright, fillFormViaPlaywright, typeViaPlaywright } =
       await import("./pw-tools-core.interactions.js"));
   });
 
@@ -140,6 +141,58 @@ describe("pw-tools-core interactions ref recovery", () => {
       cdpUrl: "http://127.0.0.1:9222",
       targetId: "tab-1",
       reason: "type aborted",
+    });
+  });
+
+  it("falls back to geometric clicks when the semantic ref is covered by an overlay", async () => {
+    const scrollIntoViewIfNeeded = vi.fn(async () => {});
+    const boundingBox = vi.fn(async () => ({ x: 10, y: 20, width: 40, height: 30 }));
+    const click = vi.fn(async () => {
+      throw new Error('Element "e1" is not interactable (hidden or covered).');
+    });
+    const mouseMove = vi.fn(async () => {});
+    const mouseClick = vi.fn(async () => {});
+    const keyboardDown = vi.fn(async () => {});
+    const keyboardUp = vi.fn(async () => {});
+
+    primaryLocators.set("e1", {
+      click,
+      scrollIntoViewIfNeeded,
+      boundingBox,
+    });
+    page = {
+      mouse: {
+        move: mouseMove,
+        click: mouseClick,
+      },
+      keyboard: {
+        down: keyboardDown,
+        up: keyboardUp,
+      },
+    };
+
+    const executionPath = vi.fn();
+    await clickViaPlaywright({
+      cdpUrl: "http://127.0.0.1:9222",
+      targetId: "tab-1",
+      ref: "e1",
+      modifiers: ["Shift"],
+      onExecutionPath: executionPath,
+    });
+
+    expect(click).toHaveBeenCalledOnce();
+    expect(scrollIntoViewIfNeeded).toHaveBeenCalledOnce();
+    expect(mouseMove).toHaveBeenCalledWith(30, 35);
+    expect(mouseClick).toHaveBeenCalledWith(30, 35, {
+      button: undefined,
+      clickCount: 1,
+    });
+    expect(keyboardDown).toHaveBeenCalledWith("Shift");
+    expect(keyboardUp).toHaveBeenCalledWith("Shift");
+    expect(executionPath).toHaveBeenCalledWith({
+      layer: "geometric",
+      recovered: true,
+      recoveryCode: "overlay",
     });
   });
 });

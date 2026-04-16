@@ -1,4 +1,5 @@
 import type { Server } from "node:http";
+import type { BrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import type { BrowserSessionSupervisor } from "./browser-session.types.js";
 import type { RunningChrome } from "./chrome.js";
 import type { BrowserTransport } from "./client.js";
@@ -27,6 +28,7 @@ export type BrowserServerState = {
   resolved: ResolvedBrowserConfig;
   profiles: Map<string, ProfileRuntimeState>;
   supervisor?: BrowserSessionSupervisor;
+  authCache: BrowserSessionAuthCache;
 };
 
 type BrowserProfileActions = {

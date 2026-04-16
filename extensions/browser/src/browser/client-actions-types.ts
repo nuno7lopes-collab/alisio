@@ -1,3 +1,5 @@
+import type { BrowserActionExecutionSummary } from "./browser-action.types.js";
+
 export type BrowserActionOk = { ok: true };
 
 export type BrowserActionTabResult = {
@@ -14,3 +16,5 @@ export type BrowserActionPathResult = {
 };
 
 export type BrowserActionTargetOk = { ok: true; targetId: string };
+
+export type { BrowserActionExecutionSummary };

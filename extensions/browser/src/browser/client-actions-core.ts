@@ -1,79 +1,89 @@
 import type {
   BrowserActionOk,
+  BrowserActionExecutionSummary,
   BrowserActionPathResult,
   BrowserActionTabResult,
 } from "./client-actions-types.js";
 import { buildProfileQuery, withBaseUrl } from "./client-actions-url.js";
 import { fetchBrowserJson } from "./client-fetch.js";
 
+export type BrowserSecretRefInput = {
+  source: "env" | "file" | "exec";
+  provider: string;
+  id: string;
+};
+
 export type BrowserFormField = {
   ref: string;
   type: string;
   value?: string | number | boolean;
+  valueRef?: BrowserSecretRefInput;
+};
+
+type BrowserActControlFields = {
+  targetId?: string;
+  sessionKey?: string;
+  leaseOwner?: string;
 };
 
 export type BrowserActRequest =
-  | {
+  | ({
       kind: "click";
       ref?: string;
       selector?: string;
-      targetId?: string;
       doubleClick?: boolean;
       button?: string;
       modifiers?: string[];
       delayMs?: number;
       timeoutMs?: number;
-    }
-  | {
+    } & BrowserActControlFields)
+  | ({
       kind: "type";
       ref?: string;
       selector?: string;
       text: string;
-      targetId?: string;
+      textRef?: BrowserSecretRefInput;
       submit?: boolean;
       slowly?: boolean;
+      preferReuseSession?: boolean;
       timeoutMs?: number;
-    }
-  | { kind: "press"; key: string; targetId?: string; delayMs?: number }
-  | {
+    } & BrowserActControlFields)
+  | ({ kind: "press"; key: string; delayMs?: number } & BrowserActControlFields)
+  | ({
       kind: "hover";
       ref?: string;
       selector?: string;
-      targetId?: string;
       timeoutMs?: number;
-    }
-  | {
+    } & BrowserActControlFields)
+  | ({
       kind: "scrollIntoView";
       ref?: string;
       selector?: string;
-      targetId?: string;
       timeoutMs?: number;
-    }
-  | {
+    } & BrowserActControlFields)
+  | ({
       kind: "drag";
       startRef?: string;
       startSelector?: string;
       endRef?: string;
       endSelector?: string;
-      targetId?: string;
       timeoutMs?: number;
-    }
-  | {
+    } & BrowserActControlFields)
+  | ({
       kind: "select";
       ref?: string;
       selector?: string;
       values: string[];
-      targetId?: string;
       timeoutMs?: number;
-    }
-  | {
+    } & BrowserActControlFields)
+  | ({
       kind: "fill";
       fields: BrowserFormField[];
-      targetId?: string;
+      preferReuseSession?: boolean;
       timeoutMs?: number;
-    }
-  | { kind: "resize"; width: number; height: number; targetId?: string }
-  | {
+    } & BrowserActControlFields)
+  | ({ kind: "resize"; width: number; height: number } & BrowserActControlFields)
+  | ({
       kind: "wait";
       timeMs?: number;
       text?: string;
@@ -82,17 +92,15 @@ export type BrowserActRequest =
       url?: string;
       loadState?: "load" | "domcontentloaded" | "networkidle";
       fn?: string;
-      targetId?: string;
       timeoutMs?: number;
-    }
-  | { kind: "evaluate"; fn: string; ref?: string; targetId?: string; timeoutMs?: number }
-  | { kind: "close"; targetId?: string }
-  | {
+    } & BrowserActControlFields)
+  | ({ kind: "evaluate"; fn: string; ref?: string; timeoutMs?: number } & BrowserActControlFields)
+  | ({ kind: "close" } & BrowserActControlFields)
+  | ({
       kind: "batch";
       actions: BrowserActRequest[];
-      targetId?: string;
       stopOnError?: boolean;
-    };
+    } & BrowserActControlFields);
 
 export type BrowserActResponse = {
   ok: true;
@@ -100,6 +108,13 @@ export type BrowserActResponse = {
   url?: string;
   result?: unknown;
   results?: Array<{ ok: boolean; error?: string }>;
+  action?: BrowserActionExecutionSummary;
+  auth?: {
+    status: "primed" | "reused";
+    method: "blind-fill" | "http-credentials" | "reused-session" | "cookies" | "storage";
+    origin?: string | null;
+    fields?: number;
+  };
 };
 
 export type BrowserDownloadPayload = {

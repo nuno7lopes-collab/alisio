@@ -1,3 +1,4 @@
+import type { BrowserSecretRefInput } from "./client-actions-core.js";
 import type { BrowserActionOk, BrowserActionTargetOk } from "./client-actions-types.js";
 import { buildProfileQuery, withBaseUrl } from "./client-actions-url.js";
 import { fetchBrowserJson } from "./client-fetch.js";
@@ -10,7 +11,11 @@ type TargetedProfileOptions = {
 type HttpCredentialsOptions = TargetedProfileOptions & {
   username?: string;
   password?: string;
+  usernameRef?: BrowserSecretRefInput;
+  passwordRef?: BrowserSecretRefInput;
   clear?: boolean;
+  sessionKey?: string;
+  leaseOwner?: string;
 };
 
 type GeolocationOptions = TargetedProfileOptions & {
@@ -190,7 +195,11 @@ export async function browserSetHttpCredentials(
     body: {
       username: opts.username,
       password: opts.password,
+      usernameRef: opts.usernameRef,
+      passwordRef: opts.passwordRef,
       clear: opts.clear,
+      sessionKey: opts.sessionKey,
+      leaseOwner: opts.leaseOwner,
     },
   });
 }

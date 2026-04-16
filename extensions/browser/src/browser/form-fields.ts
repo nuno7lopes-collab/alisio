@@ -1,3 +1,4 @@
+import { coerceSecretRef } from "alisio/plugin-sdk/config-runtime";
 import type { BrowserFormField } from "./client-actions-core.js";
 
 export const DEFAULT_FILL_FIELD_TYPE = "text";
@@ -19,6 +20,18 @@ export function normalizeBrowserFormFieldValue(value: unknown): BrowserFormField
     : undefined;
 }
 
+export function normalizeBrowserFormFieldValueRef(value: unknown): BrowserFormField["valueRef"] {
+  const ref = coerceSecretRef(value);
+  if (!ref) {
+    return undefined;
+  }
+  return {
+    source: ref.source,
+    provider: ref.provider,
+    id: ref.id,
+  };
+}
+
 export function normalizeBrowserFormField(
   record: Record<string, unknown>,
 ): BrowserFormField | null {
@@ -28,5 +41,14 @@ export function normalizeBrowserFormField(
   }
   const type = normalizeBrowserFormFieldType(record.type);
   const value = normalizeBrowserFormFieldValue(record.value);
-  return value === undefined ? { ref, type } : { ref, type, value };
+  const valueRef =
+    normalizeBrowserFormFieldValueRef(record.valueRef) ??
+    normalizeBrowserFormFieldValueRef(record.secretRef) ??
+    (value === undefined ? normalizeBrowserFormFieldValueRef(record.value) : undefined);
+  return {
+    ref,
+    type,
+    ...(value === undefined ? {} : { value }),
+    ...(valueRef ? { valueRef } : {}),
+  };
 }

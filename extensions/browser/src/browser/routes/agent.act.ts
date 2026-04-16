@@ -1,3 +1,7 @@
+import { coerceSecretRef } from "alisio/plugin-sdk/config-runtime";
+import { executeManagedBrowserAction } from "../browser-action-engine.js";
+import { createBrowserAuthBroker } from "../browser-auth-broker.js";
+import type { BrowserSessionSupervisor } from "../browser-session.types.js";
 import {
   clickChromeMcpElement,
   closeChromeMcpTab,
@@ -9,7 +13,11 @@ import {
   pressChromeMcpKey,
   resizeChromeMcpPage,
 } from "../chrome-mcp.js";
-import type { BrowserActRequest, BrowserFormField } from "../client-actions-core.js";
+import type {
+  BrowserActRequest,
+  BrowserFormField,
+  BrowserSecretRefInput,
+} from "../client-actions-core.js";
 import { normalizeBrowserFormField } from "../form-fields.js";
 import { getBrowserProfileCapabilities } from "../profile-capabilities.js";
 import type { BrowserRouteContext } from "../server-context.js";
@@ -25,6 +33,9 @@ import {
 import {
   readBody,
   requirePwAi,
+  resolveLeaseOwnerFromBody,
+  resolveSessionKeyFromBody,
+  resolveTabOrigin,
   resolveTargetIdFromBody,
   withRouteTabContext,
   SELECTOR_UNSUPPORTED_MESSAGE,
@@ -171,6 +182,56 @@ function countBatchActions(actions: BrowserActRequest[]): number {
   return count;
 }
 
+function getBrowserSessionSupervisor(ctx: BrowserRouteContext): BrowserSessionSupervisor {
+  const supervisor = ctx.state().supervisor;
+  if (!supervisor) {
+    throw new Error("Browser session supervisor unavailable");
+  }
+  return supervisor;
+}
+
+function normalizeBrowserSecretRefInput(value: unknown): BrowserSecretRefInput | undefined {
+  const ref = coerceSecretRef(value);
+  if (!ref) {
+    return undefined;
+  }
+  return {
+    source: ref.source,
+    provider: ref.provider,
+    id: ref.id,
+  };
+}
+
+function buildManagedAuthStateInspector(params: {
+  pw: NonNullable<Awaited<ReturnType<typeof requirePwAi>>>;
+  cdpUrl: string;
+  targetId: string;
+}) {
+  return async () => {
+    const [cookies, localStorage, sessionStorage] = await Promise.all([
+      params.pw.cookiesGetViaPlaywright({
+        cdpUrl: params.cdpUrl,
+        targetId: params.targetId,
+      }),
+      params.pw.storageGetViaPlaywright({
+        cdpUrl: params.cdpUrl,
+        targetId: params.targetId,
+        kind: "local",
+      }),
+      params.pw.storageGetViaPlaywright({
+        cdpUrl: params.cdpUrl,
+        targetId: params.targetId,
+        kind: "session",
+      }),
+    ]);
+    return {
+      cookies: Array.isArray(cookies.cookies) && cookies.cookies.length > 0,
+      localStorage: Object.keys(localStorage.values ?? {}).length > 0,
+      sessionStorage: Object.keys(sessionStorage.values ?? {}).length > 0,
+    };
+  };
+}
+
 function validateBatchTargetIds(actions: BrowserActRequest[], targetId: string): string | null {
   for (const action of actions) {
     if (action.targetId && action.targetId !== targetId) {
@@ -237,24 +298,28 @@ function normalizeBatchAction(value: unknown): BrowserActRequest {
       const ref = toStringOrEmpty(raw.ref) || undefined;
       const selector = toStringOrEmpty(raw.selector) || undefined;
       const text = raw.text;
+      const textRef = normalizeBrowserSecretRefInput(raw.textRef);
       if (!ref && !selector) {
         throw new Error("type requires ref or selector");
       }
-      if (typeof text !== "string") {
+      if (typeof text !== "string" && !textRef) {
         throw new Error("type requires text");
       }
       const targetId = toStringOrEmpty(raw.targetId) || undefined;
       const submit = toBoolean(raw.submit);
       const slowly = toBoolean(raw.slowly);
+      const preferReuseSession = toBoolean(raw.preferReuseSession);
       const timeoutMs = toNumber(raw.timeoutMs);
       return {
         kind,
         ...(ref ? { ref } : {}),
         ...(selector ? { selector } : {}),
-        text,
+        ...(typeof text === "string" ? { text } : { text: "" }),
+        ...(textRef ? { textRef } : {}),
         ...(targetId ? { targetId } : {}),
         ...(submit !== undefined ? { submit } : {}),
         ...(slowly !== undefined ? { slowly } : {}),
+        ...(preferReuseSession !== undefined ? { preferReuseSession } : {}),
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       };
     }
@@ -344,11 +409,13 @@ function normalizeBatchAction(value: unknown): BrowserActRequest {
         throw new Error("fill requires fields");
       }
       const targetId = toStringOrEmpty(raw.targetId) || undefined;
+      const preferReuseSession = toBoolean(raw.preferReuseSession);
       const timeoutMs = toNumber(raw.timeoutMs);
       return {
         kind,
         fields,
         ...(targetId ? { targetId } : {}),
+        ...(preferReuseSession !== undefined ? { preferReuseSession } : {}),
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
       };
     }
@@ -459,6 +526,8 @@ export function registerBrowserAgentActRoutes(
     }
     const kind: ActKind = kindRaw;
     const targetId = resolveTargetIdFromBody(body);
+    const sessionKey = resolveSessionKeyFromBody(body);
+    const leaseOwner = resolveLeaseOwnerFromBody(body);
     if (Object.hasOwn(body, "selector") && !SELECTOR_ALLOWED_KINDS.has(kind)) {
       return jsonError(res, 400, SELECTOR_UNSUPPORTED_MESSAGE);
     }
@@ -480,9 +549,25 @@ export function registerBrowserAgentActRoutes(
       ctx,
       targetId,
       run: async ({ profileCtx, cdpUrl, tab }) => {
+        const supervisor = getBrowserSessionSupervisor(ctx);
+        const authBroker = createBrowserAuthBroker({
+          authCache: ctx.state().authCache,
+        });
         const evaluateEnabled = ctx.state().resolved.evaluateEnabled;
         const isExistingSession = getBrowserProfileCapabilities(profileCtx.profile).usesChromeMcp;
         const profileName = profileCtx.profile.name;
+        const tabOrigin = resolveTabOrigin(tab.url);
+        const pw = isExistingSession ? null : await requirePwAi(res, `act:${kind}`);
+        if (!isExistingSession && !pw) {
+          return;
+        }
+        const inspectManagedAuthState = pw
+          ? buildManagedAuthStateInspector({
+              pw,
+              cdpUrl,
+              targetId: tab.targetId,
+            })
+          : undefined;
 
         switch (kind) {
           case "click": {
@@ -521,45 +606,60 @@ export function registerBrowserAgentActRoutes(
                   "existing-session click currently supports left-click only (no button overrides/modifiers).",
                 );
               }
-              await clickChromeMcpElement({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                uid: ref!,
-                doubleClick,
-              });
-              return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            const clickRequest: Parameters<typeof pw.clickViaPlaywright>[0] = {
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              doubleClick,
-            };
-            if (ref) {
-              clickRequest.ref = ref;
-            }
-            if (selector) {
-              clickRequest.selector = selector;
-            }
-            if (button) {
-              clickRequest.button = button;
-            }
-            if (modifiers) {
-              clickRequest.modifiers = modifiers;
-            }
-            if (delayMs) {
-              clickRequest.delayMs = delayMs;
-            }
-            if (timeoutMs) {
-              clickRequest.timeoutMs = timeoutMs;
-            }
-            clickRequest.signal = req.signal;
-            await pw.clickViaPlaywright(clickRequest);
-            return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await clickChromeMcpElement({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    uid: ref!,
+                    doubleClick,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                const clickRequest: Parameters<NonNullable<typeof pw>["clickViaPlaywright"]>[0] = {
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  doubleClick,
+                  signal: req.signal,
+                  onExecutionPath: reportExecution,
+                };
+                if (ref) {
+                  clickRequest.ref = ref;
+                }
+                if (selector) {
+                  clickRequest.selector = selector;
+                }
+                if (button) {
+                  clickRequest.button = button;
+                }
+                if (modifiers) {
+                  clickRequest.modifiers = modifiers;
+                }
+                if (delayMs) {
+                  clickRequest.delayMs = delayMs;
+                }
+                if (timeoutMs) {
+                  clickRequest.timeoutMs = timeoutMs;
+                }
+                await pw!.clickViaPlaywright(clickRequest);
+                return null;
+              },
+            });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              url: tab.url,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "type": {
             const ref = toStringOrEmpty(body.ref) || undefined;
@@ -567,12 +667,15 @@ export function registerBrowserAgentActRoutes(
             if (!ref && !selector) {
               return jsonError(res, 400, "ref or selector is required");
             }
-            if (typeof body.text !== "string") {
+            const hasTextRef =
+              typeof body.textRef === "object" && body.textRef && !Array.isArray(body.textRef);
+            if (typeof body.text !== "string" && !hasTextRef) {
               return jsonError(res, 400, "text is required");
             }
-            const text = body.text;
+            const text = typeof body.text === "string" ? body.text : "";
             const submit = toBoolean(body.submit) ?? false;
             const slowly = toBoolean(body.slowly) ?? false;
+            const preferReuseSession = toBoolean(body.preferReuseSession) ?? false;
             const timeoutMs = toNumber(body.timeoutMs);
             if (isExistingSession) {
               if (selector) {
@@ -589,46 +692,99 @@ export function registerBrowserAgentActRoutes(
                   "existing-session type does not support slowly=true; use fill/press instead.",
                 );
               }
-              await fillChromeMcpElement({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                uid: ref!,
-                value: text,
-              });
-              if (submit) {
-                await pressChromeMcpKey({
-                  profileName,
-                  userDataDir: profileCtx.profile.userDataDir,
-                  targetId: tab.targetId,
-                  key: "Enter",
-                });
-              }
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            const typeRequest: Parameters<typeof pw.typeViaPlaywright>[0] = {
-              cdpUrl,
-              targetId: tab.targetId,
+            const resolvedType = await authBroker.resolveTypeInput({
               text,
-              submit,
-              slowly,
-            };
-            if (ref) {
-              typeRequest.ref = ref;
+              textRef: body.textRef,
+              preferReuseSession,
+              sessionKey,
+              origin: tabOrigin,
+              inspectSessionState: inspectManagedAuthState,
+            });
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
+              targetId: tab.targetId,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  if (!resolvedType.skipped) {
+                    await fillChromeMcpElement({
+                      profileName,
+                      userDataDir: profileCtx.profile.userDataDir,
+                      targetId: tab.targetId,
+                      uid: ref!,
+                      value: resolvedType.text ?? "",
+                    });
+                    if (submit) {
+                      await pressChromeMcpKey({
+                        profileName,
+                        userDataDir: profileCtx.profile.userDataDir,
+                        targetId: tab.targetId,
+                        key: "Enter",
+                      });
+                    }
+                  }
+                  reportExecution({
+                    layer: "semantic",
+                    reusedAuth: resolvedType.auth?.status === "reused",
+                    blindFilled: resolvedType.auth?.method === "blind-fill",
+                  });
+                  return null;
+                }
+                if (resolvedType.skipped) {
+                  reportExecution({
+                    layer: "semantic",
+                    reusedAuth: true,
+                  });
+                  return null;
+                }
+                const typeRequest: Parameters<NonNullable<typeof pw>["typeViaPlaywright"]>[0] = {
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  text: resolvedType.text ?? "",
+                  submit,
+                  slowly,
+                  signal: req.signal,
+                  onExecutionPath: (summary) =>
+                    reportExecution({
+                      ...summary,
+                      reusedAuth:
+                        summary.reusedAuth === true || resolvedType.auth?.status === "reused",
+                      blindFilled:
+                        summary.blindFilled === true || resolvedType.auth?.method === "blind-fill",
+                    }),
+                };
+                if (ref) {
+                  typeRequest.ref = ref;
+                }
+                if (selector) {
+                  typeRequest.selector = selector;
+                }
+                if (timeoutMs) {
+                  typeRequest.timeoutMs = timeoutMs;
+                }
+                await pw!.typeViaPlaywright(typeRequest);
+                return null;
+              },
+            });
+            if (sessionKey && resolvedType.auth) {
+              supervisor.recordSessionAuth({
+                sessionKey,
+                origin: resolvedType.auth.origin ?? tabOrigin,
+                status: resolvedType.auth.status,
+                method: resolvedType.auth.method,
+                targetId: tab.targetId,
+                fields: resolvedType.auth.fields,
+              });
             }
-            if (selector) {
-              typeRequest.selector = selector;
-            }
-            if (timeoutMs) {
-              typeRequest.timeoutMs = timeoutMs;
-            }
-            typeRequest.signal = req.signal;
-            await pw.typeViaPlaywright(typeRequest);
-            return res.json({ ok: true, targetId: tab.targetId });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(resolvedType.auth ? { auth: resolvedType.auth } : {}),
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "press": {
             const key = toStringOrEmpty(body.key);
@@ -640,26 +796,39 @@ export function registerBrowserAgentActRoutes(
               if (delayMs) {
                 return jsonError(res, 501, "existing-session press does not support delayMs.");
               }
-              await pressChromeMcpKey({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                key,
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.pressKeyViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              key,
-              delayMs: delayMs ?? undefined,
-              signal: req.signal,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await pressChromeMcpKey({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    key,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.pressKeyViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  key,
+                  delayMs: delayMs ?? undefined,
+                  signal: req.signal,
+                });
+                return null;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "hover": {
             const ref = toStringOrEmpty(body.ref) || undefined;
@@ -683,27 +852,41 @@ export function registerBrowserAgentActRoutes(
                   "existing-session hover does not support timeoutMs overrides.",
                 );
               }
-              await hoverChromeMcpElement({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                uid: ref!,
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.hoverViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              ref,
-              selector,
-              timeoutMs: timeoutMs ?? undefined,
-              signal: req.signal,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await hoverChromeMcpElement({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    uid: ref!,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.hoverViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  ref,
+                  selector,
+                  timeoutMs: timeoutMs ?? undefined,
+                  signal: req.signal,
+                  onExecutionPath: reportExecution,
+                });
+                return null;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "scrollIntoView": {
             const ref = toStringOrEmpty(body.ref) || undefined;
@@ -727,35 +910,50 @@ export function registerBrowserAgentActRoutes(
                   "existing-session scrollIntoView does not support timeoutMs overrides.",
                 );
               }
-              await evaluateChromeMcpScript({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                fn: `(el) => { el.scrollIntoView({ block: "center", inline: "center" }); return true; }`,
-                args: [ref!],
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            const scrollRequest: Parameters<typeof pw.scrollIntoViewViaPlaywright>[0] = {
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-            };
-            if (ref) {
-              scrollRequest.ref = ref;
-            }
-            if (selector) {
-              scrollRequest.selector = selector;
-            }
-            if (timeoutMs) {
-              scrollRequest.timeoutMs = timeoutMs;
-            }
-            scrollRequest.signal = req.signal;
-            await pw.scrollIntoViewViaPlaywright(scrollRequest);
-            return res.json({ ok: true, targetId: tab.targetId });
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await evaluateChromeMcpScript({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    fn: `(el) => { el.scrollIntoView({ block: "center", inline: "center" }); return true; }`,
+                    args: [ref!],
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                const scrollRequest: Parameters<
+                  NonNullable<typeof pw>["scrollIntoViewViaPlaywright"]
+                >[0] = {
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  signal: req.signal,
+                };
+                if (ref) {
+                  scrollRequest.ref = ref;
+                }
+                if (selector) {
+                  scrollRequest.selector = selector;
+                }
+                if (timeoutMs) {
+                  scrollRequest.timeoutMs = timeoutMs;
+                }
+                await pw!.scrollIntoViewViaPlaywright(scrollRequest);
+                return null;
+              },
+            });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "drag": {
             const startRef = toStringOrEmpty(body.startRef) || undefined;
@@ -784,30 +982,44 @@ export function registerBrowserAgentActRoutes(
                   "existing-session drag does not support timeoutMs overrides.",
                 );
               }
-              await dragChromeMcpElement({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                fromUid: startRef!,
-                toUid: endRef!,
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.dragViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              startRef,
-              startSelector,
-              endRef,
-              endSelector,
-              timeoutMs: timeoutMs ?? undefined,
-              signal: req.signal,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await dragChromeMcpElement({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    fromUid: startRef!,
+                    toUid: endRef!,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.dragViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  startRef,
+                  startSelector,
+                  endRef,
+                  endSelector,
+                  timeoutMs: timeoutMs ?? undefined,
+                  signal: req.signal,
+                  onExecutionPath: reportExecution,
+                });
+                return null;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "select": {
             const ref = toStringOrEmpty(body.ref) || undefined;
@@ -839,29 +1051,42 @@ export function registerBrowserAgentActRoutes(
                   "existing-session select does not support timeoutMs overrides.",
                 );
               }
-              await fillChromeMcpElement({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                uid: ref!,
-                value: values[0] ?? "",
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.selectOptionViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              ref,
-              selector,
-              values,
-              timeoutMs: timeoutMs ?? undefined,
-              signal: req.signal,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await fillChromeMcpElement({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    uid: ref!,
+                    value: values[0] ?? "",
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.selectOptionViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  ref,
+                  selector,
+                  values,
+                  timeoutMs: timeoutMs ?? undefined,
+                  signal: req.signal,
+                });
+                return null;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "fill": {
             const rawFields = Array.isArray(body.fields) ? body.fields : [];
@@ -876,6 +1101,7 @@ export function registerBrowserAgentActRoutes(
             if (!fields.length) {
               return jsonError(res, 400, "fields are required");
             }
+            const preferReuseSession = toBoolean(body.preferReuseSession) ?? false;
             const timeoutMs = toNumber(body.timeoutMs);
             if (isExistingSession) {
               if (timeoutMs) {
@@ -885,29 +1111,81 @@ export function registerBrowserAgentActRoutes(
                   "existing-session fill does not support timeoutMs overrides.",
                 );
               }
-              await fillChromeMcpForm({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                elements: fields.map((field) => ({
-                  uid: field.ref,
-                  value: String(field.value ?? ""),
-                })),
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.fillFormViaPlaywright({
-              cdpUrl,
-              targetId: tab.targetId,
+            const resolvedFill = await authBroker.resolveFormFill({
               fields,
-              timeoutMs: timeoutMs ?? undefined,
-              signal: req.signal,
+              preferReuseSession,
+              sessionKey,
+              origin: tabOrigin,
+              inspectSessionState: inspectManagedAuthState,
             });
-            return res.json({ ok: true, targetId: tab.targetId });
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
+              targetId: tab.targetId,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  if (resolvedFill.fields.length > 0) {
+                    await fillChromeMcpForm({
+                      profileName,
+                      userDataDir: profileCtx.profile.userDataDir,
+                      targetId: tab.targetId,
+                      elements: resolvedFill.fields.map((field) => ({
+                        uid: field.ref,
+                        value: String(field.value ?? ""),
+                      })),
+                    });
+                  }
+                  reportExecution({
+                    layer: "semantic",
+                    reusedAuth: resolvedFill.auth?.status === "reused",
+                    blindFilled: resolvedFill.auth?.method === "blind-fill",
+                  });
+                  return null;
+                }
+                if (resolvedFill.fields.length === 0) {
+                  reportExecution({
+                    layer: "semantic",
+                    reusedAuth: resolvedFill.auth?.status === "reused",
+                  });
+                  return null;
+                }
+                await pw!.fillFormViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  fields: resolvedFill.fields,
+                  timeoutMs: timeoutMs ?? undefined,
+                  signal: req.signal,
+                  onExecutionPath: (summary) =>
+                    reportExecution({
+                      ...summary,
+                      reusedAuth:
+                        summary.reusedAuth === true || resolvedFill.auth?.status === "reused",
+                      blindFilled:
+                        summary.blindFilled === true || resolvedFill.auth?.method === "blind-fill",
+                    }),
+                });
+                return null;
+              },
+            });
+            if (sessionKey && resolvedFill.auth) {
+              supervisor.recordSessionAuth({
+                sessionKey,
+                origin: resolvedFill.auth.origin ?? tabOrigin,
+                status: resolvedFill.auth.status,
+                method: resolvedFill.auth.method,
+                targetId: tab.targetId,
+                fields: resolvedFill.auth.fields,
+              });
+            }
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(resolvedFill.auth ? { auth: resolvedFill.auth } : {}),
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "resize": {
             const width = toNumber(body.width);
@@ -915,27 +1193,39 @@ export function registerBrowserAgentActRoutes(
             if (!width || !height) {
               return jsonError(res, 400, "width and height are required");
             }
-            if (isExistingSession) {
-              await resizeChromeMcpPage({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                width,
-                height,
-              });
-              return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
-            }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.resizeViewportViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              width,
-              height,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await resizeChromeMcpPage({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    width,
+                    height,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.resizeViewportViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  width,
+                  height,
+                });
+                return null;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId, url: tab.url });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              url: tab.url,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "wait": {
             const timeMs = toNumber(body.timeMs);
@@ -978,39 +1268,52 @@ export function registerBrowserAgentActRoutes(
                   "existing-session wait does not support loadState=networkidle yet.",
                 );
               }
-              await waitForExistingSessionCondition({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                timeMs,
-                text,
-                textGone,
-                selector,
-                url,
-                loadState,
-                fn,
-                timeoutMs,
-              });
-              return res.json({ ok: true, targetId: tab.targetId });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.waitForViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              timeMs,
-              text,
-              textGone,
-              selector,
-              url,
-              loadState,
-              fn,
-              timeoutMs,
-              signal: req.signal,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await waitForExistingSessionCondition({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    timeMs,
+                    text,
+                    textGone,
+                    selector,
+                    url,
+                    loadState,
+                    fn,
+                    timeoutMs,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.waitForViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  timeMs,
+                  text,
+                  textGone,
+                  selector,
+                  url,
+                  loadState,
+                  fn,
+                  timeoutMs,
+                  signal: req.signal,
+                });
+                return null;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "evaluate": {
             if (!evaluateEnabled) {
@@ -1030,53 +1333,73 @@ export function registerBrowserAgentActRoutes(
                   "existing-session evaluate does not support timeoutMs overrides.",
                 );
               }
-              const result = await evaluateChromeMcpScript({
-                profileName,
-                userDataDir: profileCtx.profile.userDataDir,
-                targetId: tab.targetId,
-                fn,
-                args: ref ? [ref] : undefined,
-              });
-              return res.json({
-                ok: true,
-                targetId: tab.targetId,
-                url: tab.url,
-                result,
-              });
             }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            const evalRequest: Parameters<typeof pw.evaluateViaPlaywright>[0] = {
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              fn,
-              ref,
-              signal: req.signal,
-            };
-            if (evalTimeoutMs !== undefined) {
-              evalRequest.timeoutMs = evalTimeoutMs;
-            }
-            const result = await pw.evaluateViaPlaywright(evalRequest);
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  const result = await evaluateChromeMcpScript({
+                    profileName,
+                    userDataDir: profileCtx.profile.userDataDir,
+                    targetId: tab.targetId,
+                    fn,
+                    args: ref ? [ref] : undefined,
+                  });
+                  reportExecution({ layer: "semantic" });
+                  return result;
+                }
+                const evalRequest: Parameters<NonNullable<typeof pw>["evaluateViaPlaywright"]>[0] =
+                  {
+                    cdpUrl,
+                    targetId: tab.targetId,
+                    fn,
+                    ref,
+                    signal: req.signal,
+                  };
+                if (evalTimeoutMs !== undefined) {
+                  evalRequest.timeoutMs = evalTimeoutMs;
+                }
+                return await pw!.evaluateViaPlaywright(evalRequest);
+              },
+            });
             return res.json({
               ok: true,
               targetId: tab.targetId,
               url: tab.url,
-              result,
+              result: executed.result,
+              ...(executed.action ? { action: executed.action } : {}),
             });
           }
           case "close": {
-            if (isExistingSession) {
-              await closeChromeMcpTab(profileName, tab.targetId, profileCtx.profile.userDataDir);
-              return res.json({ ok: true, targetId: tab.targetId });
-            }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
-            }
-            await pw.closePageViaPlaywright({ cdpUrl, targetId: tab.targetId });
-            return res.json({ ok: true, targetId: tab.targetId });
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
+              targetId: tab.targetId,
+              execute: async (reportExecution) => {
+                if (isExistingSession) {
+                  await closeChromeMcpTab(
+                    profileName,
+                    tab.targetId,
+                    profileCtx.profile.userDataDir,
+                  );
+                  reportExecution({ layer: "semantic" });
+                  return null;
+                }
+                await pw!.closePageViaPlaywright({ cdpUrl, targetId: tab.targetId });
+                return null;
+              },
+            });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           case "batch": {
             if (isExistingSession) {
@@ -1085,10 +1408,6 @@ export function registerBrowserAgentActRoutes(
                 501,
                 "existing-session batch is not supported yet; send actions individually.",
               );
-            }
-            const pw = await requirePwAi(res, `act:${kind}`);
-            if (!pw) {
-              return;
             }
             let actions: BrowserActRequest[];
             try {
@@ -1107,15 +1426,31 @@ export function registerBrowserAgentActRoutes(
               return jsonError(res, 403, targetIdError);
             }
             const stopOnError = toBoolean(body.stopOnError) ?? true;
-            const result = await pw.batchViaPlaywright({
-              cdpUrl,
+            const executed = await executeManagedBrowserAction({
+              supervisor,
+              sessionKey,
+              owner: leaseOwner,
+              kind,
               targetId: tab.targetId,
-              actions,
-              stopOnError,
-              evaluateEnabled,
-              signal: req.signal,
+              execute: async (reportExecution) => {
+                const result = await pw!.batchViaPlaywright({
+                  cdpUrl,
+                  targetId: tab.targetId,
+                  actions,
+                  stopOnError,
+                  evaluateEnabled,
+                  signal: req.signal,
+                });
+                reportExecution({ layer: "semantic" });
+                return result;
+              },
             });
-            return res.json({ ok: true, targetId: tab.targetId, results: result.results });
+            return res.json({
+              ok: true,
+              targetId: tab.targetId,
+              results: executed.result.results,
+              ...(executed.action ? { action: executed.action } : {}),
+            });
           }
           default: {
             return jsonError(res, 400, "unsupported kind");

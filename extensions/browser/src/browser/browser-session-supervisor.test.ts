@@ -94,6 +94,70 @@ describe("browser session supervisor", () => {
     ]);
   });
 
+  it("records action, recovery, and auth state on tracked sessions", () => {
+    const supervisor = createBrowserSessionSupervisor({
+      now: () => 2_000,
+    });
+
+    supervisor.trackSessionTab({
+      sessionKey: "agent:main:main",
+      targetId: "tab-a",
+    });
+    supervisor.ensureSessionLease({
+      sessionKey: "agent:main:main",
+      owner: "agent:main:main",
+    });
+    supervisor.recordSessionRecovery({
+      sessionKey: "agent:main:main",
+      code: "stale-dom",
+      targetId: "tab-a",
+      recovered: true,
+    });
+    supervisor.recordSessionAction({
+      sessionKey: "agent:main:main",
+      kind: "click",
+      layer: "geometric",
+      targetId: "tab-a",
+      recovered: true,
+      recoveryCode: "stale-dom",
+    });
+    supervisor.recordSessionAuth({
+      sessionKey: "agent:main:main",
+      origin: "https://example.com",
+      status: "primed",
+      method: "blind-fill",
+      targetId: "tab-a",
+      fields: 2,
+    });
+
+    expect(supervisor.getTrackedSession("agent:main:main")).toMatchObject({
+      state: "leased",
+      lastAction: {
+        kind: "click",
+        layer: "geometric",
+        recovered: true,
+        recoveryCode: "stale-dom",
+      },
+      lastRecovery: {
+        code: "stale-dom",
+        recovered: true,
+      },
+      auth: {
+        origin: "https://example.com",
+        status: "primed",
+        method: "blind-fill",
+        fields: 2,
+      },
+    });
+    expect(supervisor.listTimeline().map((event) => event.kind)).toEqual([
+      "session.tab.tracked",
+      "session.lease.acquired",
+      "session.recovery",
+      "session.action",
+      "session.auth",
+    ]);
+  });
+
   it("deduplicates tracked tabs when taking multiple sessions", () => {
     const supervisor = createBrowserSessionSupervisor();
     supervisor.trackSessionTab({

@@ -33,6 +33,27 @@ export function resolveTargetIdFromQuery(query: Record<string, unknown>): string
   return targetId || undefined;
 }
 
+export function resolveSessionKeyFromBody(body: Record<string, unknown>): string | undefined {
+  const sessionKey = typeof body.sessionKey === "string" ? body.sessionKey.trim() : "";
+  return sessionKey || undefined;
+}
+
+export function resolveLeaseOwnerFromBody(body: Record<string, unknown>): string | undefined {
+  const leaseOwner = typeof body.leaseOwner === "string" ? body.leaseOwner.trim() : "";
+  return leaseOwner || undefined;
+}
+
+export function resolveTabOrigin(url: string | undefined): string | undefined {
+  if (!url) {
+    return undefined;
+  }
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+}
+
 export function handleRouteError(ctx: BrowserRouteContext, res: BrowserResponse, err: unknown) {
   const mapped = ctx.mapTabError(err);
   if (mapped) {

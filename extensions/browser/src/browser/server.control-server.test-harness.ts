@@ -102,6 +102,7 @@ const pwMocks = vi.hoisted(() => ({
   clickViaPlaywright: vi.fn(async () => {}),
   closePageViaPlaywright: vi.fn(async () => {}),
   closePlaywrightBrowserConnection: vi.fn(async () => {}),
+  cookiesGetViaPlaywright: vi.fn(async () => ({ cookies: [] })),
   downloadViaPlaywright: vi.fn(async () => ({
     url: "https://example.com/report.pdf",
     suggestedFilename: "report.pdf",
@@ -124,7 +125,9 @@ const pwMocks = vi.hoisted(() => ({
   })),
   resizeViewportViaPlaywright: vi.fn(async () => {}),
   selectOptionViaPlaywright: vi.fn(async () => {}),
+  setHttpCredentialsViaPlaywright: vi.fn(async () => {}),
   setInputFilesViaPlaywright: vi.fn(async () => {}),
+  storageGetViaPlaywright: vi.fn(async () => ({ values: {} })),
   snapshotAiViaPlaywright: vi.fn(async () => ({ snapshot: "ok" })),
   traceStopViaPlaywright: vi.fn(async () => {}),
   takeScreenshotViaPlaywright: vi.fn(async () => ({

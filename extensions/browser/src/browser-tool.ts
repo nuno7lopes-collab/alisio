@@ -136,8 +136,10 @@ const LEGACY_BROWSER_ACT_REQUEST_KEYS = [
   "button",
   "modifiers",
   "text",
+  "textRef",
   "submit",
   "slowly",
+  "preferReuseSession",
   "key",
   "delayMs",
   "startRef",
@@ -153,6 +155,8 @@ const LEGACY_BROWSER_ACT_REQUEST_KEYS = [
   "loadState",
   "fn",
   "timeoutMs",
+  "sessionKey",
+  "leaseOwner",
 ] as const;
 
 function readActRequestParam(params: Record<string, unknown>) {
@@ -762,8 +766,20 @@ export function createBrowserTool(opts?: {
           if (!request) {
             throw new Error("request required");
           }
+          const requestWithSession =
+            opts?.agentSessionKey && request.kind !== "wait"
+              ? ({
+                  ...request,
+                  sessionKey: request.sessionKey ?? opts.agentSessionKey,
+                  leaseOwner:
+                    request.leaseOwner ??
+                    (opts.agentSessionKey.startsWith("agent:")
+                      ? opts.agentSessionKey
+                      : `agent:${opts.agentSessionKey}`),
+                } satisfies Parameters<typeof executeActAction>[0]["request"])
+              : request;
           return await executeActAction({
-            request,
+            request: requestWithSession,
             baseUrl,
             profile,
             proxyRequest,
