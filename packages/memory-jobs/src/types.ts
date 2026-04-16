@@ -1,7 +1,7 @@
 import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { CanonicalStoreBackend } from "alisio/plugin-sdk/memory-core-engine-runtime";
 
-export type MemoryJobKind = "consolidate" | "dedup" | "health";
+export type MemoryJobKind = "consolidate" | "dedup" | "long-term" | "health";
 
 export type MemoryJobStatus = "idle" | "running" | "paused" | "failed";
 
@@ -14,6 +14,7 @@ export type MemoryJobCheckpointReason =
 export type MemoryJobEventType =
   | "PROMOTED_TO_CLAIM"
   | "PROMOTED_TO_PROCEDURE"
+  | "PROMOTED_TO_LONG_TERM"
   | "MERGE_PROPOSED"
   | "ENTITY_MERGED"
   | "ENTITY_DELETED"
@@ -141,6 +142,20 @@ export type ConsolidateCursor = {
 
 export type DedupCursor = {
   lastPageId?: string;
+  checkpoint: CheckpointCursorState;
+};
+
+export type LongTermSummaryCursor = {
+  pageId: string;
+  dateStamp: string;
+  relativePath: string;
+  updatedAtMs: number;
+  items: string[];
+};
+
+export type LongTermCursor = {
+  lastPageId?: string;
+  summaries: LongTermSummaryCursor[];
   checkpoint: CheckpointCursorState;
 };
 

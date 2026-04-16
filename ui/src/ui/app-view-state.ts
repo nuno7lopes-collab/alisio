@@ -141,6 +141,7 @@ export type AppViewState = {
   chatSessionRenameKey: string | null;
   chatSessionRenameDraft: string;
   chatSessionRenamePending: boolean;
+  sessionDeleteConfirmKeys: string[] | null;
   chatLoading: boolean;
   chatSending: boolean;
   chatMessage: string;
@@ -221,6 +222,9 @@ export type AppViewState = {
   gatewayBootstrapUrl: string | null;
   gatewayBootstrapToken: string | null;
   pendingGatewayUrl: string | null;
+  confirmDeleteSessions?: (keys: string[]) => boolean | Promise<boolean>;
+  handleSessionDeleteConfirm?: () => void;
+  handleSessionDeleteCancel?: () => void;
   configLoading: boolean;
   configRaw: string;
   configRawOriginal: string;

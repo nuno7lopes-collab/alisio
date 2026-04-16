@@ -769,7 +769,9 @@ function selectSlashCommand(
   if (cmd.executeLocal && !cmd.args) {
     props.onDraftChange(`/${cmd.name}`);
     requestUpdate();
-    props.onSend();
+    if (props.connected && props.canSend && !props.sending) {
+      props.onSend();
+    }
   } else {
     props.onDraftChange(`/${cmd.name} `);
     requestUpdate();
@@ -811,7 +813,7 @@ function selectSlashArg(
   resetSlashMenuState();
   props.onDraftChange(`/${cmdName} ${arg}`);
   requestUpdate();
-  if (execute) {
+  if (execute && props.connected && props.canSend && !props.sending) {
     props.onSend();
   }
 }
@@ -1410,6 +1412,7 @@ export function renderChat(props: ChatProps) {
                 props.onOpenSidebar,
                 assistantIdentity,
                 props.basePath,
+                props.sessionKey,
               );
             }
             if (item.kind === "group") {
@@ -1650,6 +1653,9 @@ export function renderChat(props: ChatProps) {
   };
 
   const handleSendClick = () => {
+    if (!canSendMessage || props.sending) {
+      return;
+    }
     if (props.draft.trim()) {
       inputHistory.push(props.draft);
     }
@@ -1667,13 +1673,17 @@ export function renderChat(props: ChatProps) {
     props.onDraftChange(target.value);
   };
 
+  const showGenericDisabledReason = Boolean(
+    props.disabledReason && !props.error && !props.runtimeSetupHint,
+  );
+
   return html`
     <section
       class="card chat alisio-chat ${isEmpty ? "alisio-chat--empty" : ""}"
       @drop=${(e: DragEvent) => handleDrop(e, props, requestUpdate)}
       @dragover=${(e: DragEvent) => e.preventDefault()}
     >
-      ${props.disabledReason ? html`<div class="callout">${props.disabledReason}</div>` : nothing}
+      ${showGenericDisabledReason ? html`<div class="callout">${props.disabledReason}</div>` : nothing}
       ${runtimeSetupCallout}
       ${props.error && !props.runtimeSetupHint
         ? html`<div class="callout danger">${props.error}</div>`

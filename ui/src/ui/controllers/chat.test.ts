@@ -5,9 +5,12 @@ import type { SessionsListResult } from "../types.ts";
 import { readBrowserPaneObserverEvent, resolveBrowserPaneSessionObserver } from "./browser-pane.ts";
 import {
   abortChatRun,
+  clearChatHistorySnapshot,
   handleChatEvent,
   handleSessionMessageEvent,
+  hydrateChatHistoryFromCache,
   loadChatHistory,
+  rememberChatHistorySnapshot,
   sendChatMessage,
   type ChatEventPayload,
   type ChatState,
@@ -139,6 +142,95 @@ describe("browser pane controller helpers", () => {
       sessionKey: "main",
       observer: null,
     });
+  });
+
+  it("merges a persisted replay of the same user turn even when transcript and optimistic ids differ", () => {
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "abre o google" }],
+          timestamp: 1,
+          idempotencyKey: "run-1",
+        },
+      ],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "entry-123",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: 'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
+            },
+          ],
+          timestamp: 2,
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      role: "user",
+      messageId: "entry-123",
+    });
+  });
+
+  it("collapses adjacent duplicate user turns from polluted history even when transcript ids differ", async () => {
+    const state = createState({
+      sessionKey: "main",
+      connected: true,
+      client: {
+        request: vi.fn(async (method: string) => {
+          if (method !== "chat.history") {
+            throw new Error(`unexpected method ${method}`);
+          }
+          return {
+            messages: [
+              {
+                role: "user",
+                content: [{ type: "text", text: "abre o google" }],
+                timestamp: 1_000,
+                __alisio: { id: "entry-1" },
+              },
+              {
+                role: "user",
+                content: [{ type: "text", text: "abre o google" }],
+                timestamp: 45_000,
+                __alisio: { id: "entry-2" },
+              },
+              {
+                role: "assistant",
+                content: [{ type: "text", text: "Abri o Google." }],
+                timestamp: 90_000,
+              },
+            ],
+            thinkingLevel: "off",
+          };
+        }),
+      } as never,
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.chatMessages).toEqual([
+      {
+        role: "user",
+        content: [{ type: "text", text: "abre o google" }],
+        timestamp: 1_000,
+        __alisio: { id: "entry-1" },
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Abri o Google." }],
+        timestamp: 90_000,
+      },
+    ]);
   });
 });
 
@@ -1402,6 +1494,99 @@ describe("loadChatHistory", () => {
     ]);
   });
 
+  it("drops invisible retry errors and collapses the repeated user turn they leave behind", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        { role: "user", content: [{ type: "text", text: "ola abre o google" }], timestamp: 1000 },
+        {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "You have hit your ChatGPT usage limit.",
+          timestamp: 1010,
+        },
+        { role: "user", content: [{ type: "text", text: "ola abre o google" }], timestamp: 1020 },
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Abri o Google." }],
+          timestamp: 1030,
+        },
+      ],
+      thinkingLevel: "low",
+    });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.chatMessages).toEqual([
+      { role: "user", content: [{ type: "text", text: "ola abre o google" }], timestamp: 1000 },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Abri o Google." }],
+        timestamp: 1030,
+      },
+    ]);
+  });
+
+  it("collapses retry duplicates even when the invisible error delayed the replay by more than 30 seconds", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        { role: "user", content: [{ type: "text", text: "abre o google" }], timestamp: 1_000 },
+        {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "You have hit your ChatGPT usage limit.",
+          timestamp: 20_000,
+        },
+        {
+          role: "user",
+          content: [{ type: "text", text: "abre o google" }],
+          timestamp: 75_000,
+        },
+      ],
+      thinkingLevel: "low",
+    });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.chatMessages).toEqual([
+      { role: "user", content: [{ type: "text", text: "abre o google" }], timestamp: 1_000 },
+    ]);
+  });
+
+  it("keeps repeated user turns when they are genuinely far apart", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        { role: "user", content: [{ type: "text", text: "abre o google" }], timestamp: 1_000 },
+        {
+          role: "user",
+          content: [{ type: "text", text: "abre o google" }],
+          timestamp: 10 * 60_000,
+        },
+      ],
+      thinkingLevel: "low",
+    });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.chatMessages).toEqual([
+      { role: "user", content: [{ type: "text", text: "abre o google" }], timestamp: 1_000 },
+      { role: "user", content: [{ type: "text", text: "abre o google" }], timestamp: 10 * 60_000 },
+    ]);
+  });
+
   it("shows a targeted message when chat history is unauthorized", async () => {
     const request = vi.fn().mockRejectedValue(
       new GatewayRequestError({
@@ -1423,5 +1608,32 @@ describe("loadChatHistory", () => {
     expect(state.chatThinkingLevel).toBeNull();
     expect(state.lastError).toContain("operator.read");
     expect(state.chatLoading).toBe(false);
+  });
+
+  it("can restore a cached snapshot for an already visited session", () => {
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [{ role: "assistant", content: [{ type: "text", text: "Main" }] }],
+      chatThinkingLevel: "low",
+    });
+
+    rememberChatHistorySnapshot(state);
+    state.sessionKey = "other";
+    state.chatMessages = [{ role: "assistant", content: [{ type: "text", text: "Other" }] }];
+    state.chatThinkingLevel = "high";
+    rememberChatHistorySnapshot(state);
+    state.chatMessages = [];
+    state.chatThinkingLevel = null;
+
+    expect(hydrateChatHistoryFromCache(state, "main")).toBe(true);
+    expect(state.chatMessages).toEqual([
+      { role: "assistant", content: [{ type: "text", text: "Main" }] },
+    ]);
+    expect(state.chatThinkingLevel).toBe("low");
+
+    clearChatHistorySnapshot(state, "main");
+    state.chatMessages = [];
+    state.chatThinkingLevel = null;
+    expect(hydrateChatHistoryFromCache(state, "main")).toBe(false);
   });
 });

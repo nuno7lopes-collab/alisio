@@ -1,6 +1,8 @@
+import { en } from "./en.ts";
+import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
 
-export const pt_BR: TranslationMap = {
+export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
   common: {
     health: "Saúde",
     ok: "OK",
@@ -36,6 +38,7 @@ export const pt_BR: TranslationMap = {
     chat: "Chat",
     memory: "Memória",
     tasks: "Tarefas",
+    cron: "Cron jobs",
     settings: "Configurações",
   },
   subtitles: {
@@ -48,6 +51,7 @@ export const pt_BR: TranslationMap = {
     chat: "Chat direto com o Alisio para intervenções rápidas.",
     memory: "Memória de longo prazo, notas diárias e contexto editável em um só lugar.",
     tasks: "Execuções em segundo plano, entrega e acompanhamento do operador em uma visão.",
+    cron: "Calendário semanal e mensal para cron jobs agendados.",
     settings: "Configuração do workspace, shell nativo e diagnósticos.",
   },
   overview: {
@@ -143,18 +147,35 @@ export const pt_BR: TranslationMap = {
     subtitle: "Painel do Alisio",
     passwordPlaceholder: "opcional",
   },
+  cron: {
+    calendar: {
+      week: "Semana",
+      month: "Mês",
+      previous: "Anterior",
+      next: "Seguinte",
+      today: "Hoje",
+      selectedDay: "Dia selecionado",
+      paused: "Pausados",
+      due: "A vencer agora",
+      running: "Em execução",
+      empty: "Ainda não há cron jobs.",
+      emptyHint: "Assim que houver jobs com agenda, eles aparecem aqui no calendário.",
+      emptyDay: "Não há cron jobs agendados para este dia.",
+    },
+  },
   chat: {
     disconnected: "Desconectado do Alisio.",
     menuTools: "Ferramentas",
     menuRefresh: "Atualizar",
     menuThinking: "Raciocínio",
-    menuToolCalls: "Chamadas de tools",
+    menuToolCalls: "Ferramentas",
     menuFocus: "Modo de foco",
-    menuCron: "Sessões de cron",
+    menuCron: "Conversas de cron job",
     newConversation: "Novo chat",
     newConversationTitle: "Criar uma nova conversa de chat",
     switchConversation: "Trocar chat",
-    renameConversationTitle: "Clique duas vezes para renomear este chat",
+    renameConversationTitle: "Renomear este chat",
+    deleteConversationTitle: "Apagar este chat",
     renameConversationPlaceholder: "Nome do chat",
     menuOn: "Ligado",
     menuOff: "Desligado",
@@ -162,6 +183,7 @@ export const pt_BR: TranslationMap = {
     menuVisible: "Visíveis",
     refreshTitle: "Atualizar dados do chat",
     thinkingToggle: "Alternar saída de pensamento/trabalho do assistente",
+    toolCallsToggle: "Alternar chamadas e resultados de ferramentas",
     focusToggle: "Alternar modo de foco (ocultar barra lateral + cabeçalho da página)",
     hideCronSessions: "Ocultar sessões de cron",
     showCronSessions: "Mostrar sessões de cron",
@@ -241,11 +263,14 @@ export const pt_BR: TranslationMap = {
         hiddenPreview:
           "O raciocínio interno fica oculto. As ações aparecem abaixo em cartões recolhidos.",
       },
+      actions: {
+        showMore: "Mostrar mais",
+        showLess: "Mostrar menos",
+      },
     },
     memory: {
       agent: "Agente",
       loading: "Carregando memória",
-      workspace: "Workspace",
       longTerm: "Memória de longo prazo",
       notes: "Notas",
       noteCount: "Notas",
@@ -490,21 +515,6 @@ export const pt_BR: TranslationMap = {
           "Conclua a configuração do runtime de Local embeddings ou mude a memória para um provedor remoto com a respectiva API key.",
         useLocal: "Usar Local embeddings",
       },
-      settings: {
-        title: "Configurações de memória",
-        subtitle: "Ajuste backend, padrões e comportamento por agente sem sair desta aba.",
-        unavailable: "As configurações de memória ainda não estão disponíveis neste workspace.",
-        save: "Salvar configurações",
-        saving: "Salvando...",
-        unsaved: "Não salvo",
-        backendTitle: "Backend e armazenamento",
-        backendHelp: "Defina como a memória é salva, indexada e embutida.",
-        defaultsTitle: "Comportamento de busca padrão",
-        defaultsHelp: "Esses padrões se aplicam aos agentes sem override específico.",
-        agentTitle: "Overrides do agente",
-        agentHelp: "Sobrescreva a busca de memória só para o agente selecionado.",
-        agentHelpNamed: "Sobrescreva a busca de memória só para {agent}.",
-      },
     },
   },
   languages: {
@@ -515,4 +525,4 @@ export const pt_BR: TranslationMap = {
     de: "Deutsch (Alemão)",
     es: "Español (Espanhol)",
   },
-};
+});

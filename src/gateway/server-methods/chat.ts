@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { CURRENT_SESSION_VERSION, SessionManager } from "@mariozechner/pi-coding-agent";
@@ -10,6 +11,7 @@ import {
   DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
   stripHeartbeatToken,
 } from "../../auto-reply/heartbeat.js";
+import { stripInboundMetadata } from "../../auto-reply/reply/strip-inbound-meta.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
@@ -117,6 +119,7 @@ const CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES = 128 * 1024;
 const CHAT_HISTORY_OVERSIZED_PLACEHOLDER = "[chat.history omitted: message too large]";
 const CHAT_HISTORY_INLINE_IMAGE_MAX_BYTES = 48 * 1024;
 const CHAT_HISTORY_ATTACHMENT_READ_MAX_BYTES = 5_000_000;
+const CHAT_SEND_SEMANTIC_DEDUPE_WINDOW_MS = 10_000;
 let chatHistoryPlaceholderEmitCount = 0;
 const CHANNEL_AGNOSTIC_SESSION_SCOPES = new Set([
   "main",
@@ -328,6 +331,48 @@ function normalizeOptionalChatSystemReceipt(
   }
   const receipt = sanitized.message.trim();
   return { ok: true, receipt: receipt || undefined };
+}
+
+function buildChatSendSemanticDedupeKey(params: {
+  attachments: Array<{
+    content?: unknown;
+    fileName?: string;
+    mimeType?: string;
+    type?: string;
+  }>;
+  message: string;
+  sessionKey: string;
+}): string {
+  const hash = createHash("sha1");
+  hash.update(params.sessionKey.trim());
+  hash.update("\u0000");
+  hash.update(params.message.trim().replace(/\s+/g, " "));
+  for (const attachment of params.attachments) {
+    hash.update("\u0001");
+    hash.update(typeof attachment.type === "string" ? attachment.type : "");
+    hash.update("\u0001");
+    hash.update(typeof attachment.mimeType === "string" ? attachment.mimeType : "");
+    hash.update("\u0001");
+    hash.update(typeof attachment.fileName === "string" ? attachment.fileName : "");
+    hash.update("\u0001");
+    const content = attachment.content;
+    if (typeof content === "string") {
+      hash.update(String(content.length));
+      hash.update("\u0001");
+      hash.update(content);
+    } else if (content != null) {
+      hash.update(JSON.stringify(content));
+    }
+  }
+  return `chat-semantic:${hash.digest("hex")}`;
+}
+
+function readChatSendRunIdFromDedupeEntry(
+  entry: GatewayRequestContext["dedupe"] extends Map<string, infer TValue> ? TValue : never,
+): string | null {
+  const payload = entry.payload as { runId?: unknown } | undefined;
+  const runId = typeof payload?.runId === "string" ? payload.runId.trim() : "";
+  return runId || null;
 }
 
 function isAcpBridgeClient(client: GatewayRequestHandlerOptions["client"]): boolean {
@@ -1055,6 +1100,135 @@ function shouldHideHeartbeatHistoryMessage(
   return stripped.didStrip && stripped.shouldSkip;
 }
 
+function normalizeChatHistoryRole(message: unknown): string {
+  if (!message || typeof message !== "object") {
+    return "unknown";
+  }
+  const role = (message as { role?: unknown }).role;
+  return typeof role === "string" ? role.trim().toLowerCase() : "unknown";
+}
+
+function extractChatHistoryComparableText(message: unknown): string {
+  if (!message || typeof message !== "object") {
+    return "";
+  }
+  const entry = message as { content?: unknown; text?: unknown };
+  if (typeof entry.content === "string") {
+    return stripInboundMetadata(entry.content).trim();
+  }
+  if (Array.isArray(entry.content)) {
+    return entry.content
+      .map((block) =>
+        block && typeof block === "object" && typeof (block as { text?: unknown }).text === "string"
+          ? stripInboundMetadata((block as { text: string }).text).trim()
+          : "",
+      )
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+  return typeof entry.text === "string" ? stripInboundMetadata(entry.text).trim() : "";
+}
+
+function isInvisibleRetryHistoryMessage(message: unknown): boolean {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+  const entry = message as {
+    role?: unknown;
+    content?: unknown;
+    text?: unknown;
+    stopReason?: unknown;
+    errorMessage?: unknown;
+  };
+  if (normalizeChatHistoryRole(message) !== "assistant") {
+    return false;
+  }
+  const hasVisibleText = extractChatHistoryComparableText(message).length > 0;
+  if (hasVisibleText || assistantHistoryMessageHasMedia(message)) {
+    return false;
+  }
+  return (
+    typeof entry.stopReason === "string" &&
+    entry.stopReason.trim().toLowerCase() === "error" &&
+    typeof entry.errorMessage === "string" &&
+    entry.errorMessage.trim().length > 0
+  );
+}
+
+function areEquivalentRetryDuplicateUserMessages(previous: unknown, next: unknown): boolean {
+  return (
+    normalizeChatHistoryRole(previous) === "user" &&
+    normalizeChatHistoryRole(next) === "user" &&
+    extractChatHistoryComparableText(previous).length > 0 &&
+    extractChatHistoryComparableText(previous) === extractChatHistoryComparableText(next)
+  );
+}
+
+function readChatHistoryMessageTimestamp(message: unknown): number | null {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  const timestamp = (message as { timestamp?: unknown }).timestamp;
+  return typeof timestamp === "number" && Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function collapseInvisibleRetryHistoryArtifacts(messages: unknown[]): unknown[] {
+  if (messages.length === 0) {
+    return messages;
+  }
+  const collapsed: unknown[] = [];
+  let retryCandidateUser: unknown | null = null;
+  let changed = false;
+  for (const message of messages) {
+    if (isInvisibleRetryHistoryMessage(message)) {
+      const previousVisible = collapsed.at(-1);
+      retryCandidateUser =
+        previousVisible && normalizeChatHistoryRole(previousVisible) === "user"
+          ? previousVisible
+          : null;
+      changed = true;
+      continue;
+    }
+    if (
+      retryCandidateUser &&
+      areEquivalentRetryDuplicateUserMessages(retryCandidateUser, message)
+    ) {
+      retryCandidateUser = null;
+      changed = true;
+      continue;
+    }
+    retryCandidateUser = null;
+    collapsed.push(message);
+  }
+  return changed ? collapsed : messages;
+}
+
+function collapseAdjacentRetryDuplicateUserMessages(messages: unknown[]): unknown[] {
+  if (messages.length < 2) {
+    return messages;
+  }
+  const collapsed: unknown[] = [];
+  let changed = false;
+  for (const message of messages) {
+    const previous = collapsed.at(-1);
+    if (previous && areEquivalentRetryDuplicateUserMessages(previous, message)) {
+      const previousTs = readChatHistoryMessageTimestamp(previous);
+      const nextTs = readChatHistoryMessageTimestamp(message);
+      if (
+        previousTs === null ||
+        nextTs === null ||
+        Math.abs(nextTs - previousTs) <= 5 * 60_000
+      ) {
+        changed = true;
+        continue;
+      }
+    }
+    collapsed.push(message);
+  }
+  return changed ? collapsed : messages;
+}
+
 function sanitizeChatHistoryMessages(
   messages: unknown[],
   cfg: Parameters<typeof resolveHeartbeatVisibility>[0]["cfg"],
@@ -1062,9 +1236,15 @@ function sanitizeChatHistoryMessages(
   if (messages.length === 0) {
     return messages;
   }
+  const retryCollapsed = collapseAdjacentRetryDuplicateUserMessages(
+    collapseInvisibleRetryHistoryArtifacts(messages),
+  );
   let changed = false;
   const next: unknown[] = [];
-  for (const message of messages) {
+  if (retryCollapsed !== messages) {
+    changed = true;
+  }
+  for (const message of retryCollapsed) {
     const res = sanitizeChatHistoryMessage(message);
     changed ||= res.changed;
     // Drop assistant messages whose entire visible text is the silent reply token.
@@ -1577,7 +1757,7 @@ export const chatHandlers: GatewayRequestHandlers = {
     const { cfg, storePath, entry } = loadSessionEntry(sessionKey);
     const sessionId = entry?.sessionId;
     const sessionAgentId = resolveSessionAgentId({ sessionKey, config: cfg });
-    const resolvedSessionModel = resolveSessionModelRef(cfg, entry, sessionAgentId);
+    const resolvedSessionModel = resolveSessionModelRef(cfg, entry, sessionAgentId, sessionKey);
     const localMessages =
       sessionId && storePath ? readSessionMessages(sessionId, storePath, entry?.sessionFile) : [];
     const rawMessages = augmentChatHistoryWithCliSessionImports({
@@ -1610,13 +1790,24 @@ export const chatHandlers: GatewayRequestHandlers = {
     }
     let thinkingLevel = entry?.thinkingLevel;
     if (!thinkingLevel) {
-      const catalog = await context.loadGatewayModelCatalog();
-      thinkingLevel = resolveThinkingDefault({
-        cfg,
-        provider: resolvedSessionModel.provider,
-        model: resolvedSessionModel.model,
-        catalog,
-      });
+      try {
+        const catalog = await context.loadGatewayModelCatalog();
+        thinkingLevel = resolveThinkingDefault({
+          cfg,
+          provider: resolvedSessionModel.provider,
+          model: resolvedSessionModel.model,
+          catalog,
+        });
+      } catch (err) {
+        context.logGateway.warn(
+          `chat.history thinking default fallback session=${sessionKey}: ${formatForLog(err)}`,
+        );
+        thinkingLevel = resolveThinkingDefault({
+          cfg,
+          provider: resolvedSessionModel.provider,
+          model: resolvedSessionModel.model,
+        });
+      }
     }
     const verboseLevel = entry?.verboseLevel ?? cfg.agents?.defaults?.verboseDefault;
     respond(true, {
@@ -1724,6 +1915,7 @@ export const chatHandlers: GatewayRequestHandlers = {
     const p = params as {
       sessionKey: string;
       message: string;
+      extraSystemPrompt?: string;
       thinking?: string;
       deliver?: boolean;
       originatingChannel?: string;
@@ -1820,11 +2012,24 @@ export const chatHandlers: GatewayRequestHandlers = {
     const loadedSession = loadSessionEntry(rawSessionKey);
     let cfg = loadedSession.cfg;
     const { entry, canonicalKey: sessionKey } = loadedSession;
+    const storedExtraSystemPrompt =
+      typeof entry?.extraSystemPrompt === "string" ? entry.extraSystemPrompt.trim() : "";
+    const callerExtraSystemPrompt =
+      typeof p.extraSystemPrompt === "string" ? p.extraSystemPrompt.trim() : "";
+    const combinedExtraSystemPrompt =
+      [...new Set([storedExtraSystemPrompt, callerExtraSystemPrompt].filter(Boolean))].join(
+        "\n\n",
+      ) || undefined;
     const resolvedEntryAgentId = resolveSessionAgentId({
       sessionKey,
       config: cfg,
     });
-    const resolvedSessionModel = resolveSessionModelRef(cfg, entry, resolvedEntryAgentId);
+    const resolvedSessionModel = resolveSessionModelRef(
+      cfg,
+      entry,
+      resolvedEntryAgentId,
+      sessionKey,
+    );
     if (isAlisioDynamicProvider(resolvedSessionModel.provider)) {
       await publishAlisioDynamicModelProvidersForContext(context);
     }
@@ -2069,6 +2274,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         dispatcher,
         replyOptions: {
           runId: clientRunId,
+          extraSystemPrompt: combinedExtraSystemPrompt,
           abortSignal: abortController.signal,
           images: parsedImages.length > 0 ? parsedImages : undefined,
           onAgentRunStart: (runId) => {

@@ -7,8 +7,11 @@ import {
   renderChatComposerModelSelect,
   renderChatDesktopToolbar,
   renderChatSessionSelect,
+  switchChatSession,
 } from "../app-render.helpers.ts";
 import type { AppViewState } from "../app-view-state.ts";
+import "../app.ts";
+import type { AlisioApp } from "../app.ts";
 import {
   createModelCatalog,
   createSessionsListResult,
@@ -35,6 +38,7 @@ function createSessions(): SessionsListResult {
 
 function createChatHeaderState(
   overrides: {
+    sessionKey?: string;
     model?: string | null;
     modelProvider?: string | null;
     modelOverride?: string | null;
@@ -47,6 +51,7 @@ function createChatHeaderState(
     };
   } = {},
 ): { state: AppViewState; request: ReturnType<typeof vi.fn> } {
+  const sessionKey = overrides.sessionKey ?? "main";
   let currentModel = overrides.model ?? null;
   let currentModelProvider = overrides.modelProvider ?? (currentModel ? "openai" : null);
   let currentModelOverride =
@@ -100,7 +105,7 @@ function createChatHeaderState(
       }
       return {
         ok: true,
-        key: "main",
+        key: sessionKey,
         resolved: currentModel
           ? {
               model: currentModel,
@@ -114,6 +119,7 @@ function createChatHeaderState(
     }
     if (method === "sessions.list") {
       return createSessionsListResult({
+        sessionKey,
         model: currentModel,
         modelProvider: currentModelProvider,
         modelOverride: currentModelOverride,
@@ -134,7 +140,7 @@ function createChatHeaderState(
     throw new Error(`Unexpected request: ${method}`);
   });
   const state = {
-    sessionKey: "main",
+    sessionKey,
     chatSessionRenameKey: null,
     chatSessionRenameDraft: "",
     chatSessionRenamePending: false,
@@ -155,8 +161,8 @@ function createChatHeaderState(
       gatewayUrl: "",
       token: "",
       locale: "en",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
+      sessionKey,
+      lastActiveSessionKey: sessionKey,
       themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
       themeMode: "dark",
       themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
@@ -165,6 +171,8 @@ function createChatHeaderState(
       navGroupsCollapsed: {},
       chatFocusMode: false,
       chatShowThinking: true,
+      chatShowToolCalls: true,
+      chatHideCronSessions: true,
     },
     chatMessage: "",
     chatStream: null,
@@ -188,7 +196,9 @@ function createChatHeaderState(
     toolsEffectiveResult: null,
     applySettings(next: AppViewState["settings"]) {
       state.settings = next;
+      state.sessionsHideCron = next.chatHideCronSessions;
     },
+    setTab: vi.fn(),
     loadAssistantIdentity: vi.fn(),
     resetToolStream: vi.fn(),
     resetChatScroll: vi.fn(),
@@ -553,6 +563,54 @@ describe("chat view", () => {
     expect(onOpenRuntimeSetup).toHaveBeenCalledTimes(1);
   });
 
+  it("hides the generic disconnected notice when a more specific chat error is shown", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          connected: false,
+          canSend: false,
+          disabledReason: "Disconnected from Alisio.",
+          error: "Reconnecting…",
+        }),
+      ),
+      container,
+    );
+
+    const dangerCallouts = container.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(container.textContent).not.toContain("Disconnected from Alisio.");
+  });
+
+  it("does not duplicate reconnect banners in the full chat shell", async () => {
+    window.history.replaceState({}, "", "/chat?session=agent%3Amain%3Amain");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+    app.lastError = "Reconnecting…";
+    app.requestUpdate();
+    await app.updateComplete;
+
+    const dangerCallouts = app.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(app.textContent).not.toContain("Disconnected from Alisio.");
+  });
+
+  it("keeps the global error banner outside the chat tab", async () => {
+    window.history.replaceState({}, "", "/settings");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+    app.tab = "settings";
+    app.lastError = "Reconnecting…";
+    app.requestUpdate();
+    await app.updateComplete;
+
+    const dangerCallouts = app.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+  });
+
   it("renders markdown in the generic right pane host", () => {
     const container = document.createElement("div");
     render(
@@ -608,6 +666,52 @@ describe("chat view", () => {
 
     switchButtons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onSelectBrowserPaneSurface).toHaveBeenCalledWith("markdown");
+  });
+
+  it("auto-opens the observer pane when a live observer appears after the pane was previously touched", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+    app.handleOpenSidebar("Detalhes");
+    app.handleCloseSidebar();
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+
+    app.setBrowserPaneObserver("main", {
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Observed browser",
+    });
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.browserPaneSurfaceKind).toBe("observer");
+    expect(app.querySelector("iframe.browser-pane__iframe")).not.toBeNull();
+  });
+
+  it("does not reopen the pane on repeated observer updates that only rotate the token", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+
+    app.setBrowserPaneObserver("main", {
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Observed browser",
+    });
+    await app.updateComplete;
+    app.handleCloseSidebar();
+    await app.updateComplete;
+
+    app.setBrowserPaneObserver("main", {
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=def",
+      label: "Observed browser",
+    });
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
   });
 
   it("does not open an empty split when the session has no observer and no markdown", () => {
@@ -1363,7 +1467,8 @@ describe("chat view", () => {
       container,
     );
 
-    expect(container.querySelector(".chat-bubble-actions")).toBeNull();
+    expect(container.querySelector(".chat-group-footer .chat-copy-btn")).toBeNull();
+    expect(container.querySelector(".chat-group-footer .chat-expand-btn")).toBeNull();
     expect(container.querySelector(".chat-group-footer--active")).not.toBeNull();
     expect(container.textContent).toContain("Writing response");
   });
@@ -1679,6 +1784,7 @@ describe("chat view", () => {
       } satisfies Partial<Response>),
     );
     const { state, request } = createChatHeaderState({
+      sessionKey: "agent:main:subagent:child",
       models: createModelCatalog(OPENAI_GPT5_MODEL, OPENAI_GPT5_MINI_MODEL, {
         id: "qwen3-4b-q4-k-m",
         name: "Qwen3 4B",
@@ -1701,10 +1807,10 @@ describe("chat view", () => {
     render(renderChatSessionSelect(state), container);
 
     expect(request).toHaveBeenCalledWith("sessions.patch", {
-      key: "main",
+      key: "agent:main:subagent:child",
       model: "alisio-local-current-llama/qwen3-4b-q4-k-m",
     });
-    expect(state.chatModelOverrides.main).toEqual({
+    expect(state.chatModelOverrides["agent:main:subagent:child"]).toEqual({
       kind: "qualified",
       value: "openai/gpt-5-mini",
     });
@@ -1715,6 +1821,40 @@ describe("chat view", () => {
     expect(rerendered?.value).toBe("openai/gpt-5-mini");
     expect(state.sessionsResult?.sessions[0]?.model).toBe("gpt-5-mini");
     expect(state.sessionsResult?.sessions[0]?.modelProvider).toBe("openai");
+    vi.unstubAllGlobals();
+  });
+
+  it("blocks local managed models in the main chat picker before sending a patch", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+      } satisfies Partial<Response>),
+    );
+    const { state, request } = createChatHeaderState({
+      models: createModelCatalog(OPENAI_GPT5_MODEL, OPENAI_GPT5_MINI_MODEL, {
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        provider: "alisio-local-current-llama",
+        providerLabel: "This device",
+      }),
+    });
+    const container = document.createElement("div");
+    render(renderChatSessionSelect(state), container);
+
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(modelSelect).not.toBeNull();
+    expect(
+      Array.from(modelSelect?.querySelectorAll("option") ?? []).map((option) => option.value),
+    ).not.toContain("alisio-local-current-llama/qwen3-4b-q4-k-m");
+
+    modelSelect!.value = "alisio-local-current-llama/qwen3-4b-q4-k-m";
+    modelSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushTasks();
+
+    expect(request).not.toHaveBeenCalledWith("sessions.patch", expect.anything());
     vi.unstubAllGlobals();
   });
 
@@ -2096,18 +2236,39 @@ describe("chat view", () => {
     expect(labels).toContain("Coding (beta) / main");
   });
 
-  it("renders the desktop chat toolbar with a compact title, switcher, and tools menu", () => {
+  it("renders the desktop chat toolbar with a compact chat dropdown and tools menu", () => {
     const { state } = createChatHeaderState();
     const container = document.createElement("div");
     render(renderChatDesktopToolbar(state), container);
 
     expect(container.querySelector(".alisio-chat-toolbar")).not.toBeNull();
     expect(container.textContent).toContain("New chat");
-    expect(container.querySelector(".chat-session-header")).not.toBeNull();
-    expect(container.querySelector('[data-chat-session-title-button="true"]')).not.toBeNull();
-    expect(container.querySelector(".chat-session-switcher")).not.toBeNull();
+    expect(container.querySelector(".chat-session-dropdown")).not.toBeNull();
+    expect(container.querySelector('[data-chat-session-dropdown-trigger="true"]')).not.toBeNull();
+    expect(container.querySelector(".chat-session-header")).toBeNull();
     expect(container.querySelector('select[data-chat-model-select="true"]')).toBeNull();
     expect(container.querySelector(".chat-tools-menu")).not.toBeNull();
+  });
+
+  it("keeps only the cron chat visibility toggle in the chat tools menu", () => {
+    const { state } = createChatHeaderState();
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    const labels = Array.from(
+      container.querySelectorAll<HTMLElement>(".chat-tools-menu__item-label"),
+    ).map((node) => node.textContent?.trim());
+    expect(labels).toContain("Cron chats");
+    expect(labels).not.toContain("Cron");
+
+    const cronChatsButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".chat-tools-menu__item"),
+    ).find((button) => button.textContent?.includes("Cron chats"));
+    expect(cronChatsButton).toBeTruthy();
+    cronChatsButton?.click();
+    expect(state.settings.chatHideCronSessions).toBe(false);
+    expect(state.sessionsHideCron).toBe(false);
+    expect(state.setTab).not.toHaveBeenCalled();
   });
 
   it("supports rendering the desktop chat toolbar inside the topbar with search", () => {
@@ -2127,6 +2288,9 @@ describe("chat view", () => {
 
     expect(container.querySelector(".alisio-chat-toolbar--topbar")).not.toBeNull();
     expect(container.querySelector(".topbar-search--chat")).not.toBeNull();
+    const secondary = container.querySelector(".alisio-chat-toolbar__secondary");
+    const children = Array.from(secondary?.children ?? []);
+    expect(children.at(-1)?.classList.contains("topbar-search")).toBe(true);
   });
 
   it("shows the derived first-message title in the desktop chat toolbar", () => {
@@ -2151,7 +2315,7 @@ describe("chat view", () => {
     render(renderChatDesktopToolbar(state), container);
 
     const titleButton = container.querySelector<HTMLElement>(
-      '[data-chat-session-title-button="true"]',
+      '[data-chat-session-dropdown-trigger="true"]',
     );
     expect(titleButton?.textContent).toContain("Plano de marketing para maio");
     expect(titleButton?.textContent).not.toContain("dashboard:");
@@ -2221,7 +2385,7 @@ describe("chat view", () => {
     expect(state.resetChatScroll).toHaveBeenCalled();
   });
 
-  it("allows renaming the active chat from the desktop toolbar", async () => {
+  it("allows renaming the active chat from the desktop dropdown", async () => {
     const { state, request } = createChatHeaderState({ omitSessionFromList: true });
     state.sessionKey = "agent:main:dashboard:chat-1";
     state.settings.sessionKey = state.sessionKey;
@@ -2286,15 +2450,15 @@ describe("chat view", () => {
     const container = document.createElement("div");
     render(renderChatDesktopToolbar(state), container);
 
-    const titleButton = container.querySelector<HTMLElement>(
-      '[data-chat-session-title-button="true"]',
+    const renameButton = container.querySelector<HTMLButtonElement>(
+      '[data-chat-session-rename-button="agent:main:dashboard:chat-1"]',
     );
-    expect(titleButton).not.toBeNull();
-    titleButton?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    expect(renameButton).not.toBeNull();
+    renameButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     render(renderChatDesktopToolbar(state), container);
 
     const input = container.querySelector<HTMLInputElement>(
-      '[data-chat-session-rename-input="true"]',
+      '[data-chat-session-rename-input="agent:main:dashboard:chat-1"]',
     );
     expect(input).not.toBeNull();
     input!.value = "Marketing maio";
@@ -2309,8 +2473,153 @@ describe("chat view", () => {
       label: "Marketing maio",
     });
     expect(
-      container.querySelector<HTMLElement>('[data-chat-session-title-button="true"]')?.textContent,
+      container.querySelector<HTMLElement>('[data-chat-session-dropdown-trigger="true"]')
+        ?.textContent,
     ).toContain("Marketing maio");
+  });
+
+  it("allows deleting the active chat from the desktop dropdown and falls back cleanly", async () => {
+    const { state, request } = createChatHeaderState({ omitSessionFromList: true });
+    state.sessionKey = "agent:main:dashboard:chat-1";
+    state.settings.sessionKey = state.sessionKey;
+    state.settings.lastActiveSessionKey = state.sessionKey;
+    state.sessionsResult = {
+      ts: 0,
+      path: "",
+      count: 2,
+      defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+      sessions: [
+        {
+          key: "agent:main:dashboard:chat-1",
+          kind: "direct",
+          updatedAt: null,
+          derivedTitle: "Chat para apagar",
+        },
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: null,
+          derivedTitle: "Main Session",
+        },
+      ],
+    };
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    request.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "sessions.delete") {
+        expect(params).toEqual({
+          key: "agent:main:dashboard:chat-1",
+          deleteTranscript: true,
+        });
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return {
+          ts: 0,
+          path: "",
+          count: 1,
+          defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+          sessions: [
+            {
+              key: "main",
+              kind: "direct",
+              updatedAt: null,
+              derivedTitle: "Main Session",
+            },
+          ],
+        };
+      }
+      if (method === "sessions.messages.subscribe") {
+        return { subscribed: true, key: "main" };
+      }
+      if (method === "chat.history") {
+        return { messages: [], thinkingLevel: null };
+      }
+      if (method === "models.list") {
+        return { models: state.chatModelCatalog };
+      }
+      if (method === "tools.effective") {
+        return {
+          agentId: "main",
+          profile: "coding",
+          groups: [],
+        };
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    const deleteButton = container.querySelector<HTMLButtonElement>(
+      '[data-chat-session-delete-button="agent:main:dashboard:chat-1"]',
+    );
+    expect(deleteButton).not.toBeNull();
+    deleteButton?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushTasks();
+    await flushTasks();
+    render(renderChatDesktopToolbar(state), container);
+
+    expect(state.sessionKey).toBe("main");
+    expect(state.settings.lastActiveSessionKey).toBe("main");
+    expect(request).toHaveBeenCalledWith("sessions.delete", {
+      key: "agent:main:dashboard:chat-1",
+      deleteTranscript: true,
+    });
+    expect(
+      container.querySelector<HTMLElement>('[data-chat-session-dropdown-trigger="true"]')
+        ?.textContent,
+    ).toContain("Main Session");
+  });
+
+  it("switches to a known chat without reloading the full sessions list", async () => {
+    const { state, request } = createChatHeaderState({ omitSessionFromList: true });
+    state.sessionKey = "main";
+    state.settings.sessionKey = "main";
+    state.assistantAgentId = "main";
+    state.chatMessages = [{ role: "assistant", content: [{ type: "text", text: "Main chat" }] }];
+    state.sessionsResult = {
+      ts: 0,
+      path: "",
+      count: 2,
+      defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+      sessions: [
+        { key: "main", kind: "direct", updatedAt: null, derivedTitle: "Main Session" },
+        {
+          key: "agent:main:dashboard:chat-1",
+          kind: "direct",
+          updatedAt: null,
+          derivedTitle: "Chat um",
+        },
+      ],
+    };
+    request.mockImplementation(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "sessions.messages.subscribe") {
+        return { subscribed: true, key: "agent:main:dashboard:chat-1" };
+      }
+      if (method === "chat.history") {
+        expect(params).toEqual({
+          sessionKey: "agent:main:dashboard:chat-1",
+          limit: 200,
+        });
+        return {
+          messages: [{ role: "assistant", content: [{ type: "text", text: "Chat um" }] }],
+          thinkingLevel: null,
+        };
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+
+    switchChatSession(state, "agent:main:dashboard:chat-1");
+    await flushTasks();
+
+    expect(state.loadAssistantIdentity).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith("sessions.messages.subscribe", {
+      key: "agent:main:dashboard:chat-1",
+    });
+    expect(request).not.toHaveBeenCalledWith("sessions.list", expect.anything());
+    expect(state.chatMessages).toEqual([
+      { role: "assistant", content: [{ type: "text", text: "Chat um" }] },
+    ]);
   });
 
   it("renders compact model labels in the composer picker", () => {

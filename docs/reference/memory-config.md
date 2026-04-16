@@ -276,6 +276,25 @@ boundary.
 
 ---
 
+## Background memory jobs
+
+Cooperative background memory jobs keep the canonical store tidy while the agent
+is idle. They promote candidate pages, run dedup/health checks, and distill
+canonical daily notes (`memory/YYYY-MM-DD.md`) into the long-term `MEMORY.md`
+projection.
+
+| Key                       | Type      | Default | Description                                    |
+| ------------------------- | --------- | ------- | ---------------------------------------------- |
+| `memory.jobs.enabled`     | `boolean` | `true`  | Enable background memory maintenance           |
+| `memory.jobs.maxSliceMs`  | `number`  | `75`    | Max cooperative runtime budget per idle slice  |
+| `memory.jobs.autoSleep.enabled` | `boolean` | `true`  | Allow idle auto-sleep scheduling for memory jobs |
+
+`MEMORY.md` stays the injected long-term bootstrap file, but when background
+jobs are enabled its auto-promoted section is generated from canonical daily
+notes rather than relying only on manual heartbeat maintenance.
+
+---
+
 ## SQLite vector acceleration (sqlite-vec)
 
 | Key                          | Type      | Default | Description                       |

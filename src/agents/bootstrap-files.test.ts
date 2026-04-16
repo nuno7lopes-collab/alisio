@@ -1,14 +1,17 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearInternalHooks,
   registerInternalHook,
   type AgentBootstrapHookContext,
 } from "../hooks/internal-hooks.js";
 import { makeTempWorkspace } from "../test-helpers/workspace.js";
+import { clearAllBootstrapSnapshots as clearBootstrapSnapshots } from "./bootstrap-cache.js";
 import { resolveBootstrapContextForRun, resolveBootstrapFilesForRun } from "./bootstrap-files.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
+
+vi.unmock("./workspace.js");
 
 function registerExtraBootstrapFileHook() {
   registerInternalHook("agent:bootstrap", (event) => {
@@ -53,8 +56,14 @@ function registerMalformedBootstrapFileHook() {
 }
 
 describe("resolveBootstrapFilesForRun", () => {
-  beforeEach(() => clearInternalHooks());
-  afterEach(() => clearInternalHooks());
+  beforeEach(() => {
+    clearInternalHooks();
+    clearBootstrapSnapshots();
+  });
+  afterEach(() => {
+    clearInternalHooks();
+    clearBootstrapSnapshots();
+  });
 
   it("applies bootstrap hook overrides", async () => {
     registerExtraBootstrapFileHook();
@@ -81,11 +90,39 @@ describe("resolveBootstrapFilesForRun", () => {
     expect(warnings).toHaveLength(3);
     expect(warnings[0]).toContain('missing or invalid "path" field');
   });
+
+  it("refreshes bootstrap files for the same session when MEMORY.md changes", async () => {
+    const workspaceDir = await makeTempWorkspace("alisio-bootstrap-");
+    const memoryPath = path.join(workspaceDir, "MEMORY.md");
+    await fs.writeFile(memoryPath, "version one", "utf8");
+
+    const first = await resolveBootstrapFilesForRun({
+      workspaceDir,
+      sessionKey: "agent:main:discord:direct:user-1",
+    });
+    expect(first.find((file) => file.name === "MEMORY.md")?.content).toBe("version one");
+
+    await fs.writeFile(memoryPath, "version two", "utf8");
+    const bumpedTime = new Date(Date.now() + 1_000);
+    await fs.utimes(memoryPath, bumpedTime, bumpedTime);
+
+    const second = await resolveBootstrapFilesForRun({
+      workspaceDir,
+      sessionKey: "agent:main:discord:direct:user-1",
+    });
+    expect(second.find((file) => file.name === "MEMORY.md")?.content).toBe("version two");
+  });
 });
 
 describe("resolveBootstrapContextForRun", () => {
-  beforeEach(() => clearInternalHooks());
-  afterEach(() => clearInternalHooks());
+  beforeEach(() => {
+    clearInternalHooks();
+    clearBootstrapSnapshots();
+  });
+  afterEach(() => {
+    clearInternalHooks();
+    clearBootstrapSnapshots();
+  });
 
   it("returns context files for hook-adjusted bootstrap files", async () => {
     registerExtraBootstrapFileHook();

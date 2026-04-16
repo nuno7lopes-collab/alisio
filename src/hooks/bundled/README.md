@@ -9,8 +9,8 @@ This directory contains hooks that ship with Alisio. These hooks are automatical
 Automatically saves session context to memory when you issue `/new` or `/reset`.
 
 **Events**: `command:new`, `command:reset`
-**What it does**: Creates a dated memory file with LLM-generated slug based on conversation content.
-**Output**: `<workspace>/memory/YYYY-MM-DD-slug.md` (defaults to `~/.alisio/workspace`)
+**What it does**: Appends a dated session snapshot to the canonical daily memory note and reingests it through the canonical memory pipeline.
+**Output**: `<workspace>/memory/YYYY-MM-DD.md` (defaults to `~/.alisio/workspace`)
 
 **Enable**:
 

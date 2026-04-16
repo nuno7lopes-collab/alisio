@@ -122,8 +122,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/ui");
-    expect(app.tab).toBe("chat");
-    expect(window.location.pathname).toBe("/ui/chat");
+    expect(app.tab).toBe("cron");
+    expect(window.location.pathname).toBe("/ui/cron");
   });
 
   it("infers nested base paths", async () => {
@@ -131,8 +131,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/apps/\u006fpen\u0063law");
-    expect(app.tab).toBe("chat");
-    expect(window.location.pathname).toBe("/apps/\u006fpen\u0063law/chat");
+    expect(app.tab).toBe("cron");
+    expect(window.location.pathname).toBe("/apps/\u006fpen\u0063law/cron");
   });
 
   it("honors explicit base path overrides", async () => {
@@ -204,6 +204,29 @@ describe("control UI routing", () => {
     expect(app.querySelector(".topnav-shell .brand-title")).toBeNull();
   });
 
+  it("keeps the topbar sizing aligned between chat and the other tabs", async () => {
+    const chatApp = mountApp("/chat");
+    await chatApp.updateComplete;
+    const settingsApp = mountApp("/settings");
+    await settingsApp.updateComplete;
+
+    const chatTopbar = chatApp.querySelector<HTMLElement>(".topbar");
+    const settingsTopbar = settingsApp.querySelector<HTMLElement>(".topbar");
+    const chatSearch = chatApp.querySelector<HTMLElement>(".topbar-search");
+    const settingsSearch = settingsApp.querySelector<HTMLElement>(".topbar-search");
+    expect(chatTopbar).not.toBeNull();
+    expect(settingsTopbar).not.toBeNull();
+    expect(chatSearch).not.toBeNull();
+    expect(settingsSearch).not.toBeNull();
+    if (!chatTopbar || !settingsTopbar || !chatSearch || !settingsSearch) {
+      return;
+    }
+
+    expect(getComputedStyle(settingsTopbar).minHeight).toBe(getComputedStyle(chatTopbar).minHeight);
+    expect(getComputedStyle(settingsSearch).minHeight).toBe(getComputedStyle(chatSearch).minHeight);
+    expect(getComputedStyle(settingsSearch).minWidth).toBe(getComputedStyle(chatSearch).minWidth);
+  });
+
   it("renders the refreshed sidebar shell structure", async () => {
     const app = mountApp("/chat");
     await app.updateComplete;
@@ -215,6 +238,7 @@ describe("control UI routing", () => {
     expect(app.querySelector(".sidebar-brand")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__logo")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).not.toBeNull();
+    expect(app.querySelector(".sidebar-edge-toggle")).not.toBeNull();
     expect(app.querySelector(".sidebar-context")).toBeNull();
     expect(app.querySelector(".nav-section__label")).not.toBeNull();
   });
@@ -274,10 +298,11 @@ describe("control UI routing", () => {
     expect(app.querySelector(".nav-section__label")).toBeNull();
     expect(app.querySelector(".sidebar-brand")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).toBeNull();
+    expect(app.querySelector(".sidebar-edge-toggle.is-collapsed")).not.toBeNull();
     expect(app.querySelector(".sidebar-context")).toBeNull();
   });
 
-  it("keeps footer utilities available in collapsed mode", async () => {
+  it("keeps only the account utility available in collapsed mode", async () => {
     const app = mountApp("/chat");
     await app.updateComplete;
 
@@ -286,7 +311,7 @@ describe("control UI routing", () => {
 
     expect(app.querySelector(".sidebar-footer-compact")).not.toBeNull();
     expect(app.querySelector(".sidebar-footer-compact__account")).not.toBeNull();
-    expect(app.querySelector(".sidebar-footer-compact__plans")).not.toBeNull();
+    expect(app.querySelector(".sidebar-footer-compact__plans")).toBeNull();
   });
 
   it("keeps the collapsed desktop sidebar compact", async () => {

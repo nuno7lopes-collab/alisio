@@ -1,5 +1,9 @@
 import type { AppViewState } from "./app-view-state.ts";
 import {
+  filterModelCatalogForSessionPolicy,
+  isLocalManagedModelRestrictedForSession,
+} from "../../../src/shared/local-model-session-policy.js";
+import {
   buildChatModelOption,
   formatChatModelDisplay,
   normalizeChatModelOverrideValue,
@@ -37,6 +41,15 @@ function resolveCatalogModelLabel(catalog: ModelCatalogEntry[], value: string): 
     }
   }
   return null;
+}
+
+function resolveQualifiedProvider(value: string): string | null {
+  const trimmed = value.trim();
+  const slash = trimmed.indexOf("/");
+  if (slash <= 0) {
+    return null;
+  }
+  return trimmed.slice(0, slash);
 }
 
 function resolveActiveSessionRow(state: ChatModelSelectStateInput) {
@@ -114,15 +127,27 @@ export function resolveChatModelSelectState(
 ): ChatModelSelectState {
   const currentOverride = resolveChatModelOverrideValue(state);
   const defaultModel = resolveDefaultModelValue(state);
-  const catalog = state.chatModelCatalog ?? [];
+  const catalog = filterModelCatalogForSessionPolicy(
+    state.chatModelCatalog ?? [],
+    state.sessionKey,
+  );
   const defaultDisplay =
     resolveCatalogModelLabel(catalog, defaultModel) ?? formatChatModelDisplay(defaultModel);
+  const currentOverrideProvider = resolveQualifiedProvider(currentOverride);
+  const currentOverrideRestricted = isLocalManagedModelRestrictedForSession({
+    providerId: currentOverrideProvider,
+    sessionKey: state.sessionKey,
+  });
 
   return {
     currentOverride,
     defaultModel,
     defaultDisplay,
     defaultLabel: defaultModel ? `Default (${defaultDisplay})` : "Default model",
-    options: buildChatModelOptions(catalog, [currentOverride], [defaultModel]),
+    options: buildChatModelOptions(
+      catalog,
+      currentOverrideRestricted ? [] : [currentOverride],
+      [defaultModel],
+    ),
   };
 }

@@ -1,5 +1,5 @@
-import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
-import { resolveConfiguredModelRef } from "../agents/model-selection.js";
+import { DEFAULT_MODEL } from "../agents/defaults.js";
+import { resolveDefaultModelForSession } from "../agents/model-selection.js";
 import type { SessionEntry } from "../config/sessions.js";
 import type { AlisioConfig } from "../config/types.alisio.js";
 import { resolveSessionModelRef } from "../gateway/session-utils.js";
@@ -71,10 +71,8 @@ export function toSessionDisplayRows(store: Record<string, SessionEntry>): Sessi
 }
 
 export function resolveSessionDisplayDefaults(cfg: AlisioConfig): SessionDisplayDefaults {
-  const resolved = resolveConfiguredModelRef({
+  const resolved = resolveDefaultModelForSession({
     cfg,
-    defaultProvider: DEFAULT_PROVIDER,
-    defaultModel: DEFAULT_MODEL,
   });
   return {
     model: resolved.model ?? DEFAULT_MODEL,
@@ -89,7 +87,12 @@ export function resolveSessionDisplayModel(
   >,
   defaults: SessionDisplayDefaults,
 ): string {
-  const resolved = resolveSessionModelRef(cfg, row, parseAgentSessionKey(row.key)?.agentId);
+  const resolved = resolveSessionModelRef(
+    cfg,
+    row,
+    parseAgentSessionKey(row.key)?.agentId,
+    row.key,
+  );
   return resolved.model ?? defaults.model;
 }
 

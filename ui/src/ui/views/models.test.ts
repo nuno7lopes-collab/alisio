@@ -271,6 +271,29 @@ describe("renderModelsHub", () => {
     expect(container.textContent).not.toContain("Alisio nodes");
   });
 
+  it("renders the shared empty state when no OpenAI profiles are available", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderModelsHub(
+        createProps({
+          bootstrap: {
+            ai: null,
+            account: createBootstrap().account,
+          } as unknown as AlisioBootstrapState,
+          selectedProviderId: "openai",
+        }),
+      ),
+      container,
+    );
+
+    const emptyState = container.querySelector(".empty-state--surface");
+    expect(emptyState).not.toBeNull();
+    expect(emptyState?.textContent).toContain(
+      "No OpenAI accounts have been connected in Alisio yet.",
+    );
+  });
+
   it("renders the local surface with install, update and uninstall actions", () => {
     const props = createProps({
       selectedProviderId: "local",

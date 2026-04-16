@@ -111,13 +111,29 @@
     padding-bottom: 12px;
   }
 
-  .sidebar-shell__toggle,
-  .sidebar--collapsed .sidebar-shell__toggle {
-    position: relative;
-    top: auto;
-    right: auto;
-    width: 26px;
-    height: 26px;
+  .sidebar-edge-toggle {
+    display: none;
+  }
+
+  .shell--nav-drawer-open .sidebar-edge-toggle,
+  .shell--nav-collapsed.shell--nav-drawer-open .sidebar-edge-toggle {
+    display: inline-flex;
+    top: 14px;
+    right: 14px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-left: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+    border-radius: 10px;
+    box-shadow:
+      0 10px 20px color-mix(in srgb, black 18%, transparent),
+      inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+  }
+
+  .shell--nav-drawer-open .sidebar-edge-toggle__icon,
+  .shell--nav-collapsed.shell--nav-drawer-open .sidebar-edge-toggle__icon {
+    width: 12px;
+    height: 12px;
   }
 
   .sidebar-context {
@@ -153,11 +169,6 @@
   .alisio-sidebar-account__footer {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .alisio-sidebar-account__plans {
-    width: 100%;
-    justify-content: center;
   }
 
   .alisio-auth-grid,

@@ -1055,7 +1055,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
     try {
       const wizardSessionId = context.findRunningWizard();
-      const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout(context);
+      const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout({
+        ...context,
+        includeDynamicCatalog: false,
+      });
       const [{ models }, { snapshot, summary }] = await Promise.all([
         Promise.resolve(runtimeSetup),
         loadStoredAlisioBootstrapState({
@@ -1615,7 +1618,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
     try {
       const wizardSessionId = context.findRunningWizard();
-      const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout(context);
+      const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout({
+        ...context,
+        includeDynamicCatalog: false,
+      });
       const bootstrapStatePromise = loadStoredAlisioBootstrapState({
         wizardRunning: wizardSessionId !== null,
         providerReady: runtimeSetup.providerReady,

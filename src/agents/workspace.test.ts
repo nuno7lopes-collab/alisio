@@ -17,6 +17,9 @@ import {
   type WorkspaceBootstrapFile,
 } from "./workspace.js";
 
+const getMemoryEntries = (files: WorkspaceBootstrapFile[]) =>
+  files.filter((file) => file.name === DEFAULT_MEMORY_FILENAME);
+
 describe("resolveDefaultAgentWorkspaceDir", () => {
   it("uses ALISIO_HOME for default workspace resolution", () => {
     const dir = resolveDefaultAgentWorkspaceDir({
@@ -180,21 +183,27 @@ describe("ensureAgentWorkspace", () => {
       "utf-8",
     );
     expect(persisted).toContain('"setupCompletedAt": "2026-03-15T02:30:00.000Z"');
-    await expect(
-      fs.access(path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)),
-    ).rejects.toMatchObject({
-      code: "ENOENT",
-    });
-    await expect(fs.access(path.join(tempDir, ".alisio"))).rejects.toMatchObject({
-      code: "ENOENT",
-    });
+    if (
+      path.join(...WORKSPACE_STATE_PATH_SEGMENTS) !== path.join(...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)
+    ) {
+      await expect(
+        fs.access(path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(fs.access(path.join(tempDir, ".alisio"))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } else {
+      await expect(
+        fs.access(path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)),
+      ).resolves.toBeUndefined();
+      await expect(fs.access(path.join(tempDir, ".alisio"))).resolves.toBeUndefined();
+    }
   });
 });
 
 describe("loadWorkspaceBootstrapFiles", () => {
-  const getMemoryEntries = (files: Awaited<ReturnType<typeof loadWorkspaceBootstrapFiles>>) =>
-    files.filter((file) => file.name === DEFAULT_MEMORY_FILENAME);
-
   const expectSingleMemoryEntry = (
     files: Awaited<ReturnType<typeof loadWorkspaceBootstrapFiles>>,
     content: string,
@@ -269,9 +278,29 @@ describe("filterBootstrapFilesForSession", () => {
     expect(result).toHaveLength(mockFiles.length);
   });
 
-  it("returns all files for normal (non-subagent, non-cron) session key", () => {
-    const result = filterBootstrapFilesForSession(mockFiles, "agent:default:chat:main");
+  it("returns all files for direct sessions", () => {
+    const result = filterBootstrapFilesForSession(
+      mockFiles,
+      "agent:default:discord:direct:user-1",
+    );
     expect(result).toHaveLength(mockFiles.length);
+  });
+
+  it("keeps MEMORY.md for the canonical main session key", () => {
+    const result = filterBootstrapFilesForSession(mockFiles, "agent:default:main");
+    expect(result).toHaveLength(mockFiles.length);
+  });
+
+  it("omits MEMORY.md for shared channel sessions", () => {
+    const result = filterBootstrapFilesForSession(mockFiles, "agent:default:discord:channel:chan-1");
+    expect(result).toHaveLength(mockFiles.length - 1);
+    expect(getMemoryEntries(result)).toHaveLength(0);
+  });
+
+  it("omits MEMORY.md for shared group sessions", () => {
+    const result = filterBootstrapFilesForSession(mockFiles, "agent:default:slack:group:g-1");
+    expect(result).toHaveLength(mockFiles.length - 1);
+    expect(getMemoryEntries(result)).toHaveLength(0);
   });
 
   it("filters to allowlist for subagent sessions", () => {

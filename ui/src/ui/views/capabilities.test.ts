@@ -3,6 +3,8 @@
 import { render } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
+import "../app.ts";
+import type { AlisioApp } from "../app.ts";
 import type {
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
@@ -59,6 +61,7 @@ function createProps(overrides: Partial<CapabilitiesProps> = {}): CapabilitiesPr
 
   return {
     connected: true,
+    connectionError: null,
     loading: false,
     report,
     error: null,
@@ -387,6 +390,42 @@ describe("renderCapabilities", () => {
     expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
     expect(container.textContent).not.toContain("No skills matched your filters.");
     expect(container.textContent).not.toContain("Capabilities");
+  });
+
+  it("shows a specific connection error instead of the generic not-connected copy", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderCapabilities(
+        createProps({
+          connected: false,
+          connectionError: "Reconnecting…",
+          report: null,
+        }),
+      ),
+      container,
+    );
+
+    const dangerCallouts = container.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(container.textContent).not.toContain("Reconnect to Alisio to load skills.");
+    expect(container.textContent).not.toContain("No skills matched your filters.");
+  });
+
+  it("does not duplicate reconnect banners in the full capabilities shell", async () => {
+    window.history.replaceState({}, "", "/capabilities");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+    app.tab = "capabilities";
+    app.lastError = "Reconnecting…";
+    app.requestUpdate();
+    await app.updateComplete;
+
+    const dangerCallouts = app.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(app.textContent).not.toContain("Reconnect to Alisio to load skills.");
   });
 
   it("renders only the skills list surface without the capability overview", () => {

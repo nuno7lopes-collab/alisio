@@ -13,6 +13,7 @@ import {
   renderSkeletonButton,
   renderSkeletonLines,
   renderSkeletonPill,
+  renderSurfaceEmptyState,
 } from "./loading-skeleton.ts";
 
 type AiProfile = NonNullable<AlisioAiState["profiles"]>[number];
@@ -1702,7 +1703,12 @@ function renderChatGptSection(props: {
             </div>
           `
         : profiles.length === 0
-          ? html`<div class="alisio-settings-ai__empty">${text.noProfiles}</div>`
+          ? renderSurfaceEmptyState({
+              title: text.noProfiles,
+              body: sectionText.chatgptSubtitle,
+              compact: true,
+              centered: true,
+            })
           : html`
               <div class="alisio-settings-ai__profile-list">
                 ${sortedProfiles.map((profile) =>
@@ -1741,6 +1747,22 @@ function renderLocalModelsSection(props: {
   const targets = props.models?.targets ?? [];
   const currentTargets = resolveCurrentTargets(targets);
   const publishedModels = props.models?.catalog ?? [];
+  const emptyState =
+    !showInitialLoading && currentTargets.length === 0
+      ? renderSurfaceEmptyState({
+          title: text.noTargets,
+          body: publishedModels.length === 0 ? text.noLocalModels : text.localSubtitle,
+          compact: true,
+          centered: true,
+        })
+      : !showInitialLoading && publishedModels.length === 0
+        ? renderSurfaceEmptyState({
+            title: text.noLocalModels,
+            body: text.localSubtitle,
+            compact: true,
+            centered: true,
+          })
+        : nothing;
 
   return html`
     <article
@@ -1800,13 +1822,7 @@ function renderLocalModelsSection(props: {
             }),
           )}
       </div>
-
-      ${!showInitialLoading && currentTargets.length === 0
-        ? html`<div class="alisio-settings-ai__empty">${text.noTargets}</div>`
-        : nothing}
-      ${!showInitialLoading && publishedModels.length === 0
-        ? html`<div class="alisio-settings-ai__empty">${text.noLocalModels}</div>`
-        : nothing}
+      ${emptyState}
     </article>
   `;
 }

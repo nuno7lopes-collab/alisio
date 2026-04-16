@@ -1,1 +1,1 @@
-export { loadModelCatalog } from "./model-catalog.js";
+export { loadMergedRuntimeModelCatalog, loadModelCatalog } from "./model-catalog.js";

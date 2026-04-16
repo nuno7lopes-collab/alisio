@@ -469,7 +469,7 @@
           "exportName": "ReplyPayload",
           "kind": "type",
           "source": {
-            "line": 76,
+            "line": 78,
             "path": "src/auto-reply/types.ts"
           }
         },
@@ -2724,11 +2724,11 @@
           }
         },
         {
-          "declaration": "export function buildModelsProviderData(cfg: AlisioConfig, agentId?: string | undefined): Promise<ModelsProviderData>;",
+          "declaration": "export function buildModelsProviderData(cfg: AlisioConfig, agentId?: string | undefined, sessionKey?: string | undefined): Promise<ModelsProviderData>;",
           "exportName": "buildModelsProviderData",
           "kind": "function",
           "source": {
-            "line": 39,
+            "line": 43,
             "path": "src/auto-reply/reply/commands-models.ts"
           }
         },
@@ -2755,7 +2755,7 @@
           "exportName": "formatModelsAvailableHeader",
           "kind": "function",
           "source": {
-            "line": 215,
+            "line": 228,
             "path": "src/auto-reply/reply/commands-models.ts"
           }
         },
@@ -2985,11 +2985,11 @@
           }
         },
         {
-          "declaration": "export function resolveModelsCommandReply(params: { cfg: AlisioConfig; commandBodyNormalized: string; surface?: string | undefined; currentModel?: string | undefined; agentId?: string | undefined; agentDir?: string | undefined; sessionEntry?: SessionEntry | undefined; }): Promise<...>;",
+          "declaration": "export function resolveModelsCommandReply(params: { cfg: AlisioConfig; commandBodyNormalized: string; surface?: string | undefined; currentModel?: string | undefined; agentId?: string | undefined; agentDir?: string | undefined; sessionEntry?: SessionEntry | undefined; sessionKey?: string | undefined; }): Promise<...>;",
           "exportName": "resolveModelsCommandReply",
           "kind": "function",
           "source": {
-            "line": 231,
+            "line": 244,
             "path": "src/auto-reply/reply/commands-models.ts"
           }
         },
@@ -3034,7 +3034,7 @@
           "exportName": "resolveStoredModelOverride",
           "kind": "function",
           "source": {
-            "line": 156,
+            "line": 231,
             "path": "src/auto-reply/reply/model-selection.ts"
           }
         },
@@ -3214,7 +3214,7 @@
           "exportName": "ModelsProviderData",
           "kind": "type",
           "source": {
-            "line": 27,
+            "line": 31,
             "path": "src/auto-reply/reply/commands-models.ts"
           }
         },
@@ -3295,7 +3295,7 @@
           "exportName": "StoredModelOverride",
           "kind": "type",
           "source": {
-            "line": 123,
+            "line": 198,
             "path": "src/auto-reply/reply/model-selection.ts"
           }
         }

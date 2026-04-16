@@ -1,4 +1,7 @@
-import { loadModelCatalog, type ModelCatalogEntry } from "../../agents/model-catalog.js";
+import {
+  loadMergedRuntimeModelCatalog,
+  type ModelCatalogEntry,
+} from "../../agents/model-catalog.js";
 import {
   buildAllowedModelSet,
   modelKey,
@@ -10,6 +13,10 @@ import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import { updateSessionStore } from "../../config/sessions.js";
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
+import {
+  filterModelKeysForSessionPolicy,
+  isLocalManagedModelRestrictedForSession,
+} from "../../shared/local-model-session-policy.js";
 import type { MsgContext, TemplateContext } from "../templating.js";
 import { resolveModelDirectiveSelection, type ModelDirectiveSelection } from "./model-selection.js";
 
@@ -114,7 +121,29 @@ export async function applyResetModelOverride(params: {
     return {};
   }
 
-  const catalog = params.modelCatalog ?? (await loadModelCatalog({ config: params.cfg }));
+  const compositeCandidate =
+    second && !first.includes("/") ? `${normalizeProviderId(first)}/${second}` : first;
+  const requestedOverride =
+    resolveModelRefFromString({
+      raw: compositeCandidate,
+      defaultProvider: params.defaultProvider,
+      aliasIndex: params.aliasIndex,
+    }) ??
+    resolveModelRefFromString({
+      raw: first,
+      defaultProvider: params.defaultProvider,
+      aliasIndex: params.aliasIndex,
+    });
+  const dynamicProviderIds = [
+    params.sessionEntry?.providerOverride?.trim(),
+    requestedOverride?.ref.provider,
+  ].filter((value): value is string => Boolean(value));
+  const catalog =
+    params.modelCatalog ??
+    (await loadMergedRuntimeModelCatalog({
+      config: params.cfg,
+      dynamicProviderIds,
+    }));
   const allowed = buildAllowedModelSet({
     cfg: params.cfg,
     catalog,
@@ -122,7 +151,7 @@ export async function applyResetModelOverride(params: {
     defaultModel: params.defaultModel,
     agentId: params.agentId,
   });
-  const allowedModelKeys = allowed.allowedKeys;
+  const allowedModelKeys = filterModelKeysForSessionPolicy(allowed.allowedKeys, params.sessionKey);
   if (allowedModelKeys.size === 0) {
     return {};
   }
@@ -182,6 +211,14 @@ export async function applyResetModelOverride(params: {
   }
 
   if (!selection) {
+    return {};
+  }
+  if (
+    isLocalManagedModelRestrictedForSession({
+      providerId: selection.provider,
+      sessionKey: params.sessionKey,
+    })
+  ) {
     return {};
   }
 

@@ -15,6 +15,7 @@ import {
 
 export function renderOrganization(props: {
   connected: boolean;
+  connectionError?: string | null;
   accountReady: boolean;
   plan?: string | null | undefined;
   loading: boolean;
@@ -30,6 +31,7 @@ export function renderOrganization(props: {
   onJoinOrganization: () => void;
   onResetOrganization: () => void;
 }) {
+  const errorMessages = [...new Set([props.connectionError, props.error].filter(Boolean))];
   const membership = props.organization?.mode ?? "none";
   const hasOrganization = membership !== "none";
   const trimmedOrganizationName = props.organizationName.trim();
@@ -46,7 +48,7 @@ export function renderOrganization(props: {
   const showInitialLoading =
     props.loading &&
     !props.organization &&
-    !props.error &&
+    errorMessages.length === 0 &&
     !trimmedOrganizationName &&
     !trimmedInviteEmail;
   const membershipLabel =
@@ -95,8 +97,10 @@ export function renderOrganization(props: {
                 >${membershipLabel}</span
               >`}
         </div>
-        ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
-        ${!props.connected ? html`<div class="callout info">${text.reconnectHint}</div>` : nothing}
+        ${errorMessages.map((message) => html`<div class="callout danger">${message}</div>`)}
+        ${!props.connected && errorMessages.length === 0
+          ? html`<div class="callout info">${text.reconnectHint}</div>`
+          : nothing}
         ${props.connected && !props.accountReady && !showInitialLoading
           ? html`<div class="callout info">${text.accountHint}</div>`
           : nothing}

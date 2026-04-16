@@ -17,6 +17,7 @@ import type {
 import {
   renderSkeletonPill,
   renderSkeletonListItem,
+  renderSurfaceEmptyState,
 } from "./loading-skeleton.ts";
 import {
   buildSkillStatusCounts,
@@ -39,6 +40,7 @@ type CapabilitySkillSection = {
 
 export type CapabilitiesProps = {
   connected: boolean;
+  connectionError?: string | null;
   loading: boolean;
   report: SkillStatusReport | null;
   error: string | null;
@@ -203,6 +205,9 @@ function renderSkillDetail(skill: SkillStatusEntry, props: CapabilitiesProps) {
 
 export function renderCapabilities(props: CapabilitiesProps) {
   const showInitialLoading = props.loading && props.connected && !props.report;
+  const errorMessages = [...new Set([props.connectionError, props.error].filter(Boolean))];
+  const showNotConnectedHint = !props.connected && !props.report && errorMessages.length === 0;
+  const suppressEmptyState = !props.report && errorMessages.length > 0;
   const skills = mergeSkillStatusEntries(props.report);
   const statusCounts = buildSkillStatusCounts(skills);
 
@@ -228,10 +233,10 @@ export function renderCapabilities(props: CapabilitiesProps) {
   return html`
     <section class="alisio-page" style="display: grid; gap: 16px;">
       <section class="card" aria-busy=${showInitialLoading ? "true" : "false"}>
-        ${props.error
-          ? html`<div class="callout danger" style="margin-bottom: 16px;">${props.error}</div>`
-          : nothing}
-
+        ${errorMessages.map(
+          (message) =>
+            html`<div class="callout danger" style="margin-bottom: 16px;">${message}</div>`,
+        )}
         ${showInitialLoading
           ? renderCapabilitiesFiltersSkeleton()
           : html`
@@ -284,12 +289,15 @@ export function renderCapabilities(props: CapabilitiesProps) {
                 ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "pill" })}
               </div>
             `
-          : filteredSkills.length === 0
+          : filteredSkills.length === 0 && !suppressEmptyState
             ? html`
-                <div class="muted" style="margin-top: 16px;">
-                  ${!props.connected && !props.report
-                    ? t("alisio.capabilities.notConnected")
-                    : t("alisio.capabilities.empty")}
+                <div style="margin-top: 16px;">
+                  ${renderSurfaceEmptyState({
+                    body: showNotConnectedHint
+                      ? t("alisio.capabilities.notConnected")
+                      : t("alisio.capabilities.empty"),
+                    compact: true,
+                  })}
                 </div>
               `
             : html`${skillSections.map((section) => renderSkillSection(section, props))}`}

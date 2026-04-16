@@ -1,5 +1,6 @@
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { t } from "../i18n/index.ts";
 import { truncateText } from "./format.ts";
 
 const allowedTags = [
@@ -252,7 +253,11 @@ htmlEscapeRenderer.code = ({
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  const copyBtn = `<button type="button" class="code-block-copy" data-code="${attrSafe}" aria-label="Copy code"><span class="code-block-copy__idle">Copy</span><span class="code-block-copy__done">Copied!</span></button>`;
+  const copyBtn = `<button type="button" class="code-block-copy" data-code="${attrSafe}" aria-label="${t(
+    "markdown.copyCode",
+  )}"><span class="code-block-copy__idle">${t("markdown.copy")}</span><span class="code-block-copy__done">${t(
+    "markdown.copied",
+  )}</span></button>`;
   const header = `<div class="code-block-header">${langLabel}${copyBtn}</div>`;
 
   const trimmed = text.trim();
@@ -264,7 +269,8 @@ htmlEscapeRenderer.code = ({
 
   if (isJson) {
     const lineCount = text.split("\n").length;
-    const label = lineCount > 1 ? `JSON &middot; ${lineCount} lines` : "JSON";
+    const label =
+      lineCount > 1 ? t("markdown.jsonLines", { count: String(lineCount) }) : t("markdown.json");
     return `<details class="json-collapse"><summary>${label}</summary><div class="code-block-wrapper">${header}${codeBlock}</div></details>`;
   }
 

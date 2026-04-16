@@ -10,6 +10,7 @@ const ERROR_LABEL = "Copy failed";
 type CopyButtonOptions = {
   text: () => string;
   label?: string;
+  showText?: boolean;
 };
 
 async function copyTextToClipboard(text: string): Promise<boolean> {
@@ -34,7 +35,7 @@ function createCopyButton(options: CopyButtonOptions): TemplateResult {
   const idleLabel = options.label ?? COPY_LABEL;
   return html`
     <button
-      class="btn btn--xs chat-copy-btn"
+      class="btn btn--xs chat-copy-btn ${options.showText ? "chat-copy-btn--labelled" : ""}"
       type="button"
       title=${idleLabel}
       aria-label=${idleLabel}
@@ -88,14 +89,22 @@ function createCopyButton(options: CopyButtonOptions): TemplateResult {
         <span class="chat-copy-btn__icon-copy">${icons.copy}</span>
         <span class="chat-copy-btn__icon-check">${icons.check}</span>
       </span>
+      ${options.showText ? html`<span class="chat-copy-btn__label">${idleLabel}</span>` : null}
     </button>
   `;
 }
 
-export function renderCopyButton(text: string, label = COPY_LABEL): TemplateResult {
-  return createCopyButton({ text: () => text, label });
+export function renderCopyButton(
+  text: string,
+  label = COPY_LABEL,
+  opts?: { showText?: boolean },
+): TemplateResult {
+  return createCopyButton({ text: () => text, label, showText: opts?.showText });
 }
 
-export function renderCopyAsMarkdownButton(markdown: string): TemplateResult {
-  return renderCopyButton(markdown, COPY_LABEL);
+export function renderCopyAsMarkdownButton(
+  markdown: string,
+  opts?: { showText?: boolean },
+): TemplateResult {
+  return renderCopyButton(markdown, COPY_LABEL, opts);
 }

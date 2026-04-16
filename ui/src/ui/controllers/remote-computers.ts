@@ -91,6 +91,14 @@ type RemoteComputerCatalogState = {
   nodePairingsList: RuntimeNodePairingList | null;
 };
 
+type RemoteComputerCatalogCache = {
+  sharing: AlisioSharingState | null;
+  nodes: NodeListNode[];
+  devicesList: DevicePairingList | null;
+  nodePairingsList: RuntimeNodePairingList | null;
+  result: RemoteComputerRecord[];
+};
+
 type TaskAcceptedPayload = {
   status?: string;
   taskId?: string;
@@ -127,6 +135,8 @@ type TaskPayloadRecord = {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+
+let lastRemoteComputerCatalogCache: RemoteComputerCatalogCache | null = null;
 
 function normalizeString(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -334,6 +344,16 @@ function extractTaskPayload(payload: unknown): TaskPayloadRecord | null {
 export function resolveRemoteComputerRecords(
   state: RemoteComputerCatalogState,
 ): RemoteComputerRecord[] {
+  const cached = lastRemoteComputerCatalogCache;
+  if (
+    cached &&
+    cached.sharing === state.sharing &&
+    cached.nodes === state.nodes &&
+    cached.devicesList === state.devicesList &&
+    cached.nodePairingsList === state.nodePairingsList
+  ) {
+    return cached.result;
+  }
   const nodeById = new Map(
     state.nodes.map((node) => [node.nodeId.trim(), node] as const).filter(([nodeId]) => nodeId),
   );
@@ -407,7 +427,7 @@ export function resolveRemoteComputerRecords(
     }
   }
 
-  return [...grouped.values()]
+  const result = [...grouped.values()]
     .map((candidates) => {
       const sorted = [...candidates].toSorted(compareRemoteComputerCandidates);
       const primary = sorted[0];
@@ -462,6 +482,16 @@ export function resolveRemoteComputerRecords(
       return merged;
     })
     .toSorted(sortRemoteComputers);
+
+  lastRemoteComputerCatalogCache = {
+    sharing: state.sharing,
+    nodes: state.nodes,
+    devicesList: state.devicesList,
+    nodePairingsList: state.nodePairingsList,
+    result,
+  };
+
+  return result;
 }
 
 export function updateRemoteComputerDraft(

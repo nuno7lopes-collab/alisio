@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { repeat } from "lit/directives/repeat.js";
 import { parseAgentSessionKey } from "../../../src/sessions/session-key-utils.js";
+import { isLocalManagedModelRestrictedForSession } from "../../../src/shared/local-model-session-policy.js";
 import { t } from "../i18n/index.ts";
 import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
@@ -14,10 +15,20 @@ import {
 } from "./chat-model-ref.ts";
 import { resolveChatModelSelectState } from "./chat-model-select-state.ts";
 import { refreshVisibleToolsEffectiveForCurrentSession } from "./controllers/agents.ts";
-import { ChatState, loadChatHistory } from "./controllers/chat.ts";
+import {
+  ChatState,
+  clearChatHistorySnapshot,
+  hydrateChatHistoryFromCache,
+  loadChatHistory,
+  rememberChatHistorySnapshot,
+} from "./controllers/chat.ts";
 import { loadConfig } from "./controllers/config.ts";
 import { loadModelCatalogPair } from "./controllers/models.ts";
-import { loadSessions, syncSessionMessageSubscription } from "./controllers/sessions.ts";
+import {
+  deleteSessionsAndRefresh,
+  loadSessions,
+  syncSessionMessageSubscription,
+} from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./navigation.ts";
 import type {
@@ -246,7 +257,9 @@ export function renderChatSessionPicker(
   state: AppViewState,
   opts: { surface?: "desktop" | "mobile" } = {},
 ) {
-  return opts.surface === "mobile" ? renderChatSessionField(state) : renderChatSessionHeader(state);
+  return opts.surface === "mobile"
+    ? renderChatSessionField(state)
+    : renderChatSessionDropdown(state);
 }
 
 export function renderChatComposerModelSelect(state: AppViewState) {
@@ -268,7 +281,7 @@ export function renderChatDesktopToolbar(
         ${renderChatNewConversationButton(state)} ${renderChatSessionPicker(state)}
       </div>
       <div class="alisio-chat-toolbar__secondary">
-        ${opts.searchButton ?? nothing} ${renderChatControls(state)}
+        ${renderChatControls(state)} ${opts.searchButton ?? nothing}
       </div>
     </div>
   `;
@@ -324,8 +337,8 @@ function resolveCurrentSessionRenameDraft(state: AppViewState, key = state.sessi
   return row?.label?.trim() || resolveCurrentSessionTitle(state, key);
 }
 
-function canRenameCurrentSession(state: AppViewState): boolean {
-  return Boolean(state.client && state.connected && state.sessionKey);
+function canMutateSession(state: AppViewState, key = state.sessionKey): boolean {
+  return Boolean(state.client && state.connected && key.trim());
 }
 
 function resolveEventTargetRoot(eventTarget: EventTarget | null): Document | ShadowRoot | null {
@@ -336,32 +349,132 @@ function resolveEventTargetRoot(eventTarget: EventTarget | null): Document | Sha
   return root instanceof ShadowRoot || root instanceof Document ? root : null;
 }
 
-function focusChatSessionRenameInput(eventTarget: EventTarget | null) {
+function focusChatSessionRenameInput(eventTarget: EventTarget | null, key: string) {
   const root = resolveEventTargetRoot(eventTarget);
   if (!root) {
     return;
   }
   requestAnimationFrame(() => {
-    const input = root.querySelector<HTMLInputElement>('[data-chat-session-rename-input="true"]');
+    const input = root.querySelector<HTMLInputElement>(`[data-chat-session-rename-input="${key}"]`);
     input?.focus();
     input?.select();
   });
 }
 
-function beginChatSessionRename(state: AppViewState, eventTarget: EventTarget | null) {
-  if (!canRenameCurrentSession(state)) {
+function isSessionMutationLocked(state: AppViewState, key = state.sessionKey): boolean {
+  if (!canMutateSession(state, key) || state.chatSessionRenamePending || state.sessionsLoading) {
+    return true;
+  }
+  if (key !== state.sessionKey) {
+    return false;
+  }
+  return (
+    state.chatLoading ||
+    state.chatSending ||
+    Boolean(state.chatRunId) ||
+    Boolean(state.chatFinalizing)
+  );
+}
+
+function beginChatSessionRename(state: AppViewState, key: string, eventTarget: EventTarget | null) {
+  if (isSessionMutationLocked(state, key)) {
     return;
   }
-  state.chatSessionRenameKey = state.sessionKey;
-  state.chatSessionRenameDraft = resolveCurrentSessionRenameDraft(state);
+  state.chatSessionRenameKey = key;
+  state.chatSessionRenameDraft = resolveCurrentSessionRenameDraft(state, key);
   state.chatSessionRenamePending = false;
-  focusChatSessionRenameInput(eventTarget);
+  focusChatSessionRenameInput(eventTarget, key);
 }
 
 function cancelChatSessionRename(state: AppViewState) {
   state.chatSessionRenameKey = null;
   state.chatSessionRenameDraft = "";
   state.chatSessionRenamePending = false;
+}
+
+function resolveSessionDefaultsSnapshot(state: AppViewState): SessionDefaultsSnapshot | null {
+  const snapshot = state.hello?.snapshot as
+    | { sessionDefaults?: SessionDefaultsSnapshot }
+    | undefined;
+  return snapshot?.sessionDefaults ?? null;
+}
+
+function resolveSessionAgentId(state: AppViewState, key: string): string | null {
+  const parsed = parseAgentSessionKey(key);
+  if (parsed?.agentId?.trim()) {
+    return parsed.agentId.trim();
+  }
+  const defaults = resolveSessionDefaultsSnapshot(state);
+  const defaultAgentId = defaults?.defaultAgentId?.trim() || resolveNewChatAgentId(state);
+  const raw = key.trim();
+  const mainKey = defaults?.mainKey?.trim() || "main";
+  if (raw === "main" || raw === mainKey) {
+    return defaultAgentId;
+  }
+  return null;
+}
+
+function resolveAgentMainSessionKey(state: AppViewState, agentId: string): string {
+  const defaults = resolveSessionDefaultsSnapshot(state);
+  const normalizedAgentId = agentId.trim();
+  const defaultAgentId = defaults?.defaultAgentId?.trim();
+  if (
+    defaults?.mainSessionKey?.trim() &&
+    defaultAgentId &&
+    defaultAgentId.toLowerCase() === normalizedAgentId.toLowerCase()
+  ) {
+    return defaults.mainSessionKey.trim();
+  }
+  return `agent:${normalizedAgentId}:${defaults?.mainKey?.trim() || "main"}`;
+}
+
+function isAgentMainConversation(state: AppViewState, key: string, agentId: string): boolean {
+  const parsed = parseAgentSessionKey(key);
+  const defaults = resolveSessionDefaultsSnapshot(state);
+  const mainKey = defaults?.mainKey?.trim() || "main";
+  const normalizedAgentId = agentId.trim().toLowerCase();
+  if (parsed) {
+    return (
+      parsed.agentId.trim().toLowerCase() === normalizedAgentId &&
+      (parsed.rest.trim() === "main" || parsed.rest.trim() === mainKey)
+    );
+  }
+  const raw = key.trim();
+  if (raw !== "main" && raw !== mainKey) {
+    return false;
+  }
+  const resolvedAgentId = resolveSessionAgentId(state, key);
+  return resolvedAgentId?.toLowerCase() === normalizedAgentId;
+}
+
+function resolveFallbackSessionKeyAfterDelete(state: AppViewState, deletedKey: string): string {
+  const rows = state.sessionsResult?.sessions ?? [];
+  const preferredAgentId =
+    resolveSessionAgentId(state, deletedKey) ??
+    resolveSessionAgentId(state, state.sessionKey) ??
+    resolveNewChatAgentId(state);
+
+  const sameAgentMain = rows.find(
+    (row) => preferredAgentId && isAgentMainConversation(state, row.key, preferredAgentId),
+  );
+  if (sameAgentMain?.key) {
+    return sameAgentMain.key;
+  }
+
+  const sameAgentConversation = rows.find(
+    (row) =>
+      preferredAgentId &&
+      resolveSessionAgentId(state, row.key)?.toLowerCase() === preferredAgentId.toLowerCase(),
+  );
+  if (sameAgentConversation?.key) {
+    return sameAgentConversation.key;
+  }
+
+  if (rows[0]?.key) {
+    return rows[0].key;
+  }
+
+  return resolveAgentMainSessionKey(state, preferredAgentId);
 }
 
 async function commitChatSessionRename(
@@ -389,6 +502,7 @@ async function commitChatSessionRename(
     (explicitLabel && nextLabel === explicitLabel) ||
     (!explicitLabel && nextLabel === currentTitle)
   ) {
+    closeChatSessionDropdown(eventTarget ?? null);
     cancelChatSessionRename(state);
     return;
   }
@@ -404,134 +518,177 @@ async function commitChatSessionRename(
       key: targetKey,
       label: nextLabel || null,
     });
+    closeChatSessionDropdown(eventTarget ?? null);
     cancelChatSessionRename(state);
     await refreshSessionOptions(state);
   } catch (err) {
     state.chatSessionRenamePending = false;
     state.lastError = `Failed to rename chat: ${String(err)}`;
-    focusChatSessionRenameInput(eventTarget ?? null);
+    focusChatSessionRenameInput(eventTarget ?? null, targetKey);
   }
 }
 
-function renderChatSessionHeader(state: AppViewState) {
+async function deleteChatSession(
+  state: AppViewState,
+  key: string,
+  eventTarget?: EventTarget | null,
+): Promise<void> {
+  if (isSessionMutationLocked(state, key)) {
+    return;
+  }
+  cancelChatSessionRename(state);
+  const wasActive = key === state.sessionKey;
+  const deleted = await deleteSessionsAndRefresh(state, [key]);
+  if (!deleted.includes(key)) {
+    return;
+  }
+  closeChatSessionDropdown(eventTarget ?? null);
+  if (!wasActive) {
+    clearChatHistorySnapshot(state as unknown as ChatState, key);
+    return;
+  }
+  const nextKey = resolveFallbackSessionKeyAfterDelete(state, key);
+  if (nextKey) {
+    switchChatSession(state, nextKey);
+  }
+  clearChatHistorySnapshot(state as unknown as ChatState, key);
+}
+
+function renderChatSessionDropdown(state: AppViewState) {
   const title = resolveCurrentSessionTitle(state);
-  const editing = state.chatSessionRenameKey === state.sessionKey;
-  const canRename = canRenameCurrentSession(state);
   const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
-  const switcherDisabled = !state.connected || sessionGroups.length === 0;
+  const dropdownDisabled = !state.connected || sessionGroups.length === 0;
   return html`
-    <div class="chat-session-header">
-      <div class="chat-session-title ${editing ? "is-editing" : ""}">
-        <span class="chat-session-title__icon" aria-hidden="true">${icons.brain}</span>
-        ${editing
-          ? html`
-              <input
-                class="chat-session-title__input"
-                data-chat-session-rename-input="true"
-                .value=${state.chatSessionRenameDraft}
-                ?disabled=${state.chatSessionRenamePending}
-                placeholder=${t("chat.renameConversationPlaceholder")}
-                @click=${(event: Event) => event.stopPropagation()}
-                @input=${(event: InputEvent) => {
-                  state.chatSessionRenameDraft = (event.target as HTMLInputElement).value;
-                }}
-                @blur=${(event: FocusEvent) =>
-                  void commitChatSessionRename(state, event.currentTarget)}
-                @keydown=${(event: KeyboardEvent) => {
-                  event.stopPropagation();
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void commitChatSessionRename(state, event.currentTarget);
-                    return;
-                  }
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    cancelChatSessionRename(state);
-                  }
-                }}
-              />
-            `
-          : html`
-              <button
-                type="button"
-                class="chat-session-title__button"
-                data-chat-session-title-button="true"
-                title=${canRename ? t("chat.renameConversationTitle") : title}
-                aria-label=${title}
-                @dblclick=${(event: MouseEvent) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  beginChatSessionRename(state, event.currentTarget);
-                }}
-                @keydown=${(event: KeyboardEvent) => {
-                  if (event.key !== "Enter" && event.key !== "F2") {
-                    return;
-                  }
-                  event.preventDefault();
-                  event.stopPropagation();
-                  beginChatSessionRename(state, event.currentTarget);
-                }}
-              >
-                <span class="chat-session-title__text">${title}</span>
-              </button>
-            `}
-      </div>
-      ${switcherDisabled
-        ? html`
-            <button
-              type="button"
-              class="chat-session-switcher__trigger"
-              title=${t("chat.switchConversation")}
-              aria-label=${t("chat.switchConversation")}
-              disabled
-            >
-              ${icons.chevronDown}
-            </button>
-          `
-        : html`
-            <details class="chat-session-switcher">
-              <summary
-                class="chat-session-switcher__trigger"
-                title=${t("chat.switchConversation")}
-                aria-label=${t("chat.switchConversation")}
-              >
-                ${icons.chevronDown}
-              </summary>
-              <div class="chat-session-switcher__panel">
-                ${repeat(
-                  sessionGroups,
-                  (group) => group.id,
-                  (group) => html`
-                    <div class="chat-session-switcher__group">
-                      <div class="chat-session-switcher__group-label">${group.label}</div>
-                      ${repeat(
-                        group.options,
-                        (entry) => entry.key,
-                        (entry) => html`
-                          <button
-                            type="button"
-                            class="chat-session-switcher__option ${entry.key === state.sessionKey
-                              ? "is-active"
-                              : ""}"
-                            title=${entry.title}
-                            @click=${(event: Event) => {
-                              closeChatSessionSwitcher(event.currentTarget);
-                              if (entry.key !== state.sessionKey) {
-                                switchChatSession(state, entry.key);
-                              }
-                            }}
-                          >
-                            <span class="chat-session-switcher__option-label">${entry.label}</span>
-                          </button>
-                        `,
-                      )}
+    <details class="chat-session-dropdown ${dropdownDisabled ? "is-disabled" : ""}">
+      <summary
+        class="chat-session-dropdown__trigger"
+        data-chat-session-dropdown-trigger="true"
+        title=${title}
+        aria-label=${t("chat.switchConversation")}
+        @click=${(event: Event) => {
+          if (dropdownDisabled) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <span class="chat-session-dropdown__trigger-text">${title}</span>
+        <span class="chat-session-dropdown__trigger-icon" aria-hidden="true"
+          >${icons.chevronDown}</span
+        >
+      </summary>
+      <div class="chat-session-dropdown__panel">
+        ${repeat(
+          sessionGroups,
+          (group) => group.id,
+          (group) => html`
+            <div class="chat-session-dropdown__group">
+              <div class="chat-session-dropdown__group-label">${group.label}</div>
+              ${repeat(
+                group.options,
+                (entry) => entry.key,
+                (entry) => {
+                  const editing = state.chatSessionRenameKey === entry.key;
+                  const locked = isSessionMutationLocked(state, entry.key);
+                  const renameTitle = t("chat.renameConversationTitle");
+                  const deleteTitle = t("chat.deleteConversationTitle");
+                  return html`
+                    <div
+                      class="chat-session-dropdown__row ${entry.key === state.sessionKey
+                        ? "is-active"
+                        : ""} ${editing ? "is-editing" : ""}"
+                    >
+                      ${editing
+                        ? html`
+                            <input
+                              class="chat-session-dropdown__input"
+                              data-chat-session-rename-input=${entry.key}
+                              .value=${state.chatSessionRenameDraft}
+                              ?disabled=${state.chatSessionRenamePending}
+                              placeholder=${t("chat.renameConversationPlaceholder")}
+                              @click=${(event: Event) => event.stopPropagation()}
+                              @input=${(event: InputEvent) => {
+                                state.chatSessionRenameDraft = (
+                                  event.target as HTMLInputElement
+                                ).value;
+                              }}
+                              @blur=${(event: FocusEvent) =>
+                                void commitChatSessionRename(state, event.currentTarget)}
+                              @keydown=${(event: KeyboardEvent) => {
+                                event.stopPropagation();
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  void commitChatSessionRename(state, event.currentTarget);
+                                  return;
+                                }
+                                if (event.key === "Escape") {
+                                  event.preventDefault();
+                                  cancelChatSessionRename(state);
+                                }
+                              }}
+                            />
+                          `
+                        : html`
+                            <button
+                              type="button"
+                              class="chat-session-dropdown__select"
+                              data-chat-session-select-button=${entry.key}
+                              title=${entry.title}
+                              @click=${(event: Event) => {
+                                closeChatSessionDropdown(event.currentTarget);
+                                if (entry.key !== state.sessionKey) {
+                                  switchChatSession(state, entry.key);
+                                }
+                              }}
+                              @dblclick=${(event: MouseEvent) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                beginChatSessionRename(state, entry.key, event.currentTarget);
+                              }}
+                            >
+                              <span class="chat-session-dropdown__label">${entry.label}</span>
+                            </button>
+                          `}
+                      <div class="chat-session-dropdown__actions">
+                        <button
+                          type="button"
+                          class="chat-session-dropdown__action"
+                          data-chat-session-rename-button=${entry.key}
+                          title=${renameTitle}
+                          aria-label=${renameTitle}
+                          ?disabled=${locked}
+                          @click=${(event: Event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            beginChatSessionRename(state, entry.key, event.currentTarget);
+                          }}
+                        >
+                          ${icons.edit}
+                        </button>
+                        <button
+                          type="button"
+                          class="chat-session-dropdown__action chat-session-dropdown__action--danger"
+                          data-chat-session-delete-button=${entry.key}
+                          title=${deleteTitle}
+                          aria-label=${deleteTitle}
+                          ?disabled=${locked}
+                          @click=${(event: Event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void deleteChatSession(state, entry.key, event.currentTarget);
+                          }}
+                        >
+                          ${icons.trash}
+                        </button>
+                      </div>
                     </div>
-                  `,
-                )}
-              </div>
-            </details>
-          `}
-    </div>
+                  `;
+                },
+              )}
+            </div>
+          `,
+        )}
+      </div>
+    </details>
   `;
 }
 
@@ -669,10 +826,7 @@ function renderChatToolsMenuItems(
     })}
     ${renderChatToolsMenuAction({
       icon: renderCronFilterIcon(opts.hiddenCronCount),
-      label:
-        hideCron && opts.hiddenCronCount > 0
-          ? t("chat.showCronSessionsHidden", { count: String(opts.hiddenCronCount) })
-          : t("chat.menuCron"),
+      label: t("chat.menuCron"),
       title: hideCron
         ? opts.hiddenCronCount > 0
           ? t("chat.showCronSessionsHidden", { count: String(opts.hiddenCronCount) })
@@ -680,7 +834,10 @@ function renderChatToolsMenuItems(
         : t("chat.hideCronSessions"),
       onClick: (event) => {
         closeChatToolsSurface(event.currentTarget);
-        state.sessionsHideCron = !hideCron;
+        state.applySettings({
+          ...state.settings,
+          chatHideCronSessions: !hideCron,
+        });
       },
       active: hideCron,
       stateLabel: hideCron ? t("chat.menuHidden") : t("chat.menuVisible"),
@@ -732,8 +889,8 @@ function closeChatToolsSurface(target: EventTarget | null) {
   }
 }
 
-function closeChatSessionSwitcher(target: EventTarget | null) {
-  closeDetailsSurface(target, "details.chat-session-switcher");
+function closeChatSessionDropdown(target: EventTarget | null) {
+  closeDetailsSurface(target, "details.chat-session-dropdown");
 }
 
 function renderRefreshIcon() {
@@ -862,6 +1019,13 @@ export function renderChatMobileToggle(state: AppViewState) {
 }
 
 export function switchChatSession(state: AppViewState, nextSessionKey: string) {
+  const previousSessionKey = state.sessionKey;
+  if (previousSessionKey === nextSessionKey) {
+    return;
+  }
+  rememberChatHistorySnapshot(state as unknown as ChatState, {
+    sessionKey: previousSessionKey,
+  });
   state.sessionKey = nextSessionKey;
   state.chatSessionRenameKey = null;
   state.chatSessionRenameDraft = "";
@@ -876,12 +1040,24 @@ export function switchChatSession(state: AppViewState, nextSessionKey: string) {
   state.chatFinalizing = false;
   (state as unknown as AlisioApp).resetToolStream();
   (state as unknown as AlisioApp).resetChatScroll();
+  const hydratedFromCache = hydrateChatHistoryFromCache(
+    state as unknown as ChatState,
+    nextSessionKey,
+  );
+  if (!hydratedFromCache) {
+    state.chatMessages = [];
+    state.chatThinkingLevel = null;
+  } else {
+    state.chatLoading = false;
+  }
   state.applySettings({
     ...state.settings,
     sessionKey: nextSessionKey,
     lastActiveSessionKey: nextSessionKey,
   });
-  void state.loadAssistantIdentity();
+  if (shouldRefreshAssistantIdentityAfterSwitch(state, previousSessionKey, nextSessionKey)) {
+    void state.loadAssistantIdentity();
+  }
   syncUrlWithSessionKey(
     state as unknown as Parameters<typeof syncUrlWithSessionKey>[0],
     nextSessionKey,
@@ -890,8 +1066,12 @@ export function switchChatSession(state: AppViewState, nextSessionKey: string) {
   void syncSessionMessageSubscription(
     state as unknown as Parameters<typeof syncSessionMessageSubscription>[0],
   );
-  void loadChatHistory(state as unknown as ChatState);
-  void refreshSessionOptions(state);
+  void loadChatHistory(state as unknown as ChatState, {
+    silent: hydratedFromCache,
+  });
+  if (shouldRefreshSessionOptionsAfterSwitch(state, nextSessionKey)) {
+    void refreshSessionOptions(state);
+  }
 }
 
 async function refreshSessionOptions(state: AppViewState) {
@@ -901,6 +1081,34 @@ async function refreshSessionOptions(state: AppViewState) {
     includeGlobal: true,
     includeUnknown: true,
   });
+}
+
+function shouldRefreshAssistantIdentityAfterSwitch(
+  state: AppViewState,
+  previousSessionKey: string,
+  nextSessionKey: string,
+): boolean {
+  const nextAgentId = resolveSessionAgentId(state, nextSessionKey)?.trim().toLowerCase();
+  if (!nextAgentId) {
+    return true;
+  }
+  const currentIdentityAgentId = state.assistantAgentId?.trim().toLowerCase();
+  if (currentIdentityAgentId === nextAgentId) {
+    return false;
+  }
+  const previousAgentId = resolveSessionAgentId(state, previousSessionKey)?.trim().toLowerCase();
+  return previousAgentId !== nextAgentId || currentIdentityAgentId !== nextAgentId;
+}
+
+function shouldRefreshSessionOptionsAfterSwitch(
+  state: AppViewState,
+  nextSessionKey: string,
+): boolean {
+  const sessions = state.sessionsResult?.sessions;
+  if (!sessions || sessions.length === 0) {
+    return true;
+  }
+  return !sessions.some((row) => row.key === nextSessionKey);
 }
 
 function renderChatModelSelect(
@@ -996,6 +1204,18 @@ function compactComposerModelLabel(label: string, value: string): string {
 
 async function switchChatModel(state: AppViewState, nextModel: string) {
   if (!state.client || !state.connected) {
+    return;
+  }
+  const trimmedNextModel = nextModel.trim();
+  const slash = trimmedNextModel.indexOf("/");
+  const nextProvider = slash > 0 ? trimmedNextModel.slice(0, slash) : "";
+  if (
+    isLocalManagedModelRestrictedForSession({
+      providerId: nextProvider,
+      sessionKey: state.sessionKey,
+    })
+  ) {
+    state.lastError = "Local models are only available for subagent sessions.";
     return;
   }
   const { currentOverride, defaultModel } = resolveChatModelSelectState(state);
@@ -1189,13 +1409,31 @@ type SessionOptionGroup = {
   options: SessionOptionEntry[];
 };
 
+let cachedSessionOptionGroups: {
+  agentsListRef: AppViewState["agentsList"] | null;
+  groups: SessionOptionGroup[];
+  hideCron: boolean;
+  sessionKey: string;
+  sessionsRef: SessionsListResult | null;
+} | null = null;
+
 export function resolveSessionOptionGroups(
   state: AppViewState,
   sessionKey: string,
   sessions: SessionsListResult | null,
 ): SessionOptionGroup[] {
-  const rows = sessions?.sessions ?? [];
   const hideCron = state.sessionsHideCron ?? true;
+  if (
+    cachedSessionOptionGroups &&
+    cachedSessionOptionGroups.sessionsRef === sessions &&
+    cachedSessionOptionGroups.sessionKey === sessionKey &&
+    cachedSessionOptionGroups.hideCron === hideCron &&
+    cachedSessionOptionGroups.agentsListRef === (state.agentsList ?? null)
+  ) {
+    return cachedSessionOptionGroups.groups;
+  }
+
+  const rows = sessions?.sessions ?? [];
   const byKey = new Map<string, SessionsListResult["sessions"][number]>();
   for (const row of rows) {
     byKey.set(row.key, row);
@@ -1224,14 +1462,15 @@ export function resolveSessionOptionGroups(
     seenKeys.add(key);
     const row = byKey.get(key);
     const parsed = parseAgentSessionKey(key);
-    const group = parsed
-      ? ensureGroup(
-          `agent:${parsed.agentId.toLowerCase()}`,
-          resolveAgentGroupLabel(state, parsed.agentId),
-        )
+    const agentId = parsed?.agentId?.trim() || resolveSessionAgentId(state, key);
+    const rest =
+      parsed?.rest?.trim() ||
+      (agentId && isAgentMainConversation(state, key, agentId) ? "main" : undefined);
+    const group = agentId
+      ? ensureGroup(`agent:${agentId.toLowerCase()}`, resolveAgentGroupLabel(state, agentId))
       : ensureGroup("other", t("alisio.shell.sessions.other"));
-    const scopeLabel = parsed?.rest?.trim() || key;
-    const label = resolveSessionScopedOptionLabel(key, row, parsed?.rest);
+    const scopeLabel = rest || key;
+    const label = resolveSessionScopedOptionLabel(key, row, rest);
     group.options.push({
       key,
       label,
@@ -1327,7 +1566,15 @@ export function resolveSessionOptionGroups(
     option.label = labels.get(option) ?? option.label;
   }
 
-  return Array.from(groups.values());
+  const resolvedGroups = Array.from(groups.values());
+  cachedSessionOptionGroups = {
+    agentsListRef: state.agentsList ?? null,
+    groups: resolvedGroups,
+    hideCron,
+    sessionKey,
+    sessionsRef: sessions,
+  };
+  return resolvedGroups;
 }
 
 /** Count sessions with a cron: key that would be hidden when hideCron=true. */

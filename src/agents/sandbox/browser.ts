@@ -111,6 +111,10 @@ export function getLiveSandboxBrowserObserverUrl(scopeKey: string): string | und
   return buildNoVncObserverTokenUrl(existing.bridge.baseUrl, token);
 }
 
+export function getLiveSandboxBrowserBridgeUrl(scopeKey: string): string | undefined {
+  return BROWSER_BRIDGES.get(scopeKey)?.bridge.baseUrl?.trim() || undefined;
+}
+
 async function ensureSandboxBrowserImage(image: string) {
   const result = await execDocker(["image", "inspect", image], {
     allowFailure: true,

@@ -3,6 +3,8 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
+import "../app.ts";
+import type { AlisioApp } from "../app.ts";
 import { makeChannelBusyKey } from "../channels-shared.ts";
 import {
   approveChannelPairingRequest,
@@ -25,6 +27,7 @@ function findButton(container: ParentNode, label: string) {
 function createProps(overrides?: Record<string, unknown>) {
   return {
     connected: true,
+    connectionError: null,
     loading: false,
     error: null,
     snapshot: null,
@@ -98,6 +101,24 @@ function createChannelsControllerState(
 describe("channels view", () => {
   beforeEach(async () => {
     await i18n.setLocale("en");
+  });
+
+  it("renders channel skeleton cards on the first load", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          loading: true,
+          snapshot: null,
+          lastSuccess: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelectorAll(".channel-card")).toHaveLength(3);
+    expect(container.querySelectorAll(".skeleton.loading-state__button").length).toBeGreaterThan(2);
   });
 
   it("shows setup guidance and issues for manually configured channels", () => {
@@ -297,6 +318,40 @@ describe("channels view", () => {
     expect(container.textContent).toContain(
       "2 Telegram access requests are waiting for approval before the first chat can start.",
     );
+  });
+
+  it("shows a specific connection error instead of the generic disconnected card", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          connected: false,
+          connectionError: "Reconnecting…",
+        }),
+      ),
+      container,
+    );
+
+    const dangerMessages = container.querySelectorAll(".channel-feedback--danger");
+    expect(dangerMessages).toHaveLength(1);
+    expect(dangerMessages[0]?.textContent).toContain("Reconnecting…");
+    expect(container.textContent).not.toContain("Reconnect to Alisio to manage external channels.");
+  });
+
+  it("does not duplicate reconnect banners in the full channels shell", async () => {
+    window.history.replaceState({}, "", "/channels");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+    app.tab = "channels";
+    app.lastError = "Reconnecting…";
+    app.requestUpdate();
+    await app.updateComplete;
+
+    const dangerCallouts = app.querySelectorAll(".callout.danger, .channel-feedback--danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(app.textContent).not.toContain("Reconnect to Alisio to manage external channels.");
   });
 
   it("renders pending Telegram requests with approve and deny actions", () => {
@@ -908,7 +963,7 @@ describe("channels view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("3 steps");
+    expect(container.textContent).toContain("Setup checklist");
     expect(container.textContent).toContain("This value stays hidden while you type it.");
     expect(container.textContent).toContain("Save and continue");
     findButton(container, "View setup guide")?.dispatchEvent(

@@ -56,6 +56,7 @@ export function createMainSessionRow(
 
 export function createSessionsListResult(
   params: {
+    sessionKey?: string;
     model?: string | null;
     modelProvider?: string | null;
     modelOverride?: string | null;
@@ -66,6 +67,7 @@ export function createSessionsListResult(
   } = {},
 ): SessionsListResult {
   const {
+    sessionKey = "main",
     model = null,
     modelProvider = model ? "openai" : null,
     modelOverride = model,
@@ -88,6 +90,7 @@ export function createSessionsListResult(
       ? []
       : [
           createMainSessionRow({
+            key: sessionKey,
             ...(providerOverride ? { providerOverride } : {}),
             ...(modelOverride ? { modelOverride } : {}),
             ...(modelProvider ? { modelProvider } : {}),

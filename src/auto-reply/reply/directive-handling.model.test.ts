@@ -1,29 +1,34 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  clearRuntimeAuthProfileStoreSnapshots,
-  replaceRuntimeAuthProfileStoreSnapshots,
-} from "../../agents/auth-profiles.js";
 import type { ModelAliasIndex } from "../../agents/model-selection.js";
 import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
-import { handleDirectiveOnly } from "./directive-handling.impl.js";
 import { parseInlineDirectives } from "./directive-handling.js";
-import {
-  maybeHandleModelDirectiveInfo,
-  resolveModelSelectionFromDirective,
-} from "./directive-handling.model.js";
-import { persistInlineDirectives } from "./directive-handling.persist.js";
+
+type AuthProfilesModule = typeof import("../../agents/auth-profiles.js");
+type HandleDirectiveOnlyFn = typeof import("./directive-handling.impl.js")["handleDirectiveOnly"];
+type MaybeHandleModelDirectiveInfoFn =
+  typeof import("./directive-handling.model.js")["maybeHandleModelDirectiveInfo"];
+type ResolveModelSelectionFromDirectiveFn =
+  typeof import("./directive-handling.model.js")["resolveModelSelectionFromDirective"];
+type PersistInlineDirectivesFn =
+  typeof import("./directive-handling.persist.js")["persistInlineDirectives"];
 
 const liveModelSwitchMocks = vi.hoisted(() => ({
   requestLiveSessionModelSwitch: vi.fn(),
 }));
 
 // Mock dependencies for directive handling persistence.
-vi.mock("../../agents/agent-scope.js", () => ({
-  resolveAgentConfig: vi.fn(() => ({})),
-  resolveAgentDir: vi.fn(() => "/tmp/agent"),
-  resolveSessionAgentId: vi.fn(() => "main"),
-}));
+vi.mock("../../agents/agent-scope.js", async () => {
+  const actual = await vi.importActual<typeof import("../../agents/agent-scope.js")>(
+    "../../agents/agent-scope.js",
+  );
+  return {
+    ...actual,
+    resolveAgentConfig: vi.fn(() => ({})),
+    resolveAgentDir: vi.fn(() => "/tmp/agent"),
+    resolveSessionAgentId: vi.fn(() => "main"),
+  };
+});
 
 vi.mock("../../agents/sandbox.js", () => ({
   resolveSandboxRuntimeStatus: vi.fn(() => ({ sandboxed: false })),
@@ -47,6 +52,13 @@ const OPENAI_DATE_PROFILE_ID = "20251001";
 
 type ApiKeyProfile = { type: "api_key"; provider: string; key: string };
 
+let clearRuntimeAuthProfileStoreSnapshots: AuthProfilesModule["clearRuntimeAuthProfileStoreSnapshots"];
+let replaceRuntimeAuthProfileStoreSnapshots: AuthProfilesModule["replaceRuntimeAuthProfileStoreSnapshots"];
+let handleDirectiveOnly: HandleDirectiveOnlyFn;
+let maybeHandleModelDirectiveInfo: MaybeHandleModelDirectiveInfoFn;
+let resolveModelSelectionFromDirective: ResolveModelSelectionFromDirectiveFn;
+let persistInlineDirectives: PersistInlineDirectivesFn;
+
 function baseAliasIndex(): ModelAliasIndex {
   return { byAlias: new Map(), byKey: new Map() };
 }
@@ -66,7 +78,17 @@ function createSessionEntry(overrides?: Partial<SessionEntry>): SessionEntry {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules();
+  ({
+    clearRuntimeAuthProfileStoreSnapshots,
+    replaceRuntimeAuthProfileStoreSnapshots,
+  } = await import("../../agents/auth-profiles.js"));
+  ({ handleDirectiveOnly } = await import("./directive-handling.impl.js"));
+  ({ maybeHandleModelDirectiveInfo, resolveModelSelectionFromDirective } = await import(
+    "./directive-handling.model.js"
+  ));
+  ({ persistInlineDirectives } = await import("./directive-handling.persist.js"));
   clearRuntimeAuthProfileStoreSnapshots();
   replaceRuntimeAuthProfileStoreSnapshots([
     {
@@ -168,7 +190,7 @@ async function persistModelDirectiveForTest(params: {
 }
 
 async function resolveModelInfoReply(
-  overrides: Partial<Parameters<typeof maybeHandleModelDirectiveInfo>[0]> = {},
+  overrides: Partial<Parameters<MaybeHandleModelDirectiveInfoFn>[0]> = {},
 ) {
   return maybeHandleModelDirectiveInfo({
     directives: parseInlineDirectives("/model"),
@@ -460,7 +482,7 @@ describe("handleDirectiveOnly model persist behavior (fixes #1435)", () => {
   const sessionKey = "agent:main:dm:1";
   const storePath = "/tmp/sessions.json";
 
-  type HandleParams = Parameters<typeof handleDirectiveOnly>[0];
+  type HandleParams = Parameters<HandleDirectiveOnlyFn>[0];
 
   function createHandleParams(overrides: Partial<HandleParams>): HandleParams {
     const entryOverride = overrides.sessionEntry;

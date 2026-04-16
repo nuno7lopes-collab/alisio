@@ -87,15 +87,17 @@ export async function loadAlisioRuntimeSetupState(params?: {
   nodeRegistry?: NodeRegistry;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  includeDynamicCatalog?: boolean;
 }): Promise<AlisioRuntimeSetupState> {
   try {
+    const includeDynamicCatalog = params?.includeDynamicCatalog !== false;
     const [modelCatalogResult, snapshotResult] = await Promise.allSettled([
       (params?.loadGatewayModelCatalog ?? loadGatewayModelCatalog)({
-        nodeRegistry: params?.nodeRegistry,
+        nodeRegistry: includeDynamicCatalog ? params?.nodeRegistry : undefined,
         env: params?.env,
         fetchImpl: params?.fetchImpl,
       }),
-      params?.loadAlisioModelProviderSnapshot
+      includeDynamicCatalog && params?.loadAlisioModelProviderSnapshot
         ? params.loadAlisioModelProviderSnapshot()
         : Promise.resolve(null),
     ]);

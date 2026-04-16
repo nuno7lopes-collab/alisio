@@ -1344,14 +1344,16 @@ svg[data-ui-icon] {
   flex-shrink: 0;
 }
 
-.btn.primary {
+.btn.primary,
+.btn--primary {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--primary-foreground);
   box-shadow: none;
 }
 
-.btn.primary:hover {
+.btn.primary:hover,
+.btn--primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
   box-shadow: none;
@@ -2023,6 +2025,600 @@ svg[data-ui-icon] {
 
   .cron-run-entry__meta {
     min-width: 0;
+    text-align: left;
+  }
+}
+
+.cron-calendar-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.cron-calendar-board,
+.cron-calendar-error {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.cron-calendar-board {
+  overflow: auto;
+}
+
+.cron-calendar-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cron-calendar-toolbar__group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 82%, transparent), transparent),
+    var(--bg-elevated);
+}
+
+.cron-calendar-toolbar__group .btn {
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+.cron-calendar-toolbar__group--nav {
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+}
+
+.cron-calendar-toolbar__group--nav .btn {
+  border-color: color-mix(in srgb, var(--border) 54%, transparent);
+}
+
+.cron-calendar-toolbar__group .btn.is-primary {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+  color: var(--text-strong);
+}
+
+.cron-calendar-period {
+  flex: 1 1 240px;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: clamp(20px, 2vw, 28px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  font-weight: 650;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cron-calendar-period--skeleton {
+  max-width: 240px;
+  width: 100%;
+  height: 28px;
+  justify-self: center;
+  border-radius: 12px;
+}
+
+.cron-calendar-board__empty {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 88%, transparent), transparent),
+    var(--bg-elevated);
+}
+
+.cron-calendar-board__empty-title {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+.cron-calendar-board__empty-text {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.cron-calendar-skeleton {
+  display: grid;
+  gap: 12px;
+  min-width: 760px;
+}
+
+.cron-calendar-skeleton__weekdays,
+.cron-calendar-skeleton__grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 72px repeat(7, minmax(0, 1fr));
+}
+
+.cron-calendar-skeleton__month-weekdays,
+.cron-calendar-skeleton__month-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.cron-calendar-skeleton__rail {
+  height: 20px;
+  border-radius: 10px;
+}
+
+.cron-calendar-skeleton__day {
+  height: 44px;
+  border-radius: 16px;
+}
+
+.cron-calendar-skeleton__cell {
+  height: 72px;
+  border-radius: 18px;
+}
+
+.cron-calendar-skeleton--month .cron-calendar-skeleton__cell {
+  height: 104px;
+}
+
+.cron-month {
+  min-width: 760px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.cron-month__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 92%, transparent), transparent),
+    var(--bg-elevated);
+}
+
+.cron-month__weekday {
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cron-calendar-grid {
+  display: grid;
+}
+
+.cron-calendar-grid.is-month {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.cron-calendar-day {
+  border: 0;
+  border-inline-end: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.cron-calendar-grid.is-month .cron-calendar-day:nth-child(7n) {
+  border-inline-end: 0;
+}
+
+.cron-calendar-day:hover {
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-elevated));
+}
+
+.cron-calendar-day.is-selected {
+  background:
+    radial-gradient(circle at top right, rgba(156, 181, 255, 0.14), transparent 52%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 38%),
+    color-mix(in srgb, var(--bg-elevated) 94%, black 6%);
+  box-shadow:
+    inset 0 0 0 1px rgba(156, 181, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.cron-calendar-day.is-today {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent),
+    transparent;
+}
+
+.cron-calendar-day.is-muted {
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+  background: color-mix(in srgb, var(--bg) 70%, var(--bg-elevated));
+}
+
+.cron-calendar-day--month {
+  min-height: 138px;
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.cron-calendar-day__header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cron-calendar-day__number {
+  color: var(--text-strong);
+  min-inline-size: 28px;
+  min-block-size: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 14px;
+  line-height: 28px;
+  font-weight: 650;
+}
+
+.cron-calendar-day__body {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.cron-calendar-day.is-today .cron-calendar-day__number {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.cron-calendar-day.is-selected .cron-calendar-day__number {
+  background: rgba(156, 181, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(156, 181, 255, 0.12);
+}
+
+.cron-calendar-day.is-selected.is-today {
+  box-shadow:
+    inset 0 0 0 1px rgba(156, 181, 255, 0.32),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.cron-calendar-day.is-selected.is-today .cron-calendar-day__number {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.cron-calendar-pill {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.cron-calendar-pill.is-disabled {
+  opacity: 0.68;
+}
+
+.cron-calendar-pill__time {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.cron-calendar-pill__name {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cron-calendar-day__more {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 0 2px;
+}
+
+.cron-week {
+  --cron-hour-height: 56px;
+  display: grid;
+  min-width: 980px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.cron-week__header,
+.cron-week__body {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0;
+}
+
+.cron-week__day-tabs,
+.cron-week__days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+}
+
+.cron-week__corner {
+  border-inline-end: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 92%, transparent), transparent),
+    var(--bg-elevated);
+}
+
+.cron-week__day-tab {
+  padding: 12px 10px 10px;
+  border: 0;
+  border-inline-start: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 92%, transparent), transparent),
+    var(--bg-elevated);
+  color: inherit;
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.cron-week__day-tab:first-child {
+  border-inline-start: 0;
+}
+
+.cron-week__day-tab:hover {
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-elevated));
+}
+
+.cron-week__day-tab.is-selected {
+  background:
+    radial-gradient(circle at top, rgba(156, 181, 255, 0.16), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 40%),
+    color-mix(in srgb, var(--bg-elevated) 94%, black 6%);
+  box-shadow:
+    inset 0 -2px 0 rgba(156, 181, 255, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.cron-week__day-tab.is-today {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+
+.cron-week__day-tab.is-selected.is-today {
+  box-shadow:
+    inset 0 -2px 0 rgba(156, 181, 255, 0.56),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.cron-week__day-tab-weekday {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cron-week__day-tab-number {
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 650;
+}
+
+.cron-week__time-rail {
+  display: grid;
+  grid-template-rows: repeat(24, var(--cron-hour-height));
+  border-inline-end: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 88%, transparent), transparent),
+    var(--bg);
+}
+
+.cron-week__time-slot {
+  position: relative;
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.cron-week__time-slot:first-child {
+  border-top: 0;
+}
+
+.cron-week__time-label {
+  position: absolute;
+  inset-block-start: -7px;
+  inset-inline-start: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.cron-week__days {
+  min-height: calc(var(--cron-hour-height) * 24);
+}
+
+.cron-week__day {
+  position: relative;
+  min-height: calc(var(--cron-hour-height) * 24);
+  border: 0;
+  border-inline-start: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 88%, transparent), transparent),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--cron-hour-height) - 1px),
+      color-mix(in srgb, var(--border) 72%, transparent) calc(var(--cron-hour-height) - 1px),
+      color-mix(in srgb, var(--border) 72%, transparent) var(--cron-hour-height)
+    ),
+    var(--bg-elevated);
+  transition: background-color 120ms ease;
+  cursor: pointer;
+}
+
+.cron-week__day:first-child {
+  border-inline-start: 0;
+}
+
+.cron-week__day.is-selected {
+  background:
+    radial-gradient(circle at top, rgba(156, 181, 255, 0.1), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 36%),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--cron-hour-height) - 1px),
+      color-mix(in srgb, var(--border) 72%, transparent) calc(var(--cron-hour-height) - 1px),
+      color-mix(in srgb, var(--border) 72%, transparent) var(--cron-hour-height)
+    ),
+    color-mix(in srgb, var(--bg-elevated) 95%, black 5%);
+  box-shadow: inset 0 0 0 1px rgba(156, 181, 255, 0.22);
+}
+
+.cron-week__day.is-today {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(var(--cron-hour-height) - 1px),
+      color-mix(in srgb, var(--border) 72%, transparent) calc(var(--cron-hour-height) - 1px),
+      color-mix(in srgb, var(--border) 72%, transparent) var(--cron-hour-height)
+    ),
+    var(--bg-elevated);
+}
+
+.cron-week__day.is-selected.is-today {
+  box-shadow: inset 0 0 0 1px rgba(156, 181, 255, 0.28);
+}
+
+.cron-week__event {
+  position: absolute;
+  inset-block-start: calc((var(--cron-start) * var(--cron-hour-height)) / 60);
+  inset-inline-start: calc(6px + ((100% - 12px) * var(--cron-lane)) / var(--cron-lanes));
+  inline-size: calc(((100% - 12px) / var(--cron-lanes)) - 4px);
+  min-block-size: 24px;
+  block-size: max(24px, calc((var(--cron-duration) * var(--cron-hour-height)) / 60));
+  padding: 8px 8px 7px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent),
+    color-mix(in srgb, var(--bg-elevated) 88%, var(--accent) 12%);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
+  color: inherit;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  overflow: hidden;
+  z-index: 1;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.cron-week__event:hover {
+  transform: translateY(-1px);
+}
+
+.cron-week__event.is-disabled {
+  opacity: 0.64;
+}
+
+.cron-week__event.is-condensed {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, transparent), transparent),
+    color-mix(in srgb, var(--bg-elevated) 84%, var(--accent) 16%);
+}
+
+.cron-week__event.is-due {
+  border-color: color-mix(in srgb, var(--warn) 48%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--warn) 20%, transparent), transparent),
+    color-mix(in srgb, var(--bg-elevated) 82%, var(--warn) 14%);
+}
+
+.cron-week__event.is-running {
+  border-color: color-mix(in srgb, var(--ok) 46%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--ok) 22%, transparent), transparent),
+    color-mix(in srgb, var(--bg-elevated) 82%, var(--ok) 14%);
+}
+
+.cron-week__event-time {
+  color: var(--text-strong);
+  font-size: 11px;
+  line-height: 1.1;
+  font-weight: 650;
+}
+
+.cron-week__event-title {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cron-week__event-summary {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .cron-calendar-toolbar {
+    align-items: flex-start;
+  }
+
+  .cron-calendar-period {
+    flex-basis: 100%;
+    order: 3;
+    text-align: left;
+  }
+
+  .cron-week {
+    min-width: 900px;
+  }
+
+  .cron-month {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 760px) {
+  .cron-calendar-toolbar__group {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .cron-calendar-period {
     text-align: left;
   }
 }
@@ -4015,12 +4611,11 @@ td.data-table-key-col {
 
 .chat-queue__item--current {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border) 70%);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--accent-subtle) 68%, transparent),
-      color-mix(in srgb, var(--bg-elevated) 96%, transparent)
-    );
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-subtle) 68%, transparent),
+    color-mix(in srgb, var(--bg-elevated) 96%, transparent)
+  );
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
 }
 
@@ -4634,8 +5229,8 @@ td.data-table-key-col {
 }
 
 .alisio-chat .chat-group.user .chat-bubble {
-  padding: 12px 16px;
-  border-radius: 18px;
+  padding: 10px 14px;
+  border-radius: 16px;
   border-style: solid;
   border-color: color-mix(in srgb, var(--border-strong) 54%, var(--accent) 28%);
   background: color-mix(in srgb, var(--bg-elevated) 88%, var(--accent) 10%);
@@ -4655,14 +5250,12 @@ td.data-table-key-col {
   background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
 }
 
-.alisio-chat .chat-bubble-actions {
-  top: -8px;
-  right: 0;
-  gap: 4px;
-}
-
 .alisio-chat .chat-copy-btn,
 .alisio-chat .chat-expand-btn {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: color-mix(in srgb, var(--bg-elevated) 98%, transparent);
   color: var(--muted);
@@ -4674,6 +5267,27 @@ td.data-table-key-col {
   max-width: 70ch;
   color: var(--text-strong);
   text-wrap: pretty;
+}
+
+.alisio-chat .chat-message-collapse:not([open]) .chat-message-collapse__content {
+  max-height: 24rem;
+}
+
+.alisio-chat .chat-message-collapse:not([open]) .chat-message-collapse__content::after {
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--card) 92%, var(--bg) 8%) 76%
+  );
+}
+
+.alisio-chat .chat-message-collapse__toggle {
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--accent) 72%, var(--text) 28%);
+}
+
+.alisio-chat .chat-message-collapse__toggle:hover {
+  color: var(--text-strong);
 }
 
 .alisio-chat .chat-thinking-collapse,
@@ -4688,10 +5302,10 @@ td.data-table-key-col {
 .alisio-chat .chat-thinking-summary,
 .alisio-chat .chat-thinking-summary-card {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   min-height: 32px;
-  padding: 6px 8px;
+  padding: 10px 12px;
   font-size: 11px;
   color: var(--muted);
 }
@@ -4703,6 +5317,7 @@ td.data-table-key-col {
 .alisio-chat .chat-thinking-summary {
   cursor: pointer;
   list-style: none;
+  flex-wrap: wrap;
 }
 
 .alisio-chat .chat-thinking-summary::-webkit-details-marker {
@@ -4714,6 +5329,7 @@ td.data-table-key-col {
   font-size: 10px;
   flex-shrink: 0;
   transition: transform 150ms ease;
+  margin-top: 5px;
 }
 
 .alisio-chat .chat-thinking-collapse[open] > .chat-thinking-summary::before {
@@ -4735,51 +5351,74 @@ td.data-table-key-col {
   flex-shrink: 0;
 }
 
+.alisio-chat .chat-thinking-summary__lead {
+  min-width: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+
+.alisio-chat .chat-thinking-summary__copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
 .alisio-chat .chat-thinking-summary__label {
   color: var(--text);
   font-weight: 600;
-  flex-shrink: 0;
+  font-size: 12px;
 }
 
 .alisio-chat .chat-thinking-summary__meta {
   color: color-mix(in srgb, var(--muted) 82%, transparent);
   font-family: var(--mono);
   font-size: 10.5px;
+}
+
+.alisio-chat .chat-thinking-summary__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.alisio-chat .chat-thinking-summary__state {
-  margin-left: auto;
+.alisio-chat .chat-thinking-summary__badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  color: color-mix(in srgb, var(--ok) 88%, white 12%);
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  background: color-mix(in srgb, var(--bg) 56%, transparent);
+  color: color-mix(in srgb, var(--muted) 86%, transparent);
   font-size: 10px;
   font-weight: 600;
 }
 
-.alisio-chat .chat-thinking-summary__state-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: none;
+.alisio-chat .chat-thinking-summary__badge--done {
+  color: color-mix(in srgb, var(--ok) 88%, white 12%);
+  border-color: color-mix(in srgb, var(--ok) 28%, transparent);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
 }
 
 .alisio-chat .chat-thinking-summary__preview {
+  flex-basis: 100%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--text) 78%, var(--muted) 22%);
 }
 
-.alisio-chat .chat-thinking-summary-card .chat-thinking-summary__preview {
-  flex-basis: 100%;
-  white-space: normal;
+.alisio-chat .chat-thinking-summary--static {
+  width: 100%;
 }
 
 .alisio-chat .chat-thinking-body {
-  padding: 8px 8px 10px;
+  padding: 0 12px 12px;
   border-top: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
 }
 
@@ -4800,6 +5439,15 @@ td.data-table-key-col {
   margin-top: 0;
   padding-inline: 2px;
   opacity: 0.8;
+}
+
+.alisio-chat .chat-group-footer-actions {
+  gap: 4px;
+}
+
+.alisio-chat .chat-group-footer button {
+  opacity: 0.72;
+  pointer-events: auto;
 }
 
 .alisio-chat .chat-group-footer--active {
@@ -4825,6 +5473,10 @@ td.data-table-key-col {
   font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: color-mix(in srgb, var(--muted) 86%, transparent);
+}
+
+.alisio-chat .msg-meta {
+  margin-top: 0;
 }
 
 .alisio-chat .chat-divider {
@@ -4864,11 +5516,13 @@ td.data-table-key-col {
 }
 
 .alisio-chat .chat-tool-stack {
-  gap: 3px;
+  gap: 8px;
+  justify-items: start;
 }
 
 .alisio-chat .chat-tool-card {
   margin-top: 2px;
+  width: min(100%, 560px);
   border-radius: 12px;
   border-color: color-mix(in srgb, var(--border) 58%, transparent);
   background: color-mix(in srgb, var(--card) 86%, var(--bg) 14%);
@@ -4876,52 +5530,61 @@ td.data-table-key-col {
 }
 
 .alisio-chat .chat-tool-card__details:not([open]) {
+  width: fit-content;
+  max-width: min(100%, 320px);
   border-color: color-mix(in srgb, var(--border) 56%, transparent);
   background: color-mix(in srgb, var(--card) 82%, var(--bg) 18%);
 }
 
 .alisio-chat .chat-tool-card__summary {
-  min-height: 28px;
-  padding: 5px 7px;
-  gap: 7px;
+  min-height: 32px;
+  padding: 8px 10px;
+  gap: 10px;
 }
 
 .alisio-chat .chat-tool-card__title {
-  font-size: 10px;
+  font-size: 11.5px;
   letter-spacing: 0;
   text-transform: none;
   color: color-mix(in srgb, var(--text-strong) 80%, transparent);
-  line-height: 1.08;
+  line-height: 1.18;
 }
 
 .alisio-chat .chat-tool-card__detail {
-  line-height: 1.08;
+  line-height: 1.35;
+  font-size: 11px;
   color: color-mix(in srgb, var(--muted) 76%, var(--text) 24%);
+}
+
+.alisio-chat .chat-tool-card__details:not([open]) .chat-tool-card__summary {
+  min-height: 30px;
+  padding: 6px 8px;
 }
 
 .alisio-chat .chat-tool-card__details:not([open]) .chat-tool-card__detail {
   display: none;
 }
 
-.alisio-chat .chat-tool-card__details:not([open]) .chat-tool-card__summary {
-  min-height: 26px;
-  padding-block: 4px;
-}
-
 .alisio-chat .chat-tool-card__state {
-  min-height: 16px;
-  padding-inline: 6px;
-  font-size: 9px;
+  min-height: 22px;
+  padding-inline: 8px;
+  font-size: 10px;
 }
 
 .alisio-chat .chat-tool-card__details:not([open]) .chat-tool-card__state {
   background: transparent;
   border-color: color-mix(in srgb, currentColor 14%, transparent);
+  min-width: 22px;
+  padding-inline: 6px;
+}
+
+.alisio-chat .chat-tool-card__details:not([open]) .chat-tool-card__state > span:last-child {
+  display: none;
 }
 
 .alisio-chat .chat-tool-card__body {
-  gap: 4px;
-  padding: 0 7px 7px;
+  gap: 8px;
+  padding: 0 12px 12px;
 }
 
 .alisio-chat .chat-tool-card__section-content,
@@ -4934,7 +5597,16 @@ td.data-table-key-col {
   color: color-mix(in srgb, var(--muted) 80%, transparent);
 }
 
+.alisio-chat .chat-tool-card__footer-actions {
+  gap: 6px;
+}
+
+.alisio-chat .chat-tool-card__footer .chat-copy-btn,
 .alisio-chat .chat-tool-card__open {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
   border-color: color-mix(in srgb, var(--border) 62%, transparent);
   background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
 }
@@ -5599,6 +6271,12 @@ td.data-table-key-col {
   overflow: hidden;
 }
 
+.alisio-connections-subpanel--collapsible {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .alisio-connections-subsection__title {
   color: var(--muted);
   font-size: 10px;
@@ -5621,6 +6299,20 @@ td.data-table-key-col {
   display: none;
 }
 
+.alisio-connections-subpanel__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 11px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.alisio-connections-subpanel__summary::-webkit-details-marker {
+  display: none;
+}
+
 .alisio-connections-subsection__summary-meta {
   display: inline-flex;
   align-items: center;
@@ -5628,6 +6320,13 @@ td.data-table-key-col {
 }
 
 .alisio-connections-subsection__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 11px 11px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+}
+
+.alisio-connections-subpanel__body {
   display: grid;
   gap: 8px;
   padding: 0 11px 11px;
@@ -5824,6 +6523,7 @@ td.data-table-key-col {
 }
 
 details[open] > .alisio-connections-subsection__summary .alisio-connections-disclosure-icon,
+details[open] > .alisio-connections-subpanel__summary .alisio-connections-disclosure-icon,
 details[open] > .alisio-connections-entry__summary .alisio-connections-disclosure-icon {
   transform: rotate(180deg);
 }
@@ -7445,6 +8145,115 @@ details[open] > .alisio-connections-entry__summary .alisio-connections-disclosur
   color: var(--muted);
 }
 
+.session-delete-card {
+  width: min(440px, 100%);
+  border-color: color-mix(in srgb, var(--danger) 18%, var(--border));
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--danger) 10%, transparent),
+      transparent 42%
+    ),
+    linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, black 4%), var(--card));
+  box-shadow:
+    0 28px 64px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
+.session-delete-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.session-delete-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, transparent);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.session-delete-card__icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+
+.session-delete-card__copy {
+  min-width: 0;
+}
+
+.session-delete-card__eyebrow {
+  color: color-mix(in srgb, var(--danger) 82%, var(--text-strong));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-delete-card__title {
+  margin-top: 6px;
+  color: var(--text-strong);
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.session-delete-card__body {
+  margin-top: 10px;
+  color: color-mix(in srgb, var(--text) 90%, var(--muted));
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.session-delete-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--danger) 14%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger-subtle) 42%, var(--bg-elevated));
+}
+
+.session-delete-card__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--danger) 86%, black 14%);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.session-delete-card__meta-text {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.session-delete-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.session-delete-card__actions .btn {
+  min-width: 108px;
+}
+
 .exec-approval-meta-row {
   display: flex;
   align-items: flex-start;
@@ -7749,6 +8558,136 @@ details[open] > .alisio-connections-entry__summary .alisio-connections-disclosur
 
 .agent-kv-sub {
   font-size: 12px;
+}
+
+/* ===========================================
+   Tasks View
+   =========================================== */
+
+.alisio-tasks {
+  align-content: start;
+}
+
+.alisio-tasks__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+  margin-top: 18px;
+}
+
+.alisio-tasks__search {
+  min-width: 260px;
+  flex: 1 1 320px;
+}
+
+.alisio-tasks__filter {
+  min-width: 180px;
+  flex: 0 1 220px;
+}
+
+.alisio-tasks__callout {
+  margin-top: 16px;
+}
+
+.alisio-tasks__summary-grid {
+  gap: 14px;
+}
+
+.alisio-tasks__summary-card {
+  min-height: 116px;
+}
+
+.alisio-tasks__summary-detail {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-tasks__workspace {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+}
+
+.alisio-tasks__column {
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+
+.alisio-tasks__list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.alisio-tasks__empty {
+  margin-top: 16px;
+}
+
+.alisio-tasks__row {
+  width: 100%;
+  text-align: left;
+  appearance: none;
+}
+
+.alisio-tasks__row-title,
+.alisio-tasks__detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.alisio-tasks__badge-row {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alisio-tasks__detail-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-top: 16px;
+}
+
+.alisio-tasks__detail-stack {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.alisio-tasks__detail-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: end;
+  margin-top: 18px;
+}
+
+.alisio-tasks__notify-field {
+  min-width: 180px;
+  max-width: 220px;
+}
+
+@media (max-width: 1100px) {
+  .alisio-tasks__workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .alisio-tasks__search,
+  .alisio-tasks__filter,
+  .alisio-tasks__notify-field {
+    min-width: 100%;
+    max-width: none;
+    flex-basis: 100%;
+  }
 }
 
 .agent-model-select {
@@ -9051,6 +9990,24 @@ details[open] > .ov-expandable-toggle::after {
   }
 
   .exec-approval-actions .btn {
+    width: 100%;
+  }
+
+  .session-delete-card__header {
+    gap: 12px;
+  }
+
+  .session-delete-card__title {
+    font-size: 20px;
+  }
+
+  .session-delete-card__meta,
+  .session-delete-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .session-delete-card__actions .btn {
     width: 100%;
   }
 

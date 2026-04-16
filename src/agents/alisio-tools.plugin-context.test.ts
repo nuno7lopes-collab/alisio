@@ -112,6 +112,7 @@ describe("createAlisioTools plugin context", () => {
       config: {} as never,
       sandboxBrowserBridgeUrl: "http://127.0.0.1:9999",
       allowHostBrowserControl: true,
+      preferSandbox: true,
     });
 
     expect(resolvePluginToolsMock).toHaveBeenCalledWith(
@@ -120,6 +121,7 @@ describe("createAlisioTools plugin context", () => {
           browser: {
             sandboxBridgeUrl: "http://127.0.0.1:9999",
             allowHostControl: true,
+            preferSandbox: true,
           },
         }),
       }),

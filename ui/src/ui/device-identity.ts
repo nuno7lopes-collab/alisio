@@ -28,6 +28,8 @@ export type DeviceIdentity = {
   publicKey: string;
   privateKey?: string;
   source?: "browser" | "host" | "gateway";
+  platform?: string;
+  deviceFamily?: string;
 };
 
 type BrowserDeviceIdentity = DeviceIdentity & {
@@ -91,6 +93,8 @@ async function loadHostIdentity(): Promise<DeviceIdentity | null> {
     deviceId: identity.deviceId,
     publicKey: identity.publicKey,
     source: "host",
+    platform: identity.platform,
+    deviceFamily: identity.deviceFamily,
   };
 }
 
@@ -136,6 +140,14 @@ async function loadGatewayIdentity(): Promise<DeviceIdentity | null> {
       deviceId: parsed.deviceId,
       publicKey: parsed.publicKey,
       source: "gateway",
+      platform:
+        typeof parsed.platform === "string" && parsed.platform.trim()
+          ? parsed.platform.trim()
+          : undefined,
+      deviceFamily:
+        typeof parsed.deviceFamily === "string" && parsed.deviceFamily.trim()
+          ? parsed.deviceFamily.trim()
+          : undefined,
     };
   } catch {
     return null;
@@ -236,6 +248,14 @@ export async function loadOrCreateBrowserDeviceIdentity(): Promise<BrowserDevice
   };
   storage?.setItem(STORAGE_KEY, JSON.stringify(stored));
   return identity;
+}
+
+export function clearStoredBrowserDeviceIdentity() {
+  try {
+    getSafeLocalStorage()?.removeItem(STORAGE_KEY);
+  } catch {
+    // best-effort
+  }
 }
 
 export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {

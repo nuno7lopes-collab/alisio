@@ -3,6 +3,8 @@ import type { NativeShellPermission, NativeShellState } from "./types.ts";
 export type HostDeviceIdentity = {
   deviceId: string;
   publicKey: string;
+  platform?: string;
+  deviceFamily?: string;
 };
 
 type AlisioHostRequest = <T = unknown>(

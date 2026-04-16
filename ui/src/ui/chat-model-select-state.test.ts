@@ -87,4 +87,42 @@ describe("chat-model-select-state", () => {
     expect(resolved.currentOverride).toBe("");
     expect(resolved.defaultModel).toBe("openai/gpt-5");
   });
+
+  it("hides local managed models from the main chat picker", () => {
+    const state = {
+      sessionKey: "main",
+      chatModelOverrides: {},
+      chatModelCatalog: createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG, {
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        provider: "alisio-local-current-llama",
+        providerLabel: "This device",
+      }),
+      sessionsResult: createSessionsListResult(),
+    };
+
+    const resolved = resolveChatModelSelectState(state);
+    expect(resolved.options.map((option) => option.value)).not.toContain(
+      "alisio-local-current-llama/qwen3-4b-q4-k-m",
+    );
+  });
+
+  it("keeps local managed models in subagent pickers", () => {
+    const state = {
+      sessionKey: "agent:main:subagent:child",
+      chatModelOverrides: {},
+      chatModelCatalog: createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG, {
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        provider: "alisio-local-current-llama",
+        providerLabel: "This device",
+      }),
+      sessionsResult: createSessionsListResult(),
+    };
+
+    const resolved = resolveChatModelSelectState(state);
+    expect(resolved.options.map((option) => option.value)).toContain(
+      "alisio-local-current-llama/qwen3-4b-q4-k-m",
+    );
+  });
 });

@@ -51,7 +51,8 @@ export function registerMemoryCli(program: Command) {
           ["alisio memory status --deep", "Probe embedding provider readiness."],
           ["alisio memory index --force", "Force a full reindex."],
           ['alisio memory search "meeting notes"', "Quick search using positional query."],
-          ['alisio memory graph "project atlas"', "Inspect explicit memory relationships."],
+          ['alisio memory graph "project atlas"', "Inspect focused memory relationships."],
+          ["alisio memory graph --scope overview", "Inspect the broader canonical memory map."],
           [
             'alisio memory search --query "deployment" --max-results 20',
             "Limit results for focused troubleshooting.",
@@ -97,17 +98,27 @@ export function registerMemoryCli(program: Command) {
 
   memory
     .command("graph")
-    .description("Inspect the structured canonical memory graph")
+    .description("Inspect the structured canonical memory graph in overview or focus mode")
     .argument("[query]", "Entity or note query")
     .option("--query <text>", "Graph query (alternative to positional argument)")
     .option("--agent <id>", "Agent id (default: default agent)")
+    .option("--page-id <id>", "Focus a specific canonical page id")
+    .option("--entity-id <id>", "Focus a specific canonical entity id")
+    .option(
+      "--scope <mode>",
+      "Graph mode: overview or focus (legacy global/local values also accepted)",
+    )
     .option("--direction <dir>", "Relation direction: incoming, outgoing, or both")
+    .option("--depth <n>", "Traversal depth", (value: string) => Number(value))
     .option("--match-limit <n>", "Max entity matches", (value: string) => Number(value))
     .option(
       "--relation-limit <n>",
       "Max relations across the selected directions",
       (value: string) => Number(value),
     )
+    .option("--node-limit <n>", "Max visible nodes", (value: string) => Number(value))
+    .option("--edge-limit <n>", "Max visible edges", (value: string) => Number(value))
+    .option("--include-attachments", "Include referenced attachment nodes")
     .option("--json", "Print JSON")
     .action(async (queryArg: string | undefined, opts: MemoryGraphCommandOptions) => {
       await runMemoryGraph(queryArg, opts);

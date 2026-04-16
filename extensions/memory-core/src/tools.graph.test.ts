@@ -85,6 +85,36 @@ describe("memory_graph tool", () => {
     ).toBe(false);
   });
 
+  it("supports overview mode without a query", async () => {
+    const fixture = getCanonicalFixture();
+    const tool = createMemoryGraphToolOrThrow();
+    const result = await tool.execute("graph-overview", {
+      scope: "overview",
+      nodeLimit: 8,
+    });
+    const details = result.details as {
+      scope: string;
+      mode: string;
+      nodes: Array<{ pageId: string }>;
+      matches: unknown[];
+    };
+
+    expect(details.scope).toBe("global");
+    expect(details.mode).toBe("overview");
+    expect(details.matches).toHaveLength(0);
+    expect(details.nodes).toEqual(
+      expect.arrayContaining([expect.objectContaining({ pageId: fixture.atlasPageId })]),
+    );
+  });
+
+  it("rejects focus mode without a query or stable locator", async () => {
+    const tool = createMemoryGraphToolOrThrow();
+
+    await expect(tool.execute("graph-focus-missing", { scope: "focus" })).rejects.toThrow(
+      "memory.graph focus scope requires pageId, entityId, or query",
+    );
+  });
+
   it("returns an explicit unavailable payload when the canonical store is missing", async () => {
     setCanonicalStoreStatus(null);
 

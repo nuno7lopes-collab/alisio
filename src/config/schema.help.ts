@@ -896,16 +896,30 @@ export const FIELD_HELP: Record<string, string> = {
     "Ledger-derived state controls for canonical memory. Keep this enabled in normal operation so local state is rebuilt from auditable events instead of trusting projections as source of truth.",
   "memory.ledger.enabled":
     "Emergency fallback switch for the canonical memory pipeline. When false, Alisio skips ledger-derived rebuild and reads compatibility projections only; use this only for temporary rollback or incident mitigation.",
+  "memory.markdownProjection":
+    "Canonical Markdown projection controls for writing derived memory files into the active workspace directory. Keep this enabled so the files your agent and operator actually read stay aligned with the canonical store.",
+  "memory.markdownProjection.enabled":
+    "Writes canonical Markdown projections into the active workspace directory from derived state. Disable only for incident mitigation or when an external workflow owns the visible workspace files.",
   "memory.legacyMarkdownProjection":
-    "Compatibility projection controls for writing derived Markdown files into the local state workspace. Keep this enabled so rollback and export surfaces still have a Markdown view of derived memory.",
+    "Compatibility projection controls for mirroring derived Markdown files into the local state workspace. Keep this enabled while rollback or legacy tooling still depends on the state-dir mirror.",
   "memory.legacyMarkdownProjection.enabled":
-    "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable only if you intentionally want derived state without Markdown materialization.",
+    "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable this only when you intentionally want the visible workspace projection without the legacy state-dir mirror.",
   "memory.crdt":
     "CRDT controls for canonical page bodies. Keep CRDT page storage enabled so concurrent page edits converge through Yjs-backed derived state.",
   "memory.crdt.pages":
     "Page-body CRDT settings for canonical memory. This is the primary body storage mode for ledger-derived pages.",
   "memory.crdt.pages.enabled":
     "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for emergency compatibility fallback.",
+  "memory.jobs":
+    "Cooperative background memory-maintenance controls. Use this to govern idle-time consolidation, dedup, and future long-term promotion work driven by the canonical memory runtime.",
+  "memory.jobs.enabled":
+    "Enables the cooperative memory-maintenance runtime. Disable only when debugging or temporarily rolling back idle-time memory jobs.",
+  "memory.jobs.maxSliceMs":
+    "Sets the per-slice wall-clock budget for background memory jobs in milliseconds. Lower values reduce interference with foreground work; higher values let maintenance make more progress per idle window.",
+  "memory.jobs.autoSleep":
+    "Controls whether memory-maintenance slices run automatically when the agent is idle. Leave enabled for normal operation and disable only if jobs should run manually.",
+  "memory.jobs.autoSleep.enabled":
+    "Runs background memory-maintenance slices automatically during idle periods. Set false to require explicit manual runs while keeping the runtime available for inspection.",
   "memory.qmd.command":
     "Sets the executable path for the `qmd` binary used by the QMD backend (default: resolved from PATH). Use an explicit absolute path when multiple qmd installs exist or PATH differs across environments.",
   "memory.qmd.mcporter":

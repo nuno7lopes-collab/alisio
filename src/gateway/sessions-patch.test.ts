@@ -287,12 +287,27 @@ describe("gateway sessions patch", () => {
     expect(entry.modelOverride).toBe("claude-sonnet-4-6");
   });
 
-  test("accepts runtime-available local dynamic refs even when the allowlist is static", async () => {
+  test("rejects local dynamic refs on main sessions even when the runtime exposes them", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    const result = await runPatch({
+      cfg: createAllowlistedOpenAiModelCfg(),
+      patch: { key: MAIN_SESSION_KEY, model: `${provider}/qwen3-4b-q4-k-m` },
+      loadGatewayModelCatalog: async () => [
+        { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+        { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+      ],
+    });
+
+    expectPatchError(result, "local models are only available for subagent sessions");
+  });
+
+  test("accepts runtime-available local dynamic refs on subagent sessions", async () => {
     const provider = buildAlisioCurrentProviderId();
     const entry = expectPatchOk(
       await runPatch({
         cfg: createAllowlistedOpenAiModelCfg(),
-        patch: { key: MAIN_SESSION_KEY, model: `${provider}/qwen3-4b-q4-k-m` },
+        storeKey: "agent:main:subagent:child",
+        patch: { key: "agent:main:subagent:child", model: `${provider}/qwen3-4b-q4-k-m` },
         loadGatewayModelCatalog: async () => [
           { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
           { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },

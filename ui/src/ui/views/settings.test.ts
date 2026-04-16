@@ -258,6 +258,27 @@ describe("renderSettingsHub", () => {
     expect(onResetPresentation).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the shared empty state when the account has no linked devices", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "account",
+          account: {
+            ...createAccount(),
+            devices: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const emptyState = container.querySelector(".empty-state--surface");
+    expect(emptyState).not.toBeNull();
+    expect(emptyState?.textContent).toContain("No linked devices yet");
+  });
+
   it("opens billing as a focused subsection with honest support CTA copy", () => {
     const container = document.createElement("div");
 

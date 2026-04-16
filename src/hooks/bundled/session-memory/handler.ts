@@ -1,11 +1,9 @@
 /**
  * Session memory hook handler
  *
- * Saves session context to memory when /new or /reset command is triggered
- * Creates a new dated memory file with LLM-generated slug
+ * Saves session context to the canonical daily memory note when /new or /reset command is triggered
  */
 
-import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -14,8 +12,12 @@ import {
 } from "../../../agents/agent-scope.js";
 import type { AlisioConfig } from "../../../config/config.js";
 import { resolveStateDir } from "../../../config/paths.js";
-import { writeFileWithinRoot } from "../../../infra/fs-safe.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
+import {
+  appendCanonicalDailyMemoryEntry,
+  buildSessionMemoryDailyEntry,
+  syncDailyMemoryThroughCanonicalPipeline,
+} from "../../../memory/daily-memory.js";
 import {
   parseAgentSessionKey,
   resolveAgentIdFromSessionKey,
@@ -52,8 +54,9 @@ function resolveDisplaySessionKey(params: {
  */
 const saveSessionToMemory: HookHandler = async (event) => {
   // Only trigger on reset/new commands
-  const isResetCommand = event.action === "new" || event.action === "reset";
-  if (event.type !== "command" || !isResetCommand) {
+  const commandAction =
+    event.action === "new" || event.action === "reset" ? event.action : undefined;
+  if (event.type !== "command" || !commandAction) {
     return;
   }
 
@@ -66,26 +69,24 @@ const saveSessionToMemory: HookHandler = async (event) => {
       typeof context.workspaceDir === "string" && context.workspaceDir.trim().length > 0
         ? context.workspaceDir
         : undefined;
-    const agentId = resolveAgentIdFromSessionKey(event.sessionKey);
+    const sessionAgentId = resolveAgentIdFromSessionKey(event.sessionKey);
     const workspaceDir =
       contextWorkspaceDir ||
       (cfg
-        ? resolveAgentWorkspaceDir(cfg, agentId)
+        ? resolveAgentWorkspaceDir(cfg, sessionAgentId)
         : path.join(resolveStateDir(process.env, os.homedir), "workspace"));
+    const memoryAgentId =
+      (cfg ? resolveAgentIdByWorkspacePath(cfg, workspaceDir) : undefined) ?? sessionAgentId;
     const displaySessionKey = resolveDisplaySessionKey({
       cfg,
       workspaceDir: contextWorkspaceDir,
       sessionKey: event.sessionKey,
     });
-    const memoryDir = path.join(workspaceDir, "memory");
-    await fs.mkdir(memoryDir, { recursive: true });
 
-    // Get today's date for filename
-    const now = new Date(event.timestamp);
-    const dateStr = now.toISOString().split("T")[0]; // YYYY-MM-DD
+    const now = event.timestamp;
+    const nowMs = now.getTime();
 
-    // Generate descriptive slug from session using LLM
-    // Prefer previousSessionEntry (old session before /new) over current (which may be empty)
+    // Prefer previousSessionEntry (old session before /new) over current (which may be empty).
     const sessionEntry = (context.previousSessionEntry || context.sessionEntry || {}) as Record<
       string,
       unknown
@@ -165,50 +166,40 @@ const saveSessionToMemory: HookHandler = async (event) => {
       log.debug("Using fallback timestamp slug", { slug });
     }
 
-    // Create filename with date and slug
-    const filename = `${dateStr}-${slug}.md`;
-    const memoryFilePath = path.join(memoryDir, filename);
-    log.debug("Memory file path resolved", {
-      filename,
-      path: memoryFilePath.replace(os.homedir(), "~"),
-    });
-
-    // Format time as HH:MM:SS UTC
-    const timeStr = now.toISOString().split("T")[1].split(".")[0];
-
     // Extract context details
     const sessionId = (sessionEntry.sessionId as string) || "unknown";
     const source = (context.commandSource as string) || "unknown";
+    const entry = buildSessionMemoryDailyEntry({
+      nowMs,
+      slug,
+      action: commandAction,
+      sessionKey: displaySessionKey,
+      sessionId,
+      source,
+      sessionContent,
+    });
 
-    // Build Markdown entry
-    const entryParts = [
-      `# Session: ${dateStr} ${timeStr} UTC`,
-      "",
-      `- **Session Key**: ${displaySessionKey}`,
-      `- **Session ID**: ${sessionId}`,
-      `- **Source**: ${source}`,
-      "",
-    ];
+    const target = await appendCanonicalDailyMemoryEntry({
+      cfg,
+      agentId: memoryAgentId,
+      workspaceDir,
+      entry,
+      nowMs,
+    });
+    log.debug("Session memory appended to canonical daily note", {
+      path: target.absolutePath.replace(os.homedir(), "~"),
+      agentId: memoryAgentId,
+    });
 
-    // Include conversation content if available
-    if (sessionContent) {
-      entryParts.push("## Conversation Summary", "", sessionContent, "");
+    if (cfg) {
+      await syncDailyMemoryThroughCanonicalPipeline({
+        cfg,
+        agentId: memoryAgentId,
+        reason: "session-memory",
+      });
     }
 
-    const entry = entryParts.join("\n");
-
-    // Write under memory root with alias-safe file validation.
-    await writeFileWithinRoot({
-      rootDir: memoryDir,
-      relativePath: filename,
-      data: entry,
-      encoding: "utf-8",
-    });
-    log.debug("Memory file written successfully");
-
-    // Log completion (but don't send user-visible confirmation - it's internal housekeeping)
-    const relPath = memoryFilePath.replace(os.homedir(), "~");
-    log.info(`Session context saved to ${relPath}`);
+    log.info(`Session context saved to ${target.absolutePath.replace(os.homedir(), "~")}`);
   } catch (err) {
     if (err instanceof Error) {
       log.error("Failed to save session memory", {

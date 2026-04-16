@@ -402,6 +402,7 @@ function buildEmptyGraph(params: {
     ...(params.status.lastSyncedAt ? { lastSyncedAt: params.status.lastSyncedAt } : {}),
     ...(params.status.lastError ? { lastError: params.status.lastError } : {}),
     scope: params.scope,
+    mode: params.scope === "global" ? "overview" : "focus",
     nodes: [],
     edges: [],
     branches: [],
@@ -866,6 +867,7 @@ function finalizeGraph(params: {
     ...(params.status.lastSyncedAt ? { lastSyncedAt: params.status.lastSyncedAt } : {}),
     ...(params.status.lastError ? { lastError: params.status.lastError } : {}),
     scope: params.scope,
+    mode: params.scope === "global" ? "overview" : "focus",
     ...(focusEntry
       ? {
           focus: {

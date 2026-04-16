@@ -1679,6 +1679,18 @@ export async function loadAlisioSharing(state: AlisioState, opts?: { quiet?: boo
   }
 }
 
+function shouldRefreshModelsAfterSharing(state: AlisioState) {
+  return state.tab === "models" || state.alisioModels !== null;
+}
+
+async function refreshSharingDependencies(state: AlisioState) {
+  const tasks = [loadAlisioSharing(state)];
+  if (shouldRefreshModelsAfterSharing(state)) {
+    tasks.push(loadAlisioModels(state));
+  }
+  await Promise.allSettled(tasks);
+}
+
 export async function saveAlisioOrganization(
   state: AlisioState,
   next:
@@ -1724,7 +1736,7 @@ export async function requestAlisioSharedDeviceAccess(
       ...(Array.isArray(scopes) && scopes.length > 0 ? { scopes: [...scopes] } : {}),
       idempotencyKey: generateUUID(),
     });
-    await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+    await refreshSharingDependencies(state);
   } catch (error) {
     state.alisioSharingError = String(error);
   } finally {
@@ -1752,10 +1764,10 @@ export async function approveAlisioSharedDeviceRequest(
       ...(Array.isArray(scopes) && scopes.length > 0 ? { scopes: [...scopes] } : {}),
       idempotencyKey: generateUUID(),
     });
-    await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+    await refreshSharingDependencies(state);
   } catch (error) {
     if (isResolvedSharingRequestError(error)) {
-      await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+      await refreshSharingDependencies(state);
       if (!state.alisioSharingError) {
         return;
       }
@@ -1803,7 +1815,7 @@ export async function revokeAlisioSharedDeviceGrant(state: AlisioState, grantId:
       grantId,
       idempotencyKey: generateUUID(),
     });
-    await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+    await refreshSharingDependencies(state);
   } catch (error) {
     state.alisioSharingError = String(error);
   } finally {

@@ -23,6 +23,11 @@ import { extractTaskProposalBlocks, findPersistedTaskProposal } from "./task-pro
 import { extractToolCards, renderToolCardStack } from "./tool-cards.ts";
 
 const chatText = (key: string, params?: Record<string, string>) => t(`alisio.chat.${key}`, params);
+const MESSAGE_COLLAPSE_CHAR_THRESHOLD = 1_400;
+const MESSAGE_COLLAPSE_LINE_THRESHOLD = 16;
+const MESSAGE_COLLAPSE_CODE_BLOCK_THRESHOLD = 900;
+const CANVAS_ACTION_CHAR_THRESHOLD = 1_100;
+const CANVAS_ACTION_LINE_THRESHOLD = 16;
 
 type ImageBlock = {
   url: string;
@@ -165,6 +170,7 @@ export function renderStreamingGroup(
   onOpenSidebar?: (content: string) => void,
   assistant?: AssistantIdentity,
   basePath?: string,
+  sessionKey?: string,
 ) {
   return html`
     <div class="chat-group assistant">
@@ -176,7 +182,7 @@ export function renderStreamingGroup(
             content: [{ type: "text", text }],
             timestamp: startedAt,
           },
-          { isStreaming: true, showReasoning: false },
+          { isStreaming: true, showReasoning: false, sessionKey: sessionKey ?? "" },
           onOpenSidebar,
         )}
         ${activity
@@ -240,6 +246,11 @@ export function renderMessageGroup(
     hour: "numeric",
     minute: "2-digit",
   });
+  const groupMarkdown = extractGroupDisplayMarkdown(group.messages, opts.sessionKey);
+  const canCopyGroupMarkdown = Boolean(groupMarkdown);
+  const canExpandGroup =
+    normalizedRole === "assistant" &&
+    Boolean(opts.onOpenSidebar && groupMarkdown && shouldOfferCanvas(groupMarkdown));
 
   // Aggregate usage/cost/model across all messages in the group
   const meta = extractGroupMeta(group, opts.contextWindow ?? null);
@@ -279,9 +290,22 @@ export function renderMessageGroup(
           <span class="chat-sender-name">${who}</span>
           <span class="chat-group-timestamp">${timestamp}</span>
           ${renderMessageMeta(meta)}
-          ${normalizedRole === "assistant" && isTtsSupported() ? renderTtsButton(group) : nothing}
-          ${opts.onDelete
-            ? renderDeleteButton(opts.onDelete, normalizedRole === "user" ? "left" : "right")
+          ${canCopyGroupMarkdown ||
+          canExpandGroup ||
+          (normalizedRole === "assistant" && isTtsSupported()) ||
+          Boolean(opts.onDelete)
+            ? html`
+                <span class="chat-group-footer-actions">
+                  ${canCopyGroupMarkdown ? renderCopyAsMarkdownButton(groupMarkdown!) : nothing}
+                  ${canExpandGroup ? renderExpandButton(groupMarkdown!, opts.onOpenSidebar!) : nothing}
+                  ${normalizedRole === "assistant" && isTtsSupported()
+                    ? renderTtsButton(group)
+                    : nothing}
+                  ${opts.onDelete
+                    ? renderDeleteButton(opts.onDelete, normalizedRole === "user" ? "left" : "right")
+                    : nothing}
+                </span>
+              `
             : nothing}
         </div>
       </div>
@@ -418,6 +442,36 @@ function extractGroupText(group: MessageGroup): string {
   return parts.join("\n\n");
 }
 
+function extractMessageDisplayMarkdown(message: unknown, sessionKey: string): string | null {
+  const m = message as Record<string, unknown>;
+  const role = typeof m.role === "string" ? m.role : "";
+  const extractedText = extractTextCached(message);
+  const markdownBase = extractedText?.trim() ? extractedText : null;
+  if (!markdownBase) {
+    return null;
+  }
+  if (role !== "assistant") {
+    return markdownBase;
+  }
+  const taskProposalBlock = extractTaskProposalBlocks({
+    markdown: markdownBase,
+    requesterSessionKey: sessionKey,
+    message,
+  });
+  const markdown = taskProposalBlock.cleanedMarkdown?.trim() ? taskProposalBlock.cleanedMarkdown : null;
+  return markdown;
+}
+
+function extractGroupDisplayMarkdown(
+  messages: Array<{ message: unknown; key: string }>,
+  sessionKey: string,
+): string | null {
+  const parts = messages
+    .map((entry) => extractMessageDisplayMarkdown(entry.message, sessionKey))
+    .filter((value): value is string => Boolean(value));
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
 const SKIP_DELETE_CONFIRM_KEY = "alisio:skipDeleteConfirm";
 
 type DeleteConfirmSide = "left" | "right";
@@ -442,8 +496,8 @@ function renderDeleteButton(onDelete: () => void, side: DeleteConfirmSide) {
     <span class="chat-delete-wrap">
       <button
         class="chat-group-delete"
-        title="Delete"
-        aria-label="Delete message"
+        title=${chatText("actions.delete")}
+        aria-label=${chatText("actions.deleteMessage")}
         @click=${(e: Event) => {
           if (shouldSkipDeleteConfirm()) {
             onDelete();
@@ -459,14 +513,14 @@ function renderDeleteButton(onDelete: () => void, side: DeleteConfirmSide) {
           const popover = document.createElement("div");
           popover.className = `chat-delete-confirm chat-delete-confirm--${side}`;
           popover.innerHTML = `
-            <p class="chat-delete-confirm__text">Delete this message?</p>
+            <p class="chat-delete-confirm__text">${chatText("actions.deleteConfirm")}</p>
             <label class="chat-delete-confirm__remember">
               <input type="checkbox" class="chat-delete-confirm__check" />
-              <span>Don't ask again</span>
+              <span>${chatText("actions.skipDeleteConfirm")}</span>
             </label>
             <div class="chat-delete-confirm__actions">
-              <button class="chat-delete-confirm__cancel" type="button">Cancel</button>
-              <button class="chat-delete-confirm__yes" type="button">Delete</button>
+              <button class="chat-delete-confirm__cancel" type="button">${chatText("actions.cancel")}</button>
+              <button class="chat-delete-confirm__yes" type="button">${chatText("actions.delete")}</button>
             </div>
           `;
           wrap.appendChild(popover);
@@ -519,14 +573,16 @@ function renderTtsButton(group: MessageGroup) {
     <button
       class="btn btn--xs chat-tts-btn"
       type="button"
-      title=${isTtsSpeaking() ? "Stop speaking" : "Read aloud"}
-      aria-label=${isTtsSpeaking() ? "Stop speaking" : "Read aloud"}
+      title=${isTtsSpeaking() ? chatText("actions.stopSpeaking") : chatText("actions.readAloud")}
+      aria-label=${isTtsSpeaking()
+        ? chatText("actions.stopSpeaking")
+        : chatText("actions.readAloud")}
       @click=${(e: Event) => {
         const btn = e.currentTarget as HTMLButtonElement;
         if (isTtsSpeaking()) {
           stopTts();
           btn.classList.remove("chat-tts-btn--active");
-          btn.title = "Read aloud";
+          btn.title = chatText("actions.readAloud");
           return;
         }
         const text = extractGroupText(group);
@@ -534,18 +590,18 @@ function renderTtsButton(group: MessageGroup) {
           return;
         }
         btn.classList.add("chat-tts-btn--active");
-        btn.title = "Stop speaking";
+        btn.title = chatText("actions.stopSpeaking");
         speakText(text, {
           onEnd: () => {
             if (btn.isConnected) {
               btn.classList.remove("chat-tts-btn--active");
-              btn.title = "Read aloud";
+              btn.title = chatText("actions.readAloud");
             }
           },
           onError: () => {
             if (btn.isConnected) {
               btn.classList.remove("chat-tts-btn--active");
-              btn.title = "Read aloud";
+              btn.title = chatText("actions.readAloud");
             }
           },
         });
@@ -750,12 +806,80 @@ function renderExpandButton(markdown: string, onOpenSidebar: (content: string) =
     <button
       class="btn btn--xs chat-expand-btn"
       type="button"
-      title="Open in canvas"
-      aria-label="Open in canvas"
+      title=${chatText("actions.openInCanvas")}
+      aria-label=${chatText("actions.openInCanvas")}
       @click=${() => onOpenSidebar(markdown)}
     >
       <span class="chat-expand-btn__icon" aria-hidden="true">${icons.panelRightOpen}</span>
     </button>
+  `;
+}
+
+function countMeaningfulLines(markdown: string): number {
+  return markdown
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean).length;
+}
+
+function shouldCollapseMessage(role: string, markdown: string): boolean {
+  if (normalizeRoleForGrouping(role) !== "user") {
+    return false;
+  }
+  const lineCount = countMeaningfulLines(markdown);
+  if (lineCount >= MESSAGE_COLLAPSE_LINE_THRESHOLD) {
+    return true;
+  }
+  if (markdown.length >= MESSAGE_COLLAPSE_CHAR_THRESHOLD) {
+    return true;
+  }
+  return /```/.test(markdown) && markdown.length >= MESSAGE_COLLAPSE_CODE_BLOCK_THRESHOLD;
+}
+
+function shouldOfferCanvas(markdown: string): boolean {
+  const lineCount = countMeaningfulLines(markdown);
+  const hasStructuredLayout =
+    /```|\|/.test(markdown) ||
+    /(^|\n)\s*[-*]\s/.test(markdown) ||
+    /(^|\n)\s*\d+\.\s/.test(markdown) ||
+    /(^|\n)\s*>/.test(markdown);
+  if (markdown.length >= CANVAS_ACTION_CHAR_THRESHOLD) {
+    return true;
+  }
+  if (lineCount >= CANVAS_ACTION_LINE_THRESHOLD) {
+    return true;
+  }
+  return hasStructuredLayout && (markdown.length >= 420 || lineCount >= 8);
+}
+
+function renderMarkdownMessage(role: string, markdown: string) {
+  const messageBody = html`
+    <div class="chat-text" dir="${detectTextDirection(markdown)}">
+      ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
+    </div>
+  `;
+
+  if (!shouldCollapseMessage(role, markdown)) {
+    return messageBody;
+  }
+
+  return html`
+    <details class="chat-message-collapse">
+      <div class="chat-message-collapse__content">${messageBody}</div>
+      <summary class="chat-message-collapse__toggle">
+        <span class="chat-message-collapse__toggle-copy">
+          <span class="chat-message-collapse__toggle-label chat-message-collapse__toggle-label--closed">
+            ${chatText("actions.showMore")}
+          </span>
+          <span class="chat-message-collapse__toggle-label chat-message-collapse__toggle-label--open">
+            ${chatText("actions.showLess")}
+          </span>
+        </span>
+        <span class="chat-message-collapse__toggle-icon" aria-hidden="true">
+          ${icons.chevronRight}
+        </span>
+      </summary>
+    </details>
   `;
 }
 
@@ -771,15 +895,24 @@ function renderThinkingPanel(message: unknown) {
       return nothing;
     }
     return html`
-      <details class="chat-thinking-collapse">
-        <summary class="chat-thinking-summary">
-          <span class="chat-thinking-summary__icon">${icons.brain}</span>
-          <span class="chat-thinking-summary__label">${chatText("thinkingPanel.label")}</span>
-          <span class="chat-thinking-summary__meta">${chatText("thinkingPanel.summary")}</span>
-          <span class="chat-thinking-summary__state">
-            <span class="chat-thinking-summary__state-dot"></span>
-            <span>${chatText("thinkingPanel.done")}</span>
+      <details class="chat-thinking-collapse chat-thinking-panel">
+        <summary class="chat-thinking-summary chat-thinking-panel__summary">
+          <span class="chat-thinking-summary__lead">
+            <span class="chat-thinking-summary__icon">${icons.brain}</span>
+            <span class="chat-thinking-summary__copy">
+              <span class="chat-thinking-summary__label">${chatText("thinkingPanel.label")}</span>
+              <span class="chat-thinking-summary__meta">${chatText("thinkingPanel.summary")}</span>
+            </span>
           </span>
+          <span class="chat-thinking-summary__badges">
+            <span class="chat-thinking-summary__badge">${chatText("thinkingPanel.summary")}</span>
+            <span class="chat-thinking-summary__badge chat-thinking-summary__badge--done">
+              ${chatText("thinkingPanel.done")}
+            </span>
+          </span>
+          ${thinkingSummary.preview
+            ? html`<span class="chat-thinking-summary__preview">${thinkingSummary.preview}</span>`
+            : nothing}
         </summary>
         <div class="chat-thinking-body chat-text" dir="${detectTextDirection(extractedThinking)}">
           ${unsafeHTML(toSanitizedMarkdownHtml(extractedThinking))}
@@ -789,15 +922,23 @@ function renderThinkingPanel(message: unknown) {
   }
 
   return html`
-    <div class="chat-thinking-summary-card" role="note">
-      <span class="chat-thinking-summary__icon">${icons.brain}</span>
-      <span class="chat-thinking-summary__label">${chatText("thinkingPanel.label")}</span>
-      <span class="chat-thinking-summary__meta">${chatText("thinkingPanel.hidden")}</span>
-      <span class="chat-thinking-summary__state">
-        <span class="chat-thinking-summary__state-dot"></span>
-        <span>${chatText("thinkingPanel.done")}</span>
-      </span>
-      <span class="chat-thinking-summary__preview">${chatText("thinkingPanel.hiddenPreview")}</span>
+    <div class="chat-thinking-summary-card chat-thinking-panel chat-thinking-panel--hidden" role="note">
+      <div class="chat-thinking-summary chat-thinking-summary--static">
+        <span class="chat-thinking-summary__lead">
+          <span class="chat-thinking-summary__icon">${icons.brain}</span>
+          <span class="chat-thinking-summary__copy">
+            <span class="chat-thinking-summary__label">${chatText("thinkingPanel.label")}</span>
+            <span class="chat-thinking-summary__meta">${chatText("thinkingPanel.hidden")}</span>
+          </span>
+        </span>
+        <span class="chat-thinking-summary__badges">
+          <span class="chat-thinking-summary__badge">${chatText("thinkingPanel.hidden")}</span>
+          <span class="chat-thinking-summary__badge chat-thinking-summary__badge--done">
+            ${chatText("thinkingPanel.done")}
+          </span>
+        </span>
+        <span class="chat-thinking-summary__preview">${chatText("thinkingPanel.hiddenPreview")}</span>
+      </div>
     </div>
   `;
 }
@@ -866,18 +1007,22 @@ function renderGroupedMessage(
       onOpenTasks: opts.onOpenTasks,
     }),
   );
-  const canCopyMarkdown = role === "assistant" && !opts.isStreaming && Boolean(markdown?.trim());
-  const canExpand =
-    role === "assistant" && !opts.isStreaming && Boolean(onOpenSidebar && markdown?.trim());
   const thinkingPanel =
     opts.showReasoning && role === "assistant" ? renderThinkingPanel(message) : nothing;
 
   // Detect pure-JSON messages and render as collapsible block
   const jsonResult = markdown && !opts.isStreaming ? detectJson(markdown) : null;
-
-  const bubbleClasses = ["chat-bubble", opts.isStreaming ? "streaming" : "", "fade-in"]
-    .filter(Boolean)
-    .join(" ");
+  const renderedMessageContent = jsonResult
+    ? html`<details class="chat-json-collapse">
+        <summary class="chat-json-summary">
+          <span class="chat-json-badge">JSON</span>
+          <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
+        </summary>
+        <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
+      </details>`
+    : markdown
+      ? renderMarkdownMessage(role, markdown)
+      : nothing;
 
   if (!markdown && hasToolCards && isToolResult) {
     return renderToolCards(toolCards, onOpenSidebar, opts.onBeginConnector);
@@ -896,36 +1041,18 @@ function renderGroupedMessage(
   }
 
   const isToolMessage = normalizedRole === "tool" || isToolResult;
-  const hasActions = canCopyMarkdown || canExpand;
+  const bubbleClasses = ["chat-bubble", opts.isStreaming ? "streaming" : "", "fade-in"]
+    .filter(Boolean)
+    .join(" ");
 
   return html`
     <div class="${bubbleClasses}">
-      ${hasActions
-        ? html`<div class="chat-bubble-actions">
-            ${canExpand ? renderExpandButton(markdown!, onOpenSidebar!) : nothing}
-            ${canCopyMarkdown ? renderCopyAsMarkdownButton(markdown!) : nothing}
-          </div>`
-        : nothing}
       ${isToolMessage
         ? html`
             <div class="chat-tool-msg-body chat-tool-msg-body--flat">
               ${renderMessageImages(images)} ${renderMessageAttachments(attachments)}
               ${thinkingPanel}
-              ${hasToolCards
-                ? nothing
-                : jsonResult
-                  ? html`<details class="chat-json-collapse">
-                      <summary class="chat-json-summary">
-                        <span class="chat-json-badge">JSON</span>
-                        <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
-                      </summary>
-                      <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
-                    </details>`
-                  : markdown
-                    ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">
-                        ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
-                      </div>`
-                    : nothing}
+              ${hasToolCards ? nothing : renderedMessageContent}
               ${hasToolCards
                 ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
                 : nothing}
@@ -938,19 +1065,7 @@ function renderGroupedMessage(
           `
         : html`
             ${renderMessageImages(images)} ${renderMessageAttachments(attachments)} ${thinkingPanel}
-            ${jsonResult
-              ? html`<details class="chat-json-collapse">
-                  <summary class="chat-json-summary">
-                    <span class="chat-json-badge">JSON</span>
-                    <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
-                  </summary>
-                  <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
-                </details>`
-              : markdown
-                ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">
-                    ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
-                  </div>`
-                : nothing}
+            ${renderedMessageContent}
             ${hasToolCards
               ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
               : nothing}

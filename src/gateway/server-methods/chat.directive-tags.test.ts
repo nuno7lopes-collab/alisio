@@ -24,6 +24,7 @@ const mockState = vi.hoisted(() => ({
   sessionEntry: {} as Record<string, unknown>,
   lastDispatchCtx: undefined as MsgContext | undefined,
   lastDispatchImages: undefined as Array<{ mimeType: string; data: string }> | undefined,
+  lastDispatchExtraSystemPrompt: undefined as string | undefined,
   emittedTranscriptUpdates: [] as Array<{
     sessionFile: string;
     sessionKey?: string;
@@ -90,10 +91,12 @@ vi.mock("../../auto-reply/dispatch.js", () => ({
       replyOptions?: {
         onAgentRunStart?: (runId: string) => void;
         images?: Array<{ mimeType: string; data: string }>;
+        extraSystemPrompt?: string;
       };
     }) => {
       mockState.lastDispatchCtx = params.ctx;
       mockState.lastDispatchImages = params.replyOptions?.images;
+      mockState.lastDispatchExtraSystemPrompt = params.replyOptions?.extraSystemPrompt;
       if (mockState.dispatchError) {
         throw mockState.dispatchError;
       }
@@ -355,6 +358,7 @@ describe("chat directive tag stripping for non-streaming final payloads", () => 
     mockState.sessionEntry = {};
     mockState.lastDispatchCtx = undefined;
     mockState.lastDispatchImages = undefined;
+    mockState.lastDispatchExtraSystemPrompt = undefined;
     mockState.emittedTranscriptUpdates = [];
     mockState.savedMediaResults = [];
     mockState.savedMediaCalls = [];
@@ -474,6 +478,29 @@ describe("chat directive tag stripping for non-streaming final payloads", () => 
       }),
     );
     expect(extractFirstTextBlock(payload)).toBe("");
+  });
+
+  it("merges stored and caller extra system prompt through chat.send dispatch", async () => {
+    createTranscriptFixture("alisio-chat-send-extra-system-prompt-");
+    mockState.finalText = "ok";
+    mockState.sessionEntry = {
+      extraSystemPrompt: "Stored task scope.",
+    };
+    const respond = vi.fn();
+    const context = createChatContext();
+
+    await runNonStreamingChatSend({
+      context,
+      respond,
+      idempotencyKey: "idem-extra-system-prompt",
+      requestParams: {
+        extraSystemPrompt: "Task orchestrator mode.",
+      },
+    });
+
+    expect(mockState.lastDispatchExtraSystemPrompt).toBe(
+      "Stored task scope.\n\nTask orchestrator mode.",
+    );
   });
 
   it("rejects oversized chat.send session keys before dispatch", async () => {

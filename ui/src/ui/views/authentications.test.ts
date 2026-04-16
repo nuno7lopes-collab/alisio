@@ -211,6 +211,29 @@ describe("authentications view", () => {
     expect(onRevokeConnector).toHaveBeenCalledWith("gmail-send");
   });
 
+  it("renders a unified loading toolbar and card skeletons on the first load", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: true,
+        error: null,
+        account: null,
+        overview: null,
+        connectorCatalog: [],
+        connectorAuthorizations: [],
+        search: "",
+        onSearchChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.querySelector(".loading-state__toolbar")).not.toBeNull();
+    expect(container.querySelectorAll(".alisio-auth-card .skeleton").length).toBeGreaterThan(0);
+  });
+
   it("shows connected external apps in the top connected section", () => {
     const container = document.createElement("div");
 

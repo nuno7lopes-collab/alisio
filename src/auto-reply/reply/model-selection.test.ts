@@ -10,6 +10,12 @@ import {
 import { buildAlisioCurrentProviderId } from "../../shared/alisio-dynamic-provider.js";
 import { createModelSelectionState, resolveContextTokens } from "./model-selection.js";
 
+vi.mock("../../agents/agent-scope.js", async () => {
+  return vi.importActual<typeof import("../../agents/agent-scope.js")>(
+    "../../agents/agent-scope.js",
+  );
+});
+
 vi.mock("../../agents/model-catalog.js", () => ({
   loadModelCatalog: vi.fn(async () => [
     { provider: "anthropic", id: "claude-opus-4-5", name: "Claude Opus 4.5" },
@@ -341,7 +347,15 @@ describe("createModelSelectionState respects session model override", () => {
   const defaultModel = "deepseek-v3-4bit-mlx";
 
   async function resolveState(sessionEntry: ReturnType<typeof makeEntry>) {
-    const cfg = {} as AlisioConfig;
+    const cfg = {
+      agents: {
+        defaults: {
+          model: {
+            primary: `${defaultProvider}/${defaultModel}`,
+          },
+        },
+      },
+    } as AlisioConfig;
     const sessionKey = "agent:main:main";
     const sessionStore = { [sessionKey]: sessionEntry };
 
@@ -480,7 +494,7 @@ describe("createModelSelectionState respects session model override", () => {
     expect(sessionStore[sessionKey]?.providerOverride).toBeUndefined();
   });
 
-  it("keeps a runtime-available local dynamic override when the allowlist is static", async () => {
+  it("resets a runtime-available local dynamic override on main sessions", async () => {
     const provider = buildAlisioCurrentProviderId();
     vi.mocked(loadModelCatalog).mockResolvedValueOnce([
       { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
@@ -517,13 +531,62 @@ describe("createModelSelectionState respects session model override", () => {
     });
 
     expect(state.needsModelCatalog).toBe(true);
+    expect(state.provider).toBe("openai");
+    expect(state.model).toBe("gpt-4o");
+    expect(state.allowedModelKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(false);
+    expect(state.resetModelOverride).toBe(true);
+    expect(state.resetModelOverrideReason).toBe(
+      "local models are only available for subagent sessions",
+    );
+    expect(sessionStore[sessionKey]?.fallbackNoticeSelectedModel).toBe(
+      `${provider}/qwen3-4b-q4-k-m`,
+    );
+    expect(sessionStore[sessionKey]?.fallbackNoticeActiveModel).toBe("openai/gpt-4o");
+  });
+
+  it("keeps a runtime-available local dynamic override on subagent sessions", async () => {
+    const provider = buildAlisioCurrentProviderId();
+    vi.mocked(loadModelCatalog).mockResolvedValueOnce([
+      { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
+      { provider, id: "qwen3-4b-q4-k-m", name: "Qwen3 4B" },
+    ]);
+    const cfg = {
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-4o" },
+          models: {
+            "openai/gpt-4o": {},
+          },
+        },
+      },
+    } as AlisioConfig;
+    const sessionKey = "agent:main:subagent:child";
+    const sessionEntry = makeEntry({
+      providerOverride: provider,
+      modelOverride: "qwen3-4b-q4-k-m",
+    });
+    const sessionStore = { [sessionKey]: sessionEntry };
+
+    const state = await createModelSelectionState({
+      cfg,
+      agentCfg: cfg.agents?.defaults,
+      sessionEntry,
+      sessionStore,
+      sessionKey,
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o",
+      provider: "openai",
+      model: "gpt-4o",
+      hasModelDirective: false,
+    });
+
     expect(state.provider).toBe(provider);
     expect(state.model).toBe("qwen3-4b-q4-k-m");
     expect(state.allowedModelKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(true);
     expect(state.resetModelOverride).toBe(false);
   });
 
-  it("keeps a published local dynamic override even when loadModelCatalog is stale", async () => {
+  it("resets a published local dynamic override on main sessions even when loadModelCatalog is stale", async () => {
     const provider = buildAlisioCurrentProviderId();
     vi.mocked(loadModelCatalog).mockResolvedValueOnce([
       { provider: "openai", id: "gpt-4o", name: "GPT-4o" },
@@ -576,10 +639,13 @@ describe("createModelSelectionState respects session model override", () => {
       hasModelDirective: false,
     });
 
-    expect(state.provider).toBe(provider);
-    expect(state.model).toBe("qwen3-4b-q4-k-m");
-    expect(state.allowedModelKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(true);
-    expect(state.resetModelOverride).toBe(false);
+    expect(state.provider).toBe("openai");
+    expect(state.model).toBe("gpt-4o");
+    expect(state.allowedModelKeys.has(`${provider}/qwen3-4b-q4-k-m`)).toBe(false);
+    expect(state.resetModelOverride).toBe(true);
+    expect(state.resetModelOverrideReason).toBe(
+      "local models are only available for subagent sessions",
+    );
   });
 
   it("resets an unavailable local dynamic override after checking the runtime catalog", async () => {

@@ -19,6 +19,7 @@ import {
   publicKeyRawBase64UrlFromPem,
   signDevicePayload,
 } from "../infra/device-identity.js";
+import { resolveCurrentDeviceMetadata } from "../infra/current-device-metadata.js";
 import { isWithinDir } from "../infra/path-safety.js";
 import { openVerifiedFileSync } from "../infra/safe-open-sync.js";
 import { AVATAR_MAX_BYTES } from "../shared/avatar-policy.js";
@@ -353,9 +354,12 @@ export async function handleControlUiLocalDeviceRequest(
       res.end();
       return true;
     }
+    const deviceMetadata = resolveCurrentDeviceMetadata();
     sendJson(res, 200, {
       deviceId: identity.deviceId,
       publicKey: publicKeyRawBase64UrlFromPem(identity.publicKeyPem),
+      platform: deviceMetadata.platform,
+      deviceFamily: deviceMetadata.deviceFamily,
     } satisfies ControlUiLocalDeviceIdentity);
     return true;
   }

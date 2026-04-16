@@ -46,6 +46,7 @@ const mocks = vi.hoisted(() => ({
   decideTaskApprovalMock: vi.fn(),
   createGatewaySessionEntryMock: vi.fn(),
   sendGatewaySessionMessageMock: vi.fn(),
+  loadSessionEntryMock: vi.fn(),
 }));
 
 vi.mock("../../config/config.js", () => ({
@@ -106,6 +107,10 @@ vi.mock("../../tasks/task-service.js", () => ({
 vi.mock("./sessions.js", () => ({
   createGatewaySessionEntry: mocks.createGatewaySessionEntryMock,
   sendGatewaySessionMessage: mocks.sendGatewaySessionMessageMock,
+}));
+
+vi.mock("../session-utils.js", () => ({
+  loadSessionEntry: mocks.loadSessionEntryMock,
 }));
 
 import { tasksHandlers } from "./tasks.js";
@@ -404,6 +409,14 @@ describe("tasksHandlers", () => {
     mocks.sendGatewaySessionMessageMock.mockResolvedValue({
       payload: { runId: "run-task-1" },
       runStarted: true,
+    });
+    mocks.loadSessionEntryMock.mockReturnValue({
+      canonicalKey: "agent:main:task:1",
+      storePath: "/tmp/session-store",
+      entry: {
+        sessionId: "session-1",
+        sessionFile: "/tmp/session-file",
+      },
     });
   });
 
@@ -838,8 +851,29 @@ describe("tasksHandlers", () => {
       expect.objectContaining({
         agentId: "main",
         label: pendingProposal.title,
+        extraSystemPrompt: expect.stringContaining(
+          "This session is the canonical orchestrator for an approved task launched from the Tasks UI.",
+        ),
         parentSessionKey: pendingProposal.requesterSessionKey,
         conversationMode: "task",
+      }),
+    );
+    expect(mocks.createGatewaySessionEntryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extraSystemPrompt: expect.stringContaining(
+          "use sessions_spawn for bounded parallel subtasks",
+        ),
+      }),
+    );
+    expect(mocks.createGatewaySessionEntryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        extraSystemPrompt: expect.stringContaining("Task exists first"),
+      }),
+    );
+    expect(mocks.sendGatewaySessionMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey: "agent:main:task:1",
+        message: pendingProposal.launchPrompt,
       }),
     );
     expect(mocks.attachTaskProposalLaunchMock).toHaveBeenCalledWith({
@@ -853,6 +887,189 @@ describe("tasksHandlers", () => {
       expect.objectContaining({
         proposal: launchedProposal,
         task: expect.objectContaining({ taskId: "canonical-task-1" }),
+        execution: expect.objectContaining({ runId: "run-task-1" }),
+        sessionKey: "agent:main:task:1",
+        runId: "run-task-1",
+      }),
+      undefined,
+    );
+  });
+
+  it("reuses an existing canonical task for the same proposal instead of launching a duplicate", async () => {
+    const proposal = createProposal({
+      decision: "approved",
+      resolvedAt: 1_250,
+      resolvedBy: "control-ui",
+    });
+    const existingTask = createCanonicalTask({
+      taskId: "canonical-task-1",
+      proposalId: proposal.proposalId,
+      orchestratorSessionKey: "agent:main:task:1",
+      latestExecutionId: "execution-1",
+      status: "in_progress",
+    });
+    const existingExecution = createExecution({
+      executionId: "execution-1",
+      taskId: existingTask.taskId,
+      kind: "orchestrator_session",
+      status: "running",
+      runId: "run-task-1",
+      sessionKey: "agent:main:task:1",
+    });
+    const attachedProposal = createProposal({
+      decision: "approved",
+      resolvedAt: 1_250,
+      resolvedBy: "control-ui",
+      launchedTaskId: existingTask.taskId,
+      launchedRunId: "run-task-1",
+      launchedSessionKey: "agent:main:task:1",
+      launchedAt: 1_400,
+    });
+    mocks.getTaskProposalViewByIdMock.mockReturnValue(proposal);
+    mocks.listTasksMock.mockReturnValue([existingTask]);
+    mocks.getTaskBundleMock.mockReturnValue({
+      task: existingTask,
+      children: [],
+      executions: [existingExecution],
+      assignments: [],
+      approvals: [],
+      events: [],
+      dependencies: [],
+    });
+    mocks.attachTaskProposalLaunchMock.mockReturnValue(attachedProposal);
+    const opts = createOptions("tasks.launchFromProposal", {
+      proposalId: proposal.proposalId,
+      agentId: "main",
+    });
+
+    await tasksHandlers["tasks.launchFromProposal"](opts);
+
+    expect(mocks.createTaskMock).not.toHaveBeenCalled();
+    expect(mocks.createGatewaySessionEntryMock).not.toHaveBeenCalled();
+    expect(mocks.sendGatewaySessionMessageMock).not.toHaveBeenCalled();
+    expect(mocks.attachTaskProposalLaunchMock).toHaveBeenCalledWith({
+      proposalId: proposal.proposalId,
+      taskId: existingTask.taskId,
+      runId: "run-task-1",
+      sessionKey: "agent:main:task:1",
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        proposal: attachedProposal,
+        task: existingTask,
+        execution: existingExecution,
+        sessionKey: "agent:main:task:1",
+        runId: "run-task-1",
+      }),
+      undefined,
+    );
+  });
+
+  it("resumes an incomplete launch on the existing canonical task without creating a duplicate", async () => {
+    const proposal = createProposal({
+      decision: "approved",
+      resolvedAt: 1_250,
+      resolvedBy: "control-ui",
+    });
+    const existingTask = createCanonicalTask({
+      taskId: "canonical-task-1",
+      proposalId: proposal.proposalId,
+      ownerAgentId: "main",
+      orchestratorSessionKey: "agent:main:task:1",
+      activeExecutionId: "execution-1",
+      latestExecutionId: "execution-1",
+      status: "ready",
+    });
+    const queuedExecution = createExecution({
+      executionId: "execution-1",
+      taskId: existingTask.taskId,
+      kind: "orchestrator_session",
+      status: "queued",
+      sessionKey: "agent:main:task:1",
+    });
+    const attachedProposal = createProposal({
+      decision: "approved",
+      resolvedAt: 1_250,
+      resolvedBy: "control-ui",
+      launchedTaskId: existingTask.taskId,
+      launchedRunId: "run-task-1",
+      launchedSessionKey: "agent:main:task:1",
+      launchedAt: 1_400,
+    });
+    mocks.getTaskProposalViewByIdMock.mockReturnValue(proposal);
+    mocks.listTasksMock.mockReturnValue([existingTask]);
+    mocks.getTaskBundleMock.mockReturnValue({
+      task: existingTask,
+      children: [],
+      executions: [queuedExecution],
+      assignments: [],
+      approvals: [],
+      events: [],
+      dependencies: [],
+    });
+    mocks.attachTaskProposalLaunchMock.mockReturnValue(attachedProposal);
+    mocks.getTaskMock.mockReturnValue(
+      createCanonicalTask({
+        taskId: existingTask.taskId,
+        proposalId: proposal.proposalId,
+        ownerAgentId: "main",
+        orchestratorSessionKey: "agent:main:task:1",
+        activeExecutionId: "execution-1",
+        latestExecutionId: "execution-1",
+        status: "in_progress",
+      }),
+    );
+    mocks.getTaskExecutionByRunIdMock.mockImplementation((runId: string) =>
+      runId === "run-task-1"
+        ? createExecution({
+            executionId: "execution-1",
+            taskId: existingTask.taskId,
+            kind: "orchestrator_session",
+            status: "running",
+            runId: "run-task-1",
+            sessionKey: "agent:main:task:1",
+          })
+        : null,
+    );
+    const opts = createOptions("tasks.launchFromProposal", {
+      proposalId: proposal.proposalId,
+      agentId: "main",
+    });
+
+    await tasksHandlers["tasks.launchFromProposal"](opts);
+
+    expect(mocks.createTaskMock).not.toHaveBeenCalled();
+    expect(mocks.createGatewaySessionEntryMock).not.toHaveBeenCalled();
+    expect(mocks.startTaskExecutionMock).not.toHaveBeenCalled();
+    expect(mocks.sendGatewaySessionMessageMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionKey: "agent:main:task:1",
+        message: proposal.launchPrompt,
+        extraSystemPrompt: expect.stringContaining(
+          "This session is the canonical orchestrator for an approved task launched from the Tasks UI.",
+        ),
+      }),
+    );
+    expect(mocks.bindTaskExecutionRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executionId: "execution-1",
+        runId: "run-task-1",
+        sessionKey: "agent:main:task:1",
+        kind: "orchestrator_session",
+      }),
+    );
+    expect(mocks.attachTaskProposalLaunchMock).toHaveBeenCalledWith({
+      proposalId: proposal.proposalId,
+      taskId: existingTask.taskId,
+      runId: "run-task-1",
+      sessionKey: "agent:main:task:1",
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        proposal: attachedProposal,
+        task: expect.objectContaining({ taskId: existingTask.taskId }),
         execution: expect.objectContaining({ runId: "run-task-1" }),
         sessionKey: "agent:main:task:1",
         runId: "run-task-1",

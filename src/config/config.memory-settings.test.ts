@@ -37,11 +37,21 @@ describe("config memory settings", () => {
     await withTempHomeConfig(
       {
         memory: {
+          markdownProjection: {
+            enabled: true,
+          },
           ledger: {
             enabled: false,
           },
           legacyMarkdownProjection: {
             enabled: false,
+          },
+          jobs: {
+            enabled: true,
+            maxSliceMs: 90,
+            autoSleep: {
+              enabled: false,
+            },
           },
           crdt: {
             pages: {
@@ -52,11 +62,21 @@ describe("config memory settings", () => {
       },
       async () => {
         const cfg = loadConfig();
+        expect(cfg.memory?.markdownProjection).toEqual({
+          enabled: true,
+        });
         expect(cfg.memory?.ledger).toEqual({
           enabled: false,
         });
         expect(cfg.memory?.legacyMarkdownProjection).toEqual({
           enabled: false,
+        });
+        expect(cfg.memory?.jobs).toEqual({
+          enabled: true,
+          maxSliceMs: 90,
+          autoSleep: {
+            enabled: false,
+          },
         });
         expect(cfg.memory?.crdt).toEqual({
           pages: {
@@ -100,6 +120,9 @@ describe("config memory settings", () => {
   it("accepts canonical memory E2EE and sync config surfaces", () => {
     const result = validateConfigObject({
       memory: {
+        markdownProjection: {
+          enabled: true,
+        },
         e2ee: {
           required: true,
         },
@@ -117,6 +140,9 @@ describe("config memory settings", () => {
     if (!result.ok) {
       throw new Error("expected validation to succeed");
     }
+    expect(result.config.memory?.markdownProjection).toEqual({
+      enabled: true,
+    });
     expect(result.config.memory?.e2ee).toEqual({
       required: true,
     });
@@ -124,6 +150,32 @@ describe("config memory settings", () => {
       mode: "cloud",
       relayBaseUrl: "https://relay.example.test",
       ui: {
+        enabled: false,
+      },
+    });
+  });
+
+  it("accepts public memory jobs config surfaces", () => {
+    const result = validateConfigObject({
+      memory: {
+        jobs: {
+          enabled: true,
+          maxSliceMs: 120,
+          autoSleep: {
+            enabled: false,
+          },
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error("expected validation to succeed");
+    }
+    expect(result.config.memory?.jobs).toEqual({
+      enabled: true,
+      maxSliceMs: 120,
+      autoSleep: {
         enabled: false,
       },
     });

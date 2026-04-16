@@ -15,6 +15,7 @@ import {
 import { resetConfigRuntimeState, writeConfigFile } from "../config/config.js";
 import type { AlisioConfig } from "../config/config.js";
 import type { SessionEntry } from "../config/sessions.js";
+import { buildAlisioCurrentProviderId } from "../shared/alisio-dynamic-provider.js";
 import { withStateDirEnv } from "../test-helpers/state-dir-env.js";
 import { withEnv } from "../test-utils/env.js";
 import {
@@ -73,12 +74,13 @@ function createSingleAgentAvatarConfig(workspace: string): AlisioConfig {
 
 function createModelDefaultsConfig(params: {
   primary: string;
+  fallbacks?: string[];
   models?: Record<string, Record<string, never>>;
 }): AlisioConfig {
   return {
     agents: {
       defaults: {
-        model: { primary: params.primary },
+        model: { primary: params.primary, fallbacks: params.fallbacks },
         models: params.models,
       },
     },
@@ -855,6 +857,29 @@ describe("resolveSessionModelRef", () => {
     });
 
     expect(resolved).toEqual({ provider: "anthropic", model: "claude-sonnet-4-6" });
+  });
+
+  test("falls back from local managed defaults on main sessions", () => {
+    const provider = buildAlisioCurrentProviderId();
+    const cfg = createModelDefaultsConfig({
+      primary: `${provider}/qwen3-4b-q4-k-m`,
+      fallbacks: ["openai/gpt-4o-mini"],
+    });
+
+    const resolved = resolveSessionModelRef(
+      cfg,
+      {
+        sessionId: "main-local-default",
+        updatedAt: Date.now(),
+      },
+      "main",
+      "agent:main:main",
+    );
+
+    expect(resolved).toEqual({
+      provider: "openai",
+      model: "gpt-4o-mini",
+    });
   });
 });
 

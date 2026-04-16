@@ -122,3 +122,35 @@ export function computeContextHash(messages: Array<{ role?: string; content?: un
   const hash = crypto.createHash("sha256").update(payload).digest("hex");
   return hash.slice(0, 16);
 }
+
+export function computeMemoryFlushContextHash(params: {
+  messages: Array<{ role?: string; content?: unknown }>;
+  pendingPrompt?: string;
+}): string | undefined {
+  const pendingPrompt = params.pendingPrompt?.trim();
+  if (params.messages.length === 0 && !pendingPrompt) {
+    return undefined;
+  }
+  const contextMessages = pendingPrompt
+    ? [...params.messages, { role: "user", content: pendingPrompt }]
+    : params.messages;
+  return computeContextHash(contextMessages);
+}
+
+export function shouldSkipMemoryFlushByContextHash(params: {
+  previousHash?: string;
+  currentHash?: string;
+}): boolean {
+  return Boolean(params.previousHash && params.currentHash && params.previousHash === params.currentHash);
+}
+
+export function didCompactionEventComplete(eventData: {
+  phase?: string;
+  completed?: boolean;
+  willRetry?: boolean;
+}): boolean {
+  const phase = typeof eventData.phase === "string" ? eventData.phase : "";
+  const completed = eventData.completed === true;
+  const willRetry = eventData.willRetry === true;
+  return phase === "end" && (completed || !willRetry);
+}

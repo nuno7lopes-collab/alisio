@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlisioConfig } from "../../../config/config.js";
 import { writeWorkspaceFile } from "../../../test-helpers/workspace.js";
 import { createHookEvent } from "../../hooks.js";
@@ -15,6 +15,19 @@ import {
 vi.mock("../../llm-slug-generator.js", () => ({
   generateSlugViaLLM: vi.fn().mockResolvedValue("simple-math"),
 }));
+
+const syncDailyMemoryThroughCanonicalPipelineMock = vi
+  .hoisted(() => vi.fn().mockResolvedValue(undefined));
+
+vi.mock("../../../memory/daily-memory.js", async () => {
+  const actual = await vi.importActual<typeof import("../../../memory/daily-memory.js")>(
+    "../../../memory/daily-memory.js",
+  );
+  return {
+    ...actual,
+    syncDailyMemoryThroughCanonicalPipeline: syncDailyMemoryThroughCanonicalPipelineMock,
+  };
+});
 
 let handler: typeof import("./handler.js").default;
 let suiteWorkspaceRoot = "";
@@ -39,6 +52,10 @@ afterAll(async () => {
   await fs.rm(suiteWorkspaceRoot, { recursive: true, force: true });
   suiteWorkspaceRoot = "";
   workspaceCaseCounter = 0;
+});
+
+beforeEach(() => {
+  syncDailyMemoryThroughCanonicalPipelineMock.mockClear();
 });
 
 /**
@@ -224,6 +241,18 @@ describe("session-memory hook", () => {
     ]);
     const { files, memoryContent } = await runNewWithPreviousSession({ sessionContent });
     expect(files.length).toBe(1);
+    expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.md$/);
+    expect(syncDailyMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
+      cfg: expect.objectContaining({
+        agents: expect.objectContaining({
+          defaults: expect.objectContaining({
+            workspace: expect.any(String),
+          }),
+        }),
+      }),
+      agentId: "main",
+      reason: "session-memory",
+    });
 
     // Read the memory file and verify content
     expect(memoryContent).toContain("user: Hello there");
@@ -243,6 +272,7 @@ describe("session-memory hook", () => {
     });
 
     expect(files.length).toBe(1);
+    expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.md$/);
     expect(memoryContent).toContain("user: Please reset and keep notes");
     expect(memoryContent).toContain("assistant: Captured before reset");
   });
@@ -282,7 +312,56 @@ describe("session-memory hook", () => {
     expect(memoryContent).toContain("user: Remember this under Navi");
     expect(memoryContent).toContain("assistant: Stored in the bound workspace");
     expect(memoryContent).toContain("- **Session Key**: agent:navi:main");
+    expect(syncDailyMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
+      cfg: expect.any(Object),
+      agentId: "navi",
+      reason: "session-memory",
+    });
     await expect(fs.access(path.join(mainWorkspace, "memory"))).rejects.toThrow();
+  });
+
+  it("appends multiple session snapshots to the same canonical daily note", async () => {
+    const tempDir = await createCaseWorkspace("workspace");
+    const sessionsDir = path.join(tempDir, "sessions");
+    await fs.mkdir(sessionsDir, { recursive: true });
+
+    const firstSessionFile = await writeWorkspaceFile({
+      dir: sessionsDir,
+      name: "first-session.jsonl",
+      content: createMockSessionContent([
+        { role: "user", content: "First memory item" },
+        { role: "assistant", content: "First summary" },
+      ]),
+    });
+    const secondSessionFile = await writeWorkspaceFile({
+      dir: sessionsDir,
+      name: "second-session.jsonl",
+      content: createMockSessionContent([
+        { role: "user", content: "Second memory item" },
+        { role: "assistant", content: "Second summary" },
+      ]),
+    });
+
+    const firstRun = await runNewWithPreviousSessionEntry({
+      tempDir,
+      previousSessionEntry: {
+        sessionId: "session-1",
+        sessionFile: firstSessionFile,
+      },
+    });
+    const secondRun = await runNewWithPreviousSessionEntry({
+      tempDir,
+      previousSessionEntry: {
+        sessionId: "session-2",
+        sessionFile: secondSessionFile,
+      },
+    });
+
+    expect(firstRun.files).toEqual(secondRun.files);
+    expect(secondRun.files).toHaveLength(1);
+    expect(secondRun.memoryContent).toContain("First memory item");
+    expect(secondRun.memoryContent).toContain("Second memory item");
+    expect(secondRun.memoryContent.match(/^## /gm)?.length ?? 0).toBe(2);
   });
 
   it("filters out non-message entries (tool calls, system)", async () => {

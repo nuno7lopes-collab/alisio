@@ -11,6 +11,7 @@ import { icons } from "../icons.ts";
 import { formatToolDetail, resolveToolDisplay } from "../tool-display.ts";
 import type { ToolCard } from "../types/chat-types.ts";
 import { connectorBrandStyle, getConnectorBranding } from "../views/connector-branding.ts";
+import { renderCopyButton } from "./copy-as-markdown.ts";
 import { extractTextCached } from "./message-extract.ts";
 import { isToolResultMessage } from "./message-normalizer.ts";
 import { formatToolOutputForSidebar } from "./tool-helpers.ts";
@@ -506,22 +507,6 @@ function renderToolTimelineEntry(
     <details
       class="chat-tool-card chat-tool-card__details chat-tool-card__details--${state.tone}"
       ?open=${shouldOpen}
-      @click=${(event: Event) => {
-        if (!canOpenSidebar) {
-          return;
-        }
-        const target = event.target as HTMLElement | null;
-        if (
-          target?.closest(".chat-tool-card__summary") ||
-          target?.closest(".chat-tool-card__open") ||
-          target?.closest(".chat-tool-card__section-content")
-        ) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        openSidebar();
-      }}
     >
       <summary class="chat-tool-card__summary">
         <span class="chat-tool-card__summary-left">
@@ -549,20 +534,31 @@ function renderToolTimelineEntry(
           : state.tone === "active"
             ? html` <div class="chat-tool-card__pending">Waiting for tool output.</div> `
             : nothing}
-        ${canOpenSidebar
+        ${openText
           ? html`
               <div class="chat-tool-card__footer">
-                <button
-                  class="btn btn--xs chat-tool-card__open"
-                  type="button"
-                  @click=${(event: Event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    openSidebar();
-                  }}
-                >
-                  ${output.full ? "Open full output" : "Open full input"}
-                </button>
+                <div class="chat-tool-card__footer-actions">
+                  ${renderCopyButton(openText, output.full ? "Copy output" : "Copy input")}
+                  ${canOpenSidebar
+                    ? html`
+                        <button
+                          class="btn btn--xs chat-tool-card__open"
+                          type="button"
+                          title=${output.full ? "View full output" : "View full input"}
+                          aria-label=${output.full ? "View full output" : "View full input"}
+                          @click=${(event: Event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            openSidebar();
+                          }}
+                        >
+                          <span class="chat-tool-card__open-icon" aria-hidden="true">
+                            ${icons.panelRightOpen}
+                          </span>
+                        </button>
+                      `
+                    : nothing}
+                </div>
               </div>
             `
           : nothing}

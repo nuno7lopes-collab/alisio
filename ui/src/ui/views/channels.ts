@@ -26,6 +26,13 @@ import {
   type ResolvedChannelRow,
 } from "./channel-display.ts";
 import { connectorBrandStyle, getChannelBranding } from "./connector-branding.ts";
+import {
+  renderSkeletonButton,
+  renderSkeletonLines,
+  renderSkeletonListItem,
+  renderSkeletonPill,
+  renderSurfaceEmptyState,
+} from "./loading-skeleton.ts";
 
 type WizardAnswer = {
   stepId: string;
@@ -34,6 +41,7 @@ type WizardAnswer = {
 
 type ChannelsProps = {
   connected: boolean;
+  connectionError?: string | null;
   loading: boolean;
   error: string | null;
   snapshot: ChannelsStatusSnapshot | null;
@@ -102,8 +110,8 @@ type WhatsAppLinkState = {
 };
 
 const CHANNEL_REQUIREMENT_KEYS: Partial<Record<string, readonly string[]>> = {
-  telegram: ["steps.telegram.0", "steps.telegram.1", "steps.telegram.2"],
-  discord: ["steps.discord.0", "steps.discord.1", "steps.discord.2"],
+  telegram: ["steps.telegram.0", "steps.telegram.1", "steps.telegram.2", "steps.telegram.3"],
+  discord: ["steps.discord.0", "steps.discord.1", "steps.discord.2", "steps.discord.3"],
   whatsapp: ["steps.whatsapp.0", "steps.whatsapp.1", "steps.whatsapp.2"],
 };
 
@@ -172,6 +180,94 @@ function renderMetaLine(items: Array<string | null | undefined>, className = "ch
         `,
       )}
     </div>
+  `;
+}
+
+function renderChannelToolbarSkeleton() {
+  return html`
+    <section class="channel-toolbar" aria-hidden="true">
+      <div class="channel-toolbar__meta">${renderSkeletonLines(["short"], { compact: true })}</div>
+      ${renderSkeletonButton({ small: true })}
+    </section>
+  `;
+}
+
+function renderChannelCardSkeleton() {
+  return html`
+    <article class="channel-card" aria-hidden="true">
+      <div class="channel-card__header">
+        <div class="channel-card__identity">
+          <span class="channel-card__icon skeleton"></span>
+          <div class="channel-card__title-wrap">
+            ${renderSkeletonLines(["medium", "long"], { compact: true })}
+          </div>
+        </div>
+        ${renderSkeletonPill({ small: true })}
+      </div>
+      <div class="channel-card__description">
+        ${renderSkeletonLines(["full", "medium"], { compact: true })}
+      </div>
+      <div class="channel-card__accounts">
+        ${Array.from({ length: 2 }, (_, index) => {
+          const aside =
+            index === 0
+              ? renderSkeletonPill({ small: true })
+              : renderSkeletonButton({ small: true });
+          return html`
+            <div class="channel-account">
+              <div class="channel-account__head">
+                <div class="channel-account__title-wrap">
+                  ${renderSkeletonLines(index === 0 ? ["medium", "short"] : ["short", "medium"], {
+                    compact: true,
+                  })}
+                </div>
+                ${aside}
+              </div>
+              <div class="row channel-account__actions">
+                ${renderSkeletonButton({ small: true })} ${renderSkeletonButton({ small: true })}
+              </div>
+            </div>
+          `;
+        })}
+      </div>
+      <div class="row channel-card__footer">
+        ${renderSkeletonButton({ small: true })} ${renderSkeletonButton({ small: true })}
+      </div>
+    </article>
+  `;
+}
+
+function renderSetupPanelSkeleton(selectedRow: ResolvedChannelRow | null) {
+  return html`
+    <section
+      class="card channel-setup-panel"
+      role="status"
+      aria-label=${channelText("setupLoading")}
+    >
+      <div class="channel-setup-panel__header">
+        ${selectedRow
+          ? html`<span class="channel-card__icon skeleton"></span>`
+          : html`<div class="skeleton loading-state__icon-square"></div>`}
+        <div class="channel-setup-panel__header-copy">
+          ${renderSkeletonLines(["short", "medium"], { compact: true })}
+        </div>
+      </div>
+      <div class="channel-setup-panel__body">
+        <aside class="channel-setup-panel__guide">
+          <div class="loading-state__list">
+            ${renderSkeletonListItem({ lines: ["long"], compact: true })}
+            ${renderSkeletonListItem({ lines: ["medium"], compact: true })}
+            ${renderSkeletonListItem({ lines: ["long"], compact: true })}
+          </div>
+        </aside>
+        <div class="channel-setup-panel__stage">
+          ${renderSkeletonLines(["medium", "long", "full"], { compact: true })}
+          <div class="row channel-setup-panel__actions">
+            ${renderSkeletonButton({ small: true })} ${renderSkeletonButton({ small: true })}
+          </div>
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -661,6 +757,9 @@ function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
   }
 
   const step = props.setupStep;
+  if (props.setupLoading && !step && !props.setupError) {
+    return renderSetupPanelSkeleton(selectedRow);
+  }
   const canContinue = !props.setupLoading;
   const requirements = selectedRow ? resolveChannelRequirements(selectedRow) : null;
   const docsUrl = selectedRow ? buildChannelDocsUrl(selectedRow.meta.docsPath) : null;
@@ -683,9 +782,6 @@ function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
             </aside>`
           : nothing}
         <div class="channel-setup-panel__stage">
-          ${props.setupLoading && !step
-            ? html`<div class="card-sub">${channelText("setupLoading")}</div>`
-            : nothing}
           ${props.setupError
             ? html`<div class="channel-feedback channel-feedback--danger">${props.setupError}</div>`
             : nothing}
@@ -1020,28 +1116,35 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
 
 export function renderChannels(props: ChannelsProps) {
   const rows = resolveChannelRows(props.snapshot);
+  const showInitialLoading = props.loading && !props.snapshot;
   const lastChecked = formatTimestamp(props.lastSuccess ?? props.snapshot?.ts ?? null);
   const hasVisibleWhatsAppQr = Boolean(props.loginQrDataUrl);
   const shouldShowActionMessage = Boolean(props.actionMessage) && !hasVisibleWhatsAppQr;
+  const errorMessages = [...new Set([props.connectionError, props.error].filter(Boolean))];
+  const showDisconnectedState =
+    !showInitialLoading && !props.connected && errorMessages.length === 0;
 
   return html`
     <section class="alisio-page">
-      <section class="channel-toolbar">
-        <div class="channel-toolbar__meta">
-          ${lastChecked
-            ? html`
-                <div class="channel-toolbar__timestamp">
-                  ${channelText("lastChecked")}: ${lastChecked}
-                </div>
-              `
-            : nothing}
-        </div>
-        <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? channelText("refreshing") : channelText("refresh")}
-        </button>
-      </section>
-
-      ${shouldShowActionMessage || props.error
+      ${showInitialLoading
+        ? renderChannelToolbarSkeleton()
+        : html`
+            <section class="channel-toolbar">
+              <div class="channel-toolbar__meta">
+                ${lastChecked
+                  ? html`
+                      <div class="channel-toolbar__timestamp">
+                        ${channelText("lastChecked")}: ${lastChecked}
+                      </div>
+                    `
+                  : nothing}
+              </div>
+              <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onRefresh}>
+                ${props.loading ? channelText("refreshing") : channelText("refresh")}
+              </button>
+            </section>
+          `}
+      ${shouldShowActionMessage || errorMessages.length > 0
         ? html`
             <div class="channel-feedback-stack">
               ${shouldShowActionMessage
@@ -1049,31 +1152,45 @@ export function renderChannels(props: ChannelsProps) {
                     <div class="channel-feedback channel-feedback--ok">${props.actionMessage}</div>
                   `
                 : nothing}
-              ${props.error
-                ? html`<div class="channel-feedback channel-feedback--danger">${props.error}</div>`
-                : nothing}
+              ${errorMessages.map(
+                (message) =>
+                  html`<div class="channel-feedback channel-feedback--danger">${message}</div>`,
+              )}
             </div>
           `
         : nothing}
-      ${!props.connected
+      ${showDisconnectedState
         ? html`
             <section class="card">
-              <div class="card-sub">${channelText("disconnected")}</div>
+              ${renderSurfaceEmptyState({
+                body: channelText("disconnected"),
+                compact: true,
+              })}
             </section>
           `
         : nothing}
       ${renderSetupPanel(props, rows)}
-      ${rows.length > 0
+      ${showInitialLoading
         ? html`
-            <section class="channels-grid">
-              ${rows.map((row) => renderChannelCard(row, props))}
+            <section class="channels-grid" role="status" aria-label=${channelText("refreshing")}>
+              ${renderChannelCardSkeleton()} ${renderChannelCardSkeleton()}
+              ${renderChannelCardSkeleton()}
             </section>
           `
-        : html`
-            <section class="card">
-              <div class="card-sub">${channelText("empty")}</div>
-            </section>
-          `}
+        : rows.length > 0
+          ? html`
+              <section class="channels-grid">
+                ${rows.map((row) => renderChannelCard(row, props))}
+              </section>
+            `
+          : html`
+              <section class="card">
+                ${renderSurfaceEmptyState({
+                  body: channelText("empty"),
+                  compact: true,
+                })}
+              </section>
+            `}
     </section>
   `;
 }

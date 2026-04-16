@@ -33,6 +33,7 @@ import {
   renderSkeletonLines,
   renderSkeletonListItem,
   renderSkeletonPill,
+  renderSurfaceEmptyState,
 } from "./loading-skeleton.ts";
 import {
   nativeShellPermissionDescription,
@@ -787,7 +788,16 @@ function renderDevicesSection(props: { account: AlisioAccountState | null; loadi
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       ${(props.account.devices ?? []).length === 0
-        ? html`<div class="empty-state" style="margin-top: 16px;">${text.empty}</div>`
+        ? html`
+            <div style="margin-top: 16px;">
+              ${renderSurfaceEmptyState({
+                title: text.empty,
+                body: text.subtitle,
+                compact: true,
+                centered: true,
+              })}
+            </div>
+          `
         : html`
             <div style="display: grid; gap: 12px; margin-top: 16px;">
               ${props.account.devices.map(

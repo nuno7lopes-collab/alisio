@@ -67,7 +67,12 @@ function resolveTrustedToolsEffectiveContext(params: {
   }
 
   const delivery = deliveryContextFromSession(loaded.entry);
-  const resolvedModel = resolveSessionModelRef(loaded.cfg, loaded.entry, sessionAgentId);
+  const resolvedModel = resolveSessionModelRef(
+    loaded.cfg,
+    loaded.entry,
+    sessionAgentId,
+    params.sessionKey,
+  );
   return {
     cfg: loaded.cfg,
     agentId: sessionAgentId,

@@ -17,6 +17,7 @@ export const unitTestIncludePatterns = [
   "ui/src/ui/views/chat.test.ts",
   "ui/src/ui/views/skills.test.ts",
   "ui/src/ui/views/security.test.ts",
+  "ui/src/ui/views/tasks.test.ts",
   "ui/src/ui/views/usage-render-details.test.ts",
   "ui/src/ui/controllers/agents.test.ts",
   "ui/src/ui/controllers/chat.test.ts",

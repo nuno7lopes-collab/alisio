@@ -52,10 +52,22 @@ export type ConnectionsModel = {
   hasAdvancedSharing: boolean;
 };
 
+type ConnectionsModelCache = {
+  account?: AlisioAccountState | null;
+  sharing?: AlisioSharingState | null;
+  devicesList: DevicePairingList | null;
+  currentDeviceId: string | null;
+  nodes: NodeListNode[];
+  nodePairingsList?: RuntimeNodePairingList | null;
+  result: ConnectionsModel;
+};
+
 function normalizeId(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 }
+
+let lastConnectionsModelCache: ConnectionsModelCache | null = null;
 
 function nodeSupportsExec(node: Pick<NodeListNode, "commands" | "caps" | "capabilities">) {
   const commands = Array.isArray(node.commands) ? node.commands : [];
@@ -170,6 +182,18 @@ function buildComputerModel(params: {
 }
 
 export function resolveConnectionsModel(input: ConnectionsModelInput): ConnectionsModel {
+  const cached = lastConnectionsModelCache;
+  if (
+    cached &&
+    cached.account === input.account &&
+    cached.sharing === input.sharing &&
+    cached.devicesList === input.devicesList &&
+    cached.currentDeviceId === input.currentDeviceId &&
+    cached.nodes === input.nodes &&
+    cached.nodePairingsList === input.nodePairingsList
+  ) {
+    return cached.result;
+  }
   const localComputers = groupPairedDevicesByComputer(
     input.devicesList?.paired ?? [],
     input.currentDeviceId ?? null,
@@ -258,7 +282,7 @@ export function resolveConnectionsModel(input: ConnectionsModelInput): Connectio
     }
   }
 
-  return {
+  const result = {
     currentComputer,
     sameAccountComputers,
     externalComputers,
@@ -277,4 +301,16 @@ export function resolveConnectionsModel(input: ConnectionsModelInput): Connectio
       (input.sharing?.suggestions?.length ?? 0) > 0 ||
       input.sharing?.policy.resourcesEditable === true,
   };
+
+  lastConnectionsModelCache = {
+    account: input.account,
+    sharing: input.sharing,
+    devicesList: input.devicesList,
+    currentDeviceId: input.currentDeviceId ?? null,
+    nodes: input.nodes,
+    nodePairingsList: input.nodePairingsList,
+    result,
+  };
+
+  return result;
 }

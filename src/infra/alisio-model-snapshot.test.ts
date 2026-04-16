@@ -293,4 +293,128 @@ describe("loadAlisioModelProviderSnapshot", () => {
       consentRequired: true,
     });
   });
+
+  it("keeps the current local provider available when sharing access lookup fails", async () => {
+    inspectManagedLocalModelRuntimeMock.mockResolvedValueOnce({
+      backend: "llama.cpp",
+      runtimeKind: "llama.cpp",
+      runtimeLabel: "Local GGUF",
+      status: "ready",
+      models: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp", running: true }],
+      availableModels: [],
+      hardware: createHardware(),
+      capabilities: {
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+      },
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    });
+    getAlisioSharingTargetAccessIndexMock.mockRejectedValueOnce(
+      new Error("Could not find the 'computer_id' column of 'alisio_sharing_targets' in the schema cache"),
+    );
+
+    const snapshot = await loadAlisioModelProviderSnapshot({
+      nodeRegistry: createRegistry(),
+      force: true,
+    });
+
+    expect(snapshot.targets[0]).toMatchObject({
+      current: true,
+      runtimeStatus: "ready",
+      access: "owner",
+      chatProviderId: "alisio-local-current-llama",
+      installedModels: [
+        { id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp", running: true },
+      ],
+    });
+    expect(snapshot.dynamicCatalogEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "alisio-local-current-llama",
+          id: "qwen3-4b-q4-k-m",
+        }),
+      ]),
+    );
+  });
+
+  it("fails closed for remote targets when sharing access lookup fails", async () => {
+    inspectManagedLocalModelRuntimeMock.mockResolvedValueOnce({
+      backend: "llama.cpp",
+      runtimeKind: "llama.cpp",
+      runtimeLabel: "Local GGUF",
+      status: "ready",
+      models: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
+      availableModels: [],
+      hardware: createHardware(),
+      capabilities: {
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+      },
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    });
+    getAlisioSharingTargetAccessIndexMock.mockRejectedValueOnce(
+      new Error("Could not find the 'computer_id' column of 'alisio_sharing_targets' in the schema cache"),
+    );
+
+    const remoteNode = {
+      nodeId: "remote-llama",
+      displayName: "Remote Llama",
+      platform: "linux",
+      capabilities: [
+        { id: "model.catalog.llamacpp.v1" },
+        { id: "model.chat.llamacpp.v1" },
+        { id: "model.manage.llamacpp.v1" },
+      ],
+    } as NodeSession;
+
+    const snapshot = await loadAlisioModelProviderSnapshot({
+      nodeRegistry: createRegistry({
+        nodes: [remoteNode],
+        taskPayloads: {
+          "remote-llama:model.catalog.llamacpp.v1": {
+            runtimeKind: "llama.cpp",
+            runtimeLabel: "Local GGUF",
+            status: "ready",
+            models: [{ id: "qwen3-8b-q4-k-m", name: "Qwen3 8B", ownedBy: "llama.cpp" }],
+            availableModels: [],
+            hardware: createHardware(),
+            capabilities: {
+              install: true,
+              update: true,
+              uninstall: true,
+              consentRequired: true,
+            },
+            supportsInstall: true,
+            supportsUpdate: true,
+            supportsUninstall: true,
+            consentRequired: true,
+          },
+        },
+      }),
+      force: true,
+    });
+
+    expect(snapshot.targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          current: true,
+          chatProviderId: "alisio-local-current-llama",
+        }),
+      ]),
+    );
+    expect(snapshot.targets.some((target) => target.deviceId === "remote-llama")).toBe(false);
+    expect(
+      snapshot.dynamicCatalogEntries.some((entry) => entry.provider === "alisio-target-remote-llama-llama"),
+    ).toBe(false);
+  });
 });

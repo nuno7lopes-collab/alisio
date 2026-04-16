@@ -3,7 +3,7 @@ import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
 import {
   resolveAllowedModelRef,
-  resolveDefaultModelForAgent,
+  resolveDefaultModelForSession,
   resolveSubagentConfiguredModelSelection,
 } from "../agents/model-selection.js";
 import { normalizeGroupActivation } from "../auto-reply/group-activation.js";
@@ -30,6 +30,10 @@ import { applyVerboseOverride, parseVerboseOverride } from "../sessions/level-ov
 import { applyModelOverrideToSessionEntry } from "../sessions/model-overrides.js";
 import { normalizeSendPolicy } from "../sessions/send-policy.js";
 import { parseSessionLabel } from "../sessions/session-label.js";
+import {
+  getLocalManagedModelRestrictionReason,
+  isLocalManagedModelRestrictedForSession,
+} from "../shared/local-model-session-policy.js";
 import {
   ErrorCodes,
   type ErrorShape,
@@ -88,7 +92,11 @@ export async function applySessionsPatchToStore(params: {
   const now = Date.now();
   const parsedAgent = parseAgentSessionKey(storeKey);
   const sessionAgentId = normalizeAgentId(parsedAgent?.agentId ?? resolveDefaultAgentId(cfg));
-  const resolvedDefault = resolveDefaultModelForAgent({ cfg, agentId: sessionAgentId });
+  const resolvedDefault = resolveDefaultModelForSession({
+    cfg,
+    agentId: sessionAgentId,
+    sessionKey: storeKey,
+  });
   const subagentModelHint = isSubagentSessionKey(storeKey)
     ? resolveSubagentConfiguredModelSelection({ cfg, agentId: sessionAgentId })
     : undefined;
@@ -398,6 +406,14 @@ export async function applySessionsPatchToStore(params: {
       });
       if ("error" in resolved) {
         return invalid(resolved.error);
+      }
+      if (
+        isLocalManagedModelRestrictedForSession({
+          providerId: resolved.ref.provider,
+          sessionKey: storeKey,
+        })
+      ) {
+        return invalid(`${getLocalManagedModelRestrictionReason()}: ${resolved.key}`);
       }
       const isDefault =
         resolved.ref.provider === resolvedDefault.provider &&

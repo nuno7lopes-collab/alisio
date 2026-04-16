@@ -26,6 +26,13 @@ import {
   resolveApprovalSummaryRows,
 } from "./approval-summary.ts";
 import { formatApprovalRemaining } from "./exec-approval.ts";
+import {
+  renderSkeletonButton,
+  renderSkeletonLines,
+  renderSkeletonListItem,
+  renderSkeletonPill,
+  renderSurfaceEmptyState,
+} from "./loading-skeleton.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
 import { resolveNodeTargets } from "./nodes-shared.ts";
 
@@ -281,6 +288,9 @@ function renderAuditEntry(entry: ExecApprovalAuditEntry, props: SecurityProps) {
 }
 
 function renderAuditTrail(entries: ExecApprovalAuditEntry[], props: SecurityProps) {
+  if (entries.length === 0) {
+    return nothing;
+  }
   return html`
     <section class="card alisio-security-panel">
       <div class="alisio-security-panel__head">
@@ -289,24 +299,34 @@ function renderAuditTrail(entries: ExecApprovalAuditEntry[], props: SecurityProp
           <div class="card-sub">${t("alisio.security.audit.subtitle")}</div>
         </div>
       </div>
-      ${entries.length === 0
-        ? html`
-            <div class="alisio-security-empty">
-              <strong>${t("alisio.security.audit.emptyTitle")}</strong>
-              <span>${t("alisio.security.audit.emptyBody")}</span>
-            </div>
-          `
-        : html`
-            <div class="alisio-security-approval-list">
-              ${entries.map((entry) => renderAuditEntry(entry, props))}
-            </div>
-          `}
+      <div class="alisio-security-approval-list">
+        ${entries.map((entry) => renderAuditEntry(entry, props))}
+      </div>
+    </section>
+  `;
+}
+
+function renderSecurityPanelSkeleton() {
+  return html`
+    <section class="card alisio-security-panel" role="status" aria-label=${t("common.loading")}>
+      <div class="loading-state__header">
+        <div class="loading-state__header-copy">
+          <div class="skeleton loading-state__title"></div>
+          <div class="skeleton skeleton-line loading-state__subtitle"></div>
+        </div>
+        ${renderSkeletonPill()}
+      </div>
+      <div class="loading-state__list">
+        ${renderSkeletonListItem({ lines: ["long", "medium"], aside: "pill" })}
+        ${renderSkeletonListItem({ lines: ["medium", "short"], aside: "button" })}
+      </div>
     </section>
   `;
 }
 
 function renderApprovalQueue(props: SecurityProps, nowMs: number) {
   const queue = sortExecApprovalQueue(props.execApprovalQueue);
+  const showInitialLoading = props.loading && props.execApprovalsLoading && queue.length === 0;
   return html`
     <section class="card alisio-security-panel">
       <div class="alisio-security-panel__head">
@@ -320,17 +340,25 @@ function renderApprovalQueue(props: SecurityProps, nowMs: number) {
       ${props.execApprovalError
         ? html`<div class="callout danger">${props.execApprovalError}</div>`
         : nothing}
-      ${queue.length === 0
+      ${showInitialLoading
         ? html`
-            <div class="alisio-security-empty">
-              <strong>${t("alisio.security.queue.emptyTitle")}</strong>
+            <div class="loading-state__list">
+              ${renderSkeletonListItem({ lines: ["long", "medium"], aside: "pill" })}
+              ${renderSkeletonListItem({ lines: ["medium", "short"], aside: "button" })}
             </div>
           `
-        : html`
-            <div class="alisio-security-approval-list">
-              ${queue.map((entry) => renderPendingApproval(entry, props, nowMs))}
-            </div>
-          `}
+        : queue.length === 0
+          ? renderSurfaceEmptyState({
+              title: t("alisio.security.queue.emptyTitle"),
+              body: t("alisio.security.queue.title"),
+              compact: true,
+              centered: true,
+            })
+          : html`
+              <div class="alisio-security-approval-list">
+                ${queue.map((entry) => renderPendingApproval(entry, props, nowMs))}
+              </div>
+            `}
     </section>
   `;
 }
@@ -381,24 +409,6 @@ function renderAccessModeCard(
   `;
 }
 
-function renderSecureDefaultsChecklist() {
-  return html`
-    <section class="card alisio-security-panel">
-      <div class="alisio-security-panel__head">
-        <div>
-          <div class="card-title">${t("alisio.security.defaults.title")}</div>
-          <div class="card-sub">${t("alisio.security.defaults.subtitle")}</div>
-        </div>
-      </div>
-      <ul class="alisio-security-checklist">
-        <li>${t("alisio.security.defaults.items.review")}</li>
-        <li>${t("alisio.security.defaults.items.overrides")}</li>
-        <li>${t("alisio.security.defaults.items.repeat")}</li>
-      </ul>
-    </section>
-  `;
-}
-
 function renderAccessModePanel(props: SecurityProps) {
   if (!supportsRuntimeAccessModeTarget(props.execApprovalsTarget)) {
     return html`
@@ -433,9 +443,35 @@ function renderAccessModePanel(props: SecurityProps) {
       <div class="card-title">${t("alisio.security.access.title")}</div>
       ${!ready
         ? html`
-            <div class="alisio-security-empty">
-              <strong>${t("alisio.security.access.loadTitle")}</strong>
-              <span>${t("alisio.security.access.loadBody")}</span>
+            <div role="status" aria-label=${t("alisio.security.access.loadTitle")}>
+              <div class="loading-state__header" style="margin-top: 16px;">
+                <div class="loading-state__header-copy">
+                  <div class="skeleton loading-state__title"></div>
+                  <div class="skeleton skeleton-line loading-state__subtitle"></div>
+                </div>
+                ${renderSkeletonPill()}
+              </div>
+              <div class="alisio-security-mode-grid">
+                ${Array.from(
+                  { length: 2 },
+                  () => html`
+                    <div class="alisio-security-mode-card" aria-hidden="true">
+                      <div class="loading-state__header">
+                        <div class="loading-state__header-copy">
+                          <div class="skeleton loading-state__title"></div>
+                          <div class="skeleton skeleton-line loading-state__subtitle"></div>
+                        </div>
+                        ${renderSkeletonPill({ small: true })}
+                      </div>
+                      ${renderSkeletonLines(["full", "medium"], { compact: true })}
+                      <div class="loading-state__list">
+                        ${renderSkeletonListItem({ lines: ["medium"], compact: true })}
+                        ${renderSkeletonListItem({ lines: ["short"], compact: true })}
+                      </div>
+                    </div>
+                  `,
+                )}
+              </div>
             </div>
           `
         : html`
@@ -538,25 +574,42 @@ export function renderSecurity(props: SecurityProps) {
             <div class="card-title">${t("alisio.security.title")}</div>
             <div class="card-sub">${t("alisio.security.subtitle")}</div>
           </div>
-          <button
-            class="btn"
-            ?disabled=${props.loading || props.execApprovalsLoading}
-            @click=${props.onRefresh}
-          >
-            ${props.loading || props.execApprovalsLoading
-              ? t("alisio.security.refreshing")
-              : t("alisio.security.refreshAll")}
-          </button>
+          ${props.loading && approvalQueue.length === 0
+            ? renderSkeletonButton()
+            : html`
+                <button
+                  class="btn"
+                  ?disabled=${props.loading || props.execApprovalsLoading}
+                  @click=${props.onRefresh}
+                >
+                  ${props.loading || props.execApprovalsLoading
+                    ? t("alisio.security.refreshing")
+                    : t("alisio.security.refreshAll")}
+                </button>
+              `}
         </div>
 
         <div class="alisio-security-meta">
-          ${renderSecurityMetaItem(
-            t("alisio.security.stats.mode"),
-            mode ? accessModeLabel(mode) : t("alisio.security.access.gatewayOnlyShort"),
-          )}
-          ${renderSecurityMetaItem(t("alisio.security.stats.pending"), approvalQueue.length)}
-          ${renderSecurityMetaItem(t("alisio.security.stats.target"), resolveTargetLabel(props))}
-          ${renderSecurityMetaItem(t("alisio.security.stats.prompt"), promptModeLabel(promptAsk))}
+          ${props.loading && approvalQueue.length === 0
+            ? html`
+                ${renderSkeletonPill()} ${renderSkeletonPill()} ${renderSkeletonPill()}
+                ${renderSkeletonPill()}
+              `
+            : html`
+                ${renderSecurityMetaItem(
+                  t("alisio.security.stats.mode"),
+                  mode ? accessModeLabel(mode) : t("alisio.security.access.gatewayOnlyShort"),
+                )}
+                ${renderSecurityMetaItem(t("alisio.security.stats.pending"), approvalQueue.length)}
+                ${renderSecurityMetaItem(
+                  t("alisio.security.stats.target"),
+                  resolveTargetLabel(props),
+                )}
+                ${renderSecurityMetaItem(
+                  t("alisio.security.stats.prompt"),
+                  promptModeLabel(promptAsk),
+                )}
+              `}
         </div>
 
         ${renderAccessModePanel(props)}
@@ -564,8 +617,10 @@ export function renderSecurity(props: SecurityProps) {
 
       <div class="alisio-connections-stack">
         ${renderApprovalQueue({ ...props, execApprovalQueue: approvalQueue }, nowMs)}
-        ${renderAuditTrail(props.execApprovalAuditTrail, props)}
-        ${renderExecApprovals(approvalsState)} ${renderSecureDefaultsChecklist()}
+        ${props.loading && props.execApprovalAuditTrail.length === 0
+          ? renderSecurityPanelSkeleton()
+          : renderAuditTrail(props.execApprovalAuditTrail, props)}
+        ${renderExecApprovals(approvalsState)}
       </div>
     </section>
   `;

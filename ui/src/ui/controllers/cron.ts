@@ -77,6 +77,9 @@ export type CronState = {
   cronRunsQuery: string;
   cronRunsSortDir: CronSortDir;
   cronBusy: boolean;
+  cronCalendarMode: "week" | "month";
+  cronCalendarCursorMs: number;
+  cronCalendarSelectedDayMs: number | null;
 };
 
 export type CronModelSuggestionsState = {

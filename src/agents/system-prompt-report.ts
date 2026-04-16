@@ -1,10 +1,44 @@
 import type { AgentTool } from "@mariozechner/pi-agent-core";
+import type { AlisioConfig } from "../config/config.js";
 import type { SessionSystemPromptReport } from "../config/sessions/types.js";
+import { resolveSandboxConfigForAgent } from "./sandbox.js";
+import { resolveSandboxRuntimeStatus } from "./sandbox/runtime-status.js";
+import { isToolAllowed } from "./sandbox/tool-policy.js";
 import { buildBootstrapInjectionStats } from "./bootstrap-budget.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
 
 export const CURRENT_BROWSER_SESSION_CONTRACT_VERSION = 1;
+
+export function resolveSystemPromptSandboxReport(params: {
+  cfg?: AlisioConfig;
+  sessionKey?: string;
+  browserObserverUrl?: string;
+  hostBrowserAllowed?: boolean;
+}): SessionSystemPromptReport["sandbox"] | undefined {
+  const runtime = resolveSandboxRuntimeStatus({
+    cfg: params.cfg,
+    sessionKey: params.sessionKey,
+  });
+  const sandboxCfg = resolveSandboxConfigForAgent(params.cfg, runtime.agentId);
+  const sandboxBrowserEnabled =
+    runtime.sandboxed && sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
+
+  if (!runtime.sandboxed && !params.browserObserverUrl && params.hostBrowserAllowed == null) {
+    return undefined;
+  }
+
+  return {
+    mode: runtime.mode,
+    sandboxed: runtime.sandboxed,
+    browserContractVersion: CURRENT_BROWSER_SESSION_CONTRACT_VERSION,
+    browserTargetDefault: sandboxBrowserEnabled ? "sandbox" : "host",
+    hostBrowserAllowed: sandboxBrowserEnabled
+      ? sandboxCfg.browser.allowHostControl
+      : params.hostBrowserAllowed === true,
+    browserObserverUrl: params.browserObserverUrl?.trim() || undefined,
+  };
+}
 
 function extractBetween(
   input: string,

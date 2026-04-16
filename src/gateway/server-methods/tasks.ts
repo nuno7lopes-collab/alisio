@@ -68,6 +68,7 @@ import {
   validateTasksUpdateParams,
   type TasksOverviewResult,
 } from "../protocol/index.js";
+import { loadSessionEntry } from "../session-utils.js";
 import { createGatewaySessionEntry, sendGatewaySessionMessage } from "./sessions.js";
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
@@ -147,6 +148,353 @@ function buildFallbackLaunchPrompt(proposal: {
     }
   }
   return lines.join("\n");
+}
+
+function buildTaskOrchestratorSystemPrompt(task: {
+  taskId: string;
+  title: string;
+  summary?: string;
+  acceptance: string[];
+}) {
+  const lines = [
+    "This session is the canonical orchestrator for an approved task launched from the Tasks UI.",
+    `Canonical task: ${task.taskId} (${task.title})`,
+    "Start execution immediately unless there is a real blocker, missing dependency, or safety constraint.",
+    "Keep the main thread focused on orchestration and use sessions_spawn for bounded parallel subtasks when that reduces latency or keeps ownership clear.",
+    "Do not drift into unrelated repo cleanup. Stay anchored to the approved task scope.",
+    "Before you finish, verify the acceptance criteria, integrate subagent results, and report any remaining blockers precisely.",
+  ];
+  if (task.summary?.trim()) {
+    lines.push("", `Task summary: ${task.summary.trim()}`);
+  }
+  if (task.acceptance.length > 0) {
+    lines.push("", "Acceptance criteria to verify before completion:");
+    for (const item of task.acceptance) {
+      const normalized = item.trim();
+      if (normalized) {
+        lines.push(`- ${normalized}`);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+type CanonicalTask = NonNullable<ReturnType<typeof getTask>>;
+type CanonicalTaskBundle = NonNullable<ReturnType<typeof getTaskBundle>>;
+type CanonicalTaskExecution = CanonicalTaskBundle["executions"][number];
+
+function resolveProposalLaunchResult(params: {
+  proposal: {
+    launchedRunId?: string;
+    launchedSessionKey?: string;
+  };
+  task: NonNullable<ReturnType<typeof getTask>>;
+}) {
+  const bundle = getTaskBundle(params.task.taskId);
+  const execution =
+    (params.proposal.launchedRunId?.trim()
+      ? getTaskExecutionByRunId(params.proposal.launchedRunId)
+      : null) ??
+    bundle?.executions.find(
+      (candidate) => candidate.executionId === params.task.activeExecutionId,
+    ) ??
+    bundle?.executions.find(
+      (candidate) => candidate.executionId === params.task.latestExecutionId,
+    ) ??
+    bundle?.executions.at(-1) ??
+    null;
+  const sessionKey =
+    params.proposal.launchedSessionKey?.trim() ||
+    execution?.sessionKey?.trim() ||
+    params.task.orchestratorSessionKey?.trim() ||
+    "";
+  const runId = params.proposal.launchedRunId?.trim() || execution?.runId?.trim() || "";
+  if (!execution || !sessionKey || !runId) {
+    return null;
+  }
+  return {
+    task: params.task,
+    execution,
+    sessionKey,
+    runId,
+  };
+}
+
+function ensureTaskReadyForProposalLaunch(params: {
+  task: CanonicalTask;
+  proposal: {
+    createdBy: "assistant" | "user";
+    requesterSessionKey: string;
+    summary?: string;
+    rationale?: string;
+    title: string;
+  };
+  actor: string | null;
+}) {
+  let task = params.task;
+  if (task.status !== "draft" && task.status !== "pending_approval" && task.status !== "blocked") {
+    return task;
+  }
+  const requestedBy =
+    params.proposal.createdBy === "user" ? params.proposal.requesterSessionKey : "assistant";
+  const note = params.proposal.summary ?? params.proposal.rationale ?? params.proposal.title;
+  let approval =
+    task.latestApprovalId && task.status === "pending_approval"
+      ? (getTaskBundle(task.taskId)?.approvals.find(
+          (candidate) =>
+            candidate.approvalId === task.latestApprovalId && candidate.status === "pending",
+        ) ?? null)
+      : null;
+  if (!approval) {
+    approval = requestTaskApproval({
+      taskId: task.taskId,
+      requestedBy,
+      note,
+    }).approval;
+  }
+  task = decideTaskApproval({
+    approvalId: approval.approvalId,
+    decision: "approved",
+    decidedBy: params.actor ?? "control-ui",
+    note: params.proposal.rationale ?? params.proposal.summary,
+  }).task;
+  return task;
+}
+
+function resolveRecoverableProposalLaunchState(task: CanonicalTask): {
+  resumableExecution: CanonicalTaskExecution | null;
+  reusableSession: {
+    sessionKey: string;
+    storePath: string;
+    entry: NonNullable<ReturnType<typeof loadSessionEntry>["entry"]>;
+  } | null;
+} {
+  const bundle = getTaskBundle(task.taskId);
+  const executionCandidates: CanonicalTaskExecution[] = [];
+  if (bundle && task.activeExecutionId) {
+    const active = bundle.executions.find(
+      (candidate) => candidate.executionId === task.activeExecutionId,
+    );
+    if (active) {
+      executionCandidates.push(active);
+    }
+  }
+  if (bundle && task.latestExecutionId && task.latestExecutionId !== task.activeExecutionId) {
+    const latest = bundle.executions.find(
+      (candidate) => candidate.executionId === task.latestExecutionId,
+    );
+    if (latest) {
+      executionCandidates.push(latest);
+    }
+  }
+  if (bundle) {
+    for (let index = bundle.executions.length - 1; index >= 0; index -= 1) {
+      const execution = bundle.executions[index];
+      if (
+        execution &&
+        !executionCandidates.some((candidate) => candidate.executionId === execution.executionId)
+      ) {
+        executionCandidates.push(execution);
+      }
+    }
+  }
+  const resumableExecution =
+    executionCandidates.find(
+      (candidate) => candidate.status === "queued" && !candidate.runId?.trim(),
+    ) ?? null;
+  const rawSessionKey =
+    task.orchestratorSessionKey?.trim() ||
+    resumableExecution?.sessionKey?.trim() ||
+    executionCandidates.find((candidate) => candidate.sessionKey?.trim())?.sessionKey?.trim() ||
+    "";
+  if (!rawSessionKey) {
+    return {
+      resumableExecution,
+      reusableSession: null,
+    };
+  }
+  const loaded = loadSessionEntry(rawSessionKey);
+  if (!loaded.entry?.sessionId) {
+    return {
+      resumableExecution,
+      reusableSession: null,
+    };
+  }
+  return {
+    resumableExecution,
+    reusableSession: {
+      sessionKey: loaded.canonicalKey,
+      storePath: loaded.storePath,
+      entry: loaded.entry,
+    },
+  };
+}
+
+async function launchProposalTaskExecution(params: {
+  req: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
+    args: infer T,
+  ) => Promise<unknown>
+    ? T["req"]
+    : never;
+  context: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
+    args: infer T,
+  ) => Promise<unknown>
+    ? T["context"]
+    : never;
+  client: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
+    args: infer T,
+  ) => Promise<unknown>
+    ? T["client"]
+    : never;
+  isWebchatConnect: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
+    args: infer T,
+  ) => Promise<unknown>
+    ? T["isWebchatConnect"]
+    : never;
+  proposal: {
+    proposalId: string;
+    title: string;
+    summary?: string;
+    rationale?: string;
+    acceptance: string[];
+    launchPrompt?: string;
+    requesterSessionKey: string;
+    createdBy: "assistant" | "user";
+    agentId?: string;
+    resolvedBy?: string | null;
+  };
+  task: CanonicalTask;
+  actor: string | null;
+  preferredOwnerAgentId?: string;
+}) {
+  const prompt = params.proposal.launchPrompt?.trim() || buildFallbackLaunchPrompt(params.proposal);
+  let task = ensureTaskReadyForProposalLaunch({
+    task: params.task,
+    proposal: params.proposal,
+    actor: params.actor,
+  });
+  const orchestratorSystemPrompt = buildTaskOrchestratorSystemPrompt({
+    taskId: task.taskId,
+    title: params.proposal.title,
+    summary: params.proposal.summary,
+    acceptance: params.proposal.acceptance,
+  });
+  const recovery = resolveRecoverableProposalLaunchState(task);
+  const reusableSession =
+    recovery.reusableSession &&
+    (!params.preferredOwnerAgentId ||
+      resolveAgentIdFromSessionKey(recovery.reusableSession.sessionKey) ===
+        params.preferredOwnerAgentId)
+      ? recovery.reusableSession
+      : null;
+  let sessionKey = reusableSession?.sessionKey ?? "";
+  let storePath = reusableSession?.storePath ?? "";
+  let entry = reusableSession?.entry ?? null;
+  if (!reusableSession) {
+    const createdSession = await createGatewaySessionEntry({
+      context: params.context,
+      agentId: params.preferredOwnerAgentId,
+      label: params.proposal.title,
+      extraSystemPrompt: orchestratorSystemPrompt,
+      parentSessionKey: params.proposal.requesterSessionKey,
+      conversationMode: "task",
+    });
+    sessionKey = createdSession.key;
+    storePath = createdSession.storePath;
+    entry = createdSession.entry;
+  }
+  const ownerAgentId =
+    resolveAgentIdFromSessionKey(sessionKey) ??
+    params.preferredOwnerAgentId ??
+    task.ownerAgentId ??
+    undefined;
+  if (task.orchestratorSessionKey !== sessionKey || task.ownerAgentId !== ownerAgentId) {
+    task = updateTask({
+      taskId: task.taskId,
+      ownerAgentId,
+      orchestratorSessionKey: sessionKey,
+    });
+  }
+  const execution =
+    (reusableSession ? recovery.resumableExecution : null) ??
+    startTaskExecution({
+      taskId: task.taskId,
+      kind: "orchestrator_session",
+      sessionKey,
+      agentId: ownerAgentId,
+      label: params.proposal.title,
+      summary: prompt,
+      status: "queued",
+    }).execution;
+
+  let sendResult;
+  try {
+    sendResult = await sendGatewaySessionMessage({
+      req: params.req,
+      context: params.context,
+      client: params.client,
+      isWebchatConnect: params.isWebchatConnect,
+      sessionKey,
+      storePath,
+      entry,
+      message: prompt,
+      extraSystemPrompt: reusableSession ? orchestratorSystemPrompt : undefined,
+    });
+  } catch (error) {
+    endTaskExecution({
+      executionId: execution.executionId,
+      status: "failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+
+  const runId =
+    typeof sendResult.payload?.runId === "string" ? sendResult.payload.runId.trim() : "";
+  if (!runId) {
+    endTaskExecution({
+      executionId: execution.executionId,
+      status: "failed",
+      error: "Task proposal launch did not start an agent run.",
+    });
+    throw new Error("Task proposal launch did not start an agent run.");
+  }
+
+  bindTaskExecutionRun({
+    executionId: execution.executionId,
+    runId,
+    sourceId: runId,
+    sessionKey,
+    agentId: ownerAgentId,
+    label: params.proposal.title,
+    summary: prompt,
+    kind: "orchestrator_session",
+  });
+  if (sendResult.runStarted) {
+    markTaskExecutionRunningByRunId({
+      runId,
+      summary: prompt,
+    });
+  }
+
+  const proposal = attachTaskProposalLaunch({
+    proposalId: params.proposal.proposalId,
+    taskId: task.taskId,
+    runId,
+    sessionKey,
+  });
+  const launchedTask = getTask(task.taskId);
+  const launchedExecution = getTaskExecutionByRunId(runId);
+  if (!launchedTask || !launchedExecution) {
+    throw new Error("Canonical task launch state could not be reloaded.");
+  }
+  return {
+    proposal,
+    task: launchedTask,
+    execution: launchedExecution,
+    sessionKey,
+    runId,
+  };
 }
 
 function buildCanonicalTaskSummary(tasks: ReturnType<typeof listTasks>) {
@@ -485,29 +833,41 @@ export const tasksHandlers: GatewayRequestHandlers = {
       if (proposal.decision === "rejected") {
         throw new Error("Cannot launch a rejected task proposal.");
       }
+      const proposalId = proposal.proposalId;
 
-      if (proposal.launchedTaskId?.trim()) {
-        const task = getTask(proposal.launchedTaskId);
-        const bundle = task ? getTaskBundle(task.taskId) : null;
-        const execution =
-          (proposal.launchedRunId?.trim()
-            ? getTaskExecutionByRunId(proposal.launchedRunId)
-            : null) ??
-          bundle?.executions.find(
-            (candidate) => candidate.executionId === task?.latestExecutionId,
-          ) ??
-          bundle?.executions.at(-1);
-        const sessionKey =
-          proposal.launchedSessionKey?.trim() ||
-          execution?.sessionKey?.trim() ||
-          task?.orchestratorSessionKey?.trim() ||
-          "";
-        const runId = proposal.launchedRunId?.trim() || execution?.runId?.trim() || "";
-        if (!task || !execution || !sessionKey || !runId) {
-          throw new Error("Task proposal launch metadata is incomplete.");
+      const attachedTaskId = proposal.launchedTaskId?.trim() || "";
+      const attachedTask = attachedTaskId ? getTask(attachedTaskId) : null;
+      if (attachedTaskId && !attachedTask) {
+        throw new Error(
+          `Task proposal launch references missing canonical task: ${attachedTaskId}`,
+        );
+      }
+      const existingTask =
+        attachedTask ??
+        listTasks().find((candidate) => candidate.proposalId === proposalId) ??
+        null;
+      if (existingTask) {
+        const existingLaunch = resolveProposalLaunchResult({
+          proposal,
+          task: existingTask,
+        });
+        if (existingLaunch) {
+          if (
+            proposal.launchedTaskId !== existingTask.taskId ||
+            proposal.launchedRunId !== existingLaunch.runId ||
+            proposal.launchedSessionKey !== existingLaunch.sessionKey
+          ) {
+            proposal = attachTaskProposalLaunch({
+              proposalId: proposal.proposalId,
+              taskId: existingTask.taskId,
+              runId: existingLaunch.runId,
+              sessionKey: existingLaunch.sessionKey,
+            });
+            context.broadcast("tasks.proposal.changed", { proposal }, { dropIfSlow: true });
+          }
+          respond(true, { proposal, ...existingLaunch }, undefined);
+          return;
         }
-        respond(true, { proposal, task, execution, sessionKey, runId }, undefined);
-        return;
       }
 
       const actor = resolveProposalActorLabel(client);
@@ -518,134 +878,39 @@ export const tasksHandlers: GatewayRequestHandlers = {
           resolvedBy: actor,
         });
       }
-
       const requestedOwnerAgentId =
         typeof params.agentId === "string" && params.agentId.trim()
           ? params.agentId.trim()
           : proposal.agentId?.trim() || undefined;
-      const prompt = proposal.launchPrompt?.trim() || buildFallbackLaunchPrompt(proposal);
-      const task = createTask({
-        kind: proposal.kind,
-        title: proposal.title,
-        summary: proposal.summary,
-        description: prompt,
-        acceptance: proposal.acceptance,
-        requesterSessionKey: proposal.requesterSessionKey,
-        requestedBy:
-          proposal.createdBy === "user"
-            ? proposal.requesterSessionKey
-            : (actor ?? "assistant.proposal"),
-        ownerAgentId: requestedOwnerAgentId,
-        proposalId: proposal.proposalId,
-      });
-      const approval = requestTaskApproval({
-        taskId: task.taskId,
-        requestedBy: proposal.createdBy === "user" ? proposal.requesterSessionKey : "assistant",
-        note: proposal.summary ?? proposal.rationale ?? proposal.title,
-      });
-      decideTaskApproval({
-        approvalId: approval.approval.approvalId,
-        decision: "approved",
-        decidedBy: proposal.resolvedBy ?? actor ?? "control-ui",
-        note: proposal.rationale ?? proposal.summary,
-      });
-
-      const createdSession = await createGatewaySessionEntry({
+      const task =
+        existingTask ??
+        createTask({
+          kind: proposal.kind,
+          title: proposal.title,
+          summary: proposal.summary,
+          description: proposal.launchPrompt?.trim() || buildFallbackLaunchPrompt(proposal),
+          acceptance: proposal.acceptance,
+          requesterSessionKey: proposal.requesterSessionKey,
+          requestedBy:
+            proposal.createdBy === "user"
+              ? proposal.requesterSessionKey
+              : (actor ?? "assistant.proposal"),
+          ownerAgentId: requestedOwnerAgentId,
+          proposalId: proposal.proposalId,
+        });
+      const launched = await launchProposalTaskExecution({
+        req,
         context,
-        agentId: requestedOwnerAgentId,
-        label: proposal.title,
-        parentSessionKey: proposal.requesterSessionKey,
-        conversationMode: "task",
+        client,
+        isWebchatConnect,
+        proposal,
+        task,
+        actor,
+        preferredOwnerAgentId: requestedOwnerAgentId,
       });
-      const ownerAgentId =
-        resolveAgentIdFromSessionKey(createdSession.key) ?? requestedOwnerAgentId ?? undefined;
-      const updatedTask = updateTask({
-        taskId: task.taskId,
-        ownerAgentId,
-        orchestratorSessionKey: createdSession.key,
-      });
-      const started = startTaskExecution({
-        taskId: updatedTask.taskId,
-        kind: "orchestrator_session",
-        sessionKey: createdSession.key,
-        agentId: ownerAgentId,
-        label: proposal.title,
-        summary: prompt,
-        status: "queued",
-      });
-
-      let sendResult;
-      try {
-        sendResult = await sendGatewaySessionMessage({
-          req,
-          context,
-          client,
-          isWebchatConnect,
-          sessionKey: createdSession.key,
-          storePath: createdSession.storePath,
-          entry: createdSession.entry,
-          message: prompt,
-        });
-      } catch (error) {
-        endTaskExecution({
-          executionId: started.execution.executionId,
-          status: "failed",
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
-
-      const runId =
-        typeof sendResult.payload?.runId === "string" ? sendResult.payload.runId.trim() : "";
-      if (!runId) {
-        endTaskExecution({
-          executionId: started.execution.executionId,
-          status: "failed",
-          error: "Task proposal launch did not start an agent run.",
-        });
-        throw new Error("Task proposal launch did not start an agent run.");
-      }
-
-      bindTaskExecutionRun({
-        executionId: started.execution.executionId,
-        runId,
-        sourceId: runId,
-        sessionKey: createdSession.key,
-        agentId: ownerAgentId,
-        label: proposal.title,
-        summary: prompt,
-        kind: "orchestrator_session",
-      });
-      if (sendResult.runStarted) {
-        markTaskExecutionRunningByRunId({
-          runId,
-          summary: prompt,
-        });
-      }
-
-      proposal = attachTaskProposalLaunch({
-        proposalId: proposal.proposalId,
-        taskId: updatedTask.taskId,
-        runId,
-        sessionKey: createdSession.key,
-      });
-      const launchedTask = getTask(updatedTask.taskId);
-      const launchedExecution = getTaskExecutionByRunId(runId);
-      if (!launchedTask || !launchedExecution) {
-        throw new Error("Canonical task launch state could not be reloaded.");
-      }
+      proposal = launched.proposal;
       context.broadcast("tasks.proposal.changed", { proposal }, { dropIfSlow: true });
-      respond(
-        true,
-        {
-          proposal,
-          task: launchedTask,
-          execution: launchedExecution,
-          sessionKey: createdSession.key,
-          runId,
-        },
-        undefined,
-      );
+      respond(true, launched, undefined);
     } catch (error) {
       respondTaskServiceError(respond, error);
     }

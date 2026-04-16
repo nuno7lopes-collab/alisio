@@ -439,6 +439,23 @@ describe("renderSecurity", () => {
     expect(container.textContent).not.toContain("Custom");
   });
 
+  it("renders loading skeletons while the security snapshot is still loading", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        loading: true,
+        execApprovalsLoading: true,
+        gatewayAccessModeLoading: true,
+        gatewayAccessMode: null,
+      }),
+      container,
+    );
+
+    expect(container.querySelectorAll(".loading-state__pill").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".loading-state__list").length).toBeGreaterThan(0);
+  });
+
   it("disables the button for the already active access mode", () => {
     const container = document.createElement("div");
     render(renderSecurity(createProps()), container);

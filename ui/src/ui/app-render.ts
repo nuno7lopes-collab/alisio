@@ -91,6 +91,7 @@ import {
   saveConfig,
   updateConfigFormValue,
 } from "./controllers/config.ts";
+import { runCronJob, toggleCronJob } from "./controllers/cron.ts";
 import {
   approveDevicePairing,
   cleanupComputerPairings,
@@ -146,7 +147,6 @@ import {
   loadTasksOverview,
   resolveTaskProposal,
   saveTaskProposal,
-  updateTaskNotifyPolicy,
 } from "./controllers/tasks.ts";
 import { icons } from "./icons.ts";
 import "./components/dashboard-header.ts";
@@ -164,12 +164,14 @@ import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderCommandPalette } from "./views/command-palette.ts";
 import { renderConnections } from "./views/connections.ts";
+import { renderCron } from "./views/cron.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
 import { renderMemoryHub } from "./views/memory.ts";
 import { renderModelsHub } from "./views/models.ts";
 import { renderOrganization } from "./views/organization.ts";
 import { renderSecurity } from "./views/security.ts";
+import { renderSessionDeleteConfirmation } from "./views/session-delete-confirmation.ts";
 import { renderSettingsHub } from "./views/settings.ts";
 import { renderSetup } from "./views/setup.ts";
 import { renderTasks } from "./views/tasks.ts";
@@ -626,6 +628,10 @@ export function renderApp(state: AppViewState) {
     state.modelManagementCatalog.length > 0 ? state.modelManagementCatalog : state.chatModelCatalog;
   const modelsPageModelOptions = buildChatModelOptions(managementModelCatalog);
   const isChat = activeTab === "chat";
+  const tabsWithLocalTransportError = new Set(["chat", "channels", "organization", "capabilities"]);
+  const showGlobalErrorCallout = Boolean(
+    state.lastError && !tabsWithLocalTransportError.has(activeTab),
+  );
   const chatFocus = isChat && state.settings.chatFocusMode;
   const navDrawerOpen = Boolean(state.navDrawerOpen && !chatFocus);
   const navCollapsed = Boolean(state.settings.navCollapsed && !navDrawerOpen);
@@ -662,8 +668,8 @@ export function renderApp(state: AppViewState) {
       );
       state.execApprovalQueue = state.execApprovalQueue.filter((item) => item.id !== entry.id);
       await loadGatewayAccessMode(state);
-    } catch (err) {
-      state.execApprovalError = `Approval failed: ${String(err)}`;
+    } catch {
+      state.execApprovalError = t("alisio.security.queue.resolveFailed");
     } finally {
       state.execApprovalBusy = false;
     }
@@ -808,23 +814,6 @@ export function renderApp(state: AppViewState) {
                       </span>
                     `}
               </div>
-              <button
-                type="button"
-                class="nav-collapse-toggle sidebar-shell__toggle ${navCollapsed
-                  ? "is-collapsed"
-                  : ""}"
-                @click=${() =>
-                  state.applySettings({
-                    ...state.settings,
-                    navCollapsed: !state.settings.navCollapsed,
-                  })}
-                title="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
-                aria-label="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
-              >
-                <span class="nav-collapse-toggle__icon" aria-hidden="true"
-                  >${icons.chevronRight}</span
-                >
-              </button>
             </div>
             <div class="sidebar-shell__body">
               <nav
@@ -874,15 +863,6 @@ export function renderApp(state: AppViewState) {
                           aria-hidden="true"
                         ></span>
                       </button>
-                      <button
-                        type="button"
-                        class="sidebar-footer-compact__plans"
-                        title=${t("alisio.settings.billing.title")}
-                        aria-label=${t("alisio.settings.billing.title")}
-                        @click=${() => openSettingsSection("billing")}
-                      >
-                        ${icons.spark}
-                      </button>
                     </div>
                   `
                 : html`
@@ -909,18 +889,25 @@ export function renderApp(state: AppViewState) {
                           ></span>
                           <span>${connectionLabel}</span>
                         </div>
-                        <button
-                          type="button"
-                          class="btn alisio-sidebar-account__plans"
-                          @click=${() => openSettingsSection("billing")}
-                        >
-                          ${t("alisio.settings.billing.title")}
-                        </button>
                       </div>
                     </div>
                   `}
             </div>
           </div>
+          <button
+            type="button"
+            class="sidebar-edge-toggle ${navCollapsed ? "is-collapsed" : ""}"
+            @click=${() =>
+              state.applySettings({
+                ...state.settings,
+                navCollapsed: !state.settings.navCollapsed,
+              })}
+            title="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
+            aria-label="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
+            aria-pressed=${String(navCollapsed)}
+          >
+            <span class="sidebar-edge-toggle__icon" aria-hidden="true">${icons.chevronRight}</span>
+          </button>
         </aside>
       </div>
       <main class="content ${isChat ? "content--chat" : ""}">
@@ -954,7 +941,9 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>`
           : nothing}
-        ${state.lastError ? html`<div class="callout danger">${state.lastError}</div>` : nothing}
+        ${showGlobalErrorCallout
+          ? html`<div class="callout danger">${state.lastError}</div>`
+          : nothing}
         ${activeTab === "authentications"
           ? renderAuthentications({
               loading: state.alisioConnectorsLoading,
@@ -978,6 +967,7 @@ export function renderApp(state: AppViewState) {
         ${activeTab === "channels"
           ? renderChannels({
               connected: state.connected,
+              connectionError: state.lastError,
               loading: state.channelsLoading,
               error: state.channelsError,
               snapshot: state.channelsSnapshot,
@@ -1050,6 +1040,7 @@ export function renderApp(state: AppViewState) {
         ${activeTab === "capabilities"
           ? renderCapabilities({
               connected: state.connected,
+              connectionError: state.lastError,
               loading: state.skillsLoading,
               report: state.skillsReport,
               error: state.skillsError,
@@ -1177,13 +1168,16 @@ export function renderApp(state: AppViewState) {
               execApprovalsTarget: state.execApprovalsTarget,
               execApprovalsTargetNodeId: state.execApprovalsTargetNodeId,
               onRefresh: () => {
-                void Promise.allSettled([
+                const refreshes = [
                   loadNodes(state),
                   loadDevices(state),
                   loadAlisioSharing(state),
                   loadNodePairings(state),
-                  loadConfig(state),
-                ]);
+                ];
+                if (state.configForm || state.configLoading || state.configFormDirty) {
+                  refreshes.push(loadConfig(state));
+                }
+                void Promise.allSettled(refreshes);
               },
               onDevicesRefresh: () => {
                 void loadDevices(state);
@@ -1410,9 +1404,6 @@ export function renderApp(state: AppViewState) {
               onCancelTask: (taskId) => {
                 void cancelTask(state, taskId);
               },
-              onNotifyPolicyChange: (taskId, notify) => {
-                void updateTaskNotifyPolicy(state, taskId, notify);
-              },
               onResolveProposal: (proposal, decision) => {
                 void resolveTaskProposal(state, proposal, decision);
               },
@@ -1436,9 +1427,41 @@ export function renderApp(state: AppViewState) {
               },
             })
           : nothing}
+        ${activeTab === "cron"
+          ? renderCron({
+              loading: state.cronLoading,
+              status: state.cronStatus,
+              jobs: state.cronJobs,
+              error: state.cronError,
+              calendarMode: state.cronCalendarMode,
+              calendarCursorMs: state.cronCalendarCursorMs,
+              calendarSelectedDayMs: state.cronCalendarSelectedDayMs,
+              onCalendarChange: (patch) => {
+                if (patch.mode) {
+                  state.cronCalendarMode = patch.mode;
+                }
+                if (typeof patch.cursorMs === "number") {
+                  state.cronCalendarCursorMs = patch.cursorMs;
+                }
+                if ("selectedDayMs" in patch) {
+                  state.cronCalendarSelectedDayMs = patch.selectedDayMs ?? null;
+                }
+              },
+              onRefresh: () => {
+                void state.loadCron();
+              },
+              onToggle: (job, enabled) => {
+                void toggleCronJob(state, job, enabled);
+              },
+              onRun: (job, mode) => {
+                void runCronJob(state, job, mode);
+              },
+            })
+          : nothing}
         ${activeTab === "organization"
           ? renderOrganization({
               connected: state.connected,
+              connectionError: state.lastError,
               accountReady: Boolean(
                 (state.alisioAccount?.session.state === "signed_in" &&
                   state.alisioAccount.session.profileCompleted) ||
@@ -1860,7 +1883,8 @@ export function renderApp(state: AppViewState) {
             })
           : nothing}
       </main>
-      ${renderExecApprovalPrompt(state)} ${renderGatewayUrlConfirmation(state)} ${nothing}
+      ${renderExecApprovalPrompt(state)} ${renderGatewayUrlConfirmation(state)}
+      ${renderSessionDeleteConfirmation(state)} ${nothing}
     </div>
   `;
 }

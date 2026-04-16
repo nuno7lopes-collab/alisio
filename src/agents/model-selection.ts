@@ -9,6 +9,10 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 import { normalizeGoogleModelId } from "../plugin-sdk/google.js";
 import { normalizeXaiModelId } from "../plugin-sdk/xai.js";
 import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
+import {
+  getLocalManagedModelRestrictionReason,
+  isLocalManagedModelRestrictedForSession,
+} from "../shared/local-model-session-policy.js";
 import { sanitizeForLog } from "../terminal/ansi.js";
 import {
   resolveAgentConfig,
@@ -422,6 +426,69 @@ export function resolveDefaultModelForAgent(params: {
     defaultProvider: DEFAULT_PROVIDER,
     defaultModel: DEFAULT_MODEL,
   });
+}
+
+function resolveNonLocalManagedFallbackModelForSession(params: {
+  cfg: AlisioConfig;
+  agentId?: string;
+  defaultProvider: string;
+}): ModelRef {
+  const candidates = [
+    ...resolveAllowedFallbacks({
+      cfg: params.cfg,
+      agentId: params.agentId,
+    }),
+    ...Object.keys(params.cfg.agents?.defaults?.models ?? {}),
+  ];
+
+  for (const raw of candidates) {
+    const parsed = parseModelRef(String(raw), params.defaultProvider);
+    if (!parsed || isAlisioDynamicProvider(parsed.provider)) {
+      continue;
+    }
+    return parsed;
+  }
+
+  const configuredProviderFallback = resolveConfiguredProviderFallback({
+    cfg: params.cfg,
+    defaultProvider: params.defaultProvider,
+  });
+  if (
+    configuredProviderFallback &&
+    !isAlisioDynamicProvider(configuredProviderFallback.provider)
+  ) {
+    return configuredProviderFallback;
+  }
+
+  return { provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL };
+}
+
+export function resolveDefaultModelForSession(params: {
+  cfg: AlisioConfig;
+  agentId?: string;
+  sessionKey?: string;
+}): ModelRef {
+  const resolved = resolveDefaultModelForAgent({
+    cfg: params.cfg,
+    agentId: params.agentId,
+  });
+  if (
+    !isLocalManagedModelRestrictedForSession({
+      providerId: resolved.provider,
+      sessionKey: params.sessionKey,
+    })
+  ) {
+    return resolved;
+  }
+  const fallback = resolveNonLocalManagedFallbackModelForSession({
+    cfg: params.cfg,
+    agentId: params.agentId,
+    defaultProvider: resolved.provider,
+  });
+  getLog().warn(
+    `Model "${sanitizeForLog(`${resolved.provider}/${resolved.model}`)}" is restricted for session "${sanitizeForLog(params.sessionKey ?? "(unknown)")}" because ${getLocalManagedModelRestrictionReason()}. Falling back to "${sanitizeForLog(`${fallback.provider}/${fallback.model}`)}".`,
+  );
+  return fallback;
 }
 
 function resolveAllowedFallbacks(params: { cfg: AlisioConfig; agentId?: string }): string[] {

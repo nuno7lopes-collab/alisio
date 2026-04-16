@@ -30,6 +30,7 @@ describe("iconForTab", () => {
     expect(iconForTab("chat")).toBe("messageSquare");
     expect(iconForTab("memory")).toBe("book");
     expect(iconForTab("tasks")).toBe("scrollText");
+    expect(iconForTab("cron")).toBe("clock3");
     expect(iconForTab("models")).toBe("brain");
     expect(iconForTab("channels")).toBe("radio");
     expect(iconForTab("capabilities")).toBe("spark");
@@ -61,6 +62,7 @@ describe("titleForTab", () => {
     expect(titleForTab("chat")).toBe("Chat");
     expect(titleForTab("memory")).toBe("Memory");
     expect(titleForTab("tasks")).toBe("Tasks");
+    expect(titleForTab("cron")).toBe("Cron jobs");
     expect(titleForTab("models")).toBe("Models");
     expect(titleForTab("channels")).toBe("Channels");
     expect(titleForTab("capabilities")).toBe("Capabilities");
@@ -85,6 +87,7 @@ describe("subtitleForTab", () => {
     expect(subtitleForTab("chat")).toContain("tool");
     expect(subtitleForTab("memory")).toContain("memory");
     expect(subtitleForTab("tasks")).toMatch(/background/i);
+    expect(subtitleForTab("cron")).toMatch(/scheduled/i);
     expect(subtitleForTab("models")).toContain("OpenAI");
     expect(subtitleForTab("channels")).toContain("WhatsApp");
     expect(subtitleForTab("capabilities")).toContain("simpler");
@@ -138,6 +141,7 @@ describe("pathForTab", () => {
     expect(pathForTab("chat")).toBe("/chat");
     expect(pathForTab("memory")).toBe("/memory");
     expect(pathForTab("tasks")).toBe("/tasks");
+    expect(pathForTab("cron")).toBe("/cron");
     expect(pathForTab("models")).toBe("/models");
     expect(pathForTab("channels")).toBe("/channels");
     expect(pathForTab("capabilities")).toBe("/capabilities");
@@ -159,6 +163,7 @@ describe("tabFromPath", () => {
     expect(tabFromPath("/chat")).toBe("chat");
     expect(tabFromPath("/memory")).toBe("memory");
     expect(tabFromPath("/tasks")).toBe("tasks");
+    expect(tabFromPath("/cron")).toBe("cron");
     expect(tabFromPath("/models")).toBe("models");
     expect(tabFromPath("/channels")).toBe("channels");
     expect(tabFromPath("/capabilities")).toBe("capabilities");
@@ -189,7 +194,6 @@ describe("tabFromPath", () => {
     expect(tabFromPath("/overview")).toBeNull();
     expect(tabFromPath("/home")).toBeNull();
     expect(tabFromPath("/sessions")).toBeNull();
-    expect(tabFromPath("/cron")).toBeNull();
     expect(tabFromPath("/automations")).toBeNull();
     expect(tabFromPath("/agents")).toBeNull();
     expect(tabFromPath("/skills")).toBeNull();
@@ -209,6 +213,7 @@ describe("inferBasePathFromPathname", () => {
     expect(inferBasePathFromPathname("/chat")).toBe("");
     expect(inferBasePathFromPathname("/models")).toBe("");
     expect(inferBasePathFromPathname("/tasks")).toBe("");
+    expect(inferBasePathFromPathname("/cron")).toBe("");
     expect(inferBasePathFromPathname("/authentications")).toBe("");
     expect(inferBasePathFromPathname("/settings")).toBe("");
   });

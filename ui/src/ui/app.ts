@@ -72,6 +72,7 @@ import {
 import { completeAlisioAccountEmailLinkAuth, saveAlisioAccount } from "./controllers/alisio.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import {
+  getBrowserPaneObserverIdentity,
   loadBrowserPaneUiState,
   readBrowserPaneObserverStateFromSessionRow,
   resolveBrowserPaneSessionObserver,
@@ -134,6 +135,12 @@ import type {
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 import { generateUUID } from "./uuid.ts";
 
+function startOfToday() {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now.getTime();
+}
+
 declare global {
   interface Window {
     __ALISIO_CONTROL_UI_BASE_PATH__?: string;
@@ -150,6 +157,7 @@ export class AlisioApp extends LitElement {
   private browserPaneUiBySession = new Map<string, BrowserPaneUiState>();
   private browserPaneMarkdownBySession = new Map<string, BrowserPaneMarkdownState>();
   private browserPaneObserverBySession = new Map<string, BrowserPaneObserver>();
+  private browserPaneObserverIdentityBySession = new Map<string, string>();
   clientInstanceId = generateUUID();
   connectGeneration = 0;
   @state() settings: UiSettings = loadSettings();
@@ -249,6 +257,7 @@ export class AlisioApp extends LitElement {
   @state() chatSessionRenameKey: string | null = null;
   @state() chatSessionRenameDraft = "";
   @state() chatSessionRenamePending = false;
+  @state() sessionDeleteConfirmKeys: string[] | null = null;
   @state() chatLoading = false;
   @state() chatSending = false;
   @state() chatMessage = "";
@@ -449,7 +458,7 @@ export class AlisioApp extends LitElement {
   @state() sessionsFilterLimit = "120";
   @state() sessionsIncludeGlobal = true;
   @state() sessionsIncludeUnknown = false;
-  @state() sessionsHideCron = true;
+  @state() sessionsHideCron = this.settings.chatHideCronSessions;
   @state() sessionsSearchQuery = "";
   @state() sessionsSortColumn: "key" | "kind" | "updated" | "tokens" = "updated";
   @state() sessionsSortDir: "asc" | "desc" = "desc";
@@ -547,6 +556,9 @@ export class AlisioApp extends LitElement {
   @state() cronRunsSortDir: import("./types.js").CronSortDir = "desc";
   @state() cronModelSuggestions: string[] = [];
   @state() cronBusy = false;
+  @state() cronCalendarMode: "week" | "month" = "week";
+  @state() cronCalendarCursorMs = startOfToday();
+  @state() cronCalendarSelectedDayMs: number | null = null;
 
   @state() updateAvailable: import("./types.js").UpdateAvailable | null = null;
 
@@ -630,6 +642,7 @@ export class AlisioApp extends LitElement {
   private openAiOAuthCleanup: (() => void) | null = null;
   private openAiOAuthRefreshInFlight = false;
   private execApprovalTicker: number | null = null;
+  private sessionDeleteConfirmResolver: ((confirmed: boolean) => void) | null = null;
   private globalKeydownHandler = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "k") {
       e.preventDefault();
@@ -711,6 +724,7 @@ export class AlisioApp extends LitElement {
     this.accountAuthCleanup = null;
     this.openAiOAuthCleanup?.();
     this.openAiOAuthCleanup = null;
+    this.resolveSessionDeleteConfirmation(false);
     if (this.execApprovalTicker != null) {
       window.clearInterval(this.execApprovalTicker);
       this.execApprovalTicker = null;
@@ -796,8 +810,8 @@ export class AlisioApp extends LitElement {
       await refreshAfterAlisioOpenAiOAuth(
         this as unknown as Parameters<typeof refreshAfterAlisioOpenAiOAuth>[0],
       );
-    } catch (error) {
-      this.lastError = `OpenAI connection refresh failed: ${String(error)}`;
+    } catch {
+      this.lastError = t("alisio.authentications.errors.openAiRefreshFailed");
     } finally {
       this.openAiOAuthRefreshInFlight = false;
     }
@@ -812,8 +826,8 @@ export class AlisioApp extends LitElement {
       await refreshAfterAlisioAccountAuth(
         this as unknown as Parameters<typeof refreshAfterAlisioAccountAuth>[0],
       );
-    } catch (error) {
-      this.lastError = `Account connection refresh failed: ${String(error)}`;
+    } catch {
+      this.lastError = t("alisio.authentications.errors.accountRefreshFailed");
     } finally {
       this.accountAuthRefreshInFlight = false;
     }
@@ -830,8 +844,8 @@ export class AlisioApp extends LitElement {
         signal,
       );
       await this.retryPendingConnectorChatResume(signal);
-    } catch (error) {
-      this.lastError = `Connector connection refresh failed: ${String(error)}`;
+    } catch {
+      this.lastError = t("alisio.authentications.errors.connectorRefreshFailed");
     } finally {
       this.connectorOAuthRefreshInFlight = false;
     }
@@ -1026,8 +1040,8 @@ export class AlisioApp extends LitElement {
         decision,
       });
       this.execApprovalQueue = this.execApprovalQueue.filter((entry) => entry.id !== active.id);
-    } catch (err) {
-      this.execApprovalError = `Approval failed: ${String(err)}`;
+    } catch {
+      this.execApprovalError = t("alisio.security.queue.resolveFailed");
     } finally {
       this.execApprovalBusy = false;
     }
@@ -1052,6 +1066,36 @@ export class AlisioApp extends LitElement {
   handleGatewayUrlCancel() {
     this.pendingGatewayUrl = null;
     this.pendingGatewayToken = null;
+  }
+
+  confirmDeleteSessions = async (keys: string[]): Promise<boolean> => {
+    const normalized = [...new Set(keys.map((value) => value.trim()).filter(Boolean))];
+    if (normalized.length === 0) {
+      return false;
+    }
+    if (typeof window === "undefined") {
+      return true;
+    }
+    this.resolveSessionDeleteConfirmation(false);
+    this.sessionDeleteConfirmKeys = normalized;
+    return await new Promise<boolean>((resolve) => {
+      this.sessionDeleteConfirmResolver = resolve;
+    });
+  };
+
+  handleSessionDeleteConfirm = () => {
+    this.resolveSessionDeleteConfirmation(true);
+  };
+
+  handleSessionDeleteCancel = () => {
+    this.resolveSessionDeleteConfirmation(false);
+  };
+
+  private resolveSessionDeleteConfirmation(confirmed: boolean) {
+    const resolver = this.sessionDeleteConfirmResolver;
+    this.sessionDeleteConfirmResolver = null;
+    this.sessionDeleteConfirmKeys = null;
+    resolver?.(confirmed);
   }
 
   private getBrowserPaneScopeKey(sessionKey: string): string {
@@ -1155,18 +1199,29 @@ export class AlisioApp extends LitElement {
 
   private syncBrowserPaneForSession(sessionKey: string): void {
     const normalizedSessionKey = sessionKey.trim() || "main";
+    const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
     const ui = this.getBrowserPaneUiState(normalizedSessionKey);
     const markdown = this.getBrowserPaneMarkdownState(normalizedSessionKey);
     const observer = this.resolveSessionBrowserPaneObserver(normalizedSessionKey);
+    const observerIdentity = getBrowserPaneObserverIdentity(observer);
+    const previousObserverIdentity = this.browserPaneObserverIdentityBySession.get(scopeKey) ?? null;
+    const observerJustAppeared = Boolean(observerIdentity) && observerIdentity !== previousObserverIdentity;
+    if (observerIdentity) {
+      this.browserPaneObserverIdentityBySession.set(scopeKey, observerIdentity);
+    } else {
+      this.browserPaneObserverIdentityBySession.delete(scopeKey);
+    }
     const hasMarkdown = Boolean(markdown.content || markdown.error);
     let selectedSurface = ui.selectedSurface;
-    if (selectedSurface === "observer" && !observer && hasMarkdown) {
+    if (observerJustAppeared) {
+      selectedSurface = "observer";
+    } else if (selectedSurface === "observer" && !observer && hasMarkdown) {
       selectedSurface = "markdown";
     } else if (selectedSurface === "markdown" && !hasMarkdown && observer) {
       selectedSurface = "observer";
     }
     const hasSurface = Boolean(observer || hasMarkdown);
-    const autoOpenObserver = !ui.touched && Boolean(observer);
+    const autoOpenObserver = observerJustAppeared || (!ui.touched && Boolean(observer));
     this.sidebarContent = markdown.content;
     this.sidebarError = markdown.error;
     this.browserPaneObserver = observer;

@@ -1,5 +1,6 @@
 import { resolveConfiguredProviderFallback } from "../agents/configured-provider-fallback.js";
 import { DEFAULT_CONTEXT_TOKENS, DEFAULT_MODEL, DEFAULT_PROVIDER } from "../agents/defaults.js";
+import { resolveDefaultModelForSession } from "../agents/model-selection.js";
 import { normalizeProviderId } from "../agents/provider-id.js";
 import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import type { SessionEntry } from "../config/sessions/types.js";
@@ -58,7 +59,13 @@ function resolveConfiguredStatusModelRef(params: {
   defaultProvider: string;
   defaultModel: string;
   agentId?: string;
+  sessionKey?: string;
 }): { provider: string; model: string } {
+  const sessionDefault = resolveDefaultModelForSession({
+    cfg: params.cfg,
+    agentId: params.agentId,
+    sessionKey: params.sessionKey,
+  });
   const agentRawModel = params.agentId
     ? resolveAgentModelPrimaryValue(
         params.cfg.agents?.list?.find((entry) => entry?.id === params.agentId)?.model,
@@ -89,13 +96,15 @@ function resolveConfiguredStatusModelRef(params: {
 
   const fallbackProvider = resolveConfiguredProviderFallback({
     cfg: params.cfg,
-    defaultProvider: params.defaultProvider,
+    defaultProvider: sessionDefault.provider,
   });
   if (fallbackProvider) {
     return fallbackProvider;
   }
 
-  return { provider: params.defaultProvider, model: params.defaultModel };
+  return sessionDefault.provider
+    ? sessionDefault
+    : { provider: params.defaultProvider, model: params.defaultModel };
 }
 
 function resolveConfiguredProviderContextWindow(
@@ -148,12 +157,14 @@ function resolveSessionModelRef(
     | SessionEntry
     | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">,
   agentId?: string,
+  sessionKey?: string,
 ): { provider: string; model: string } {
   const resolved = resolveConfiguredStatusModelRef({
     cfg,
     defaultProvider: DEFAULT_PROVIDER,
     defaultModel: DEFAULT_MODEL,
     agentId,
+    sessionKey,
   });
 
   let provider = resolved.provider;

@@ -24,6 +24,7 @@ export type HandleDirectiveOnlyCoreParams = {
     ReturnType<typeof import("../../agents/model-catalog.js").loadModelCatalog>
   >;
   resetModelOverride: boolean;
+  resetModelOverrideReason?: string;
   provider: string;
   model: string;
   initialModelLabel: string;
@@ -54,5 +55,6 @@ export type ApplyInlineDirectivesFastLaneParams = HandleDirectiveOnlyCoreParams 
       ReturnType<typeof import("../../agents/model-catalog.js").loadModelCatalog>
     >;
     resetModelOverride: boolean;
+    resetModelOverrideReason?: string;
   };
 };

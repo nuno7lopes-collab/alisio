@@ -28,16 +28,11 @@ import { classifySessionKeyShape, normalizeAgentId } from "../../routing/session
 import { defaultRuntime } from "../../runtime.js";
 import { normalizeInputProvenance, type InputProvenance } from "../../sessions/input-provenance.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
-import { createRunningTaskRun } from "../../tasks/task-executor.js";
 import {
-  createTaskWithExecution,
   endTaskExecutionByRunId,
   getTaskExecutionByRunId,
 } from "../../tasks/task-service.js";
-import {
-  normalizeDeliveryContext,
-  normalizeSessionDeliveryFields,
-} from "../../utils/delivery-context.js";
+import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
   isDeliverableMessageChannel,
@@ -208,49 +203,6 @@ function dispatchAgentRunFromGateway(params: {
   respond: GatewayRequestHandlerOptions["respond"];
   context: GatewayRequestHandlerOptions["context"];
 }) {
-  const normalizedRequesterOrigin = normalizeDeliveryContext({
-    channel: params.ingressOpts.channel,
-    to: params.ingressOpts.to,
-    accountId: params.ingressOpts.accountId,
-    threadId: params.ingressOpts.threadId,
-  });
-  try {
-    createTaskWithExecution({
-      title: params.ingressOpts.label ?? params.ingressOpts.message,
-      summary: params.ingressOpts.label ?? null,
-      requesterSessionKey: params.ingressOpts.sessionKey,
-      requestedBy: "gateway.agent",
-      orchestratorSessionKey: params.ingressOpts.sessionKey,
-      executionKind: params.ingressOpts.sessionKey?.trim() ? "orchestrator_session" : "cli",
-      executionSourceId: params.runId,
-      executionRunId: params.runId,
-      executionSessionKey: params.ingressOpts.sessionKey,
-      executionAgentId: params.ingressOpts.sessionKey
-        ? resolveAgentIdFromSessionKey(params.ingressOpts.sessionKey)
-        : undefined,
-      executionLabel: params.ingressOpts.label,
-      executionSummary: params.ingressOpts.message,
-    });
-  } catch {
-    // Best-effort only: canonical task tracking must not block agent runs.
-  }
-  if (params.ingressOpts.sessionKey?.trim()) {
-    try {
-      createRunningTaskRun({
-        runtime: "cli",
-        sourceId: params.runId,
-        requesterSessionKey: params.ingressOpts.sessionKey,
-        requesterOrigin: normalizedRequesterOrigin,
-        childSessionKey: params.ingressOpts.sessionKey,
-        runId: params.runId,
-        task: params.ingressOpts.message,
-        deliveryStatus: "not_applicable",
-        startedAt: Date.now(),
-      });
-    } catch {
-      // Best-effort only: background task tracking must not block agent runs.
-    }
-  }
   void agentCommandFromIngress(params.ingressOpts, defaultRuntime, params.context.deps)
     .then((result) => {
       try {

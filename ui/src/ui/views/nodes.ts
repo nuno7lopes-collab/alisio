@@ -1,6 +1,11 @@
 import { html, nothing } from "lit";
+import { repeat } from "lit/directives/repeat.js";
+import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
-import { resolveConnectionsModel } from "../controllers/connections-model.ts";
+import {
+  resolveConnectionsModel,
+  type ConnectionsModel,
+} from "../controllers/connections-model.ts";
 import { groupPairedDevicesByComputer, resolveComputerLabel } from "../controllers/devices.ts";
 import type {
   DevicePairingList,
@@ -110,6 +115,9 @@ export function renderNodes(
     showDevices?: boolean;
     collapseNodeInventoryByComputer?: boolean;
   },
+  context?: {
+    connectionsModel?: ConnectionsModel;
+  },
 ) {
   const includeExecApprovals = opts?.includeExecApprovals ?? true;
   const showDevices = opts?.showDevices ?? true;
@@ -125,13 +133,13 @@ export function renderNodes(
             ${renderRuntime(props, bindingState, {
               includeExecApprovals,
               collapseNodeInventoryByComputer,
-            })}
+            }, context)}
           </div>
         `
       : renderRuntime(props, bindingState, {
           includeExecApprovals,
           collapseNodeInventoryByComputer,
-        })}
+        }, context)}
   `;
 }
 
@@ -242,11 +250,11 @@ function renderRuntime(
   props: NodesProps,
   state: BindingState,
   opts: { includeExecApprovals: boolean; collapseNodeInventoryByComputer: boolean },
+  context?: { connectionsModel?: ConnectionsModel },
 ) {
   const refreshing =
     props.nodesLoading ||
     props.nodePairingsLoading ||
-    props.configLoading ||
     (opts.includeExecApprovals && props.execApprovalsLoading);
   const text = {
     title: t("alisio.connections.runtimeTitle"),
@@ -274,7 +282,7 @@ function renderRuntime(
         ${renderPendingNodeRequests(props)} ${renderBindings(state)}
         ${renderNodeList(props, {
           collapseByComputer: opts.collapseNodeInventoryByComputer,
-        })}
+        }, context)}
       </div>
     </section>
   `;
@@ -660,8 +668,16 @@ function renderBindings(state: BindingState) {
   const defaultLabel = resolveNodeLabel(state.nodes, state.defaultBinding, text.anyNode);
   const syncLabel = state.configDirty ? text.unsaved : text.synced;
   return html`
-    <section class="alisio-connections-subpanel">
-      <div class="alisio-connections-subpanel__head">
+    <details
+      class="alisio-connections-subpanel alisio-connections-subpanel--collapsible"
+      @toggle=${(event: Event) => {
+        const target = event.currentTarget as HTMLDetailsElement;
+        if (target.open && !state.ready && !state.configLoading) {
+          state.onLoadConfig();
+        }
+      }}
+    >
+      <summary class="alisio-connections-subpanel__summary">
         <div>
           <div class="alisio-connections-subpanel__title">${text.title}</div>
         </div>
@@ -672,78 +688,88 @@ function renderBindings(state: BindingState) {
                   ${syncLabel}
                 </span>
               `
-            : nothing}
-          <button
-            class="btn btn--sm"
-            ?disabled=${state.disabled || !state.configDirty}
-            @click=${state.onSave}
+            : html`<span class="pill">${state.configLoading ? text.loading : text.loadConfig}</span>`}
+          <span class="alisio-connections-disclosure-icon" aria-hidden="true"
+            >${icons.chevronDown}</span
           >
-            ${state.configSaving ? text.saving : text.save}
-          </button>
         </div>
-      </div>
-
-      ${state.formMode === "raw"
-        ? html` <div class="callout warn" style="margin-top: 12px">${text.rawMode}</div> `
-        : nothing}
-      ${!state.ready
-        ? state.configLoading
-          ? html`
-              <div class="loading-state__list" role="status" aria-label=${text.loading}>
-                ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
-                ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "button" })}
+      </summary>
+      <div class="alisio-connections-subpanel__body">
+        ${state.formMode === "raw"
+          ? html` <div class="callout warn">${text.rawMode}</div> `
+          : nothing}
+        ${!state.ready
+          ? state.configLoading
+            ? html`
+                <div class="loading-state__list" role="status" aria-label=${text.loading}>
+                  ${renderSkeletonListItem({
+                    lines: ["medium", "long", "short"],
+                    aside: "button",
+                  })}
+                  ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "button" })}
+                </div>
+              `
+            : html`<div class="alisio-connections-empty">
+                <div>${text.loadConfig}</div>
+                <button class="btn" ?disabled=${state.configLoading} @click=${state.onLoadConfig}>
+                  ${state.configLoading ? text.loading : text.loadConfig}
+                </button>
+              </div>`
+          : html`
+              <div class="alisio-connections-subpanel__head">
+                <div class="muted">${text.defaultSubtitle}</div>
+                <div class="alisio-connections-subpanel__actions">
+                  <button
+                    class="btn btn--sm"
+                    ?disabled=${state.disabled || !state.configDirty}
+                    @click=${state.onSave}
+                  >
+                    ${state.configSaving ? text.saving : text.save}
+                  </button>
+                </div>
               </div>
-            `
-          : html`<div class="alisio-connections-empty">
-              <div>${text.loadConfig}</div>
-              <button class="btn" ?disabled=${state.configLoading} @click=${state.onLoadConfig}>
-                ${state.configLoading ? text.loading : text.loadConfig}
-              </button>
-            </div>`
-        : html`
-            <div class="alisio-binding-list">
-              <div class="list-item alisio-binding-row alisio-binding-row--split">
-                <div class="list-main">
-                  <div class="alisio-connections-entry__head">
-                    <div class="list-title">${text.defaultBinding}</div>
-                    <div class="alisio-connections-entry__pills">
-                      <span class="pill">${defaultLabel}</span>
+              <div class="alisio-binding-list">
+                <div class="list-item alisio-binding-row alisio-binding-row--split">
+                  <div class="list-main">
+                    <div class="alisio-connections-entry__head">
+                      <div class="list-title">${text.defaultBinding}</div>
+                      <div class="alisio-connections-entry__pills">
+                        <span class="pill">${defaultLabel}</span>
+                      </div>
                     </div>
+                    <div class="list-sub">${text.defaultSubtitle}</div>
                   </div>
-                  <div class="list-sub">${text.defaultSubtitle}</div>
+                  <div class="list-meta">
+                    <label class="field">
+                      <span>${text.node}</span>
+                      <select
+                        ?disabled=${state.disabled || !supportsBinding}
+                        @change=${(event: Event) => {
+                          const target = event.target as HTMLSelectElement;
+                          const value = target.value.trim();
+                          state.onBindDefault(value ? value : null);
+                        }}
+                      >
+                        <option value="" ?selected=${defaultValue === ""}>${text.anyNode}</option>
+                        ${state.nodes.map(
+                          (node) =>
+                            html`<option value=${node.id} ?selected=${defaultValue === node.id}>
+                              ${node.label}
+                            </option>`,
+                        )}
+                      </select>
+                    </label>
+                    ${!supportsBinding ? html` <div class="muted">${text.noExecNodes}</div> ` : nothing}
+                  </div>
                 </div>
-                <div class="list-meta">
-                  <label class="field">
-                    <span>${text.node}</span>
-                    <select
-                      ?disabled=${state.disabled || !supportsBinding}
-                      @change=${(event: Event) => {
-                        const target = event.target as HTMLSelectElement;
-                        const value = target.value.trim();
-                        state.onBindDefault(value ? value : null);
-                      }}
-                    >
-                      <option value="" ?selected=${defaultValue === ""}>${text.anyNode}</option>
-                      ${state.nodes.map(
-                        (node) =>
-                          html`<option value=${node.id} ?selected=${defaultValue === node.id}>
-                            ${node.label}
-                          </option>`,
-                      )}
-                    </select>
-                  </label>
-                  ${!supportsBinding
-                    ? html` <div class="muted">${text.noExecNodes}</div> `
-                    : nothing}
-                </div>
-              </div>
 
-              ${state.agents.length === 0
-                ? html` <div class="muted">${text.noAgents}</div> `
-                : state.agents.map((agent) => renderAgentBinding(agent, state))}
-            </div>
-          `}
-    </section>
+                ${state.agents.length === 0
+                  ? html` <div class="muted">${text.noAgents}</div> `
+                  : state.agents.map((agent) => renderAgentBinding(agent, state))}
+              </div>
+            `}
+      </div>
+    </details>
   `;
 }
 
@@ -813,19 +839,22 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
 function resolveVisibleRuntimeNodes(
   props: NodesProps,
   opts?: { collapseByComputer?: boolean },
+  connectionsModel?: ConnectionsModel,
 ): Array<Record<string, unknown>> {
   const allNodes = props.nodes;
   if (opts?.collapseByComputer !== true) {
     return allNodes;
   }
-  const model = resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes as NodeListNode[],
-    nodePairingsList: props.nodePairingsList,
-  });
+  const model =
+    connectionsModel ??
+    resolveConnectionsModel({
+      account: props.account ?? null,
+      sharing: props.sharing ?? null,
+      devicesList: props.devicesList,
+      currentDeviceId: props.currentDeviceId ?? null,
+      nodes: props.nodes as NodeListNode[],
+      nodePairingsList: props.nodePairingsList,
+    });
   const coveredNodeIds = new Set(
     [
       ...(model.currentComputer?.runtimeNodes ?? []),
@@ -841,11 +870,15 @@ function resolveVisibleRuntimeNodes(
   });
 }
 
-function renderNodeList(props: NodesProps, opts?: { collapseByComputer?: boolean }) {
+function renderNodeList(
+  props: NodesProps,
+  opts?: { collapseByComputer?: boolean },
+  context?: { connectionsModel?: ConnectionsModel },
+) {
   const pairedRuntimeNodes = new Map(
     (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node]),
   );
-  const visibleNodes = resolveVisibleRuntimeNodes(props, opts);
+  const visibleNodes = resolveVisibleRuntimeNodes(props, opts, context?.connectionsModel);
   const showLoading = !props.nodesLoaded && !props.nodesError;
   const text = {
     nodesTitle: t("alisio.connections.nodes.title"),
@@ -873,7 +906,12 @@ function renderNodeList(props: NodesProps, opts?: { collapseByComputer?: boolean
             `
           : visibleNodes.length === 0
             ? html`<div class="alisio-connections-empty">${text.noNodes}</div>`
-            : visibleNodes.map((node) => renderRuntimeNodeCard(node, pairedRuntimeNodes))}
+            : repeat(
+                visibleNodes,
+                (node) =>
+                  (typeof node.nodeId === "string" && node.nodeId.trim()) || JSON.stringify(node),
+                (node) => renderRuntimeNodeCard(node, pairedRuntimeNodes),
+              )}
       </div>
     </section>
   `;

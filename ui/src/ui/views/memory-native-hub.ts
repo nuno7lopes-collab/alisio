@@ -30,6 +30,7 @@ import {
   renderSkeletonLines,
   renderSkeletonListItem,
   renderSkeletonPill,
+  renderSurfaceEmptyState,
 } from "./loading-skeleton.ts";
 import "./memory-graph-view.ts";
 import { renderMemoryFilePreview } from "./memory/files-preview.ts";
@@ -232,13 +233,15 @@ function renderMemoryPlaceholder(params: {
   action?: TemplateResult;
   compact?: boolean;
 }) {
-  return html`
-    <div class="alisio-memory-placeholder ${params.compact ? "is-compact" : ""}">
-      <span class="alisio-memory-placeholder__icon" aria-hidden="true">${params.icon}</span>
-      ${params.label ? html`<strong>${params.label}</strong>` : nothing}
-      ${params.detail ? html`<span>${params.detail}</span>` : nothing} ${params.action ?? nothing}
-    </div>
-  `;
+  return renderSurfaceEmptyState({
+    icon: params.icon,
+    title: params.detail ? (params.label ?? null) : null,
+    body: params.detail ?? params.label ?? "",
+    actions: params.action ?? null,
+    className: "alisio-memory-placeholder",
+    compact: params.compact,
+    centered: true,
+  });
 }
 
 function renderExplorerSkeleton() {
@@ -1435,7 +1438,12 @@ export class AlisioMemoryNativeHub extends LitElement {
           <section class="alisio-memory-group">
             <div class="alisio-memory-group__header"><h2>${text.filesRelatedPages}</h2></div>
             ${(detail.relatedPages?.length ?? 0) === 0
-              ? html`<div class="alisio-memory-empty">${text.none}</div>`
+              ? renderSurfaceEmptyState({
+                  title: text.none,
+                  body: text.filesRelatedPages,
+                  compact: true,
+                  centered: true,
+                })
               : html`
                   <div class="alisio-memory-file-list">
                     ${detail.relatedPages.map(
@@ -1483,7 +1491,8 @@ export class AlisioMemoryNativeHub extends LitElement {
     if (!this.note) {
       return renderMemoryPlaceholder({
         icon: icons.fileText,
-        label: text.views.wiki,
+        label: text.noteNoSelection,
+        detail: text.notesListTitle,
       });
     }
     const revisionTime = formatTimestamp(this.note.revision?.updatedAt);
@@ -1820,36 +1829,18 @@ export class AlisioMemoryNativeHub extends LitElement {
           color: color-mix(in srgb, var(--danger) 74%, white);
         }
         .alisio-memory-placeholder {
-          display: grid;
-          justify-items: center;
-          align-content: center;
-          gap: 12px;
           min-height: 240px;
-          padding: 24px;
-          border-radius: 20px;
-          border: 1px dashed color-mix(in srgb, var(--border-subtle) 78%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
-          text-align: center;
         }
-        .alisio-memory-placeholder.is-compact {
+        .alisio-memory-placeholder.empty-state--compact {
           min-height: 140px;
-          padding: 20px 16px;
         }
-        .alisio-memory-placeholder__icon {
-          display: inline-flex;
-          width: 36px;
-          height: 36px;
-          align-items: center;
-          justify-content: center;
-          color: var(--text-muted);
+        .alisio-memory-placeholder .empty-state__icon {
+          width: 2.5rem;
+          height: 2.5rem;
           opacity: 0.82;
         }
-        .alisio-memory-placeholder strong {
-          font-size: 0.95rem;
-          font-weight: 600;
-        }
-        .alisio-memory-placeholder span:last-of-type {
-          color: var(--text-muted);
+        .alisio-memory-placeholder .empty-state__body {
+          max-width: 32ch;
         }
         .alisio-memory-skeleton-stack {
           display: grid;

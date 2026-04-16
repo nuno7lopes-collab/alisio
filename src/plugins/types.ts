@@ -126,6 +126,7 @@ export type AlisioPluginToolContext = {
   browser?: {
     sandboxBridgeUrl?: string;
     allowHostControl?: boolean;
+    preferSandbox?: boolean;
   };
   messageChannel?: string;
   agentAccountId?: string;

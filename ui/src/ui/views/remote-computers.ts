@@ -1,14 +1,11 @@
 import { html, nothing } from "lit";
-import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
 import {
-  resolveRemoteComputerRecords,
   type RemoteComputerRecord,
   type RemoteComputerTaskRecord,
 } from "../controllers/remote-computers.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
-import { renderSkeletonListItem, renderSkeletonPill } from "./loading-skeleton.ts";
 import type { NodesProps } from "./nodes.ts";
 
 function resolveAccessLabel(access: RemoteComputerRecord["deviceAccess"]) {
@@ -401,69 +398,5 @@ export function renderRemoteComputerCard(
         ${renderRemoteComputerActions(computer, props)}
       </div>
     </article>
-  `;
-}
-
-export function renderRemoteComputers(props: NodesProps) {
-  const computers = resolveRemoteComputerRecords({
-    sharing: props.sharing ?? null,
-    nodes: props.nodes as NodeListNode[],
-    devicesList: props.devicesList,
-    nodePairingsList: props.nodePairingsList,
-  });
-  const initialLoading =
-    !props.sharing && !props.sharingError && props.sharingLoading && props.nodes.length === 0;
-  const readyCount = computers.filter((computer) => computer.phase === "ready").length;
-  const totalCount = computers.length;
-  const text = {
-    title: t("alisio.connections.remote.title"),
-    subtitle: t("alisio.connections.remote.subtitle"),
-    empty: t("alisio.connections.remote.empty"),
-    refresh: t("common.refresh"),
-    loading: t("alisio.connections.loading"),
-  };
-
-  return html`
-    <section
-      class="card alisio-connections-panel alisio-remote-computers"
-      aria-busy=${props.sharingLoading ? "true" : "false"}
-    >
-      <div class="alisio-connections-panel__head">
-        <div class="alisio-connections-panel__identity">
-          <span class="alisio-connections-panel__icon" aria-hidden="true">${icons.monitor}</span>
-          <div>
-            <div class="card-title">${text.title}</div>
-            <div class="card-sub">${text.subtitle}</div>
-          </div>
-        </div>
-        <div class="alisio-connections-subpanel__meta">
-          ${initialLoading
-            ? renderSkeletonPill({ small: true })
-            : html`${totalCount === 0 ? "0" : `${readyCount}/${totalCount}`}`}
-          <button
-            class="btn btn--ghost btn--sm"
-            ?disabled=${Boolean(props.sharingLoading)}
-            @click=${props.onSharingRefresh}
-          >
-            ${props.sharingLoading ? text.loading : text.refresh}
-          </button>
-        </div>
-      </div>
-      ${props.sharingError
-        ? html`<div class="callout danger">${props.sharingError}</div>`
-        : nothing}
-      ${initialLoading
-        ? html`
-            <div class="loading-state__list" role="status" aria-label=${text.loading}>
-              ${renderSkeletonListItem({ lines: ["medium", "long", "medium"], aside: "button" })}
-              ${renderSkeletonListItem({ lines: ["long", "medium", "short"], aside: "button" })}
-            </div>
-          `
-        : computers.length === 0
-          ? html`<div class="alisio-connections-empty">${text.empty}</div>`
-          : html`<div class="list">
-              ${computers.map((computer) => renderRemoteComputerCard(computer, props))}
-            </div>`}
-    </section>
   `;
 }

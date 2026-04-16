@@ -15,7 +15,14 @@ export type MemorySearchCommandOptions = MemoryCommandOptions & {
 
 export type MemoryGraphCommandOptions = MemoryCommandOptions & {
   query?: string;
+  pageId?: string;
+  entityId?: string;
+  scope?: "overview" | "focus" | "global" | "local";
   direction?: "incoming" | "outgoing" | "both";
+  depth?: number;
   matchLimit?: number;
   relationLimit?: number;
+  nodeLimit?: number;
+  edgeLimit?: number;
+  includeAttachments?: boolean;
 };

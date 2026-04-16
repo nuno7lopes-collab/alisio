@@ -8,6 +8,7 @@ import {
   mockedFormatAssistantErrorText,
   mockedGlobalHookRunner,
   mockedIsFailoverAssistantError,
+  mockedRestoreTranscriptLeafInSessionFile,
   mockedRunEmbeddedAttempt,
   overflowBaseRunParams,
   resetRunOverflowCompactionHarnessMocks,
@@ -38,6 +39,7 @@ describe("runEmbeddedPiAgent Codex server_error fallback handoff", () => {
     mockedRunEmbeddedAttempt.mockResolvedValueOnce(
       makeAttemptResult({
         assistantTexts: [],
+        prePromptTranscriptLeafId: "assistant-previous",
         lastAssistant: {
           stopReason: "error",
           errorMessage: rawCodexError,
@@ -66,5 +68,36 @@ describe("runEmbeddedPiAgent Codex server_error fallback handoff", () => {
     await expect(promise).rejects.toThrow(
       "LLM error server_error: An error occurred while processing your request.",
     );
+    expect(mockedRestoreTranscriptLeafInSessionFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("rewinds the transcript before prompt-side model fallback retries the turn", async () => {
+    mockedClassifyFailoverReason.mockReturnValue("overloaded");
+    mockedRunEmbeddedAttempt.mockResolvedValueOnce(
+      makeAttemptResult({
+        promptError: new Error("Provider overloaded"),
+        prePromptTranscriptLeafId: "assistant-previous",
+        assistantTexts: [],
+      }),
+    );
+
+    const promise = runEmbeddedPiAgent({
+      ...overflowBaseRunParams,
+      runId: "run-prompt-fallback-rewind",
+      config: makeModelFallbackCfg({
+        agents: {
+          defaults: {
+            model: {
+              primary: "openai-codex/gpt-5.4",
+              fallbacks: ["anthropic/claude-opus-4-6"],
+            },
+          },
+        },
+      }),
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(MockedFailoverError);
+    expect(mockedRestoreTranscriptLeafInSessionFile).toHaveBeenCalledTimes(1);
+    await expect(promise).rejects.toThrow("Provider overloaded");
   });
 });

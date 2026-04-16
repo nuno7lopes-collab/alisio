@@ -2082,7 +2082,7 @@
         "reliability"
       ],
       "label": "Memory Search Fallback",
-      "help": "Backup provider used when primary embeddings fail: \"openai\", \"gemini\", \"voyage\", \"mistral\", \"ollama\", \"local\", or \"none\". Set a real fallback for production reliability; use \"none\" only if you prefer explicit failures.",
+      "help": "Backup provider used when primary embeddings fail: \"openai\", \"gemini\", \"voyage\", \"mistral\", \"local\", or \"none\". Set a real fallback for production reliability; use \"none\" only if you prefer explicit failures.",
       "hasChildren": false
     },
     {
@@ -2225,7 +2225,7 @@
         "advanced"
       ],
       "label": "Memory Embeddings Provider",
-      "help": "Selects the embedding backend used to build/query memory vectors: \"openai\", \"gemini\", \"voyage\", \"mistral\", \"ollama\", or \"local\". Keep your most reliable provider here and configure fallback for resilience. Codex/OpenAI OAuth covers chat only and does not satisfy memory embeddings; when OAuth is present and no provider is configured, Alisio defaults memory embeddings to `local`.",
+      "help": "Selects the embedding backend used to build/query memory vectors: \"openai\", \"gemini\", \"voyage\", \"mistral\", or \"local\". Keep your most reliable provider here and configure fallback for resilience. Codex/OpenAI OAuth covers chat only and does not satisfy memory embeddings; when OAuth is present and no provider is configured, Alisio defaults memory embeddings to `local`.",
       "hasChildren": false
     },
     {
@@ -43300,6 +43300,106 @@
       "hasChildren": false
     },
     {
+      "path": "memory.e2ee",
+      "kind": "core",
+      "type": "object",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory E2EE",
+      "help": "End-to-end encryption policy for canonical memory sync. Canonical memory remains E2EE-only; this group exists so UI and config tooling can inspect that requirement explicitly.",
+      "hasChildren": true
+    },
+    {
+      "path": "memory.e2ee.required",
+      "kind": "core",
+      "type": "boolean",
+      "required": true,
+      "defaultValue": true,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory E2EE Required",
+      "help": "Hard requirement flag for canonical memory E2EE (default: true). Plaintext relay sync is not supported.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.jobs",
+      "kind": "core",
+      "type": "object",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Jobs",
+      "help": "Cooperative background memory-maintenance controls. Use this to govern idle-time consolidation, dedup, and future long-term promotion work driven by the canonical memory runtime.",
+      "hasChildren": true
+    },
+    {
+      "path": "memory.jobs.autoSleep",
+      "kind": "core",
+      "type": "object",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Job Auto Sleep",
+      "help": "Controls whether memory-maintenance slices run automatically when the agent is idle. Leave enabled for normal operation and disable only if jobs should run manually.",
+      "hasChildren": true
+    },
+    {
+      "path": "memory.jobs.autoSleep.enabled",
+      "kind": "core",
+      "type": "boolean",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Enable Memory Job Auto Sleep",
+      "help": "Runs background memory-maintenance slices automatically during idle periods. Set false to require explicit manual runs while keeping the runtime available for inspection.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.jobs.enabled",
+      "kind": "core",
+      "type": "boolean",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Enable Memory Jobs",
+      "help": "Enables the cooperative memory-maintenance runtime. Disable only when debugging or temporarily rolling back idle-time memory jobs.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.jobs.maxSliceMs",
+      "kind": "core",
+      "type": "integer",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "performance",
+        "storage"
+      ],
+      "label": "Memory Job Slice Budget (ms)",
+      "help": "Sets the per-slice wall-clock budget for background memory jobs in milliseconds. Lower values reduce interference with foreground work; higher values let maintenance make more progress per idle window.",
+      "hasChildren": false
+    },
+    {
       "path": "memory.ledger",
       "kind": "core",
       "type": "object",
@@ -43338,7 +43438,7 @@
         "storage"
       ],
       "label": "Memory Legacy Markdown Projection",
-      "help": "Compatibility projection controls for writing derived Markdown files into the local state workspace. Keep this enabled so rollback and export surfaces still have a Markdown view of derived memory.",
+      "help": "Compatibility projection controls for mirroring derived Markdown files into the local state workspace. Keep this enabled while rollback or legacy tooling still depends on the state-dir mirror.",
       "hasChildren": true
     },
     {
@@ -43352,7 +43452,35 @@
         "storage"
       ],
       "label": "Enable Legacy Markdown Projection",
-      "help": "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable only if you intentionally want derived state without Markdown materialization.",
+      "help": "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable this only when you intentionally want the visible workspace projection without the legacy state-dir mirror.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.markdownProjection",
+      "kind": "core",
+      "type": "object",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Markdown Projection",
+      "help": "Canonical Markdown projection controls for writing derived memory files into the active workspace directory. Keep this enabled so the files your agent and operator actually read stay aligned with the canonical store.",
+      "hasChildren": true
+    },
+    {
+      "path": "memory.markdownProjection.enabled",
+      "kind": "core",
+      "type": "boolean",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Enable Workspace Markdown Projection",
+      "help": "Writes canonical Markdown projections into the active workspace directory from derived state. Disable only for incident mitigation or when an external workflow owns the visible workspace files.",
       "hasChildren": false
     },
     {
@@ -43883,6 +44011,77 @@
       ],
       "label": "QMD Wait for Boot Sync",
       "help": "Blocks startup completion until the initial boot-time QMD sync finishes (default: false). Enable when you need fully up-to-date recall before serving traffic, and keep off for faster boot.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.sync",
+      "kind": "core",
+      "type": "object",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Sync",
+      "help": "Canonical memory sync transport configuration. Keep mode off until a local profile root key exists on the device.",
+      "hasChildren": true
+    },
+    {
+      "path": "memory.sync.mode",
+      "kind": "core",
+      "type": "string",
+      "required": true,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Sync Mode",
+      "help": "Selects the sync transport mode: \"off\" (default), \"cloud\", or \"direct\". Config values take precedence over legacy env vars.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.sync.relayBaseUrl",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Sync Relay URL",
+      "help": "Base URL for the ciphertext-only memory relay when sync mode is cloud. This does not auto-enable sync; set memory.sync.mode explicitly.",
+      "hasChildren": false
+    },
+    {
+      "path": "memory.sync.ui",
+      "kind": "core",
+      "type": "object",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Sync UI",
+      "help": "UI rollout guard for memory sync setup and pairing entrypoints.",
+      "hasChildren": true
+    },
+    {
+      "path": "memory.sync.ui.enabled",
+      "kind": "core",
+      "type": "boolean",
+      "required": true,
+      "defaultValue": true,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "storage"
+      ],
+      "label": "Memory Sync UI Enabled",
+      "help": "Enable the memory sync setup UI entrypoint (default: true). Set false for rollback while keeping backend support available.",
       "hasChildren": false
     },
     {
@@ -45016,7 +45215,6 @@
         "google-generative-ai",
         "github-copilot",
         "bedrock-converse-stream",
-        "ollama",
         "azure-openai-responses"
       ],
       "deprecated": false,
@@ -45191,7 +45389,7 @@
         "models"
       ],
       "label": "Model Provider Inject num_ctx (OpenAI Compat)",
-      "help": "Controls whether Alisio injects `options.num_ctx` for Ollama providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
+      "help": "Controls whether Alisio injects `options.num_ctx` for providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
       "hasChildren": false
     },
     {
@@ -45231,7 +45429,6 @@
         "google-generative-ai",
         "github-copilot",
         "bedrock-converse-stream",
-        "ollama",
         "azure-openai-responses"
       ],
       "deprecated": false,
@@ -52913,127 +53110,6 @@
     },
     {
       "path": "plugins.entries.nvidia.subagent.allowModelOverride",
-      "kind": "plugin",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "access"
-      ],
-      "label": "Allow Plugin Subagent Model Override",
-      "help": "Explicitly allows this plugin to request provider/model overrides in background subagent runs. Keep false unless the plugin is trusted to steer model selection.",
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.entries.ollama",
-      "kind": "plugin",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced"
-      ],
-      "label": "@alisio/ollama-provider",
-      "help": "Alisio Ollama provider plugin (plugin: ollama)",
-      "hasChildren": true
-    },
-    {
-      "path": "plugins.entries.ollama.config",
-      "kind": "plugin",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced"
-      ],
-      "label": "@alisio/ollama-provider Config",
-      "help": "Plugin-defined config payload for ollama.",
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.entries.ollama.enabled",
-      "kind": "plugin",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced"
-      ],
-      "label": "Enable @alisio/ollama-provider",
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.entries.ollama.hooks",
-      "kind": "plugin",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced"
-      ],
-      "label": "Plugin Hook Policy",
-      "help": "Per-plugin typed hook policy controls for core-enforced safety gates. Use this to constrain high-impact hook categories without disabling the entire plugin.",
-      "hasChildren": true
-    },
-    {
-      "path": "plugins.entries.ollama.hooks.allowPromptInjection",
-      "kind": "plugin",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "access"
-      ],
-      "label": "Allow Prompt Injection Hooks",
-      "help": "Controls whether this plugin may mutate prompts through typed hooks. Set false to block `before_prompt_build` and ignore prompt-mutating fields from legacy `before_agent_start`, while preserving legacy `modelOverride` and `providerOverride` behavior.",
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.entries.ollama.subagent",
-      "kind": "plugin",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced"
-      ],
-      "label": "Plugin Subagent Policy",
-      "help": "Per-plugin subagent runtime controls for model override trust and allowlists. Keep this unset unless a plugin must explicitly steer subagent model selection.",
-      "hasChildren": true
-    },
-    {
-      "path": "plugins.entries.ollama.subagent.allowedModels",
-      "kind": "plugin",
-      "type": "array",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "access"
-      ],
-      "label": "Plugin Subagent Allowed Models",
-      "help": "Allowed override targets for trusted plugin subagent runs as canonical \"provider/model\" refs. Use \"*\" only when you intentionally allow any model.",
-      "hasChildren": true
-    },
-    {
-      "path": "plugins.entries.ollama.subagent.allowedModels.*",
-      "kind": "plugin",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.entries.ollama.subagent.allowModelOverride",
       "kind": "plugin",
       "type": "boolean",
       "required": false,

@@ -1,6 +1,7 @@
 import { resetToolStream } from "../app-tool-stream.ts";
 import { isImageChatAttachmentMimeType } from "../chat/attachment-support.ts";
 import { extractText } from "../chat/message-extract.ts";
+import { getOrCreateSessionCacheValue } from "../chat/session-cache.ts";
 import { formatConnectError } from "../connect-error.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ChatAttachment } from "../ui-types.ts";
@@ -11,6 +12,7 @@ import {
 } from "./scope-errors.ts";
 
 const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
+const PENDING_CHAT_SEND_STALE_MS = 15_000;
 
 function isSilentReplyStream(text: string): boolean {
   return SILENT_REPLY_PATTERN.test(text);
@@ -31,6 +33,119 @@ function isAssistantSilentReply(message: unknown): boolean {
   }
   const text = extractText(message);
   return typeof text === "string" && isSilentReplyStream(text);
+}
+
+type PendingChatSendEntry = {
+  fingerprint: string;
+  runId: string;
+  ts: number;
+};
+
+type PendingChatSendState = {
+  byFingerprint: Map<string, PendingChatSendEntry>;
+  fingerprintByRunId: Map<string, string>;
+};
+
+const pendingChatSendsBySession = new WeakMap<object, Map<string, PendingChatSendState>>();
+
+function getPendingChatSendState(
+  state: Pick<ChatState, "sessionKey">,
+  sessionKey?: string,
+): PendingChatSendState {
+  const resolvedSessionKey = (sessionKey ?? state.sessionKey).trim();
+  let perState = pendingChatSendsBySession.get(state as object);
+  if (!perState) {
+    perState = new Map();
+    pendingChatSendsBySession.set(state as object, perState);
+  }
+  let existing = perState.get(resolvedSessionKey);
+  if (!existing) {
+    existing = {
+      byFingerprint: new Map(),
+      fingerprintByRunId: new Map(),
+    };
+    perState.set(resolvedSessionKey, existing);
+  }
+  return existing;
+}
+
+function buildChatAttachmentFingerprint(attachments: ChatAttachment[]): string {
+  return attachments
+    .map((attachment) => ({
+      dataUrl: attachment.dataUrl,
+      fileName: attachment.fileName ?? null,
+      mimeType: attachment.mimeType,
+    }))
+    .map((entry) => JSON.stringify(entry))
+    .join("\u0002");
+}
+
+function buildPendingChatSendFingerprint(message: string, attachments: ChatAttachment[]): string {
+  return JSON.stringify({
+    attachments: buildChatAttachmentFingerprint(attachments),
+    message: message.trim().replace(/\s+/g, " "),
+  });
+}
+
+function clearPendingChatSendByRunId(
+  state: Pick<ChatState, "sessionKey">,
+  runId: string | null | undefined,
+  sessionKey?: string,
+): void {
+  const normalizedRunId = runId?.trim();
+  if (!normalizedRunId) {
+    return;
+  }
+  const pending = getPendingChatSendState(state, sessionKey);
+  const fingerprint = pending.fingerprintByRunId.get(normalizedRunId);
+  if (!fingerprint) {
+    return;
+  }
+  pending.fingerprintByRunId.delete(normalizedRunId);
+  const existing = pending.byFingerprint.get(fingerprint);
+  if (existing?.runId === normalizedRunId) {
+    pending.byFingerprint.delete(fingerprint);
+  }
+}
+
+function resolvePendingChatSendRunId(
+  state: Pick<ChatState, "sessionKey" | "chatRunId" | "chatSending" | "chatFinalizing">,
+  fingerprint: string,
+  sessionKey?: string,
+): string | null {
+  const pending = getPendingChatSendState(state, sessionKey);
+  const existing = pending.byFingerprint.get(fingerprint);
+  if (!existing) {
+    return null;
+  }
+  const ageMs = Date.now() - existing.ts;
+  const activeRunId = state.chatRunId?.trim();
+  if (
+    activeRunId &&
+    existing.runId === activeRunId &&
+    (state.chatSending || Boolean(state.chatFinalizing))
+  ) {
+    return existing.runId;
+  }
+  if (ageMs <= PENDING_CHAT_SEND_STALE_MS) {
+    return existing.runId;
+  }
+  clearPendingChatSendByRunId(state, existing.runId, sessionKey);
+  return null;
+}
+
+function rememberPendingChatSend(
+  state: Pick<ChatState, "sessionKey">,
+  params: { fingerprint: string; runId: string; sessionKey?: string; ts: number },
+): void {
+  const pending = getPendingChatSendState(state, params.sessionKey);
+  const entry: PendingChatSendEntry = {
+    fingerprint: params.fingerprint,
+    runId: params.runId,
+    ts: params.ts,
+  };
+  pending.byFingerprint.set(params.fingerprint, entry);
+  pending.fingerprintByRunId.set(params.runId, params.fingerprint);
 }
 
 function fingerprintChatMessage(message: unknown): string | null {
@@ -61,7 +176,11 @@ function dedupeAdjacentChatMessages(messages: unknown[]): unknown[] {
   const deduped: unknown[] = [];
   for (const message of messages) {
     const previous = deduped.at(-1);
-    if (previous && isDuplicateAdjacentMessage(previous, message)) {
+    if (
+      previous &&
+      (isDuplicateAdjacentMessage(previous, message) ||
+        isLikelyRetryDuplicateAdjacentMessage(previous, message))
+    ) {
       continue;
     }
     deduped.push(message);
@@ -326,17 +445,87 @@ function getMessageTimestamp(message: unknown): number | null {
   return typeof timestamp === "number" ? timestamp : null;
 }
 
-function areSemanticallyEquivalentMessages(left: unknown, right: unknown): boolean {
-  const leftId = resolveComparableStableId(left);
-  const rightId = resolveComparableStableId(right);
-  if (leftId && rightId) {
-    return leftId === rightId;
+function collapseInvisibleRetryHistoryArtifacts(messages: unknown[]): unknown[] {
+  if (messages.length === 0) {
+    return messages;
   }
+  const collapsed: unknown[] = [];
+  let retryCandidateUser: unknown | null = null;
+  for (const message of messages) {
+    if (isInvisibleAssistantRetryError(message)) {
+      const previousVisible = collapsed.at(-1);
+      retryCandidateUser =
+        previousVisible && normalizeComparableRole(previousVisible) === "user"
+          ? previousVisible
+          : null;
+      continue;
+    }
+    if (
+      retryCandidateUser &&
+      normalizeComparableRole(message) === "user" &&
+      areSemanticallyEquivalentMessages(retryCandidateUser, message)
+    ) {
+      retryCandidateUser = null;
+      continue;
+    }
+    retryCandidateUser = null;
+    collapsed.push(message);
+  }
+  return collapsed;
+}
 
+function isLikelyRetryDuplicateAdjacentMessage(previous: unknown, next: unknown): boolean {
+  if (normalizeComparableRole(previous) !== "user" || normalizeComparableRole(next) !== "user") {
+    return false;
+  }
+  if (!areSemanticallyEquivalentMessages(previous, next)) {
+    return false;
+  }
+  const previousTimestamp = getMessageTimestamp(previous);
+  const nextTimestamp = getMessageTimestamp(next);
+  if (previousTimestamp === null || nextTimestamp === null) {
+    return true;
+  }
+  return Math.abs(nextTimestamp - previousTimestamp) <= 5 * 60_000;
+}
+
+function isInvisibleAssistantRetryError(message: unknown): boolean {
+  if (!message || typeof message !== "object") {
+    return false;
+  }
+  const entry = message as Record<string, unknown>;
+  const role = typeof entry.role === "string" ? entry.role.toLowerCase() : "";
+  if (role !== "assistant") {
+    return false;
+  }
+  const hasRenderableText = (extractText(message)?.trim().length ?? 0) > 0;
+  if (hasRenderableText || resolveComparableMediaCount(message) > 0) {
+    return false;
+  }
+  const stopReason = typeof entry.stopReason === "string" ? entry.stopReason.toLowerCase() : "";
+  const errorMessage = typeof entry.errorMessage === "string" ? entry.errorMessage.trim() : "";
+  return stopReason === "error" && errorMessage.length > 0;
+}
+
+function areSemanticallyEquivalentMessages(left: unknown, right: unknown): boolean {
   const leftRole = normalizeComparableRole(left);
   const rightRole = normalizeComparableRole(right);
   if (leftRole !== rightRole) {
     return false;
+  }
+
+  const leftId = resolveComparableStableId(left);
+  const rightId = resolveComparableStableId(right);
+  if (leftId && rightId) {
+    if (leftId === rightId) {
+      return true;
+    }
+    // Optimistic user turns use idempotencyKey while persisted transcript echoes
+    // use transcript ids. Treat them as the same user turn when the visible
+    // content matches so reconnects/retries do not duplicate the bubble.
+    if (leftRole !== "user") {
+      return false;
+    }
   }
 
   const leftText = extractComparableMessageText(left);
@@ -524,6 +713,98 @@ export type ChatRuntimeSetupHint = {
 };
 
 const chatHistoryRequestSeq = new WeakMap<object, number>();
+const chatHistorySnapshots = new WeakMap<object, Map<string, CachedChatHistorySnapshot>>();
+
+type CachedChatHistorySnapshot = {
+  messages: unknown[];
+  thinkingLevel: string | null;
+  capturedAt: number;
+};
+
+function resolveChatHistorySnapshotKey(
+  state: Pick<ChatState, "sessionKey">,
+  sessionKey?: string,
+): string {
+  return sessionKey?.trim() || state.sessionKey.trim();
+}
+
+function getChatHistorySnapshotStore(state: ChatState): Map<string, CachedChatHistorySnapshot> {
+  const existing = chatHistorySnapshots.get(state as object);
+  if (existing) {
+    return existing;
+  }
+  const created = new Map<string, CachedChatHistorySnapshot>();
+  chatHistorySnapshots.set(state as object, created);
+  return created;
+}
+
+function writeChatHistorySnapshot(
+  state: ChatState,
+  sessionKey: string,
+  snapshot: CachedChatHistorySnapshot,
+): void {
+  const store = getChatHistorySnapshotStore(state);
+  const cached = getOrCreateSessionCacheValue(store, sessionKey, () => ({
+    messages: [],
+    thinkingLevel: null,
+    capturedAt: 0,
+  }));
+  cached.messages = [...snapshot.messages];
+  cached.thinkingLevel = snapshot.thinkingLevel;
+  cached.capturedAt = snapshot.capturedAt;
+}
+
+export function rememberChatHistorySnapshot(
+  state: ChatState,
+  opts?: {
+    sessionKey?: string;
+    messages?: unknown[];
+    thinkingLevel?: string | null;
+  },
+): void {
+  const sessionKey = resolveChatHistorySnapshotKey(state, opts?.sessionKey);
+  if (!sessionKey) {
+    return;
+  }
+  writeChatHistorySnapshot(state, sessionKey, {
+    messages: [...(opts?.messages ?? state.chatMessages)],
+    thinkingLevel: opts?.thinkingLevel ?? state.chatThinkingLevel ?? null,
+    capturedAt: Date.now(),
+  });
+}
+
+export function hydrateChatHistoryFromCache(state: ChatState, sessionKey?: string): boolean {
+  const resolvedSessionKey = resolveChatHistorySnapshotKey(state, sessionKey);
+  if (!resolvedSessionKey) {
+    return false;
+  }
+  const store = chatHistorySnapshots.get(state as object);
+  const cached = store?.get(resolvedSessionKey);
+  if (!cached) {
+    return false;
+  }
+  // Refresh insertion order so recently used snapshots stay hot.
+  store?.delete(resolvedSessionKey);
+  store?.set(resolvedSessionKey, cached);
+  state.chatMessages = [...cached.messages];
+  state.chatThinkingLevel = cached.thinkingLevel;
+  return true;
+}
+
+export function clearChatHistorySnapshot(state: ChatState, sessionKey: string | string[]): void {
+  const store = chatHistorySnapshots.get(state as object);
+  if (!store) {
+    return;
+  }
+  const keys = Array.isArray(sessionKey) ? sessionKey : [sessionKey];
+  for (const key of keys) {
+    const resolved = resolveChatHistorySnapshotKey(state, key);
+    if (!resolved) {
+      continue;
+    }
+    store.delete(resolved);
+  }
+}
 
 function beginChatHistoryRequest(state: ChatState): {
   client: NonNullable<ChatState["client"]>;
@@ -706,7 +987,9 @@ export async function loadChatHistory(
     }
     const messages = Array.isArray(res.messages) ? res.messages : [];
     const historyMessages = dedupeAdjacentChatMessages(
-      messages.filter((message) => !isAssistantSilentReply(message)),
+      collapseInvisibleRetryHistoryArtifacts(
+        messages.filter((message) => !isAssistantSilentReply(message)),
+      ),
     );
     const shouldMergeLocalPendingMessages = Boolean(
       opts?.preserveEphemeral || state.chatRunId || state.chatFinalizing,
@@ -715,7 +998,13 @@ export async function loadChatHistory(
       ? mergeLocalPendingMessagesIntoHistory(state.chatMessages, historyMessages)
       : historyMessages;
     state.chatThinkingLevel = res.thinkingLevel ?? null;
+    rememberChatHistorySnapshot(state, {
+      sessionKey: requestState.sessionKey,
+      messages: state.chatMessages,
+      thinkingLevel: state.chatThinkingLevel,
+    });
     if (!preserveEphemeral) {
+      clearPendingChatSendByRunId(state, state.chatRunId, requestState.sessionKey);
       // Clear all streaming state — history includes tool results and text
       // inline, so keeping streaming artifacts would cause duplicates.
       maybeResetToolStream(state);
@@ -730,6 +1019,11 @@ export async function loadChatHistory(
     if (isMissingOperatorReadScopeError(err)) {
       state.chatMessages = [];
       state.chatThinkingLevel = null;
+      rememberChatHistorySnapshot(state, {
+        sessionKey: requestState.sessionKey,
+        messages: [],
+        thinkingLevel: null,
+      });
       state.lastError = formatMissingOperatorReadScopeMessage("existing chat history");
     } else {
       state.lastError = String(err);
@@ -813,7 +1107,18 @@ export async function sendChatMessage(
   }
 
   const now = Date.now();
+  const normalizedAttachments = hasAttachments ? [...attachments] : [];
+  const fingerprint = buildPendingChatSendFingerprint(msg, normalizedAttachments);
+  const existingRunId = resolvePendingChatSendRunId(state, fingerprint);
+  if (existingRunId) {
+    return existingRunId;
+  }
   const runId = generateUUID();
+  rememberPendingChatSend(state, {
+    fingerprint,
+    runId,
+    ts: now,
+  });
 
   // Build user message content blocks
   const contentBlocks: Array<{
@@ -864,7 +1169,7 @@ export async function sendChatMessage(
 
   // Convert attachments to API format
   const apiAttachments = hasAttachments
-    ? attachments
+    ? normalizedAttachments
         .map((att) => {
           const parsed = dataUrlToBase64(att.dataUrl);
           if (!parsed) {
@@ -909,6 +1214,7 @@ export async function sendChatMessage(
         },
       ];
     }
+    clearPendingChatSendByRunId(state, runId);
     return null;
   } finally {
     state.chatSending = false;
@@ -938,6 +1244,10 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   }
   if (payload.sessionKey !== state.sessionKey) {
     return null;
+  }
+
+  if (payload.state === "final" || payload.state === "aborted" || payload.state === "error") {
+    clearPendingChatSendByRunId(state, payload.runId, payload.sessionKey);
   }
 
   // Final from another run (e.g. sub-agent announce): refresh history to show new message.

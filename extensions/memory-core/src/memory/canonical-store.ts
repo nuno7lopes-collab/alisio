@@ -130,6 +130,15 @@ type ImportedFileRow = {
   updated_at_ms: number;
 };
 
+type ProjectedFileRootKind = "workspace" | "legacy";
+
+type ProjectedFileRow = {
+  root_kind: ProjectedFileRootKind;
+  relative_path: string;
+  content_hash: string;
+  updated_at_ms: number;
+};
+
 type LegacyEntityRow = {
   entity_id: string;
   title: string;
@@ -155,6 +164,7 @@ type LegacyProjectionRow = {
 
 type CanonicalStoreFeatureFlags = {
   markdownProjectionEnabled: boolean;
+  legacyMarkdownProjectionEnabled: boolean;
   crdtPagesEnabled: boolean;
 };
 
@@ -339,6 +349,7 @@ export type CanonicalMemoryGraphResult = {
   lastSyncedAt?: string;
   lastError?: string;
   scope: "global" | "local";
+  mode: "overview" | "focus";
   focus?: {
     nodeId: string;
     pageId: string;
@@ -785,28 +796,29 @@ function normalizeProjectionEvent(
   return payload === event.payload ? event : { ...event, payload };
 }
 
+function resolveWorkspaceProjectionRoot(workspaceDir: string): string {
+  return path.resolve(workspaceDir);
+}
+
 function resolveCompatibilityProjectionRoot(env: NodeJS.ProcessEnv): string {
   return path.join(resolveStateDir(env), "workspace");
 }
 
-function resolveCompatibilityProjectionPath(env: NodeJS.ProcessEnv, relativePath: string): string {
-  return path.join(resolveCompatibilityProjectionRoot(env), normalizeDisplayPath(relativePath));
+function resolveProjectionPath(params: { rootDir: string; relativePath: string }): string {
+  return path.join(params.rootDir, normalizeDisplayPath(params.relativePath));
+}
+
+function shouldMaterializeAnyMarkdown(flags: CanonicalStoreFeatureFlags): boolean {
+  return flags.markdownProjectionEnabled || flags.legacyMarkdownProjectionEnabled;
 }
 
 function readFeatureFlags(cfg: AlisioConfig): CanonicalStoreFeatureFlags {
-  const rawMemory = (cfg as { memory?: unknown }).memory as
-    | {
-        markdownProjection?: { enabled?: boolean };
-        legacyMarkdownProjection?: { enabled?: boolean };
-        crdt?: { pages?: { enabled?: boolean } };
-      }
-    | undefined;
+  const rawMemory = cfg.memory;
   return {
-    // Keep the legacy config path as a read-only alias for one release.
     markdownProjectionEnabled:
-      rawMemory?.markdownProjection?.enabled ??
-      rawMemory?.legacyMarkdownProjection?.enabled ??
-      true,
+      rawMemory?.markdownProjection?.enabled ?? rawMemory?.legacyMarkdownProjection?.enabled ?? true,
+    // Keep the legacy config path as the dedicated compatibility mirror toggle.
+    legacyMarkdownProjectionEnabled: rawMemory?.legacyMarkdownProjection?.enabled ?? true,
     crdtPagesEnabled: rawMemory?.crdt?.pages?.enabled ?? true,
   };
 }
@@ -1133,6 +1145,18 @@ function ensureCanonicalStoreSchema(db: DatabaseSync): void {
       updated_at_ms INTEGER NOT NULL
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projected_files (
+      root_kind TEXT NOT NULL,
+      relative_path TEXT NOT NULL,
+      content_hash TEXT NOT NULL DEFAULT '',
+      updated_at_ms INTEGER NOT NULL,
+      PRIMARY KEY(root_kind, relative_path)
+    );
+  `);
+  if (!hasColumn(db, "projected_files", "content_hash")) {
+    db.exec(`ALTER TABLE projected_files ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`);
+  }
   ensureMemoryStateSchema(db);
 }
 
@@ -1736,6 +1760,7 @@ function buildLegacyPageFromFile(params: {
 async function collectWorkspaceMarkdownPages(params: {
   workspaceDir: string;
   importedPageIdByPath: ReadonlyMap<string, string>;
+  projectedFileRowsByPath?: ReadonlyMap<string, ProjectedFileRow>;
 }): Promise<CanonicalImportedPage[]> {
   const discoveredFiles = await listMemoryFiles(params.workspaceDir);
   const entries = (
@@ -1743,7 +1768,12 @@ async function collectWorkspaceMarkdownPages(params: {
       discoveredFiles.map((file) => async () => await buildFileEntry(file, params.workspaceDir)),
       8,
     )
-  ).filter((entry): entry is MemoryFileEntry => entry !== null);
+  )
+    .filter((entry): entry is MemoryFileEntry => entry !== null)
+    .filter((entry) => {
+      const projected = params.projectedFileRowsByPath?.get(normalizeDisplayPath(entry.path));
+      return !projected || projected.content_hash !== entry.hash;
+    });
   const pages = await Promise.all(
     entries.map(async (entry) => {
       const markdown = await fs.readFile(entry.absPath, "utf8");
@@ -2119,6 +2149,65 @@ function updateImportedFileRow(db: DatabaseSync, page: CanonicalImportedPage): v
 
 function deleteImportedFileRow(db: DatabaseSync, relativePath: string): void {
   db.prepare(`DELETE FROM imported_files WHERE source_path = ?`).run(relativePath);
+}
+
+function readProjectedFileRows(
+  db: DatabaseSync,
+  rootKind: ProjectedFileRootKind,
+): Map<string, ProjectedFileRow> {
+  const rows = db
+    .prepare(
+      `SELECT root_kind, relative_path, content_hash, updated_at_ms
+       FROM projected_files
+       WHERE root_kind = ?
+       ORDER BY relative_path ASC`,
+    )
+    .all(rootKind) as ProjectedFileRow[];
+  return new Map(rows.map((row) => [row.relative_path, row]));
+}
+
+function updateProjectedFileRow(
+  db: DatabaseSync,
+  params: {
+    rootKind: ProjectedFileRootKind;
+    relativePath: string;
+    contentHash: string;
+    updatedAtMs: number;
+  },
+): void {
+  db.prepare(
+    `INSERT INTO projected_files (root_kind, relative_path, content_hash, updated_at_ms)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(root_kind, relative_path) DO UPDATE SET
+       content_hash = excluded.content_hash,
+       updated_at_ms = excluded.updated_at_ms`,
+  ).run(params.rootKind, params.relativePath, params.contentHash, params.updatedAtMs);
+}
+
+function deleteProjectedFileRow(
+  db: DatabaseSync,
+  params: { rootKind: ProjectedFileRootKind; relativePath: string },
+): void {
+  db.prepare(`DELETE FROM projected_files WHERE root_kind = ? AND relative_path = ?`).run(
+    params.rootKind,
+    params.relativePath,
+  );
+}
+
+async function writeFileIfChanged(target: string, content: string): Promise<boolean> {
+  try {
+    const existing = await fs.readFile(target, "utf8");
+    if (existing === content) {
+      return false;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
+  }
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, content, "utf8");
+  return true;
 }
 
 async function createCheckpointIfNeeded(params: {
@@ -2544,10 +2633,10 @@ function buildGenesisDraftsFromCurrentDerivedState(params: {
 
 async function materializeMarkdownProjections(params: {
   db: DatabaseSync;
+  workspaceDir: string;
   env: NodeJS.ProcessEnv;
+  flags: CanonicalStoreFeatureFlags;
 }): Promise<number> {
-  const root = resolveCompatibilityProjectionRoot(params.env);
-  await fs.mkdir(root, { recursive: true });
   const rows = params.db
     .prepare(
       `SELECT page_id, kind, markdown_body
@@ -2559,26 +2648,62 @@ async function materializeMarkdownProjections(params: {
     kind: string;
     markdown_body: string;
   }>;
-  let written = 0;
-  const expectedPaths = new Set<string>();
+  const expectedContentByPath = new Map<string, string>();
   for (const row of rows) {
     const relativePath = parseMarkdownProjectionPath(row.kind);
     if (!relativePath) {
       continue;
     }
-    const target = resolveCompatibilityProjectionPath(params.env, relativePath);
-    expectedPaths.add(target);
-    await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, row.markdown_body, "utf8");
-    written += 1;
+    expectedContentByPath.set(relativePath, row.markdown_body);
   }
-  const compatibilityFiles = await listMemoryFiles(root);
-  for (const absolutePath of compatibilityFiles) {
-    if (!expectedPaths.has(absolutePath)) {
-      await fs.rm(absolutePath, { force: true }).catch(() => {});
+
+  const roots: Array<{ kind: ProjectedFileRootKind; rootDir: string }> = [];
+  if (params.flags.markdownProjectionEnabled) {
+    roots.push({
+      kind: "workspace",
+      rootDir: resolveWorkspaceProjectionRoot(params.workspaceDir),
+    });
+  }
+  if (params.flags.legacyMarkdownProjectionEnabled) {
+    roots.push({
+      kind: "legacy",
+      rootDir: resolveCompatibilityProjectionRoot(params.env),
+    });
+  }
+
+  let written = 0;
+  for (const root of roots) {
+    await fs.mkdir(root.rootDir, { recursive: true });
+    const previouslyProjected = readProjectedFileRows(params.db, root.kind);
+    for (const [relativePath, markdownBody] of expectedContentByPath) {
+      const target = resolveProjectionPath({ rootDir: root.rootDir, relativePath });
+      const contentHash = hashText(markdownBody);
+      if (await writeFileIfChanged(target, markdownBody)) {
+        written += 1;
+      }
+      updateProjectedFileRow(params.db, {
+        rootKind: root.kind,
+        relativePath,
+        contentHash,
+        updatedAtMs: Date.now(),
+      });
+      previouslyProjected.delete(relativePath);
+    }
+    for (const staleRelativePath of previouslyProjected.keys()) {
+      const target = resolveProjectionPath({
+        rootDir: root.rootDir,
+        relativePath: staleRelativePath,
+      });
+      await fs.rm(target, { force: true }).catch(() => {});
+      deleteProjectedFileRow(params.db, {
+        rootKind: root.kind,
+        relativePath: staleRelativePath,
+      });
     }
   }
-  canonicalStoreTelemetry("projections_written_count", written, { root });
+  canonicalStoreTelemetry("projections_written_count", written, {
+    roots: roots.map((root) => root.rootDir),
+  });
   return written;
 }
 
@@ -2654,10 +2779,12 @@ async function applyEventDrafts(params: {
     cloudState: params.cloudState ?? resolveSyncCloudState(params.context),
     lastSyncedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
   });
-  if (params.materializeMarkdown !== false && params.context.flags.markdownProjectionEnabled) {
+  if (params.materializeMarkdown !== false && shouldMaterializeAnyMarkdown(params.context.flags)) {
     await materializeMarkdownProjections({
       db: params.context.db,
+      workspaceDir: params.context.workspaceDir,
       env: params.context.env,
+      flags: params.context.flags,
     });
   }
   const applyDurationMs = Math.max(
@@ -2792,6 +2919,7 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
   const pages = await collectWorkspaceMarkdownPages({
     workspaceDir: params.workspaceDir,
     importedPageIdByPath: buildImportPageIdMap(importedRows),
+    projectedFileRowsByPath: readProjectedFileRows(params.db, "workspace"),
   });
   const lookupByAlias = buildReferenceLookup({
     db: params.db,
@@ -2848,10 +2976,12 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
     }
     deleteImportedFileRow(params.db, relativePath);
   }
-  if (params.flags.markdownProjectionEnabled) {
+  if (shouldMaterializeAnyMarkdown(params.flags)) {
     await materializeMarkdownProjections({
       db: params.db,
+      workspaceDir: params.workspaceDir,
       env: params.env,
+      flags: params.flags,
     });
   }
 }
@@ -3333,10 +3463,12 @@ async function appendPulledEncryptedEvents(params: {
     context: params.context,
     lastAppliedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
   });
-  if (params.materializeMarkdown !== false && params.context.flags.markdownProjectionEnabled) {
+  if (params.materializeMarkdown !== false && shouldMaterializeAnyMarkdown(params.context.flags)) {
     await materializeMarkdownProjections({
       db: params.context.db,
+      workspaceDir: params.context.workspaceDir,
       env: params.context.env,
+      flags: params.context.flags,
     });
   }
   return { insertedCount, appliedCount };
@@ -3464,10 +3596,12 @@ async function pullEncryptedEventsFromRelay(context: CanonicalStoreContext): Pro
       break;
     }
   }
-  if (insertedTotal > 0 && context.flags.markdownProjectionEnabled) {
+  if (insertedTotal > 0 && shouldMaterializeAnyMarkdown(context.flags)) {
     await materializeMarkdownProjections({
       db: context.db,
+      workspaceDir: context.workspaceDir,
       env: context.env,
+      flags: context.flags,
     });
   }
   return insertedTotal;

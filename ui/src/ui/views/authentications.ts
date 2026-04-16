@@ -22,8 +22,10 @@ import {
 import { buildConnectorRows, type ConnectorRow } from "./connector-state.ts";
 import {
   renderSkeletonButton,
+  renderSkeletonInput,
   renderSkeletonLines,
   renderSkeletonPill,
+  renderSurfaceEmptyState,
 } from "./loading-skeleton.ts";
 
 function normalizeSearchText(value: string) {
@@ -402,6 +404,42 @@ function renderConnectorSection(params: {
   `;
 }
 
+function renderAuthenticationsHeader(props: {
+  loading: boolean;
+  search: string;
+  searchPlaceholder: string;
+  onSearchChange: (value: string) => void;
+}) {
+  if (props.loading) {
+    return html`
+      <div class="loading-state__toolbar alisio-auth-page__header" aria-hidden="true">
+        <div class="loading-state__toolbar-main">
+          ${renderSkeletonLines(["short"], { compact: true })}
+        </div>
+        <div class="loading-state__toolbar-filter">${renderSkeletonInput()}</div>
+      </div>
+    `;
+  }
+  return html`
+    <header class="alisio-auth-page__header">
+      <div class="alisio-auth-page__copy">
+        <div class="card-title">${t("alisio.authentications.sections.apps")}</div>
+      </div>
+      <div class="alisio-auth-page__filters">
+        <label class="field alisio-filter alisio-filter--search">
+          <input
+            type="search"
+            placeholder=${props.searchPlaceholder}
+            .value=${props.search}
+            @input=${(event: Event) =>
+              props.onSearchChange((event.target as HTMLInputElement).value)}
+          />
+        </label>
+      </div>
+    </header>
+  `;
+}
+
 export function renderAuthentications(props: {
   loading: boolean;
   error: string | null;
@@ -502,23 +540,12 @@ export function renderAuthentications(props: {
 
   return html`
     <section class="alisio-page alisio-auth-page">
-      <header class="alisio-auth-page__header">
-        <div class="alisio-auth-page__copy">
-          <div class="card-title">${t("alisio.authentications.sections.apps")}</div>
-        </div>
-        <div class="alisio-auth-page__filters">
-          <label class="field alisio-filter alisio-filter--search">
-            <input
-              type="search"
-              placeholder=${text.searchPlaceholder}
-              .value=${props.search}
-              @input=${(event: Event) =>
-                props.onSearchChange((event.target as HTMLInputElement).value)}
-            />
-          </label>
-        </div>
-      </header>
-
+      ${renderAuthenticationsHeader({
+        loading: showInitialLoading,
+        search: props.search,
+        searchPlaceholder: text.searchPlaceholder,
+        onSearchChange: props.onSearchChange,
+      })}
       ${props.error
         ? html`<div class="callout danger alisio-auth-page__error">${props.error}</div>`
         : nothing}
@@ -560,9 +587,15 @@ export function renderAuthentications(props: {
             </section>
           `
         : visibleConnectorRows.length === 0
-          ? html`<div class="card-sub">
-              ${props.search ? text.emptyFiltered : t("alisio.authentications.emptyAuthorized")}
-            </div>`
+          ? renderSurfaceEmptyState({
+              title: props.search
+                ? text.emptyFiltered
+                : t("alisio.authentications.emptyAuthorized"),
+              body: props.search ? text.title : text.authorizedSubtitle,
+              meta: props.search ? props.search : null,
+              compact: true,
+              centered: true,
+            })
           : html`
               ${renderConnectorSection({
                 id: "connected",

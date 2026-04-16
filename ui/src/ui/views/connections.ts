@@ -1,15 +1,14 @@
 import { html, nothing } from "lit";
+import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
 import { resolveConnectionsModel } from "../controllers/connections-model.ts";
 import { icons } from "../icons.ts";
+import { renderComputersPanel } from "./connections-computers.ts";
 import {
-  countAccountComputers,
-  countOnlineComputers,
-  countPendingComputerAccess,
-  renderComputersPanel,
-} from "./connections-computers.ts";
-import { renderSkeletonLines } from "./loading-skeleton.ts";
-import { countReadyExecNodes } from "./nodes-shared.ts";
+  renderSkeletonLines,
+  renderSkeletonListItem,
+  renderSkeletonPill,
+} from "./loading-skeleton.ts";
 import { renderNodes, type NodesProps } from "./nodes.ts";
 import {
   expandSharingScopeSelection,
@@ -504,6 +503,21 @@ function renderSharingContent(props: NodesProps) {
               <section class="alisio-connections-subsection">
                 <div class="alisio-connections-subsection__head">
                   <span class="alisio-connections-subsection__title">${text.availableTitle}</span>
+                  ${renderSkeletonPill({ small: true })}
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
+                  ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "pill" })}
+                </div>
+              </section>
+              <section class="alisio-connections-subsection">
+                <div class="alisio-connections-subsection__head">
+                  <span class="alisio-connections-subsection__title">${text.sharedTitle}</span>
+                  ${renderSkeletonPill({ small: true })}
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long"], aside: "button" })}
+                  ${renderSkeletonListItem({ lines: ["short", "medium", "long"] })}
                 </div>
               </section>
             </div>
@@ -715,16 +729,26 @@ function renderSharingContent(props: NodesProps) {
 }
 
 export function renderConnections(props: NodesProps) {
-  const accountComputers = countAccountComputers(props);
-  const pendingAccess = countPendingComputerAccess(props);
-  const onlineComputers = countOnlineComputers(props);
-  const execReadyNodes = countReadyExecNodes(props.nodes);
+  const connectionsModel = resolveConnectionsModel({
+    account: props.account ?? null,
+    sharing: props.sharing ?? null,
+    devicesList: props.devicesList,
+    currentDeviceId: props.currentDeviceId ?? null,
+    nodes: props.nodes as NodeListNode[],
+    nodePairingsList: props.nodePairingsList,
+  });
+  const accountComputers = connectionsModel.accountComputersCount;
+  const pendingAccess =
+    connectionsModel.pendingDeviceRequests.length +
+    connectionsModel.pendingSharing.incoming.length +
+    connectionsModel.pendingSharing.outgoing.length;
+  const onlineComputers = connectionsModel.onlineComputersCount;
+  const execReadyNodes = connectionsModel.execReadyNodesCount;
   const refreshing =
     props.nodesLoading ||
     props.devicesLoading ||
     Boolean(props.sharingLoading) ||
-    props.nodePairingsLoading ||
-    props.configLoading;
+    props.nodePairingsLoading;
   const devicesInitialLoading = !props.devicesList && !props.devicesError;
   const runtimeInitialLoading =
     (!props.nodesLoaded && !props.nodesError) ||
@@ -744,14 +768,6 @@ export function renderConnections(props: NodesProps) {
     na: t("common.na"),
     advanced: t("alisio.connections.advanced"),
   };
-  const connectionsModel = resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes,
-    nodePairingsList: props.nodePairingsList,
-  });
   return html`
     <section class="alisio-page alisio-connections-page">
       <div class="card alisio-connections-hero" aria-busy=${refreshing ? "true" : "false"}>
@@ -795,7 +811,7 @@ export function renderConnections(props: NodesProps) {
         </div>
       </div>
       <div class="alisio-connections-stack">
-        ${renderComputersPanel(props)}
+        ${renderComputersPanel(props, connectionsModel)}
         ${connectionsModel.hasAdvancedSharing
           ? html`
               <details class="card alisio-connections-panel alisio-connections-panel--sharing">
@@ -814,11 +830,17 @@ export function renderConnections(props: NodesProps) {
               </details>
             `
           : nothing}
-        ${renderNodes(props, {
-          includeExecApprovals: false,
-          showDevices: false,
-          collapseNodeInventoryByComputer: true,
-        })}
+        ${renderNodes(
+          props,
+          {
+            includeExecApprovals: false,
+            showDevices: false,
+            collapseNodeInventoryByComputer: true,
+          },
+          {
+            connectionsModel,
+          },
+        )}
       </div>
     </section>
   `;

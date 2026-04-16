@@ -78,7 +78,8 @@ Operational surfaces now split cleanly:
 - `alisio memory search` still searches Markdown projections and
   optional session transcripts.
 - `alisio memory graph` inspects the structured canonical store for explicit
-  note-to-note relations under that human-facing projection.
+  note-to-note relations under that human-facing projection, with a single
+  surface that supports `overview` and `focus` modes.
 
 Alisio indexes `MEMORY.md` and `memory/*.md` into chunks (~400 tokens with
 80-token overlap) for search.

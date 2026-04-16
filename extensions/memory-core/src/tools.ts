@@ -46,8 +46,12 @@ import {
   buildMemoryGraphUnavailableResult,
   buildMemorySearchUnavailableResult,
   createMemoryTool,
+  getMemoryGraphFocusScopeError,
+  getMemoryGraphScopeValueError,
   getMemoryManagerContext,
   getMemoryManagerContextWithPurpose,
+  normalizeMemoryGraphScope,
+  requiresMemoryGraphFocusHint,
   loadMemoryToolRuntime,
   MemoryGetSchema,
   MemoryGraphSchema,
@@ -518,20 +522,38 @@ export function createMemoryGraphTool(options: {
     label: "Memory Graph",
     name: "memory_graph",
     description:
-      "Inspect the GAIA-derived memory graph and return stable page/projection IDs plus explicit relations for dependency tracing and navigation.",
+      "Inspect the GAIA-derived memory graph in overview mode for a broad map, or in focus mode with pageId, entityId, or query for dependency tracing and navigation.",
     parameters: MemoryGraphSchema,
     execute:
       ({ cfg, agentId }) =>
       async (toolCallId, params) => {
         const startedAtMs = Date.now();
-        const query = readStringParam(params, "query", { required: true });
+        const query = readStringParam(params, "query");
+        const pageId = readStringParam(params, "pageId");
+        const entityId = readStringParam(params, "entityId");
+        const rawScope = readStringParam(params, "scope");
+        const scope = normalizeMemoryGraphScope(rawScope);
         const rawDirection = readStringParam(params, "direction");
+        const depth = readNumberParam(params, "depth", { integer: true });
         const matchLimit = readNumberParam(params, "matchLimit", { integer: true });
         const relationLimit = readNumberParam(params, "relationLimit", { integer: true });
+        const nodeLimit = readNumberParam(params, "nodeLimit", { integer: true });
+        const edgeLimit = readNumberParam(params, "edgeLimit", { integer: true });
+        const includeAttachments =
+          typeof params === "object" &&
+          params !== null &&
+          "includeAttachments" in params &&
+          params.includeAttachments === true;
         const direction =
           rawDirection === "incoming" || rawDirection === "outgoing" || rawDirection === "both"
             ? rawDirection
             : undefined;
+        if (rawScope && !scope) {
+          throw new Error(getMemoryGraphScopeValueError());
+        }
+        if (requiresMemoryGraphFocusHint({ scope, query, pageId, entityId })) {
+          throw new Error(getMemoryGraphFocusScopeError());
+        }
         const flags = resolveRetrievalFlags(cfg);
         const fallbackProfileId = `agent:${agentId}`;
         const gaia = createGaiaFacade({
@@ -599,10 +621,17 @@ export function createMemoryGraphTool(options: {
 
           const graph = queryGaiaDerivedGraph({
             status: canonicalStore,
-            query,
+            ...(query ? { query } : {}),
+            ...(pageId ? { pageId } : {}),
+            ...(entityId ? { entityId } : {}),
+            ...(scope ? { scope } : {}),
             ...(direction ? { direction } : {}),
+            ...(typeof depth === "number" ? { depth } : {}),
             ...(typeof matchLimit === "number" ? { matchLimit } : {}),
             ...(typeof relationLimit === "number" ? { relationLimit } : {}),
+            ...(typeof nodeLimit === "number" ? { nodeLimit } : {}),
+            ...(typeof edgeLimit === "number" ? { edgeLimit } : {}),
+            ...(includeAttachments ? { includeAttachments: true } : {}),
           });
           const privateAllowed = isPrivateMemoryAllowed({
             sessionKey: options.agentSessionKey,
@@ -613,7 +642,7 @@ export function createMemoryGraphTool(options: {
           const decoratedGraph = decorateGraphResult({
             graph,
             profileId: canonicalStore.profileId,
-            query,
+            query: query ?? "",
             reader,
             privateAllowed,
           });
@@ -1076,10 +1105,17 @@ function createTracePayload(params: {
 
 function queryGaiaDerivedGraph(params: {
   status: CanonicalMemoryStoreStatus;
-  query: string;
+  query?: string;
+  pageId?: string;
+  entityId?: string;
+  scope?: "global" | "local";
   direction?: "incoming" | "outgoing" | "both";
+  depth?: number;
   matchLimit?: number;
   relationLimit?: number;
+  nodeLimit?: number;
+  edgeLimit?: number;
+  includeAttachments?: boolean;
 }): GaiaDerivedGraphResult {
   const graph = queryCanonicalMemoryGraph(params);
   const matches: GaiaDerivedGraphMatch[] = graph.matches.map((match) => ({

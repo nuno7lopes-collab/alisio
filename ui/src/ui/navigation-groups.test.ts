@@ -23,6 +23,7 @@ describe("TAB_GROUPS", () => {
       "chat",
       "memory",
       "tasks",
+      "cron",
       "models",
       "channels",
       "authentications",
@@ -48,10 +49,16 @@ describe("TAB_GROUPS", () => {
     expect(navigation.tabFromPath("/security")).toBe("security");
   });
 
+  it("keeps cron routable from the primary sidebar", () => {
+    const allTabs = navigation.TAB_GROUPS.flatMap((group) => [...group.tabs]);
+    expect(allTabs).toContain("cron");
+    expect(navigation.pathForTab("cron")).toBe("/cron");
+    expect(navigation.tabFromPath("/cron")).toBe("cron");
+  });
+
   it("rejects retired route aliases", () => {
     expect(navigation.tabFromPath("/home")).toBeNull();
     expect(navigation.tabFromPath("/sessions")).toBeNull();
-    expect(navigation.tabFromPath("/cron")).toBeNull();
     expect(navigation.tabFromPath("/automations")).toBeNull();
     expect(navigation.tabFromPath("/agents")).toBeNull();
     expect(navigation.tabFromPath("/skills")).toBeNull();

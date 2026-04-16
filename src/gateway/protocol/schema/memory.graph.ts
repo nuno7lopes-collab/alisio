@@ -1,7 +1,14 @@
 import { Type } from "@sinclair/typebox";
 import { NonEmptyString } from "./primitives.js";
 
-const MemoryGraphScopeSchema = Type.Union([Type.Literal("global"), Type.Literal("local")]);
+const MemoryGraphLegacyScopeSchema = Type.Union([Type.Literal("global"), Type.Literal("local")]);
+const MemoryGraphModeSchema = Type.Union([Type.Literal("overview"), Type.Literal("focus")]);
+const MemoryGraphScopeInputSchema = Type.Union([
+  Type.Literal("overview"),
+  Type.Literal("focus"),
+  Type.Literal("global"),
+  Type.Literal("local"),
+]);
 const MemoryGraphDirectionSchema = Type.Union([
   Type.Literal("incoming"),
   Type.Literal("outgoing"),
@@ -169,7 +176,7 @@ export const MemoryGraphParamsSchema = Type.Object(
     query: Type.Optional(Type.String()),
     pageId: Type.Optional(NonEmptyString),
     entityId: Type.Optional(NonEmptyString),
-    scope: Type.Optional(MemoryGraphScopeSchema),
+    scope: Type.Optional(MemoryGraphScopeInputSchema),
     direction: Type.Optional(MemoryGraphDirectionSchema),
     depth: Type.Optional(Type.Integer({ minimum: 1 })),
     matchLimit: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -196,7 +203,8 @@ export const MemoryGraphResultSchema = Type.Object(
     e2eeRequired: Type.Literal(true),
     lastSyncedAt: Type.Optional(Type.String()),
     lastError: Type.Optional(Type.String()),
-    scope: MemoryGraphScopeSchema,
+    scope: MemoryGraphLegacyScopeSchema,
+    mode: MemoryGraphModeSchema,
     focus: Type.Optional(MemoryGraphFocusSchema),
     nodes: Type.Array(MemoryGraphNodeSchema),
     edges: Type.Array(MemoryGraphEdgeSchema),

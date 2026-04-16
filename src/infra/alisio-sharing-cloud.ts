@@ -247,6 +247,46 @@ async function upsertRows(
   }
 }
 
+function isMissingSharingTargetCompatibilityColumnError(error: unknown) {
+  const message = String(error);
+  return message.includes("computer_id") || message.includes("computer_label");
+}
+
+async function upsertSharingTargetRows(params: {
+  config: SupabaseSharingConfig;
+  accessToken: string;
+  rows: ReturnType<typeof toTargetRow>[];
+  fetchImpl: typeof fetch;
+}) {
+  try {
+    await upsertRows(
+      params.config,
+      params.config.targetsTable,
+      params.accessToken,
+      params.rows,
+      "target_id",
+      params.fetchImpl,
+    );
+  } catch (error) {
+    if (!isMissingSharingTargetCompatibilityColumnError(error)) {
+      throw error;
+    }
+    // Temporary compatibility: older hosted sharing tables may not yet expose
+    // the computer identity columns. Retry without them so read-only inventory
+    // and dashboards keep working while the schema catches up.
+    await upsertRows(
+      params.config,
+      params.config.targetsTable,
+      params.accessToken,
+      params.rows.map(
+        ({ computer_id: _computerId, computer_label: _computerLabel, ...row }) => row,
+      ),
+      "target_id",
+      params.fetchImpl,
+    );
+  }
+}
+
 function asString(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
@@ -683,14 +723,12 @@ export async function loadAlisioSharingCloudState(params: {
             updatedAt: now,
           }) satisfies AlisioSharingCloudTargetRecord,
       );
-    await upsertRows(
+    await upsertSharingTargetRows({
       config,
-      config.targetsTable,
-      params.accessToken,
-      [...nextTargets, ...staleTargets].map(toTargetRow),
-      "target_id",
+      accessToken: params.accessToken,
+      rows: [...nextTargets, ...staleTargets].map(toTargetRow),
       fetchImpl,
-    );
+    });
   }
 
   const [policyRows, targetRows, requestRows, grantRows, auditRows] = await Promise.all([

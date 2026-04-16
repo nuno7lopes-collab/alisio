@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type { TaskRuntimeFilter, TaskStatusFilter } from "../controllers/tasks.ts";
 import { formatMs, formatRelativeTimestamp } from "../format.ts";
 import type {
@@ -8,13 +9,19 @@ import type {
   TaskDependency,
   TaskEvent,
   TaskExecution,
-  TaskNotifyPolicy,
   TaskProposalRecord,
-  TaskRecord,
   TasksOverviewResult,
 } from "../types.ts";
+import {
+  renderSkeletonButton,
+  renderSkeletonInput,
+  renderSkeletonLines,
+  renderSkeletonListItem,
+  renderSkeletonStatCards,
+  renderSurfaceEmptyState,
+} from "./loading-skeleton.ts";
 
-type TasksViewProps = {
+export type TasksViewProps = {
   loading: boolean;
   busy: boolean;
   error: string | null;
@@ -29,31 +36,11 @@ type TasksViewProps = {
   onStatusFilterChange: (value: TaskStatusFilter) => void;
   onSelectTask: (taskId: string) => void;
   onCancelTask: (taskId: string) => void;
-  onNotifyPolicyChange: (taskId: string, notify: TaskNotifyPolicy) => void;
   onResolveProposal: (proposal: TaskProposalRecord, decision: "approved" | "rejected") => void;
   onLaunchProposal: (proposal: TaskProposalRecord) => void;
   onOpenRequesterSession?: (sessionKey: string) => void;
   onOpenChildSession?: (sessionKey: string) => void;
 };
-
-const TASK_RUNTIME_OPTIONS: Array<{ value: TaskRuntimeFilter; label: string }> = [
-  { value: "all", label: "All executors" },
-  { value: "subagent", label: "Subagents" },
-  { value: "acp", label: "ACP" },
-  { value: "cli", label: "CLI" },
-  { value: "cron", label: "Cron" },
-];
-
-const TASK_STATUS_OPTIONS: Array<{ value: TaskStatusFilter; label: string }> = [
-  { value: "all", label: "All run states" },
-  { value: "queued", label: "Queued" },
-  { value: "running", label: "Running" },
-  { value: "succeeded", label: "Succeeded" },
-  { value: "failed", label: "Failed" },
-  { value: "timed_out", label: "Timed out" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "lost", label: "Lost" },
-];
 
 type CanonicalTaskCollections = {
   tasks: Task[];
@@ -69,12 +56,36 @@ type FlattenedTask = {
   depth: number;
 };
 
+function getTaskRuntimeOptions(): Array<{ value: TaskRuntimeFilter; label: string }> {
+  return [
+    { value: "all", label: t("tasksView.filters.executorsAll") },
+    { value: "orchestrator_session", label: t("tasksView.runtime.orchestrator") },
+    { value: "subagent", label: t("tasksView.runtime.subagent") },
+    { value: "acp", label: t("tasksView.runtime.acp") },
+    { value: "cli", label: t("tasksView.runtime.cli") },
+    { value: "cron", label: t("tasksView.runtime.cron") },
+  ];
+}
+
+function getTaskStatusOptions(): Array<{ value: TaskStatusFilter; label: string }> {
+  return [
+    { value: "all", label: t("tasksView.filters.runStatesAll") },
+    { value: "queued", label: t("tasksView.executionStatus.queued") },
+    { value: "running", label: t("tasksView.executionStatus.running") },
+    { value: "succeeded", label: t("tasksView.executionStatus.succeeded") },
+    { value: "failed", label: t("tasksView.executionStatus.failed") },
+    { value: "timed_out", label: t("tasksView.executionStatus.timedOut") },
+    { value: "cancelled", label: t("tasksView.executionStatus.cancelled") },
+    { value: "lost", label: t("tasksView.executionStatus.lost") },
+  ];
+}
+
 function renderSummaryCard(label: string, value: string | number, detail: string) {
   return html`
-    <div class="card">
-      <div class="card-title">${label}</div>
-      <div style="font-size: 32px; font-weight: 700; margin-top: 8px;">${value}</div>
-      <div class="card-sub" style="margin-top: 8px;">${detail}</div>
+    <div class="stat stat-card alisio-tasks__summary-card">
+      <div class="stat-label">${label}</div>
+      <div class="stat-value">${value}</div>
+      <div class="alisio-tasks__summary-detail">${detail}</div>
     </div>
   `;
 }
@@ -99,6 +110,182 @@ function renderBadge(
     >
       ${label}
     </span>
+  `;
+}
+
+function runtimeLabel(value: string) {
+  switch (value) {
+    case "orchestrator_session":
+      return t("tasksView.runtime.orchestrator");
+    case "subagent":
+      return t("tasksView.runtime.subagent");
+    case "acp":
+      return t("tasksView.runtime.acp");
+    case "cli":
+      return t("tasksView.runtime.cli");
+    case "cron":
+      return t("tasksView.runtime.cron");
+    default:
+      return value.replaceAll("_", " ");
+  }
+}
+
+function proposalDecisionLabel(value: string) {
+  switch (value) {
+    case "pending":
+      return t("tasksView.proposals.pending");
+    case "approved":
+      return t("tasksView.proposals.approved");
+    case "rejected":
+      return t("tasksView.proposals.rejected");
+    default:
+      return value.replaceAll("_", " ");
+  }
+}
+
+function taskStatusLabel(value: Task["status"]) {
+  switch (value) {
+    case "draft":
+      return t("tasksView.taskStatus.draft");
+    case "pending_approval":
+      return t("tasksView.taskStatus.pendingApproval");
+    case "ready":
+      return t("tasksView.taskStatus.ready");
+    case "in_progress":
+      return t("tasksView.taskStatus.inProgress");
+    case "awaiting_review":
+      return t("tasksView.taskStatus.awaitingReview");
+    case "completed":
+      return t("tasksView.taskStatus.completed");
+    case "blocked":
+      return t("tasksView.taskStatus.blocked");
+    case "failed":
+      return t("tasksView.taskStatus.failed");
+    case "cancelled":
+      return t("tasksView.taskStatus.cancelled");
+  }
+}
+
+function executionStatusLabel(value: TaskExecution["status"]) {
+  switch (value) {
+    case "queued":
+      return t("tasksView.executionStatus.queued");
+    case "running":
+      return t("tasksView.executionStatus.running");
+    case "succeeded":
+      return t("tasksView.executionStatus.succeeded");
+    case "failed":
+      return t("tasksView.executionStatus.failed");
+    case "timed_out":
+      return t("tasksView.executionStatus.timedOut");
+    case "cancelled":
+      return t("tasksView.executionStatus.cancelled");
+    case "lost":
+      return t("tasksView.executionStatus.lost");
+  }
+}
+
+function approvalStatusLabel(value: string) {
+  switch (value) {
+    case "approved":
+      return t("tasksView.proposals.approved");
+    case "rejected":
+      return t("tasksView.proposals.rejected");
+    case "cancelled":
+      return t("tasksView.executionStatus.cancelled");
+    case "pending":
+      return t("tasksView.proposals.pending");
+    default:
+      return value.replaceAll("_", " ");
+  }
+}
+
+function assignmentStatusLabel(value: string) {
+  switch (value) {
+    case "active":
+      return t("tasksView.assignments.active");
+    case "released":
+      return t("tasksView.assignments.released");
+    case "expired":
+      return t("tasksView.assignments.expired");
+    default:
+      return value.replaceAll("_", " ");
+  }
+}
+
+function childTasksCountLabel(count: number) {
+  return count === 1
+    ? t("tasksView.detail.childTaskOne", { count: String(count) })
+    : t("tasksView.detail.childTaskMany", { count: String(count) });
+}
+
+function visibleTasksCountLabel(count: number) {
+  return count === 1
+    ? t("tasksView.tree.visibleOne", { count: String(count) })
+    : t("tasksView.tree.visibleMany", { count: String(count) });
+}
+
+function renderTasksEmptyState(body: string, className?: string) {
+  return renderSurfaceEmptyState({
+    body,
+    compact: true,
+    className,
+  });
+}
+
+function renderTasksToolbarSkeleton() {
+  return html`
+    <div class="loading-state__toolbar alisio-tasks__toolbar" aria-hidden="true">
+      <div class="loading-state__toolbar-main">${renderSkeletonInput()}</div>
+      <div class="loading-state__toolbar-filter">${renderSkeletonInput()}</div>
+      <div class="loading-state__toolbar-filter">${renderSkeletonInput()}</div>
+      <div class="loading-state__toolbar-actions">${renderSkeletonButton()}</div>
+    </div>
+  `;
+}
+
+function renderTasksSectionSkeleton(params: {
+  title: string;
+  subtitle: string;
+  rows?: number;
+  aside?: "none" | "pill" | "button";
+}) {
+  return html`
+    <div class="card">
+      <div class="card-title">${params.title}</div>
+      <div class="card-sub">${params.subtitle}</div>
+      <div class="loading-state__list" style="margin-top: 16px;" aria-hidden="true">
+        ${Array.from({ length: params.rows ?? 3 }, (_, index) =>
+          renderSkeletonListItem({
+            lines:
+              index === 0
+                ? ["medium", "long", "short"]
+                : index % 2 === 0
+                  ? ["long", "medium"]
+                  : ["short", "medium"],
+            aside: params.aside ?? "button",
+          }),
+        )}
+      </div>
+    </div>
+  `;
+}
+
+function renderTasksDetailSkeleton() {
+  return html`
+    <div class="card">
+      <div class="card-title">${t("tasksView.detail.title")}</div>
+      <div class="card-sub">${t("tasksView.detail.empty")}</div>
+      <div style="display: grid; gap: 16px; margin-top: 16px;" aria-hidden="true">
+        ${renderSkeletonLines(["medium", "full", "long"])}
+        <div class="alisio-tasks__detail-grid">${renderSkeletonStatCards(3)}</div>
+        <div class="loading-state__list">
+          ${renderSkeletonListItem({ lines: ["medium", "long"], aside: "pill" })}
+          ${renderSkeletonListItem({ lines: ["short", "medium", "long"] })}
+          ${renderSkeletonListItem({ lines: ["medium", "short"], aside: "button" })}
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -149,9 +336,11 @@ function renderProposalActionButton(
   onClick: () => void,
   variant?: "primary" | "quiet",
 ) {
-  const className = variant === "primary" ? "btn btn--primary" : "btn";
+  const className = variant === "primary" ? "btn primary" : "btn btn--ghost";
   return html`
-    <button class=${className} ?disabled=${disabled} @click=${onClick}>${label}</button>
+    <button type="button" class=${className} ?disabled=${disabled} @click=${onClick}>
+      ${label}
+    </button>
   `;
 }
 
@@ -328,7 +517,7 @@ function renderProposalCard(
         <span style="display: inline-flex; gap: 8px; flex-wrap: wrap;">
           ${renderBadge(proposal.kind, "neutral")}
           ${renderBadge(
-            proposal.decision,
+            proposalDecisionLabel(proposal.decision),
             proposal.decision === "approved"
               ? "good"
               : proposal.decision === "rejected"
@@ -339,7 +528,9 @@ function renderProposalCard(
       </div>
       <div class="list-sub">
         ${formatRelativeTimestamp(proposal.updatedAt || proposal.createdAt)} ·
-        ${proposal.createdBy === "assistant" ? "proposed by assistant" : "created by user"}
+        ${proposal.createdBy === "assistant"
+          ? t("tasksView.proposals.createdByAssistant")
+          : t("tasksView.proposals.createdByUser")}
       </div>
       <div style="margin-top: 10px; display: grid; gap: 8px;">
         <div>${describeTaskProposal(proposal)}</div>
@@ -348,41 +539,48 @@ function renderProposalCard(
           : nothing}
         ${linkedTask
           ? html`
-              <div class="list-sub">Linked task · ${linkedTask.taskId} · ${linkedTask.status}</div>
+              <div class="list-sub">
+                ${t("tasksView.proposals.linkedTask")} · ${linkedTask.taskId} ·
+                ${taskStatusLabel(linkedTask.status)}
+              </div>
             `
           : proposal.launchedTaskId?.trim()
-            ? html`<div class="list-sub">Linked task · ${proposal.launchedTaskId}</div>`
+            ? html`
+                <div class="list-sub">
+                  ${t("tasksView.proposals.linkedTask")} · ${proposal.launchedTaskId}
+                </div>
+              `
             : nothing}
       </div>
       <div class="row" style="margin-top: 14px; gap: 10px; flex-wrap: wrap;">
         ${proposal.decision === "pending"
           ? [
               renderProposalActionButton(
-                "Approve",
+                t("tasksView.proposals.approve"),
                 props.busy,
                 () => props.onResolveProposal(proposal, "approved"),
                 "primary",
               ),
-              renderProposalActionButton("Reject", props.busy, () =>
+              renderProposalActionButton(t("tasksView.proposals.reject"), props.busy, () =>
                 props.onResolveProposal(proposal, "rejected"),
               ),
             ]
           : nothing}
         ${launchable
           ? renderProposalActionButton(
-              "Launch",
+              t("tasksView.proposals.launch"),
               props.busy,
               () => props.onLaunchProposal(proposal),
               "primary",
             )
           : nothing}
         ${proposal.requesterSessionKey.trim() && props.onOpenRequesterSession
-          ? renderProposalActionButton("Open source chat", props.busy, () =>
+          ? renderProposalActionButton(t("tasksView.proposals.openSourceChat"), props.busy, () =>
               props.onOpenRequesterSession?.(proposal.requesterSessionKey),
             )
           : nothing}
         ${launchedSessionKey && props.onOpenChildSession
-          ? renderProposalActionButton("Open task chat", props.busy, () =>
+          ? renderProposalActionButton(t("tasksView.proposals.openTaskChat"), props.busy, () =>
               props.onOpenChildSession?.(launchedSessionKey),
             )
           : nothing}
@@ -406,23 +604,16 @@ function renderCanonicalTaskRow(
     "";
   return html`
     <button
-      class="list-item"
-      style=${[
-        selected ? "border-color: var(--accent-color, currentColor);" : "",
-        `padding-left: ${16 + depth * 18}px;`,
-      ].join(" ")}
+      type="button"
+      class=${`list-item list-item-clickable alisio-tasks__row ${selected ? "list-item-selected" : ""}`}
+      style=${[`padding-left: ${16 + depth * 18}px;`].join(" ")}
       @click=${() => props.onSelectTask(task.taskId)}
     >
-      <div
-        class="list-title"
-        style="display: flex; justify-content: space-between; gap: 12px; align-items: center;"
-      >
+      <div class="list-title alisio-tasks__row-title">
         <span>${task.title}</span>
-        <span style="display: inline-flex; gap: 8px; flex-wrap: wrap;">
-          ${renderBadge(task.status.replaceAll("_", " "), taskStatusTone(task))}
-          ${latestExecution
-            ? renderBadge(latestExecution.kind.replaceAll("_", " "), "neutral")
-            : nothing}
+        <span class="alisio-tasks__badge-row">
+          ${renderBadge(taskStatusLabel(task.status), taskStatusTone(task))}
+          ${latestExecution ? renderBadge(runtimeLabel(latestExecution.kind), "neutral") : nothing}
         </span>
       </div>
       <div class="list-sub">${task.taskId} · ${formatRelativeTimestamp(task.updatedAt)}</div>
@@ -435,7 +626,7 @@ function renderCanonicalTaskRow(
 
 function renderExecutionList(executions: TaskExecution[]) {
   if (executions.length === 0) {
-    return html`<div class="empty-state">No executions yet.</div>`;
+    return renderTasksEmptyState(t("tasksView.executions.empty"));
   }
   return html`
     <div style="display: grid; gap: 10px;">
@@ -448,15 +639,23 @@ function renderExecutionList(executions: TaskExecution[]) {
                 class="list-title"
                 style="display: flex; justify-content: space-between; gap: 12px; align-items: center;"
               >
-                <span>Attempt ${execution.attempt} · ${execution.kind.replaceAll("_", " ")}</span>
-                ${renderBadge(execution.status, executionStatusTone(execution.status))}
+                <span>
+                  ${t("tasksView.executions.attempt", { count: String(execution.attempt) })} ·
+                  ${runtimeLabel(execution.kind)}
+                </span>
+                ${renderBadge(
+                  executionStatusLabel(execution.status),
+                  executionStatusTone(execution.status),
+                )}
               </div>
               <div class="list-sub">
                 ${execution.runId?.trim() || execution.executionId} ·
                 ${formatExecutionDuration(execution)}
               </div>
               <div class="list-sub">
-                ${execution.sessionKey?.trim() || execution.agentId?.trim() || "No linked session"}
+                ${execution.sessionKey?.trim() ||
+                execution.agentId?.trim() ||
+                t("tasksView.executions.noLinkedSession")}
               </div>
               ${execution.summary?.trim()
                 ? html`<div class="list-sub" style="margin-top: 6px;">${execution.summary}</div>`
@@ -473,7 +672,7 @@ function renderExecutionList(executions: TaskExecution[]) {
 
 function renderApprovalList(approvals: TaskApproval[]) {
   if (approvals.length === 0) {
-    return html`<div class="empty-state">No approvals recorded.</div>`;
+    return renderTasksEmptyState(t("tasksView.approvals.empty"));
   }
   return html`
     <div style="display: grid; gap: 10px;">
@@ -488,7 +687,7 @@ function renderApprovalList(approvals: TaskApproval[]) {
               >
                 <span>${approval.approvalId}</span>
                 ${renderBadge(
-                  approval.status,
+                  approvalStatusLabel(approval.status),
                   approval.status === "approved"
                     ? "good"
                     : approval.status === "rejected"
@@ -499,13 +698,17 @@ function renderApprovalList(approvals: TaskApproval[]) {
                 )}
               </div>
               <div class="list-sub">
-                Requested ${formatRelativeTimestamp(approval.requestedAt)}
+                ${t("tasksView.approvals.requested", {
+                  time: formatRelativeTimestamp(approval.requestedAt),
+                })}
                 ${approval.requestedBy?.trim() ? ` · ${approval.requestedBy}` : ""}
               </div>
               ${approval.decidedAt
                 ? html`
                     <div class="list-sub">
-                      Decided ${formatRelativeTimestamp(approval.decidedAt)}
+                      ${t("tasksView.approvals.decided", {
+                        time: formatRelativeTimestamp(approval.decidedAt),
+                      })}
                       ${approval.decidedBy?.trim() ? ` · ${approval.decidedBy}` : ""}
                     </div>
                   `
@@ -537,7 +740,7 @@ function renderAssignmentList(assignments: TaskAssignment[]) {
               >
                 <span>${assignment.agentId}</span>
                 ${renderBadge(
-                  assignment.status,
+                  assignmentStatusLabel(assignment.status),
                   assignment.status === "active"
                     ? "running"
                     : assignment.status === "released"
@@ -546,8 +749,10 @@ function renderAssignmentList(assignments: TaskAssignment[]) {
                 )}
               </div>
               <div class="list-sub">
-                Claimed ${formatRelativeTimestamp(assignment.claimedAt)} · lease until
-                ${formatRelativeTimestamp(assignment.leaseExpiresAt)}
+                ${t("tasksView.assignments.claimed", {
+                  claimed: formatRelativeTimestamp(assignment.claimedAt),
+                  lease: formatRelativeTimestamp(assignment.leaseExpiresAt),
+                })}
               </div>
             </div>
           `,
@@ -576,7 +781,7 @@ function renderDependencyList(dependencies: TaskDependency[]) {
 
 function renderEventTimeline(events: TaskEvent[]) {
   if (events.length === 0) {
-    return html`<div class="empty-state">No task events yet.</div>`;
+    return renderTasksEmptyState(t("tasksView.timeline.empty"));
   }
   return html`
     <div style="display: grid; gap: 10px;">
@@ -611,8 +816,8 @@ function renderCanonicalTaskDetail(
   if (!selectedTask) {
     return html`
       <div class="card">
-        <div class="card-title">Task detail</div>
-        <div class="empty-state" style="margin-top: 16px;">No canonical task selected.</div>
+        <div class="card-title">${t("tasksView.detail.title")}</div>
+        <div style="margin-top: 16px;">${renderTasksEmptyState(t("tasksView.detail.empty"))}</div>
       </div>
     `;
   }
@@ -641,85 +846,100 @@ function renderCanonicalTaskDetail(
 
   return html`
     <div class="card">
-      <div
-        style="display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap;"
-      >
+      <div class="alisio-tasks__detail-header">
         <div>
-          <div class="card-title">Task detail</div>
+          <div class="card-title">${t("tasksView.detail.title")}</div>
           <div class="card-sub">${selectedTask.title}</div>
         </div>
-        <div style="display: inline-flex; gap: 8px; flex-wrap: wrap;">
-          ${renderBadge(selectedTask.status.replaceAll("_", " "), taskStatusTone(selectedTask))}
-          ${latestExecution
-            ? renderBadge(latestExecution.kind.replaceAll("_", " "), "neutral")
-            : nothing}
+        <div class="alisio-tasks__badge-row">
+          ${renderBadge(taskStatusLabel(selectedTask.status), taskStatusTone(selectedTask))}
+          ${latestExecution ? renderBadge(runtimeLabel(latestExecution.kind), "neutral") : nothing}
         </div>
       </div>
 
-      <div class="agents-overview-grid" style="margin-top: 16px;">
+      <div class="alisio-tasks__detail-grid">
         <div class="agent-kv">
-          <div class="label">Task ID</div>
+          <div class="label">${t("tasksView.detail.taskId")}</div>
           <div><code>${selectedTask.taskId}</code></div>
           <div class="agent-kv-sub">${selectedTask.kind}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Owner</div>
-          <div>${selectedTask.ownerAgentId?.trim() || "Unassigned"}</div>
+          <div class="label">${t("tasksView.detail.owner")}</div>
+          <div>${selectedTask.ownerAgentId?.trim() || t("tasksView.detail.unassigned")}</div>
           <div class="agent-kv-sub">${selectedTask.rootTaskId}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Requester</div>
-          <div>${selectedTask.requesterSessionKey?.trim() || "n/a"}</div>
-          <div class="agent-kv-sub">
-            ${children.length} child task${children.length === 1 ? "" : "s"}
-          </div>
+          <div class="label">${t("tasksView.detail.requester")}</div>
+          <div>${selectedTask.requesterSessionKey?.trim() || t("common.na")}</div>
+          <div class="agent-kv-sub">${childTasksCountLabel(children.length)}</div>
         </div>
         <div class="agent-kv">
-          <div class="label">Latest run</div>
-          <div>${latestExecution?.runId?.trim() || "n/a"}</div>
+          <div class="label">${t("tasksView.detail.latestRun")}</div>
+          <div>${latestExecution?.runId?.trim() || t("common.na")}</div>
           <div class="agent-kv-sub">
-            ${latestExecution ? formatExecutionDuration(latestExecution) : "No execution yet"}
+            ${latestExecution
+              ? formatExecutionDuration(latestExecution)
+              : t("tasksView.detail.noExecutionYet")}
           </div>
         </div>
       </div>
 
-      <div style="display: grid; gap: 8px; margin-top: 16px;">
+      <div class="alisio-tasks__detail-stack">
         ${selectedTask.summary?.trim()
-          ? html`<div><strong>Summary</strong>: ${selectedTask.summary}</div>`
+          ? html`<div>
+              <strong>${t("tasksView.detail.summary")}</strong>: ${selectedTask.summary}
+            </div>`
           : nothing}
         ${selectedTask.description?.trim()
-          ? html`<div><strong>Description</strong>: ${selectedTask.description}</div>`
+          ? html`
+              <div>
+                <strong>${t("tasksView.detail.description")}</strong>: ${selectedTask.description}
+              </div>
+            `
           : nothing}
         ${selectedTask.acceptance.length > 0
-          ? html` <div><strong>Acceptance</strong>: ${selectedTask.acceptance.join(" · ")}</div> `
+          ? html`
+              <div>
+                <strong>${t("tasksView.detail.acceptance")}</strong>:
+                ${selectedTask.acceptance.join(" · ")}
+              </div>
+            `
           : nothing}
         ${selectedTask.blockedReason?.trim()
-          ? html`<div><strong>Blocked</strong>: ${selectedTask.blockedReason}</div>`
+          ? html`<div>
+              <strong>${t("tasksView.detail.blocked")}</strong>: ${selectedTask.blockedReason}
+            </div>`
           : nothing}
       </div>
 
-      <div class="row" style="margin-top: 18px; gap: 10px; flex-wrap: wrap;">
+      <div class="alisio-tasks__detail-actions">
         <button
+          type="button"
           class="btn"
           ?disabled=${props.busy || !taskCanCancel}
           @click=${() => props.onCancelTask(selectedTask.taskId)}
         >
-          Cancel task
+          ${t("tasksView.detail.cancelTask")}
         </button>
         ${selectedTask.requesterSessionKey?.trim() && props.onOpenRequesterSession
           ? html`
               <button
+                type="button"
                 class="btn"
                 @click=${() => props.onOpenRequesterSession?.(selectedTask.requesterSessionKey!)}
               >
-                Open requester chat
+                ${t("tasksView.detail.openRequesterChat")}
               </button>
             `
           : nothing}
         ${openSessionKey && props.onOpenChildSession
           ? html`
-              <button class="btn" @click=${() => props.onOpenChildSession?.(openSessionKey)}>
-                Open task chat
+              <button
+                type="button"
+                class="btn"
+                @click=${() => props.onOpenChildSession?.(openSessionKey)}
+              >
+                ${t("tasksView.detail.openOrchestratorChat")}
               </button>
             `
           : nothing}
@@ -727,22 +947,22 @@ function renderCanonicalTaskDetail(
     </div>
 
     <div class="card">
-      <div class="card-title">Approvals</div>
-      <div class="card-sub">Human decisions and review state for this task.</div>
+      <div class="card-title">${t("tasksView.approvals.title")}</div>
+      <div class="card-sub">${t("tasksView.approvals.subtitle")}</div>
       <div style="margin-top: 16px;">${renderApprovalList(approvals)}</div>
     </div>
 
     <div class="card">
-      <div class="card-title">Executions</div>
-      <div class="card-sub">Each execution attempt linked to this task.</div>
+      <div class="card-title">${t("tasksView.executions.title")}</div>
+      <div class="card-sub">${t("tasksView.executions.subtitle")}</div>
       <div style="margin-top: 16px;">${renderExecutionList(executions)}</div>
     </div>
 
     ${assignments.length > 0
       ? html`
           <div class="card">
-            <div class="card-title">Assignments</div>
-            <div class="card-sub">Current and historical agent claims.</div>
+            <div class="card-title">${t("tasksView.assignments.title")}</div>
+            <div class="card-sub">${t("tasksView.assignments.subtitle")}</div>
             <div style="margin-top: 16px;">${renderAssignmentList(assignments)}</div>
           </div>
         `
@@ -750,8 +970,8 @@ function renderCanonicalTaskDetail(
     ${children.length > 0
       ? html`
           <div class="card">
-            <div class="card-title">Child tasks</div>
-            <div class="card-sub">Delegated work created from this task.</div>
+            <div class="card-title">${t("tasksView.children.title")}</div>
+            <div class="card-sub">${t("tasksView.children.subtitle")}</div>
             <div style="display: grid; gap: 10px; margin-top: 16px;">
               ${children.map((child) => {
                 const childLatestExecution = resolveLatestExecution(
@@ -767,67 +987,24 @@ function renderCanonicalTaskDetail(
     ${dependencies.length > 0
       ? html`
           <div class="card">
-            <div class="card-title">Dependencies</div>
-            <div class="card-sub">Explicit task blockers.</div>
+            <div class="card-title">${t("tasksView.dependencies.title")}</div>
+            <div class="card-sub">${t("tasksView.dependencies.subtitle")}</div>
             <div style="margin-top: 16px;">${renderDependencyList(dependencies)}</div>
           </div>
         `
       : nothing}
 
     <div class="card">
-      <div class="card-title">Timeline</div>
-      <div class="card-sub">Most recent task events.</div>
+      <div class="card-title">${t("tasksView.timeline.title")}</div>
+      <div class="card-sub">${t("tasksView.timeline.subtitle")}</div>
       <div style="margin-top: 16px;">${renderEventTimeline(events)}</div>
-    </div>
-  `;
-}
-
-function describeLegacyTask(task: TaskRecord): string {
-  return (
-    task.terminalSummary?.trim() ||
-    task.progressSummary?.trim() ||
-    task.label?.trim() ||
-    task.task.trim()
-  );
-}
-
-function renderLegacyTaskList(props: TasksViewProps, tasks: TaskRecord[]) {
-  if (tasks.length === 0) {
-    return html`<div class="empty-state">
-      No legacy task ledger entries match the current filters.
-    </div>`;
-  }
-  return html`
-    <div style="display: grid; gap: 10px;">
-      ${tasks.map(
-        (task) => html`
-          <button class="list-item" @click=${() => props.onSelectTask(task.taskId)}>
-            <div
-              class="list-title"
-              style="display: flex; justify-content: space-between; gap: 12px; align-items: center;"
-            >
-              <span>${describeLegacyTask(task)}</span>
-              ${renderBadge(
-                task.status,
-                task.status === "running"
-                  ? "running"
-                  : task.status === "succeeded"
-                    ? "good"
-                    : task.status === "failed"
-                      ? "bad"
-                      : "neutral",
-              )}
-            </div>
-            <div class="list-sub">${task.runtime} · ${task.taskId}</div>
-          </button>
-        `,
-      )}
     </div>
   `;
 }
 
 export function renderTasks(props: TasksViewProps) {
   const overview = props.overview;
+  const showInitialLoading = props.loading && !overview;
   const collections = getCollections(overview);
   const visibleCanonicalTasks = filterCanonicalTasks(props, collections);
   const flattenedTasks = flattenTaskTree(visibleCanonicalTasks);
@@ -840,173 +1017,196 @@ export function renderTasks(props: TasksViewProps) {
     executionMap.set(execution.taskId, next);
   }
   const proposals = overview?.proposals ?? [];
-  const legacyTasks = overview?.tasks ?? [];
-  const findings = overview?.findings ?? [];
+  const showSummary =
+    Boolean(overview) &&
+    ((overview?.proposalSummary.total ?? 0) > 0 || (overview?.canonicalSummary?.total ?? 0) > 0);
 
   return html`
-    <section class="grid">
+    <section class="grid alisio-tasks">
       <div class="card">
-        <div class="card-title">Tasks</div>
-        <div class="card-sub">
-          Human tasks first. Executions, approvals, hierarchy, and orchestration all stay attached
-          to the canonical task.
-        </div>
-        <div class="row" style="margin-top: 18px; gap: 10px; flex-wrap: wrap;">
-          <label class="field" style="min-width: 260px; flex: 1;">
-            <span>Search</span>
-            <input
-              .value=${props.query}
-              placeholder="task, agent, session, run, or approval"
-              @input=${(event: Event) =>
-                props.onQueryChange((event.target as HTMLInputElement).value)}
-            />
-          </label>
-          <label class="field" style="min-width: 180px;">
-            <span>Executor</span>
-            <select
-              .value=${props.runtimeFilter}
-              @change=${(event: Event) =>
-                props.onRuntimeFilterChange(
-                  (event.target as HTMLSelectElement).value as TaskRuntimeFilter,
-                )}
-            >
-              ${TASK_RUNTIME_OPTIONS.map(
-                (option) => html`<option value=${option.value}>${option.label}</option>`,
-              )}
-            </select>
-          </label>
-          <label class="field" style="min-width: 180px;">
-            <span>Run state</span>
-            <select
-              .value=${props.statusFilter}
-              @change=${(event: Event) =>
-                props.onStatusFilterChange(
-                  (event.target as HTMLSelectElement).value as TaskStatusFilter,
-                )}
-            >
-              ${TASK_STATUS_OPTIONS.map(
-                (option) => html`<option value=${option.value}>${option.label}</option>`,
-              )}
-            </select>
-          </label>
-          <button class="btn" ?disabled=${props.loading || props.busy} @click=${props.onRefresh}>
-            Refresh
-          </button>
-        </div>
+        <div class="card-title">${t("tasksView.page.title")}</div>
+        <div class="card-sub">${t("tasksView.page.subtitle")}</div>
+        ${showInitialLoading
+          ? renderTasksToolbarSkeleton()
+          : html`
+              <div class="alisio-tasks__toolbar">
+                <label class="field alisio-tasks__search">
+                  <span>${t("common.search")}</span>
+                  <input
+                    .value=${props.query}
+                    placeholder=${t("tasksView.page.searchPlaceholder")}
+                    @input=${(event: Event) =>
+                      props.onQueryChange((event.target as HTMLInputElement).value)}
+                  />
+                </label>
+                <label class="field alisio-tasks__filter">
+                  <span>${t("tasksView.filters.executor")}</span>
+                  <select
+                    .value=${props.runtimeFilter}
+                    @change=${(event: Event) =>
+                      props.onRuntimeFilterChange(
+                        (event.target as HTMLSelectElement).value as TaskRuntimeFilter,
+                      )}
+                  >
+                    ${getTaskRuntimeOptions().map(
+                      (option) => html`<option value=${option.value}>${option.label}</option>`,
+                    )}
+                  </select>
+                </label>
+                <label class="field alisio-tasks__filter">
+                  <span>${t("tasksView.filters.runState")}</span>
+                  <select
+                    .value=${props.statusFilter}
+                    @change=${(event: Event) =>
+                      props.onStatusFilterChange(
+                        (event.target as HTMLSelectElement).value as TaskStatusFilter,
+                      )}
+                  >
+                    ${getTaskStatusOptions().map(
+                      (option) => html`<option value=${option.value}>${option.label}</option>`,
+                    )}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  class="btn"
+                  ?disabled=${props.loading || props.busy}
+                  @click=${props.onRefresh}
+                >
+                  ${props.loading ? t("common.loading") : t("common.refresh")}
+                </button>
+              </div>
+            `}
         ${props.error
-          ? html`<div class="empty-state" style="margin-top: 16px;">${props.error}</div>`
+          ? html`<div class="callout danger alisio-tasks__callout">${props.error}</div>`
           : nothing}
       </div>
 
-      <div class="agents-overview-grid">
-        ${renderSummaryCard(
-          "Inbox",
-          overview?.proposalSummary.pending ?? 0,
-          `${overview?.proposalSummary.approved ?? 0} approved · ${overview?.proposalSummary.launched ?? 0} launched`,
-        )}
-        ${renderSummaryCard(
-          "Canonical",
-          overview?.canonicalSummary?.total ?? 0,
-          `${overview?.canonicalSummary?.inProgress ?? 0} in progress · ${overview?.canonicalSummary?.ready ?? 0} ready`,
-        )}
-        ${renderSummaryCard(
-          "Blocked",
-          overview?.canonicalSummary?.blocked ?? 0,
-          `${overview?.canonicalSummary?.pendingApproval ?? 0} pending approval`,
-        )}
-        ${renderSummaryCard(
-          "Done",
-          overview?.canonicalSummary?.completed ?? 0,
-          `${overview?.canonicalSummary?.failed ?? 0} failed · ${overview?.canonicalSummary?.cancelled ?? 0} cancelled`,
-        )}
-      </div>
-
-      <div class="card">
-        <div class="card-title">Task inbox</div>
-        <div class="card-sub">
-          Proposals that can be approved, rejected, or launched into canonical tasks.
-        </div>
-        ${props.loading && !overview
-          ? html`<div class="empty-state" style="margin-top: 16px;">Loading proposals…</div>`
-          : proposals.length === 0
-            ? html`<div class="empty-state" style="margin-top: 16px;">
-                No saved task proposals right now.
-              </div>`
-            : html`
-                <div style="display: grid; gap: 12px; margin-top: 16px;">
-                  ${proposals.map((proposal) =>
-                    renderProposalCard(
-                      props,
-                      proposal,
-                      proposal.launchedTaskId
-                        ? (taskById.get(proposal.launchedTaskId) ?? null)
-                        : null,
-                    ),
-                  )}
-                </div>
-              `}
-      </div>
-
-      <div class="card">
-        <div class="card-title">Task tree</div>
-        <div class="card-sub">
-          ${visibleCanonicalTasks.length > 0
-            ? `${visibleCanonicalTasks.length} visible canonical task${visibleCanonicalTasks.length === 1 ? "" : "s"}`
-            : "No canonical tasks match the current filters yet."}
-        </div>
-        ${props.loading && !overview
-          ? html`<div class="empty-state" style="margin-top: 16px;">Loading tasks…</div>`
-          : flattenedTasks.length === 0
-            ? html`<div class="empty-state" style="margin-top: 16px;">
-                No canonical tasks match the current filters.
-              </div>`
-            : html`
-                <div style="display: grid; gap: 10px; margin-top: 16px;">
-                  ${flattenedTasks.map(({ task, depth }) =>
-                    renderCanonicalTaskRow(
-                      props,
-                      task,
-                      resolveLatestExecution(task, executionMap.get(task.taskId) ?? []),
-                      depth,
-                      task.taskId === selectedCanonicalTask?.taskId,
-                    ),
-                  )}
-                </div>
-              `}
-      </div>
-
-      ${renderCanonicalTaskDetail(props, selectedCanonicalTask, collections)}
-      ${collections.tasks.length === 0 && legacyTasks.length > 0
+      ${showInitialLoading
         ? html`
-            <div class="card">
-              <div class="card-title">Legacy background runs</div>
-              <div class="card-sub">Temporary compatibility view for the old runtime ledger.</div>
-              <div style="margin-top: 16px;">${renderLegacyTaskList(props, legacyTasks)}</div>
+            <div class="agents-overview-grid alisio-tasks__summary-grid" aria-hidden="true">
+              ${renderSkeletonStatCards(4)}
             </div>
           `
-        : nothing}
-      ${findings.length > 0
-        ? html`
-            <div class="card">
-              <div class="card-title">Legacy diagnostics</div>
-              <div class="card-sub">
-                Compatibility signals coming from the old background-task ledger.
-              </div>
-              <div style="display: grid; gap: 12px; margin-top: 16px;">
-                ${findings.slice(0, 6).map(
-                  (finding) => html`
-                    <div class="list-item">
-                      <div class="list-title">
-                        ${finding.severity.toUpperCase()} · ${finding.code.replaceAll("_", " ")}
-                      </div>
-                      <div class="list-sub">${finding.detail}</div>
-                    </div>
-                  `,
+        : showSummary
+          ? html`
+              <div class="agents-overview-grid alisio-tasks__summary-grid">
+                ${renderSummaryCard(
+                  t("tasksView.summary.inbox"),
+                  overview?.proposalSummary.pending ?? 0,
+                  t("tasksView.summary.inboxDetail", {
+                    approved: String(overview?.proposalSummary.approved ?? 0),
+                    launched: String(overview?.proposalSummary.launched ?? 0),
+                  }),
+                )}
+                ${renderSummaryCard(
+                  t("tasksView.summary.canonical"),
+                  overview?.canonicalSummary?.total ?? 0,
+                  t("tasksView.summary.canonicalDetail", {
+                    inProgress: String(overview?.canonicalSummary?.inProgress ?? 0),
+                    ready: String(overview?.canonicalSummary?.ready ?? 0),
+                  }),
+                )}
+                ${renderSummaryCard(
+                  t("tasksView.summary.blocked"),
+                  overview?.canonicalSummary?.blocked ?? 0,
+                  t("tasksView.summary.blockedDetail", {
+                    pendingApproval: String(overview?.canonicalSummary?.pendingApproval ?? 0),
+                  }),
+                )}
+                ${renderSummaryCard(
+                  t("tasksView.summary.done"),
+                  overview?.canonicalSummary?.completed ?? 0,
+                  t("tasksView.summary.doneDetail", {
+                    failed: String(overview?.canonicalSummary?.failed ?? 0),
+                    cancelled: String(overview?.canonicalSummary?.cancelled ?? 0),
+                  }),
                 )}
               </div>
+            `
+          : nothing}
+      ${showInitialLoading
+        ? html`
+            <div class="alisio-tasks__workspace">
+              <div class="alisio-tasks__column">
+                ${renderTasksSectionSkeleton({
+                  title: t("tasksView.inbox.title"),
+                  subtitle: t("tasksView.inbox.subtitle"),
+                  rows: 3,
+                })}
+              </div>
+              <div class="alisio-tasks__column">
+                ${renderTasksSectionSkeleton({
+                  title: t("tasksView.tree.title"),
+                  subtitle: t("tasksView.tree.loading"),
+                  rows: 4,
+                  aside: "pill",
+                })}
+                ${renderTasksDetailSkeleton()}
+              </div>
             </div>
           `
-        : nothing}
+        : html`
+            <div class="alisio-tasks__workspace">
+              <div class="alisio-tasks__column">
+                <div class="card">
+                  <div class="card-title">${t("tasksView.inbox.title")}</div>
+                  <div class="card-sub">${t("tasksView.inbox.subtitle")}</div>
+                  ${proposals.length === 0
+                    ? html`
+                        <div class="alisio-tasks__empty" style="margin-top: 16px;">
+                          ${renderTasksEmptyState(t("tasksView.inbox.empty"))}
+                        </div>
+                      `
+                    : html`
+                        <div class="alisio-tasks__list">
+                          ${proposals.map((proposal) =>
+                            renderProposalCard(
+                              props,
+                              proposal,
+                              proposal.launchedTaskId
+                                ? (taskById.get(proposal.launchedTaskId) ?? null)
+                                : null,
+                            ),
+                          )}
+                        </div>
+                      `}
+                </div>
+              </div>
+
+              <div class="alisio-tasks__column">
+                <div class="card">
+                  <div class="card-title">${t("tasksView.tree.title")}</div>
+                  <div class="card-sub">
+                    ${visibleCanonicalTasks.length > 0
+                      ? visibleTasksCountLabel(visibleCanonicalTasks.length)
+                      : t("tasksView.tree.noMatchYet")}
+                  </div>
+                  ${flattenedTasks.length === 0
+                    ? html`
+                        <div class="alisio-tasks__empty" style="margin-top: 16px;">
+                          ${renderTasksEmptyState(t("tasksView.tree.empty"))}
+                        </div>
+                      `
+                    : html`
+                        <div class="alisio-tasks__list">
+                          ${flattenedTasks.map(({ task, depth }) =>
+                            renderCanonicalTaskRow(
+                              props,
+                              task,
+                              resolveLatestExecution(task, executionMap.get(task.taskId) ?? []),
+                              depth,
+                              task.taskId === selectedCanonicalTask?.taskId,
+                            ),
+                          )}
+                        </div>
+                      `}
+                </div>
+
+                ${renderCanonicalTaskDetail(props, selectedCanonicalTask, collections)}
+              </div>
+            </div>
+          `}
     </section>
   `;
 }

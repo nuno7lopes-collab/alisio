@@ -24,35 +24,39 @@ When you run `/new` or `/reset` to start a fresh session:
 
 1. **Finds the previous session** - Uses the pre-reset session entry to locate the correct transcript
 2. **Extracts conversation** - Reads the last N user/assistant messages from the session (default: 15, configurable)
-3. **Generates descriptive slug** - Uses LLM to create a meaningful filename slug based on conversation content
-4. **Saves to memory** - Creates a new file at `<workspace>/memory/YYYY-MM-DD-slug.md`
+3. **Generates descriptive slug** - Uses LLM to create a meaningful section label based on conversation content
+4. **Appends to memory** - Writes into the canonical daily note at `<workspace>/memory/YYYY-MM-DD.md`
+5. **Triggers canonical sync** - Reingests the updated daily note through the canonical memory pipeline
 
 ## Output Format
 
-Memory files are created with the following format:
+Entries are appended to the daily note with the following format:
 
 ```markdown
-# Session: 2026-01-16 14:30:00 UTC
+## 14:30:00 UTC - vendor-pitch
 
+- **Action**: /new
 - **Session Key**: agent:main:main
 - **Session ID**: abc123def456
 - **Source**: telegram
+
+### Conversation Summary
 ```
 
-## Filename Examples
+## Section Examples
 
-The LLM generates descriptive slugs based on your conversation:
+The LLM-generated slug is used inside the section heading:
 
-- `2026-01-16-vendor-pitch.md` - Discussion about vendor evaluation
-- `2026-01-16-api-design.md` - API architecture planning
-- `2026-01-16-bug-fix.md` - Debugging session
-- `2026-01-16-1430.md` - Fallback timestamp if slug generation fails
+- `## 14:30:00 UTC - vendor-pitch` - Discussion about vendor evaluation
+- `## 15:10:00 UTC - api-design` - API architecture planning
+- `## 16:45:00 UTC - bug-fix` - Debugging session
+- `## 17:20:00 UTC` - Fallback when slug generation is unavailable
 
 ## Requirements
 
 - **Config**: `workspace.dir` must be set (automatically configured during setup)
 
-The hook uses your configured LLM provider to generate slugs, so it works with any provider (Anthropic, OpenAI, etc.).
+The hook uses your configured LLM provider to generate descriptive labels when available, so it works with any provider (Anthropic, OpenAI, etc.).
 
 ## Configuration
 
@@ -82,8 +86,9 @@ Example configuration:
 The hook automatically:
 
 - Uses your workspace directory (`~/.alisio/workspace` by default)
-- Uses your configured LLM for slug generation
-- Falls back to timestamp slugs if LLM is unavailable
+- Uses your configured LLM for section label generation
+- Falls back to a time-only heading if LLM is unavailable
+- Keeps all session snapshots for the same day in the same canonical daily note
 
 ## Disabling
 

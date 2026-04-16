@@ -17,6 +17,7 @@ export default definePluginEntry({
       createBrowserTool({
         sandboxBridgeUrl: ctx.browser?.sandboxBridgeUrl,
         allowHostControl: ctx.browser?.allowHostControl,
+        preferSandbox: ctx.browser?.preferSandbox,
         agentSessionKey: ctx.sessionKey,
       })) as AlisioPluginToolFactory);
     api.registerCli(({ program }) => registerBrowserCli(program), { commands: ["browser"] });

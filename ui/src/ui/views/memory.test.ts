@@ -126,6 +126,7 @@ function makeGraphResult(
     lastSyncedLamport: 5,
     e2eeRequired: true as const,
     scope,
+    mode: scope === "global" ? ("overview" as const) : ("focus" as const),
     focus: focusNoteId
       ? {
           nodeId: focusNoteId,
@@ -555,6 +556,34 @@ describe("renderMemoryHub", () => {
     expect(text).toContain("Notes");
     expect(text).toContain("Attachments");
     expect(text).toContain("Graph");
+  });
+
+  it("renders the shared empty state when the selected agent has no notes yet", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "memory.notes.list") {
+        return {
+          agentId: "main",
+          sync: {
+            lastSyncedLamport: "42",
+            e2eeRequired: true,
+          },
+          exportFormats: ["zip"],
+          notes: [],
+        };
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    const { container } = await mountNativeHub(
+      createProps({
+        client: { request } as unknown as Parameters<typeof renderMemoryHub>[0]["client"],
+        memoryGraph: null,
+      }),
+    );
+
+    const emptyState = container.querySelector(".empty-state--surface.alisio-memory-placeholder");
+    expect(emptyState).not.toBeNull();
+    expect(cleanText(container)).toContain("New note");
   });
 
   it("rerenders hub copy when only the locale changes", async () => {

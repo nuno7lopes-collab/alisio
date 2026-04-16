@@ -74,7 +74,11 @@ import {
 import { loadSkills } from "./controllers/skills.ts";
 import { loadTasksOverview } from "./controllers/tasks.ts";
 import { clearDeviceAuthToken } from "./device-auth.ts";
-import { loadManagedDeviceIdentity } from "./device-identity.ts";
+import {
+  clearStoredBrowserDeviceIdentity,
+  loadManagedDeviceIdentity,
+  loadStoredBrowserDeviceIdentity,
+} from "./device-identity.ts";
 import {
   resolveGatewayErrorDetailCode,
   type GatewayEventFrame,
@@ -185,9 +189,9 @@ export function resolveControlUiClientVersion(params: {
 
 function shouldRetryWithFreshDeviceSession(
   detailCode: string | null,
-  usingAutomaticBootstrap: boolean,
+  _usingAutomaticBootstrap: boolean,
 ) {
-  if (!usingAutomaticBootstrap || !detailCode) {
+  if (!detailCode) {
     return false;
   }
   return (
@@ -212,11 +216,17 @@ function shouldRefreshControlUiBootstrap(
 }
 
 async function clearStoredBrowserDeviceAuth() {
-  const identity = await loadManagedDeviceIdentity();
-  if (!identity?.deviceId) {
+  const managedIdentity = await loadManagedDeviceIdentity();
+  if (managedIdentity?.deviceId) {
+    clearDeviceAuthToken({ deviceId: managedIdentity.deviceId, role: "operator" });
     return;
   }
-  clearDeviceAuthToken({ deviceId: identity.deviceId, role: "operator" });
+  const browserIdentity = await loadStoredBrowserDeviceIdentity();
+  if (!browserIdentity?.deviceId) {
+    return;
+  }
+  clearDeviceAuthToken({ deviceId: browserIdentity.deviceId, role: "operator" });
+  clearStoredBrowserDeviceIdentity();
 }
 
 function normalizeSessionKeyForDefaults(

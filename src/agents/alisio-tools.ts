@@ -59,6 +59,7 @@ export function createAlisioTools(
   options?: {
     sandboxBrowserBridgeUrl?: string;
     allowHostBrowserControl?: boolean;
+    preferSandbox?: boolean;
     agentSessionKey?: string;
     agentChannel?: GatewayMessageChannel;
     agentAccountId?: string;
@@ -294,6 +295,7 @@ export function createAlisioTools(
       browser: {
         sandboxBridgeUrl: options?.sandboxBrowserBridgeUrl,
         allowHostControl: options?.allowHostBrowserControl,
+        preferSandbox: options?.preferSandbox,
       },
       messageChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,

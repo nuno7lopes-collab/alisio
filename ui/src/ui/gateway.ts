@@ -19,6 +19,7 @@ import {
 import { clearDeviceAuthToken, loadDeviceAuthToken, storeDeviceAuthToken } from "./device-auth.ts";
 import {
   canUseBrowserGeneratedIdentity,
+  clearStoredBrowserDeviceIdentity,
   loadOrCreateBrowserDeviceIdentity,
   loadManagedDeviceIdentity,
   loadStoredBrowserDeviceIdentity,
@@ -394,10 +395,17 @@ export class GatewayBrowserClient {
   }
 
   private buildConnectClient(): GatewayConnectClientInfo {
+    return this.buildConnectClientWithMetadata();
+  }
+
+  private buildConnectClientWithMetadata(
+    identity?: Pick<DeviceIdentity, "deviceFamily" | "platform"> | null,
+  ): GatewayConnectClientInfo {
     return {
       id: this.opts.clientName ?? GATEWAY_CLIENT_NAMES.CONTROL_UI,
       version: this.opts.clientVersion ?? "control-ui",
-      platform: this.opts.platform ?? navigator.platform ?? "web",
+      platform: this.opts.platform ?? identity?.platform ?? navigator.platform ?? "web",
+      deviceFamily: identity?.deviceFamily,
       mode: this.opts.mode ?? GATEWAY_CLIENT_MODES.WEBCHAT,
       instanceId: this.opts.instanceId,
     };
@@ -421,7 +429,6 @@ export class GatewayBrowserClient {
   private async buildConnectPlan(): Promise<ConnectPlan> {
     const role = CONTROL_UI_OPERATOR_ROLE;
     const scopes = [...CONTROL_UI_OPERATOR_SCOPES];
-    const client = this.buildConnectClient();
     const explicitGatewayToken = this.opts.token?.trim() || undefined;
     const explicitBootstrapToken = this.opts.bootstrapToken?.trim() || undefined;
     const explicitPassword = this.opts.password?.trim() || undefined;
@@ -444,6 +451,7 @@ export class GatewayBrowserClient {
     if (!deviceIdentity && canUseBrowserGeneratedIdentity()) {
       deviceIdentity = await loadOrCreateBrowserDeviceIdentity();
     }
+    const client = this.buildConnectClientWithMetadata(deviceIdentity);
     if (deviceIdentity) {
       selectedAuth = this.selectConnectAuth({
         role,
@@ -542,6 +550,9 @@ export class GatewayBrowserClient {
       connectErrorCode === ConnectErrorDetailCodes.AUTH_DEVICE_TOKEN_MISMATCH
     ) {
       clearDeviceAuthToken({ deviceId: plan.deviceIdentity.deviceId, role: plan.role });
+      if (plan.deviceIdentity.source === "browser") {
+        clearStoredBrowserDeviceIdentity();
+      }
     }
     this.ws?.close(CONNECT_FAILED_CLOSE_CODE, "connect failed");
   }

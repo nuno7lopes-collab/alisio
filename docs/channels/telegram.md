@@ -129,11 +129,13 @@ Token resolution order is account-aware. In practice, config values win over env
     2. Run `alisio logs --follow`.
     3. Read `from.id`.
 
-    Official Bot API method:
+    Official Bot API method (long polling only):
 
 ```bash
 curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 ```
+
+    If `channels.telegram.webhookUrl` is enabled, `getUpdates` will not work while the webhook is active. In webhook mode, use `alisio logs --follow` or a third-party info bot instead.
 
     Third-party method (less private): `@userinfobot` or `@getidsbot`.
 
@@ -240,7 +242,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 
     - forward a group message to `@userinfobot` / `@getidsbot`
     - or read `chat.id` from `alisio logs --follow`
-    - or inspect Bot API `getUpdates`
+    - or inspect Bot API `getUpdates` (long polling only; in webhook mode use `alisio logs --follow`)
 
   </Tab>
 </Tabs>

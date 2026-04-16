@@ -27,14 +27,19 @@ import { listTasksForSessionKey } from "../../tasks/task-registry.js";
 import { resolveAgentConfig, resolveAgentDir } from "../agent-scope.js";
 import { formatUserTime, resolveUserTimeFormat, resolveUserTimezone } from "../date-time.js";
 import { resolveModelAuthLabel } from "../model-auth-label.js";
-import { loadModelCatalog } from "../model-catalog.js";
+import { loadMergedRuntimeModelCatalog } from "../model-catalog.js";
 import {
   buildAllowedModelSet,
   buildModelAliasIndex,
   modelKey,
-  resolveDefaultModelForAgent,
+  resolveDefaultModelForSession,
   resolveModelRefFromString,
 } from "../model-selection.js";
+import {
+  filterModelKeysForSessionPolicy,
+  getLocalManagedModelRestrictionReason,
+  isLocalManagedModelRestrictedForSession,
+} from "../../shared/local-model-session-policy.js";
 import type { AnyAgentTool } from "./common.js";
 import { readStringParam } from "./common.js";
 import {
@@ -151,6 +156,7 @@ async function resolveModelOverride(params: {
   raw: string;
   sessionEntry?: SessionEntry;
   agentId: string;
+  sessionKey: string;
 }): Promise<
   | { kind: "reset" }
   | {
@@ -168,9 +174,10 @@ async function resolveModelOverride(params: {
     return { kind: "reset" };
   }
 
-  const configDefault = resolveDefaultModelForAgent({
+  const configDefault = resolveDefaultModelForSession({
     cfg: params.cfg,
     agentId: params.agentId,
+    sessionKey: params.sessionKey,
   });
   const currentProvider = params.sessionEntry?.providerOverride?.trim() || configDefault.provider;
   const currentModel = params.sessionEntry?.modelOverride?.trim() || configDefault.model;
@@ -179,7 +186,17 @@ async function resolveModelOverride(params: {
     cfg: params.cfg,
     defaultProvider: currentProvider,
   });
-  const catalog = await loadModelCatalog({ config: params.cfg });
+  const requestedOverride = resolveModelRefFromString({
+    raw,
+    defaultProvider: currentProvider,
+    aliasIndex,
+  });
+  const catalog = await loadMergedRuntimeModelCatalog({
+    config: params.cfg,
+    dynamicProviderIds: [currentProvider, requestedOverride?.ref.provider].filter(
+      (value): value is string => Boolean(value),
+    ),
+  });
   const allowed = buildAllowedModelSet({
     cfg: params.cfg,
     catalog,
@@ -187,17 +204,22 @@ async function resolveModelOverride(params: {
     defaultModel: currentModel,
     agentId: params.agentId,
   });
+  const allowedKeys = filterModelKeysForSessionPolicy(allowed.allowedKeys, params.sessionKey);
 
-  const resolved = resolveModelRefFromString({
-    raw,
-    defaultProvider: currentProvider,
-    aliasIndex,
-  });
+  const resolved = requestedOverride;
   if (!resolved) {
     throw new Error(`Unrecognized model "${raw}".`);
   }
   const key = modelKey(resolved.ref.provider, resolved.ref.model);
-  if (allowed.allowedKeys.size > 0 && !allowed.allowedKeys.has(key)) {
+  if (
+    isLocalManagedModelRestrictedForSession({
+      providerId: resolved.ref.provider,
+      sessionKey: params.sessionKey,
+    })
+  ) {
+    throw new Error(getLocalManagedModelRestrictionReason());
+  }
+  if (allowedKeys.size > 0 && !allowedKeys.has(key)) {
     throw new Error(`Model "${key}" is not allowed.`);
   }
   const isDefault =
@@ -404,7 +426,11 @@ export function createSessionStatusTool(opts?: {
         }
       }
 
-      const configured = resolveDefaultModelForAgent({ cfg, agentId });
+      const configured = resolveDefaultModelForSession({
+        cfg,
+        agentId,
+        sessionKey: resolved.key,
+      });
       const modelRaw = readStringParam(params, "model");
       let changedModel = false;
       if (typeof modelRaw === "string") {
@@ -413,6 +439,7 @@ export function createSessionStatusTool(opts?: {
           raw: modelRaw,
           sessionEntry: resolved.entry,
           agentId,
+          sessionKey: resolved.key,
         });
         const nextEntry: SessionEntry = { ...resolved.entry };
         const applied = applyModelOverrideToSessionEntry({
@@ -446,6 +473,7 @@ export function createSessionStatusTool(opts?: {
         resolved.entry,
         agentId,
         `${configured.provider}/${configured.model}`,
+        resolved.key,
       );
       const hasExplicitModelOverride = Boolean(
         resolved.entry.providerOverride?.trim() || resolved.entry.modelOverride?.trim(),

@@ -1,7 +1,10 @@
 import { html, nothing } from "lit";
+import { repeat } from "lit/directives/repeat.js";
+import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
 import {
   resolveConnectionsModel,
+  type ConnectionsModel,
   type ConnectionComputerModel,
 } from "../controllers/connections-model.ts";
 import { formatRelativeTimestamp } from "../format.ts";
@@ -19,37 +22,23 @@ function parseTimestamp(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function countAccountComputers(props: NodesProps) {
+function resolveConnectionsViewModel(props: NodesProps) {
   return resolveConnectionsModel({
     account: props.account ?? null,
     sharing: props.sharing ?? null,
     devicesList: props.devicesList,
     currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes,
+    nodes: props.nodes as NodeListNode[],
     nodePairingsList: props.nodePairingsList,
-  }).accountComputersCount;
+  });
 }
 
-export function countExternalComputers(props: NodesProps) {
-  return resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes,
-    nodePairingsList: props.nodePairingsList,
-  }).externalComputersCount;
+export function countAccountComputers(props: NodesProps) {
+  return resolveConnectionsViewModel(props).accountComputersCount;
 }
 
 export function countPendingComputerAccess(props: NodesProps) {
-  const model = resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes,
-    nodePairingsList: props.nodePairingsList,
-  });
+  const model = resolveConnectionsViewModel(props);
   return (
     model.pendingDeviceRequests.length +
     model.pendingSharing.incoming.length +
@@ -58,14 +47,7 @@ export function countPendingComputerAccess(props: NodesProps) {
 }
 
 export function countOnlineComputers(props: NodesProps) {
-  return resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes,
-    nodePairingsList: props.nodePairingsList,
-  }).onlineComputersCount;
+  return resolveConnectionsViewModel(props).onlineComputersCount;
 }
 
 function resolveAccountPrimaryLabel(props: NodesProps) {
@@ -223,20 +205,24 @@ function renderCurrentFallbackComputer(
   `;
 }
 
-function renderComputerRuntimeContent(computer: ConnectionComputerModel, props: NodesProps) {
+function renderComputerRuntimeContent(
+  computer: ConnectionComputerModel,
+  pairedRuntimeNodes: Map<string, NonNullable<NodesProps["nodePairingsList"]>["paired"][number]>,
+) {
   if (!computer.local || computer.runtimeNodes.length === 0) {
     return nothing;
   }
-  const pairedRuntimeNodes = new Map(
-    (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node] as const),
-  );
   return html`
     <div class="alisio-connections-entry__runtime">
       <div class="muted alisio-connections-entry__section-label">
         ${t("alisio.connections.nodes.title")}
       </div>
       <div class="alisio-node-list">
-        ${computer.runtimeNodes.map((node) => renderRuntimeNodeCard(node, pairedRuntimeNodes))}
+        ${repeat(
+          computer.runtimeNodes,
+          (node) => (typeof node.nodeId === "string" ? node.nodeId : JSON.stringify(node)),
+          (node) => renderRuntimeNodeCard(node, pairedRuntimeNodes),
+        )}
       </div>
     </div>
   `;
@@ -256,12 +242,16 @@ function renderComputerRemoteContent(computer: ConnectionComputerModel, props: N
   `;
 }
 
-function renderComputerEntry(computer: ConnectionComputerModel, props: NodesProps) {
+function renderComputerEntry(
+  computer: ConnectionComputerModel,
+  props: NodesProps,
+  pairedRuntimeNodes: Map<string, NonNullable<NodesProps["nodePairingsList"]>["paired"][number]>,
+) {
   if (computer.local) {
     return renderPairedComputer(computer.local, props, {
       compact: true,
       runtimeContent: html`
-        ${renderComputerRuntimeContent(computer, props)}
+        ${renderComputerRuntimeContent(computer, pairedRuntimeNodes)}
         ${renderComputerRemoteContent(computer, props)}
       `,
     });
@@ -314,36 +304,37 @@ function renderCollapsibleComputersSection(params: {
   `;
 }
 
-export function renderComputersPanel(props: NodesProps) {
-  const model = resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes,
-    nodePairingsList: props.nodePairingsList,
-  });
+export function renderComputersPanel(
+  props: NodesProps,
+  model: ConnectionsModel = resolveConnectionsViewModel(props),
+) {
   const initialLoading =
     !props.devicesList &&
     !props.devicesError &&
     !props.sharing &&
     !props.sharingError &&
     props.devicesLoading;
+  const pairedRuntimeNodes = new Map(
+    (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node] as const),
+  );
+  const pendingCount =
+    model.pendingDeviceRequests.length +
+    model.pendingSharing.incoming.length +
+    model.pendingSharing.outgoing.length;
   const pendingItems = [
     ...model.pendingDeviceRequests.map((request) => renderPendingDevice(request, props)),
     ...model.pendingSharing.incoming.map((request) => renderIncomingRequest(request, props)),
     ...model.pendingSharing.outgoing.map((request) => renderOutgoingRequest(request)),
   ];
   const currentItems = model.currentComputer
-    ? [renderComputerEntry(model.currentComputer, props)]
+    ? [renderComputerEntry(model.currentComputer, props, pairedRuntimeNodes)]
     : [];
   const accountItems = model.sameAccountComputers.map((computer) =>
-    renderComputerEntry(computer, props),
+    renderComputerEntry(computer, props, pairedRuntimeNodes),
   );
   const otherItems = model.externalComputers.map((computer) =>
-    renderComputerEntry(computer, props),
+    renderComputerEntry(computer, props, pairedRuntimeNodes),
   );
-  const pendingCount = countPendingComputerAccess(props);
   const refreshing = props.devicesLoading || Boolean(props.sharingLoading);
 
   return html`
@@ -418,6 +409,7 @@ export function renderComputersPanel(props: NodesProps) {
                     title: t("alisio.connections.computers.externalTitle"),
                     count: otherItems.length,
                     items: otherItems,
+                    open: false,
                   })
                 : nothing}
               ${pendingCount === 0 &&

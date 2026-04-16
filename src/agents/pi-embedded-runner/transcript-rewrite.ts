@@ -7,6 +7,7 @@ import type {
   TranscriptRewriteResult,
 } from "../../context-engine/types.js";
 import { emitSessionTranscriptUpdate } from "../../sessions/transcript-events.js";
+import { stripInboundMetadata } from "../../auto-reply/reply/strip-inbound-meta.js";
 import { getRawSessionAppendMessage } from "../session-tool-result-guard.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
 import { log } from "./logger.js";
@@ -16,6 +17,7 @@ type SessionBranchEntry = ReturnType<SessionManagerLike["getBranch"]>[number];
 type UserSessionBranchEntry = Extract<SessionBranchEntry, { type: "message" }> & {
   message: UserMessage;
 };
+const TRANSCRIPT_REWIND_ANCHOR_CUSTOM_TYPE = "alisio:transcript-rewind";
 
 function extractUserMessageText(message: UserMessage): string | undefined {
   if (typeof message.content === "string") {
@@ -85,13 +87,60 @@ export function replaceUserMessageTextPreservingMedia(
   };
 }
 
+function buildUserPromptMatchCandidates(params: {
+  promptText?: string;
+  candidateTexts?: readonly string[];
+}): { raw: Set<string>; normalized: Set<string> } {
+  const raw = new Set<string>();
+  const normalized = new Set<string>();
+  const push = (value: string | undefined) => {
+    if (typeof value !== "string") {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    raw.add(trimmed);
+    const stripped = stripInboundMetadata(trimmed).trim();
+    if (stripped) {
+      normalized.add(stripped);
+    }
+  };
+
+  push(params.promptText);
+  for (const candidate of params.candidateTexts ?? []) {
+    push(candidate);
+  }
+  return { raw, normalized };
+}
+
+function matchesUserPromptCandidates(
+  text: string | undefined,
+  candidates: { raw: ReadonlySet<string>; normalized: ReadonlySet<string> },
+): boolean {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (candidates.raw.has(trimmed)) {
+    return true;
+  }
+  const stripped = stripInboundMetadata(trimmed).trim();
+  return Boolean(stripped && candidates.normalized.has(stripped));
+}
+
 export function findLatestUserMessageEntryMatchingPrompt(params: {
   sessionManager: SessionManagerLike;
   promptText: string;
+  candidateTexts?: readonly string[];
   afterEntryId?: string | null;
 }): UserSessionBranchEntry | null {
-  const promptText = params.promptText;
-  if (promptText.length === 0) {
+  const candidates = buildUserPromptMatchCandidates({
+    promptText: params.promptText,
+    candidateTexts: params.candidateTexts,
+  });
+  if (candidates.raw.size === 0 && candidates.normalized.size === 0) {
     return null;
   }
 
@@ -110,7 +159,7 @@ export function findLatestUserMessageEntryMatchingPrompt(params: {
     if (entry?.type !== "message" || entry.message.role !== "user") {
       continue;
     }
-    if (extractUserMessageText(entry.message) === promptText) {
+    if (matchesUserPromptCandidates(extractUserMessageText(entry.message), candidates)) {
       return entry as UserSessionBranchEntry;
     }
   }
@@ -120,9 +169,19 @@ export function findLatestUserMessageEntryMatchingPrompt(params: {
 export function rewriteLatestUserPromptInMessages(params: {
   messages: AgentMessage[];
   promptText: string;
+  candidateTexts?: readonly string[];
   replacementText: string;
 }): AgentMessage[] {
-  if (params.promptText.length === 0 || params.promptText === params.replacementText) {
+  const candidates = buildUserPromptMatchCandidates({
+    promptText: params.promptText,
+    candidateTexts: params.candidateTexts,
+  });
+  if (
+    (candidates.raw.size === 0 && candidates.normalized.size === 0) ||
+    (candidates.raw.size === 1 &&
+      candidates.normalized.size <= 1 &&
+      candidates.raw.has(params.replacementText.trim()))
+  ) {
     return params.messages;
   }
 
@@ -131,7 +190,7 @@ export function rewriteLatestUserPromptInMessages(params: {
     if (!message || message.role !== "user") {
       continue;
     }
-    if (extractUserMessageText(message) !== params.promptText) {
+    if (!matchesUserPromptCandidates(extractUserMessageText(message), candidates)) {
       continue;
     }
     const rewritten = replaceUserMessageTextPreservingMedia(message, params.replacementText);
@@ -425,6 +484,12 @@ export async function restoreTranscriptLeafInSessionFile(params: {
       targetEntryId: params.targetEntryId,
     });
     if (result.changed) {
+      // SessionManager.branch()/resetLeaf() only move the in-memory leaf pointer.
+      // Materialize that rewind as an append-only custom entry so later reopen()
+      // calls follow the restored branch instead of the abandoned retry branch.
+      sessionManager.appendCustomEntry(TRANSCRIPT_REWIND_ANCHOR_CUSTOM_TYPE, {
+        restoredToEntryId: params.targetEntryId,
+      });
       emitSessionTranscriptUpdate(params.sessionFile);
       log.info(
         `[transcript-rewind] restored leaf from ${result.previousLeafId ?? "root"} to ` +

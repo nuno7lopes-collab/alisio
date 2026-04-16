@@ -14,6 +14,11 @@ export type MemoryLegacyMarkdownProjectionConfig = {
   enabled?: boolean;
 };
 
+export type MemoryMarkdownProjectionConfig = {
+  /** Keep canonical Markdown projections materialized in the active workspace directory. */
+  enabled?: boolean;
+};
+
 export type MemoryCrdtPagesConfig = {
   /** Store page bodies as CRDT/Yjs state in the derived store. */
   enabled?: boolean;
@@ -45,14 +50,30 @@ export type MemorySyncConfig = {
   ui?: MemorySyncUiConfig;
 };
 
+export type MemoryJobsAutoSleepConfig = {
+  /** Run cooperative background memory maintenance while the agent is idle. */
+  enabled?: boolean;
+};
+
+export type MemoryJobsConfig = {
+  /** Enable the cooperative background memory maintenance runtime. */
+  enabled?: boolean;
+  /** Maximum wall-clock slice budget per background run, in milliseconds. */
+  maxSliceMs?: number;
+  /** Auto-sleep controls for background memory maintenance. */
+  autoSleep?: MemoryJobsAutoSleepConfig;
+};
+
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
   ledger?: MemoryLedgerConfig;
+  markdownProjection?: MemoryMarkdownProjectionConfig;
   legacyMarkdownProjection?: MemoryLegacyMarkdownProjectionConfig;
   crdt?: MemoryCrdtConfig;
   e2ee?: MemoryE2eeConfig;
   sync?: MemorySyncConfig;
+  jobs?: MemoryJobsConfig;
   qmd?: MemoryQmdConfig;
 };
 

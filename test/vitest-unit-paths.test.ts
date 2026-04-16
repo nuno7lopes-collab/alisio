@@ -14,6 +14,7 @@ describe("isUnitConfigTestFile", () => {
     expect(isUnitConfigTestFile("ui/src/ui/views/chat.test.ts")).toBe(true);
     expect(isUnitConfigTestFile("ui/src/ui/views/security.test.ts")).toBe(true);
     expect(isUnitConfigTestFile("ui/src/ui/views/skills.test.ts")).toBe(true);
+    expect(isUnitConfigTestFile("ui/src/ui/views/tasks.test.ts")).toBe(true);
     expect(isUnitConfigTestFile("ui/src/ui/controllers/skills.test.ts")).toBe(true);
   });
 

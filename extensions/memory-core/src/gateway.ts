@@ -1,5 +1,11 @@
 import type { GatewayRequestHandlerOptions } from "alisio/plugin-sdk/core";
 import { loadConfig } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import {
+  getMemoryGraphFocusScopeError,
+  getMemoryGraphScopeValueError,
+  normalizeMemoryGraphScope,
+  requiresMemoryGraphFocusHint,
+} from "./tools.shared.js";
 import type { CanonicalMemoryStoreStatus } from "./memory/canonical-store.js";
 import { queryCanonicalMemoryGraph } from "./memory/canonical-store.js";
 import { getMemorySearchManager } from "./memory/index.js";
@@ -48,13 +54,18 @@ export async function handleMemoryGraphGatewayRequest({
   const query = typeof params.query === "string" ? params.query.trim() : "";
   const pageId = typeof params.pageId === "string" ? params.pageId.trim() : "";
   const entityId = typeof params.entityId === "string" ? params.entityId.trim() : "";
-  const scope = params.scope === "local" || params.scope === "global" ? params.scope : undefined;
+  const rawScope = typeof params.scope === "string" ? params.scope.trim() : undefined;
+  const scope = normalizeMemoryGraphScope(rawScope);
   if (!agentId) {
     respondGatewayError(respond, "INVALID_REQUEST", "memory.graph requires agentId");
     return;
   }
-  if (!query && !pageId && !entityId && scope === "local") {
-    respondGatewayError(respond, "INVALID_REQUEST", "memory.graph local scope requires pageId, entityId, or query");
+  if (rawScope && !scope) {
+    respondGatewayError(respond, "INVALID_REQUEST", getMemoryGraphScopeValueError());
+    return;
+  }
+  if (requiresMemoryGraphFocusHint({ scope, query, pageId, entityId })) {
+    respondGatewayError(respond, "INVALID_REQUEST", getMemoryGraphFocusScopeError());
     return;
   }
   const direction =

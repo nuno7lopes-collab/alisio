@@ -28,6 +28,46 @@ type TestStatusSeed = {
   backend: GaiaSleepRuntime["backend"];
 };
 
+function resolveProjectionRelativePath(kind: string): string | undefined {
+  for (const prefix of ["md-path:", "legacy-markdown:"]) {
+    if (kind.startsWith(prefix)) {
+      return kind.slice(prefix.length);
+    }
+  }
+  return undefined;
+}
+
+async function materializeProjectionFiles(seed: TestStatusSeed): Promise<void> {
+  const db = openSqliteDatabase(seed.dbPath);
+  try {
+    ensureLedgerTables(db);
+    const rows = db
+      .prepare(
+        `SELECT kind, markdown_body
+         FROM projections
+         ORDER BY kind ASC`,
+      )
+      .all() as Array<{
+      kind: string;
+      markdown_body: string;
+    }>;
+    const roots = [seed.workspaceDir, path.join(seed.stateDir, "workspace")];
+    for (const row of rows) {
+      const relativePath = resolveProjectionRelativePath(row.kind);
+      if (!relativePath) {
+        continue;
+      }
+      for (const rootDir of roots) {
+        const target = path.join(rootDir, relativePath);
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await fs.writeFile(target, row.markdown_body, "utf8");
+      }
+    }
+  } finally {
+    db.close();
+  }
+}
+
 function ensureLedgerTables(db: DatabaseSync): void {
   ensureMemoryStateSchema(db);
   db.exec(`
@@ -201,7 +241,10 @@ function createTestGaiaFacade(seed: TestStatusSeed): GaiaSleepWriteFacade {
 
   const writeDrafts = async (
     drafts: readonly MemoryStateEventDraft[],
-    forceCheckpoint = false,
+    options?: {
+      materializeMarkdown?: boolean;
+      forceCheckpoint?: boolean;
+    },
   ): Promise<GaiaWriteResult> => {
     const db = openSqliteDatabase(seed.dbPath);
     try {
@@ -211,7 +254,7 @@ function createTestGaiaFacade(seed: TestStatusSeed): GaiaSleepWriteFacade {
         appendLedgerEvent(db, event);
       }
 
-      if (forceCheckpoint && events.length > 0) {
+      if (options?.forceCheckpoint && events.length > 0) {
         const stateHash = computeMemoryStateHash(db);
         const checkpointId = createEventId(
           "memory-job-test-checkpoint-row",
@@ -247,8 +290,12 @@ function createTestGaiaFacade(seed: TestStatusSeed): GaiaSleepWriteFacade {
       }
     },
 
-    async writeEvents(events) {
-      return await writeDrafts(events);
+    async writeEvents(events, options) {
+      const result = await writeDrafts(events, options);
+      if (options?.materializeMarkdown === true) {
+        await materializeProjectionFiles(seed);
+      }
+      return result;
     },
 
     async recordJobCheckpoint(record) {

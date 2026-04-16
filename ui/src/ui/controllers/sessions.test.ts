@@ -48,6 +48,20 @@ function createState(
   } as TestSessionsState;
 }
 
+function buildSessionsResult(keys: string[]) {
+  return {
+    ts: 0,
+    path: "",
+    count: keys.length,
+    defaults: { modelProvider: null, model: null, contextTokens: null },
+    sessions: keys.map((key) => ({
+      key,
+      kind: "direct",
+      updatedAt: null,
+    })),
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -186,6 +200,50 @@ describe("syncSessionMessageSubscription", () => {
     });
     expect(stateB.applySettings).not.toHaveBeenCalled();
   });
+
+  it("deduplicates overlapping subscription requests for the same target", async () => {
+    let resolveUnsubscribe!: (value: { subscribed: boolean; key?: string }) => void;
+    let resolveSubscribe!: (value: { subscribed: boolean; key?: string }) => void;
+    const request = vi.fn(async (method: string, params?: unknown) => {
+      if (method === "sessions.messages.unsubscribe") {
+        return await new Promise<{ subscribed: boolean; key?: string }>((resolve) => {
+          resolveUnsubscribe = resolve;
+        });
+      }
+      if (method === "sessions.messages.subscribe") {
+        expect(params).toEqual({ key: "agent:main:next" });
+        return await new Promise<{ subscribed: boolean; key?: string }>((resolve) => {
+          resolveSubscribe = resolve;
+        });
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState(request, {
+      sessionKey: "agent:main:next",
+      sessionMessageSubscribedKey: "main",
+    });
+
+    const first = syncSessionMessageSubscription(state);
+    const second = syncSessionMessageSubscription(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenNthCalledWith(1, "sessions.messages.unsubscribe", { key: "main" });
+
+    resolveUnsubscribe({ subscribed: false, key: "main" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenNthCalledWith(2, "sessions.messages.subscribe", {
+      key: "agent:main:next",
+    });
+
+    resolveSubscribe({ subscribed: true, key: "agent:main:next" });
+    await Promise.all([first, second]);
+
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(state.sessionMessageSubscribedKey).toBe("agent:main:next");
+  });
 });
 
 describe("deleteSessionsAndRefresh", () => {
@@ -255,6 +313,29 @@ describe("deleteSessionsAndRefresh", () => {
     expect(deleted).toEqual(["key-a", "key-d"]);
     expect(state.sessionsError).toBe("Error: delete failed: key-b; Error: delete failed: key-c");
     expect(state.sessionsLoading).toBe(false);
+  });
+
+  it("supports custom async confirmation and prunes deleted sessions locally", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "sessions.delete") {
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return undefined;
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const confirmDeleteSessions = vi.fn(async () => true);
+    const state = createState(request, {
+      confirmDeleteSessions,
+      sessionsResult: buildSessionsResult(["key-a", "key-b"]),
+    });
+
+    const deleted = await deleteSessionsAndRefresh(state, ["key-a"]);
+
+    expect(deleted).toEqual(["key-a"]);
+    expect(confirmDeleteSessions).toHaveBeenCalledWith(["key-a"]);
+    expect(state.sessionsResult?.sessions.map((entry) => entry.key)).toEqual(["key-b"]);
   });
 
   it("returns empty array when already loading", async () => {

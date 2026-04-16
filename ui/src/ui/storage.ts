@@ -46,6 +46,7 @@ export type UiSettings = {
   chatFocusMode: boolean;
   chatShowThinking: boolean;
   chatShowToolCalls: boolean;
+  chatHideCronSessions: boolean;
   splitRatio: number; // Sidebar split ratio (0.4 to 0.7, default 0.6)
   navCollapsed: boolean; // Collapsible sidebar state
   navWidth: number; // Sidebar width when expanded (240–400px)
@@ -264,6 +265,7 @@ export function loadSettings(): UiSettings {
     chatFocusMode: false,
     chatShowThinking: true,
     chatShowToolCalls: true,
+    chatHideCronSessions: true,
     splitRatio: 0.6,
     navCollapsed: false,
     navWidth: 220,
@@ -341,6 +343,10 @@ export function loadSettings(): UiSettings {
         : typeof parsed.chatShowToolCalls === "boolean"
           ? parsed.chatShowToolCalls
           : defaults.chatShowToolCalls,
+      chatHideCronSessions:
+        typeof parsed.chatHideCronSessions === "boolean"
+          ? parsed.chatHideCronSessions
+          : defaults.chatHideCronSessions,
       splitRatio:
         typeof parsed.splitRatio === "number" &&
         parsed.splitRatio >= 0.4 &&
@@ -365,6 +371,7 @@ export function loadSettings(): UiSettings {
       shouldMigrateChatPresentation ||
       shouldMigrateLocale ||
       shouldMigrateAppearance ||
+      typeof parsed.chatHideCronSessions !== "boolean" ||
       typeof parsed.presentationSyncPending !== "boolean"
     ) {
       persistSettings(settings);
@@ -421,6 +428,7 @@ function persistSettings(next: UiSettings) {
     chatFocusMode: next.chatFocusMode,
     chatShowThinking: next.chatShowThinking,
     chatShowToolCalls: next.chatShowToolCalls,
+    chatHideCronSessions: next.chatHideCronSessions,
     chatPresentationModeVersion: 2,
     splitRatio: next.splitRatio,
     navCollapsed: next.navCollapsed,

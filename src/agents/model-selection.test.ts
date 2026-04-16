@@ -13,6 +13,7 @@ import {
   modelKey,
   resolveAllowedModelRef,
   resolveConfiguredModelRef,
+  resolveDefaultModelForSession,
   resolveThinkingDefault,
   resolveModelRefFromString,
 } from "./model-selection.js";
@@ -504,6 +505,57 @@ describe("model-selection", () => {
       expect(result.allowedKeys.has("anthropic/claude-sonnet-4-6")).toBe(true);
       expect(result.allowedKeys.has("google/gemini-3-pro-preview")).toBe(false);
       expect(result.allowAny).toBe(false);
+    });
+  });
+
+  describe("resolveDefaultModelForSession", () => {
+    it("falls back from local managed defaults on main sessions", () => {
+      const provider = buildAlisioCurrentProviderId();
+      const cfg = {
+        agents: {
+          defaults: {
+            model: {
+              primary: `${provider}/qwen3-4b-q4-k-m`,
+              fallbacks: ["openai/gpt-4o-mini"],
+            },
+          },
+        },
+      } as AlisioConfig;
+
+      expect(
+        resolveDefaultModelForSession({
+          cfg,
+          agentId: "main",
+          sessionKey: "agent:main:main",
+        }),
+      ).toEqual({
+        provider: "openai",
+        model: "gpt-4o-mini",
+      });
+    });
+
+    it("keeps local managed defaults on subagent sessions", () => {
+      const provider = buildAlisioCurrentProviderId();
+      const cfg = {
+        agents: {
+          defaults: {
+            model: {
+              primary: `${provider}/qwen3-4b-q4-k-m`,
+            },
+          },
+        },
+      } as AlisioConfig;
+
+      expect(
+        resolveDefaultModelForSession({
+          cfg,
+          agentId: "main",
+          sessionKey: "agent:main:subagent:child",
+        }),
+      ).toEqual({
+        provider,
+        model: "qwen3-4b-q4-k-m",
+      });
     });
   });
 

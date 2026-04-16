@@ -74,6 +74,12 @@ export type DevicePairingList = {
   paired: PairedDevice[];
 };
 
+type GroupedPairedDevicesCache = {
+  paired: readonly PairedDevice[];
+  currentDeviceId: string | null;
+  result: PairedComputer[];
+};
+
 export type DevicesState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -82,6 +88,8 @@ export type DevicesState = {
   devicesList: DevicePairingList | null;
   currentDeviceId: string | null;
 };
+
+let lastGroupedPairedDevicesCache: GroupedPairedDevicesCache | null = null;
 
 function collectPairedDeviceRoles(device: PairedDevice | null | undefined): string[] {
   const roles = new Set<string>();
@@ -160,6 +168,10 @@ export function groupPairedDevicesByComputer(
   paired: readonly PairedDevice[],
   currentDeviceId: string | null,
 ): PairedComputer[] {
+  const cached = lastGroupedPairedDevicesCache;
+  if (cached && cached.paired === paired && cached.currentDeviceId === currentDeviceId) {
+    return cached.result;
+  }
   const groups = new Map<string, PairedDevice[]>();
 
   for (const device of paired) {
@@ -172,7 +184,7 @@ export function groupPairedDevicesByComputer(
     }
   }
 
-  return [...groups.entries()]
+  const result = [...groups.entries()]
     .map(([key, devices]) => {
       const sorted = [...devices].toSorted(comparePairedDeviceRecency);
       const currentDevice = currentDeviceId
@@ -220,6 +232,14 @@ export function groupPairedDevicesByComputer(
       }
       return a.label.localeCompare(b.label);
     });
+
+  lastGroupedPairedDevicesCache = {
+    paired,
+    currentDeviceId,
+    result,
+  };
+
+  return result;
 }
 
 async function clearLocalTokensForDevice(state: DevicesState, deviceId: string) {

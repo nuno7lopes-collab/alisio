@@ -28,9 +28,10 @@ const channel = "discord" as const;
 
 export const DISCORD_TOKEN_HELP_LINES = [
   "1) Discord Developer Portal -> Applications -> New Application",
-  "2) Bot -> Add Bot -> Reset Token -> copy token",
-  "3) OAuth2 -> URL Generator -> scope 'bot' -> invite to your server",
-  "Tip: enable Message Content Intent if you need message text. (Bot -> Privileged Gateway Intents -> Message Content Intent)",
+  "2) Bot -> Add Bot -> enable Message Content Intent (required for normal guild message text)",
+  "3) Bot -> Reset Token -> copy token",
+  "4) OAuth2 -> URL Generator -> scopes 'bot' + 'applications.commands' -> invite to your server",
+  "5) If you want DM pairing, enable Direct Messages in the server Privacy Settings",
   `Docs: ${formatDocsLink("/discord", "discord")}`,
 ];
 

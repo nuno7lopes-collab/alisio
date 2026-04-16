@@ -33,11 +33,20 @@ import type {
   MemoryGraphCommandOptions,
   MemorySearchCommandOptions,
 } from "./cli.types.js";
+import { getMemoryJobsController } from "./jobs/runtime.js";
+import type { MemoryJobsStatusSnapshot } from "./jobs/types.js";
 import {
   queryCanonicalMemoryGraph,
+  type CanonicalMemoryGraphResult,
   type CanonicalMemoryStoreStatus,
 } from "./memory/canonical-store.js";
 import { getMemorySearchManager } from "./memory/index.js";
+import {
+  getMemoryGraphFocusScopeError,
+  getMemoryGraphScopeValueError,
+  normalizeMemoryGraphScope,
+  requiresMemoryGraphFocusHint,
+} from "./tools.shared.js";
 
 type MemoryManager = NonNullable<Awaited<ReturnType<typeof getMemorySearchManager>>["manager"]>;
 type MemoryManagerPurpose = Parameters<typeof getMemorySearchManager>[0]["purpose"];
@@ -59,6 +68,13 @@ type MemorySourceScan = {
 type LoadedMemoryCommandConfig = {
   config: AlisioConfig;
   diagnostics: string[];
+};
+
+type ProjectionStatusInfo = {
+  workspaceEnabled: boolean;
+  compatibilityEnabled: boolean;
+  workspaceRoot?: string;
+  compatibilityRoot?: string;
 };
 
 function getMemoryCommandSecretTargetIds(): Set<string> {
@@ -121,6 +137,35 @@ function resolveAgent(cfg: AlisioConfig, agent?: string) {
   return resolveDefaultAgentId(cfg);
 }
 
+function resolveProjectionStatusInfo(
+  cfg: AlisioConfig,
+  workspaceDir?: string,
+): ProjectionStatusInfo | undefined {
+  const memory = cfg.memory;
+  const workspaceEnabled =
+    memory?.markdownProjection?.enabled ?? memory?.legacyMarkdownProjection?.enabled ?? true;
+  const compatibilityEnabled = memory?.legacyMarkdownProjection?.enabled ?? true;
+  if (!workspaceDir && !compatibilityEnabled) {
+    return undefined;
+  }
+  return {
+    workspaceEnabled,
+    compatibilityEnabled,
+    ...(workspaceDir ? { workspaceRoot: path.resolve(workspaceDir) } : {}),
+    ...(compatibilityEnabled
+      ? { compatibilityRoot: path.join(resolveStateDir(process.env, os.homedir), "workspace") }
+      : {}),
+  };
+}
+
+function readMemoryJobsStatus(agentId: string): MemoryJobsStatusSnapshot | undefined {
+  try {
+    return getMemoryJobsController(agentId).getStatus();
+  } catch {
+    return undefined;
+  }
+}
+
 function buildCliMemorySearchSessionKey(agentId: string): string {
   return buildAgentSessionKey({
     agentId,
@@ -156,6 +201,120 @@ function normalizeGraphDirection(
     return value;
   }
   return undefined;
+}
+
+function normalizeGraphLocatorValue(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function renderMemoryGraphText(result: CanonicalMemoryGraphResult): string {
+  const rich = isRich();
+  const lines: string[] = [];
+  lines.push(
+    `${colorize(rich, theme.heading, "Canonical Memory Graph")} ${colorize(
+      rich,
+      theme.muted,
+      `(${result.profileId} · ${result.mode})`,
+    )}`,
+  );
+  lines.push(
+    colorize(
+      rich,
+      theme.muted,
+      `${shortenHomePath(result.storePath)} · ${result.syncMode} · cloud sync ${result.cloudSync.replaceAll("_", " ")}`,
+    ),
+  );
+  lines.push(
+    colorize(
+      rich,
+      theme.muted,
+      `${result.stats.visibleNodes}/${result.stats.totalNodes} nodes · ${result.stats.visibleEdges}/${result.stats.totalEdges} edges`,
+    ),
+  );
+  if (result.focus) {
+    lines.push(
+      colorize(
+        rich,
+        theme.info,
+        `focus: ${result.focus.title} (${shortenHomePath(result.focus.sourcePath)})`,
+      ),
+    );
+  }
+  lines.push("");
+
+  if (result.matches.length > 0) {
+    for (const match of result.matches) {
+      lines.push(
+        `${colorize(rich, theme.success, match.score.toFixed(2))} ${colorize(
+          rich,
+          theme.accent,
+          match.title,
+        )}`,
+      );
+      lines.push(colorize(rich, theme.muted, shortenHomePath(match.sourcePath)));
+      if (match.aliases.length > 0) {
+        lines.push(colorize(rich, theme.muted, `aliases: ${match.aliases.join(", ")}`));
+      }
+      if (match.tags.length > 0) {
+        lines.push(colorize(rich, theme.muted, `tags: ${match.tags.join(", ")}`));
+      }
+      if (match.relations.length === 0) {
+        lines.push(colorize(rich, theme.muted, "no explicit relations"));
+      } else {
+        for (const relation of match.relations) {
+          const arrow = relation.direction === "incoming" ? "<-" : "->";
+          const target = relation.relatedEntity
+            ? `${relation.relatedEntity.title} (${shortenHomePath(relation.relatedEntity.sourcePath)})`
+            : "unresolved";
+          lines.push(
+            colorize(
+              rich,
+              theme.muted,
+              `${relation.direction} ${arrow} ${relation.relationType}: ${target}`,
+            ),
+          );
+        }
+      }
+      lines.push("");
+    }
+    return lines.join("\n").trim();
+  }
+
+  const nodeTitleById = new Map(result.nodes.map((node) => [node.id, node.title]));
+  lines.push(colorize(rich, theme.muted, "No matched entities; showing visible graph nodes."));
+  for (const node of result.nodes.slice(0, 12)) {
+    lines.push(
+      `${colorize(rich, theme.accent, node.title)} ${colorize(
+        rich,
+        theme.muted,
+        `(${node.kind} · degree ${node.degree})`,
+      )}`,
+    );
+    lines.push(colorize(rich, theme.muted, shortenHomePath(node.sourcePath)));
+  }
+  if (result.nodes.length > 12) {
+    lines.push(colorize(rich, theme.muted, `… +${result.nodes.length - 12} more nodes`));
+  }
+  if (result.edges.length > 0) {
+    lines.push("");
+    lines.push(colorize(rich, theme.heading, "Edges"));
+    for (const edge of result.edges.slice(0, 16)) {
+      lines.push(
+        colorize(
+          rich,
+          theme.muted,
+          `${nodeTitleById.get(edge.fromId) ?? edge.fromId} -> ${edge.relationType} -> ${
+            nodeTitleById.get(edge.toId) ?? edge.toId
+          }`,
+        ),
+      );
+    }
+    if (result.edges.length > 16) {
+      lines.push(colorize(rich, theme.muted, `… +${result.edges.length - 16} more edges`));
+    }
+  }
+  return lines.join("\n").trim();
 }
 
 async function withMemoryManagerForAgent(params: {
@@ -340,10 +499,17 @@ async function summarizeQmdIndexArtifact(manager: MemoryManager): Promise<string
 
 async function loadCanonicalGraph(params: {
   manager: MemoryManager;
-  query: string;
+  query?: string;
+  pageId?: string;
+  entityId?: string;
+  scope?: "global" | "local";
   direction?: "incoming" | "outgoing" | "both";
+  depth?: number;
   matchLimit?: number;
   relationLimit?: number;
+  nodeLimit?: number;
+  edgeLimit?: number;
+  includeAttachments?: boolean;
 }) {
   const initialStatus = params.manager.status();
   const initialCanonical = (initialStatus.custom?.canonicalStore ??
@@ -359,10 +525,17 @@ async function loadCanonicalGraph(params: {
   }
   return queryCanonicalMemoryGraph({
     status: canonicalStore,
-    query: params.query,
+    ...(params.query ? { query: params.query } : {}),
+    ...(params.pageId ? { pageId: params.pageId } : {}),
+    ...(params.entityId ? { entityId: params.entityId } : {}),
+    ...(params.scope ? { scope: params.scope } : {}),
     ...(params.direction ? { direction: params.direction } : {}),
+    ...(typeof params.depth === "number" ? { depth: params.depth } : {}),
     ...(typeof params.matchLimit === "number" ? { matchLimit: params.matchLimit } : {}),
     ...(typeof params.relationLimit === "number" ? { relationLimit: params.relationLimit } : {}),
+    ...(typeof params.nodeLimit === "number" ? { nodeLimit: params.nodeLimit } : {}),
+    ...(typeof params.edgeLimit === "number" ? { edgeLimit: params.edgeLimit } : {}),
+    ...(params.includeAttachments ? { includeAttachments: true } : {}),
   });
 }
 
@@ -403,6 +576,8 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
     embeddingProbe?: Awaited<ReturnType<MemoryManager["probeEmbeddingAvailability"]>>;
     indexError?: string;
     scan?: MemorySourceScan;
+    jobsStatus?: MemoryJobsStatusSnapshot;
+    projectionStatus?: ProjectionStatusInfo;
   }> = [];
 
   for (const agentId of agentIds) {
@@ -477,7 +652,15 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
               cfg,
             })
           : undefined;
-        allResults.push({ agentId, status, embeddingProbe, indexError, scan });
+        allResults.push({
+          agentId,
+          status,
+          embeddingProbe,
+          indexError,
+          scan,
+          jobsStatus: readMemoryJobsStatus(agentId),
+          projectionStatus: resolveProjectionStatusInfo(cfg, workspaceDir),
+        });
       },
     });
   }
@@ -497,7 +680,8 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
   const label = (text: string) => muted(`${text}:`);
 
   for (const result of allResults) {
-    const { agentId, status, embeddingProbe, indexError, scan } = result;
+    const { agentId, status, embeddingProbe, indexError, scan, jobsStatus, projectionStatus } =
+      result;
     const filesIndexed = status.files ?? 0;
     const chunksIndexed = status.chunks ?? 0;
     const totalFiles = scan?.totalFiles ?? null;
@@ -530,6 +714,22 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
       `${label("Store")} ${info(storePath)}`,
       `${label("Workspace")} ${info(workspacePath)}`,
     ].filter(Boolean) as string[];
+    if (projectionStatus) {
+      lines.push(
+        `${label("Workspace projections")} ${colorize(
+          rich,
+          projectionStatus.workspaceEnabled ? theme.success : theme.warn,
+          projectionStatus.workspaceEnabled ? "enabled" : "disabled",
+        )}${projectionStatus.workspaceRoot ? ` ${muted(`(${shortenHomePath(projectionStatus.workspaceRoot)})`)}` : ""}`,
+      );
+      lines.push(
+        `${label("Legacy mirror")} ${colorize(
+          rich,
+          projectionStatus.compatibilityEnabled ? theme.success : theme.muted,
+          projectionStatus.compatibilityEnabled ? "enabled" : "disabled",
+        )}${projectionStatus.compatibilityRoot ? ` ${muted(`(${shortenHomePath(projectionStatus.compatibilityRoot)})`)}` : ""}`,
+      );
+    }
     if (canonicalStore) {
       lines.push(`${label("Canonical store")} ${info(shortenHomePath(canonicalStore.path))}`);
       lines.push(`${label("Canonical profile")} ${info(canonicalStore.profileId)}`);
@@ -548,6 +748,44 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
       }
       if (canonicalStore.lastError) {
         lines.push(`${label("Canonical error")} ${warn(canonicalStore.lastError)}`);
+      }
+    }
+    if (jobsStatus) {
+      const longTermJob = jobsStatus.jobs.find((job) => job.kind === "long-term");
+      const jobsStateColor =
+        jobsStatus.runtime.state === "running" || jobsStatus.runtime.state === "idle"
+          ? theme.success
+          : jobsStatus.runtime.state === "disabled"
+            ? theme.muted
+            : theme.warn;
+      lines.push(
+        `${label("Memory jobs")} ${colorize(
+          rich,
+          jobsStateColor,
+          jobsStatus.runtime.state,
+        )} ${muted(
+          `(auto-sleep ${jobsStatus.flags.autoSleepEnabled ? "on" : "off"} · slice ${jobsStatus.flags.maxSliceMs}ms)`,
+        )}`,
+      );
+      lines.push(
+        `${label("Job activity")} ${muted(
+          `${jobsStatus.runtime.sliceCount} slices · ${jobsStatus.jobs.length} records`,
+        )}`,
+      );
+      if (longTermJob) {
+        lines.push(
+          `${label("Long-term memory")} ${muted(
+            `${longTermJob.status} · ${
+              jobsStatus.telemetry.counts["sleep_work_done_counts.promoted_long_term_updates"] ?? 0
+            } promotions`,
+          )}`,
+        );
+      }
+      if (jobsStatus.runtime.lastStatus) {
+        lines.push(`${label("Jobs last run")} ${muted(jobsStatus.runtime.lastStatus)}`);
+      }
+      if (jobsStatus.runtime.lastError) {
+        lines.push(`${label("Jobs error")} ${warn(jobsStatus.runtime.lastError)}`);
       }
     }
     if (embeddingProbe) {
@@ -845,9 +1083,25 @@ export async function runMemoryGraph(
   queryArg: string | undefined,
   opts: MemoryGraphCommandOptions,
 ) {
-  const query = opts.query ?? queryArg;
-  if (!query) {
-    defaultRuntime.error("Missing graph query. Provide a positional query or use --query <text>.");
+  const query = normalizeGraphLocatorValue(opts.query ?? queryArg);
+  const pageId = normalizeGraphLocatorValue(opts.pageId);
+  const entityId = normalizeGraphLocatorValue(opts.entityId);
+  const rawScope = normalizeGraphLocatorValue(opts.scope);
+  const scope = normalizeMemoryGraphScope(rawScope);
+  if (rawScope && !scope) {
+    defaultRuntime.error("Invalid --scope value. Use overview, focus, global, or local.");
+    process.exitCode = 1;
+    return;
+  }
+  if (requiresMemoryGraphFocusHint({ scope, query, pageId, entityId })) {
+    defaultRuntime.error(getMemoryGraphFocusScopeError());
+    process.exitCode = 1;
+    return;
+  }
+  if (!query && !pageId && !entityId && scope === undefined) {
+    defaultRuntime.error(
+      "Missing graph target. Provide --scope overview for a broad graph, or use a query/page id/entity id for focus mode.",
+    );
     process.exitCode = 1;
     return;
   }
@@ -868,10 +1122,17 @@ export async function runMemoryGraph(
       try {
         result = await loadCanonicalGraph({
           manager,
-          query,
+          ...(query ? { query } : {}),
+          ...(pageId ? { pageId } : {}),
+          ...(entityId ? { entityId } : {}),
+          ...(scope ? { scope } : {}),
           ...(direction ? { direction } : {}),
+          ...(typeof opts.depth === "number" ? { depth: opts.depth } : {}),
           ...(typeof opts.matchLimit === "number" ? { matchLimit: opts.matchLimit } : {}),
           ...(typeof opts.relationLimit === "number" ? { relationLimit: opts.relationLimit } : {}),
+          ...(typeof opts.nodeLimit === "number" ? { nodeLimit: opts.nodeLimit } : {}),
+          ...(typeof opts.edgeLimit === "number" ? { edgeLimit: opts.edgeLimit } : {}),
+          ...(opts.includeAttachments ? { includeAttachments: true } : {}),
         });
       } catch (err) {
         const message = formatErrorMessage(err);
@@ -883,62 +1144,11 @@ export async function runMemoryGraph(
         defaultRuntime.writeJson(result);
         return;
       }
-      if (result.matches.length === 0) {
-        defaultRuntime.log("No graph matches.");
+      if (result.matches.length === 0 && result.nodes.length === 0) {
+        defaultRuntime.log("No graph data.");
         return;
       }
-      const rich = isRich();
-      const lines: string[] = [];
-      lines.push(
-        `${colorize(rich, theme.heading, "Canonical Memory Graph")} ${colorize(
-          rich,
-          theme.muted,
-          `(${result.profileId})`,
-        )}`,
-      );
-      lines.push(
-        colorize(
-          rich,
-          theme.muted,
-          `${shortenHomePath(result.storePath)} · ${result.syncMode} · cloud sync ${result.cloudSync.replaceAll("_", " ")}`,
-        ),
-      );
-      lines.push("");
-      for (const match of result.matches) {
-        lines.push(
-          `${colorize(rich, theme.success, match.score.toFixed(2))} ${colorize(
-            rich,
-            theme.accent,
-            match.title,
-          )}`,
-        );
-        lines.push(colorize(rich, theme.muted, shortenHomePath(match.sourcePath)));
-        if (match.aliases.length > 0) {
-          lines.push(colorize(rich, theme.muted, `aliases: ${match.aliases.join(", ")}`));
-        }
-        if (match.tags.length > 0) {
-          lines.push(colorize(rich, theme.muted, `tags: ${match.tags.join(", ")}`));
-        }
-        if (match.relations.length === 0) {
-          lines.push(colorize(rich, theme.muted, "no explicit relations"));
-        } else {
-          for (const relation of match.relations) {
-            const arrow = relation.direction === "incoming" ? "<-" : "->";
-            const target = relation.relatedEntity
-              ? `${relation.relatedEntity.title} (${shortenHomePath(relation.relatedEntity.sourcePath)})`
-              : "unresolved";
-            lines.push(
-              colorize(
-                rich,
-                theme.muted,
-                `${relation.direction} ${arrow} ${relation.relationType}: ${target}`,
-              ),
-            );
-          }
-        }
-        lines.push("");
-      }
-      defaultRuntime.log(lines.join("\n").trim());
+      defaultRuntime.log(renderMemoryGraphText(result));
     },
   });
 }

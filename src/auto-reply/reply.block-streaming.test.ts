@@ -239,4 +239,22 @@ describe("block streaming", () => {
     expect(streamPayload?.text).toBe("final");
     expect(onBlockReplyStreamMode).not.toHaveBeenCalled();
   });
+
+  it("passes caller extra system prompt into runPreparedReply", async () => {
+    mocks.runPreparedReply.mockResolvedValueOnce({ text: "ok" });
+
+    await getReplyFromConfig(
+      createTelegramMessage("msg-extra-system-prompt"),
+      {
+        extraSystemPrompt: "Task orchestrator mode.",
+      },
+      createReplyConfig(),
+    );
+
+    expect(mocks.runPreparedReply).toHaveBeenCalledTimes(1);
+    const params = mocks.runPreparedReply.mock.calls[0]?.[0] as
+      | { opts?: { extraSystemPrompt?: string } }
+      | undefined;
+    expect(params?.opts?.extraSystemPrompt).toBe("Task orchestrator mode.");
+  });
 });

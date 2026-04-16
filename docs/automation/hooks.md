@@ -52,7 +52,7 @@ The hooks system allows you to:
 
 Alisio ships with four bundled hooks that are automatically discovered:
 
-- **💾 session-memory**: Saves session context to your agent workspace (default `~/.alisio/workspace/memory/`) when you issue `/new` or `/reset`
+- **💾 session-memory**: Saves session context to the canonical daily memory note in your agent workspace (default `~/.alisio/workspace/memory/`) when you issue `/new` or `/reset`
 - **📎 bootstrap-extra-files**: Injects additional workspace bootstrap files from configured glob/path patterns during `agent:bootstrap`
 - **📝 command-logger**: Logs all command events to `~/.alisio/logs/commands.log`
 - **🚀 boot-md**: Runs `BOOT.md` when the gateway starts (requires internal hooks enabled)
@@ -913,35 +913,37 @@ Saves session context to memory when you issue `/new` or `/reset`.
 
 **Requirements**: `workspace.dir` must be configured
 
-**Output**: `<workspace>/memory/YYYY-MM-DD-slug.md` (defaults to `~/.alisio/workspace`)
+**Output**: `<workspace>/memory/YYYY-MM-DD.md` (defaults to `~/.alisio/workspace`)
 
 **What it does**:
 
 1. Uses the pre-reset session entry to locate the correct transcript
 2. Extracts the last 15 user/assistant messages from the conversation (configurable)
-3. Uses LLM to generate a descriptive filename slug
-4. Saves session metadata to a dated memory file
+3. Uses LLM to generate a descriptive section label
+4. Appends the snapshot to the canonical daily note for that day
+5. Reingests the updated note through the canonical memory pipeline
 
 **Example output**:
 
 ```markdown
-# Session: 2026-01-16 14:30:00 UTC
+## 14:30:00 UTC - vendor-pitch
 
+- **Action**: /new
 - **Session Key**: agent:main:main
 - **Session ID**: abc123def456
 - **Source**: telegram
 
-## Conversation Summary
+### Conversation Summary
 
 user: Can you help me design the API?
 assistant: Sure! Let's start with the endpoints...
 ```
 
-**Filename examples**:
+**Section examples**:
 
-- `2026-01-16-vendor-pitch.md`
-- `2026-01-16-api-design.md`
-- `2026-01-16-1430.md` (fallback timestamp if slug generation fails)
+- `## 14:30:00 UTC - vendor-pitch`
+- `## 15:10:00 UTC - api-design`
+- `## 17:20:00 UTC` (fallback when slug generation fails)
 
 **Enable**:
 

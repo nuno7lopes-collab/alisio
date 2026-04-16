@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from "vitest";
+import { restoreTranscriptLeafInSessionManager } from "../agents/pi-embedded-runner/transcript-rewrite.js";
 import { createToolSummaryPreviewTranscriptLines } from "./session-preview.test-helpers.js";
 import {
   archiveSessionTranscripts,
@@ -535,6 +537,45 @@ describe("readSessionMessages", () => {
       expect((out[0] as { __alisio?: { seq?: number } }).__alisio?.seq).toBe(1);
     },
   );
+
+  test("prefers the active transcript branch over abandoned retry branches", () => {
+    const sessionId = "test-session-active-branch";
+    const transcriptPath = path.join(tmpDir, `${sessionId}.jsonl`);
+    const sessionManager = SessionManager.open(transcriptPath);
+    const userId = sessionManager.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: "abre o google" }],
+      timestamp: 1,
+    });
+    sessionManager.appendMessage({
+      role: "assistant",
+      content: [{ type: "text", text: "erro temporário" }],
+      stopReason: "error",
+      timestamp: 2,
+    });
+    sessionManager.appendMessage({
+      role: "user",
+      content: [{ type: "text", text: "abre o google" }],
+      timestamp: 3,
+    });
+    restoreTranscriptLeafInSessionManager({
+      sessionManager,
+      targetEntryId: userId,
+    });
+    sessionManager.appendMessage({
+      role: "assistant",
+      content: [{ type: "text", text: "Abri o Google." }],
+      timestamp: 4,
+    });
+
+    const out = readSessionMessages(sessionId, storePath);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ role: "user" });
+    expect(out[1]).toMatchObject({ role: "assistant" });
+    expect(
+      (out[0] as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? "",
+    ).toContain("abre o google");
+  });
 });
 
 describe("readSessionPreviewItemsFromTranscript", () => {

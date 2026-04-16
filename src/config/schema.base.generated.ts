@@ -10948,6 +10948,15 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
             },
             additionalProperties: false,
           },
+          markdownProjection: {
+            type: "object",
+            properties: {
+              enabled: {
+                type: "boolean",
+              },
+            },
+            additionalProperties: false,
+          },
           legacyMarkdownProjection: {
             type: "object",
             properties: {
@@ -11021,6 +11030,29 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
               },
             },
             required: ["mode"],
+            additionalProperties: false,
+          },
+          jobs: {
+            type: "object",
+            properties: {
+              enabled: {
+                type: "boolean",
+              },
+              maxSliceMs: {
+                type: "integer",
+                exclusiveMinimum: 0,
+                maximum: 9007199254740991,
+              },
+              autoSleep: {
+                type: "object",
+                properties: {
+                  enabled: {
+                    type: "boolean",
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
             additionalProperties: false,
           },
           qmd: {
@@ -13814,14 +13846,24 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "Emergency fallback switch for the canonical memory pipeline. When false, Alisio skips ledger-derived rebuild and reads compatibility projections only; use this only for temporary rollback or incident mitigation.",
       tags: ["storage"],
     },
+    "memory.markdownProjection": {
+      label: "Memory Markdown Projection",
+      help: "Canonical Markdown projection controls for writing derived memory files into the active workspace directory. Keep this enabled so the files your agent and operator actually read stay aligned with the canonical store.",
+      tags: ["storage"],
+    },
+    "memory.markdownProjection.enabled": {
+      label: "Enable Workspace Markdown Projection",
+      help: "Writes canonical Markdown projections into the active workspace directory from derived state. Disable only for incident mitigation or when an external workflow owns the visible workspace files.",
+      tags: ["storage"],
+    },
     "memory.legacyMarkdownProjection": {
       label: "Memory Legacy Markdown Projection",
-      help: "Compatibility projection controls for writing derived Markdown files into the local state workspace. Keep this enabled so rollback and export surfaces still have a Markdown view of derived memory.",
+      help: "Compatibility projection controls for mirroring derived Markdown files into the local state workspace. Keep this enabled while rollback or legacy tooling still depends on the state-dir mirror.",
       tags: ["storage"],
     },
     "memory.legacyMarkdownProjection.enabled": {
       label: "Enable Legacy Markdown Projection",
-      help: "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable only if you intentionally want derived state without Markdown materialization.",
+      help: "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable this only when you intentionally want the visible workspace projection without the legacy state-dir mirror.",
       tags: ["storage"],
     },
     "memory.crdt": {
@@ -13837,6 +13879,31 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "memory.crdt.pages.enabled": {
       label: "Enable CRDT Page Bodies",
       help: "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for emergency compatibility fallback.",
+      tags: ["storage"],
+    },
+    "memory.jobs": {
+      label: "Memory Jobs",
+      help: "Cooperative background memory-maintenance controls. Use this to govern idle-time consolidation, dedup, and future long-term promotion work driven by the canonical memory runtime.",
+      tags: ["storage"],
+    },
+    "memory.jobs.enabled": {
+      label: "Enable Memory Jobs",
+      help: "Enables the cooperative memory-maintenance runtime. Disable only when debugging or temporarily rolling back idle-time memory jobs.",
+      tags: ["storage"],
+    },
+    "memory.jobs.maxSliceMs": {
+      label: "Memory Job Slice Budget (ms)",
+      help: "Sets the per-slice wall-clock budget for background memory jobs in milliseconds. Lower values reduce interference with foreground work; higher values let maintenance make more progress per idle window.",
+      tags: ["performance", "storage"],
+    },
+    "memory.jobs.autoSleep": {
+      label: "Memory Job Auto Sleep",
+      help: "Controls whether memory-maintenance slices run automatically when the agent is idle. Leave enabled for normal operation and disable only if jobs should run manually.",
+      tags: ["storage"],
+    },
+    "memory.jobs.autoSleep.enabled": {
+      label: "Enable Memory Job Auto Sleep",
+      help: "Runs background memory-maintenance slices automatically during idle periods. Set false to require explicit manual runs while keeping the runtime available for inspection.",
       tags: ["storage"],
     },
     "memory.qmd.command": {

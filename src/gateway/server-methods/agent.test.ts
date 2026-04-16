@@ -893,7 +893,7 @@ describe("gateway agent handler", () => {
     expect(callArgs.runContext?.messageChannel).toBe("webchat");
   });
 
-  it("tracks async gateway agent runs in the shared task registry", async () => {
+  it("does not track normal gateway agent runs as background tasks", async () => {
     await withTempDir({ prefix: "alisio-gateway-agent-task-" }, async (root) => {
       process.env.ALISIO_STATE_DIR = root;
       resetTaskRegistryForTests();
@@ -908,11 +908,7 @@ describe("gateway agent handler", () => {
         { reqId: "task-registry-agent-run" },
       );
 
-      expect(findTaskByRunId("task-registry-agent-run")).toMatchObject({
-        runtime: "cli",
-        childSessionKey: "agent:main:main",
-        status: "running",
-      });
+      expect(findTaskByRunId("task-registry-agent-run")).toBeUndefined();
     });
   });
 

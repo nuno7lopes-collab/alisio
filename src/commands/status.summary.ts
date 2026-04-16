@@ -186,7 +186,7 @@ export async function getStatusSummary(
       .map(([key, entry]) => {
         const updatedAt = entry?.updatedAt ?? null;
         const age = updatedAt ? now - updatedAt : null;
-        const resolvedModel = resolveSessionModelRef(cfg, entry, opts.agentIdOverride);
+        const resolvedModel = resolveSessionModelRef(cfg, entry, opts.agentIdOverride, key);
         const model = resolvedModel.model ?? configModel ?? null;
         const contextTokens =
           resolveContextTokensForModel({

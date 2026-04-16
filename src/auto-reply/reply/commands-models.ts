@@ -1,15 +1,19 @@
 import { resolveAgentDir, resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { resolveModelAuthLabel } from "../../agents/model-auth-label.js";
-import { loadModelCatalog } from "../../agents/model-catalog.js";
+import { loadMergedRuntimeModelCatalog } from "../../agents/model-catalog.js";
 import {
   buildAllowedModelSet,
   buildModelAliasIndex,
   normalizeProviderId,
-  resolveDefaultModelForAgent,
+  resolveDefaultModelForSession,
   resolveModelRefFromString,
 } from "../../agents/model-selection.js";
 import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
+import {
+  filterModelCatalogForSessionPolicy,
+  isLocalManagedModelRestrictedForSession,
+} from "../../shared/local-model-session-policy.js";
 import type { ReplyPayload } from "../types.js";
 import { rejectUnauthorizedCommand } from "./command-gates.js";
 import {
@@ -39,16 +43,19 @@ export type ModelsProviderData = {
 export async function buildModelsProviderData(
   cfg: AlisioConfig,
   agentId?: string,
+  sessionKey?: string,
 ): Promise<ModelsProviderData> {
-  const resolvedDefault = resolveDefaultModelForAgent({
+  const resolvedDefault = resolveDefaultModelForSession({
     cfg,
     agentId,
+    sessionKey,
   });
 
-  const catalog = await loadModelCatalog({ config: cfg });
+  const catalog = await loadMergedRuntimeModelCatalog({ config: cfg });
+  const policyCatalog = filterModelCatalogForSessionPolicy(catalog, sessionKey);
   const allowed = buildAllowedModelSet({
     cfg,
-    catalog,
+    catalog: policyCatalog,
     defaultProvider: resolvedDefault.provider,
     defaultModel: resolvedDefault.model,
     agentId,
@@ -77,7 +84,13 @@ export async function buildModelsProviderData(
       defaultProvider: resolvedDefault.provider,
       aliasIndex,
     });
-    if (!resolved) {
+    if (
+      !resolved ||
+      isLocalManagedModelRestrictedForSession({
+        providerId: resolved.ref.provider,
+        sessionKey,
+      })
+    ) {
       return;
     }
     add(resolved.ref.provider, resolved.ref.model);
@@ -124,7 +137,7 @@ export async function buildModelsProviderData(
   // Build a provider-scoped model display-name map so surfaces can show
   // human-readable names without colliding across providers that share IDs.
   const modelNames = new Map<string, string>();
-  for (const entry of catalog) {
+  for (const entry of policyCatalog) {
     if (entry.name && entry.name !== entry.id) {
       modelNames.set(`${normalizeProviderId(entry.provider)}/${entry.id}`, entry.name);
     }
@@ -236,6 +249,7 @@ export async function resolveModelsCommandReply(params: {
   agentId?: string;
   agentDir?: string;
   sessionEntry?: SessionEntry;
+  sessionKey?: string;
 }): Promise<ReplyPayload | null> {
   const body = params.commandBodyNormalized.trim();
   if (!body.startsWith("/models")) {
@@ -248,6 +262,7 @@ export async function resolveModelsCommandReply(params: {
   const { byProvider, providers, modelNames } = await buildModelsProviderData(
     params.cfg,
     params.agentId,
+    params.sessionKey,
   );
   const isTelegram = params.surface === "telegram";
 
@@ -407,6 +422,7 @@ export const handleModelsCommand: CommandHandler = async (params, allowTextComma
     agentId: modelsAgentId,
     agentDir: modelsAgentDir,
     sessionEntry: params.sessionEntry,
+    sessionKey: params.sessionKey,
   });
   if (!reply) {
     return null;

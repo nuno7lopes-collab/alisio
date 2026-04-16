@@ -74,7 +74,6 @@ import { toClientToolDefinitions } from "../../pi-tool-definition-adapter.js";
 import { createAlisioCodingTools, resolveToolLoopDetectionConfig } from "../../pi-tools.js";
 import { registerProviderStreamForModel } from "../../provider-stream.js";
 import { resolveSandboxContext } from "../../sandbox.js";
-import { resolveSandboxRuntimeStatus } from "../../sandbox/runtime-status.js";
 import { repairSessionFileIfNeeded } from "../../session-file-repair.js";
 import { guardSessionManager } from "../../session-tool-result-guard-wrapper.js";
 import { sanitizeToolUseResultPairing } from "../../session-transcript-repair.js";
@@ -90,7 +89,7 @@ import {
 } from "../../skills.js";
 import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { buildSystemPromptReport } from "../../system-prompt-report.js";
-import { CURRENT_BROWSER_SESSION_CONTRACT_VERSION } from "../../system-prompt-report.js";
+import { resolveSystemPromptSandboxReport } from "../../system-prompt-report.js";
 import { sanitizeToolCallIdsForCloudCodeAssist } from "../../tool-call-id.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
@@ -668,22 +667,12 @@ export async function runEmbeddedAttempt(
         warningMode: bootstrapPromptWarningMode,
         warning: bootstrapPromptWarning,
       }),
-      sandbox: (() => {
-        const runtime = resolveSandboxRuntimeStatus({
-          cfg: params.config,
-          sessionKey: sandboxSessionKey,
-        });
-        const browserTargetDefault =
-          sandboxInfo?.browserBridgeUrl?.trim() && runtime.sandboxed ? "sandbox" : "host";
-        return {
-          mode: runtime.mode,
-          sandboxed: runtime.sandboxed,
-          browserContractVersion: CURRENT_BROWSER_SESSION_CONTRACT_VERSION,
-          browserTargetDefault,
-          hostBrowserAllowed: sandboxInfo?.hostBrowserAllowed === true,
-          browserObserverUrl: sandboxInfo?.browserNoVncUrl?.trim() || undefined,
-        };
-      })(),
+      sandbox: resolveSystemPromptSandboxReport({
+        cfg: params.config,
+        sessionKey: sandboxSessionKey,
+        browserObserverUrl: sandboxInfo?.browserNoVncUrl?.trim() || undefined,
+        hostBrowserAllowed: sandboxInfo?.hostBrowserAllowed,
+      }),
       systemPrompt: appendPrompt,
       bootstrapFiles: hookAdjustedBootstrapFiles,
       injectedFiles: contextFiles,
@@ -1697,10 +1686,15 @@ export async function runEmbeddedAttempt(
         const shouldCanonicalizePersistedPrompt =
           typeof params.persistedUserPrompt === "string" &&
           params.persistedUserPrompt !== promptTextForPersistence;
+        const persistedPromptCandidates = [
+          promptTextForPersistence,
+          params.persistedUserPrompt,
+        ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
         if (shouldCanonicalizePersistedPrompt || persistedMessageId) {
           const latestUserEntry = findLatestUserMessageEntryMatchingPrompt({
             sessionManager,
             promptText: promptTextForPersistence,
+            candidateTexts: persistedPromptCandidates,
             afterEntryId: prePromptTranscriptLeafId ?? null,
           });
           if (latestUserEntry) {
@@ -1765,6 +1759,7 @@ export async function runEmbeddedAttempt(
         messagesSnapshot = rewriteLatestUserPromptInMessages({
           messages: snapshotSelection.messagesSnapshot,
           promptText: promptTextForPersistence,
+          candidateTexts: persistedPromptCandidates,
           replacementText: params.persistedUserPrompt ?? promptTextForPersistence,
         });
         sessionIdUsed = snapshotSelection.sessionIdUsed;

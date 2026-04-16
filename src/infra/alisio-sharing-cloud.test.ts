@@ -94,4 +94,92 @@ describe("alisio-sharing-cloud", () => {
       current: false,
     });
   });
+
+  it("retries target sync without computer identity columns when the hosted schema is older", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof Request ? input.url : String(input),
+      );
+      const tableName = url.pathname.split("/").at(-1);
+      if (
+        tableName === "alisio_sharing_targets" &&
+        (init?.method ?? "GET").toUpperCase() === "GET"
+      ) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (
+        tableName === "alisio_sharing_targets" &&
+        (init?.method ?? "GET").toUpperCase() === "POST"
+      ) {
+        const body = typeof init?.body === "string" ? init.body : "";
+        const includesLegacyColumns =
+          body.includes('"computer_id"') || body.includes('"computer_label"');
+        return new Response(
+          JSON.stringify(
+            includesLegacyColumns
+              ? {
+                  message:
+                    "Could not find the 'computer_id' column of 'alisio_sharing_targets' in the schema cache",
+                }
+              : [],
+          ),
+          {
+            status: includesLegacyColumns ? 400 : 201,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    await loadAlisioSharingCloudState({
+      env: {
+        ALISIO_SUPABASE_URL: "https://example.supabase.co",
+        ALISIO_SUPABASE_ANON_KEY: "anon-key",
+      } as NodeJS.ProcessEnv,
+      accessToken: "access-token",
+      viewer: {
+        ownerKey: "user:user-1",
+        ownerScope: "user",
+        label: "Nuno",
+      },
+      targets: [
+        {
+          targetId: "windows-node-shell",
+          computerId: "local:windows-box",
+          computerLabel: "Windows Box",
+          label: "Windows Box",
+          platform: "Windows",
+          sourceKind: "node",
+          connected: true,
+          current: false,
+        },
+      ],
+      fetchImpl: fetchMock,
+    });
+
+    const targetWrites = fetchMock.mock.calls.filter(([input, init]) => {
+      const url = new URL(
+        typeof input === "string" ? input : input instanceof Request ? input.url : String(input),
+      );
+      return (
+        url.pathname.endsWith("/alisio_sharing_targets") &&
+        (init?.method ?? "GET").toUpperCase() === "POST"
+      );
+    });
+
+    expect(targetWrites).toHaveLength(2);
+    expect(typeof targetWrites[0]?.[1]?.body).toBe("string");
+    expect(typeof targetWrites[1]?.[1]?.body).toBe("string");
+    expect(targetWrites[0]?.[1]?.body).toContain('"computer_id"');
+    expect(targetWrites[0]?.[1]?.body).toContain('"computer_label"');
+    expect(targetWrites[1]?.[1]?.body).not.toContain('"computer_id"');
+    expect(targetWrites[1]?.[1]?.body).not.toContain('"computer_label"');
+  });
 });

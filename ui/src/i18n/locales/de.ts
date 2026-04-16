@@ -1,6 +1,8 @@
+import { en } from "./en.ts";
+import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
 
-export const de: TranslationMap = {
+export const de: TranslationMap = mergeTranslationMaps(en, {
   common: {
     version: "Version",
     health: "Status",
@@ -32,6 +34,7 @@ export const de: TranslationMap = {
     automations: "Automationen",
     chat: "Chat",
     tasks: "Aufgaben",
+    cron: "Cron",
     settings: "Einstellungen",
   },
   subtitles: {
@@ -43,6 +46,7 @@ export const de: TranslationMap = {
     automations: "Aufweckzeiten und wiederkehrende Agent-Läufe planen.",
     chat: "Direkte Alisio-Chat-Sitzung für schnelle Eingriffe.",
     tasks: "Hintergrundläufe, Zustellung und Operator-Nachverfolgung in einer Ansicht.",
+    cron: "Geplante Jobs, Läufe und Zustellung in einem Arbeitsbereich.",
     settings: "Workspace-Konfiguration, native Shell und Diagnose.",
   },
   overview: {
@@ -120,4 +124,4 @@ export const de: TranslationMap = {
     de: "Deutsch",
     es: "Spanisch (Español)",
   },
-};
+});

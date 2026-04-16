@@ -11,6 +11,7 @@ const loadManagedDeviceIdentityMock = vi.hoisted(() =>
 const loadStoredBrowserDeviceIdentityMock = vi.hoisted(() =>
   vi.fn(async (): Promise<DeviceIdentity | null> => null),
 );
+const clearStoredBrowserDeviceIdentityMock = vi.hoisted(() => vi.fn());
 const loadOrCreateBrowserDeviceIdentityMock = vi.hoisted(() =>
   vi.fn(
     async (): Promise<DeviceIdentity> => ({
@@ -87,6 +88,7 @@ vi.mock("./device-identity.ts", () => ({
   canUseBrowserGeneratedIdentity: canUseBrowserGeneratedIdentityMock,
   loadManagedDeviceIdentity: loadManagedDeviceIdentityMock,
   loadStoredBrowserDeviceIdentity: loadStoredBrowserDeviceIdentityMock,
+  clearStoredBrowserDeviceIdentity: clearStoredBrowserDeviceIdentityMock,
   loadOrCreateBrowserDeviceIdentity: loadOrCreateBrowserDeviceIdentityMock,
   signDevicePayloadWithIdentity: signDevicePayloadWithIdentityMock,
 }));
@@ -98,6 +100,7 @@ type ConnectFrame = {
   id?: string;
   method?: string;
   params?: {
+    client?: { platform?: string; deviceFamily?: string };
     auth?: { token?: string; bootstrapToken?: string; password?: string; deviceToken?: string };
     scopes?: string[];
   };
@@ -216,6 +219,7 @@ describe("GatewayBrowserClient", () => {
     canUseBrowserGeneratedIdentityMock.mockReturnValue(true);
     loadManagedDeviceIdentityMock.mockResolvedValue(null);
     loadStoredBrowserDeviceIdentityMock.mockResolvedValue(null);
+    clearStoredBrowserDeviceIdentityMock.mockReset();
     loadOrCreateBrowserDeviceIdentityMock.mockResolvedValue({
       deviceId: "browser-device-1",
       privateKey: "browser-private-key", // pragma: allowlist secret
@@ -272,6 +276,22 @@ describe("GatewayBrowserClient", () => {
     const signedPayload = signDevicePayloadWithIdentityMock.mock.calls[0]?.[1];
     expect(signedPayload).toContain("|shared-auth-token|nonce-1");
     expect(signedPayload).not.toContain("stored-device-token");
+  });
+
+  it("uses managed device metadata for the connect client when available", async () => {
+    enableHostManagedIdentity({
+      platform: "macos 26.0.1",
+      deviceFamily: "Mac",
+    });
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:40705",
+      token: "shared-auth-token",
+    });
+
+    const { connectFrame } = await startConnect(client);
+
+    expect(connectFrame.params?.client?.platform).toBe("macos 26.0.1");
+    expect(connectFrame.params?.client?.deviceFamily).toBe("Mac");
   });
 
   it("sends explicit shared token on insecure first connect without cached device fallback", async () => {

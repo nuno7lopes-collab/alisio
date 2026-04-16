@@ -143,6 +143,7 @@ export async function getReplyFromConfig(
   const { defaultProvider, defaultModel, aliasIndex } = resolveDefaultModel({
     cfg,
     agentId,
+    sessionKey: agentSessionKey,
   });
   let provider = defaultProvider;
   let model = defaultModel;

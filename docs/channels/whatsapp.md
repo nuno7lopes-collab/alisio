@@ -7,7 +7,7 @@ title: "WhatsApp"
 
 # WhatsApp (Web channel)
 
-Status: production-ready via WhatsApp Web (Baileys). Gateway owns linked session(s).
+Status: production-ready in Alisio via WhatsApp Web (Baileys). Gateway owns linked session(s), but this is still a WhatsApp Web session rather than Meta's official WhatsApp Business Platform.
 
 ## Install (on demand)
 
@@ -92,6 +92,10 @@ alisio pairing approve whatsapp <CODE>
 
 <Note>
 Alisio recommends running WhatsApp on a separate number when possible. (The channel metadata and setup flow are optimized for that setup, but personal-number setups are also supported.)
+</Note>
+
+<Note>
+This channel depends on an active WhatsApp Web session. Expect QR relinking after logout, device resets, or competing web sessions; if you need official platform guarantees, prefer an integration built on Meta's official WhatsApp APIs.
 </Note>
 
 ## Deployment patterns

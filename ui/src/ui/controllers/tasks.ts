@@ -1,3 +1,4 @@
+import { t } from "../../i18n/index.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
   CanonicalTaskSummary,
@@ -7,7 +8,6 @@ import type {
   TaskDependency,
   TaskEvent,
   TaskExecution,
-  TaskNotifyPolicy,
   TaskProposalDecision,
   TaskProposalDraft,
   TaskProposalRecord,
@@ -22,7 +22,7 @@ import {
   isMissingOperatorReadScopeError,
 } from "./scope-errors.ts";
 
-export type TaskRuntimeFilter = "all" | TaskRuntime;
+export type TaskRuntimeFilter = "all" | TaskRuntime | "orchestrator_session";
 export type TaskStatusFilter = "all" | TaskStatus;
 
 export type TasksState = {
@@ -39,6 +39,26 @@ export type TasksState = {
   tasksLimit: number;
   assistantAgentId?: string | null;
 };
+
+function taskErrorMessage(
+  kind: "load" | "cancel" | "save" | "approve" | "reject" | "launch",
+): string {
+  switch (kind) {
+    case "cancel":
+      return t("tasksView.errors.cancel");
+    case "save":
+      return t("tasksView.errors.saveProposal");
+    case "approve":
+      return t("tasksView.errors.approveProposal");
+    case "reject":
+      return t("tasksView.errors.rejectProposal");
+    case "launch":
+      return t("tasksView.errors.launchProposal");
+    case "load":
+    default:
+      return t("tasksView.errors.load");
+  }
+}
 
 function normalizeTaskRecord(entry: unknown): TaskRecord | null {
   if (!entry || typeof entry !== "object") {
@@ -248,10 +268,10 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
     return null;
   }
   const value = raw as Partial<TasksOverviewResult>;
-  if (!Array.isArray(value.tasks) || !value.summary || !value.filteredSummary || !value.audit) {
+  if (!value.summary || !value.filteredSummary || !value.audit) {
     return null;
   }
-  const tasks = value.tasks
+  const tasks = (Array.isArray(value.tasks) ? value.tasks : [])
     .map(normalizeTaskRecord)
     .filter((entry): entry is TaskRecord => Boolean(entry));
   const proposals = (Array.isArray(value.proposals) ? value.proposals : [])
@@ -348,10 +368,7 @@ function normalizeTaskProposalRecord(entry: unknown): TaskProposalRecord | null 
 }
 
 function syncSelectedTask(state: TasksState) {
-  const tasks =
-    (state.tasksOverview?.canonicalTasks?.length ?? 0) > 0
-      ? (state.tasksOverview?.canonicalTasks ?? [])
-      : (state.tasksOverview?.tasks ?? []);
+  const tasks = state.tasksOverview?.canonicalTasks ?? [];
   if (tasks.length === 0) {
     state.tasksSelectedId = null;
     return;
@@ -373,8 +390,10 @@ export async function loadTasksOverview(
     state.tasksLoading = true;
   }
   try {
+    const runtimeFilter =
+      state.tasksRuntimeFilter === "orchestrator_session" ? "all" : state.tasksRuntimeFilter;
     const result = await state.client.request<TasksOverviewResult>("tasks.overview", {
-      runtime: state.tasksRuntimeFilter,
+      runtime: runtimeFilter,
       status: state.tasksStatusFilter,
       query: state.tasksQuery.trim() || undefined,
       limit: state.tasksLimit,
@@ -393,7 +412,7 @@ export async function loadTasksOverview(
       state.tasksError = formatMissingOperatorReadScopeMessage("background tasks");
       state.tasksSelectedId = null;
     } else {
-      state.tasksError = String(error);
+      state.tasksError = taskErrorMessage("load");
     }
   } finally {
     state.tasksLoading = false;
@@ -409,28 +428,8 @@ export async function cancelTask(state: TasksState, lookup: string): Promise<voi
   try {
     await state.client.request("tasks.cancel", { lookup });
     await loadTasksOverview(state, { quiet: true });
-  } catch (error) {
-    state.tasksError = `Task cancel failed: ${String(error)}`;
-  } finally {
-    state.tasksBusy = false;
-  }
-}
-
-export async function updateTaskNotifyPolicy(
-  state: TasksState,
-  lookup: string,
-  notify: TaskNotifyPolicy,
-): Promise<void> {
-  if (!state.client || !state.connected || state.tasksBusy) {
-    return;
-  }
-  state.tasksBusy = true;
-  state.tasksError = null;
-  try {
-    await state.client.request("tasks.notify", { lookup, notify });
-    await loadTasksOverview(state, { quiet: true });
-  } catch (error) {
-    state.tasksError = `Task notify policy update failed: ${String(error)}`;
+  } catch {
+    state.tasksError = taskErrorMessage("cancel");
   } finally {
     state.tasksBusy = false;
   }
@@ -514,8 +513,8 @@ export async function saveTaskProposal(
     const record = await upsertRemoteTaskProposal(state, proposal);
     await loadTasksOverview(state, { quiet: true });
     return record;
-  } catch (error) {
-    state.tasksError = `Task proposal save failed: ${String(error)}`;
+  } catch {
+    state.tasksError = taskErrorMessage("save");
     return null;
   } finally {
     state.tasksBusy = false;
@@ -539,8 +538,8 @@ export async function resolveTaskProposal(
     const record = await resolveRemoteTaskProposalDecision(state, existing.proposalId, decision);
     await loadTasksOverview(state, { quiet: true });
     return record;
-  } catch (error) {
-    state.tasksError = `Task proposal ${decision} failed: ${String(error)}`;
+  } catch {
+    state.tasksError = taskErrorMessage(decision === "approved" ? "approve" : "reject");
     return null;
   } finally {
     state.tasksBusy = false;
@@ -585,8 +584,8 @@ export async function launchTaskProposal(
     }
     await loadTasksOverview(state, { quiet: true });
     return { proposal: attached, sessionKey, runId };
-  } catch (error) {
-    state.tasksError = `Task proposal launch failed: ${String(error)}`;
+  } catch {
+    state.tasksError = taskErrorMessage("launch");
     return null;
   } finally {
     state.tasksBusy = false;

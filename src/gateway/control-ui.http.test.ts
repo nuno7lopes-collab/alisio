@@ -333,6 +333,8 @@ describe("handleControlUiHttpRequest", () => {
       const parsed = parseControlUiLocalDevicePayload(end);
       expect(parsed.deviceId).toMatch(/^[a-f0-9]{64}$/);
       expect(parsed.publicKey).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(parsed.platform).toMatch(/^macos |^windows |^linux /i);
+      expect(typeof parsed.deviceFamily).toBe("string");
     });
   });
 

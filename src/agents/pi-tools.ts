@@ -45,6 +45,11 @@ import {
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
+import { getLiveSandboxBrowserBridgeUrl } from "./sandbox/browser.js";
+import { resolveSandboxConfigForAgent } from "./sandbox/config.js";
+import { resolveSandboxRuntimeStatus } from "./sandbox/runtime-status.js";
+import { resolveSandboxScopeKey } from "./sandbox/shared.js";
+import { isToolAllowed } from "./sandbox/tool-policy.js";
 import { createToolFsPolicy, resolveToolFsConfig } from "./tool-fs-policy.js";
 import {
   applyToolPolicyPipeline,
@@ -67,6 +72,60 @@ const TOOL_DENY_BY_MESSAGE_PROVIDER: Readonly<Record<string, readonly string[]>>
   voice: ["tts"],
 };
 const MEMORY_FLUSH_ALLOWED_TOOL_NAMES = new Set(["read", "write"]);
+
+function resolveBrowserToolRuntimeContext(params: {
+  cfg?: AlisioConfig;
+  sessionKey?: string;
+  sandbox?: SandboxContext | null;
+}): {
+  sandboxBridgeUrl?: string;
+  allowHostControl: boolean;
+  preferSandbox: boolean;
+} {
+  const directSandboxBridgeUrl = params.sandbox?.browser?.bridgeUrl?.trim() || undefined;
+  if (params.sandbox) {
+    return {
+      sandboxBridgeUrl: directSandboxBridgeUrl,
+      allowHostControl: params.sandbox.browserAllowHostControl,
+      preferSandbox: true,
+    };
+  }
+
+  const sessionKey = params.sessionKey?.trim();
+  const cfg = params.cfg;
+  if (!cfg || !sessionKey) {
+    return {
+      sandboxBridgeUrl: directSandboxBridgeUrl,
+      allowHostControl: true,
+      preferSandbox: false,
+    };
+  }
+
+  const runtime = resolveSandboxRuntimeStatus({ cfg, sessionKey });
+  if (!runtime.sandboxed) {
+    return {
+      sandboxBridgeUrl: directSandboxBridgeUrl,
+      allowHostControl: true,
+      preferSandbox: false,
+    };
+  }
+
+  const sandboxCfg = resolveSandboxConfigForAgent(cfg, runtime.agentId);
+  const sandboxBrowserEnabled =
+    sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
+  const scopeKey = sandboxBrowserEnabled
+    ? resolveSandboxScopeKey(sandboxCfg.scope, runtime.sessionKey || sessionKey)
+    : undefined;
+  // If the sandbox runtime already exists, reuse its bridge instead of silently
+  // falling back to the host browser for stale dashboard sessions.
+  const liveSandboxBridgeUrl = scopeKey ? getLiveSandboxBrowserBridgeUrl(scopeKey) : undefined;
+
+  return {
+    sandboxBridgeUrl: directSandboxBridgeUrl ?? liveSandboxBridgeUrl,
+    allowHostControl: sandboxBrowserEnabled ? sandboxCfg.browser.allowHostControl : true,
+    preferSandbox: sandboxBrowserEnabled,
+  };
+}
 
 function normalizeMessageProvider(messageProvider?: string): string | undefined {
   const normalized = messageProvider?.trim().toLowerCase();
@@ -498,8 +557,11 @@ export function createAlisioCodingTools(options?: {
     // Channel docking: include channel-defined agent tools (login, etc.).
     ...listChannelAgentTools({ cfg: options?.config }),
     ...createAlisioTools({
-      sandboxBrowserBridgeUrl: sandbox?.browser?.bridgeUrl,
-      allowHostBrowserControl: sandbox ? sandbox.browserAllowHostControl : true,
+      ...resolveBrowserToolRuntimeContext({
+        cfg: options?.config,
+        sessionKey: options?.sessionKey,
+        sandbox,
+      }),
       agentSessionKey: options?.sessionKey,
       agentChannel: resolveGatewayMessageChannel(options?.messageProvider),
       agentAccountId: options?.agentAccountId,

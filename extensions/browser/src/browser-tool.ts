@@ -329,11 +329,12 @@ function resolveBrowserBaseUrl(params: {
   target?: "sandbox" | "host";
   sandboxBridgeUrl?: string;
   allowHostControl?: boolean;
+  preferSandbox?: boolean;
 }): string | undefined {
   const cfg = loadConfig();
   const resolved = resolveBrowserConfig(cfg.browser, cfg);
   const normalizedSandbox = params.sandboxBridgeUrl?.trim() ?? "";
-  const target = params.target ?? (normalizedSandbox ? "sandbox" : "host");
+  const target = params.target ?? (params.preferSandbox || normalizedSandbox ? "sandbox" : "host");
 
   if (target === "sandbox") {
     if (!normalizedSandbox) {
@@ -388,9 +389,10 @@ function shouldPreferHostForProfile(profileName: string | undefined) {
 export function createBrowserTool(opts?: {
   sandboxBridgeUrl?: string;
   allowHostControl?: boolean;
+  preferSandbox?: boolean;
   agentSessionKey?: string;
 }): AnyAgentTool {
-  const targetDefault = opts?.sandboxBridgeUrl ? "sandbox" : "host";
+  const targetDefault = opts?.preferSandbox || opts?.sandboxBridgeUrl ? "sandbox" : "host";
   const hostHint =
     opts?.allowHostControl === false ? "Host target blocked by policy." : "Host target allowed.";
   return {
@@ -436,6 +438,19 @@ export function createBrowserTool(opts?: {
         }
       }
 
+      if (
+        target === "host" &&
+        opts?.preferSandbox &&
+        !requestedNode &&
+        !isUserBrowserProfile
+      ) {
+        // Sandbox-first sessions must never fall back to the host browser just
+        // because a stale tool call or old transcript still says target="host".
+        // Coerce those calls into the sandbox and fail explicitly if the live
+        // bridge is not ready yet.
+        target = "sandbox";
+      }
+
       const nodeTarget = await resolveBrowserNodeTarget({
         requestedNode: requestedNode ?? undefined,
         target,
@@ -445,10 +460,11 @@ export function createBrowserTool(opts?: {
       const resolvedTarget = target === "node" ? undefined : target;
       const baseUrl = nodeTarget
         ? undefined
-        : resolveBrowserBaseUrl({
+          : resolveBrowserBaseUrl({
             target: resolvedTarget,
             sandboxBridgeUrl: opts?.sandboxBridgeUrl,
             allowHostControl: opts?.allowHostControl,
+            preferSandbox: opts?.preferSandbox,
           });
       const trackingBaseUrl = nodeTarget
         ? undefined

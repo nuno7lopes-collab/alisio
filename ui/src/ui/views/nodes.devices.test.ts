@@ -908,6 +908,32 @@ describe("nodes devices pending rendering", () => {
     expect(refreshButtons).not.toContain("Loading…");
   });
 
+  it("loads execution routing only when the bindings section is expanded", () => {
+    const onLoadConfig = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          onLoadConfig,
+        }),
+      ),
+      container,
+    );
+
+    expect(onLoadConfig).not.toHaveBeenCalled();
+
+    const bindingsSection = container.querySelector<HTMLDetailsElement>(
+      ".alisio-connections-runtime-stack .alisio-connections-subpanel--collapsible",
+    );
+    expect(bindingsSection).toBeTruthy();
+
+    bindingsSection!.open = true;
+    bindingsSection!.dispatchEvent(new Event("toggle"));
+
+    expect(onLoadConfig).toHaveBeenCalledOnce();
+  });
+
   it("renders pending node approvals with approve and reject actions", () => {
     const container = document.createElement("div");
 

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
 
 vi.mock("./workspace.js", () => ({
-  loadWorkspaceBootstrapFiles: vi.fn(),
+  loadWorkspaceBootstrapSnapshot: vi.fn(),
 }));
 
 function makeFile(name: string, content: string): WorkspaceBootstrapFile {
@@ -14,13 +14,20 @@ function makeFile(name: string, content: string): WorkspaceBootstrapFile {
   };
 }
 
+function makeSnapshot(
+  files: WorkspaceBootstrapFile[],
+  fingerprint: string,
+): Awaited<ReturnType<typeof import("./workspace.js").loadWorkspaceBootstrapSnapshot>> {
+  return { files, fingerprint };
+}
+
 describe("getOrLoadBootstrapFiles", () => {
   const files = [makeFile("AGENTS.md", "# Agent"), makeFile("SOUL.md", "# Soul")];
   let clearAllBootstrapSnapshots: typeof import("./bootstrap-cache.js").clearAllBootstrapSnapshots;
   let getOrLoadBootstrapFiles: typeof import("./bootstrap-cache.js").getOrLoadBootstrapFiles;
   let workspaceModule: typeof import("./workspace.js");
 
-  const mockLoad = () => vi.mocked(workspaceModule.loadWorkspaceBootstrapFiles);
+  const mockLoad = () => vi.mocked(workspaceModule.loadWorkspaceBootstrapSnapshot);
 
   beforeEach(async () => {
     vi.resetModules();
@@ -28,7 +35,7 @@ describe("getOrLoadBootstrapFiles", () => {
       await import("./bootstrap-cache.js"));
     workspaceModule = await import("./workspace.js");
     clearAllBootstrapSnapshots();
-    mockLoad().mockResolvedValue(files);
+    mockLoad().mockResolvedValue(makeSnapshot(files, "fp-1"));
   });
 
   afterEach(() => {
@@ -46,17 +53,39 @@ describe("getOrLoadBootstrapFiles", () => {
     expect(mockLoad()).toHaveBeenCalledTimes(1);
   });
 
-  it("returns cached result on second call", async () => {
-    await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
+  it("returns the cached snapshot when the fingerprint is unchanged", async () => {
+    const sameFingerprintFiles = [makeFile("AGENTS.md", "# Agent clone")];
+    mockLoad()
+      .mockResolvedValueOnce(makeSnapshot(files, "fp-stable"))
+      .mockResolvedValueOnce(makeSnapshot(sameFingerprintFiles, "fp-stable"));
+
+    const first = await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
     const result = await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
 
+    expect(first).toBe(files);
     expect(result).toBe(files);
-    expect(mockLoad()).toHaveBeenCalledTimes(1);
+    expect(mockLoad()).toHaveBeenCalledTimes(2);
+  });
+
+  it("refreshes the cached snapshot when the fingerprint changes", async () => {
+    const files2 = [makeFile("AGENTS.md", "# Agent v2")];
+    mockLoad()
+      .mockResolvedValueOnce(makeSnapshot(files, "fp-1"))
+      .mockResolvedValueOnce(makeSnapshot(files2, "fp-2"));
+
+    const first = await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
+    const second = await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
+
+    expect(first).toBe(files);
+    expect(second).toBe(files2);
+    expect(mockLoad()).toHaveBeenCalledTimes(2);
   });
 
   it("different session keys get independent caches", async () => {
     const files2 = [makeFile("AGENTS.md", "# Agent v2")];
-    mockLoad().mockResolvedValueOnce(files).mockResolvedValueOnce(files2);
+    mockLoad()
+      .mockResolvedValueOnce(makeSnapshot(files, "fp-1"))
+      .mockResolvedValueOnce(makeSnapshot(files2, "fp-2"));
 
     const r1 = await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-1" });
     const r2 = await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "session-2" });
@@ -73,7 +102,7 @@ describe("clearBootstrapSnapshot", () => {
   let getOrLoadBootstrapFiles: typeof import("./bootstrap-cache.js").getOrLoadBootstrapFiles;
   let workspaceModule: typeof import("./workspace.js");
 
-  const mockLoad = () => vi.mocked(workspaceModule.loadWorkspaceBootstrapFiles);
+  const mockLoad = () => vi.mocked(workspaceModule.loadWorkspaceBootstrapSnapshot);
 
   beforeEach(async () => {
     vi.resetModules();
@@ -81,7 +110,7 @@ describe("clearBootstrapSnapshot", () => {
       await import("./bootstrap-cache.js"));
     workspaceModule = await import("./workspace.js");
     clearAllBootstrapSnapshots();
-    mockLoad().mockResolvedValue([makeFile("AGENTS.md", "content")]);
+    mockLoad().mockResolvedValue(makeSnapshot([makeFile("AGENTS.md", "content")], "fp-1"));
   });
 
   afterEach(() => {
@@ -106,6 +135,6 @@ describe("clearBootstrapSnapshot", () => {
 
     // sk2 should still be cached.
     await getOrLoadBootstrapFiles({ workspaceDir: "/ws", sessionKey: "sk2" });
-    expect(mockLoad()).toHaveBeenCalledTimes(2); // sk1 x1, sk2 x1
+    expect(mockLoad()).toHaveBeenCalledTimes(3);
   });
 });

@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -316,6 +319,37 @@ describe("user prompt canonicalization helpers", () => {
     expect(matched?.id).toBe(latestUserId);
   });
 
+  it("matches the latest user turn by stripped persisted text when the stored prompt contains inbound metadata", () => {
+    const sessionManager = SessionManager.inMemory();
+    const [, latestUserId] = appendSessionMessages(sessionManager, [
+      asAppendMessage({
+        role: "assistant",
+        content: createTextContent("older answer"),
+        timestamp: 1,
+      }),
+      asAppendMessage({
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text:
+              'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
+          },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+        ],
+        timestamp: 2,
+      }),
+    ]);
+
+    const matched = findLatestUserMessageEntryMatchingPrompt({
+      sessionManager,
+      promptText: "System prompt facing wrapper that no longer matches the stored turn",
+      candidateTexts: ["abre o google"],
+    });
+
+    expect(matched?.id).toBe(latestUserId);
+  });
+
   it("replaces only the text blocks while preserving user media blocks", () => {
     const rewritten = replaceUserMessageTextPreservingMedia(
       {
@@ -360,6 +394,38 @@ describe("user prompt canonicalization helpers", () => {
       role: "user",
       content: [{ type: "text", text: "ola" }],
       timestamp: 3,
+    });
+  });
+
+  it("rewrites the latest matching user prompt by stripped persisted text in in-memory snapshots", () => {
+    const messages = rewriteLatestUserPromptInMessages({
+      messages: [
+        { role: "assistant", content: createTextContent("older answer"), timestamp: 1 },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text:
+                'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
+            },
+            { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+          ],
+          timestamp: 2,
+        },
+      ] as AgentMessage[],
+      promptText: "model-facing prompt wrapper that differs from the persisted transcript",
+      candidateTexts: ["abre o google"],
+      replacementText: "abre o google",
+    });
+
+    expect(messages.at(-1)).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "abre o google" },
+        { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+      ],
+      timestamp: 2,
     });
   });
 });
@@ -477,10 +543,75 @@ describe("restoreTranscriptLeafInSessionFile", () => {
       });
       expect(acquireSessionWriteLockReleaseMock).toHaveBeenCalledTimes(1);
       expect(listener).toHaveBeenCalledWith({ sessionFile });
-      expect(sessionManager.getLeafEntry()?.id).toBe(targetEntryId);
+      expect(getBranchMessages(sessionManager).map((message) => message.role)).toEqual([
+        "user",
+        "assistant",
+      ]);
+      expect(sessionManager.getLeafEntry()).toMatchObject({
+        type: "custom",
+        customType: "alisio:transcript-rewind",
+        parentId: targetEntryId,
+      });
     } finally {
       cleanup();
       openSpy.mockRestore();
+    }
+  });
+
+  it("persists the rewound leaf by appending a non-LLM custom anchor entry", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-transcript-rewind-"));
+    const sessionManager = SessionManager.create(tempRoot, tempRoot);
+    const sessionFile = sessionManager.getSessionFile()!;
+    const [userEntryId, assistantEntryId] = appendSessionMessages(sessionManager, [
+      asAppendMessage({
+        role: "user",
+        content: "abre o google",
+        timestamp: 1,
+      }),
+      asAppendMessage({
+        role: "assistant",
+        content: createTextContent("Abri o Google."),
+        timestamp: 2,
+      }),
+    ]);
+    const replayedUserEntryId = sessionManager.appendMessage(
+      asAppendMessage({
+        role: "user",
+        content: "abre o google",
+        timestamp: 3,
+      }),
+    );
+
+    expect(userEntryId).toBeTruthy();
+    expect(assistantEntryId).toBeTruthy();
+    expect(replayedUserEntryId).toBeTruthy();
+
+    try {
+      const result = await restoreTranscriptLeafInSessionFile({
+        sessionFile,
+        sessionKey: "main",
+        targetEntryId: assistantEntryId,
+      });
+
+      expect(result).toMatchObject({
+        changed: true,
+        restoredToEntryId: assistantEntryId,
+      });
+
+      const reopened = SessionManager.open(sessionFile);
+      const branch = reopened.getBranch();
+      expect(branch.map((entry) => entry.type)).toEqual(["message", "message", "custom"]);
+      expect(branch.at(-1)).toMatchObject({
+        type: "custom",
+        customType: "alisio:transcript-rewind",
+        parentId: assistantEntryId,
+      });
+      expect(reopened.buildSessionContext().messages).toEqual([
+        { role: "user", content: "abre o google", timestamp: 1 },
+        { role: "assistant", content: createTextContent("Abri o Google."), timestamp: 2 },
+      ]);
+    } finally {
+      await fs.rm(tempRoot, { recursive: true, force: true });
     }
   });
 });

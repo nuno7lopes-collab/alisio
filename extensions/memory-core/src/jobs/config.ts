@@ -9,18 +9,6 @@ const MAX_SLICE_MS = 250;
 const MIN_IDLE_WINDOW_MS = 250;
 const MIN_POLL_INTERVAL_MS = 100;
 
-type MemoryJobsConfigShape = {
-  memory?: {
-    jobs?: {
-      enabled?: boolean;
-      maxSliceMs?: number;
-      autoSleep?: {
-        enabled?: boolean;
-      };
-    };
-  };
-};
-
 function coerceInteger(value: unknown, fallback: number, min: number, max?: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return fallback;
@@ -36,8 +24,7 @@ function coerceInteger(value: unknown, fallback: number, min: number, max?: numb
 }
 
 export function resolveMemoryJobsFeatureFlags(cfg: AlisioConfig): MemoryJobsFeatureFlags {
-  const memory = (cfg as AlisioConfig & MemoryJobsConfigShape).memory;
-  const jobs = memory?.jobs;
+  const jobs = cfg.memory?.jobs;
   const maxSliceMs = coerceInteger(
     jobs?.maxSliceMs,
     DEFAULT_MAX_SLICE_MS,

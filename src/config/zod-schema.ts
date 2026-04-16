@@ -124,6 +124,12 @@ const MemoryLegacyMarkdownProjectionSchema = z
   })
   .strict();
 
+const MemoryMarkdownProjectionSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+
 const MemoryCrdtPagesSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -167,15 +173,31 @@ const MemorySyncSchema = z
   })
   .strict();
 
+const MemoryJobsAutoSleepSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+
+const MemoryJobsSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    maxSliceMs: z.number().int().positive().optional(),
+    autoSleep: MemoryJobsAutoSleepSchema.optional(),
+  })
+  .strict();
+
 const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
     ledger: MemoryLedgerSchema.optional(),
+    markdownProjection: MemoryMarkdownProjectionSchema.optional(),
     legacyMarkdownProjection: MemoryLegacyMarkdownProjectionSchema.optional(),
     crdt: MemoryCrdtSchema.optional(),
     e2ee: MemoryE2eeSchema.optional(),
     sync: MemorySyncSchema.optional(),
+    jobs: MemoryJobsSchema.optional(),
     qmd: MemoryQmdSchema.optional(),
   })
   .strict()

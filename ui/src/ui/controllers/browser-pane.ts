@@ -145,6 +145,25 @@ export function readBrowserPaneObserver(value: unknown): BrowserPaneObserver | n
   return normalizeBrowserPaneObserver(value);
 }
 
+export function getBrowserPaneObserverIdentity(
+  observer: BrowserPaneObserver | null | undefined,
+): string | null {
+  if (!observer?.url) {
+    return null;
+  }
+  const trimmed = observer.url.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return `${observer.kind}:${parsed.origin}${parsed.pathname}`;
+  } catch {
+    const base = trimmed.split("#", 1)[0]?.split("?", 1)[0]?.trim() || trimmed;
+    return base ? `${observer.kind}:${base}` : null;
+  }
+}
+
 function readBrowserPaneObserverFieldState(value: unknown): BrowserPaneObserverFieldState {
   if (!value || typeof value !== "object") {
     return { present: false, observer: null };

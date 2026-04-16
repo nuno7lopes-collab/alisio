@@ -1,6 +1,11 @@
 import { type AlisioConfig, loadConfig } from "../config/config.js";
+import {
+  ensureAlisioDynamicProviderSource,
+  listAlisioDynamicCatalogEntries,
+} from "../infra/alisio-model-providers.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { augmentModelCatalogWithProviderPlugins } from "../plugins/provider-runtime.runtime.js";
+import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
 import { resolveAlisioAgentDir } from "./agent-paths.js";
 import { ensureAlisioModelsJson } from "./models-config.js";
 import { normalizeProviderId } from "./provider-id.js";
@@ -55,6 +60,26 @@ function normalizeConfiguredModelInput(input: unknown): ModelInputType[] | undef
     (item): item is ModelInputType => item === "text" || item === "image" || item === "document",
   );
   return normalized.length > 0 ? normalized : undefined;
+}
+
+function modelCatalogEntryKey(provider: string, modelId: string): string {
+  return `${normalizeProviderId(provider)}::${modelId.toLowerCase().trim()}`;
+}
+
+function sortModelCatalogEntries(entries: ModelCatalogEntry[]): ModelCatalogEntry[] {
+  return entries.toSorted((left, right) => {
+    const provider = (left.providerLabel ?? left.provider).localeCompare(
+      right.providerLabel ?? right.provider,
+    );
+    if (provider !== 0) {
+      return provider;
+    }
+    const name = left.name.localeCompare(right.name);
+    if (name !== 0) {
+      return name;
+    }
+    return left.id.localeCompare(right.id);
+  });
 }
 
 function readConfiguredOptInProviderModels(config: AlisioConfig): ModelCatalogEntry[] {
@@ -163,14 +188,6 @@ export async function loadModelCatalog(params?: {
       const suffix = extra ? ` ${extra}` : "";
       log.info(`model-catalog stage=${stage} elapsedMs=${Date.now() - startMs}${suffix}`);
     };
-    const sortModels = (entries: ModelCatalogEntry[]) =>
-      entries.sort((a, b) => {
-        const p = a.provider.localeCompare(b.provider);
-        if (p !== 0) {
-          return p;
-        }
-        return a.name.localeCompare(b.name);
-      });
     try {
       const cfg = params?.config ?? loadConfig();
       await ensureAlisioModelsJson(cfg);
@@ -255,7 +272,7 @@ export async function loadModelCatalog(params?: {
         modelCatalogPromise = null;
       }
 
-      const sorted = sortModels(models);
+      const sorted = sortModelCatalogEntries(models);
       logStage("complete", `entries=${sorted.length}`);
       return sorted;
     } catch (error) {
@@ -266,13 +283,46 @@ export async function loadModelCatalog(params?: {
       // Don't poison the cache on transient dependency/filesystem issues.
       modelCatalogPromise = null;
       if (models.length > 0) {
-        return sortModels(models);
+        return sortModelCatalogEntries(models);
       }
       return [];
     }
   })();
 
   return modelCatalogPromise;
+}
+
+export async function loadMergedRuntimeModelCatalog(params?: {
+  config?: AlisioConfig;
+  useCache?: boolean;
+  dynamicProviderIds?: readonly string[];
+}): Promise<ModelCatalogEntry[]> {
+  for (const providerId of params?.dynamicProviderIds ?? []) {
+    if (!isAlisioDynamicProvider(providerId)) {
+      continue;
+    }
+    await ensureAlisioDynamicProviderSource(providerId);
+  }
+
+  const configuredCatalog = await loadModelCatalog({
+    config: params?.config,
+    useCache: params?.useCache,
+  });
+  const dynamicCatalog = listAlisioDynamicCatalogEntries();
+  if (dynamicCatalog.length === 0) {
+    return configuredCatalog;
+  }
+
+  const merged = new Map<string, ModelCatalogEntry>();
+  for (const entry of [...configuredCatalog, ...dynamicCatalog]) {
+    const key = modelCatalogEntryKey(entry.provider, entry.id);
+    if (merged.has(key)) {
+      continue;
+    }
+    merged.set(key, entry);
+  }
+
+  return sortModelCatalogEntries([...merged.values()]);
 }
 
 /**

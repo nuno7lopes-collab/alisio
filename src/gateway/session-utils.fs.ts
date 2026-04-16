@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { SessionManager } from "@mariozechner/pi-coding-agent";
 import { deriveSessionTotalTokens, hasNonzeroUsage, normalizeUsage } from "../agents/usage.js";
 import { jsonUtf8Bytes } from "../infra/json-utf8-bytes.js";
 import { hasInterSessionUserProvenance } from "../sessions/input-provenance.js";
@@ -111,6 +112,7 @@ export function readSessionMessages(
 
   const lines = fs.readFileSync(filePath, "utf-8").split(/\r?\n/);
   const messages: unknown[] = [];
+  let rawMessageCount = 0;
   let messageSeq = 0;
   for (const line of lines) {
     if (!line.trim()) {
@@ -119,6 +121,7 @@ export function readSessionMessages(
     try {
       const parsed = JSON.parse(line);
       if (parsed?.message) {
+        rawMessageCount += 1;
         messageSeq += 1;
         messages.push(
           attachAlisioTranscriptMeta(parsed.message, {
@@ -153,6 +156,25 @@ export function readSessionMessages(
     } catch {
       // ignore bad lines
     }
+  }
+
+  try {
+    const branch = SessionManager.open(filePath).getBranch();
+    const branchMessages = branch.filter((entry) => entry.type === "message");
+    // When the raw JSONL contains abandoned retry branches, prefer the active
+    // transcript branch so chat.history does not replay duplicate user turns.
+    if (branchMessages.length > 0 && rawMessageCount > branchMessages.length) {
+      let branchSeq = 0;
+      return branchMessages.map((entry) => {
+        branchSeq += 1;
+        return attachAlisioTranscriptMeta(entry.message, {
+          id: entry.id,
+          seq: branchSeq,
+        });
+      });
+    }
+  } catch {
+    // Fall back to the raw JSONL scan if SessionManager cannot parse the transcript.
   }
   return messages;
 }

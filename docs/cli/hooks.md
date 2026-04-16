@@ -272,7 +272,7 @@ Saves session context to memory when you issue `/new` or `/reset`.
 alisio hooks enable session-memory
 ```
 
-**Output:** `~/.alisio/workspace/memory/YYYY-MM-DD-slug.md`
+**Output:** `~/.alisio/workspace/memory/YYYY-MM-DD.md`
 
 **See:** [session-memory documentation](/automation/hooks#session-memory)
 

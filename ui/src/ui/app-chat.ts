@@ -363,7 +363,10 @@ function accessModeLabel(mode: SecurityAccessMode) {
 
 function handleLocalTasksCommand(host: ChatHost) {
   host.onSlashAction?.("open-tasks");
-  injectCommandResult(host, "**Tasks**\n\nOpened the task inbox and background task view.");
+  injectCommandResult(
+    host,
+    `**${t("chat.localCommands.tasksTitle")}**\n\n${t("chat.localCommands.tasksBody")}`,
+  );
 }
 
 async function handleLocalSecurityCommand(host: ChatHost, name: string, args: string) {
@@ -397,13 +400,13 @@ async function handleLocalSecurityCommand(host: ChatHost, name: string, args: st
   if (!nextMode) {
     injectCommandResult(
       host,
-      `Unknown security mode \`${action}\`. Use \`/permissions status\`, \`/permissions safe\`, \`/permissions full\`, or \`/permissions advanced\`.`,
+      t("chat.localCommands.unknownSecurityMode", { action }),
     );
     return;
   }
 
   if (!host.connected || !host.client) {
-    injectCommandResult(host, "Connect to Alisio before changing the access profile.");
+    injectCommandResult(host, t("chat.localCommands.connectBeforeSecurityChange"));
     return;
   }
 
@@ -417,7 +420,7 @@ async function handleLocalSecurityCommand(host: ChatHost, name: string, args: st
     if (accessProfileError) {
       injectCommandResult(
         host,
-        "Failed to change the access profile: " + String(accessProfileError),
+        t("chat.localCommands.securityChangeFailed", { error: String(accessProfileError) }),
       );
       return;
     }
@@ -430,7 +433,10 @@ async function handleLocalSecurityCommand(host: ChatHost, name: string, args: st
       )}`,
     );
   } catch (err) {
-    injectCommandResult(host, `Failed to change the access profile: ${String(err)}`);
+    injectCommandResult(
+      host,
+      t("chat.localCommands.securityChangeFailed", { error: String(err) }),
+    );
   }
 }
 

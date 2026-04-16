@@ -76,6 +76,7 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
             chatFocusMode: false,
             chatShowThinking: true,
             chatShowToolCalls: true,
+            chatHideCronSessions: true,
             splitRatio: 0.6,
             navCollapsed: false,
             navWidth: 280,

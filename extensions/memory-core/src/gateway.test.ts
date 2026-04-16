@@ -59,6 +59,7 @@ describe("memory graph gateway handler", () => {
       lastSyncedLamport: 5,
       e2eeRequired: true,
       scope: "local",
+      mode: "focus",
       nodes: [],
       edges: [],
       branches: [],
@@ -119,7 +120,7 @@ describe("memory graph gateway handler", () => {
     expect(close).toHaveBeenCalled();
   });
 
-  it("supports global graph requests without a search query", async () => {
+  it("supports overview graph requests without a search query", async () => {
     const close = vi.fn().mockResolvedValue(undefined);
     getMemorySearchManager.mockResolvedValue({
       manager: {
@@ -153,6 +154,7 @@ describe("memory graph gateway handler", () => {
       lastSyncedLamport: 5,
       e2eeRequired: true,
       scope: "global",
+      mode: "overview",
       nodes: [],
       edges: [],
       branches: [],
@@ -176,7 +178,7 @@ describe("memory graph gateway handler", () => {
       req: {} as never,
       params: {
         agentId: "main",
-        scope: "global",
+        scope: "overview",
         nodeLimit: 32,
         includeAttachments: true,
       },
@@ -197,12 +199,13 @@ describe("memory graph gateway handler", () => {
       true,
       expect.objectContaining({
         scope: "global",
+        mode: "overview",
       }),
       undefined,
     );
   });
 
-  it("rejects empty local-scope requests without a focus hint", async () => {
+  it("rejects empty focus-scope requests without a focus hint", async () => {
     const respond = vi.fn();
 
     await handleMemoryGraphGatewayRequest({
@@ -220,7 +223,30 @@ describe("memory graph gateway handler", () => {
       undefined,
       expect.objectContaining({
         code: "INVALID_REQUEST",
-        message: "memory.graph local scope requires pageId, entityId, or query",
+        message: "memory.graph focus scope requires pageId, entityId, or query",
+      }),
+    );
+  });
+
+  it("rejects invalid scope values", async () => {
+    const respond = vi.fn();
+
+    await handleMemoryGraphGatewayRequest({
+      req: {} as never,
+      params: { agentId: "main", scope: "sideways" },
+      client: null,
+      isWebchatConnect: () => false,
+      respond: respond as never,
+      context: {} as never,
+    });
+
+    expect(getMemorySearchManager).not.toHaveBeenCalled();
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: "memory.graph scope must be overview, focus, global, or local",
       }),
     );
   });

@@ -279,6 +279,28 @@ describe("tasks controller", () => {
       launched: 0,
     });
     expect(state.tasksOverview?.canonicalTasks).toEqual([]);
+    expect(state.tasksSelectedId).toBeNull();
+  });
+
+  it("maps the orchestrator runtime filter to the legacy overview contract", async () => {
+    const request = vi.fn().mockResolvedValue(
+      createOverview({
+        canonicalTasks: [createCanonicalTask("task-1")],
+      }),
+    );
+    const state = createState(request, {
+      tasksRuntimeFilter: "orchestrator_session",
+    });
+
+    await loadTasksOverview(state);
+
+    expect(request).toHaveBeenCalledWith("tasks.overview", {
+      runtime: "all",
+      status: "all",
+      query: undefined,
+      limit: 50,
+      offset: 0,
+    });
   });
 
   it("upserts then resolves a missing proposal before refreshing the overview", async () => {

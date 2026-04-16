@@ -307,7 +307,7 @@ export async function performGatewaySessionReset(params: {
     const resetEntry = stripRuntimeModelState(currentEntry);
     const parsed = parseAgentSessionKey(primaryKey);
     const sessionAgentId = normalizeAgentId(parsed?.agentId ?? resolveDefaultAgentId(cfg));
-    const resolvedModel = resolveSessionModelRef(cfg, resetEntry, sessionAgentId);
+    const resolvedModel = resolveSessionModelRef(cfg, resetEntry, sessionAgentId, primaryKey);
     oldSessionId = currentEntry?.sessionId;
     oldSessionFile = currentEntry?.sessionFile;
     const now = Date.now();

@@ -13,7 +13,7 @@ import {
   inferUniqueProviderFromConfiguredModels,
   parseModelRef,
   resolveConfiguredModelRef,
-  resolveDefaultModelForAgent,
+  resolveDefaultModelForSession,
 } from "../agents/model-selection.js";
 import { resolvePersonWorkspaceSummary } from "../agents/person-agent.js";
 import { getActiveEmbeddedRunSnapshot } from "../agents/pi-embedded-runner/runs.js";
@@ -1115,10 +1115,11 @@ export function loadCombinedSessionStoreForGateway(cfg: AlisioConfig): {
 }
 
 export function getSessionDefaults(cfg: AlisioConfig): GatewaySessionsDefaults {
-  const resolved = resolveConfiguredModelRef({
+  const defaultAgentId = resolveDefaultAgentId(cfg);
+  const resolved = resolveDefaultModelForSession({
     cfg,
-    defaultProvider: DEFAULT_PROVIDER,
-    defaultModel: DEFAULT_MODEL,
+    agentId: defaultAgentId,
+    sessionKey: resolveAgentMainSessionKey({ agentId: defaultAgentId, cfg }),
   });
   const contextTokens =
     cfg.agents?.defaults?.contextTokens ??
@@ -1137,9 +1138,10 @@ export function resolveSessionModelRef(
     | SessionEntry
     | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">,
   agentId?: string,
+  sessionKey?: string,
 ): { provider: string; model: string } {
   const resolved = agentId
-    ? resolveDefaultModelForAgent({ cfg, agentId })
+    ? resolveDefaultModelForSession({ cfg, agentId, sessionKey })
     : resolveConfiguredModelRef({
         cfg,
         defaultProvider: DEFAULT_PROVIDER,
@@ -1196,6 +1198,7 @@ export function resolveSessionModelIdentityRef(
     | Pick<SessionEntry, "model" | "modelProvider" | "modelOverride" | "providerOverride">,
   agentId?: string,
   fallbackModelRef?: string,
+  sessionKey?: string,
 ): { provider?: string; model: string } {
   const runtimeModel = entry?.model?.trim();
   const runtimeProvider = entry?.modelProvider?.trim();
@@ -1234,7 +1237,7 @@ export function resolveSessionModelIdentityRef(
     }
     return { model: fallbackRef };
   }
-  const resolved = resolveSessionModelRef(cfg, entry, agentId);
+  const resolved = resolveSessionModelRef(cfg, entry, agentId, sessionKey);
   return { provider: resolved.provider, model: resolved.model };
 }
 
@@ -1288,6 +1291,7 @@ export function buildGatewaySessionRow(params: {
     entry,
     sessionAgentId,
     subagentRun?.model,
+    key,
   );
   const runtimeModelPresent =
     Boolean(entry?.model?.trim()) || Boolean(entry?.modelProvider?.trim());

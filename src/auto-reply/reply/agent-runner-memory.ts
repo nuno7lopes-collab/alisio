@@ -25,6 +25,10 @@ import {
 import { readSessionMessages } from "../../gateway/session-utils.fs.js";
 import { logVerbose } from "../../globals.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
+import {
+  readWorkspaceMemoryFileText,
+  syncDailyMemoryThroughCanonicalPipeline,
+} from "../../memory/daily-memory.js";
 import { resolveMemoryFlushPlan } from "../../plugins/memory-state.js";
 import type { TemplateContext } from "../templating.js";
 import type { VerboseLevel } from "../thinking.js";
@@ -34,8 +38,11 @@ import {
   resolveModelFallbackOptions,
 } from "./agent-runner-utils.js";
 import {
+  computeMemoryFlushContextHash,
+  didCompactionEventComplete,
   hasAlreadyFlushedForCurrentCompaction,
   resolveMemoryFlushContextWindowTokens,
+  shouldSkipMemoryFlushByContextHash,
   shouldRunMemoryFlush,
   shouldRunPreflightCompaction,
 } from "./memory-flush.js";
@@ -280,6 +287,27 @@ function estimatePromptTokensFromSessionTranscript(params: {
   } catch {
     return undefined;
   }
+}
+
+function resolveMemoryFlushContextHashFromSession(params: {
+  sessionId?: string;
+  storePath?: string;
+  sessionFile?: string;
+  pendingPrompt?: string;
+}): string | undefined {
+  const sessionId = params.sessionId?.trim();
+  let messages: AgentMessage[] = [];
+  if (sessionId) {
+    try {
+      messages = readSessionMessages(sessionId, params.storePath, params.sessionFile) as AgentMessage[];
+    } catch {
+      messages = [];
+    }
+  }
+  return computeMemoryFlushContextHash({
+    messages,
+    pendingPrompt: params.pendingPrompt,
+  });
 }
 
 export async function readPromptTokensFromSessionLog(
@@ -645,6 +673,25 @@ export async function runMemoryFlushIfNeeded(params: {
     return entry ?? params.sessionEntry;
   }
 
+  const pendingPrompt = params.promptForEstimate ?? params.followupRun.prompt;
+  const preFlushContextHash = resolveMemoryFlushContextHashFromSession({
+    sessionId: entry?.sessionId ?? params.followupRun.run.sessionId,
+    storePath: params.storePath,
+    sessionFile: entry?.sessionFile ?? params.followupRun.run.sessionFile,
+    pendingPrompt,
+  });
+  if (
+    shouldSkipMemoryFlushByContextHash({
+      previousHash: entry?.memoryFlushContextHash,
+      currentHash: preFlushContextHash,
+    })
+  ) {
+    logVerbose(
+      `memoryFlush skipped: sessionKey=${params.sessionKey} reason=context-hash-match hash=${preFlushContextHash}`,
+    );
+    return entry ?? params.sessionEntry;
+  }
+
   logVerbose(
     `memoryFlush triggered: sessionKey=${params.sessionKey} tokenCount=${tokenCountForFlush ?? "undefined"} threshold=${flushThreshold}`,
   );
@@ -670,6 +717,15 @@ export async function runMemoryFlushIfNeeded(params: {
       nowMs: memoryFlushNowMs,
     }) ?? memoryFlushPlan;
   const memoryFlushWritePath = activeMemoryFlushPlan.relativePath;
+  const workspaceDir = params.followupRun.run.workspaceDir;
+  const memoryAgentId = params.followupRun.run.agentId;
+  const memoryFlushFileBefore = await readWorkspaceMemoryFileText({
+    workspaceDir,
+    relativePath: memoryFlushWritePath,
+  }).catch((err) => {
+    logVerbose(`memory flush pre-read failed (${memoryFlushWritePath}): ${String(err)}`);
+    return undefined;
+  });
   const flushSystemPrompt = [
     params.followupRun.run.extraSystemPrompt,
     activeMemoryFlushPlan.systemPrompt,
@@ -705,11 +761,15 @@ export async function runMemoryFlushIfNeeded(params: {
           bootstrapPromptWarningSignature:
             bootstrapPromptWarningSignaturesSeen[bootstrapPromptWarningSignaturesSeen.length - 1],
           onAgentEvent: (evt) => {
-            if (evt.stream === "compaction") {
-              const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-              if (phase === "end" && evt.data?.willRetry !== true) {
-                memoryCompactionCompleted = true;
-              }
+            if (
+              evt.stream === "compaction" &&
+              didCompactionEventComplete({
+                phase: typeof evt.data?.phase === "string" ? evt.data.phase : undefined,
+                completed: evt.data?.completed === true,
+                willRetry: evt.data?.willRetry === true,
+              })
+            ) {
+              memoryCompactionCompleted = true;
             }
           },
         });
@@ -756,6 +816,12 @@ export async function runMemoryFlushIfNeeded(params: {
         memoryFlushCompactionCount = nextCount;
       }
     }
+    const memoryFlushContextHash = resolveMemoryFlushContextHashFromSession({
+      sessionId: activeSessionEntry?.sessionId ?? params.followupRun.run.sessionId,
+      storePath: params.storePath,
+      sessionFile: activeSessionEntry?.sessionFile ?? params.followupRun.run.sessionFile,
+      pendingPrompt,
+    });
     if (params.storePath && params.sessionKey) {
       try {
         const updatedEntry = await updateSessionStoreEntry({
@@ -764,10 +830,14 @@ export async function runMemoryFlushIfNeeded(params: {
           update: async () => ({
             memoryFlushAt: Date.now(),
             memoryFlushCompactionCount,
+            memoryFlushContextHash,
           }),
         });
         if (updatedEntry) {
           activeSessionEntry = updatedEntry;
+          if (activeSessionStore) {
+            activeSessionStore[params.sessionKey] = updatedEntry;
+          }
           params.followupRun.run.sessionId = updatedEntry.sessionId;
           if (updatedEntry.sessionFile) {
             params.followupRun.run.sessionFile = updatedEntry.sessionFile;
@@ -776,9 +846,39 @@ export async function runMemoryFlushIfNeeded(params: {
       } catch (err) {
         logVerbose(`failed to persist memory flush metadata: ${String(err)}`);
       }
+    } else if (params.sessionKey && activeSessionStore) {
+      const cachedEntry = activeSessionStore[params.sessionKey] ?? activeSessionEntry;
+      if (cachedEntry) {
+        activeSessionEntry = {
+          ...cachedEntry,
+          memoryFlushAt: Date.now(),
+          memoryFlushCompactionCount,
+          memoryFlushContextHash,
+        };
+        activeSessionStore[params.sessionKey] = activeSessionEntry;
+      }
     }
   } catch (err) {
     logVerbose(`memory flush run failed: ${String(err)}`);
+  }
+
+  const memoryFlushFileAfter = await readWorkspaceMemoryFileText({
+    workspaceDir,
+    relativePath: memoryFlushWritePath,
+  }).catch((err) => {
+    logVerbose(`memory flush post-read failed (${memoryFlushWritePath}): ${String(err)}`);
+    return undefined;
+  });
+  if (memoryFlushFileAfter !== memoryFlushFileBefore) {
+    try {
+      await syncDailyMemoryThroughCanonicalPipeline({
+        cfg: params.cfg,
+        agentId: memoryAgentId,
+        reason: "memory-flush",
+      });
+    } catch (err) {
+      logVerbose(`memory flush canonical sync failed: ${String(err)}`);
+    }
   }
 
   return activeSessionEntry;

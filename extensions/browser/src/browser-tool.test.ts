@@ -358,9 +358,42 @@ describe("browser tool snapshot maxChars", () => {
     );
   });
 
-  it("rejects target=host when sandbox policy blocks host control", async () => {
+  it("coerces stale target=host calls back into the sandbox when host control is blocked", async () => {
     const tool = createBrowserTool({
       sandboxBridgeUrl: "http://127.0.0.1:9999",
+      allowHostControl: false,
+      preferSandbox: true,
+    });
+
+    await tool.execute?.("call-1", {
+      action: "status",
+      target: "host",
+    });
+
+    expect(browserClientMocks.browserStatus).toHaveBeenCalledWith("http://127.0.0.1:9999", {
+      profile: undefined,
+    });
+  });
+
+  it("coerces stale target=host calls back into the sandbox for sandbox-first sessions even when host control is allowed", async () => {
+    const tool = createBrowserTool({
+      sandboxBridgeUrl: "http://127.0.0.1:9999",
+      allowHostControl: true,
+      preferSandbox: true,
+    });
+
+    await tool.execute?.("call-1", {
+      action: "status",
+      target: "host",
+    });
+
+    expect(browserClientMocks.browserStatus).toHaveBeenCalledWith("http://127.0.0.1:9999", {
+      profile: undefined,
+    });
+  });
+
+  it("still rejects target=host when sandbox policy blocks host control and no sandbox is live", async () => {
+    const tool = createBrowserTool({
       allowHostControl: false,
     });
 
@@ -370,6 +403,21 @@ describe("browser tool snapshot maxChars", () => {
         target: "host",
       }),
     ).rejects.toThrow(/Host browser control is disabled by sandbox policy/i);
+  });
+
+  it("fails explicitly instead of falling back to host when a sandbox-first session has no live bridge yet", async () => {
+    const tool = createBrowserTool({
+      allowHostControl: true,
+      preferSandbox: true,
+    });
+
+    await expect(
+      tool.execute?.("call-1", {
+        action: "status",
+      }),
+    ).rejects.toThrow(/Sandbox browser is unavailable/i);
+
+    expect(browserClientMocks.browserStatus).not.toHaveBeenCalled();
   });
 
   it("defaults to host for custom existing-session profiles too", async () => {

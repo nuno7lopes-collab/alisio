@@ -50,6 +50,9 @@ function createState(overrides: Partial<CronState> = {}): CronState {
     cronRunsQuery: "",
     cronRunsSortDir: "desc",
     cronBusy: false,
+    cronCalendarMode: "week",
+    cronCalendarCursorMs: Date.now(),
+    cronCalendarSelectedDayMs: Date.now(),
     ...overrides,
   };
 }

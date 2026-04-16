@@ -343,6 +343,7 @@ export async function createGatewaySessionEntry(params: {
   agentId?: string | null;
   label?: string | null;
   model?: string | null;
+  extraSystemPrompt?: string | null;
   parentSessionKey?: string | null;
   conversationMode?: CreatedSessionConversationMode;
 }) {
@@ -403,6 +404,9 @@ export async function createGatewaySessionEntry(params: {
     const nextEntry: SessionEntry = {
       ...patched.entry,
       parentSessionKey: canonicalParentSessionKey,
+      ...(typeof params.extraSystemPrompt === "string" && params.extraSystemPrompt.trim()
+        ? { extraSystemPrompt: params.extraSystemPrompt.trim() }
+        : {}),
       ...buildCreatedSessionConversationPatch({
         key: target.canonicalKey,
         entry: {
@@ -472,6 +476,7 @@ export async function sendGatewaySessionMessage(params: {
   storePath: string;
   entry: SessionEntry;
   message: string;
+  extraSystemPrompt?: string;
   idempotencyKey?: string;
 }) {
   const runState: {
@@ -487,6 +492,7 @@ export async function sendGatewaySessionMessage(params: {
     params: {
       sessionKey: params.sessionKey,
       message: params.message,
+      extraSystemPrompt: params.extraSystemPrompt,
       idempotencyKey: params.idempotencyKey ?? randomUUID(),
     },
     respond: (ok, payload, error, meta) => {
@@ -1122,7 +1128,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     const parsed = parseAgentSessionKey(target.canonicalKey ?? key);
     const agentId = normalizeAgentId(parsed?.agentId ?? resolveDefaultAgentId(cfg));
-    const resolved = resolveSessionModelRef(cfg, applied.entry, agentId);
+    const resolved = resolveSessionModelRef(cfg, applied.entry, agentId, target.canonicalKey);
     const result: SessionsPatchResult = {
       ok: true,
       path: storePath,

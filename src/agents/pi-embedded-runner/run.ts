@@ -1111,6 +1111,7 @@ export async function runEmbeddedPiAgent(
               const status = resolveFailoverStatus(promptFailoverReason ?? "unknown");
               logPromptFailoverDecision("fallback_model", { status });
               await maybeBackoffBeforeOverloadFailover(promptFailoverReason);
+              await rewindTranscriptForRetry(attempt, "prompt_model_fallback");
               throw (
                 normalizedPromptFailover ??
                 new FailoverError(errorText, {
@@ -1232,6 +1233,7 @@ export async function runEmbeddedPiAgent(
 
             if (fallbackConfigured) {
               await maybeBackoffBeforeOverloadFailover(assistantFailoverReason);
+              await rewindTranscriptForRetry(attempt, "assistant_model_fallback");
               // Prefer formatted error message (user-friendly) over raw errorMessage
               const message =
                 (lastAssistant

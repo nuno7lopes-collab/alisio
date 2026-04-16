@@ -51,7 +51,13 @@ export type GaiaCheckpointResult = {
 export type GaiaSleepWriteFacade = {
   status: CanonicalMemoryStoreStatus;
   ensureReady(): Promise<CanonicalMemoryStoreStatus>;
-  writeEvents(events: readonly MemoryStateEventDraft[]): Promise<GaiaWriteResult>;
+  writeEvents(
+    events: readonly MemoryStateEventDraft[],
+    options?: {
+      materializeMarkdown?: boolean;
+      forceCheckpoint?: boolean;
+    },
+  ): Promise<GaiaWriteResult>;
   recordJobCheckpoint(record: JobCheckpointRecord): Promise<GaiaCheckpointResult>;
   readDashboard<T>(kind: string): T | undefined;
 };
@@ -120,7 +126,10 @@ export function createGaiaSleepWriteFacade(params: GaiaSleepRuntime): GaiaSleepW
 
   const writeEvents = async (
     events: readonly MemoryStateEventDraft[],
-    forceCheckpoint = false,
+    options?: {
+      materializeMarkdown?: boolean;
+      forceCheckpoint?: boolean;
+    },
   ): Promise<GaiaWriteResult> => {
     await ensureReady();
     const result = await memoryWriteEvent({
@@ -130,8 +139,8 @@ export function createGaiaSleepWriteFacade(params: GaiaSleepRuntime): GaiaSleepW
       backend: params.backend,
       env: params.env,
       events: [...events],
-      materializeMarkdown: false,
-      forceCheckpoint,
+      materializeMarkdown: options?.materializeMarkdown === true,
+      forceCheckpoint: options?.forceCheckpoint,
     });
     readyPromise = Promise.resolve(result.status);
     return {
@@ -182,7 +191,9 @@ export function createGaiaSleepWriteFacade(params: GaiaSleepRuntime): GaiaSleepW
             },
           },
         ],
-        record.requestCheckpoint === true,
+        {
+          forceCheckpoint: record.requestCheckpoint === true,
+        },
       );
 
       return {

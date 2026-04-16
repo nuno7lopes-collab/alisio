@@ -9,6 +9,7 @@ const PUBLIC_TABS = [
   "chat",
   "memory",
   "tasks",
+  "cron",
   "models",
   "channels",
   "capabilities",
@@ -26,6 +27,7 @@ export const TAB_GROUPS = [
       "chat",
       "memory",
       "tasks",
+      "cron",
       "models",
       "channels",
       "authentications",
@@ -76,6 +78,7 @@ const PUBLIC_TAB_PATHS: Record<PublicTab, string> = {
   chat: "/chat",
   memory: "/memory",
   tasks: "/tasks",
+  cron: "/cron",
   models: "/models",
   channels: "/channels",
   capabilities: "/capabilities",
@@ -237,6 +240,8 @@ export function iconForTab(tab: Tab): IconName {
       return "book";
     case "tasks":
       return "scrollText";
+    case "cron":
+      return "clock3";
     case "channels":
       return "radio";
     case "models":
@@ -268,6 +273,8 @@ export function titleForTab(tab: Tab) {
       return t("tabs.memory");
     case "tasks":
       return t("tabs.tasks");
+    case "cron":
+      return t("tabs.cron");
     case "models":
       return t("tabs.models");
     case "channels":
@@ -299,6 +306,8 @@ export function subtitleForTab(tab: Tab) {
       return t("subtitles.memory");
     case "tasks":
       return t("subtitles.tasks");
+    case "cron":
+      return t("subtitles.cron");
     case "models":
       return t("subtitles.models");
     case "channels":

@@ -144,16 +144,20 @@ describe("canonical memory store", () => {
         db.close();
       }
 
-      const materializedRoot = await fs.readFile(
-        path.join(test.stateDir, "workspace", "MEMORY.md"),
+      const materializedRoot = await fs.readFile(path.join(test.workspaceDir, "MEMORY.md"), "utf8");
+      const materializedAlpha = await fs.readFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
         "utf8",
       );
-      const materializedAlpha = await fs.readFile(
+      const mirroredRoot = await fs.readFile(path.join(test.stateDir, "workspace", "MEMORY.md"), "utf8");
+      const mirroredAlpha = await fs.readFile(
         path.join(test.stateDir, "workspace", "memory", "alpha.md"),
         "utf8",
       );
       expect(materializedRoot).toContain("[[memory/alpha]]");
       expect(materializedAlpha).toContain("Alpha line.");
+      expect(mirroredRoot).toContain("[[memory/alpha]]");
+      expect(mirroredAlpha).toContain("Alpha line.");
 
       const graph = queryCanonicalMemoryGraph({
         status,
@@ -165,6 +169,7 @@ describe("canonical memory store", () => {
       expect(graph.lastSyncedLamport).toBe(status.lastSyncedLamport);
       expect(graph.e2eeRequired).toBe(true);
       expect(graph.scope).toBe("local");
+      expect(graph.mode).toBe("focus");
       expect(graph.focus).toEqual(
         expect.objectContaining({
           pageId: focusId,
@@ -294,6 +299,7 @@ describe("canonical memory store", () => {
       });
 
       expect(graph.scope).toBe("global");
+      expect(graph.mode).toBe("overview");
       expect(new Set(graph.edges.map((edge) => edge.id)).size).toBe(graph.edges.length);
       expect(graph.edges).toEqual(
         expect.arrayContaining(
@@ -447,10 +453,90 @@ describe("canonical memory store", () => {
       }
 
       const materializedAlpha = await fs.readFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
+        "utf8",
+      );
+      const mirroredAlpha = await fs.readFile(
         path.join(test.stateDir, "workspace", "memory", "alpha.md"),
         "utf8",
       );
       expect(materializedAlpha).toContain("Two.");
+      expect(mirroredAlpha).toContain("Two.");
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
+
+  it("materializes visible workspace projections without the legacy mirror when disabled", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-workspace-only-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      const pageId = "page-workspace-only";
+      const writeResult = await memoryWriteEvent({
+        cfg: {
+          ...test.cfg,
+          memory: {
+            markdownProjection: {
+              enabled: true,
+            },
+            legacyMarkdownProjection: {
+              enabled: false,
+            },
+          },
+        } as AlisioConfig,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+        events: [
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PAGE_CREATED",
+            payload: {
+              pageId,
+              title: "Alpha",
+              slug: "alpha",
+              aliases: ["alpha"],
+              tags: ["project"],
+              createdAtMs: 1,
+              updatedAtMs: 1,
+            },
+          },
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "DOC_CRDT_SNAPSHOT",
+            payload: {
+              pageId,
+              yjsState: createDocStateFromMarkdown("# Alpha\n\nWorkspace only.\n"),
+            },
+          },
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PROJECTION_SET",
+            payload: {
+              pageId,
+              kind: `${["legacy", "markdown"].join("-")}:memory/alpha.md`,
+            },
+          },
+        ],
+      });
+
+      const materializedAlpha = await fs.readFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
+        "utf8",
+      );
+
+      expect(writeResult.status.ledgerEventsCount).toBe(3);
+      expect(materializedAlpha).toContain("Workspace only.");
+      await expect(
+        fs.readFile(path.join(test.stateDir, "workspace", "memory", "alpha.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });
     }
@@ -630,10 +716,15 @@ describe("canonical memory store", () => {
       expect(syncResult.status.e2eeRequired).toBe(true);
 
       const materialized = await fs.readFile(
+        path.join(target.workspaceDir, "memory", "synced-page.md"),
+        "utf8",
+      );
+      const mirrored = await fs.readFile(
         path.join(target.stateDir, "workspace", "memory", "synced-page.md"),
         "utf8",
       );
       expect(materialized).toContain("Ciphertext arrived.");
+      expect(mirrored).toContain("Ciphertext arrived.");
     } finally {
       vi.unstubAllEnvs();
       await fs.rm(source.root, { recursive: true, force: true });

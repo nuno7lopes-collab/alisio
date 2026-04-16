@@ -46,6 +46,7 @@ final class GatewayProcessManager {
     #if DEBUG
     private var testingConnection: GatewayConnection?
     private var testingSkipControlChannelRefresh = false
+    private var testingExistingGatewayRecoveryHook: (@Sendable () async -> Void)?
     #endif
     private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.process")
 
@@ -322,6 +323,25 @@ final class GatewayProcessManager {
         return "Gateway listener found on port \(port) but health check failed: \(message)"
     }
 
+    private func describeGatewayReadinessFailure(_ error: Error, port: Int) -> String? {
+        let ns = error as NSError
+        let message = ns.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = message.lowercased()
+        if self.isGatewayAuthFailure(error) {
+            return """
+            Gateway on port \(port) rejected auth. Set gateway.auth.token to match the running gateway \
+            (or clear it on the gateway) and retry.
+            """
+        }
+        if lower.contains("protocol mismatch") {
+            return "Gateway on port \(port) is incompatible (protocol mismatch). Update the app/gateway."
+        }
+        if lower.contains("unexpected response") || lower.contains("invalid response") {
+            return "Port \(port) returned non-gateway data; another process is using it."
+        }
+        return nil
+    }
+
     private func isGatewayAuthFailure(_ error: Error) -> Bool {
         if let urlError = error as? URLError, urlError.code == .dataNotAllowed {
             return true
@@ -412,6 +432,9 @@ final class GatewayProcessManager {
         if await self.waitForGatewayReady(timeout: timeout) {
             return
         }
+        if await self.recoverAttachedExistingGatewayIfNeeded(timeout: timeout) {
+            return
+        }
 
         let reason = self.localGatewayReadinessFailureReason()
         self.appendLog("[gateway] readiness ensure failed: \(reason)\n")
@@ -423,6 +446,7 @@ final class GatewayProcessManager {
     }
 
     func waitForGatewayReady(timeout: TimeInterval = 6) async -> Bool {
+        let port = GatewayEnvironment.gatewayPort()
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !self.desiredActive { return false }
@@ -431,12 +455,47 @@ final class GatewayProcessManager {
                 self.clearLastFailure()
                 return true
             } catch {
+                if let reason = self.describeGatewayReadinessFailure(error, port: port) {
+                    self.lastFailureReason = reason
+                }
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
         }
         self.appendLog("[gateway] readiness wait timed out\n")
         self.logger.warning("gateway readiness wait timed out")
         return false
+    }
+
+    private func recoverAttachedExistingGatewayIfNeeded(timeout: TimeInterval) async -> Bool {
+        guard case let .attachedExisting(details) = self.status else {
+            return false
+        }
+        let port = GatewayEnvironment.gatewayPort()
+        guard let instance = await PortGuardian.shared.describe(port: port) else {
+            return false
+        }
+        let recoveryTimeout = min(max(timeout / 2, 3), 8)
+        let descriptor = self.describeBrandedRuntime(instance: instance)
+        self.appendLog("[gateway] attached existing instance became unhealthy; restarting managed gateway (\(details ?? descriptor))\n")
+        self.logger.warning("gateway attached existing instance unhealthy; restarting managed gateway details=\(details ?? descriptor)")
+        await self.connection.shutdown()
+        await self.performExistingGatewayRecovery()
+        if await self.waitForManagedGatewayStartup(port: port, timeout: recoveryTimeout, reason: "existing gateway recovery") {
+            return true
+        }
+        let failure = "existing gateway recovery timed out (\(details ?? descriptor))"
+        self.lastFailureReason = failure
+        return false
+    }
+
+    private func performExistingGatewayRecovery() async {
+        #if DEBUG
+        if let hook = self.testingExistingGatewayRecoveryHook {
+            await hook()
+            return
+        }
+        #endif
+        await GatewayLaunchAgentManager.kickstart()
     }
 
     private func localGatewayReadinessFailureReason() -> String {
@@ -535,8 +594,16 @@ extension GatewayProcessManager {
         self.lastFailureReason = reason
     }
 
+    func setTestingExistingGatewayRecoveryHook(_ hook: (@Sendable () async -> Void)?) {
+        self.testingExistingGatewayRecoveryHook = hook
+    }
+
     func _testAttachExistingGatewayIfAvailable() async -> Bool {
         await self.attachExistingGatewayIfAvailable()
+    }
+
+    func _testRecoverAttachedExistingGatewayIfNeeded(timeout: TimeInterval) async -> Bool {
+        await self.recoverAttachedExistingGatewayIfNeeded(timeout: timeout)
     }
 }
 #endif

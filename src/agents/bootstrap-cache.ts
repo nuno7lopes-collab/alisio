@@ -1,23 +1,46 @@
-import { loadWorkspaceBootstrapFiles, type WorkspaceBootstrapFile } from "./workspace.js";
+import path from "node:path";
+import {
+  loadWorkspaceBootstrapSnapshot,
+  type WorkspaceBootstrapFile,
+} from "./workspace.js";
 
-const cache = new Map<string, WorkspaceBootstrapFile[]>();
+type BootstrapCacheEntry = {
+  sessionKey: string;
+  fingerprint: string;
+  files: WorkspaceBootstrapFile[];
+};
+
+const cache = new Map<string, BootstrapCacheEntry>();
+
+function resolveBootstrapCacheKey(workspaceDir: string, sessionKey: string): string {
+  return `${path.resolve(workspaceDir)}\x00${sessionKey}`;
+}
 
 export async function getOrLoadBootstrapFiles(params: {
   workspaceDir: string;
   sessionKey: string;
 }): Promise<WorkspaceBootstrapFile[]> {
-  const existing = cache.get(params.sessionKey);
-  if (existing) {
-    return existing;
+  const cacheKey = resolveBootstrapCacheKey(params.workspaceDir, params.sessionKey);
+  const snapshot = await loadWorkspaceBootstrapSnapshot(params.workspaceDir);
+  const existing = cache.get(cacheKey);
+  if (existing?.fingerprint === snapshot.fingerprint) {
+    return existing.files;
   }
 
-  const files = await loadWorkspaceBootstrapFiles(params.workspaceDir);
-  cache.set(params.sessionKey, files);
-  return files;
+  cache.set(cacheKey, {
+    sessionKey: params.sessionKey,
+    fingerprint: snapshot.fingerprint,
+    files: snapshot.files,
+  });
+  return snapshot.files;
 }
 
 export function clearBootstrapSnapshot(sessionKey: string): void {
-  cache.delete(sessionKey);
+  for (const [cacheKey, entry] of cache.entries()) {
+    if (entry.sessionKey === sessionKey) {
+      cache.delete(cacheKey);
+    }
+  }
 }
 
 export function clearBootstrapSnapshotOnSessionRollover(params: {

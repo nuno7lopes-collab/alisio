@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
 import type { ThemeAccents, ThemeFamily, ThemeMode } from "../theme.ts";
@@ -566,25 +567,25 @@ function renderAppearanceSection(props: ConfigProps) {
       })}
 
       <div class="settings-appearance__section">
-        <h3 class="settings-appearance__heading">Connection</h3>
+        <h3 class="settings-appearance__heading">${t("configView.connection")}</h3>
         <div class="settings-info-grid">
           <div class="settings-info-row">
-            <span class="settings-info-row__label">Workspace</span>
+            <span class="settings-info-row__label">${t("configView.workspace")}</span>
             <span class="settings-info-row__value mono">${props.gatewayUrl || "-"}</span>
           </div>
           <div class="settings-info-row">
-            <span class="settings-info-row__label">Status</span>
+            <span class="settings-info-row__label">${t("configView.status")}</span>
             <span class="settings-info-row__value">
               <span
                 class="settings-status-dot ${props.connected ? "settings-status-dot--ok" : ""}"
               ></span>
-              ${props.connected ? "Connected" : "Offline"}
+              ${props.connected ? t("configView.connected") : t("configView.offline")}
             </span>
           </div>
           ${props.assistantName
             ? html`
                 <div class="settings-info-row">
-                  <span class="settings-info-row__label">Assistant</span>
+                  <span class="settings-info-row__label">${t("configView.assistant")}</span>
                   <span class="settings-info-row__value">${props.assistantName}</span>
                 </div>
               `
@@ -729,16 +730,16 @@ export function renderConfig(props: ConfigProps) {
                     <button
                       class="config-mode-toggle__btn ${formMode === "form" ? "active" : ""}"
                       ?disabled=${props.schemaLoading || !props.schema}
-                      title=${formUnsafe ? "Form view can't safely edit some fields" : ""}
+                      title=${formUnsafe ? t("configView.formUnsafe") : ""}
                       @click=${() => props.onFormModeChange("form")}
                     >
-                      Form
+                      ${t("common.form")}
                     </button>
                     <button
                       class="config-mode-toggle__btn ${formMode === "raw" ? "active" : ""}"
                       @click=${() => props.onFormModeChange("raw")}
                     >
-                      Raw
+                      ${t("common.raw")}
                     </button>
                   </div>
                 `
@@ -747,35 +748,42 @@ export function renderConfig(props: ConfigProps) {
               ? html`
                   <span class="config-changes-badge"
                     >${formMode === "raw"
-                      ? "Unsaved changes"
-                      : `${diff.length} unsaved change${diff.length !== 1 ? "s" : ""}`}</span
+                      ? t("configView.unsavedRaw")
+                      : t(
+                          diff.length === 1
+                            ? "configView.unsavedCountOne"
+                            : "configView.unsavedCountMany",
+                          { count: String(diff.length) },
+                        )}</span
                   >
                 `
-              : html` <span class="config-status muted">No changes</span> `}
+              : html` <span class="config-status muted">${t("common.noChanges")}</span> `}
           </div>
           <div class="config-actions__right">
             ${props.onOpenFile
               ? html`
                   <button
                     class="btn btn--sm"
-                    title=${props.configPath ? `Open ${props.configPath}` : "Open config file"}
+                    title=${props.configPath
+                      ? `${t("common.open")} ${props.configPath}`
+                      : t("configView.openConfigFile")}
                     @click=${props.onOpenFile}
                   >
-                    ${icons.fileText} Open
+                    ${icons.fileText} ${t("common.open")}
                   </button>
                 `
               : nothing}
             <button class="btn btn--sm" ?disabled=${props.loading} @click=${props.onReload}>
-              ${props.loading ? "Loading…" : "Reload"}
+              ${props.loading ? t("common.loading") : t("common.reload")}
             </button>
             <button class="btn btn--sm primary" ?disabled=${!canSave} @click=${props.onSave}>
-              ${props.saving ? "Saving…" : "Save"}
+              ${props.saving ? t("common.saving") : t("common.save")}
             </button>
             <button class="btn btn--sm" ?disabled=${!canApply} @click=${props.onApply}>
-              ${props.applying ? "Applying…" : "Apply"}
+              ${props.applying ? t("common.applying") : t("common.apply")}
             </button>
             <button class="btn btn--sm" ?disabled=${!canUpdate} @click=${props.onUpdate}>
-              ${props.updating ? "Updating…" : "Update"}
+              ${props.updating ? t("common.updating") : t("common.update")}
             </button>
           </div>
         </div>
@@ -798,8 +806,8 @@ export function renderConfig(props: ConfigProps) {
                     <input
                       type="text"
                       class="config-search__input"
-                      placeholder="Search settings..."
-                      aria-label="Search settings"
+                      placeholder=${t("configView.searchSettings")}
+                      aria-label=${t("configView.searchSettings")}
                       .value=${props.searchQuery}
                       @input=${(e: Event) =>
                         props.onSearchChange((e.target as HTMLInputElement).value)}
@@ -808,7 +816,7 @@ export function renderConfig(props: ConfigProps) {
                       ? html`
                           <button
                             class="config-search__clear"
-                            aria-label="Clear search"
+                            aria-label=${t("common.clearSearch")}
                             @click=${() => props.onSearchChange("")}
                           >
                             ×
@@ -820,7 +828,11 @@ export function renderConfig(props: ConfigProps) {
               `
             : nothing}
 
-          <div class="config-top-tabs__scroller" role="tablist" aria-label="Settings sections">
+          <div
+            class="config-top-tabs__scroller"
+            role="tablist"
+            aria-label=${t("configView.settingsSections")}
+          >
             ${topTabs.map(
               (tab) => html`
                 <button

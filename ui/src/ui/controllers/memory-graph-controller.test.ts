@@ -17,6 +17,7 @@ const graph = {
   lastSyncedLamport: 5,
   e2eeRequired: true as const,
   scope: "local" as const,
+  mode: "focus" as const,
   focus: {
     nodeId: "atlas",
     pageId: "atlas",

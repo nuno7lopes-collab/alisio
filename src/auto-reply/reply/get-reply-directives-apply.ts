@@ -136,6 +136,7 @@ export async function applyInlineDirectiveOverrides(params: {
     allowedModelKeys: modelState.allowedModelKeys,
     allowedModelCatalog: modelState.allowedModelCatalog,
     resetModelOverride: modelState.resetModelOverride,
+    resetModelOverrideReason: modelState.resetModelOverrideReason,
   };
   const createDirectiveHandlingBase = () => ({
     cfg,
@@ -162,7 +163,7 @@ export async function applyInlineDirectiveOverrides(params: {
 
   if (modelState.resetModelOverride) {
     enqueueSystemEvent(
-      `Model override not allowed for this agent; reverted to ${initialModelLabel}.`,
+      `Model override reset: ${modelState.resetModelOverrideReason ?? "model not allowed"}; reverted to ${initialModelLabel}.`,
       {
         sessionKey,
         contextKey: `model:reset:${initialModelLabel}`,

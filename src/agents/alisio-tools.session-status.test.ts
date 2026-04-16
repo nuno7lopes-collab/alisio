@@ -131,6 +131,26 @@ function createModelCatalogModuleMock() {
         contextWindow: 400000,
       },
     ],
+    loadMergedRuntimeModelCatalog: async (_params?: { dynamicProviderIds?: string[] }) => [
+      {
+        provider: "anthropic",
+        id: "claude-sonnet-4-6",
+        name: "Claude Sonnet 4.6",
+        contextWindow: 200000,
+      },
+      {
+        provider: "openai",
+        id: "gpt-5.4",
+        name: "GPT-5.4",
+        contextWindow: 400000,
+      },
+      {
+        provider: "alisio-local-current-llama",
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+        contextWindow: 32768,
+      },
+    ],
   };
 }
 
@@ -476,6 +496,81 @@ describe("session_status tool", () => {
       expect.objectContaining({
         "agent:main:subagent:child": expect.objectContaining({
           modelOverride: "claude-sonnet-4-6",
+        }),
+      }),
+    );
+  });
+
+  it("rejects a dynamic local model override via session_status on main sessions", async () => {
+    resetSessionStore({
+      "agent:main:main": {
+        sessionId: "s-local",
+        updatedAt: 10,
+      },
+    });
+    mockConfig = {
+      session: { mainKey: "main", scope: "per-sender" },
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.4" },
+          models: {
+            "openai/gpt-5.4": {},
+          },
+        },
+      },
+      tools: {
+        agentToAgent: { enabled: false },
+      },
+    };
+
+    const tool = getSessionStatusTool("agent:main:main");
+
+    await expect(
+      tool.execute("call-local-runtime-model", {
+        sessionKey: "agent:main:main",
+        model: "alisio-local-current-llama/qwen3-4b-q4-k-m",
+      }),
+    ).rejects.toThrow("local models are only available for subagent sessions");
+  });
+
+  it("accepts a dynamic local model override via session_status on subagent sessions", async () => {
+    resetSessionStore({
+      "agent:main:subagent:child": {
+        sessionId: "s-local-subagent",
+        updatedAt: 10,
+      },
+    });
+    mockConfig = {
+      session: { mainKey: "main", scope: "per-sender" },
+      agents: {
+        defaults: {
+          model: { primary: "openai/gpt-5.4" },
+          models: {
+            "openai/gpt-5.4": {},
+          },
+        },
+      },
+      tools: {
+        agentToAgent: { enabled: false },
+      },
+    };
+
+    const tool = getSessionStatusTool("agent:main:subagent:child");
+
+    const result = await tool.execute("call-local-runtime-model-subagent", {
+      sessionKey: "agent:main:subagent:child",
+      model: "alisio-local-current-llama/qwen3-4b-q4-k-m",
+    });
+    const details = result.details as { ok?: boolean; changedModel?: boolean };
+
+    expect(details.ok).toBe(true);
+    expect(details.changedModel).toBe(true);
+    expect(updateSessionStoreMock).toHaveBeenCalledWith(
+      "/tmp/main/sessions.json",
+      expect.objectContaining({
+        "agent:main:subagent:child": expect.objectContaining({
+          providerOverride: "alisio-local-current-llama",
+          modelOverride: "qwen3-4b-q4-k-m",
         }),
       }),
     );

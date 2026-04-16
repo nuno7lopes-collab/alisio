@@ -32,12 +32,71 @@ export const MemoryGetSchema = Type.Object({
   lines: Type.Optional(Type.Number()),
 });
 
+export const MemoryGraphScopeInputValues = [
+  "overview",
+  "focus",
+  "global",
+  "local",
+] as const;
+
+export type MemoryGraphScopeInput = (typeof MemoryGraphScopeInputValues)[number];
+export type MemoryGraphCanonicalScope = "global" | "local";
+export type MemoryGraphMode = "overview" | "focus";
+
 export const MemoryGraphSchema = Type.Object({
-  query: Type.String(),
+  query: Type.Optional(Type.String()),
+  pageId: Type.Optional(Type.String()),
+  entityId: Type.Optional(Type.String()),
+  scope: optionalStringEnum(MemoryGraphScopeInputValues),
   direction: optionalStringEnum(["incoming", "outgoing", "both"] as const),
-  matchLimit: Type.Optional(Type.Number()),
-  relationLimit: Type.Optional(Type.Number()),
+  depth: Type.Optional(Type.Integer({ minimum: 1 })),
+  matchLimit: Type.Optional(Type.Integer({ minimum: 1 })),
+  relationLimit: Type.Optional(Type.Integer({ minimum: 1 })),
+  nodeLimit: Type.Optional(Type.Integer({ minimum: 1 })),
+  edgeLimit: Type.Optional(Type.Integer({ minimum: 1 })),
+  includeAttachments: Type.Optional(Type.Boolean()),
 });
+
+export function normalizeMemoryGraphScope(
+  value: unknown,
+): MemoryGraphCanonicalScope | undefined {
+  if (value === "overview" || value === "global") {
+    return "global";
+  }
+  if (value === "focus" || value === "local") {
+    return "local";
+  }
+  return undefined;
+}
+
+export function resolveMemoryGraphMode(scope: MemoryGraphCanonicalScope): MemoryGraphMode {
+  return scope === "global" ? "overview" : "focus";
+}
+
+export function hasMemoryGraphFocusHint(params: {
+  query?: string;
+  pageId?: string;
+  entityId?: string;
+}): boolean {
+  return Boolean(params.query || params.pageId || params.entityId);
+}
+
+export function requiresMemoryGraphFocusHint(params: {
+  scope?: MemoryGraphCanonicalScope;
+  query?: string;
+  pageId?: string;
+  entityId?: string;
+}): boolean {
+  return params.scope === "local" && !hasMemoryGraphFocusHint(params);
+}
+
+export function getMemoryGraphFocusScopeError(): string {
+  return "memory.graph focus scope requires pageId, entityId, or query";
+}
+
+export function getMemoryGraphScopeValueError(): string {
+  return "memory.graph scope must be overview, focus, global, or local";
+}
 
 export function resolveMemoryToolContext(options: {
   config?: AlisioConfig;
@@ -143,12 +202,12 @@ export function buildMemorySearchUnavailableResult(error: string | undefined) {
 }
 
 export function buildMemoryGraphUnavailableResult(params: {
-  query: string;
+  query?: string;
   error: string | undefined;
 }) {
   const reason = (params.error ?? "canonical memory graph unavailable").trim();
   return {
-    query: params.query,
+    query: params.query ?? "",
     matches: [],
     disabled: true,
     unavailable: true,

@@ -191,6 +191,7 @@ export async function maybeHandleModelDirectiveInfo(params: {
   cfg: AlisioConfig;
   agentDir: string;
   activeAgentId: string;
+  sessionKey?: string;
   provider: string;
   model: string;
   defaultProvider: string;
@@ -198,6 +199,7 @@ export async function maybeHandleModelDirectiveInfo(params: {
   aliasIndex: ModelAliasIndex;
   allowedModelCatalog: Array<{ provider: string; id?: string; name?: string }>;
   resetModelOverride: boolean;
+  resetModelOverrideReason?: string;
   surface?: string;
   sessionEntry?: Pick<SessionEntry, "modelProvider" | "model">;
 }): Promise<ReplyPayload | undefined> {
@@ -230,6 +232,7 @@ export async function maybeHandleModelDirectiveInfo(params: {
     const reply = await resolveModelsCommandReply({
       cfg: params.cfg,
       commandBodyNormalized: "/models",
+      sessionKey: params.sessionKey,
     });
     return reply ?? { text: "No models available." };
   }
@@ -315,7 +318,13 @@ export async function maybeHandleModelDirectiveInfo(params: {
     `Auth file: ${formatPath(resolveAuthStorePathForDisplay(params.agentDir))}`,
   ].filter((line): line is string => Boolean(line));
   if (params.resetModelOverride) {
-    lines.push(`(previous selection reset to default)`);
+    lines.push(
+      `(${
+        params.resetModelOverrideReason
+          ? `previous selection reset: ${params.resetModelOverrideReason}`
+          : "previous selection reset to default"
+      })`,
+    );
   }
 
   const byProvider = new Map<string, ModelPickerCatalogEntry[]>();

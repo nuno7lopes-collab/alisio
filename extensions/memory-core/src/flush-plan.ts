@@ -1,7 +1,7 @@
 import {
   DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR,
   parseNonNegativeByteSize,
-  resolveCronStyleNow,
+  resolveCanonicalMemoryDailyNoteTarget,
   SILENT_REPLY_TOKEN,
   type MemoryFlushPlan,
   type AlisioConfig,
@@ -38,22 +38,6 @@ export const DEFAULT_MEMORY_FLUSH_SYSTEM_PROMPT = [
   MEMORY_FLUSH_APPEND_ONLY_HINT,
   `You may reply, but usually ${SILENT_REPLY_TOKEN} is correct.`,
 ].join(" ");
-
-function formatDateStampInTimezone(nowMs: number, timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(nowMs));
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-  if (year && month && day) {
-    return `${year}-${month}-${day}`;
-  }
-  return new Date(nowMs).toISOString().slice(0, 10);
-}
 
 function normalizeNonNegativeInt(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -94,14 +78,6 @@ function appendCurrentTimeLine(text: string, timeLine: string): string {
   return `${trimmed}\n${timeLine}`;
 }
 
-function resolveMemoryFlushTarget(params: { dateStamp: string }): {
-  path: string;
-} {
-  return {
-    path: `memory/${params.dateStamp}.md`,
-  };
-}
-
 export function buildMemoryFlushPlan(
   params: {
     cfg?: AlisioConfig;
@@ -125,11 +101,9 @@ export function buildMemoryFlushPlan(
     normalizeNonNegativeInt(cfg?.agents?.defaults?.compaction?.reserveTokensFloor) ??
     DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR;
 
-  const { timeLine, userTimezone } = resolveCronStyleNow(cfg ?? {}, nowMs);
-  const dateStamp = formatDateStampInTimezone(nowMs, userTimezone);
-  const target = resolveMemoryFlushTarget({ dateStamp });
-  const targetHint = `Store durable memories only in ${target.path}.`;
-  const appendOnlyHint = `If ${target.path} already exists, APPEND new content only and do not overwrite existing entries.`;
+  const target = resolveCanonicalMemoryDailyNoteTarget({ cfg, nowMs });
+  const targetHint = `Store durable memories only in ${target.relativePath}.`;
+  const appendOnlyHint = `If ${target.relativePath} already exists, APPEND new content only and do not overwrite existing entries.`;
   const requiredHints = [targetHint, appendOnlyHint, MEMORY_FLUSH_READ_ONLY_HINT];
 
   const promptBase = ensureNoReplyHint(
@@ -148,14 +122,17 @@ export function buildMemoryFlushPlan(
       requiredHints,
     ),
   );
-  const prompt = appendCurrentTimeLine(promptBase.replaceAll("YYYY-MM-DD", dateStamp), timeLine);
+  const prompt = appendCurrentTimeLine(
+    promptBase.replaceAll("YYYY-MM-DD", target.dateStamp),
+    target.timeLine,
+  );
 
   return {
     softThresholdTokens,
     forceFlushTranscriptBytes,
     reserveTokensFloor,
     prompt,
-    systemPrompt: systemPrompt.replaceAll("YYYY-MM-DD", dateStamp),
-    relativePath: target.path,
+    systemPrompt: systemPrompt.replaceAll("YYYY-MM-DD", target.dateStamp),
+    relativePath: target.relativePath,
   };
 }

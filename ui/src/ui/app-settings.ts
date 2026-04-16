@@ -27,7 +27,7 @@ import {
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadConfig } from "./controllers/config.ts";
-import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
+import { loadCronJobsPage, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
@@ -94,6 +94,7 @@ type SettingsHost = {
   memorySelectedAgentId?: string | null;
   agentsSelectedId?: string | null;
   agentsPanel?: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
+  sessionsHideCron?: boolean;
   pendingGatewayUrl?: string | null;
   systemThemeCleanup?: (() => void) | null;
   pendingGatewayToken?: string | null;
@@ -185,6 +186,9 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
   }
   applyBorderRadius();
   host.applySessionKey = host.settings.lastActiveSessionKey;
+  if (typeof host.sessionsHideCron === "boolean") {
+    host.sessionsHideCron = normalized.chatHideCronSessions;
+  }
 }
 
 export function setLastActiveSessionKey(host: SettingsHost, next: string) {
@@ -404,6 +408,9 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
   if (host.tab === "tasks") {
     await loadTasksOverview(host as unknown as Parameters<typeof loadTasksOverview>[0]);
   }
+  if (host.tab === "cron") {
+    await loadCron(host);
+  }
   if (host.tab === "chat") {
     await loadTasksOverview(host as unknown as Parameters<typeof loadTasksOverview>[0], {
       quiet: true,
@@ -422,7 +429,6 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       loadDevices(host as unknown as AlisioApp),
       loadAlisioSharing(host as unknown as AlisioApp),
       loadNodePairings(host as unknown as AlisioApp),
-      loadConfig(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "security") {
@@ -964,10 +970,21 @@ function buildAttentionItems(host: AlisioApp) {
 export async function loadCron(host: SettingsHost) {
   const app = host as unknown as AlisioApp;
   const activeCronJobId = app.cronRunsScope === "job" ? app.cronRunsJobId : null;
+  app.cronJobsQuery = "";
+  app.cronJobsEnabledFilter = "all";
+  app.cronJobsScheduleKindFilter = "all";
+  app.cronJobsLastStatusFilter = "all";
+  app.cronJobsSortBy = "nextRunAtMs";
+  app.cronJobsSortDir = "asc";
   await Promise.all([
     loadChannels(app, false),
     loadCronStatus(app),
-    loadCronJobs(app),
+    (async () => {
+      await loadCronJobsPage(app, { append: false });
+      while (app.cronJobsHasMore && !app.cronError) {
+        await loadCronJobsPage(app, { append: true });
+      }
+    })(),
     loadCronRuns(app, activeCronJobId),
   ]);
 }

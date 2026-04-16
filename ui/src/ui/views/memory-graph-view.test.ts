@@ -19,6 +19,7 @@ function makeGraph() {
     lastSyncedLamport: 5,
     e2eeRequired: true as const,
     scope: "global" as const,
+    mode: "overview" as const,
     focus: {
       nodeId: "atlas",
       pageId: "atlas",

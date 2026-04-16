@@ -2,6 +2,8 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import "../app.ts";
+import type { AlisioApp } from "../app.ts";
 import { DEFAULT_THEME_SELECTION } from "../theme.ts";
 import type { AlisioBootstrapState } from "../types.ts";
 import { renderOrganization } from "./organization.ts";
@@ -140,6 +142,7 @@ function createOrganizationProps(
 ): Parameters<typeof renderOrganization>[0] {
   return {
     connected: true,
+    connectionError: null,
     accountReady: true,
     plan: "plus",
     loading: false,
@@ -221,6 +224,43 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Reconnect to Alisio before editing organizations.");
     const action = container.querySelector<HTMLButtonElement>(".btn.primary");
     expect(action?.disabled).toBe(true);
+  });
+
+  it("shows a specific connection error instead of the generic organization reconnect hint", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization(
+        createOrganizationProps({
+          connected: false,
+          accountReady: false,
+          connectionError: "Reconnecting…",
+        }),
+      ),
+      container,
+    );
+
+    const dangerCallouts = container.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(container.textContent).not.toContain(
+      "Reconnect to Alisio before editing organizations.",
+    );
+  });
+
+  it("does not duplicate reconnect banners in the full organization shell", async () => {
+    window.history.replaceState({}, "", "/organization");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+    app.tab = "organization";
+    app.lastError = "Reconnecting…";
+    app.requestUpdate();
+    await app.updateComplete;
+
+    const dangerCallouts = app.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(app.textContent).not.toContain("Reconnect to Alisio before editing organizations.");
   });
 
   it("validates invitation emails before enabling join", () => {
@@ -326,8 +366,42 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Send magic link");
     expect(container.textContent).toContain("Recover account");
     expect(container.textContent).toContain("Reconnect app");
-    expect(container.textContent).toContain("Wait for Alisio to reconnect");
+    expect(container.textContent).not.toContain("Wait for Alisio to reconnect");
     expect(container.textContent).not.toContain("Continue with Google");
+  });
+
+  it("hides the generic reconnect notice when a specific connection error is already shown", () => {
+    const container = document.createElement("div");
+    render(
+      renderSetup(
+        createSetupProps({
+          connected: false,
+          lastError: "Reconnecting…",
+        }),
+      ),
+      container,
+    );
+
+    const dangerCallouts = container.querySelectorAll(".callout.danger");
+    expect(dangerCallouts).toHaveLength(1);
+    expect(dangerCallouts[0]?.textContent).toContain("Reconnecting…");
+    expect(container.textContent).not.toContain("Wait for Alisio to reconnect");
+  });
+
+  it("keeps the generic reconnect notice when no specific connection error exists", () => {
+    const container = document.createElement("div");
+    render(
+      renderSetup(
+        createSetupProps({
+          connected: false,
+          lastError: null,
+          startupError: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Wait for Alisio to reconnect");
   });
 
   it("submete o formulário de entrada com palavra-passe quando o utilizador carrega Enter", () => {

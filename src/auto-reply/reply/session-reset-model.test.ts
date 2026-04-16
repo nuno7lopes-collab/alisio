@@ -1,9 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
 import { buildModelAliasIndex } from "../../agents/model-selection.js";
 import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import { applyResetModelOverride } from "./session-reset-model.js";
+
+const { loadMergedRuntimeModelCatalogMock } = vi.hoisted(() => ({
+  loadMergedRuntimeModelCatalogMock: vi.fn(async () => modelCatalog),
+}));
+
+vi.mock("../../agents/model-catalog.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../agents/model-catalog.js")>();
+  return {
+    ...actual,
+    loadMergedRuntimeModelCatalog: loadMergedRuntimeModelCatalogMock,
+  };
+});
 
 const modelCatalog: ModelCatalogEntry[] = [
   { provider: "minimax", id: "m2.7", name: "M2.7" },
@@ -51,6 +63,41 @@ async function applyResetFixture(params: {
 }
 
 describe("applyResetModelOverride", () => {
+  it("loads the merged runtime catalog for dynamic local overrides when no catalog is injected", async () => {
+    loadMergedRuntimeModelCatalogMock.mockClear();
+    loadMergedRuntimeModelCatalogMock.mockResolvedValueOnce([
+      { provider: "openai", id: "gpt-4o-mini", name: "GPT-4o mini" },
+      {
+        provider: "alisio-local-current-llama",
+        id: "qwen3-4b-q4-k-m",
+        name: "Qwen3 4B",
+      },
+    ]);
+    const fixture = createResetFixture();
+
+    await applyResetModelOverride({
+      cfg: fixture.cfg,
+      resetTriggered: true,
+      bodyStripped: "alisio-local-current-llama/qwen3-4b-q4-k-m summarize",
+      sessionCtx: fixture.sessionCtx,
+      ctx: fixture.ctx,
+      sessionEntry: fixture.sessionEntry,
+      sessionStore: fixture.sessionStore,
+      sessionKey: "agent:main:dm:1",
+      defaultProvider: "openai",
+      defaultModel: "gpt-4o-mini",
+      aliasIndex: fixture.aliasIndex,
+    });
+
+    expect(loadMergedRuntimeModelCatalogMock).toHaveBeenCalledWith({
+      config: fixture.cfg,
+      dynamicProviderIds: ["alisio-local-current-llama"],
+    });
+    expect(fixture.sessionEntry.providerOverride).toBe("alisio-local-current-llama");
+    expect(fixture.sessionEntry.modelOverride).toBe("qwen3-4b-q4-k-m");
+    expect(fixture.sessionCtx.BodyStripped).toBe("summarize");
+  });
+
   it("selects a model hint and strips it from the body", async () => {
     const { sessionEntry, sessionCtx } = await applyResetFixture({
       resetTriggered: true,

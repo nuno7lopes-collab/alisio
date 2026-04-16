@@ -33,6 +33,7 @@ import {
   buildRuntimeCapabilities,
   type RuntimeCapabilities,
 } from "./local-model-runtime-contracts.js";
+import { logWarn } from "../logger.js";
 import {
   summarizeHardwareRecommendation,
   type AlisioModelHardwareProfile,
@@ -125,6 +126,51 @@ function toSharingRuntimeTarget(
     connected: target.connected,
     current: target.current,
   };
+}
+
+function buildDegradedSharingAccessIndex(
+  targets: readonly AlisioSharingRuntimeTarget[],
+): Record<string, AlisioSharingTargetState> {
+  const timestamp = new Date().toISOString();
+  return Object.fromEntries(
+    targets.map((target) => {
+      const access = target.current ? "owner" : "blocked";
+      return [
+        target.targetId,
+        {
+          ...target,
+          ownerKey: "user:degraded-runtime",
+          ownerScope: "user",
+          ownerLabel: target.current ? "Current device" : "Sharing unavailable",
+          registeredAt: timestamp,
+          updatedAt: timestamp,
+          deviceAccess: access,
+          modelAccess: access,
+          execAccess: access,
+        } satisfies AlisioSharingTargetState,
+      ];
+    }),
+  );
+}
+
+async function loadSnapshotSharingAccessIndex(
+  targets: readonly AlisioSharingRuntimeTarget[],
+  env?: NodeJS.ProcessEnv,
+): Promise<Record<string, AlisioSharingTargetState>> {
+  if (targets.length === 0) {
+    return {};
+  }
+  try {
+    return await getAlisioSharingTargetAccessIndex({ targets }, env);
+  } catch (err) {
+    // Keep local/runtime-backed model visibility alive even if the optional sharing cloud is stale.
+    logWarn(
+      `alisio-models: sharing access lookup failed; falling back to degraded runtime access: ${String(
+        err,
+      )}`,
+    );
+    return buildDegradedSharingAccessIndex(targets);
+  }
 }
 
 type SnapshotCache = {
@@ -652,15 +698,11 @@ async function loadSnapshot(params: {
       }),
     )
   ).flat();
-  const sharingAccess = await getAlisioSharingTargetAccessIndex(
-    {
-      targets: [
-        ...currentTargets.map((entry) => toSharingRuntimeTarget(entry.target)),
-        ...connectedTargets.map((entry) => toSharingRuntimeTarget(entry.target)),
-      ],
-    },
-    env,
-  );
+  const sharingTargets = [
+    ...currentTargets.map((entry) => toSharingRuntimeTarget(entry.target)),
+    ...connectedTargets.map((entry) => toSharingRuntimeTarget(entry.target)),
+  ];
+  const sharingAccess = await loadSnapshotSharingAccessIndex(sharingTargets, env);
   const currentTargetsWithAccess = currentTargets.flatMap((entry) => {
     const access = sharingAccess[entry.target.deviceId];
     if (!access || (access.modelAccess !== "owner" && access.modelAccess !== "shared")) {

@@ -1085,6 +1085,7 @@ export function createGatewayHttpServer(opts: {
               allowRealIpFallback,
               loadRuntimeSetup: () =>
                 loadAlisioRuntimeSetupStateWithTimeout({
+                  includeDynamicCatalog: false,
                   ...(nodeRegistry
                     ? {
                         loadAlisioModelProviderSnapshot: () =>

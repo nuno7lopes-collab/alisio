@@ -126,6 +126,10 @@ function renderSetupCardHeader(title: string, subtitle?: string | null) {
   `;
 }
 
+function shouldShowWaitForConnectionNotice(props: SetupProps) {
+  return !props.connected && !props.lastError && !props.startupError;
+}
+
 function readInputValue(form: HTMLFormElement, name: string) {
   const field = form.elements.namedItem(name);
   return field instanceof HTMLInputElement ? field.value.trim() : "";
@@ -327,7 +331,7 @@ function renderVerifyEmailStep(props: SetupProps) {
   const statusMessage =
     props.accountError ??
     props.accountNotice ??
-    (!props.connected ? t("alisio.setup.account.waitForConnection") : null);
+    (shouldShowWaitForConnectionNotice(props) ? t("alisio.setup.account.waitForConnection") : null);
 
   const handleCodeSubmit = (event: Event) => {
     event.preventDefault();
@@ -432,7 +436,7 @@ function renderAccountEntryStep(props: SetupProps) {
   const statusMessage =
     props.accountError ??
     props.accountNotice ??
-    (!props.connected ? t("alisio.setup.account.waitForConnection") : null);
+    (shouldShowWaitForConnectionNotice(props) ? t("alisio.setup.account.waitForConnection") : null);
   const cloudState = currentAccountCloudState(props);
 
   if (cloudState?.available === false && props.account?.session.state !== "signed_in") {

@@ -20,7 +20,15 @@ import {
 import { DashboardHeader } from "./components/dashboard-header.ts";
 import { DEFAULT_THEME_SELECTION, type ThemeFamily, type ThemeMode } from "./theme.ts";
 
-type Tab = "setup" | "authentications" | "organization" | "chat" | "memory" | "models" | "settings";
+type Tab =
+  | "setup"
+  | "authentications"
+  | "organization"
+  | "chat"
+  | "memory"
+  | "models"
+  | "cron"
+  | "settings";
 
 type SettingsHost = {
   settings: {
@@ -34,6 +42,7 @@ type SettingsHost = {
     chatFocusMode: boolean;
     chatShowThinking: boolean;
     chatShowToolCalls: boolean;
+    chatHideCronSessions: boolean;
     splitRatio: number;
     navCollapsed: boolean;
     navWidth: number;
@@ -128,6 +137,7 @@ const createHost = (tab: Tab): SettingsHost => ({
     chatFocusMode: false,
     chatShowThinking: true,
     chatShowToolCalls: true,
+    chatHideCronSessions: true,
     splitRatio: 0.6,
     navCollapsed: false,
     navWidth: 220,
@@ -152,6 +162,7 @@ const createHost = (tab: Tab): SettingsHost => ({
   eventLog: [],
   eventLogBuffer: [],
   basePath: "",
+  sessionsHideCron: true,
   themeMedia: null,
   themeMediaHandler: null,
   systemThemeCleanup: null,
@@ -376,6 +387,18 @@ describe("setTabFromRoute", () => {
 
     expect(cleanup).toHaveBeenCalledOnce();
     expect(host.systemThemeCleanup).toBeNull();
+  });
+
+  it("keeps cron chat visibility in sync with persisted chat settings", () => {
+    const host = createHost("chat");
+    host.sessionsHideCron = true;
+
+    applySettings(host, {
+      ...host.settings,
+      chatHideCronSessions: false,
+    });
+
+    expect(host.sessionsHideCron).toBe(false);
   });
 
   it("syncs both theme family and mode from persisted settings", () => {
@@ -844,6 +867,53 @@ describe("applySettingsFromUrl", () => {
 
     expect(loadAlisioConnectorsMock).toHaveBeenCalledOnce();
     expect(loadAlisioProviderOverviewMock).toHaveBeenCalledOnce();
+    vi.doUnmock("./controllers/alisio.ts");
+  });
+
+  it("refreshes the connections tab without loading config eagerly", async () => {
+    vi.resetModules();
+    const loadNodesMock = vi.fn().mockResolvedValue(undefined);
+    const loadDevicesMock = vi.fn().mockResolvedValue(undefined);
+    const loadAlisioSharingMock = vi.fn().mockResolvedValue(undefined);
+    const loadNodePairingsMock = vi.fn().mockResolvedValue(undefined);
+    const loadConfigMock = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock("./controllers/nodes.ts", () => ({
+      loadNodes: loadNodesMock,
+    }));
+    vi.doMock("./controllers/devices.ts", () => ({
+      loadDevices: loadDevicesMock,
+    }));
+    vi.doMock("./controllers/node-pairing.ts", () => ({
+      loadNodePairings: loadNodePairingsMock,
+    }));
+    vi.doMock("./controllers/config.ts", () => ({
+      loadConfig: loadConfigMock,
+    }));
+    vi.doMock("./controllers/alisio.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("./controllers/alisio.ts")>("./controllers/alisio.ts");
+      return {
+        ...actual,
+        loadAlisioSharing: loadAlisioSharingMock,
+      };
+    });
+
+    const module = await import("./app-settings.ts");
+    await module.refreshActiveTab({
+      tab: "connections",
+    } as never);
+
+    expect(loadNodesMock).toHaveBeenCalledOnce();
+    expect(loadDevicesMock).toHaveBeenCalledOnce();
+    expect(loadAlisioSharingMock).toHaveBeenCalledOnce();
+    expect(loadNodePairingsMock).toHaveBeenCalledOnce();
+    expect(loadConfigMock).not.toHaveBeenCalled();
+
+    vi.doUnmock("./controllers/nodes.ts");
+    vi.doUnmock("./controllers/devices.ts");
+    vi.doUnmock("./controllers/node-pairing.ts");
+    vi.doUnmock("./controllers/config.ts");
     vi.doUnmock("./controllers/alisio.ts");
   });
 });

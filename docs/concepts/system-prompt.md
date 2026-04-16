@@ -69,6 +69,9 @@ compaction.
 > **Note:** `memory/*.md` daily files are **not** injected automatically. They
 > are accessed on demand via the `memory_search` and `memory_get` tools, so they
 > do not count against the context window unless the model explicitly reads them.
+> When `memory.jobs` is enabled, background promotion can distill those daily
+> notes back into `MEMORY.md`, and that long-term projection is then injected as
+> normal bootstrap context.
 
 Large files are truncated with a marker. The max per-file size is controlled by
 `agents.defaults.bootstrapMaxChars` (default: 20000). Total injected bootstrap

@@ -150,7 +150,7 @@ describe("tool cards", () => {
     expect(renderedCards[1]?.textContent).toContain("second result");
   });
 
-  it("renders structured tool result payloads and truncates oversized previews", () => {
+  it("renders structured tool result payloads with icon-only expanded actions", () => {
     const longOutput = `head-${"x".repeat(5_800)}-tail-marker`;
     const message = {
       role: "assistant",
@@ -175,7 +175,8 @@ describe("tool cards", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Open full output");
+    expect(container.querySelector('[aria-label="View full output"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Copy output"]')).not.toBeNull();
     expect(container.textContent).toContain("… truncated");
     expect(container.textContent).not.toContain("-tail-marker");
   });

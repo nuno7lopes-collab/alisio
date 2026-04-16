@@ -1,18 +1,23 @@
 import {
   buildModelAliasIndex,
   type ModelAliasIndex,
-  resolveDefaultModelForAgent,
+  resolveDefaultModelForSession,
 } from "../../agents/model-selection.js";
 import type { AlisioConfig } from "../../config/config.js";
 
-export function resolveDefaultModel(params: { cfg: AlisioConfig; agentId?: string }): {
+export function resolveDefaultModel(params: {
+  cfg: AlisioConfig;
+  agentId?: string;
+  sessionKey?: string;
+}): {
   defaultProvider: string;
   defaultModel: string;
   aliasIndex: ModelAliasIndex;
 } {
-  const mainModel = resolveDefaultModelForAgent({
+  const mainModel = resolveDefaultModelForSession({
     cfg: params.cfg,
     agentId: params.agentId,
+    sessionKey: params.sessionKey,
   });
   const defaultProvider = mainModel.provider;
   const defaultModel = mainModel.model;

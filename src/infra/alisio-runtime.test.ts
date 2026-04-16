@@ -93,6 +93,25 @@ describe("loadAlisioRuntimeSetupState", () => {
     expect(runtime.providerReady).toBe(true);
   });
 
+  it("can skip dynamic runtime discovery for startup-safe shells", async () => {
+    const loadGatewayModelCatalog = vi.fn(async () => []);
+    const loadAlisioModelProviderSnapshot = vi.fn(async () =>
+      createRuntimeSnapshot({
+        targetProviderIds: ["alisio-local-current-llama"],
+      }),
+    );
+
+    const runtime = await loadAlisioRuntimeSetupState({
+      includeDynamicCatalog: false,
+      loadGatewayModelCatalog,
+      loadAlisioModelProviderSnapshot,
+    });
+
+    expect(loadGatewayModelCatalog).toHaveBeenCalledOnce();
+    expect(loadAlisioModelProviderSnapshot).not.toHaveBeenCalled();
+    expect(runtime).toEqual(buildEmptyAlisioRuntimeSetupState());
+  });
+
   it("falls back quickly when runtime discovery stalls", async () => {
     const runtime = await loadAlisioRuntimeSetupStateWithTimeout(
       {

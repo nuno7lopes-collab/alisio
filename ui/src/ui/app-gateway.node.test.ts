@@ -23,6 +23,8 @@ const clearDeviceAuthTokenMock = vi.hoisted(() => vi.fn());
 const loadManagedDeviceIdentityMock = vi.hoisted(() =>
   vi.fn(async () => ({ deviceId: "device-1", publicKey: "pk", privateKey: "sk" })),
 );
+const loadStoredBrowserDeviceIdentityMock = vi.hoisted(() => vi.fn(async () => null));
+const clearStoredBrowserDeviceIdentityMock = vi.hoisted(() => vi.fn());
 
 type GatewayClientMock = {
   start: ReturnType<typeof vi.fn>;
@@ -158,6 +160,8 @@ vi.mock("./device-auth.ts", () => ({
 
 vi.mock("./device-identity.ts", () => ({
   loadManagedDeviceIdentity: loadManagedDeviceIdentityMock,
+  loadStoredBrowserDeviceIdentity: loadStoredBrowserDeviceIdentityMock,
+  clearStoredBrowserDeviceIdentity: clearStoredBrowserDeviceIdentityMock,
 }));
 
 type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
@@ -195,6 +199,7 @@ function createHost(): GatewayTestHost {
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,
+      chatHideCronSessions: true,
       splitRatio: 0.6,
       navCollapsed: false,
       navWidth: 280,
@@ -288,6 +293,8 @@ describe("connectGateway", () => {
     loadControlUiBootstrapConfigMock.mockClear();
     clearDeviceAuthTokenMock.mockClear();
     loadManagedDeviceIdentityMock.mockClear();
+    loadStoredBrowserDeviceIdentityMock.mockClear();
+    clearStoredBrowserDeviceIdentityMock.mockClear();
   });
 
   it("ignores stale client onGap callbacks after reconnect", () => {
@@ -758,6 +765,33 @@ describe("connectGateway", () => {
     secondClient.emitClose({ code: 1005 });
     expect(host.lastError).toBe("Reconnecting…");
     expect(host.lastErrorCode).toBeNull();
+  });
+
+  it("refreshes the secure device session after a device-token mismatch even without bootstrap auth", async () => {
+    const host = createHost();
+    host.settings.token = "shared-token";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitClose({
+      code: 1008,
+      error: {
+        code: "PERMISSION_DENIED",
+        message: "unauthorized: device token mismatch",
+        details: { code: ConnectErrorDetailCodes.AUTH_DEVICE_TOKEN_MISMATCH },
+      },
+    });
+
+    expect(host.lastError).toBe("Refreshing secure device session…");
+    await vi.waitFor(() => {
+      expect(clearDeviceAuthTokenMock).toHaveBeenCalledWith({
+        deviceId: "device-1",
+        role: "operator",
+      });
+      expect(gatewayClientInstances).toHaveLength(2);
+    });
   });
 
   it("maps generic fetch-failed auth errors to actionable token mismatch message", () => {

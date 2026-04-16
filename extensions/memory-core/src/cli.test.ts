@@ -27,6 +27,7 @@ function firstWrittenJsonArg<T>(writeJson: MockCallsWithFirstArg): T | null {
 }
 
 const getMemorySearchManager = vi.hoisted(() => vi.fn());
+const getMemoryJobsController = vi.hoisted(() => vi.fn());
 const loadConfig = vi.hoisted(() => vi.fn(() => ({})));
 const resolveDefaultAgentId = vi.hoisted(() => vi.fn(() => "main"));
 const queryCanonicalMemoryGraph = vi.hoisted(() => vi.fn());
@@ -64,6 +65,10 @@ vi.mock("./memory/index.js", async (importOriginal) => {
   };
 });
 
+vi.mock("./jobs/runtime.js", () => ({
+  getMemoryJobsController,
+}));
+
 vi.mock("./memory/canonical-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./memory/canonical-store.js")>();
   return {
@@ -85,6 +90,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   getMemorySearchManager.mockReset();
+  getMemoryJobsController.mockReset().mockImplementation(() => ({
+    getStatus: () => undefined,
+  }));
   loadConfig.mockReset().mockReturnValue({});
   resolveDefaultAgentId.mockReset().mockReturnValue("main");
   queryCanonicalMemoryGraph.mockReset();
@@ -96,6 +104,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   process.exitCode = undefined;
   setVerbose(false);
 });
@@ -255,6 +264,77 @@ describe("memory cli", () => {
       projectionInterface: "markdown-repo",
       syncMode: "local-first",
       cloudSync: "unavailable",
+      lastSyncedLamport: 7,
+      e2eeRequired: true,
+      scope: "local",
+      mode: "focus",
+      nodes: [
+        {
+          id: "note-1",
+          pageId: "note-1",
+          entityId: "note-1",
+          kind: "note",
+          title: "Project Atlas",
+          slug: "project-atlas",
+          sourcePath: "memory/project-atlas.md",
+          sourceKind: "workspace-memory",
+          aliases: ["project-atlas"],
+          tags: ["project"],
+          incoming: 0,
+          outgoing: 1,
+          degree: 1,
+        },
+        {
+          id: "note-2",
+          pageId: "note-2",
+          entityId: "note-2",
+          kind: "note",
+          title: "Roadmap",
+          slug: "roadmap",
+          sourcePath: "memory/roadmap.md",
+          sourceKind: "workspace-memory",
+          aliases: [],
+          tags: ["plan"],
+          incoming: 1,
+          outgoing: 0,
+          degree: 1,
+        },
+      ],
+      edges: [
+        {
+          id: "note-1:references:0:note-2",
+          fromId: "note-1",
+          toId: "note-2",
+          fromPageId: "note-1",
+          toPageId: "note-2",
+          relationType: "references",
+          ordinal: 0,
+          reason: {
+            kind: "canonical-link",
+            sourcePageId: "note-1",
+            targetPageId: "note-2",
+            sourceTitle: "Project Atlas",
+            targetTitle: "Roadmap",
+            sourcePath: "memory/project-atlas.md",
+            targetPath: "memory/roadmap.md",
+            relationType: "references",
+            ordinal: 0,
+          },
+        },
+      ],
+      branches: [],
+      availableRelationTypes: ["references"],
+      availableTags: ["plan", "project"],
+      stats: {
+        totalNodes: 2,
+        totalEdges: 1,
+        visibleNodes: 2,
+        visibleEdges: 1,
+      },
+      truncated: {
+        nodes: false,
+        edges: false,
+      },
       matches: [
         {
           entityId: "note-1",
@@ -320,9 +400,149 @@ describe("memory cli", () => {
       }),
     );
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Canonical Memory Graph"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("focus"));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Project Atlas"));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Roadmap"));
     expect(close).toHaveBeenCalled();
+  });
+
+  it("runs overview graph queries from the CLI without a search query", async () => {
+    const close = vi.fn(async () => {});
+    queryCanonicalMemoryGraph.mockReturnValue({
+      query: "",
+      profileId: "local-main",
+      workspaceScope: "scope-main",
+      storePath: "/tmp/canonical.sqlite",
+      backend: "builtin",
+      state: "ready",
+      projectionInterface: "markdown-repo",
+      syncMode: "local-first",
+      cloudSync: "unavailable",
+      lastSyncedLamport: 7,
+      e2eeRequired: true,
+      scope: "global",
+      mode: "overview",
+      nodes: [
+        {
+          id: "note-1",
+          pageId: "note-1",
+          entityId: "note-1",
+          kind: "note",
+          title: "Project Atlas",
+          slug: "project-atlas",
+          sourcePath: "memory/project-atlas.md",
+          sourceKind: "workspace-memory",
+          aliases: [],
+          tags: ["project"],
+          incoming: 0,
+          outgoing: 1,
+          degree: 1,
+        },
+        {
+          id: "note-2",
+          pageId: "note-2",
+          entityId: "note-2",
+          kind: "note",
+          title: "Roadmap",
+          slug: "roadmap",
+          sourcePath: "memory/roadmap.md",
+          sourceKind: "workspace-memory",
+          aliases: [],
+          tags: ["plan"],
+          incoming: 1,
+          outgoing: 0,
+          degree: 1,
+        },
+      ],
+      edges: [
+        {
+          id: "note-1:references:0:note-2",
+          fromId: "note-1",
+          toId: "note-2",
+          fromPageId: "note-1",
+          toPageId: "note-2",
+          relationType: "references",
+          ordinal: 0,
+          reason: {
+            kind: "canonical-link",
+            sourcePageId: "note-1",
+            targetPageId: "note-2",
+            sourceTitle: "Project Atlas",
+            targetTitle: "Roadmap",
+            sourcePath: "memory/project-atlas.md",
+            targetPath: "memory/roadmap.md",
+            relationType: "references",
+            ordinal: 0,
+          },
+        },
+      ],
+      branches: [],
+      availableRelationTypes: ["references"],
+      availableTags: ["plan", "project"],
+      stats: {
+        totalNodes: 2,
+        totalEdges: 1,
+        visibleNodes: 2,
+        visibleEdges: 1,
+      },
+      truncated: {
+        nodes: false,
+        edges: false,
+      },
+      matches: [],
+    });
+    mockManager({
+      sync: vi.fn(async () => {}),
+      status: () =>
+        makeMemoryStatus({
+          custom: {
+            canonicalStore: {
+              state: "ready",
+              path: "/tmp/canonical.sqlite",
+              profileId: "local-main",
+              profileSource: "local-profile",
+              workspaceScope: "scope-main",
+              workspaceDir: "/tmp/workspace",
+              backend: "builtin",
+              entities: 2,
+              relations: 1,
+              projections: 2,
+              projectionInterface: "markdown-repo",
+              syncMode: "local-first",
+              cloudSync: "unavailable",
+              projectionSources: ["workspace-memory"],
+            },
+          },
+        }),
+      close,
+    });
+
+    const log = spyRuntimeLogs(defaultRuntime);
+    await runMemoryCli(["graph", "--scope", "overview"]);
+
+    expect(queryCanonicalMemoryGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "global",
+        status: expect.objectContaining({ profileId: "local-main" }),
+      }),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("overview"));
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("No matched entities; showing visible graph nodes."),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Project Atlas"));
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("rejects focus mode without a query or stable locator", async () => {
+    const error = spyRuntimeErrors(defaultRuntime);
+
+    await runMemoryCli(["graph", "--scope", "focus"]);
+
+    expect(error).toHaveBeenCalledWith(
+      "memory.graph focus scope requires pageId, entityId, or query",
+    );
+    expect(process.exitCode).toBe(1);
   });
 
   it("resolves configured memory SecretRefs through gateway snapshot", async () => {
@@ -374,6 +594,8 @@ describe("memory cli", () => {
     expect(helpText).toContain("Probe embedding provider readiness.");
     expect(helpText).toContain('alisio memory search "meeting notes"');
     expect(helpText).toContain("Quick search using positional query.");
+    expect(helpText).toContain("alisio memory graph --scope overview");
+    expect(helpText).toContain("Inspect the broader canonical memory map.");
     expect(helpText).toContain('alisio memory search --query "deployment" --max-results 20');
     expect(helpText).toContain("Limit results for focused troubleshooting.");
   });
@@ -417,6 +639,80 @@ describe("memory cli", () => {
 
     expect(probeEmbeddingAvailability).toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Embeddings: ready"));
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("prints projection and memory jobs status for canonical memory", async () => {
+    vi.stubEnv("ALISIO_STATE_DIR", "/tmp/alisio-state");
+    const close = vi.fn(async () => {});
+    getMemoryJobsController.mockReturnValue({
+      getStatus: () => ({
+        agentId: "main",
+        profileId: "local-main",
+        workspaceScope: "workspace-main",
+        workspaceDir: "/tmp/workspace-main",
+        backend: "builtin",
+        flags: {
+          enabled: true,
+          autoSleepEnabled: true,
+          maxSliceMs: 75,
+          idleWindowMs: 300,
+          pollIntervalMs: 100,
+        },
+        gatewayActivity: {
+          lastRequestSeq: 0,
+        },
+        runtime: {
+          state: "idle",
+          running: false,
+          cancelRequested: false,
+          activeSession: false,
+          recentGatewayRequest: false,
+          idle: true,
+          lastStatus: "completed",
+          sliceCount: 2,
+          totalSliceMs: 120,
+        },
+        telemetry: {
+          counts: {
+            runs: 2,
+            completedRuns: 2,
+            totalRunMs: 120,
+          },
+        },
+        jobs: [],
+      }),
+    });
+    loadConfig.mockReturnValue({
+      memory: {
+        markdownProjection: {
+          enabled: true,
+        },
+        legacyMarkdownProjection: {
+          enabled: false,
+        },
+      },
+    });
+    mockManager({
+      probeVectorAvailability: vi.fn(async () => true),
+      status: () =>
+        makeMemoryStatus({
+          workspaceDir: "/tmp/workspace-main",
+        }),
+      close,
+    });
+
+    const log = spyRuntimeLogs(defaultRuntime);
+    await runMemoryCli(["status"]);
+
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Workspace projections: enabled"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Legacy mirror: disabled"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Memory jobs: idle"));
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("auto-sleep on · slice 75ms"),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Job activity: 2 slices · 0 records"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Jobs last run: completed"));
     expect(close).toHaveBeenCalled();
   });
 
@@ -557,10 +853,54 @@ describe("memory cli", () => {
   });
 
   it("prints status json output when requested", async () => {
+    vi.stubEnv("ALISIO_STATE_DIR", "/tmp/alisio-state");
     const close = vi.fn(async () => {});
+    getMemoryJobsController.mockReturnValue({
+      getStatus: () => ({
+        agentId: "main",
+        profileId: "local-main",
+        workspaceScope: "workspace-main",
+        workspaceDir: "/tmp/workspace-main",
+        backend: "builtin",
+        flags: {
+          enabled: true,
+          autoSleepEnabled: false,
+          maxSliceMs: 90,
+          idleWindowMs: 300,
+          pollIntervalMs: 100,
+        },
+        gatewayActivity: {
+          lastRequestSeq: 0,
+        },
+        runtime: {
+          state: "disabled",
+          running: false,
+          cancelRequested: false,
+          activeSession: false,
+          recentGatewayRequest: false,
+          idle: false,
+          sliceCount: 0,
+          totalSliceMs: 0,
+        },
+        telemetry: {
+          counts: {},
+        },
+        jobs: [],
+      }),
+    });
+    loadConfig.mockReturnValue({
+      memory: {
+        markdownProjection: {
+          enabled: true,
+        },
+        legacyMarkdownProjection: {
+          enabled: true,
+        },
+      },
+    });
     mockManager({
       probeVectorAvailability: vi.fn(async () => true),
-      status: () => makeMemoryStatus({ workspaceDir: undefined }),
+      status: () => makeMemoryStatus({ workspaceDir: "/tmp/workspace-main" }),
       close,
     });
 
@@ -574,6 +914,21 @@ describe("memory cli", () => {
     }
     expect(Array.isArray(payload)).toBe(true);
     expect((payload[0] as Record<string, unknown>)?.agentId).toBe("main");
+    expect((payload[0] as Record<string, unknown>)?.projectionStatus).toEqual({
+      workspaceEnabled: true,
+      compatibilityEnabled: true,
+      workspaceRoot: "/tmp/workspace-main",
+      compatibilityRoot: "/tmp/alisio-state/workspace",
+    });
+    expect(
+      ((payload[0] as Record<string, unknown>)?.jobsStatus as Record<string, unknown>)?.flags,
+    ).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        autoSleepEnabled: false,
+        maxSliceMs: 90,
+      }),
+    );
     expect(close).toHaveBeenCalled();
   });
 

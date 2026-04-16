@@ -55,6 +55,22 @@ export function renderSkeletonButton(
   `;
 }
 
+export function renderSkeletonInput(
+  opts: {
+    className?: string;
+    compact?: boolean;
+  } = {},
+) {
+  return html`
+    <div
+      class="skeleton loading-state__input ${opts.compact
+        ? "loading-state__input--compact"
+        : ""} ${opts.className ?? ""}"
+      aria-hidden="true"
+    ></div>
+  `;
+}
+
 export function renderSkeletonStatCard() {
   return html`
     <article class="loading-state__stat-card" aria-hidden="true">
@@ -119,6 +135,34 @@ export function renderSkeletonTable(opts: {
           </div>
         `,
       )}
+    </div>
+  `;
+}
+
+export function renderSurfaceEmptyState(opts: {
+  icon?: unknown;
+  title?: unknown;
+  body: unknown;
+  meta?: unknown;
+  actions?: TemplateResult | readonly TemplateResult[] | null;
+  className?: string;
+  compact?: boolean;
+  centered?: boolean;
+}) {
+  const actions =
+    opts.actions == null ? [] : Array.isArray(opts.actions) ? opts.actions : [opts.actions];
+
+  return html`
+    <div
+      class="empty-state empty-state--surface ${opts.compact
+        ? "empty-state--compact"
+        : ""} ${opts.centered ? "empty-state--centered" : ""} ${opts.className ?? ""}"
+    >
+      ${opts.icon != null ? html`<div class="empty-state__icon">${opts.icon}</div>` : nothing}
+      ${opts.title != null ? html`<div class="empty-state__title">${opts.title}</div>` : nothing}
+      <div class="empty-state__body">${opts.body}</div>
+      ${opts.meta != null ? html`<div class="empty-state__meta">${opts.meta}</div>` : nothing}
+      ${actions.length > 0 ? html`<div class="empty-state__actions">${actions}</div>` : nothing}
     </div>
   `;
 }

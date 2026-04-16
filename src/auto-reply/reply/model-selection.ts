@@ -6,6 +6,7 @@ import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
 import {
   buildConfiguredModelCatalog,
   buildAllowedModelSet,
+  resolveDefaultModelForSession,
   type ModelAliasIndex,
   modelKey,
   normalizeModelRef,
@@ -23,6 +24,12 @@ import {
 import { applyModelOverrideToSessionEntry } from "../../sessions/model-overrides.js";
 import { resolveThreadParentSessionKey } from "../../sessions/session-key-utils.js";
 import { isAlisioDynamicProvider } from "../../shared/alisio-dynamic-provider.js";
+import {
+  filterModelCatalogForSessionPolicy,
+  filterModelKeysForSessionPolicy,
+  getLocalManagedModelRestrictionReason,
+  isLocalManagedModelRestrictedForSession,
+} from "../../shared/local-model-session-policy.js";
 import type { ThinkLevel } from "./directives.js";
 
 export type ModelDirectiveSelection = {
@@ -40,6 +47,7 @@ type ModelSelectionState = {
   allowedModelKeys: Set<string>;
   allowedModelCatalog: ModelCatalog;
   resetModelOverride: boolean;
+  resetModelOverrideReason?: string;
   resolveDefaultThinkingLevel: () => Promise<ThinkLevel>;
   /** Default reasoning level from model capability: "on" if model has reasoning, else "off". */
   resolveDefaultReasoningLevel: () => Promise<"on" | "off">;
@@ -71,6 +79,14 @@ async function loadMergedRuntimeModelCatalog(params: {
   cfg: AlisioConfig;
   dynamicProviderIds?: string[];
 }): Promise<ModelCatalog> {
+  const runtime = await loadModelCatalogRuntime();
+  if (typeof runtime.loadMergedRuntimeModelCatalog === "function") {
+    return runtime.loadMergedRuntimeModelCatalog({
+      config: params.cfg,
+      dynamicProviderIds: params.dynamicProviderIds,
+    });
+  }
+
   for (const providerId of params.dynamicProviderIds ?? []) {
     if (!isAlisioDynamicProvider(providerId)) {
       continue;
@@ -78,9 +94,7 @@ async function loadMergedRuntimeModelCatalog(params: {
     await ensureAlisioDynamicProviderSource(providerId);
   }
 
-  const configuredCatalog = await (
-    await loadModelCatalogRuntime()
-  ).loadModelCatalog({
+  const configuredCatalog = await runtime.loadModelCatalog({
     config: params.cfg,
   });
   const dynamicCatalog = listAlisioDynamicCatalogEntries();
@@ -110,6 +124,17 @@ async function loadMergedRuntimeModelCatalog(params: {
     }
     return left.id.localeCompare(right.id);
   });
+}
+
+function applySessionModelPolicyToAllowedSet(params: {
+  sessionKey?: string;
+  catalog: ModelCatalog;
+  keys: Set<string>;
+}): { allowedModelCatalog: ModelCatalog; allowedModelKeys: Set<string> } {
+  return {
+    allowedModelCatalog: filterModelCatalogForSessionPolicy(params.catalog, params.sessionKey),
+    allowedModelKeys: filterModelKeysForSessionPolicy(params.keys, params.sessionKey),
+  };
 }
 
 const FUZZY_VARIANT_TOKENS = [
@@ -372,12 +397,26 @@ export async function createModelSelectionState(params: {
     sessionKey,
     parentSessionKey,
     storePath,
-    defaultProvider,
-    defaultModel,
   } = params;
+  const resolvedSessionDefault = resolveDefaultModelForSession({
+    cfg,
+    agentId: params.agentId,
+    sessionKey,
+  });
+  const effectiveDefaultProvider = resolvedSessionDefault.provider;
+  const effectiveDefaultModel = resolvedSessionDefault.model;
 
   let provider = params.provider;
   let model = params.model;
+  if (
+    isLocalManagedModelRestrictedForSession({
+      providerId: provider,
+      sessionKey,
+    })
+  ) {
+    provider = effectiveDefaultProvider;
+    model = effectiveDefaultModel;
+  }
 
   const hasAllowlist = agentCfg?.models && Object.keys(agentCfg.models).length > 0;
   const initialStoredOverride = resolveStoredModelOverride({
@@ -389,7 +428,7 @@ export async function createModelSelectionState(params: {
   const hasStoredOverride = Boolean(initialStoredOverride);
   const normalizedInitialStoredOverride = initialStoredOverride?.model
     ? normalizeModelRef(
-        initialStoredOverride.provider || defaultProvider,
+        initialStoredOverride.provider || effectiveDefaultProvider,
         initialStoredOverride.model,
       )
     : null;
@@ -418,6 +457,7 @@ export async function createModelSelectionState(params: {
   let allowedModelCatalog: ModelCatalog = configuredModelCatalog;
   let modelCatalog: ModelCatalog | null = null;
   let resetModelOverride = false;
+  let resetModelOverrideReason: string | undefined;
   const agentEntry = params.agentId ? resolveAgentConfig(cfg, params.agentId) : undefined;
 
   if (needsModelCatalog) {
@@ -429,12 +469,17 @@ export async function createModelSelectionState(params: {
     const allowed = buildAllowedModelSet({
       cfg,
       catalog: modelCatalog,
-      defaultProvider,
-      defaultModel,
+      defaultProvider: effectiveDefaultProvider,
+      defaultModel: effectiveDefaultModel,
       agentId: params.agentId,
     });
-    allowedModelCatalog = allowed.allowedCatalog;
-    allowedModelKeys = allowed.allowedKeys;
+    const filteredAllowed = applySessionModelPolicyToAllowedSet({
+      sessionKey,
+      catalog: allowed.allowedCatalog,
+      keys: allowed.allowedKeys,
+    });
+    allowedModelCatalog = filteredAllowed.allowedModelCatalog;
+    allowedModelKeys = filteredAllowed.allowedModelKeys;
     logStage(
       "allowlist-built",
       `allowed=${allowedModelCatalog.length} keys=${allowedModelKeys.size}`,
@@ -443,12 +488,17 @@ export async function createModelSelectionState(params: {
     const allowed = buildAllowedModelSet({
       cfg,
       catalog: configuredModelCatalog,
-      defaultProvider,
-      defaultModel,
+      defaultProvider: effectiveDefaultProvider,
+      defaultModel: effectiveDefaultModel,
       agentId: params.agentId,
     });
-    allowedModelCatalog = allowed.allowedCatalog;
-    allowedModelKeys = allowed.allowedKeys;
+    const filteredAllowed = applySessionModelPolicyToAllowedSet({
+      sessionKey,
+      catalog: allowed.allowedCatalog,
+      keys: allowed.allowedKeys,
+    });
+    allowedModelCatalog = filteredAllowed.allowedModelCatalog;
+    allowedModelKeys = filteredAllowed.allowedModelKeys;
     logStage(
       "configured-allowlist-built",
       `allowed=${allowedModelCatalog.length} keys=${allowedModelKeys.size}`,
@@ -458,17 +508,34 @@ export async function createModelSelectionState(params: {
   }
 
   if (sessionEntry && sessionStore && sessionKey && hasStoredOverride) {
-    const overrideProvider = sessionEntry.providerOverride?.trim() || defaultProvider;
+    const overrideProvider = sessionEntry.providerOverride?.trim() || effectiveDefaultProvider;
     const overrideModel = sessionEntry.modelOverride?.trim();
     if (overrideModel) {
       const normalizedOverride = normalizeModelRef(overrideProvider, overrideModel);
       const key = modelKey(normalizedOverride.provider, normalizedOverride.model);
-      if (allowedModelKeys.size > 0 && !allowedModelKeys.has(key)) {
+      const restrictedOverride = isLocalManagedModelRestrictedForSession({
+        providerId: normalizedOverride.provider,
+        sessionKey,
+      });
+      if (restrictedOverride || (allowedModelKeys.size > 0 && !allowedModelKeys.has(key))) {
         const { updated } = applyModelOverrideToSessionEntry({
           entry: sessionEntry,
-          selection: { provider: defaultProvider, model: defaultModel, isDefault: true },
+          selection: {
+            provider: effectiveDefaultProvider,
+            model: effectiveDefaultModel,
+            isDefault: true,
+          },
         });
         if (updated) {
+          if (restrictedOverride) {
+            sessionEntry.fallbackNoticeSelectedModel = key;
+            sessionEntry.fallbackNoticeActiveModel = modelKey(
+              effectiveDefaultProvider,
+              effectiveDefaultModel,
+            );
+            sessionEntry.fallbackNoticeReason = getLocalManagedModelRestrictionReason();
+            resetModelOverrideReason = getLocalManagedModelRestrictionReason();
+          }
           sessionStore[sessionKey] = sessionEntry;
           if (storePath) {
             await (
@@ -495,7 +562,7 @@ export async function createModelSelectionState(params: {
   const skipStoredOverride = params.hasResolvedHeartbeatModelOverride === true;
   if (storedOverride?.model && !skipStoredOverride) {
     const normalizedStoredOverride = normalizeModelRef(
-      storedOverride.provider || defaultProvider,
+      storedOverride.provider || effectiveDefaultProvider,
       storedOverride.model,
     );
     const key = modelKey(normalizedStoredOverride.provider, normalizedStoredOverride.model);
@@ -575,6 +642,7 @@ export async function createModelSelectionState(params: {
     allowedModelKeys,
     allowedModelCatalog,
     resetModelOverride,
+    resetModelOverrideReason,
     resolveDefaultThinkingLevel,
     resolveDefaultReasoningLevel,
     needsModelCatalog,

@@ -1,7 +1,9 @@
 // Focused runtime contract for memory plugin config/state/helpers.
 
 export type { AnyAgentTool } from "../../../src/agents/tools/common.js";
-export { resolveCronStyleNow } from "../../../src/agents/current-time.js";
+import { resolveCronStyleNow as resolveCronStyleNowInternal } from "../../../src/agents/current-time.js";
+import type { AlisioConfig as CoreAlisioConfig } from "../../../src/config/config.js";
+export { resolveCronStyleNowInternal as resolveCronStyleNow };
 export { DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR } from "../../../src/agents/pi-settings.js";
 export { resolveDefaultAgentId, resolveSessionAgentId } from "../../../src/agents/agent-scope.js";
 export { resolveMemorySearchConfig } from "../../../src/agents/memory-search.js";
@@ -67,3 +69,45 @@ export type {
   PulledMemoryBlob,
   ResolveSyncAvailabilityParams,
 } from "../../memory-sync/src/index.js";
+
+export type CanonicalMemoryDailyNoteTarget = {
+  nowMs: number;
+  dateStamp: string;
+  relativePath: string;
+  userTimezone: string;
+  timeLine: string;
+};
+
+function formatDateStampInTimezone(nowMs: number, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(nowMs));
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (year && month && day) {
+    return `${year}-${month}-${day}`;
+  }
+  return new Date(nowMs).toISOString().slice(0, 10);
+}
+
+export function resolveCanonicalMemoryDailyNoteTarget(
+  params: {
+    cfg?: CoreAlisioConfig;
+    nowMs?: number;
+  } = {},
+): CanonicalMemoryDailyNoteTarget {
+  const nowMs = Number.isFinite(params.nowMs) ? (params.nowMs as number) : Date.now();
+  const { timeLine, userTimezone } = resolveCronStyleNowInternal(params.cfg ?? {}, nowMs);
+  const dateStamp = formatDateStampInTimezone(nowMs, userTimezone);
+  return {
+    nowMs,
+    dateStamp,
+    relativePath: `memory/${dateStamp}.md`,
+    userTimezone,
+    timeLine,
+  };
+}

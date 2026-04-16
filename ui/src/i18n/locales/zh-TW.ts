@@ -1,6 +1,8 @@
+import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
+import { zh_CN } from "./zh-CN.ts";
 
-export const zh_TW: TranslationMap = {
+export const zh_TW: TranslationMap = mergeTranslationMaps(zh_CN, {
   common: {
     health: "健康狀況",
     ok: "正常",
@@ -34,6 +36,7 @@ export const zh_TW: TranslationMap = {
     automations: "自動化",
     chat: "聊天",
     tasks: "任務",
+    cron: "定時任務",
     settings: "設置",
   },
   subtitles: {
@@ -45,6 +48,7 @@ export const zh_TW: TranslationMap = {
     automations: "喚醒與重複運行。",
     chat: "網關聊天，快速干預。",
     tasks: "在一個視圖中查看背景執行、交付狀態與操作員跟進。",
+    cron: "排程工作、執行記錄與傳送都集中在同一個工作區。",
     settings: "工作區配置、原生殼層與診斷。",
   },
   overview: {
@@ -154,4 +158,4 @@ export const zh_TW: TranslationMap = {
     de: "Deutsch (德語)",
     es: "Español (西班牙語)",
   },
-};
+});

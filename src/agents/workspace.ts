@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import syncFs from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -5,7 +6,11 @@ import path from "node:path";
 import { openBoundaryFile } from "../infra/boundary-file-read.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import { runCommandWithTimeout } from "../process/exec.js";
-import { isCronSessionKey, isSubagentSessionKey } from "../routing/session-key.js";
+import {
+  deriveSessionChatType,
+  isCronSessionKey,
+  isSubagentSessionKey,
+} from "../sessions/session-key-utils.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveWorkspaceTemplateDir } from "./workspace-templates.js";
 
@@ -156,6 +161,11 @@ export type WorkspaceBootstrapFile = {
   missing: boolean;
 };
 
+export type WorkspaceBootstrapSnapshot = {
+  files: WorkspaceBootstrapFile[];
+  fingerprint: string;
+};
+
 export type ExtraBootstrapLoadDiagnosticCode =
   | "invalid-bootstrap-filename"
   | "missing"
@@ -234,6 +244,9 @@ async function cleanupLegacyWorkspaceStateDir(dir: string): Promise<void> {
 async function ensureCanonicalWorkspaceStatePath(dir: string): Promise<string> {
   const canonicalPath = resolveWorkspaceStatePath(dir);
   const legacyPath = resolveLegacyWorkspaceStatePath(dir);
+  if (canonicalPath === legacyPath) {
+    return canonicalPath;
+  }
   const [canonicalExists, legacyExists] = await Promise.all([
     fileExists(canonicalPath),
     fileExists(legacyPath),
@@ -525,7 +538,26 @@ async function resolveMemoryBootstrapEntry(
   }
 }
 
-export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
+function createWorkspaceBootstrapFingerprint(files: WorkspaceBootstrapFile[]): string {
+  const hash = crypto.createHash("sha256");
+  for (const file of files) {
+    hash.update(file.name);
+    hash.update("\x00");
+    hash.update(file.path);
+    hash.update("\x00");
+    hash.update(file.missing ? "1" : "0");
+    hash.update("\x00");
+    if (!file.missing) {
+      hash.update(file.content ?? "");
+    }
+    hash.update("\x00");
+  }
+  return hash.digest("hex");
+}
+
+export async function loadWorkspaceBootstrapSnapshot(
+  dir: string,
+): Promise<WorkspaceBootstrapSnapshot> {
   const resolvedDir = resolveUserPath(dir);
 
   const entries: Array<{
@@ -584,7 +616,14 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
       result.push({ name: entry.name, path: entry.filePath, missing: true });
     }
   }
-  return result;
+  return {
+    files: result,
+    fingerprint: createWorkspaceBootstrapFingerprint(result),
+  };
+}
+
+export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {
+  return (await loadWorkspaceBootstrapSnapshot(dir)).files;
 }
 
 const MINIMAL_BOOTSTRAP_ALLOWLIST = new Set([
@@ -599,10 +638,17 @@ export function filterBootstrapFilesForSession(
   files: WorkspaceBootstrapFile[],
   sessionKey?: string,
 ): WorkspaceBootstrapFile[] {
-  if (!sessionKey || (!isSubagentSessionKey(sessionKey) && !isCronSessionKey(sessionKey))) {
+  if (!sessionKey) {
     return files;
   }
-  return files.filter((file) => MINIMAL_BOOTSTRAP_ALLOWLIST.has(file.name));
+  if (isSubagentSessionKey(sessionKey) || isCronSessionKey(sessionKey)) {
+    return files.filter((file) => MINIMAL_BOOTSTRAP_ALLOWLIST.has(file.name));
+  }
+  const chatType = deriveSessionChatType(sessionKey);
+  if (chatType === "group" || chatType === "channel") {
+    return files.filter((file) => file.name !== DEFAULT_MEMORY_FILENAME);
+  }
+  return files;
 }
 
 export async function loadExtraBootstrapFiles(

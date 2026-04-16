@@ -47,6 +47,8 @@ export type AlisioHttpBootstrap = {
 export type ControlUiLocalDeviceIdentity = {
   deviceId: string;
   publicKey: string;
+  platform?: string;
+  deviceFamily?: string;
 };
 
 export type ControlUiLocalDeviceSignRequest = {

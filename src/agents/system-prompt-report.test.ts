@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildSystemPromptReport } from "./system-prompt-report.js";
+import {
+  buildSystemPromptReport,
+  resolveSystemPromptSandboxReport,
+} from "./system-prompt-report.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
 
 function makeBootstrapFile(overrides: Partial<WorkspaceBootstrapFile>): WorkspaceBootstrapFile {
@@ -122,6 +125,41 @@ describe("buildSystemPromptReport", () => {
       browserTargetDefault: "sandbox",
       hostBrowserAllowed: false,
       browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+    });
+  });
+
+  it("keeps sandbox-first browser policy even before the live browser bridge exists", () => {
+    const sandbox = resolveSystemPromptSandboxReport({
+      cfg: {
+        agents: {
+          defaults: {
+            sandbox: {
+              mode: "all",
+              browser: {
+                enabled: true,
+                allowHostControl: false,
+              },
+            },
+          },
+        },
+        tools: {
+          sandbox: {
+            tools: {
+              alsoAllow: ["browser"],
+            },
+          },
+        },
+      } as never,
+      sessionKey: "main",
+      hostBrowserAllowed: false,
+    });
+
+    expect(sandbox).toMatchObject({
+      mode: "all",
+      sandboxed: true,
+      browserContractVersion: 1,
+      browserTargetDefault: "sandbox",
+      hostBrowserAllowed: false,
     });
   });
 
