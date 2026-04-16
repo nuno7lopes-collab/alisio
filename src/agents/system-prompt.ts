@@ -526,6 +526,9 @@ export function buildAgentSystemPrompt(params: {
           params.sandboxInfo.browserNoVncUrl
             ? `Sandbox browser observer (noVNC): ${sanitizeForPromptLiteral(params.sandboxInfo.browserNoVncUrl)}`
             : "",
+          params.sandboxInfo.browserBridgeUrl
+            ? "When you use the browser tool in this session, prefer the sandbox browser and omit `target` unless the user explicitly asks for the host browser or an existing logged-in host profile."
+            : "",
           params.sandboxInfo.hostBrowserAllowed === true
             ? "Host browser control: allowed."
             : params.sandboxInfo.hostBrowserAllowed === false

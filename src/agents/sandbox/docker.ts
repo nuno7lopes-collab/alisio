@@ -165,6 +165,7 @@ export function execDockerRaw(
 import { formatCliCommand } from "../../cli/command-format.js";
 import { markAlisioExecEnv } from "../../infra/alisio-exec-env.js";
 import { defaultRuntime } from "../../runtime.js";
+import { hasActiveEmbeddedRunForSandboxScope } from "../pi-embedded-runner/runs.js";
 import { computeSandboxConfigHash } from "./config-hash.js";
 import { DEFAULT_SANDBOX_IMAGE } from "./constants.js";
 import { readRegistry, updateRegistry } from "./registry.js";
@@ -530,7 +531,11 @@ export async function ensureSandboxContainer(params: {
       const isHot =
         running &&
         (typeof lastUsedAtMs !== "number" || now - lastUsedAtMs < HOT_CONTAINER_WINDOW_MS);
-      if (isHot) {
+      const hasActiveRunForScope = hasActiveEmbeddedRunForSandboxScope({
+        scope: params.cfg.scope,
+        scopeKey,
+      });
+      if (isHot && hasActiveRunForScope) {
         const hint = formatSandboxRecreateHint({ scope: params.cfg.scope, sessionKey: scopeKey });
         defaultRuntime.log(
           `Sandbox config changed for ${containerName} (recently used). Recreate to apply: ${hint}`,

@@ -6,6 +6,7 @@ import {
   clearActiveEmbeddedRun,
   consumeEmbeddedRunModelSwitch,
   getActiveEmbeddedRunSnapshot,
+  hasActiveEmbeddedRunForSandboxScope,
   requestEmbeddedRunModelSwitch,
   setActiveEmbeddedRun,
   updateActiveEmbeddedRunSnapshot,
@@ -171,5 +172,41 @@ describe("pi-embedded runner run registry", () => {
     clearActiveEmbeddedRun("session-clear-switch", handle);
 
     expect(consumeEmbeddedRunModelSwitch("session-clear-switch")).toBeUndefined();
+  });
+
+  it("matches active runs by sandbox session scope using the stored session key", () => {
+    const handle = createRunHandle();
+    setActiveEmbeddedRun("session-123", handle, "main");
+
+    expect(
+      hasActiveEmbeddedRunForSandboxScope({
+        scope: "session",
+        scopeKey: "main",
+      }),
+    ).toBe(true);
+    expect(
+      hasActiveEmbeddedRunForSandboxScope({
+        scope: "session",
+        scopeKey: "other",
+      }),
+    ).toBe(false);
+  });
+
+  it("matches active runs by sandbox agent scope using the stored session key", () => {
+    const handle = createRunHandle();
+    setActiveEmbeddedRun("session-456", handle, "agent:main:worker");
+
+    expect(
+      hasActiveEmbeddedRunForSandboxScope({
+        scope: "agent",
+        scopeKey: "agent:main",
+      }),
+    ).toBe(true);
+    expect(
+      hasActiveEmbeddedRunForSandboxScope({
+        scope: "agent",
+        scopeKey: "agent:other",
+      }),
+    ).toBe(false);
   });
 });

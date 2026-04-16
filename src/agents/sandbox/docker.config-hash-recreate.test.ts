@@ -28,9 +28,17 @@ const registryMocks = vi.hoisted(() => ({
   updateRegistry: vi.fn(),
 }));
 
+const embeddedRunMocks = vi.hoisted(() => ({
+  hasActiveEmbeddedRunForSandboxScope: vi.fn(),
+}));
+
 vi.mock("./registry.js", () => ({
   readRegistry: registryMocks.readRegistry,
   updateRegistry: registryMocks.updateRegistry,
+}));
+
+vi.mock("../pi-embedded-runner/runs.js", () => ({
+  hasActiveEmbeddedRunForSandboxScope: embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope,
 }));
 
 function createMockDockerChild(): MockDockerChild {
@@ -106,6 +114,9 @@ async function loadFreshDockerModuleForTest() {
     readRegistry: registryMocks.readRegistry,
     updateRegistry: registryMocks.updateRegistry,
   }));
+  vi.doMock("../pi-embedded-runner/runs.js", () => ({
+    hasActiveEmbeddedRunForSandboxScope: embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope,
+  }));
   vi.doMock("node:child_process", async (importOriginal) =>
     createChildProcessMock(() => importOriginal<typeof import("node:child_process")>()),
   );
@@ -170,6 +181,7 @@ describe("ensureSandboxContainer config-hash recreation", () => {
     registryMocks.readRegistry.mockClear();
     registryMocks.updateRegistry.mockClear();
     registryMocks.updateRegistry.mockResolvedValue(undefined);
+    embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope.mockReset().mockReturnValue(false);
     await loadFreshDockerModuleForTest();
   });
 
@@ -312,4 +324,101 @@ describe("ensureSandboxContainer config-hash recreation", () => {
       expect(bindArgs).toContain(expectedMainMount);
     },
   );
+
+  it("recreates hot containers immediately when no active run uses the sandbox scope", async () => {
+    const workspaceDir = "/tmp/workspace";
+    const oldCfg = createSandboxConfig(["1.1.1.1", "8.8.8.8"], undefined, "rw");
+    const newCfg = createSandboxConfig(["8.8.8.8", "1.1.1.1"], undefined, "rw");
+    const oldHash = computeSandboxConfigHash({
+      docker: oldCfg.docker,
+      workspaceAccess: oldCfg.workspaceAccess,
+      workspaceDir,
+      agentWorkspaceDir: workspaceDir,
+    });
+    const newHash = computeSandboxConfigHash({
+      docker: newCfg.docker,
+      workspaceAccess: newCfg.workspaceAccess,
+      workspaceDir,
+      agentWorkspaceDir: workspaceDir,
+    });
+
+    spawnState.inspectRunning = true;
+    spawnState.labelHash = oldHash;
+    registryMocks.readRegistry.mockResolvedValue({
+      entries: [
+        {
+          containerName: "oc-test-shared",
+          sessionKey: "shared",
+          createdAtMs: 1,
+          lastUsedAtMs: Date.now(),
+          image: newCfg.docker.image,
+          configHash: oldHash,
+        },
+      ],
+    });
+
+    await ensureSandboxContainer({
+      sessionKey: "agent:main:session-1",
+      workspaceDir,
+      agentWorkspaceDir: workspaceDir,
+      cfg: newCfg,
+    });
+
+    const dockerCalls = spawnState.calls.filter((call) => call.command === "docker");
+    expect(
+      dockerCalls.some(
+        (call) =>
+          call.args[0] === "rm" && call.args[1] === "-f" && call.args[2] === "oc-test-shared",
+      ),
+    ).toBe(true);
+    expect(
+      dockerCalls.some(
+        (call) => call.args[0] === "create" && call.args.includes(`alisio.configHash=${newHash}`),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps hot containers running when an active run still uses the sandbox scope", async () => {
+    const workspaceDir = "/tmp/workspace";
+    const oldCfg = createSandboxConfig(["1.1.1.1", "8.8.8.8"], undefined, "rw");
+    const newCfg = createSandboxConfig(["8.8.8.8", "1.1.1.1"], undefined, "rw");
+    const oldHash = computeSandboxConfigHash({
+      docker: oldCfg.docker,
+      workspaceAccess: oldCfg.workspaceAccess,
+      workspaceDir,
+      agentWorkspaceDir: workspaceDir,
+    });
+
+    embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope.mockReturnValue(true);
+    spawnState.inspectRunning = true;
+    spawnState.labelHash = oldHash;
+    registryMocks.readRegistry.mockResolvedValue({
+      entries: [
+        {
+          containerName: "oc-test-shared",
+          sessionKey: "shared",
+          createdAtMs: 1,
+          lastUsedAtMs: Date.now(),
+          image: newCfg.docker.image,
+          configHash: oldHash,
+        },
+      ],
+    });
+
+    await ensureSandboxContainer({
+      sessionKey: "agent:main:session-1",
+      workspaceDir,
+      agentWorkspaceDir: workspaceDir,
+      cfg: newCfg,
+    });
+
+    const dockerCalls = spawnState.calls.filter((call) => call.command === "docker");
+    expect(
+      dockerCalls.some(
+        (call) =>
+          call.args[0] === "rm" && call.args[1] === "-f" && call.args[2] === "oc-test-shared",
+      ),
+    ).toBe(false);
+    expect(dockerCalls.some((call) => call.args[0] === "create")).toBe(false);
+  });
 });

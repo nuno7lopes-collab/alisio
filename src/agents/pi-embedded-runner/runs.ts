@@ -3,6 +3,7 @@ import {
   logMessageQueued,
   logSessionStateChange,
 } from "../../logging/diagnostic.js";
+import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import { resolveGlobalSingleton } from "../../shared/global-singleton.js";
 
 type EmbeddedPiQueueHandle = {
@@ -37,8 +38,13 @@ export type EmbeddedRunModelSwitchRequest = {
  */
 const EMBEDDED_RUN_STATE_KEY = Symbol.for("alisio.embeddedRunState");
 
+type ActiveEmbeddedRunEntry = {
+  handle: EmbeddedPiQueueHandle;
+  sessionKey?: string;
+};
+
 const embeddedRunState = resolveGlobalSingleton(EMBEDDED_RUN_STATE_KEY, () => ({
-  activeRuns: new Map<string, EmbeddedPiQueueHandle>(),
+  activeRuns: new Map<string, ActiveEmbeddedRunEntry>(),
   snapshots: new Map<string, ActiveEmbeddedRunSnapshot>(),
   waiters: new Map<string, Set<EmbeddedRunWaiter>>(),
   modelSwitchRequests: new Map<string, EmbeddedRunModelSwitchRequest>(),
@@ -49,7 +55,8 @@ const EMBEDDED_RUN_WAITERS = embeddedRunState.waiters;
 const EMBEDDED_RUN_MODEL_SWITCH_REQUESTS = embeddedRunState.modelSwitchRequests;
 
 export function queueEmbeddedPiMessage(sessionId: string, text: string): boolean {
-  const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
+  const entry = ACTIVE_EMBEDDED_RUNS.get(sessionId);
+  const handle = entry?.handle;
   if (!handle) {
     diag.debug(`queue message failed: sessionId=${sessionId} reason=no_active_run`);
     return false;
@@ -83,7 +90,7 @@ export function abortEmbeddedPiRun(
   opts?: { mode?: "all" | "compacting" },
 ): boolean {
   if (typeof sessionId === "string" && sessionId.length > 0) {
-    const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
+    const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId)?.handle;
     if (!handle) {
       diag.debug(`abort failed: sessionId=${sessionId} reason=no_active_run`);
       return false;
@@ -101,7 +108,8 @@ export function abortEmbeddedPiRun(
   const mode = opts?.mode;
   if (mode === "compacting") {
     let aborted = false;
-    for (const [id, handle] of ACTIVE_EMBEDDED_RUNS) {
+    for (const [id, entry] of ACTIVE_EMBEDDED_RUNS) {
+      const handle = entry.handle;
       if (!handle.isCompacting()) {
         continue;
       }
@@ -118,7 +126,8 @@ export function abortEmbeddedPiRun(
 
   if (mode === "all") {
     let aborted = false;
-    for (const [id, handle] of ACTIVE_EMBEDDED_RUNS) {
+    for (const [id, entry] of ACTIVE_EMBEDDED_RUNS) {
+      const handle = entry.handle;
       diag.debug(`aborting run: sessionId=${id}`);
       try {
         handle.abort();
@@ -142,7 +151,7 @@ export function isEmbeddedPiRunActive(sessionId: string): boolean {
 }
 
 export function isEmbeddedPiRunStreaming(sessionId: string): boolean {
-  const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId);
+  const handle = ACTIVE_EMBEDDED_RUNS.get(sessionId)?.handle;
   if (!handle) {
     return false;
   }
@@ -151,6 +160,33 @@ export function isEmbeddedPiRunStreaming(sessionId: string): boolean {
 
 export function getActiveEmbeddedRunCount(): number {
   return ACTIVE_EMBEDDED_RUNS.size;
+}
+
+export function hasActiveEmbeddedRunForSandboxScope(params: {
+  scope: "session" | "agent" | "shared";
+  scopeKey: string;
+}): boolean {
+  if (params.scope === "shared") {
+    return ACTIVE_EMBEDDED_RUNS.size > 0;
+  }
+  const scopeKey = params.scopeKey.trim();
+  if (!scopeKey) {
+    return false;
+  }
+
+  for (const [sessionId, entry] of ACTIVE_EMBEDDED_RUNS) {
+    const effectiveSessionKey = entry.sessionKey?.trim() || sessionId.trim();
+    if (params.scope === "session") {
+      if (effectiveSessionKey === scopeKey || sessionId.trim() === scopeKey) {
+        return true;
+      }
+      continue;
+    }
+    if (`agent:${resolveAgentIdFromSessionKey(effectiveSessionKey)}` === scopeKey) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function getActiveEmbeddedRunSnapshot(
@@ -278,7 +314,7 @@ export function setActiveEmbeddedRun(
   sessionKey?: string,
 ) {
   const wasActive = ACTIVE_EMBEDDED_RUNS.has(sessionId);
-  ACTIVE_EMBEDDED_RUNS.set(sessionId, handle);
+  ACTIVE_EMBEDDED_RUNS.set(sessionId, { handle, sessionKey });
   logSessionStateChange({
     sessionId,
     sessionKey,
@@ -305,7 +341,7 @@ export function clearActiveEmbeddedRun(
   handle: EmbeddedPiQueueHandle,
   sessionKey?: string,
 ) {
-  if (ACTIVE_EMBEDDED_RUNS.get(sessionId) === handle) {
+  if (ACTIVE_EMBEDDED_RUNS.get(sessionId)?.handle === handle) {
     ACTIVE_EMBEDDED_RUNS.delete(sessionId);
     ACTIVE_EMBEDDED_RUN_SNAPSHOTS.delete(sessionId);
     EMBEDDED_RUN_MODEL_SWITCH_REQUESTS.delete(sessionId);

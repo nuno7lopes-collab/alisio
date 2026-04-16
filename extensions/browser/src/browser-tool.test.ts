@@ -358,6 +358,20 @@ describe("browser tool snapshot maxChars", () => {
     );
   });
 
+  it("rejects target=host when sandbox policy blocks host control", async () => {
+    const tool = createBrowserTool({
+      sandboxBridgeUrl: "http://127.0.0.1:9999",
+      allowHostControl: false,
+    });
+
+    await expect(
+      tool.execute?.("call-1", {
+        action: "status",
+        target: "host",
+      }),
+    ).rejects.toThrow(/Host browser control is disabled by sandbox policy/i);
+  });
+
   it("defaults to host for custom existing-session profiles too", async () => {
     setResolvedBrowserProfiles({
       "chrome-live": { driver: "existing-session", attachOnly: true, color: "#00AA00" },

@@ -10,6 +10,7 @@ import {
   type ResolvedBrowserConfig,
 } from "../../plugin-sdk/browser-runtime.js";
 import { defaultRuntime } from "../../runtime.js";
+import { hasActiveEmbeddedRunForSandboxScope } from "../pi-embedded-runner/runs.js";
 import { BROWSER_BRIDGES } from "./browser-bridges.js";
 import { computeSandboxBrowserConfigHash } from "./config-hash.js";
 import { resolveSandboxBrowserDockerCreateConfig } from "./config.js";
@@ -194,7 +195,11 @@ export async function ensureSandboxBrowser(params: {
       const lastUsedAtMs = registryEntry?.lastUsedAtMs;
       const isHot =
         running && (typeof lastUsedAtMs !== "number" || now - lastUsedAtMs < HOT_BROWSER_WINDOW_MS);
-      if (isHot) {
+      const hasActiveRunForScope = hasActiveEmbeddedRunForSandboxScope({
+        scope: params.cfg.scope,
+        scopeKey: params.scopeKey,
+      });
+      if (isHot && hasActiveRunForScope) {
         const hint = (() => {
           if (params.cfg.scope === "session") {
             return `alisio sandbox recreate --browser --session ${params.scopeKey}`;

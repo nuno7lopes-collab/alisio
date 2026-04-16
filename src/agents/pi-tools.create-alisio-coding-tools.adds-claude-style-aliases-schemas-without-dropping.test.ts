@@ -162,6 +162,8 @@ describe("createAlisioCodingTools", () => {
   it("mentions user browser profile in browser tool description", () => {
     const browser = createBrowserTool();
     expect(browser.description).toMatch(/profile="user"/i);
+    expect(browser.description).toMatch(/prefer that isolated browser/i);
+    expect(browser.description).toMatch(/Use target="host" only when/i);
   });
   it("keeps browser tool schema properties after normalization", () => {
     const browser = createBrowserTool();

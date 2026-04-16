@@ -699,6 +699,9 @@ describe("buildAgentSystemPrompt", () => {
         containerWorkspaceDir: "/workspace",
         workspaceAccess: "ro",
         agentWorkspaceMount: "/agent",
+        browserBridgeUrl: "http://127.0.0.1:9222",
+        browserNoVncUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+        hostBrowserAllowed: false,
         elevated: { allowed: true, defaultLevel: "on" },
       },
     });
@@ -713,6 +716,14 @@ describe("buildAgentSystemPrompt", () => {
     );
     expect(prompt).toContain("You are running in a sandboxed runtime");
     expect(prompt).toContain("Sub-agents stay sandboxed");
+    expect(prompt).toContain("Sandbox browser: enabled.");
+    expect(prompt).toContain(
+      "Sandbox browser observer (noVNC): http://127.0.0.1:19000/sandbox/novnc?token=abc",
+    );
+    expect(prompt).toContain(
+      "When you use the browser tool in this session, prefer the sandbox browser and omit `target` unless the user explicitly asks for the host browser or an existing logged-in host profile.",
+    );
+    expect(prompt).toContain("Host browser control: blocked.");
     expect(prompt).toContain("User can toggle with /elevated on|off|ask|full.");
     expect(prompt).toContain("Current elevated level: on");
   });

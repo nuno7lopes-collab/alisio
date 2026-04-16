@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { slugifySessionKey } from "./shared.js";
 import { collectDockerFlagValues, findDockerArgsCall } from "./test-args.js";
 import type { SandboxConfig } from "./types.js";
 
@@ -17,6 +18,10 @@ const dockerMocks = vi.hoisted(() => ({
 const registryMocks = vi.hoisted(() => ({
   readBrowserRegistry: vi.fn(),
   updateBrowserRegistry: vi.fn(),
+}));
+
+const embeddedRunMocks = vi.hoisted(() => ({
+  hasActiveEmbeddedRunForSandboxScope: vi.fn(),
 }));
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -39,6 +44,10 @@ vi.mock("./docker.js", async (importOriginal) => {
 vi.mock("./registry.js", () => ({
   readBrowserRegistry: registryMocks.readBrowserRegistry,
   updateBrowserRegistry: registryMocks.updateBrowserRegistry,
+}));
+
+vi.mock("../pi-embedded-runner/runs.js", () => ({
+  hasActiveEmbeddedRunForSandboxScope: embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope,
 }));
 
 vi.mock("../../plugin-sdk/browser-runtime.js", async (importOriginal) => {
@@ -117,6 +126,7 @@ describe("ensureSandboxBrowser create args", () => {
     dockerMocks.readDockerPort.mockClear();
     registryMocks.readBrowserRegistry.mockClear();
     registryMocks.updateBrowserRegistry.mockClear();
+    embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope.mockReset().mockReturnValue(false);
     bridgeMocks.startBrowserBridgeServer.mockClear();
     bridgeMocks.stopBrowserBridgeServer.mockClear();
 
@@ -225,5 +235,72 @@ describe("ensureSandboxBrowser create args", () => {
     expect(createArgs).toBeDefined();
     expect(createArgs).toContain("/tmp/workspace:/workspace");
     expect(createArgs).not.toContain("/tmp/workspace:/workspace:ro");
+  });
+
+  it("recreates hot browser containers immediately when no active run uses the sandbox scope", async () => {
+    const cfg = buildConfig(true);
+    const containerName = `alisio-sbx-browser-${slugifySessionKey("session:test")}`.slice(0, 63);
+
+    dockerMocks.dockerContainerState.mockResolvedValue({ exists: true, running: true });
+    dockerMocks.readDockerContainerLabel.mockResolvedValue("stale-hash");
+    registryMocks.readBrowserRegistry.mockResolvedValue({
+      entries: [
+        {
+          containerName,
+          sessionKey: "session:test",
+          createdAtMs: 1,
+          lastUsedAtMs: Date.now(),
+          image: cfg.browser.image,
+          configHash: "stale-hash",
+          cdpPort: 49100,
+          noVncPort: 49101,
+        },
+      ],
+    });
+
+    await ensureSandboxBrowser({
+      scopeKey: "session:test",
+      workspaceDir: "/tmp/workspace",
+      agentWorkspaceDir: "/tmp/workspace",
+      cfg,
+    });
+
+    expect(dockerMocks.execDocker).toHaveBeenCalledWith(["rm", "-f", containerName], {
+      allowFailure: true,
+    });
+  });
+
+  it("keeps hot browser containers running when an active run still uses the sandbox scope", async () => {
+    const cfg = buildConfig(true);
+    const containerName = `alisio-sbx-browser-${slugifySessionKey("session:test")}`.slice(0, 63);
+
+    embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope.mockReturnValue(true);
+    dockerMocks.dockerContainerState.mockResolvedValue({ exists: true, running: true });
+    dockerMocks.readDockerContainerLabel.mockResolvedValue("stale-hash");
+    registryMocks.readBrowserRegistry.mockResolvedValue({
+      entries: [
+        {
+          containerName,
+          sessionKey: "session:test",
+          createdAtMs: 1,
+          lastUsedAtMs: Date.now(),
+          image: cfg.browser.image,
+          configHash: "stale-hash",
+          cdpPort: 49100,
+          noVncPort: 49101,
+        },
+      ],
+    });
+
+    await ensureSandboxBrowser({
+      scopeKey: "session:test",
+      workspaceDir: "/tmp/workspace",
+      agentWorkspaceDir: "/tmp/workspace",
+      cfg,
+    });
+
+    expect(dockerMocks.execDocker).not.toHaveBeenCalledWith(["rm", "-f", containerName], {
+      allowFailure: true,
+    });
   });
 });
