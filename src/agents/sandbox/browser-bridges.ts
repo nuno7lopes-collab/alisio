@@ -7,5 +7,7 @@ export const BROWSER_BRIDGES = new Map<
     containerName: string;
     authToken?: string;
     authPassword?: string;
+    noVncPort?: number;
+    noVncPassword?: string;
   }
 >();

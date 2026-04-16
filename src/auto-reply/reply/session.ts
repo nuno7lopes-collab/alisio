@@ -3,6 +3,10 @@ import path from "node:path";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshotOnSessionRollover } from "../../agents/bootstrap-cache.js";
 import { disposeSessionMcpRuntime } from "../../agents/pi-bundle-mcp-tools.js";
+import { resolveSandboxConfigForAgent } from "../../agents/sandbox.js";
+import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
+import { isToolAllowed } from "../../agents/sandbox/tool-policy.js";
+import { CURRENT_BROWSER_SESSION_CONTRACT_VERSION } from "../../agents/system-prompt-report.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { resolveGroupSessionKey } from "../../config/sessions/group.js";
@@ -122,6 +126,40 @@ function resolveSessionConversationBindingContext(
       ? { parentConversationId: bindingContext.parentConversationId }
       : {}),
   };
+}
+
+function shouldForceBrowserContractSessionReset(params: {
+  cfg: AlisioConfig;
+  agentId: string;
+  sessionKey: string;
+  entry?: SessionEntry;
+}): boolean {
+  const entry = params.entry;
+  if (!entry) {
+    return false;
+  }
+
+  const runtime = resolveSandboxRuntimeStatus({
+    cfg: params.cfg,
+    sessionKey: params.sessionKey,
+  });
+  if (!runtime.sandboxed) {
+    return false;
+  }
+
+  const sandboxCfg = resolveSandboxConfigForAgent(params.cfg, params.agentId);
+  const sandboxBrowserEnabled =
+    sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
+  if (!sandboxBrowserEnabled) {
+    return false;
+  }
+
+  const sandboxReport = entry.systemPromptReport?.sandbox;
+  return (
+    sandboxReport?.browserContractVersion !== CURRENT_BROWSER_SESSION_CONTRACT_VERSION ||
+    sandboxReport?.browserTargetDefault !== "sandbox" ||
+    sandboxReport?.hostBrowserAllowed !== sandboxCfg.browser.allowHostControl
+  );
 }
 
 function resolveBoundConversationSessionKey(params: {
@@ -341,17 +379,27 @@ export async function initSessionState(params: {
   const freshEntry = entry
     ? evaluateSessionFreshness({ updatedAt: entry.updatedAt, now, policy: resetPolicy }).fresh
     : false;
+  const browserContractReset =
+    !isNewSession &&
+    freshEntry &&
+    shouldForceBrowserContractSessionReset({
+      cfg,
+      agentId,
+      sessionKey,
+      entry,
+    });
   // Capture the current session entry before any reset so its transcript can be
   // archived afterward.  We need to do this for both explicit resets (/new, /reset)
   // and for scheduled/daily resets where the session has become stale (!freshEntry).
   // Without this, daily-reset transcripts are left as orphaned files on disk (#35481).
-  const previousSessionEntry = (resetTriggered || !freshEntry) && entry ? { ...entry } : undefined;
+  const previousSessionEntry =
+    (resetTriggered || browserContractReset || !freshEntry) && entry ? { ...entry } : undefined;
   clearBootstrapSnapshotOnSessionRollover({
     sessionKey,
     previousSessionId: previousSessionEntry?.sessionId,
   });
 
-  if (!isNewSession && freshEntry) {
+  if (!isNewSession && freshEntry && !browserContractReset) {
     sessionId = entry.sessionId;
     systemSent = entry.systemSent ?? false;
     abortedLastRun = entry.abortedLastRun ?? false;
@@ -373,7 +421,7 @@ export async function initSessionState(params: {
     // When a reset trigger (/new, /reset) starts a new session, carry over
     // user-set behavior overrides (verbose, thinking, reasoning, ttsAuto)
     // so the user doesn't have to re-enable them every time.
-    if (resetTriggered && entry) {
+    if ((resetTriggered || browserContractReset) && entry) {
       persistedThinking = entry.thinkingLevel;
       persistedVerbose = entry.verboseLevel;
       persistedReasoning = entry.reasoningLevel;

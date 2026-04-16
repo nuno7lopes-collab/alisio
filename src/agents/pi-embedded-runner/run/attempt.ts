@@ -90,6 +90,7 @@ import {
 } from "../../skills.js";
 import { buildSystemPromptParams } from "../../system-prompt-params.js";
 import { buildSystemPromptReport } from "../../system-prompt-report.js";
+import { CURRENT_BROWSER_SESSION_CONTRACT_VERSION } from "../../system-prompt-report.js";
 import { sanitizeToolCallIdsForCloudCodeAssist } from "../../tool-call-id.js";
 import { resolveTranscriptPolicy } from "../../transcript-policy.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../../workspace.js";
@@ -672,7 +673,16 @@ export async function runEmbeddedAttempt(
           cfg: params.config,
           sessionKey: sandboxSessionKey,
         });
-        return { mode: runtime.mode, sandboxed: runtime.sandboxed };
+        const browserTargetDefault =
+          sandboxInfo?.browserBridgeUrl?.trim() && runtime.sandboxed ? "sandbox" : "host";
+        return {
+          mode: runtime.mode,
+          sandboxed: runtime.sandboxed,
+          browserContractVersion: CURRENT_BROWSER_SESSION_CONTRACT_VERSION,
+          browserTargetDefault,
+          hostBrowserAllowed: sandboxInfo?.hostBrowserAllowed === true,
+          browserObserverUrl: sandboxInfo?.browserNoVncUrl?.trim() || undefined,
+        };
       })(),
       systemPrompt: appendPrompt,
       bootstrapFiles: hookAdjustedBootstrapFiles,
@@ -1694,7 +1704,9 @@ export async function runEmbeddedAttempt(
             afterEntryId: prePromptTranscriptLeafId ?? null,
           });
           if (latestUserEntry) {
-            let rewrittenUserMessage = latestUserEntry.message;
+            let rewrittenUserMessage = latestUserEntry.message as typeof latestUserEntry.message & {
+              idempotencyKey?: string;
+            };
             let needsRewrite = false;
             if (shouldCanonicalizePersistedPrompt) {
               rewrittenUserMessage = replaceUserMessageTextPreservingMedia(

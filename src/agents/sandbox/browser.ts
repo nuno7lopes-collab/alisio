@@ -99,6 +99,18 @@ function buildSandboxBrowserResolvedConfig(params: {
   };
 }
 
+export function getLiveSandboxBrowserObserverUrl(scopeKey: string): string | undefined {
+  const existing = BROWSER_BRIDGES.get(scopeKey);
+  if (!existing?.noVncPort) {
+    return undefined;
+  }
+  const token = issueNoVncObserverToken({
+    noVncPort: existing.noVncPort,
+    password: existing.noVncPassword,
+  });
+  return buildNoVncObserverTokenUrl(existing.bridge.baseUrl, token);
+}
+
 async function ensureSandboxBrowserImage(image: string) {
   const result = await execDocker(["image", "inspect", image], {
     allowFailure: true,
@@ -369,14 +381,14 @@ export async function ensureSandboxBrowser(params: {
   };
 
   const resolvedBridge = await ensureBridge();
-  if (!shouldReuse || !authMatches) {
-    BROWSER_BRIDGES.set(params.scopeKey, {
-      bridge: resolvedBridge,
-      containerName,
-      authToken: desiredAuthToken,
-      authPassword: desiredAuthPassword,
-    });
-  }
+  BROWSER_BRIDGES.set(params.scopeKey, {
+    bridge: resolvedBridge,
+    containerName,
+    authToken: desiredAuthToken,
+    authPassword: desiredAuthPassword,
+    noVncPort: mappedNoVnc ?? undefined,
+    noVncPassword,
+  });
 
   await updateBrowserRegistry({
     containerName,

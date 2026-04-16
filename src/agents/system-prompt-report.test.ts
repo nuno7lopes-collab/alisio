@@ -94,6 +94,37 @@ describe("buildSystemPromptReport", () => {
     expect(report.injectedWorkspaceFiles[0]?.truncated).toBe(true);
   });
 
+  it("includes sandbox browser contract metadata when provided", () => {
+    const file = makeBootstrapFile({ path: "/tmp/workspace/policies/AGENTS.md" });
+    const report = buildSystemPromptReport({
+      source: "run",
+      generatedAt: 0,
+      bootstrapMaxChars: 20_000,
+      systemPrompt: "system",
+      bootstrapFiles: [file],
+      injectedFiles: [{ path: "/tmp/workspace/policies/AGENTS.md", content: "trimmed" }],
+      skillsPrompt: "",
+      tools: [],
+      sandbox: {
+        mode: "all",
+        sandboxed: true,
+        browserContractVersion: 1,
+        browserTargetDefault: "sandbox",
+        hostBrowserAllowed: false,
+        browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      },
+    });
+
+    expect(report.sandbox).toEqual({
+      mode: "all",
+      sandboxed: true,
+      browserContractVersion: 1,
+      browserTargetDefault: "sandbox",
+      hostBrowserAllowed: false,
+      browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+    });
+  });
+
   it("ignores malformed injected file paths and still matches valid entries", () => {
     const file = makeBootstrapFile({ path: "/tmp/workspace/policies/AGENTS.md" });
     const report = buildSystemPromptReport({

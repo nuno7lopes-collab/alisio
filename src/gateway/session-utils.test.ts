@@ -296,6 +296,70 @@ describe("gateway session utils", () => {
     expect(withoutObserver.sessions[0]?.observer).toBeNull();
   });
 
+  test("listSessionsFromStore falls back to the persisted sandbox observer when no run is active", () => {
+    const cfg = {
+      session: { mainKey: "main" },
+      agents: {
+        list: [{ id: "main", default: true }],
+        defaults: {
+          sandbox: {
+            mode: "all",
+            browser: {
+              enabled: true,
+              allowHostControl: false,
+            },
+          },
+        },
+      },
+      tools: {
+        sandbox: {
+          tools: {
+            alsoAllow: ["browser"],
+          },
+        },
+      },
+    } as AlisioConfig;
+    const store: Record<string, SessionEntry> = {
+      "agent:main:main": {
+        sessionId: "sess-main",
+        updatedAt: 123,
+        systemPromptReport: {
+          source: "run",
+          generatedAt: 123,
+          sandbox: {
+            mode: "all",
+            sandboxed: true,
+            browserContractVersion: 1,
+            browserTargetDefault: "sandbox",
+            hostBrowserAllowed: false,
+            browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=persisted",
+          },
+          systemPrompt: {
+            chars: 10,
+            projectContextChars: 0,
+            nonProjectContextChars: 10,
+          },
+          injectedWorkspaceFiles: [],
+          skills: { promptChars: 0, entries: [] },
+          tools: { listChars: 0, schemaChars: 0, entries: [] },
+        },
+      } as SessionEntry,
+    };
+
+    const result = listSessionsFromStore({
+      cfg,
+      storePath: path.join(os.tmpdir(), "alisio-session-utils-persisted.json"),
+      store,
+      opts: {},
+    });
+
+    expect(result.sessions[0]?.observer).toEqual({
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=persisted",
+      label: "Browser observer",
+    });
+  });
+
   test("resolveGatewaySessionStoreTarget includes all case-variant duplicate keys", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-utils-dupes-"));
     const storePath = path.join(dir, "sessions.json");

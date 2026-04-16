@@ -23,7 +23,7 @@ describe("noVNC auth helpers", () => {
     );
   });
 
-  it("issues one-time short-lived observer tokens", () => {
+  it("issues reusable long-lived observer tokens", () => {
     resetNoVncObserverTokensForTests();
     const token = issueNoVncObserverToken({
       noVncPort: 50123,
@@ -38,7 +38,10 @@ describe("noVNC auth helpers", () => {
       noVncPort: 50123,
       [passwordKey]: "abcd1234", // pragma: allowlist secret
     });
-    expect(consumeNoVncObserverToken(token, 1050)).toBeNull();
+    expect(consumeNoVncObserverToken(token, 1050)).toEqual({
+      noVncPort: 50123,
+      [passwordKey]: "abcd1234", // pragma: allowlist secret
+    });
   });
 
   it("expires observer tokens", () => {

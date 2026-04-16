@@ -4,6 +4,8 @@ import { buildBootstrapInjectionStats } from "./bootstrap-budget.js";
 import type { EmbeddedContextFile } from "./pi-embedded-helpers.js";
 import type { WorkspaceBootstrapFile } from "./workspace.js";
 
+export const CURRENT_BROWSER_SESSION_CONTRACT_VERSION = 1;
+
 function extractBetween(
   input: string,
   startMarker: string,

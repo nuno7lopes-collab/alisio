@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 export const NOVNC_PASSWORD_ENV_KEY = "ALISIO_BROWSER_NOVNC_PASSWORD"; // pragma: allowlist secret
-const NOVNC_TOKEN_TTL_MS = 60 * 1000;
+const NOVNC_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
 const NOVNC_PASSWORD_LENGTH = 8;
 const NOVNC_PASSWORD_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -85,8 +85,8 @@ export function consumeNoVncObserverToken(
   if (!entry) {
     return null;
   }
-  NO_VNC_OBSERVER_TOKENS.delete(normalized);
   if (entry.expiresAt <= now) {
+    NO_VNC_OBSERVER_TOKENS.delete(normalized);
     return null;
   }
   return { noVncPort: entry.noVncPort, password: entry.password };

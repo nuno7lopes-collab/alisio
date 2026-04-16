@@ -180,6 +180,8 @@ export type SessionEntry = {
   cliSessionIds?: Record<string, string>;
   cliSessionBindings?: Record<string, CliSessionBinding>;
   claudeCliSessionId?: string;
+  /** Optional persistent system guidance prepended to every turn in this session. */
+  extraSystemPrompt?: string;
   label?: string;
   displayName?: string;
   category?: ConversationCategory;
@@ -375,6 +377,10 @@ export type SessionSystemPromptReport = {
   sandbox?: {
     mode?: string;
     sandboxed?: boolean;
+    browserContractVersion?: number;
+    browserTargetDefault?: "sandbox" | "host";
+    hostBrowserAllowed?: boolean;
+    browserObserverUrl?: string;
   };
   systemPrompt: {
     chars: number;

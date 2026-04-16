@@ -1811,6 +1811,83 @@ describe("initSessionState preserves behavior overrides across /new and /reset",
     }
   });
 
+  it("starts a fresh session when the browser contract changes to sandbox-first", async () => {
+    const storePath = await createStorePath("alisio-browser-contract-reset-");
+    const sessionKey = "agent:main:main";
+    const existingSessionId = "legacy-browser-contract-session";
+
+    await writeSessionStoreFast(storePath, {
+      [sessionKey]: {
+        sessionId: existingSessionId,
+        updatedAt: Date.now(),
+        thinkingLevel: "high",
+        systemPromptReport: {
+          source: "run",
+          generatedAt: Date.now(),
+          sandbox: {
+            mode: "off",
+            sandboxed: false,
+            browserContractVersion: 0,
+            browserTargetDefault: "host",
+            hostBrowserAllowed: true,
+          },
+          systemPrompt: {
+            chars: 10,
+            projectContextChars: 0,
+            nonProjectContextChars: 10,
+          },
+          injectedWorkspaceFiles: [],
+          skills: { promptChars: 0, entries: [] },
+          tools: { listChars: 0, schemaChars: 0, entries: [] },
+        },
+      },
+    });
+
+    const cfg = {
+      session: { store: storePath, mainKey: "main" },
+      agents: {
+        defaults: {
+          sandbox: {
+            mode: "all",
+            browser: {
+              enabled: true,
+              allowHostControl: false,
+            },
+          },
+        },
+      },
+      tools: {
+        sandbox: {
+          tools: {
+            alsoAllow: ["browser"],
+          },
+        },
+      },
+    } as AlisioConfig;
+
+    const result = await initSessionState({
+      ctx: {
+        Body: "abre o browser",
+        RawBody: "abre o browser",
+        CommandBody: "abre o browser",
+        From: "browser-user",
+        To: "bot",
+        ChatType: "direct",
+        SessionKey: sessionKey,
+        Provider: "telegram",
+        Surface: "telegram",
+      },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    expect(result.isNewSession).toBe(true);
+    expect(result.resetTriggered).toBe(false);
+    expect(result.sessionId).not.toBe(existingSessionId);
+    expect(result.previousSessionEntry?.sessionId).toBe(existingSessionId);
+    expect(result.sessionEntry.thinkingLevel).toBe("high");
+  });
+
   it("disposes the previous bundle MCP runtime on session rollover", async () => {
     const storePath = await createStorePath("alisio-stale-runtime-dispose-");
     const sessionKey = "agent:main:telegram:dm:runtime-stale-user";
