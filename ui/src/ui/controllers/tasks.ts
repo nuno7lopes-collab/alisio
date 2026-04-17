@@ -63,53 +63,6 @@ function taskErrorMessage(
   }
 }
 
-function normalizeTaskRecord(entry: unknown): TaskRecord | null {
-  if (!entry || typeof entry !== "object") {
-    return null;
-  }
-  const record = entry as Partial<TaskRecord>;
-  if (typeof record.taskId !== "string" || typeof record.task !== "string") {
-    return null;
-  }
-  if (
-    record.runtime !== "subagent" &&
-    record.runtime !== "acp" &&
-    record.runtime !== "cli" &&
-    record.runtime !== "cron"
-  ) {
-    return null;
-  }
-  if (
-    record.status !== "queued" &&
-    record.status !== "running" &&
-    record.status !== "succeeded" &&
-    record.status !== "failed" &&
-    record.status !== "timed_out" &&
-    record.status !== "cancelled" &&
-    record.status !== "lost"
-  ) {
-    return null;
-  }
-  if (
-    record.deliveryStatus !== "pending" &&
-    record.deliveryStatus !== "delivered" &&
-    record.deliveryStatus !== "session_queued" &&
-    record.deliveryStatus !== "failed" &&
-    record.deliveryStatus !== "parent_missing" &&
-    record.deliveryStatus !== "not_applicable"
-  ) {
-    return null;
-  }
-  if (
-    record.notifyPolicy !== "done_only" &&
-    record.notifyPolicy !== "state_changes" &&
-    record.notifyPolicy !== "silent"
-  ) {
-    return null;
-  }
-  return record as TaskRecord;
-}
-
 function normalizeCanonicalTask(entry: unknown): Task | null {
   if (!entry || typeof entry !== "object") {
     return null;
@@ -286,57 +239,65 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
     return null;
   }
   const value = raw as Partial<TasksOverviewResult>;
-  if (!value.summary || !value.filteredSummary || !value.audit) {
+  if (!value.canonicalSummary || !value.proposalSummary) {
     return null;
   }
-  const tasks = (Array.isArray(value.tasks) ? value.tasks : [])
-    .map(normalizeTaskRecord)
-    .filter((entry): entry is TaskRecord => Boolean(entry));
   const proposals = (Array.isArray(value.proposals) ? value.proposals : [])
     .map(normalizeTaskProposalRecord)
     .filter((entry): entry is TaskProposalRecord => Boolean(entry));
   const canonicalTasks = (Array.isArray(value.canonicalTasks) ? value.canonicalTasks : [])
     .map(normalizeCanonicalTask)
     .filter((entry): entry is Task => Boolean(entry));
-  const canonicalExecutions = (
-    Array.isArray(value.canonicalExecutions) ? value.canonicalExecutions : []
-  )
-    .map(normalizeTaskExecution)
-    .filter((entry): entry is TaskExecution => Boolean(entry));
-  const canonicalAssignments = (
-    Array.isArray(value.canonicalAssignments) ? value.canonicalAssignments : []
-  )
-    .map(normalizeTaskAssignment)
-    .filter((entry): entry is TaskAssignment => Boolean(entry));
-  const canonicalApprovals = (
-    Array.isArray(value.canonicalApprovals) ? value.canonicalApprovals : []
-  )
-    .map(normalizeTaskApproval)
-    .filter((entry): entry is TaskApproval => Boolean(entry));
-  const canonicalEvents = (Array.isArray(value.canonicalEvents) ? value.canonicalEvents : [])
-    .map(normalizeTaskEvent)
-    .filter((entry): entry is TaskEvent => Boolean(entry));
-  const canonicalSteps = (Array.isArray(value.canonicalSteps) ? value.canonicalSteps : [])
-    .map(normalizeTaskExecutionStep)
-    .filter((entry): entry is TaskExecutionStep => Boolean(entry));
-  const canonicalDependencies = (
-    Array.isArray(value.canonicalDependencies) ? value.canonicalDependencies : []
-  )
-    .map(normalizeTaskDependency)
-    .filter((entry): entry is TaskDependency => Boolean(entry));
   return {
     ...(value as TasksOverviewResult),
     canonicalSummary: normalizeCanonicalTaskSummary(value.canonicalSummary),
     proposalSummary: normalizeTaskProposalSummary(value.proposalSummary),
     proposals,
-    tasks,
     canonicalTasks,
-    canonicalExecutions,
-    canonicalAssignments,
-    canonicalApprovals,
-    canonicalEvents,
-    canonicalSteps,
-    canonicalDependencies,
+  };
+}
+
+function normalizeTaskDetailResult(raw: unknown): TasksDetailResult | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+  const value = raw as Partial<TasksDetailResult>;
+  const task = normalizeCanonicalTask(value.task);
+  if (!task) {
+    return null;
+  }
+  const proposal = value.proposal ? normalizeTaskProposalRecord(value.proposal) : null;
+  const children = (Array.isArray(value.children) ? value.children : [])
+    .map(normalizeCanonicalTask)
+    .filter((entry): entry is Task => Boolean(entry));
+  const executions = (Array.isArray(value.executions) ? value.executions : [])
+    .map(normalizeTaskExecution)
+    .filter((entry): entry is TaskExecution => Boolean(entry));
+  const assignments = (Array.isArray(value.assignments) ? value.assignments : [])
+    .map(normalizeTaskAssignment)
+    .filter((entry): entry is TaskAssignment => Boolean(entry));
+  const approvals = (Array.isArray(value.approvals) ? value.approvals : [])
+    .map(normalizeTaskApproval)
+    .filter((entry): entry is TaskApproval => Boolean(entry));
+  const events = (Array.isArray(value.events) ? value.events : [])
+    .map(normalizeTaskEvent)
+    .filter((entry): entry is TaskEvent => Boolean(entry));
+  const steps = (Array.isArray(value.steps) ? value.steps : [])
+    .map(normalizeTaskExecutionStep)
+    .filter((entry): entry is TaskExecutionStep => Boolean(entry));
+  const dependencies = (Array.isArray(value.dependencies) ? value.dependencies : [])
+    .map(normalizeTaskDependency)
+    .filter((entry): entry is TaskDependency => Boolean(entry));
+  return {
+    task,
+    ...(proposal ? { proposal } : {}),
+    children,
+    executions,
+    assignments,
+    approvals,
+    events,
+    steps,
+    dependencies,
   };
 }
 
