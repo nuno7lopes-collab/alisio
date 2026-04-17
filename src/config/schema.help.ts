@@ -1041,7 +1041,7 @@ export const FIELD_HELP: Record<string, string> = {
     "Plugin-defined configuration payload interpreted by that plugin's own schema and validation rules. Use only documented fields from the plugin to prevent ignored or invalid settings.",
   "plugins.installs":
     "CLI-managed install metadata (used by `alisio plugins update` to locate install sources).",
-  "plugins.installs.*.source": 'Install source ("npm", "archive", or "path").',
+  "plugins.installs.*.source": 'Install source ("npm", "archive", "path", or "marketplace").',
   "plugins.installs.*.spec": "Original npm spec used for install (if source is npm).",
   "plugins.installs.*.sourcePath": "Original archive/path used for install (if any).",
   "plugins.installs.*.installPath": "Resolved install directory for the installed plugin bundle.",
@@ -1058,6 +1058,14 @@ export const FIELD_HELP: Record<string, string> = {
   "plugins.installs.*.resolvedAt":
     "ISO timestamp when npm package metadata was last resolved for this install record.",
   "plugins.installs.*.installedAt": "ISO timestamp of last install/update.",
+  "plugins.installs.*.marketplaceRegistryUrl":
+    "Marketplace registry base URL recorded for registry-backed marketplace installs.",
+  "plugins.installs.*.marketplacePackage":
+    "Marketplace package slug/name recorded for registry-backed marketplace installs.",
+  "plugins.installs.*.marketplaceFamily":
+    'Marketplace package family recorded for registry-backed installs ("code-plugin" or "bundle-plugin").',
+  "plugins.installs.*.marketplaceChannel":
+    'Marketplace channel recorded for registry-backed installs ("official", "community", or "private").',
   "plugins.installs.*.marketplaceName":
     "Marketplace display name recorded for marketplace-backed plugin installs (if available).",
   "plugins.installs.*.marketplaceSource":

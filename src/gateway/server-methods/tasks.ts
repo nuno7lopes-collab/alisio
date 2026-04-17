@@ -454,13 +454,26 @@ function buildCanonicalTaskSummary(tasks: CanonicalTask[]) {
   };
 }
 
+function getVisibleCanonicalTaskBundle(taskId: string) {
+  const bundle = getTaskBundle(taskId);
+  if (!bundle || !isVisibleCanonicalTaskBundle(bundle)) {
+    return null;
+  }
+  return bundle;
+}
+
 function resolveCanonicalTaskLookup(lookup: string) {
   const normalizedLookup = lookup.trim();
   if (!normalizedLookup) {
     return null;
   }
   const exactTask = getTask(normalizedLookup);
-  if (exactTask && isVisibleCanonicalTaskBundle(getTaskBundle(exactTask.taskId) ?? { task: exactTask, executions: [], events: [] })) {
+  if (
+    exactTask &&
+    isVisibleCanonicalTaskBundle(
+      getTaskBundle(exactTask.taskId) ?? { task: exactTask, executions: [], events: [] },
+    )
+  ) {
     return exactTask;
   }
   const execution = getTaskExecutionByRunId(normalizedLookup);
@@ -534,52 +547,60 @@ export const tasksHandlers: GatewayRequestHandlers = {
     const limit =
       typeof params.limit === "number" && Number.isFinite(params.limit) ? params.limit : 50;
 
-    const tasks = reconcileInspectableTasks();
     const proposals = listTaskProposalViews();
     const canonicalBundles = filterVisibleCanonicalTaskBundles(
       listTasks()
-      .map((task) => getTaskBundle(task.taskId))
-      .filter((bundle): bundle is NonNullable<ReturnType<typeof getTaskBundle>> => Boolean(bundle)),
+        .map((task) => getTaskBundle(task.taskId))
+        .filter((bundle): bundle is NonNullable<ReturnType<typeof getTaskBundle>> => Boolean(bundle)),
     );
     const canonicalTasks = canonicalBundles.map((bundle) => bundle.task);
-    const filteredTasks = filterTasks({
-      tasks,
-      runtime: runtime as TaskRuntime | "all" | undefined,
-      status: status as TaskStatus | "all" | undefined,
-      query,
-    });
-    const pagedTasks = filteredTasks.slice(offset, offset + limit);
-    const auditFindings = listTaskAuditFindings({ tasks });
-    const findings = auditFindings.slice(0, 8);
+    const pagedTasks = canonicalTasks.slice(offset, offset + limit);
     const result: TasksOverviewResult = {
-      summary: getInspectableTaskRegistrySummary(),
-      filteredSummary: summarizeTaskRecords(filteredTasks),
       canonicalSummary: buildCanonicalTaskSummary(canonicalTasks),
       proposalSummary: summarizeTaskProposals(proposals),
-      audit: summarizeTaskAuditFindings(auditFindings),
-      findings,
-      maintenance: previewTaskRegistryMaintenance(),
       // The inbox stays canonical across tabs and chat cards. Task filters/search only
       // affect the task ledger view; proposals remain complete so the UI never drifts
       // into showing a saved proposal as a draft because of a previous tasks filter.
       proposals: proposals as unknown as TasksOverviewResult["proposals"],
-      tasks: pagedTasks,
-      canonicalTasks,
-      canonicalExecutions: canonicalBundles.flatMap((bundle) => bundle.executions),
-      canonicalAssignments: canonicalBundles.flatMap((bundle) => bundle.assignments),
-      canonicalApprovals: canonicalBundles.flatMap((bundle) => bundle.approvals),
-      canonicalEvents: canonicalBundles.flatMap((bundle) => bundle.events),
-      canonicalSteps: canonicalBundles.flatMap((bundle) => bundle.steps),
-      canonicalDependencies: canonicalBundles.flatMap((bundle) => bundle.dependencies),
-      total: filteredTasks.length,
+      canonicalTasks: pagedTasks,
+      total: canonicalTasks.length,
       limit,
       offset,
-      nextOffset:
-        offset + pagedTasks.length < filteredTasks.length ? offset + pagedTasks.length : null,
-      hasMore: offset + pagedTasks.length < filteredTasks.length,
-      runtime: runtime as TaskRuntime | "all" | null,
-      status: status as TaskStatus | "all" | null,
+      nextOffset: offset + pagedTasks.length < canonicalTasks.length ? offset + pagedTasks.length : null,
+      hasMore: offset + pagedTasks.length < canonicalTasks.length,
+      runtime: runtime as typeof params.runtime | null,
+      status: status as typeof params.status | null,
       query: query || null,
+    };
+    respond(true, result, undefined);
+  },
+  "tasks.detail": async ({ params, respond }) => {
+    if (!assertValidParams(params, validateTasksDetailParams, "tasks.detail", respond)) {
+      return;
+    }
+    const bundle = getVisibleCanonicalTaskBundle(params.taskId);
+    if (!bundle) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `Task not found: ${params.taskId}`),
+      );
+      return;
+    }
+    const result: TasksDetailResult = {
+      task: bundle.task,
+      ...(bundle.task.proposalId
+        ? {
+            proposal: getTaskProposalViewById(bundle.task.proposalId) ?? undefined,
+          }
+        : {}),
+      children: bundle.children,
+      executions: bundle.executions,
+      assignments: bundle.assignments,
+      approvals: bundle.approvals,
+      events: bundle.events,
+      steps: bundle.steps,
+      dependencies: bundle.dependencies,
     };
     respond(true, result, undefined);
   },

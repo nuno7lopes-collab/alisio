@@ -29,7 +29,7 @@ export type PluginsLoadConfig = {
 };
 
 export type PluginInstallRecord = Omit<InstallRecordBase, "source"> & {
-  source: InstallRecordBase["source"] | "marketplace";
+  source: InstallRecordBase["source"];
   marketplaceName?: string;
   marketplaceSource?: string;
   marketplacePlugin?: string;

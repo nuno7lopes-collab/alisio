@@ -286,6 +286,8 @@ export class AlisioApp extends LitElement {
   @state() tasksBusy = false;
   @state() tasksError: string | null = null;
   @state() tasksOverview: TasksOverviewResult | null = null;
+  @state() tasksDetailLoading = false;
+  @state() tasksDetail: import("./types.ts").TasksDetailResult | null = null;
   @state() tasksSelectedId: string | null = null;
   @state() tasksQuery = "";
   @state() tasksRuntimeFilter: import("./controllers/tasks.ts").TaskRuntimeFilter = "all";

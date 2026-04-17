@@ -175,6 +175,118 @@ function migrateLegacyTtsConfig(
   }
 }
 
+function rewriteLegacyMarketplaceSpec(raw: unknown): string | undefined {
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const trimmed = raw.trim();
+  if (!trimmed.toLowerCase().startsWith("clawhub:")) {
+    return undefined;
+  }
+  return `marketplace:${trimmed.slice("clawhub:".length)}`;
+}
+
+function migrateLegacyInstallRecord(
+  record: Record<string, unknown>,
+  pathLabel: string,
+  changes: string[],
+): boolean {
+  let changed = false;
+
+  if (record.source === "clawhub") {
+    record.source = "marketplace";
+    changed = true;
+  }
+
+  const nextSpec = rewriteLegacyMarketplaceSpec(record.spec);
+  if (nextSpec && nextSpec !== record.spec) {
+    record.spec = nextSpec;
+    changed = true;
+  }
+
+  const nextResolvedSpec = rewriteLegacyMarketplaceSpec(record.resolvedSpec);
+  if (nextResolvedSpec && nextResolvedSpec !== record.resolvedSpec) {
+    record.resolvedSpec = nextResolvedSpec;
+    changed = true;
+  }
+
+  const legacyRegistryUrl = record.clawhubUrl;
+  if (typeof legacyRegistryUrl === "string" && typeof record.marketplaceRegistryUrl !== "string") {
+    record.marketplaceRegistryUrl = legacyRegistryUrl;
+    changed = true;
+  }
+  if ("clawhubUrl" in record) {
+    delete record.clawhubUrl;
+    changed = true;
+  }
+
+  const legacyPackage = record.clawhubPackage;
+  if (typeof legacyPackage === "string" && typeof record.marketplacePackage !== "string") {
+    record.marketplacePackage = legacyPackage;
+    changed = true;
+  }
+  if ("clawhubPackage" in record) {
+    delete record.clawhubPackage;
+    changed = true;
+  }
+
+  const legacyFamily = record.clawhubFamily;
+  if (
+    (legacyFamily === "code-plugin" || legacyFamily === "bundle-plugin") &&
+    record.marketplaceFamily !== "code-plugin" &&
+    record.marketplaceFamily !== "bundle-plugin"
+  ) {
+    record.marketplaceFamily = legacyFamily;
+    changed = true;
+  }
+  if ("clawhubFamily" in record) {
+    delete record.clawhubFamily;
+    changed = true;
+  }
+
+  const legacyChannel = record.clawhubChannel;
+  if (
+    (legacyChannel === "official" ||
+      legacyChannel === "community" ||
+      legacyChannel === "private") &&
+    record.marketplaceChannel !== "official" &&
+    record.marketplaceChannel !== "community" &&
+    record.marketplaceChannel !== "private"
+  ) {
+    record.marketplaceChannel = legacyChannel;
+    changed = true;
+  }
+  if ("clawhubChannel" in record) {
+    delete record.clawhubChannel;
+    changed = true;
+  }
+
+  if (changed) {
+    changes.push(`Migrated ${pathLabel} from legacy clawhub metadata to marketplace metadata.`);
+  }
+  return changed;
+}
+
+function migrateLegacyInstallRecords(
+  entries: Record<string, unknown> | null,
+  pathLabel: string,
+  changes: string[],
+): void {
+  if (!entries) {
+    return;
+  }
+  for (const [installId, installValue] of Object.entries(entries)) {
+    if (isBlockedObjectKey(installId)) {
+      continue;
+    }
+    const record = getRecord(installValue);
+    if (!record) {
+      continue;
+    }
+    migrateLegacyInstallRecord(record, `${pathLabel}.${installId}`, changes);
+  }
+}
+
 const MEMORY_SEARCH_RULE: LegacyConfigRule = {
   path: ["memorySearch"],
   message:
@@ -196,6 +308,22 @@ const HEARTBEAT_RULE: LegacyConfigRule = {
 };
 
 export const LEGACY_CONFIG_MIGRATIONS_RUNTIME: LegacyConfigMigrationSpec[] = [
+  defineLegacyConfigMigration({
+    id: "installs.clawhub->marketplace",
+    describe: "Migrate legacy clawhub install metadata to marketplace install metadata",
+    apply: (raw, changes) => {
+      const plugins = getRecord(raw.plugins);
+      migrateLegacyInstallRecords(getRecord(plugins?.installs), "plugins.installs", changes);
+
+      const hooks = getRecord(raw.hooks);
+      const internalHooks = getRecord(hooks?.internal);
+      migrateLegacyInstallRecords(
+        getRecord(internalHooks?.installs),
+        "hooks.internal.installs",
+        changes,
+      );
+    },
+  }),
   defineLegacyConfigMigration({
     // v2026.2.26 added a startup guard requiring gateway.controlUi.allowedOrigins (or the
     // host-header fallback flag) for any non-loopback bind. The setup wizard was updated

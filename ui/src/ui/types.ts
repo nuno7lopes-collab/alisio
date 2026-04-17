@@ -746,6 +746,8 @@ export type TaskMaintenanceSummary =
   import("../../../src/gateway/protocol/index.js").TaskMaintenanceSummary;
 export type TasksOverviewResult =
   import("../../../src/gateway/protocol/index.js").TasksOverviewResult;
+export type TasksDetailResult =
+  import("../../../src/gateway/protocol/index.js").TasksDetailResult;
 
 export type TaskProposalDraft = {
   clientKey: string;
