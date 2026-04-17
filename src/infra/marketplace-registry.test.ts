@@ -3,23 +3,27 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  downloadClawHubPackageArchive,
-  downloadClawHubSkillArchive,
-  parseClawHubPluginSpec,
-  resolveClawHubAuthToken,
+  downloadMarketplaceRegistryPackageArchive,
+  downloadMarketplaceRegistrySkillArchive,
+  parseMarketplaceRegistryPluginSpec,
+  resolveMarketplaceRegistryAuthToken,
   resolveLatestVersionFromPackage,
   satisfiesGatewayMinimum,
   satisfiesPluginApiRange,
-  searchClawHubSkills,
-} from "./clawhub.js";
+  searchMarketplaceRegistrySkills,
+} from "./marketplace-registry.js";
 
-describe("clawhub helpers", () => {
+describe("marketplace registry helpers", () => {
   const originalHome = process.env.HOME;
 
   afterEach(() => {
+    delete process.env.ALISIO_MARKETPLACE_REGISTRY_TOKEN;
+    delete process.env.MARKETPLACE_REGISTRY_TOKEN;
     delete process.env.ALISIO_CLAWHUB_TOKEN;
     delete process.env.CLAWHUB_TOKEN;
     delete process.env.CLAWHUB_AUTH_TOKEN;
+    delete process.env.ALISIO_MARKETPLACE_REGISTRY_CONFIG_PATH;
+    delete process.env.MARKETPLACE_REGISTRY_CONFIG_PATH;
     delete process.env.ALISIO_CLAWHUB_CONFIG_PATH;
     delete process.env.CLAWHUB_CONFIG_PATH;
     delete process.env.CLAWDHUB_CONFIG_PATH;
@@ -32,18 +36,18 @@ describe("clawhub helpers", () => {
   });
 
   it("parses explicit marketplace package specs", () => {
-    expect(parseClawHubPluginSpec("clawhub:demo")).toEqual({
+    expect(parseMarketplaceRegistryPluginSpec("clawhub:demo")).toEqual({
       name: "demo",
     });
-    expect(parseClawHubPluginSpec("clawhub:demo@1.2.3")).toEqual({
-      name: "demo",
-      version: "1.2.3",
-    });
-    expect(parseClawHubPluginSpec("marketplace:demo@1.2.3")).toEqual({
+    expect(parseMarketplaceRegistryPluginSpec("clawhub:demo@1.2.3")).toEqual({
       name: "demo",
       version: "1.2.3",
     });
-    expect(parseClawHubPluginSpec("@scope/pkg")).toBeNull();
+    expect(parseMarketplaceRegistryPluginSpec("marketplace:demo@1.2.3")).toEqual({
+      name: "demo",
+      version: "1.2.3",
+    });
+    expect(parseMarketplaceRegistryPluginSpec("@scope/pkg")).toBeNull();
   });
 
   it("resolves latest versions from latestVersion before tags", () => {
@@ -95,34 +99,34 @@ describe("clawhub helpers", () => {
     expect(satisfiesGatewayMinimum("unknown", "2026.3.0")).toBe(false);
   });
 
-  it("resolves ClawHub auth token from config.json", async () => {
-    const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-clawhub-config-"));
-    const configPath = path.join(configRoot, "clawhub", "config.json");
-    process.env.ALISIO_CLAWHUB_CONFIG_PATH = configPath;
+  it("resolves marketplace registry auth token from config.json", async () => {
+    const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-marketplace-config-"));
+    const configPath = path.join(configRoot, "alisio-marketplace", "config.json");
+    process.env.ALISIO_MARKETPLACE_REGISTRY_CONFIG_PATH = configPath;
     await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(configPath, JSON.stringify({ auth: { token: "cfg-token-123" } }), "utf8");
 
-    await expect(resolveClawHubAuthToken()).resolves.toBe("cfg-token-123");
+    await expect(resolveMarketplaceRegistryAuthToken()).resolves.toBe("cfg-token-123");
   });
 
-  it("resolves ClawHub auth token from the legacy config path override", async () => {
+  it("resolves marketplace registry auth token from the legacy config path override", async () => {
     const configRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-clawdhub-config-"));
     const configPath = path.join(configRoot, "config.json");
     process.env.CLAWDHUB_CONFIG_PATH = configPath;
     await fs.writeFile(configPath, JSON.stringify({ token: "legacy-token-123" }), "utf8");
 
-    await expect(resolveClawHubAuthToken()).resolves.toBe("legacy-token-123");
+    await expect(resolveMarketplaceRegistryAuthToken()).resolves.toBe("legacy-token-123");
   });
 
   it.runIf(process.platform === "darwin")(
-    "resolves ClawHub auth token from the macOS Application Support path",
+    "resolves marketplace registry auth token from the macOS Application Support path",
     async () => {
-      const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-clawhub-home-"));
+      const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-marketplace-home-"));
       const configPath = path.join(
         fakeHome,
         "Library",
         "Application Support",
-        "clawhub",
+        "alisio-marketplace",
         "config.json",
       );
       const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue(fakeHome);
@@ -130,7 +134,7 @@ describe("clawhub helpers", () => {
         await fs.mkdir(path.dirname(configPath), { recursive: true });
         await fs.writeFile(configPath, JSON.stringify({ token: "macos-token-123" }), "utf8");
 
-        await expect(resolveClawHubAuthToken()).resolves.toBe("macos-token-123");
+        await expect(resolveMarketplaceRegistryAuthToken()).resolves.toBe("macos-token-123");
       } finally {
         homedirSpy.mockRestore();
       }
@@ -140,24 +144,24 @@ describe("clawhub helpers", () => {
   it.runIf(process.platform === "darwin")(
     "falls back to XDG_CONFIG_HOME on macOS when Application Support has no config",
     async () => {
-      const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-clawhub-home-"));
-      const xdgRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-clawhub-xdg-"));
-      const configPath = path.join(xdgRoot, "clawhub", "config.json");
+      const fakeHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-marketplace-home-"));
+      const xdgRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-marketplace-xdg-"));
+      const configPath = path.join(xdgRoot, "alisio-marketplace", "config.json");
       const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue(fakeHome);
       process.env.XDG_CONFIG_HOME = xdgRoot;
       try {
         await fs.mkdir(path.dirname(configPath), { recursive: true });
         await fs.writeFile(configPath, JSON.stringify({ token: "xdg-token-123" }), "utf8");
 
-        await expect(resolveClawHubAuthToken()).resolves.toBe("xdg-token-123");
+        await expect(resolveMarketplaceRegistryAuthToken()).resolves.toBe("xdg-token-123");
       } finally {
         homedirSpy.mockRestore();
       }
     },
   );
 
-  it("injects resolved auth token into ClawHub requests", async () => {
-    process.env.ALISIO_CLAWHUB_TOKEN = "env-token-123";
+  it("injects resolved auth token into marketplace registry requests", async () => {
+    process.env.ALISIO_MARKETPLACE_REGISTRY_TOKEN = "env-token-123";
     const fetchImpl = async (input: string | URL | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : String(input);
       expect(url).toContain("/api/v1/search");
@@ -168,10 +172,12 @@ describe("clawhub helpers", () => {
       });
     };
 
-    await expect(searchClawHubSkills({ query: "calendar", fetchImpl })).resolves.toEqual([]);
+    await expect(
+      searchMarketplaceRegistrySkills({ query: "calendar", fetchImpl }),
+    ).resolves.toEqual([]);
   });
   it("downloads package archives to sanitized temp paths and cleans them up", async () => {
-    const archive = await downloadClawHubPackageArchive({
+    const archive = await downloadMarketplaceRegistryPackageArchive({
       name: "@hyf/zai-external-alpha",
       version: "0.0.1",
       fetchImpl: async () =>
@@ -193,7 +199,7 @@ describe("clawhub helpers", () => {
   });
 
   it("downloads skill archives to sanitized temp paths and cleans them up", async () => {
-    const archive = await downloadClawHubSkillArchive({
+    const archive = await downloadMarketplaceRegistrySkillArchive({
       slug: "agentreceipt",
       version: "1.0.0",
       fetchImpl: async () =>

@@ -2,14 +2,6 @@ import { normalizeProviderId } from "../agents/model-selection.js";
 import { shouldMoveSingleAccountChannelKey } from "../channels/plugins/setup-helpers.js";
 import type { AlisioConfig } from "../config/config.js";
 import { resolveNormalizedProviderModelMaxTokens } from "../config/defaults.js";
-import {
-  formatSlackStreamingBooleanMigrationMessage,
-  formatSlackStreamModeMigrationMessage,
-  resolveDiscordPreviewStreamMode,
-  resolveSlackNativeStreaming,
-  resolveSlackStreamingMode,
-  resolveTelegramPreviewStreamMode,
-} from "../config/discord-preview-streaming.js";
 import { migrateLegacyWebSearchConfig } from "../config/legacy-web-search.js";
 import { LEGACY_TALK_PROVIDER_ID, normalizeTalkSection } from "../config/talk.js";
 import { DEFAULT_GOOGLE_API_BASE_URL } from "../infra/google-api-base-url.js";
@@ -108,131 +100,6 @@ export function normalizeCompatibilityConfigValues(cfg: AlisioConfig): {
     return { entry: updated, changed };
   };
 
-  const normalizePreviewStreamingAliases = (params: {
-    entry: Record<string, unknown>;
-    pathPrefix: string;
-    resolveStreaming: (entry: Record<string, unknown>) => string;
-  }): { entry: Record<string, unknown>; changed: boolean } => {
-    let updated = params.entry;
-    const hadLegacyStreamMode = updated.streamMode !== undefined;
-    const beforeStreaming = updated.streaming;
-    const resolved = params.resolveStreaming(updated);
-    const shouldNormalize =
-      hadLegacyStreamMode ||
-      typeof beforeStreaming === "boolean" ||
-      (typeof beforeStreaming === "string" && beforeStreaming !== resolved);
-    if (!shouldNormalize) {
-      return { entry: updated, changed: false };
-    }
-
-    let changed = false;
-    if (beforeStreaming !== resolved) {
-      updated = { ...updated, streaming: resolved };
-      changed = true;
-    }
-    if (hadLegacyStreamMode) {
-      const { streamMode: _ignored, ...rest } = updated;
-      updated = rest;
-      changed = true;
-      changes.push(
-        `Moved ${params.pathPrefix}.streamMode → ${params.pathPrefix}.streaming (${resolved}).`,
-      );
-    }
-    if (typeof beforeStreaming === "boolean") {
-      changes.push(`Normalized ${params.pathPrefix}.streaming boolean → enum (${resolved}).`);
-    } else if (typeof beforeStreaming === "string" && beforeStreaming !== resolved) {
-      changes.push(
-        `Normalized ${params.pathPrefix}.streaming (${beforeStreaming}) → (${resolved}).`,
-      );
-    }
-    if (
-      params.pathPrefix.startsWith("channels.discord") &&
-      resolved === "off" &&
-      hadLegacyStreamMode
-    ) {
-      changes.push(
-        `${params.pathPrefix}.streaming remains off by default to avoid Discord preview-edit rate limits; set ${params.pathPrefix}.streaming="partial" to opt in explicitly.`,
-      );
-    }
-
-    return { entry: updated, changed };
-  };
-
-  const normalizeSlackStreamingAliases = (params: {
-    entry: Record<string, unknown>;
-    pathPrefix: string;
-  }): { entry: Record<string, unknown>; changed: boolean } => {
-    let updated = params.entry;
-    const hadLegacyStreamMode = updated.streamMode !== undefined;
-    const legacyStreaming = updated.streaming;
-    const beforeStreaming = updated.streaming;
-    const beforeNativeStreaming = updated.nativeStreaming;
-    const resolvedStreaming = resolveSlackStreamingMode(updated);
-    const resolvedNativeStreaming = resolveSlackNativeStreaming(updated);
-    const shouldNormalize =
-      hadLegacyStreamMode ||
-      typeof legacyStreaming === "boolean" ||
-      (typeof legacyStreaming === "string" && legacyStreaming !== resolvedStreaming);
-    if (!shouldNormalize) {
-      return { entry: updated, changed: false };
-    }
-
-    let changed = false;
-    if (beforeStreaming !== resolvedStreaming) {
-      updated = { ...updated, streaming: resolvedStreaming };
-      changed = true;
-    }
-    if (
-      typeof beforeNativeStreaming !== "boolean" ||
-      beforeNativeStreaming !== resolvedNativeStreaming
-    ) {
-      updated = { ...updated, nativeStreaming: resolvedNativeStreaming };
-      changed = true;
-    }
-    if (hadLegacyStreamMode) {
-      const { streamMode: _ignored, ...rest } = updated;
-      updated = rest;
-      changed = true;
-      changes.push(formatSlackStreamModeMigrationMessage(params.pathPrefix, resolvedStreaming));
-    }
-    if (typeof legacyStreaming === "boolean") {
-      changes.push(
-        formatSlackStreamingBooleanMigrationMessage(params.pathPrefix, resolvedNativeStreaming),
-      );
-    } else if (typeof legacyStreaming === "string" && legacyStreaming !== resolvedStreaming) {
-      changes.push(
-        `Normalized ${params.pathPrefix}.streaming (${legacyStreaming}) → (${resolvedStreaming}).`,
-      );
-    }
-
-    return { entry: updated, changed };
-  };
-
-  const normalizeStreamingAliasesForProvider = (params: {
-    provider: "telegram" | "slack" | "discord";
-    entry: Record<string, unknown>;
-    pathPrefix: string;
-  }): { entry: Record<string, unknown>; changed: boolean } => {
-    if (params.provider === "telegram") {
-      return normalizePreviewStreamingAliases({
-        entry: params.entry,
-        pathPrefix: params.pathPrefix,
-        resolveStreaming: resolveTelegramPreviewStreamMode,
-      });
-    }
-    if (params.provider === "discord") {
-      return normalizePreviewStreamingAliases({
-        entry: params.entry,
-        pathPrefix: params.pathPrefix,
-        resolveStreaming: resolveDiscordPreviewStreamMode,
-      });
-    }
-    return normalizeSlackStreamingAliases({
-      entry: params.entry,
-      pathPrefix: params.pathPrefix,
-    });
-  };
-
   const normalizeProvider = (provider: "telegram" | "slack" | "discord") => {
     const channels = next.channels as Record<string, unknown> | undefined;
     const rawEntry = channels?.[provider];
@@ -251,14 +118,6 @@ export function normalizeCompatibilityConfigValues(cfg: AlisioConfig): {
       updated = base.entry;
       changed = base.changed;
     }
-    const providerStreaming = normalizeStreamingAliasesForProvider({
-      provider,
-      entry: updated,
-      pathPrefix: `channels.${provider}`,
-    });
-    updated = providerStreaming.entry;
-    changed = changed || providerStreaming.changed;
-
     const rawAccounts = updated.accounts;
     if (isRecord(rawAccounts)) {
       let accountsChanged = false;
@@ -278,13 +137,6 @@ export function normalizeCompatibilityConfigValues(cfg: AlisioConfig): {
           accountEntry = res.entry;
           accountChanged = res.changed;
         }
-        const accountStreaming = normalizeStreamingAliasesForProvider({
-          provider,
-          entry: accountEntry,
-          pathPrefix: `channels.${provider}.accounts.${accountId}`,
-        });
-        accountEntry = accountStreaming.entry;
-        accountChanged = accountChanged || accountStreaming.changed;
         if (accountChanged) {
           accounts[accountId] = accountEntry;
           accountsChanged = true;
@@ -448,49 +300,6 @@ export function normalizeCompatibilityConfigValues(cfg: AlisioConfig): {
     next = webSearchMigration.config;
     changes.push(...webSearchMigration.changes);
   }
-
-  const normalizeBrowserSsrFPolicyAlias = () => {
-    const rawBrowser = next.browser;
-    if (!isRecord(rawBrowser)) {
-      return;
-    }
-    const rawSsrFPolicy = rawBrowser.ssrfPolicy;
-    if (!isRecord(rawSsrFPolicy) || !("allowPrivateNetwork" in rawSsrFPolicy)) {
-      return;
-    }
-
-    const legacyAllowPrivateNetwork = rawSsrFPolicy.allowPrivateNetwork;
-    const currentDangerousAllowPrivateNetwork = rawSsrFPolicy.dangerouslyAllowPrivateNetwork;
-
-    let resolvedDangerousAllowPrivateNetwork: unknown = currentDangerousAllowPrivateNetwork;
-    if (
-      typeof legacyAllowPrivateNetwork === "boolean" ||
-      typeof currentDangerousAllowPrivateNetwork === "boolean"
-    ) {
-      // Preserve runtime behavior while collapsing to the canonical key.
-      resolvedDangerousAllowPrivateNetwork =
-        legacyAllowPrivateNetwork === true || currentDangerousAllowPrivateNetwork === true;
-    } else if (currentDangerousAllowPrivateNetwork === undefined) {
-      resolvedDangerousAllowPrivateNetwork = legacyAllowPrivateNetwork;
-    }
-
-    const nextSsrFPolicy: Record<string, unknown> = { ...rawSsrFPolicy };
-    delete nextSsrFPolicy.allowPrivateNetwork;
-    if (resolvedDangerousAllowPrivateNetwork !== undefined) {
-      nextSsrFPolicy.dangerouslyAllowPrivateNetwork = resolvedDangerousAllowPrivateNetwork;
-    }
-
-    const migratedBrowser = { ...next.browser } as Record<string, unknown>;
-    migratedBrowser.ssrfPolicy = nextSsrFPolicy;
-
-    next = {
-      ...next,
-      browser: migratedBrowser as AlisioConfig["browser"],
-    };
-    changes.push(
-      `Moved browser.ssrfPolicy.allowPrivateNetwork → browser.ssrfPolicy.dangerouslyAllowPrivateNetwork (${String(resolvedDangerousAllowPrivateNetwork)}).`,
-    );
-  };
 
   const normalizeLegacyNanoBananaSkill = () => {
     type ModelProviderEntry = Partial<
@@ -895,7 +704,6 @@ export function normalizeCompatibilityConfigValues(cfg: AlisioConfig): {
     };
   };
 
-  normalizeBrowserSsrFPolicyAlias();
   normalizeLegacyNanoBananaSkill();
   normalizeLegacyTalkConfig();
   normalizeLegacyCrossContextMessageConfig();

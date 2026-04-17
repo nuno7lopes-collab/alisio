@@ -113,7 +113,7 @@ const gatewayMocks = vi.hoisted(() => ({
 vi.mock("../../../src/agents/tools/gateway.js", () => gatewayMocks);
 
 const configMocks = vi.hoisted(() => ({
-  loadConfig: vi.fn(() => ({ browser: {} })),
+  loadConfig: vi.fn<() => Record<string, unknown>>(() => ({ browser: {} })),
 }));
 vi.mock("alisio/plugin-sdk/config-runtime", async (importOriginal) => {
   const actual = await importOriginal<typeof import("alisio/plugin-sdk/config-runtime")>();

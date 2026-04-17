@@ -338,9 +338,7 @@ describe("doctor config flow", () => {
           String(call[0]).includes("Matrix plugin upgraded in place."),
       );
       expect(warning?.[0]).toContain("Legacy sync store:");
-      expect(warning?.[0]).toContain(
-        'Run "alisio doctor --fix" to migrate this Matrix state now.',
-      );
+      expect(warning?.[0]).toContain('Run "alisio doctor --fix" to migrate this Matrix state now.');
     } finally {
       noteSpy.mockRestore();
     }
@@ -584,7 +582,7 @@ describe("doctor config flow", () => {
       config: {
         channels: {
           discord: {
-            streaming: true,
+            streaming: "partial",
             lifecycle: {
               enabled: true,
               reactions: {
@@ -604,14 +602,12 @@ describe("doctor config flow", () => {
     const cfg = result.cfg as {
       channels: {
         discord: {
-          streamMode?: string;
           streaming?: string;
           lifecycle?: unknown;
         };
       };
     };
     expect(cfg.channels.discord.streaming).toBe("partial");
-    expect(cfg.channels.discord.streamMode).toBeUndefined();
     expect(cfg.channels.discord.lifecycle).toEqual({
       enabled: true,
       reactions: {
@@ -736,13 +732,6 @@ describe("doctor config flow", () => {
       expect(
         noteSpy.mock.calls.some((call) =>
           String(call[0]).includes("Telegram account inactive: failed to inspect bot token"),
-        ),
-      ).toBe(true);
-      expect(
-        noteSpy.mock.calls.some((call) =>
-          String(call[0]).includes(
-            "Telegram allowFrom contains @username entries, but no Telegram bot token is configured",
-          ),
         ),
       ).toBe(true);
     } finally {

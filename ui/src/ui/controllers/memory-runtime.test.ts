@@ -175,6 +175,8 @@ describe("memory-runtime controller", () => {
     await loadMemoryStatus(state, "main", { force: true });
 
     expect(request).toHaveBeenCalledTimes(2);
+    expect(request).toHaveBeenNthCalledWith(1, "memory.status", { agentId: "main" });
+    expect(request).toHaveBeenNthCalledWith(2, "memory.status", { agentId: "main" });
   });
 
   it("loads the canonical memory graph for the selected agent", async () => {

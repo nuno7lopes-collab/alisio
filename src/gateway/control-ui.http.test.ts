@@ -316,7 +316,7 @@ describe("handleControlUiHttpRequest", () => {
         const parsed = parseBootstrapPayload(end);
         expect(parsed.basePath).toBe("");
         expect(parsed.assistantName).toBe("</script><script>alert(1)//");
-        expect(parsed.assistantAvatar).toBe("/avatar/main");
+        expect(parsed.assistantAvatar).toBe("A");
         expect(parsed.assistantAgentId).toBe("main");
       },
     });
@@ -361,6 +361,7 @@ describe("handleControlUiHttpRequest", () => {
   it("serves bootstrap config JSON under basePath", async () => {
     await withControlUiRoot({
       fn: async (tmp) => {
+        await fs.writeFile(path.join(tmp, "ops.png"), "avatar");
         const { res, end } = makeMockHttpResponse();
         const handled = handleControlUiHttpRequest(
           { url: `/alisio${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`, method: "GET" } as IncomingMessage,

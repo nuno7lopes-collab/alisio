@@ -690,6 +690,102 @@ describe("chat view", () => {
     expect(onSelectBrowserPaneSurface).toHaveBeenCalledWith("markdown");
   });
 
+  it("renders the computer surface with controls and approval actions", () => {
+    const container = document.createElement("div");
+    const onComputerSessionCommand = vi.fn();
+    const onComputerSessionApproval = vi.fn();
+    const onRequestComputerPermission = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          sidebarOpen: true,
+          browserPaneSurfaceKind: "computer",
+          computerSession: {
+            sessionKey: "main",
+            backend: "local-mac",
+            status: "awaiting-approval",
+            mode: "control-approved-apps",
+            approvedApps: [],
+            permissions: {
+              accessibility: false,
+              screenRecording: true,
+            },
+            context: {
+              display: {
+                width: 1440,
+                height: 900,
+                scale: 2,
+              },
+              activeApp: {
+                name: "Finder",
+                bundleId: "com.apple.finder",
+              },
+              activeWindow: {
+                title: "Downloads",
+              },
+              capturedAt: 10,
+            },
+            frame: {
+              dataUrl: "data:image/jpeg;base64,abc",
+              mimeType: "image/jpeg",
+              width: 1440,
+              height: 900,
+              capturedAt: 10,
+              cursor: {
+                x: 120,
+                y: 64,
+                visible: true,
+              },
+            },
+            timeline: [
+              {
+                id: "entry-1",
+                at: 10,
+                kind: "approval",
+                summary: "open Finder awaiting approval",
+                status: "awaiting-approval",
+                actionType: "app_focus",
+              },
+            ],
+            awaitingApproval: {
+              id: "approval-1",
+              createdAt: 10,
+              actionType: "app_focus",
+              actionSummary: "focus app Finder",
+              reason: "action targets unapproved app com.apple.finder",
+              sensitive: true,
+              appName: "Finder",
+              appBundleId: "com.apple.finder",
+            },
+            startedAt: 1,
+            updatedAt: 10,
+          },
+          onCloseSidebar: () => undefined,
+          onComputerSessionCommand,
+          onComputerSessionApproval,
+          onRequestComputerPermission,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".computer-pane")).not.toBeNull();
+    expect(container.querySelector(".computer-pane__frame-image")).not.toBeNull();
+    expect(container.textContent).toContain("Finder");
+    expect(container.textContent).toContain("Awaiting approval");
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".computer-pane button"),
+    );
+    buttons.find((button) => button.textContent?.includes("Pause"))?.click();
+    buttons.find((button) => button.textContent?.includes("Approve once"))?.click();
+    buttons.find((button) => button.textContent?.includes("Grant access"))?.click();
+
+    expect(onComputerSessionCommand).toHaveBeenCalledWith("pause");
+    expect(onComputerSessionApproval).toHaveBeenCalledWith("allow-once");
+    expect(onRequestComputerPermission).toHaveBeenCalledWith("accessibility");
+  });
+
   it("auto-opens the observer pane when a live observer appears after the pane was previously touched", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
@@ -758,6 +854,54 @@ describe("chat view", () => {
     expect(app.sidebarOpen).toBe(true);
     expect(app.browserPaneSurfaceKind).toBe("observer");
     expect(app.querySelector("iframe.browser-pane__iframe")).not.toBeNull();
+  });
+
+  it("reopens the computer pane when computer activity arrives after the user closed it", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+
+    app.setComputerSession("main", {
+      sessionKey: "main",
+      backend: "local-mac",
+      status: "observing",
+      mode: "control-approved-apps",
+      approvedApps: [],
+      permissions: {
+        accessibility: true,
+        screenRecording: true,
+      },
+      context: {
+        display: {
+          width: 1440,
+          height: 900,
+          scale: 2,
+        },
+        capturedAt: 10,
+      },
+      frame: {
+        dataUrl: "data:image/jpeg;base64,abc",
+        mimeType: "image/jpeg",
+        width: 1440,
+        height: 900,
+        capturedAt: 10,
+      },
+      timeline: [],
+      startedAt: 1,
+      updatedAt: 10,
+    });
+    await app.updateComplete;
+    app.handleCloseSidebar();
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+
+    app.notifyBrowserPaneActivityForSurface("main", "computer");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.browserPaneSurfaceKind).toBe("computer");
+    expect(app.querySelector(".computer-pane__frame-image")).not.toBeNull();
   });
 
   it("does not open an empty split when the session has no observer and no markdown", () => {

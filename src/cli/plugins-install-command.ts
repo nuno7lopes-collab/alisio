@@ -4,12 +4,15 @@ import type { AlisioConfig } from "../config/config.js";
 import { loadConfig, readConfigFileSnapshot } from "../config/config.js";
 import { installHooksFromNpmSpec, installHooksFromPath } from "../hooks/install.js";
 import { resolveArchiveKind } from "../infra/archive.js";
-import { parseClawHubPluginSpec } from "../infra/clawhub.js";
 import { extractErrorCode, formatErrorMessage } from "../infra/errors.js";
+import { parseMarketplaceRegistryPluginSpec } from "../infra/marketplace-registry.js";
 import { type BundledPluginSource, findBundledPluginSource } from "../plugins/bundled-sources.js";
-import { formatClawHubSpecifier, installPluginFromClawHub } from "../plugins/clawhub.js";
 import { installPluginFromNpmSpec, installPluginFromPath } from "../plugins/install.js";
 import { clearPluginManifestRegistryCache } from "../plugins/manifest-registry.js";
+import {
+  formatMarketplaceRegistrySpecifier,
+  installPluginFromMarketplaceRegistry,
+} from "../plugins/marketplace-registry.js";
 import {
   installPluginFromMarketplace,
   resolveMarketplaceInstallShortcut,
@@ -29,10 +32,10 @@ import {
   resolveBundledInstallPlanForNpmFailure,
 } from "./plugin-install-plan.js";
 import {
-  buildPreferredClawHubSpec,
+  buildPreferredMarketplaceRegistrySpec,
   createHookPackInstallLogger,
   createPluginInstallLogger,
-  decidePreferredClawHubFallback,
+  decidePreferredMarketplaceRegistryFallback,
   formatPluginInstallWithHookFallbackError,
 } from "./plugins-command-helpers.js";
 import { persistHookPackInstall, persistPluginInstall } from "./plugins-install-persist.js";
@@ -414,9 +417,9 @@ export async function runPluginInstallCommand(params: {
     return;
   }
 
-  const clawhubSpec = parseClawHubPluginSpec(raw);
-  if (clawhubSpec) {
-    const result = await installPluginFromClawHub({
+  const marketplaceRegistrySpec = parseMarketplaceRegistryPluginSpec(raw);
+  if (marketplaceRegistrySpec) {
+    const result = await installPluginFromMarketplaceRegistry({
       spec: raw,
       logger: createPluginInstallLogger(),
     });
@@ -431,54 +434,57 @@ export async function runPluginInstallCommand(params: {
       pluginId: result.pluginId,
       install: {
         source: "marketplace",
-        spec: formatClawHubSpecifier({
-          name: result.clawhub.clawhubPackage,
-          version: result.clawhub.version,
+        spec: formatMarketplaceRegistrySpecifier({
+          name: result.marketplaceRegistry.marketplacePackage,
+          version: result.marketplaceRegistry.version,
         }),
         installPath: result.targetDir,
         version: result.version,
-        integrity: result.clawhub.integrity,
-        resolvedAt: result.clawhub.resolvedAt,
-        marketplaceRegistryUrl: result.clawhub.clawhubUrl,
-        marketplacePackage: result.clawhub.clawhubPackage,
-        marketplaceFamily: result.clawhub.clawhubFamily,
-        marketplaceChannel: result.clawhub.clawhubChannel,
+        integrity: result.marketplaceRegistry.integrity,
+        resolvedAt: result.marketplaceRegistry.resolvedAt,
+        marketplaceRegistryUrl: result.marketplaceRegistry.marketplaceRegistryUrl,
+        marketplacePackage: result.marketplaceRegistry.marketplacePackage,
+        marketplaceFamily: result.marketplaceRegistry.marketplaceFamily,
+        marketplaceChannel: result.marketplaceRegistry.marketplaceChannel,
       },
     });
     return;
   }
 
-  const preferredClawHubSpec = buildPreferredClawHubSpec(raw);
-  if (preferredClawHubSpec) {
-    const clawhubResult = await installPluginFromClawHub({
-      spec: preferredClawHubSpec,
+  const preferredMarketplaceRegistrySpec = buildPreferredMarketplaceRegistrySpec(raw);
+  if (preferredMarketplaceRegistrySpec) {
+    const marketplaceRegistryResult = await installPluginFromMarketplaceRegistry({
+      spec: preferredMarketplaceRegistrySpec,
       logger: createPluginInstallLogger(),
     });
-    if (clawhubResult.ok) {
+    if (marketplaceRegistryResult.ok) {
       clearPluginManifestRegistryCache();
       await persistPluginInstall({
         config: cfg,
-        pluginId: clawhubResult.pluginId,
+        pluginId: marketplaceRegistryResult.pluginId,
         install: {
           source: "marketplace",
-          spec: formatClawHubSpecifier({
-            name: clawhubResult.clawhub.clawhubPackage,
-            version: clawhubResult.clawhub.version,
+          spec: formatMarketplaceRegistrySpecifier({
+            name: marketplaceRegistryResult.marketplaceRegistry.marketplacePackage,
+            version: marketplaceRegistryResult.marketplaceRegistry.version,
           }),
-          installPath: clawhubResult.targetDir,
-          version: clawhubResult.version,
-          integrity: clawhubResult.clawhub.integrity,
-          resolvedAt: clawhubResult.clawhub.resolvedAt,
-          marketplaceRegistryUrl: clawhubResult.clawhub.clawhubUrl,
-          marketplacePackage: clawhubResult.clawhub.clawhubPackage,
-          marketplaceFamily: clawhubResult.clawhub.clawhubFamily,
-          marketplaceChannel: clawhubResult.clawhub.clawhubChannel,
+          installPath: marketplaceRegistryResult.targetDir,
+          version: marketplaceRegistryResult.version,
+          integrity: marketplaceRegistryResult.marketplaceRegistry.integrity,
+          resolvedAt: marketplaceRegistryResult.marketplaceRegistry.resolvedAt,
+          marketplaceRegistryUrl:
+            marketplaceRegistryResult.marketplaceRegistry.marketplaceRegistryUrl,
+          marketplacePackage: marketplaceRegistryResult.marketplaceRegistry.marketplacePackage,
+          marketplaceFamily: marketplaceRegistryResult.marketplaceRegistry.marketplaceFamily,
+          marketplaceChannel: marketplaceRegistryResult.marketplaceRegistry.marketplaceChannel,
         },
       });
       return;
     }
-    if (decidePreferredClawHubFallback(clawhubResult) !== "fallback_to_npm") {
-      defaultRuntime.error(clawhubResult.error);
+    if (
+      decidePreferredMarketplaceRegistryFallback(marketplaceRegistryResult) !== "fallback_to_npm"
+    ) {
+      defaultRuntime.error(marketplaceRegistryResult.error);
       return defaultRuntime.exit(1);
     }
   }

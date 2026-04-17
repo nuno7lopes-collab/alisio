@@ -23,7 +23,6 @@ export function resolveSlackStreamMode(raw: unknown): SlackStreamMode {
 
 export function resolveSlackStreamingConfig(params: {
   streaming?: unknown;
-  streamMode?: unknown;
   nativeStreaming?: unknown;
 }): { mode: SlackStreamingMode; nativeStreaming: boolean; draftMode: SlackStreamMode } {
   const mode = resolveSlackStreamingMode(params);

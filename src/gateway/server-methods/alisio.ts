@@ -164,7 +164,6 @@ async function refreshBootstrapShellState(
 ): Promise<BootstrapShellState> {
   const wizardSessionId = context.findRunningWizard();
   const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout({
-    loadGatewayModelCatalog: context.loadGatewayModelCatalog,
     ...context,
     includeDynamicCatalog: false,
   });

@@ -356,8 +356,25 @@ export function buildPendingAlisioConnectorChatResume(params: {
   connectorId: string;
   sessionKey: string;
   messages: unknown[];
+  messageOverride?: string;
+  attachmentsOverride?: ChatAttachment[];
   now?: number;
 }): PendingAlisioConnectorChatResume | null {
+  const overrideMessage = params.messageOverride?.trim() ?? "";
+  const overrideAttachments =
+    params.attachmentsOverride?.filter((attachment) =>
+      Boolean(attachment.id.trim() && attachment.dataUrl.trim() && attachment.mimeType.trim()),
+    ) ?? [];
+  if (overrideMessage || overrideAttachments.length > 0) {
+    return {
+      connectorId: params.connectorId,
+      sessionKey: params.sessionKey,
+      message: overrideMessage,
+      ...(overrideAttachments.length > 0 ? { attachments: overrideAttachments } : {}),
+      createdAtMs: params.now ?? Date.now(),
+    };
+  }
+
   for (let index = params.messages.length - 1; index >= 0; index -= 1) {
     const message = params.messages[index] as { role?: unknown };
     if (message?.role !== "user") {

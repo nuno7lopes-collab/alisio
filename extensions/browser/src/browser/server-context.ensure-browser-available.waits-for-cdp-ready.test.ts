@@ -7,6 +7,7 @@ vi.hoisted(() => {
 });
 
 import "./server-context.chrome-test-harness.js";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import {
   PROFILE_ATTACH_RETRY_TIMEOUT_MS,
   PROFILE_HTTP_REACHABILITY_TIMEOUT_MS,
@@ -37,12 +38,13 @@ function makeBrowserState(): BrowserServerState {
       headless: true,
       noSandbox: false,
       attachOnly: false,
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
       defaultProfile: "alisio",
       profiles: {
         alisio: { cdpPort: 40716, color: "#FF4500" },
       },
     },
+    authCache: createBrowserSessionAuthCache(),
     profiles: new Map(),
   };
 }
@@ -130,7 +132,7 @@ describe("browser server-context ensureBrowserAvailable", () => {
       "http://127.0.0.1:40716",
       PROFILE_HTTP_REACHABILITY_TIMEOUT_MS,
       {
-        allowPrivateNetwork: true,
+        dangerouslyAllowPrivateNetwork: true,
       },
     );
     expect(isChromeReachable).toHaveBeenNthCalledWith(
@@ -138,7 +140,7 @@ describe("browser server-context ensureBrowserAvailable", () => {
       "http://127.0.0.1:40716",
       PROFILE_ATTACH_RETRY_TIMEOUT_MS,
       {
-        allowPrivateNetwork: true,
+        dangerouslyAllowPrivateNetwork: true,
       },
     );
     expect(launchAlisioChrome).not.toHaveBeenCalled();

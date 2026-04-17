@@ -481,7 +481,7 @@ describe("handleSendChat", () => {
   });
 
   it("suppresses duplicated local submits before chatSending flips to true", async () => {
-    let resolveSend: ((runId: string) => void) | null = null;
+    let resolveSend!: (runId: string) => void;
     const sendChatMessageMock = vi.fn(
       () =>
         new Promise<string>((resolve) => {
@@ -509,9 +509,7 @@ describe("handleSendChat", () => {
 
     expect(sendChatMessageMock).toHaveBeenCalledTimes(1);
 
-    if (resolveSend) {
-      resolveSend("run-1");
-    }
+    resolveSend("run-1");
     await Promise.all([first, second]);
   });
 });

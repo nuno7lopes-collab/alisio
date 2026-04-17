@@ -6,13 +6,13 @@ import {
 import type { UpdateChannel } from "../infra/update-channels.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveBundledPluginSources } from "./bundled-sources.js";
-import { installPluginFromClawHub } from "./clawhub.js";
 import {
   installPluginFromNpmSpec,
   PLUGIN_INSTALL_ERROR_CODE,
   resolvePluginInstallDir,
 } from "./install.js";
 import { buildNpmResolutionInstallFields, recordPluginInstall } from "./installs.js";
+import { installPluginFromMarketplaceRegistry } from "./marketplace-registry.js";
 import { installPluginFromMarketplace } from "./marketplace.js";
 
 export type PluginUpdateLogger = {
@@ -69,6 +69,7 @@ type MarketplaceRegistryInstallRecordLike = {
   marketplaceChannel?: "community" | "official" | "private";
   marketplaceSource?: string;
   marketplacePlugin?: string;
+  // Legacy pre-marketplace keys still exist in older persisted configs.
   clawhubUrl?: string;
   clawhubPackage?: string;
   clawhubFamily?: "bundle-plugin" | "code-plugin";
@@ -100,7 +101,7 @@ function formatMarketplaceInstallFailure(params: {
   );
 }
 
-function formatClawHubInstallFailure(params: {
+function formatMarketplaceRegistryInstallFailure(params: {
   pluginId: string;
   spec: string;
   phase: "check" | "update";
@@ -109,9 +110,7 @@ function formatClawHubInstallFailure(params: {
   return `Failed to ${params.phase} ${params.pluginId}: ${params.error} (Local Marketplace ${params.spec}).`;
 }
 
-function isMarketplaceRegistryInstallRecord(
-  record: MarketplaceRegistryInstallRecordLike,
-): boolean {
+function isMarketplaceRegistryInstallRecord(record: MarketplaceRegistryInstallRecordLike): boolean {
   if (record.source === "clawhub") {
     return true;
   }
@@ -328,11 +327,12 @@ export async function updateNpmInstalledPlugins(params: {
       continue;
     }
 
-    if (record.source !== "npm" && record.source !== "marketplace" && record.source !== "clawhub") {
+    const installSource = (record as { source?: string }).source;
+    if (installSource !== "npm" && installSource !== "marketplace" && installSource !== "clawhub") {
       outcomes.push({
         pluginId,
         status: "skipped",
-        message: `Skipping "${pluginId}" (source: ${record.source}).`,
+        message: `Skipping "${pluginId}" (source: ${installSource}).`,
       });
       continue;
     }
@@ -369,7 +369,11 @@ export async function updateNpmInstalledPlugins(params: {
       continue;
     }
 
-    if (record.source === "marketplace" && !isMarketplaceRegistryRecord && !isMarketplaceManifestRecord) {
+    if (
+      record.source === "marketplace" &&
+      !isMarketplaceRegistryRecord &&
+      !isMarketplaceManifestRecord
+    ) {
       outcomes.push({
         pluginId,
         status: "skipped",
@@ -394,7 +398,7 @@ export async function updateNpmInstalledPlugins(params: {
     if (params.dryRun) {
       let probe:
         | Awaited<ReturnType<typeof installPluginFromNpmSpec>>
-        | Awaited<ReturnType<typeof installPluginFromClawHub>>
+        | Awaited<ReturnType<typeof installPluginFromMarketplaceRegistry>>
         | Awaited<ReturnType<typeof installPluginFromMarketplace>>;
       try {
         probe =
@@ -414,7 +418,7 @@ export async function updateNpmInstalledPlugins(params: {
                 logger,
               })
             : isMarketplaceRegistryRecord
-              ? await installPluginFromClawHub({
+              ? await installPluginFromMarketplaceRegistry({
                   spec: effectiveSpec ?? `marketplace:${marketplaceRegistryPackage!}`,
                   baseUrl: marketplaceRegistryBaseUrl,
                   mode: "update",
@@ -451,7 +455,7 @@ export async function updateNpmInstalledPlugins(params: {
                   result: probe,
                 })
               : isMarketplaceRegistryRecord
-                ? formatClawHubInstallFailure({
+                ? formatMarketplaceRegistryInstallFailure({
                     pluginId,
                     spec: effectiveSpec ?? `marketplace:${marketplaceRegistryPackage!}`,
                     phase: "check",
@@ -492,7 +496,7 @@ export async function updateNpmInstalledPlugins(params: {
 
     let result:
       | Awaited<ReturnType<typeof installPluginFromNpmSpec>>
-      | Awaited<ReturnType<typeof installPluginFromClawHub>>
+      | Awaited<ReturnType<typeof installPluginFromMarketplaceRegistry>>
       | Awaited<ReturnType<typeof installPluginFromMarketplace>>;
     try {
       result =
@@ -511,7 +515,7 @@ export async function updateNpmInstalledPlugins(params: {
               logger,
             })
           : isMarketplaceRegistryRecord
-            ? await installPluginFromClawHub({
+            ? await installPluginFromMarketplaceRegistry({
                 spec: effectiveSpec ?? `marketplace:${marketplaceRegistryPackage!}`,
                 baseUrl: marketplaceRegistryBaseUrl,
                 mode: "update",
@@ -546,7 +550,7 @@ export async function updateNpmInstalledPlugins(params: {
                 result: result,
               })
             : isMarketplaceRegistryRecord
-              ? formatClawHubInstallFailure({
+              ? formatMarketplaceRegistryInstallFailure({
                   pluginId,
                   spec: effectiveSpec ?? `marketplace:${marketplaceRegistryPackage!}`,
                   phase: "update",
@@ -579,8 +583,8 @@ export async function updateNpmInstalledPlugins(params: {
         ...buildNpmResolutionInstallFields(result.npmResolution),
       });
     } else if (isMarketplaceRegistryRecord) {
-      const clawhubResult = result as Extract<
-        Awaited<ReturnType<typeof installPluginFromClawHub>>,
+      const marketplaceRegistryResult = result as Extract<
+        Awaited<ReturnType<typeof installPluginFromMarketplaceRegistry>>,
         { ok: true }
       >;
       next = recordPluginInstall(next, {
@@ -589,12 +593,13 @@ export async function updateNpmInstalledPlugins(params: {
         spec: effectiveSpec ?? record.spec ?? `marketplace:${marketplaceRegistryPackage!}`,
         installPath: result.targetDir,
         version: nextVersion,
-        integrity: clawhubResult.clawhub.integrity,
-        resolvedAt: clawhubResult.clawhub.resolvedAt,
-        marketplaceRegistryUrl: clawhubResult.clawhub.clawhubUrl,
-        marketplacePackage: clawhubResult.clawhub.clawhubPackage,
-        marketplaceFamily: clawhubResult.clawhub.clawhubFamily,
-        marketplaceChannel: clawhubResult.clawhub.clawhubChannel,
+        integrity: marketplaceRegistryResult.marketplaceRegistry.integrity,
+        resolvedAt: marketplaceRegistryResult.marketplaceRegistry.resolvedAt,
+        marketplaceRegistryUrl:
+          marketplaceRegistryResult.marketplaceRegistry.marketplaceRegistryUrl,
+        marketplacePackage: marketplaceRegistryResult.marketplaceRegistry.marketplacePackage,
+        marketplaceFamily: marketplaceRegistryResult.marketplaceRegistry.marketplaceFamily,
+        marketplaceChannel: marketplaceRegistryResult.marketplaceRegistry.marketplaceChannel,
       });
     } else {
       const marketplaceResult = result as Extract<

@@ -277,8 +277,6 @@ export const FIELD_HELP: Record<string, string> = {
     "Default snapshot extraction mode controlling how page content is transformed for agent consumption. Choose the mode that balances readability, fidelity, and token footprint for your workflows.",
   "browser.ssrfPolicy":
     "Server-side request forgery guardrail settings for browser/network fetch paths that could reach internal hosts. Keep restrictive defaults in production and open only explicitly approved targets.",
-  "browser.ssrfPolicy.allowPrivateNetwork":
-    "Legacy alias for browser.ssrfPolicy.dangerouslyAllowPrivateNetwork. Prefer the dangerously-named key so risk intent is explicit.",
   "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork":
     "Allows access to private-network address ranges from browser tooling. Default is enabled for trusted-network operator setups; disable to enforce strict public-only resolution checks.",
   "browser.ssrfPolicy.allowedHostnames":
@@ -1202,8 +1200,6 @@ export const FIELD_HELP: Record<string, string> = {
     "Overrides reset behavior by chat type (direct, group, thread) when defaults are not sufficient. Use this when group/thread traffic needs different reset cadence than direct messages.",
   "session.resetByType.direct":
     "Defines reset policy for direct chats and supersedes the base session.reset configuration for that type. Use this as the canonical direct-message override instead of the legacy dm alias.",
-  "session.resetByType.dm":
-    "Deprecated alias for direct reset behavior kept for backward compatibility with older configs. Use session.resetByType.direct instead so future tooling and validation remain consistent.",
   "session.resetByType.group":
     "Defines reset policy for group chat sessions where continuity and noise patterns differ from DMs. Use shorter idle windows for busy groups if context drift becomes a problem.",
   "session.resetByType.thread":

@@ -3,6 +3,16 @@ import SwiftUI
 import UIKit
 #endif
 
+public struct AlisioChatAssistantIdentity: Equatable, Sendable {
+    public let name: String?
+    public let avatarURL: String?
+
+    public init(name: String? = nil, avatarURL: String? = nil) {
+        self.name = name
+        self.avatarURL = avatarURL
+    }
+}
+
 @MainActor
 public struct AlisioChatView: View {
     public enum Style {
@@ -23,6 +33,7 @@ public struct AlisioChatView: View {
     private let markdownVariant: ChatMarkdownVariant
     private let userAccent: Color?
     private let showsAssistantTrace: Bool
+    private let assistantIdentity: AlisioChatAssistantIdentity
 
     private enum Layout {
         #if os(macOS)
@@ -107,6 +118,7 @@ public struct AlisioChatView: View {
         showsSessionSwitcher: Bool = false,
         style: Style = .standard,
         markdownVariant: ChatMarkdownVariant = .standard,
+        assistantIdentity: AlisioChatAssistantIdentity = .init(),
         userAccent: Color? = nil,
         showsAssistantTrace: Bool = false)
     {
@@ -114,6 +126,7 @@ public struct AlisioChatView: View {
         self.showsSessionSwitcher = showsSessionSwitcher
         self.style = style
         self.markdownVariant = markdownVariant
+        self.assistantIdentity = assistantIdentity
         self.userAccent = userAccent
         self.showsAssistantTrace = showsAssistantTrace
     }
@@ -250,6 +263,7 @@ public struct AlisioChatView: View {
                 message: msg,
                 style: self.style,
                 markdownVariant: self.markdownVariant,
+                assistantIdentity: self.assistantIdentity,
                 userAccent: self.userAccent,
                 showsAssistantTrace: self.showsAssistantTrace)
                 .frame(
@@ -259,14 +273,16 @@ public struct AlisioChatView: View {
 
         if self.viewModel.pendingRunCount > 0 {
             HStack {
-                ChatTypingIndicatorBubble(style: self.style)
+                ChatTypingIndicatorBubble(style: self.style, assistantIdentity: self.assistantIdentity)
                     .equatable()
                 Spacer(minLength: 0)
             }
         }
 
         if !self.viewModel.pendingToolCalls.isEmpty {
-            ChatPendingToolsBubble(toolCalls: self.viewModel.pendingToolCalls)
+            ChatPendingToolsBubble(
+                toolCalls: self.viewModel.pendingToolCalls,
+                assistantIdentity: self.assistantIdentity)
                 .equatable()
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -277,6 +293,7 @@ public struct AlisioChatView: View {
             ChatStreamingAssistantBubble(
                 text: text,
                 markdownVariant: self.markdownVariant,
+                assistantIdentity: self.assistantIdentity,
                 showsAssistantTrace: self.showsAssistantTrace)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

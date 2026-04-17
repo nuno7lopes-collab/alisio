@@ -428,9 +428,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
           ssrfPolicy: {
             type: "object",
             properties: {
-              allowPrivateNetwork: {
-                type: "boolean",
-              },
               dangerouslyAllowPrivateNetwork: {
                 type: "boolean",
               },
@@ -8810,34 +8807,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 },
                 additionalProperties: false,
               },
-              dm: {
-                type: "object",
-                properties: {
-                  mode: {
-                    anyOf: [
-                      {
-                        type: "string",
-                        const: "daily",
-                      },
-                      {
-                        type: "string",
-                        const: "idle",
-                      },
-                    ],
-                  },
-                  atHour: {
-                    type: "integer",
-                    minimum: 0,
-                    maximum: 23,
-                  },
-                  idleMinutes: {
-                    type: "integer",
-                    exclusiveMinimum: 0,
-                    maximum: 9007199254740991,
-                  },
-                },
-                additionalProperties: false,
-              },
               group: {
                 type: "object",
                 properties: {
@@ -9681,7 +9650,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                         },
                         {
                           type: "string",
-                          const: "clawhub",
+                          const: "marketplace",
                         },
                       ],
                     },
@@ -9718,13 +9687,13 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     installedAt: {
                       type: "string",
                     },
-                    clawhubUrl: {
+                    marketplaceRegistryUrl: {
                       type: "string",
                     },
-                    clawhubPackage: {
+                    marketplacePackage: {
                       type: "string",
                     },
-                    clawhubFamily: {
+                    marketplaceFamily: {
                       anyOf: [
                         {
                           type: "string",
@@ -9736,7 +9705,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                         },
                       ],
                     },
-                    clawhubChannel: {
+                    marketplaceChannel: {
                       anyOf: [
                         {
                           type: "string",
@@ -11639,24 +11608,16 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 source: {
                   anyOf: [
                     {
-                      anyOf: [
-                        {
-                          type: "string",
-                          const: "npm",
-                        },
-                        {
-                          type: "string",
-                          const: "archive",
-                        },
-                        {
-                          type: "string",
-                          const: "path",
-                        },
-                        {
-                          type: "string",
-                          const: "clawhub",
-                        },
-                      ],
+                      type: "string",
+                      const: "npm",
+                    },
+                    {
+                      type: "string",
+                      const: "archive",
+                    },
+                    {
+                      type: "string",
+                      const: "path",
                     },
                     {
                       type: "string",
@@ -11697,13 +11658,13 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                 installedAt: {
                   type: "string",
                 },
-                clawhubUrl: {
+                marketplaceRegistryUrl: {
                   type: "string",
                 },
-                clawhubPackage: {
+                marketplacePackage: {
                   type: "string",
                 },
-                clawhubFamily: {
+                marketplaceFamily: {
                   anyOf: [
                     {
                       type: "string",
@@ -11715,7 +11676,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                   ],
                 },
-                clawhubChannel: {
+                marketplaceChannel: {
                   anyOf: [
                     {
                       type: "string",
@@ -14619,11 +14580,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "Server-side request forgery guardrail settings for browser/network fetch paths that could reach internal hosts. Keep restrictive defaults in production and open only explicitly approved targets.",
       tags: ["access"],
     },
-    "browser.ssrfPolicy.allowPrivateNetwork": {
-      label: "Browser Allow Private Network",
-      help: "Legacy alias for browser.ssrfPolicy.dangerouslyAllowPrivateNetwork. Prefer the dangerously-named key so risk intent is explicit.",
-      tags: ["access"],
-    },
     "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork": {
       label: "Browser Dangerously Allow Private Network",
       help: "Allows access to private-network address ranges from browser tooling. Default is enabled for trusted-network operator setups; disable to enforce strict public-only resolution checks.",
@@ -14702,11 +14658,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "session.resetByType.direct": {
       label: "Session Reset (Direct)",
       help: "Defines reset policy for direct chats and supersedes the base session.reset configuration for that type. Use this as the canonical direct-message override instead of the legacy dm alias.",
-      tags: ["storage"],
-    },
-    "session.resetByType.dm": {
-      label: "Session Reset (DM Deprecated Alias)",
-      help: "Deprecated alias for direct reset behavior kept for backward compatibility with older configs. Use session.resetByType.direct instead so future tooling and validation remain consistent.",
       tags: ["storage"],
     },
     "session.resetByType.group": {
@@ -15719,7 +15670,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "plugins.installs.*.source": {
       label: "Plugin Install Source",
-      help: 'Install source ("npm", "archive", or "path").',
+      help: 'Install source ("npm", "archive", "path", or "marketplace").',
       tags: ["advanced"],
     },
     "plugins.installs.*.spec": {
@@ -15775,6 +15726,26 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "plugins.installs.*.installedAt": {
       label: "Plugin Install Time",
       help: "ISO timestamp of last install/update.",
+      tags: ["advanced"],
+    },
+    "plugins.installs.*.marketplaceRegistryUrl": {
+      label: "Plugin Marketplace Registry URL",
+      help: "Marketplace registry base URL recorded for registry-backed marketplace installs.",
+      tags: ["advanced"],
+    },
+    "plugins.installs.*.marketplacePackage": {
+      label: "Plugin Marketplace Package",
+      help: "Marketplace package slug/name recorded for registry-backed marketplace installs.",
+      tags: ["advanced"],
+    },
+    "plugins.installs.*.marketplaceFamily": {
+      label: "Plugin Marketplace Family",
+      help: 'Marketplace package family recorded for registry-backed installs ("code-plugin" or "bundle-plugin").',
+      tags: ["advanced"],
+    },
+    "plugins.installs.*.marketplaceChannel": {
+      label: "Plugin Marketplace Channel",
+      help: 'Marketplace channel recorded for registry-backed installs ("official", "community", or "private").',
       tags: ["advanced"],
     },
     "plugins.installs.*.marketplaceName": {

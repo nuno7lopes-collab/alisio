@@ -18,6 +18,7 @@ function createRoutingHost(): Parameters<typeof syncUrlWithTab>[0] {
       chatFocusMode: false,
       chatShowThinking: true,
       chatShowToolCalls: true,
+      chatHideCronSessions: true,
       splitRatio: 0.6,
       navCollapsed: false,
       navWidth: 220,

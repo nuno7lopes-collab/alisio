@@ -17,6 +17,7 @@ import {
 } from "../agents/model-selection.js";
 import { resolvePersonWorkspaceSummary } from "../agents/person-agent.js";
 import { getActiveEmbeddedRunSnapshot } from "../agents/pi-embedded-runner/runs.js";
+import { resolveResolvedAgentIdentity } from "../agents/resolved-identity.js";
 import { getLiveSandboxBrowserObserverUrl } from "../agents/sandbox/browser.js";
 import { resolveSandboxConfigForAgent } from "../agents/sandbox/config.js";
 import { resolveSandboxRuntimeStatus } from "../agents/sandbox/runtime-status.js";
@@ -47,21 +48,12 @@ import {
   type SessionScope,
 } from "../config/sessions.js";
 import { deriveSessionConversationModel } from "../config/sessions/conversation-model.js";
-import { openBoundaryFileSync } from "../infra/boundary-file-read.js";
 import {
   normalizeAgentId,
   normalizeMainKey,
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { deriveSessionChatType, isCronRunSessionKey } from "../sessions/session-key-utils.js";
-import {
-  AVATAR_MAX_BYTES,
-  isAvatarDataUrl,
-  isAvatarHttpUrl,
-  isPathWithinRoot,
-  isWorkspaceRelativeAvatarPath,
-  resolveAvatarMime,
-} from "../shared/avatar-policy.js";
 import { stripEnvelope, stripMessageIdHints } from "../shared/chat-envelope.js";
 import { normalizeSessionDeliveryFields } from "../utils/delivery-context.js";
 import { estimateUsageCost, resolveModelCostConfig } from "../utils/usage-format.js";
@@ -120,62 +112,6 @@ function resolveOriginDisplayLabel(origin: SessionEntry["origin"] | undefined): 
     return undefined;
   }
   return origin?.label?.trim() || undefined;
-}
-
-function tryResolveExistingPath(value: string): string | null {
-  try {
-    return fs.realpathSync(value);
-  } catch {
-    return null;
-  }
-}
-
-function resolveIdentityAvatarUrl(
-  cfg: AlisioConfig,
-  agentId: string,
-  avatar: string | undefined,
-): string | undefined {
-  if (!avatar) {
-    return undefined;
-  }
-  const trimmed = avatar.trim();
-  if (!trimmed) {
-    return undefined;
-  }
-  if (isAvatarDataUrl(trimmed) || isAvatarHttpUrl(trimmed)) {
-    return trimmed;
-  }
-  if (!isWorkspaceRelativeAvatarPath(trimmed)) {
-    return undefined;
-  }
-  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
-  const workspaceRoot = tryResolveExistingPath(workspaceDir) ?? path.resolve(workspaceDir);
-  const resolvedCandidate = path.resolve(workspaceRoot, trimmed);
-  if (!isPathWithinRoot(workspaceRoot, resolvedCandidate)) {
-    return undefined;
-  }
-  try {
-    const opened = openBoundaryFileSync({
-      absolutePath: resolvedCandidate,
-      rootPath: workspaceRoot,
-      rootRealPath: workspaceRoot,
-      boundaryLabel: "workspace root",
-      maxBytes: AVATAR_MAX_BYTES,
-      skipLexicalRootCheck: true,
-    });
-    if (!opened.ok) {
-      return undefined;
-    }
-    try {
-      const buffer = fs.readFileSync(opened.fd);
-      const mime = resolveAvatarMime(resolvedCandidate);
-      return `data:${mime};base64,${buffer.toString("base64")}`;
-    } finally {
-      fs.closeSync(opened.fd);
-    }
-  } catch {
-    return undefined;
-  }
 }
 
 function formatSessionIdPrefix(sessionId: string, updatedAt?: number | null): string {
@@ -747,20 +683,13 @@ export function listAgentsForGateway(cfg: AlisioConfig): {
     if (!entry?.id) {
       continue;
     }
-    const identity = entry.identity
-      ? {
-          name: entry.identity.name?.trim() || undefined,
-          theme: entry.identity.theme?.trim() || undefined,
-          emoji: entry.identity.emoji?.trim() || undefined,
-          avatar: entry.identity.avatar?.trim() || undefined,
-          avatarUrl: resolveIdentityAvatarUrl(
-            cfg,
-            normalizeAgentId(entry.id),
-            entry.identity.avatar?.trim(),
-          ),
-        }
-      : undefined;
-    configuredById.set(normalizeAgentId(entry.id), {
+    const agentId = normalizeAgentId(entry.id);
+    const identity = resolveResolvedAgentIdentity({
+      cfg,
+      agentId,
+      includeUiAssistant: agentId === defaultId,
+    });
+    configuredById.set(agentId, {
       entry,
       name: typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : undefined,
       identity,

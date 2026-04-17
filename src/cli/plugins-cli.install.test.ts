@@ -7,12 +7,12 @@ import {
   clearPluginManifestRegistryCache,
   enablePluginInConfig,
   installHooksFromNpmSpec,
-  installPluginFromClawHub,
+  installPluginFromMarketplaceRegistry,
   installPluginFromMarketplace,
   installPluginFromNpmSpec,
   loadConfig,
   readConfigFileSnapshot,
-  parseClawHubPluginSpec,
+  parseMarketplaceRegistryPluginSpec,
   recordHookInstall,
   recordPluginInstall,
   resetPluginsCliTestState,
@@ -40,7 +40,7 @@ function createEnabledPluginConfig(pluginId: string): AlisioConfig {
   } as AlisioConfig;
 }
 
-function createClawHubInstalledConfig(params: {
+function createMarketplaceRegistryInstalledConfig(params: {
   pluginId: string;
   install: Record<string, unknown>;
 }): AlisioConfig {
@@ -56,24 +56,24 @@ function createClawHubInstalledConfig(params: {
   } as AlisioConfig;
 }
 
-function createClawHubInstallResult(params: {
+function createMarketplaceRegistryInstallResult(params: {
   pluginId: string;
   packageName: string;
   version: string;
   channel: string;
-}): Awaited<ReturnType<typeof installPluginFromClawHub>> {
+}): Awaited<ReturnType<typeof installPluginFromMarketplaceRegistry>> {
   return {
     ok: true,
     pluginId: params.pluginId,
     targetDir: cliInstallPath(params.pluginId),
     version: params.version,
     packageName: params.packageName,
-    clawhub: {
-      source: "clawhub",
-      clawhubUrl: "https://clawhub.ai",
-      clawhubPackage: params.packageName,
-      clawhubFamily: "code-plugin",
-      clawhubChannel: params.channel,
+    marketplaceRegistry: {
+      source: "marketplace",
+      marketplaceRegistryUrl: "https://clawhub.ai",
+      marketplacePackage: params.packageName,
+      marketplaceFamily: "code-plugin",
+      marketplaceChannel: params.channel,
       version: params.version,
       integrity: "sha256-abc",
       resolvedAt: "2026-03-22T00:00:00.000Z",
@@ -196,29 +196,29 @@ describe("plugins cli install", () => {
     expect(runtimeLogs.some((line) => line.includes("Installed plugin: alpha"))).toBe(true);
   });
 
-  it("installs ClawHub plugins and persists source metadata", async () => {
+  it("installs marketplace registry plugins and persists source metadata", async () => {
     const cfg = {
       plugins: {
         entries: {},
       },
     } as AlisioConfig;
     const enabledCfg = createEnabledPluginConfig("demo");
-    const installedCfg = createClawHubInstalledConfig({
+    const installedCfg = createMarketplaceRegistryInstalledConfig({
       pluginId: "demo",
       install: {
-        source: "clawhub",
-        spec: "clawhub:demo@1.2.3",
+        source: "marketplace",
+        spec: "marketplace:demo@1.2.3",
         installPath: cliInstallPath("demo"),
-        clawhubPackage: "demo",
-        clawhubFamily: "code-plugin",
-        clawhubChannel: "official",
+        marketplacePackage: "demo",
+        marketplaceFamily: "code-plugin",
+        marketplaceChannel: "official",
       },
     });
 
     loadConfig.mockReturnValue(cfg);
-    parseClawHubPluginSpec.mockReturnValue({ name: "demo" });
-    installPluginFromClawHub.mockResolvedValue(
-      createClawHubInstallResult({
+    parseMarketplaceRegistryPluginSpec.mockReturnValue({ name: "demo" });
+    installPluginFromMarketplaceRegistry.mockResolvedValue(
+      createMarketplaceRegistryInstallResult({
         pluginId: "demo",
         packageName: "demo",
         version: "1.2.3",
@@ -232,22 +232,22 @@ describe("plugins cli install", () => {
       warnings: [],
     });
 
-    await runPluginsCommand(["plugins", "install", "clawhub:demo"]);
+    await runPluginsCommand(["plugins", "install", "marketplace:demo"]);
 
-    expect(installPluginFromClawHub).toHaveBeenCalledWith(
+    expect(installPluginFromMarketplaceRegistry).toHaveBeenCalledWith(
       expect.objectContaining({
-        spec: "clawhub:demo",
+        spec: "marketplace:demo",
       }),
     );
     expect(recordPluginInstall).toHaveBeenCalledWith(
       enabledCfg,
       expect.objectContaining({
         pluginId: "demo",
-        source: "clawhub",
-        spec: "clawhub:demo@1.2.3",
-        clawhubPackage: "demo",
-        clawhubFamily: "code-plugin",
-        clawhubChannel: "official",
+        source: "marketplace",
+        spec: "marketplace:demo@1.2.3",
+        marketplacePackage: "demo",
+        marketplaceFamily: "code-plugin",
+        marketplaceChannel: "official",
       }),
     );
     expect(writeConfigFile).toHaveBeenCalledWith(installedCfg);
@@ -255,26 +255,26 @@ describe("plugins cli install", () => {
     expect(installPluginFromNpmSpec).not.toHaveBeenCalled();
   });
 
-  it("prefers ClawHub before npm for bare plugin specs", async () => {
+  it("prefers the marketplace registry before npm for bare plugin specs", async () => {
     const cfg = {
       plugins: {
         entries: {},
       },
     } as AlisioConfig;
     const enabledCfg = createEnabledPluginConfig("demo");
-    const installedCfg = createClawHubInstalledConfig({
+    const installedCfg = createMarketplaceRegistryInstalledConfig({
       pluginId: "demo",
       install: {
-        source: "clawhub",
-        spec: "clawhub:demo@1.2.3",
+        source: "marketplace",
+        spec: "marketplace:demo@1.2.3",
         installPath: cliInstallPath("demo"),
-        clawhubPackage: "demo",
+        marketplacePackage: "demo",
       },
     });
 
     loadConfig.mockReturnValue(cfg);
-    installPluginFromClawHub.mockResolvedValue(
-      createClawHubInstallResult({
+    installPluginFromMarketplaceRegistry.mockResolvedValue(
+      createMarketplaceRegistryInstallResult({
         pluginId: "demo",
         packageName: "demo",
         version: "1.2.3",
@@ -290,16 +290,16 @@ describe("plugins cli install", () => {
 
     await runPluginsCommand(["plugins", "install", "demo"]);
 
-    expect(installPluginFromClawHub).toHaveBeenCalledWith(
+    expect(installPluginFromMarketplaceRegistry).toHaveBeenCalledWith(
       expect.objectContaining({
-        spec: "clawhub:demo",
+        spec: "marketplace:demo",
       }),
     );
     expect(installPluginFromNpmSpec).not.toHaveBeenCalled();
     expect(writeConfigFile).toHaveBeenCalledWith(installedCfg);
   });
 
-  it("falls back to npm when ClawHub does not have the package", async () => {
+  it("falls back to npm when the marketplace registry does not have the package", async () => {
     const cfg = {
       plugins: {
         entries: {},
@@ -316,9 +316,9 @@ describe("plugins cli install", () => {
     } as AlisioConfig;
 
     loadConfig.mockReturnValue(cfg);
-    installPluginFromClawHub.mockResolvedValue({
+    installPluginFromMarketplaceRegistry.mockResolvedValue({
       ok: false,
-      error: "ClawHub /api/v1/packages/demo failed (404): Package not found",
+      error: "Marketplace registry /api/v1/packages/demo failed (404): Package not found",
       code: "package_not_found",
     });
     installPluginFromNpmSpec.mockResolvedValue({
@@ -341,9 +341,9 @@ describe("plugins cli install", () => {
 
     await runPluginsCommand(["plugins", "install", "demo"]);
 
-    expect(installPluginFromClawHub).toHaveBeenCalledWith(
+    expect(installPluginFromMarketplaceRegistry).toHaveBeenCalledWith(
       expect.objectContaining({
-        spec: "clawhub:demo",
+        spec: "marketplace:demo",
       }),
     );
     expect(installPluginFromNpmSpec).toHaveBeenCalledWith(
@@ -353,8 +353,8 @@ describe("plugins cli install", () => {
     );
   });
 
-  it("does not fall back to npm when ClawHub rejects a real package", async () => {
-    installPluginFromClawHub.mockResolvedValue({
+  it("does not fall back to npm when the marketplace registry rejects a real package", async () => {
+    installPluginFromMarketplaceRegistry.mockResolvedValue({
       ok: false,
       error: 'Use "alisio skills install demo" instead.',
       code: "skill_package",
@@ -382,9 +382,10 @@ describe("plugins cli install", () => {
     } as AlisioConfig;
 
     loadConfig.mockReturnValue(cfg);
-    installPluginFromClawHub.mockResolvedValue({
+    installPluginFromMarketplaceRegistry.mockResolvedValue({
       ok: false,
-      error: "ClawHub /api/v1/packages/@acme/demo-hooks failed (404): Package not found",
+      error:
+        "Marketplace registry /api/v1/packages/@acme/demo-hooks failed (404): Package not found",
       code: "package_not_found",
     });
     installPluginFromNpmSpec.mockResolvedValue({

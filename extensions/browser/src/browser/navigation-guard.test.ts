@@ -199,8 +199,8 @@ describe("browser navigation guard", () => {
 
   it("treats default browser SSRF mode as requiring redirect-hop inspection", () => {
     expect(requiresInspectableBrowserNavigationRedirects()).toBe(true);
-    expect(requiresInspectableBrowserNavigationRedirects({ allowPrivateNetwork: true })).toBe(
-      false,
-    );
+    expect(
+      requiresInspectableBrowserNavigationRedirects({ dangerouslyAllowPrivateNetwork: true }),
+    ).toBe(false);
   });
 });

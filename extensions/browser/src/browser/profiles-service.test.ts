@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { loadConfig, writeConfigFile } from "../config/config.js";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import { resolveAlisioUserDataDir } from "./chrome.js";
 import type { BrowserRouteContext, BrowserServerState } from "./server-context.js";
 import { movePathToTrash } from "./trash.js";
@@ -31,6 +32,7 @@ function createCtx(resolved: BrowserServerState["resolved"]) {
     server: null as unknown as BrowserServerState["server"],
     port: 0,
     resolved,
+    authCache: createBrowserSessionAuthCache(),
     profiles: new Map(),
   };
 

@@ -120,6 +120,14 @@ struct RootCanvas: View {
                     gateway: self.appModel.operatorSession,
                     sessionKey: self.appModel.chatSessionKey,
                     agentName: self.appModel.activeAgentName,
+                    assistantIdentityResolver: { sessionKey in
+                        self.appModel.resolvedAssistantIdentity(
+                            for: sessionKey,
+                            fallbackName: self.appModel.activeAgentName,
+                            fallbackAvatarURL: self.appModel.activeAgentAvatarURL)
+                    },
+                    identityRevision: self.appModel.homeCanvasRevision,
+                    agentAvatarURL: self.appModel.activeAgentAvatarURL,
                     userAccent: self.appModel.seamColor)
             case .quickSetup:
                 GatewayQuickSetupSheet()
@@ -250,6 +258,7 @@ struct RootCanvas: View {
         let gatewayLabel = gatewayName ?? gatewayAddress ?? "Gateway"
         let activeAgentID = self.resolveActiveAgentID()
         let agents = self.homeCanvasAgents(activeAgentID: activeAgentID)
+        let activeAgent = agents.first(where: { $0.isActive })
 
         switch self.gatewayStatus {
         case .connected:
@@ -261,7 +270,8 @@ struct RootCanvas: View {
                     "This phone stays dormant until the gateway needs it, then wakes, syncs, and goes back to sleep.",
                 gatewayLabel: gatewayLabel,
                 activeAgentName: self.appModel.activeAgentName,
-                activeAgentBadge: agents.first(where: { $0.isActive })?.badge ?? "OC",
+                activeAgentBadge: activeAgent?.badge ?? "OC",
+                activeAgentAvatarURL: activeAgent?.avatarURL,
                 activeAgentCaption: "Selected on this phone",
                 agentCount: agents.count,
                 agents: Array(agents.prefix(6)),
@@ -277,6 +287,7 @@ struct RootCanvas: View {
                 gatewayLabel: gatewayLabel,
                 activeAgentName: self.appModel.activeAgentName,
                 activeAgentBadge: "OC",
+                activeAgentAvatarURL: nil,
                 activeAgentCaption: "Gateway session in progress",
                 agentCount: agents.count,
                 agents: Array(agents.prefix(4)),
@@ -292,6 +303,7 @@ struct RootCanvas: View {
                 gatewayLabel: gatewayLabel,
                 activeAgentName: "Main",
                 activeAgentBadge: "OC",
+                activeAgentAvatarURL: nil,
                 activeAgentCaption: "Connect to load your agents",
                 agentCount: agents.count,
                 agents: Array(agents.prefix(4)),
@@ -322,6 +334,7 @@ struct RootCanvas: View {
                 id: agent.id,
                 name: self.homeCanvasName(for: agent),
                 badge: self.homeCanvasBadge(for: agent),
+                avatarURL: self.appModel.resolvedAgentAvatarURL(for: agent),
                 caption: isActive ? "Active on this phone" : (isDefault ? "Default agent" : "Ready"),
                 isActive: isActive)
         }
@@ -335,24 +348,11 @@ struct RootCanvas: View {
     }
 
     private func homeCanvasName(for agent: AgentSummary) -> String {
-        self.normalized(agent.name) ?? agent.id
+        self.normalized(self.appModel.resolvedAgentDisplayName(for: agent)) ?? agent.id
     }
 
     private func homeCanvasBadge(for agent: AgentSummary) -> String {
-        if let identity = agent.identity,
-           let emoji = identity["emoji"]?.value as? String,
-           let normalizedEmoji = self.normalized(emoji)
-        {
-            return normalizedEmoji
-        }
-        let words = self.homeCanvasName(for: agent)
-            .split(whereSeparator: { $0.isWhitespace || $0 == "-" || $0 == "_" })
-            .prefix(2)
-        let initials = words.compactMap { $0.first }.map(String.init).joined()
-        if !initials.isEmpty {
-            return initials.uppercased()
-        }
-        return "OC"
+        self.appModel.resolvedAgentAvatarBadge(for: agent)
     }
 
     private func normalized(_ value: String?) -> String? {
@@ -434,6 +434,7 @@ private struct HomeCanvasPayload: Codable {
     var gatewayLabel: String
     var activeAgentName: String
     var activeAgentBadge: String
+    var activeAgentAvatarURL: String?
     var activeAgentCaption: String
     var agentCount: Int
     var agents: [HomeCanvasAgentCard]
@@ -444,6 +445,7 @@ private struct HomeCanvasAgentCard: Codable {
     var id: String
     var name: String
     var badge: String
+    var avatarURL: String?
     var caption: String
     var isActive: Bool
 }

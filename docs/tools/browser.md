@@ -13,6 +13,9 @@ Alisio can run a **dedicated Chrome/Brave/Edge/Chromium profile** that the agent
 It is isolated from your personal browser and is managed through a small local
 control service inside the Gateway (loopback only).
 
+If you want the agent to observe and operate the **real local macOS desktop**
+instead of this isolated browser lane, see [Computer](/tools/computer).
+
 Beginner view:
 
 - Think of it as a **separate, agent-only browser**.
@@ -147,7 +150,6 @@ Browser settings live in `~/.alisio/alisio.json`.
     enabled: true, // default: true
     ssrfPolicy: {
       dangerouslyAllowPrivateNetwork: true, // default trusted-network mode
-      // allowPrivateNetwork: true, // legacy alias
       // hostnameAllowlist: ["*.example.com", "example.com"],
       // allowedHostnames: ["localhost"],
     },
@@ -192,7 +194,6 @@ Notes:
 - Browser navigation/open-tab is SSRF-guarded before navigation and best-effort re-checked on final `http(s)` URL after navigation.
 - In strict SSRF mode, remote CDP endpoint discovery/probes (`cdpUrl`, including `/json/version` lookups) are checked too.
 - `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` defaults to `true` (trusted-network model). Set it to `false` for strict public-only browsing.
-- `browser.ssrfPolicy.allowPrivateNetwork` remains supported as a legacy alias for compatibility.
 - `attachOnly: true` means “never launch a local browser; only attach if it is already running.”
 - `color` + per-profile `color` tint the browser UI so you can see which profile is active.
 - Default profile is `alisio` (Alisio-managed standalone browser). Use `defaultProfile: "user"` to opt into the signed-in user browser.

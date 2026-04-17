@@ -982,6 +982,9 @@ export function attachGatewayWsMessageHandler(params: {
               return;
             }
           } else {
+            if (!paired) {
+              return;
+            }
             const claimedPlatform = connectParams.client.platform;
             const pairedPlatform = paired.platform;
             const claimedDeviceFamily = connectParams.client.deviceFamily;

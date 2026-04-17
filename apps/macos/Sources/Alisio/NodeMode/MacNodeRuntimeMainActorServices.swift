@@ -5,6 +5,8 @@ import AppKit
 import AlisioSupport
 @MainActor
 protocol MacNodeRuntimeMainActorServices: Sendable {
+    func observeComputer() async throws -> MacNodeComputerObservePayload
+    func performComputerAction(_ action: MacNodeComputerActionPayload) async throws -> MacNodeComputerActPayload
     func recordScreen(
         screenIndex: Int?,
         durationMs: Int?,
@@ -23,8 +25,17 @@ protocol MacNodeRuntimeMainActorServices: Sendable {
 
 @MainActor
 final class LiveMacNodeRuntimeMainActorServices: MacNodeRuntimeMainActorServices, @unchecked Sendable {
+    private let computerControl = ComputerControlService()
     private let screenRecorder = ScreenRecordService()
     private let locationService = MacNodeLocationService()
+
+    func observeComputer() async throws -> MacNodeComputerObservePayload {
+        try await self.computerControl.observe()
+    }
+
+    func performComputerAction(_ action: MacNodeComputerActionPayload) async throws -> MacNodeComputerActPayload {
+        try await self.computerControl.perform(action: action)
+    }
 
     func recordScreen(
         screenIndex: Int?,

@@ -902,8 +902,6 @@ export async function loadMemoryStatus(
   try {
     const res = await request.client.request<MemoryStatusState | null>("memory.status", {
       agentId: resolvedAgentId,
-      // Keep connect/reconnect responsive even when memory indexing is cold.
-      timeoutMs: 4_000,
     });
     if (
       !res ||

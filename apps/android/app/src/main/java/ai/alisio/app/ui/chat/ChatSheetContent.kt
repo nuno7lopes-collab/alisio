@@ -60,6 +60,7 @@ fun ChatSheetContent(viewModel: MainViewModel) {
   val streamingAssistantText by viewModel.chatStreamingAssistantText.collectAsState()
   val pendingToolCalls by viewModel.chatPendingToolCalls.collectAsState()
   val sessions by viewModel.chatSessions.collectAsState()
+  val assistantIdentity by viewModel.chatAssistantIdentity.collectAsState()
 
   LaunchedEffect(Unit) {
     viewModel.loadChat(mainSessionKey)
@@ -112,6 +113,7 @@ fun ChatSheetContent(viewModel: MainViewModel) {
       pendingRunCount = pendingRunCount,
       pendingToolCalls = pendingToolCalls,
       streamingAssistantText = streamingAssistantText,
+      assistantIdentity = assistantIdentity,
       healthOk = healthOk,
       modifier = Modifier.weight(1f, fill = true),
     )

@@ -17,7 +17,7 @@ It can then:
 - install skills and app integrations from a local marketplace on each computer
 - automate work through connectors, channels, schedules, and device actions
 
-[Install Alisio](docs/start/getting-started.md) · [Product Overview](docs/start/overview.md) · [macOS App](docs/platforms/macos.md) · [Local Models and Servers](docs/gateway/local-models.md) · [Devices](docs/nodes/index.md) · [Skills](docs/tools/skills.md) · [Memory](docs/concepts/memory.md) · [Vision](VISION.md)
+[Install Alisio](https://docs.alisio.ai/start/getting-started) · [Product Overview](https://docs.alisio.ai/start/overview) · [macOS App](https://docs.alisio.ai/platforms/macos) · [Local Models and Servers](https://docs.alisio.ai/gateway/local-models) · [Devices](https://docs.alisio.ai/nodes) · [Skills](https://docs.alisio.ai/tools/skills) · [Memory](https://docs.alisio.ai/concepts/memory) · [Vision](https://github.com/alisio/alisio/blob/main/VISION.md)
 
 ## Install Alisio
 
@@ -30,7 +30,7 @@ Recommended path:
 5. Connect channels, apps, and devices.
 6. Start your first automation.
 
-CLI and hosted-gateway flows still exist for Linux, Windows, and advanced operations, but they are not the primary product path anymore.
+For Linux, Windows, headless gateway, and operator workflows, use the install and gateway docs.
 
 ## What Alisio Is
 
@@ -52,31 +52,24 @@ It is a personal operating layer for AI on your computer:
 - **Device-aware automation**: actions can target the current Mac or another paired device.
 - **Channel-native workflows**: channels are not an afterthought; they are input and output surfaces for work.
 
-## Screenshot Placeholders
-
-- `[Placeholder]` macOS home and setup flow
-- `[Placeholder]` AI source picker with OpenAI, Server, and Local
-- `[Placeholder]` local marketplace for skills, connectors, and apps
-- `[Placeholder]` automations tied to channels and connectors
-
 ## Documentation Map
 
-- Product framing: `docs/start/overview.md`
-- First-run flow: `docs/start/getting-started.md`
-- macOS-first onboarding: `docs/start/onboarding.md`
-- AI sources and model selection: `docs/concepts/model-providers.md`
-- Local models and servers: `docs/gateway/local-models.md`
-- Devices and device-local actions: `docs/nodes/index.md`
-- Skills and local marketplace: `docs/tools/skills.md`
-- Memory and durable context: `docs/concepts/memory.md`
+- Product framing: [https://docs.alisio.ai/start/overview](https://docs.alisio.ai/start/overview)
+- First-run flow: [https://docs.alisio.ai/start/getting-started](https://docs.alisio.ai/start/getting-started)
+- macOS-first onboarding: [https://docs.alisio.ai/start/onboarding](https://docs.alisio.ai/start/onboarding)
+- AI sources and model selection: [https://docs.alisio.ai/concepts/model-providers](https://docs.alisio.ai/concepts/model-providers)
+- Local models and servers: [https://docs.alisio.ai/gateway/local-models](https://docs.alisio.ai/gateway/local-models)
+- Devices and device-local actions: [https://docs.alisio.ai/nodes](https://docs.alisio.ai/nodes)
+- Skills and local marketplace: [https://docs.alisio.ai/tools/skills](https://docs.alisio.ai/tools/skills)
+- Memory and durable context: [https://docs.alisio.ai/concepts/memory](https://docs.alisio.ai/concepts/memory)
 
 ## Advanced And Ops
 
 If you are running Alisio without the macOS app, or you are operating remote gateways, containers, or headless hosts, start from:
 
-- `docs/install/index.md`
-- `docs/start/wizard.md`
-- `docs/gateway/index.md`
+- [https://docs.alisio.ai/install](https://docs.alisio.ai/install)
+- [https://docs.alisio.ai/start/wizard](https://docs.alisio.ai/start/wizard)
+- [https://docs.alisio.ai/gateway](https://docs.alisio.ai/gateway)
 
 ## License
 

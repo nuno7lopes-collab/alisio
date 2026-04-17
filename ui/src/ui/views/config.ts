@@ -54,6 +54,7 @@ export type ConfigProps = {
   setThemeFamily: (themeFamily: ThemeFamily, context?: ThemeTransitionContext) => void;
   setThemeAccent: (themeFamily: ThemeFamily, accent: string) => void;
   setThemeMode: (mode: ThemeMode, context?: ThemeTransitionContext) => void;
+  onResetPresentation?: () => void;
   gatewayUrl: string;
   assistantName: string;
   configPath?: string | null;
@@ -564,6 +565,7 @@ function renderAppearanceSection(props: ConfigProps) {
         onThemeFamilyChange: props.setThemeFamily,
         onThemeAccentChange: props.setThemeAccent,
         onThemeModeChange: props.setThemeMode,
+        onResetPresentation: props.onResetPresentation ?? (() => undefined),
       })}
 
       <div class="settings-appearance__section">

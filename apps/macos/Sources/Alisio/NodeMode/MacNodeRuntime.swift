@@ -63,6 +63,10 @@ actor MacNodeRuntime {
                 return try await self.handleCameraInvoke(req)
             case AlisioLocationCommand.get.rawValue:
                 return try await self.handleLocationInvoke(req)
+            case MacNodeComputerCommand.observe.rawValue:
+                return try await self.handleComputerObserveInvoke(req)
+            case MacNodeComputerCommand.act.rawValue:
+                return try await self.handleComputerActInvoke(req)
             case MacNodeScreenCommand.record.rawValue:
                 return try await self.handleScreenRecordInvoke(req)
             case AlisioSystemCommand.run.rawValue:
@@ -316,6 +320,21 @@ actor MacNodeRuntime {
                     code: .unavailable,
                     message: "LOCATION_UNAVAILABLE: \(error.localizedDescription)"))
         }
+    }
+
+    private func handleComputerObserveInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let services = await self.mainActorServices()
+        let payload = try await services.observeComputer()
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
+    }
+
+    private func handleComputerActInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let params = try Self.decodeParams(MacNodeComputerActParams.self, from: req.paramsJSON)
+        let services = await self.mainActorServices()
+        let payload = try await services.performComputerAction(params.action)
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
     }
 
     private func handleScreenRecordInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {

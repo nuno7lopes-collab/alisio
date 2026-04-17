@@ -51,7 +51,7 @@ describe("skills gateway handlers (marketplace)", () => {
     let error: unknown;
     await skillsHandlers["skills.install"]({
       params: {
-        source: "clawhub",
+        source: "marketplace",
         slug: "calendar",
         version: "1.2.3",
       },
@@ -99,7 +99,7 @@ describe("skills gateway handlers (marketplace)", () => {
     let error: unknown;
     await skillsHandlers["skills.update"]({
       params: {
-        source: "clawhub",
+        source: "marketplace",
         slug: "calendar",
       },
       req: {} as never,
@@ -123,7 +123,7 @@ describe("skills gateway handlers (marketplace)", () => {
       ok: true,
       skillKey: "calendar",
       config: {
-        source: "clawhub",
+        source: "marketplace",
         results: [
           {
             ok: true,
@@ -140,7 +140,7 @@ describe("skills gateway handlers (marketplace)", () => {
     let error: { code?: string; message?: string } | undefined;
     await skillsHandlers["skills.update"]({
       params: {
-        source: "clawhub",
+        source: "marketplace",
       },
       req: {} as never,
       client: null as never,

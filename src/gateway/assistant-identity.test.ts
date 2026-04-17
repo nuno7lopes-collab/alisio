@@ -29,7 +29,7 @@ describe("resolveAssistantIdentity avatar normalization", () => {
     expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe("PS");
   });
 
-  it("keeps path avatars", () => {
+  it("falls back when a path avatar cannot be resolved", () => {
     const cfg: AlisioConfig = {
       ui: {
         assistant: {
@@ -38,7 +38,24 @@ describe("resolveAssistantIdentity avatar normalization", () => {
       },
     };
 
-    expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe("avatars/alisio.png");
+    expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe(
+      DEFAULT_ASSISTANT_IDENTITY.avatar,
+    );
+  });
+
+  it("drops punctuation-only derived fallback avatars", () => {
+    const cfg: AlisioConfig = {
+      ui: {
+        assistant: {
+          name: "</script><script>alert(1)//",
+          avatar: "avatars/alisio.png",
+        },
+      },
+    };
+
+    expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe(
+      DEFAULT_ASSISTANT_IDENTITY.avatar,
+    );
   });
 
   it("falls back to the Alisio account agent name when no configured identity exists", () => {

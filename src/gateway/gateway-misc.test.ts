@@ -486,6 +486,19 @@ describe("resolveNodeCommandAllowlist", () => {
     expect(allow.has("sms.search")).toBe(false);
   });
 
+  it("includes macOS computer commands by default", () => {
+    const allow = resolveNodeCommandAllowlist(
+      {},
+      {
+        platform: "macOS 15.0",
+        deviceFamily: "Mac",
+      },
+    );
+
+    expect(allow.has("computer.observe")).toBe(true);
+    expect(allow.has("computer.act")).toBe(true);
+  });
+
   it("treats sms.search as dangerous by default", () => {
     expect(DEFAULT_DANGEROUS_NODE_COMMANDS).toContain("sms.search");
   });

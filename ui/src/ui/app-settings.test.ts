@@ -72,6 +72,7 @@ type SettingsHost = {
   systemThemeCleanup?: (() => void) | null;
   logsPollInterval: number | null;
   debugPollInterval: number | null;
+  sessionsHideCron?: boolean;
   pendingGatewayUrl?: string | null;
   pendingGatewayToken?: string | null;
 };
@@ -848,7 +849,13 @@ describe("applySettingsFromUrl", () => {
   it("refreshes the authentications tab from connectors without blocking on provider overview", async () => {
     vi.resetModules();
     const loadAlisioConnectorsMock = vi.fn().mockResolvedValue(undefined);
-    const loadAlisioProviderOverviewMock = vi.fn(() => new Promise<never>(() => undefined));
+    let releaseOverview!: () => void;
+    const loadAlisioProviderOverviewMock = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseOverview = resolve;
+        }),
+    );
 
     vi.doMock("./controllers/alisio.ts", async () => {
       const actual =
@@ -861,12 +868,20 @@ describe("applySettingsFromUrl", () => {
     });
 
     const module = await import("./app-settings.ts");
-    await module.refreshActiveTab({
+    const refreshPromise = module.refreshActiveTab({
       tab: "authentications",
     } as never);
+    let settled = false;
+    void refreshPromise.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
 
+    expect(settled).toBe(true);
     expect(loadAlisioConnectorsMock).toHaveBeenCalledOnce();
     expect(loadAlisioProviderOverviewMock).toHaveBeenCalledOnce();
+    releaseOverview();
     vi.doUnmock("./controllers/alisio.ts");
   });
 
@@ -874,8 +889,20 @@ describe("applySettingsFromUrl", () => {
     vi.resetModules();
     const loadNodesMock = vi.fn().mockResolvedValue(undefined);
     const loadDevicesMock = vi.fn().mockResolvedValue(undefined);
-    const loadAlisioSharingMock = vi.fn().mockResolvedValue(undefined);
-    const loadNodePairingsMock = vi.fn().mockResolvedValue(undefined);
+    let releaseSharing!: () => void;
+    let releasePairings!: () => void;
+    const loadAlisioSharingMock = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseSharing = resolve;
+        }),
+    );
+    const loadNodePairingsMock = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releasePairings = resolve;
+        }),
+    );
     const loadConfigMock = vi.fn().mockResolvedValue(undefined);
 
     vi.doMock("./controllers/nodes.ts", () => ({
@@ -900,21 +927,118 @@ describe("applySettingsFromUrl", () => {
     });
 
     const module = await import("./app-settings.ts");
-    await module.refreshActiveTab({
+    const refreshPromise = module.refreshActiveTab({
       tab: "connections",
     } as never);
+    let settled = false;
+    void refreshPromise.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
 
+    expect(settled).toBe(true);
     expect(loadNodesMock).toHaveBeenCalledOnce();
     expect(loadDevicesMock).toHaveBeenCalledOnce();
     expect(loadAlisioSharingMock).toHaveBeenCalledOnce();
     expect(loadNodePairingsMock).toHaveBeenCalledOnce();
     expect(loadConfigMock).not.toHaveBeenCalled();
+    releaseSharing();
+    releasePairings();
 
     vi.doUnmock("./controllers/nodes.ts");
     vi.doUnmock("./controllers/devices.ts");
     vi.doUnmock("./controllers/node-pairing.ts");
     vi.doUnmock("./controllers/config.ts");
     vi.doUnmock("./controllers/alisio.ts");
+  });
+
+  it("refreshes the capabilities tab from skills without blocking on channel and provider metadata", async () => {
+    vi.resetModules();
+    const loadSkillsMock = vi.fn().mockResolvedValue(undefined);
+    let releaseChannels!: () => void;
+    let releaseOverview!: () => void;
+    const loadChannelsMock = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseChannels = resolve;
+        }),
+    );
+    const loadAlisioProviderOverviewMock = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseOverview = resolve;
+        }),
+    );
+
+    vi.doMock("./controllers/skills.ts", () => ({
+      loadSkills: loadSkillsMock,
+    }));
+    vi.doMock("./controllers/channels.ts", () => ({
+      loadChannels: loadChannelsMock,
+    }));
+    vi.doMock("./controllers/alisio.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("./controllers/alisio.ts")>("./controllers/alisio.ts");
+      return {
+        ...actual,
+        loadAlisioProviderOverview: loadAlisioProviderOverviewMock,
+      };
+    });
+
+    const module = await import("./app-settings.ts");
+    const refreshPromise = module.refreshActiveTab({
+      tab: "capabilities",
+    } as never);
+    let settled = false;
+    void refreshPromise.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(settled).toBe(true);
+    expect(loadSkillsMock).toHaveBeenCalledOnce();
+    expect(loadChannelsMock).toHaveBeenCalledOnce();
+    expect(loadAlisioProviderOverviewMock).toHaveBeenCalledOnce();
+    releaseChannels();
+    releaseOverview();
+
+    vi.doUnmock("./controllers/skills.ts");
+    vi.doUnmock("./controllers/channels.ts");
+    vi.doUnmock("./controllers/alisio.ts");
+  });
+
+  it("refreshes the models tab without eagerly listing sessions", async () => {
+    vi.resetModules();
+    const loadAlisioBootstrapMock = vi.fn().mockResolvedValue(undefined);
+    const loadAlisioModelsMock = vi.fn().mockResolvedValue(undefined);
+    const loadSessionsMock = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock("./controllers/alisio.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("./controllers/alisio.ts")>("./controllers/alisio.ts");
+      return {
+        ...actual,
+        loadAlisioBootstrap: loadAlisioBootstrapMock,
+        loadAlisioModels: loadAlisioModelsMock,
+      };
+    });
+    vi.doMock("./controllers/sessions.ts", () => ({
+      loadSessions: loadSessionsMock,
+    }));
+
+    const module = await import("./app-settings.ts");
+    await module.refreshActiveTab({
+      tab: "models",
+    } as never);
+
+    expect(loadAlisioBootstrapMock).toHaveBeenCalledOnce();
+    expect(loadAlisioModelsMock).toHaveBeenCalledOnce();
+    expect(loadSessionsMock).not.toHaveBeenCalled();
+
+    vi.doUnmock("./controllers/alisio.ts");
+    vi.doUnmock("./controllers/sessions.ts");
   });
 });
 

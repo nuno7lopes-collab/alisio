@@ -562,11 +562,6 @@ channels:
     nativeStreaming: false
 ```
 
-Legacy keys:
-
-- `channels.slack.streamMode` (`replace | status_final | append`) is auto-migrated to `channels.slack.streaming`.
-- boolean `channels.slack.streaming` is auto-migrated to `channels.slack.nativeStreaming`.
-
 ### Requirements
 
 1. Enable **Agents and AI Apps** in your Slack app settings.

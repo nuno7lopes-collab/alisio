@@ -816,7 +816,9 @@ function readFeatureFlags(cfg: AlisioConfig): CanonicalStoreFeatureFlags {
   const rawMemory = cfg.memory;
   return {
     markdownProjectionEnabled:
-      rawMemory?.markdownProjection?.enabled ?? rawMemory?.legacyMarkdownProjection?.enabled ?? true,
+      rawMemory?.markdownProjection?.enabled ??
+      rawMemory?.legacyMarkdownProjection?.enabled ??
+      true,
     // Keep the legacy config path as the dedicated compatibility mirror toggle.
     legacyMarkdownProjectionEnabled: rawMemory?.legacyMarkdownProjection?.enabled ?? true,
     crdtPagesEnabled: rawMemory?.crdt?.pages?.enabled ?? true,
@@ -1768,10 +1770,8 @@ async function collectWorkspaceMarkdownPages(params: {
 }): Promise<CanonicalImportedPage[]> {
   const collectPagesFromRoot = async (
     rootDir: string,
-    rootKind?: ReadonlyMap<string, ProjectedFileRow>,
+    projectedFilesByPath?: ReadonlyMap<string, ProjectedFileRow>,
   ) => {
-    const allowProjectedReplay =
-      (params.tombstonedPageIds?.size ?? 0) > 0 || (params.tombstonedPageIdByPath?.size ?? 0) > 0;
     const discoveredFiles = await listMemoryFiles(rootDir);
     const entries = (
       await runWithConcurrency(
@@ -1781,21 +1781,21 @@ async function collectWorkspaceMarkdownPages(params: {
     )
       .filter((entry): entry is MemoryFileEntry => entry !== null)
       .filter((entry) => {
-        if (allowProjectedReplay) {
-          return true;
-        }
         const relativePath = normalizeDisplayPath(entry.path);
         const tombstonedPageId = params.tombstonedPageIdByPath?.get(relativePath);
         if (tombstonedPageId) {
           return true;
         }
         const existingPageId = params.importedPageIdByPath.get(relativePath);
-        if (existingPageId && params.tombstonedPageIds?.has(existingPageId)) {
+        if (existingPageId) {
           return true;
         }
-        const projected = rootKind?.get(relativePath);
+        const projected = projectedFilesByPath?.get(relativePath);
         return !projected || projected.content_hash !== entry.hash;
       });
+    // Files that already belong to imported workspace pages must stay in the
+    // import set even when their bytes match the last materialized projection.
+    // Otherwise the delete pass treats live pages as removed and tombstones them.
     const pages = await Promise.all(
       entries.map(async (entry) => {
         const markdown = await fs.readFile(entry.absPath, "utf8");

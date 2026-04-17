@@ -116,6 +116,10 @@
   flex-direction: column;
 }
 
+.browser-pane__content--computer {
+  padding: 12px;
+}
+
 .browser-pane__iframe {
   width: 100%;
   min-height: 420px;
@@ -131,6 +135,218 @@
 
 .browser-pane__empty {
   padding: 2px 0;
+}
+
+.computer-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.computer-pane__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.computer-pane__summary-copy {
+  min-width: 0;
+}
+
+.computer-pane__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.computer-pane__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-secondary) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  color: var(--text-strong);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.computer-pane__status--running,
+.computer-pane__status--observing {
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel-secondary));
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+}
+
+.computer-pane__status--error,
+.computer-pane__status--stopped {
+  background: color-mix(in srgb, #b94b4b 18%, var(--panel-secondary));
+  border-color: color-mix(in srgb, #b94b4b 36%, var(--border));
+}
+
+.computer-pane__status--awaiting-approval {
+  background: color-mix(in srgb, #d18d2b 20%, var(--panel-secondary));
+  border-color: color-mix(in srgb, #d18d2b 36%, var(--border));
+}
+
+.computer-pane__mode {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.computer-pane__context {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.computer-pane__context-window {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.computer-pane__actions,
+.computer-pane__callout-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.computer-pane__callout {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.computer-pane__approval {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.computer-pane__frame-card {
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--accent) 10%, transparent), transparent 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-secondary) 92%, transparent), var(--panel));
+}
+
+.computer-pane__frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  background: #05070b;
+}
+
+.computer-pane__frame-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.computer-pane__cursor {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  margin-left: -2px;
+  margin-top: -2px;
+  border-radius: 999px 999px 999px 2px;
+  border: 2px solid white;
+  background: color-mix(in srgb, var(--accent) 88%, white 12%);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
+  transform: translate(-10%, -10%) rotate(-18deg);
+}
+
+.computer-pane__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.computer-pane__meta-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-secondary) 72%, transparent);
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.computer-pane__meta-label,
+.computer-pane__timeline-title {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.computer-pane__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.computer-pane__timeline-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel-secondary) 70%, transparent);
+}
+
+.computer-pane__timeline-summary {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.computer-pane__timeline-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 960px) {
+  .computer-pane__summary {
+    flex-direction: column;
+  }
+
+  .computer-pane__meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .computer-pane__timeline-entry {
+    flex-direction: column;
+  }
+
+  .computer-pane__timeline-meta {
+    align-items: flex-start;
+  }
 }
 
 .sidebar-markdown {

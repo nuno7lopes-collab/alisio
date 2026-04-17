@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import ai.alisio.app.ChatAssistantIdentity
 import ai.alisio.app.chat.ChatMessage
 import ai.alisio.app.chat.ChatPendingToolCall
 import ai.alisio.app.ui.mobileBorder
@@ -32,6 +33,7 @@ fun ChatMessageListCard(
   pendingRunCount: Int,
   pendingToolCalls: List<ChatPendingToolCall>,
   streamingAssistantText: String?,
+  assistantIdentity: ChatAssistantIdentity,
   healthOk: Boolean,
   modifier: Modifier = Modifier,
 ) {
@@ -62,24 +64,24 @@ fun ChatMessageListCard(
       // So we emit newest items first: streaming → tools → typing → messages (newest→oldest).
       if (!stream.isNullOrEmpty()) {
         item(key = "stream") {
-          ChatStreamingAssistantBubble(text = stream)
+          ChatStreamingAssistantBubble(text = stream, assistantIdentity = assistantIdentity)
         }
       }
 
       if (pendingToolCalls.isNotEmpty()) {
         item(key = "tools") {
-          ChatPendingToolsBubble(toolCalls = pendingToolCalls)
+          ChatPendingToolsBubble(toolCalls = pendingToolCalls, assistantIdentity = assistantIdentity)
         }
       }
 
       if (pendingRunCount > 0) {
         item(key = "typing") {
-          ChatTypingIndicatorBubble()
+          ChatTypingIndicatorBubble(assistantIdentity = assistantIdentity)
         }
       }
 
       items(items = displayMessages, key = { it.id }) { message ->
-        ChatMessageBubble(message = message)
+        ChatMessageBubble(message = message, assistantIdentity = assistantIdentity)
       }
     }
 

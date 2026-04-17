@@ -29,30 +29,6 @@ describe("resolveSlackStreamingConfig", () => {
     });
   });
 
-  it("maps legacy streamMode values to unified streaming modes", () => {
-    expect(resolveSlackStreamingConfig({ streamMode: "append" })).toMatchObject({
-      mode: "block",
-      draftMode: "append",
-    });
-    expect(resolveSlackStreamingConfig({ streamMode: "status_final" })).toMatchObject({
-      mode: "progress",
-      draftMode: "status_final",
-    });
-  });
-
-  it("maps legacy streaming booleans to unified mode and native streaming toggle", () => {
-    expect(resolveSlackStreamingConfig({ streaming: false })).toEqual({
-      mode: "off",
-      nativeStreaming: false,
-      draftMode: "replace",
-    });
-    expect(resolveSlackStreamingConfig({ streaming: true })).toEqual({
-      mode: "partial",
-      nativeStreaming: true,
-      draftMode: "replace",
-    });
-  });
-
   it("accepts unified enum values directly", () => {
     expect(resolveSlackStreamingConfig({ streaming: "off" })).toEqual({
       mode: "off",
@@ -63,6 +39,14 @@ describe("resolveSlackStreamingConfig", () => {
       mode: "progress",
       nativeStreaming: true,
       draftMode: "status_final",
+    });
+  });
+
+  it("honors explicit native streaming overrides", () => {
+    expect(resolveSlackStreamingConfig({ streaming: "partial", nativeStreaming: false })).toEqual({
+      mode: "partial",
+      nativeStreaming: false,
+      draftMode: "replace",
     });
   });
 });

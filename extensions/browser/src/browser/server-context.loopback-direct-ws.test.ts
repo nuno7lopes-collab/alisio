@@ -46,7 +46,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     expect(createTargetViaCdp).toHaveBeenCalledWith({
       cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
       url: "http://127.0.0.1:8080",
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     });
   });
 

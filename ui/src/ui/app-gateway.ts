@@ -43,6 +43,7 @@ import {
   type ChatEventPayload,
   type SessionMessageEventPayload,
 } from "./controllers/chat.ts";
+import { readComputerSessionEvent } from "./controllers/computer-session.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
@@ -135,7 +136,14 @@ type GatewayHost = {
   bootstrapDeviceRetryConsumed?: boolean;
   alisioModelOperations: ModelsOperationMap;
   setBrowserPaneObserver?: (sessionKey: string, observer: BrowserPaneObserver | null) => void;
-  notifyBrowserPaneActivity?: (sessionKey: string) => void;
+  setComputerSession?: (
+    sessionKey: string,
+    session: import("./types.ts").ComputerSessionState | null,
+  ) => void;
+  notifyBrowserPaneActivity?: (
+    sessionKey: string,
+    surface?: import("./controllers/browser-pane.ts").BrowserPaneSurfaceKind,
+  ) => void;
 };
 
 type SessionDefaultsSnapshot = {
@@ -155,7 +163,10 @@ type ConnectGatewayOptions = {
 };
 
 const dashboardWarmupTimers = new WeakMap<GatewayHost, number>();
-const gatewayHelloWatchdogTimers = new WeakMap<GatewayHost, number>();
+const gatewayHelloWatchdogTimers = new WeakMap<
+  GatewayHost,
+  ReturnType<typeof globalThis.setTimeout>
+>();
 const GATEWAY_HELLO_WATCHDOG_MS = 12_000;
 
 export function resolveControlUiClientVersion(params: {
@@ -865,6 +876,14 @@ function applyBrowserPaneObserverUpdate(host: GatewayHost, payload: unknown): vo
   host.setBrowserPaneObserver?.(observerUpdate.sessionKey, observerUpdate.observer);
 }
 
+function applyComputerSessionUpdate(host: GatewayHost, payload: unknown): void {
+  const sessionUpdate = readComputerSessionEvent(payload);
+  if (!sessionUpdate) {
+    return;
+  }
+  host.setComputerSession?.(sessionUpdate.sessionKey, sessionUpdate.session);
+}
+
 function readBrowserPaneActivitySessionKey(payload: unknown): string | null {
   if (!payload || typeof payload !== "object") {
     return null;
@@ -885,6 +904,26 @@ function readBrowserPaneActivitySessionKey(payload: unknown): string | null {
   return sessionKey || null;
 }
 
+function readComputerPaneActivitySessionKey(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const event = payload as Record<string, unknown>;
+  if (event.stream !== "tool") {
+    return null;
+  }
+  const data =
+    event.data && typeof event.data === "object"
+      ? (event.data as Record<string, unknown>)
+      : undefined;
+  const toolName = typeof data?.name === "string" ? data.name.trim().toLowerCase() : "";
+  if (toolName !== "computer") {
+    return null;
+  }
+  const sessionKey = typeof event.sessionKey === "string" ? event.sessionKey.trim() : "";
+  return sessionKey || null;
+}
+
 function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   host.eventLogBuffer = [
     { ts: Date.now(), event: evt.event, payload: evt.payload },
@@ -894,11 +933,16 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     host.eventLog = host.eventLogBuffer;
   }
   applyBrowserPaneObserverUpdate(host, evt.payload);
+  applyComputerSessionUpdate(host, evt.payload);
 
   if (evt.event === "agent") {
     const browserPaneActivitySessionKey = readBrowserPaneActivitySessionKey(evt.payload);
     if (browserPaneActivitySessionKey) {
-      host.notifyBrowserPaneActivity?.(browserPaneActivitySessionKey);
+      host.notifyBrowserPaneActivity?.(browserPaneActivitySessionKey, "observer");
+    }
+    const computerPaneActivitySessionKey = readComputerPaneActivitySessionKey(evt.payload);
+    if (computerPaneActivitySessionKey) {
+      host.notifyBrowserPaneActivity?.(computerPaneActivitySessionKey, "computer");
     }
     handleAgentEvent(
       host as unknown as Parameters<typeof handleAgentEvent>[0],

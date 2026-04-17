@@ -1,14 +1,14 @@
 import type { GatewayRequestHandlerOptions } from "alisio/plugin-sdk/core";
 import { loadConfig } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import type { CanonicalMemoryStoreStatus } from "./memory/canonical-store.js";
+import { queryCanonicalMemoryGraph } from "./memory/canonical-store.js";
+import { getMemorySearchManager } from "./memory/index.js";
 import {
   getMemoryGraphFocusScopeError,
   getMemoryGraphScopeValueError,
   normalizeMemoryGraphScope,
   requiresMemoryGraphFocusHint,
 } from "./tools.shared.js";
-import type { CanonicalMemoryStoreStatus } from "./memory/canonical-store.js";
-import { queryCanonicalMemoryGraph } from "./memory/canonical-store.js";
-import { getMemorySearchManager } from "./memory/index.js";
 
 function respondGatewayError(
   respond: GatewayRequestHandlerOptions["respond"],
@@ -96,7 +96,16 @@ export async function handleMemoryGraphGatewayRequest({
   }
 
   try {
-    const canonicalStore = asCanonicalStoreStatus(manager.status().custom?.canonicalStore);
+    let runtimeStatus = manager.status();
+    let canonicalStore = asCanonicalStoreStatus(runtimeStatus.custom?.canonicalStore);
+    if (
+      typeof manager.sync === "function" &&
+      (runtimeStatus.dirty === true || canonicalStore?.state !== "ready")
+    ) {
+      await manager.sync({ reason: "memory.graph", force: true });
+      runtimeStatus = manager.status();
+      canonicalStore = asCanonicalStoreStatus(runtimeStatus.custom?.canonicalStore);
+    }
     if (!canonicalStore) {
       respondGatewayError(
         respond,

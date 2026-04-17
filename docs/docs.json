@@ -341,14 +341,6 @@
       "destination": "/nodes/camera"
     },
     {
-      "source": "/start/alisio",
-      "destination": "/start/alisio"
-    },
-    {
-      "source": "/start/alisio/",
-      "destination": "/start/alisio"
-    },
-    {
       "source": "/start/pairing",
       "destination": "/channels/pairing"
     },
@@ -1129,6 +1121,7 @@
                       "tools/browser-wsl2-windows-remote-cdp-troubleshooting"
                     ]
                   },
+                  "tools/computer",
                   {
                     "group": "Web Tools",
                     "pages": [
@@ -1438,13 +1431,7 @@
                   },
                   {
                     "group": "Utility",
-                    "pages": [
-                      "cli/acp",
-                      "cli/completion",
-                      "cli/dns",
-                      "cli/docs",
-                      "cli/mcp"
-                    ]
+                    "pages": ["cli/acp", "cli/completion", "cli/dns", "cli/docs", "cli/mcp"]
                   }
                 ]
               },

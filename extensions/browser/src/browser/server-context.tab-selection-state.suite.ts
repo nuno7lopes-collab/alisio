@@ -125,7 +125,7 @@ describe("browser server-context tab selection state", () => {
     expect(createTargetViaCdp).toHaveBeenCalledWith({
       cdpUrl: "http://127.0.0.1:40716",
       url: "http://127.0.0.1:8080",
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     });
   });
 

@@ -5181,8 +5181,19 @@ td.data-table-key-col {
   --chat-user-bubble-padding: 7px 11px;
   --chat-user-bubble-radius: 16px;
   --chat-footer-icon-size: 18px;
+  --chat-footer-icon-glyph-size: 12px;
   --chat-footer-meta-gap: 3px;
   --chat-footer-actions-gap: 2px;
+  --chat-footer-button-padding: 2px;
+  --chat-footer-button-hit-size: 18px;
+  --chat-footer-button-opacity: 0.66;
+  --chat-footer-button-pointer-events: auto;
+  --chat-footer-button-visible-opacity: 0.66;
+  --chat-footer-button-glyph-size: 12px;
+  --chat-footer-button-hover-bg: transparent;
+  --chat-footer-button-hover-color: var(--text-strong);
+  --chat-footer-action-bg: transparent;
+  --chat-footer-action-color: var(--muted);
   --chat-tool-stack-gap: 4px;
   --chat-tool-card-margin-top: 1px;
   --chat-tool-card-max-width: 456px;
@@ -5520,22 +5531,6 @@ td.data-table-key-col {
 
 .alisio-chat .chat-group-footer-actions {
   gap: var(--chat-footer-actions-gap);
-}
-
-.alisio-chat .chat-group-footer button {
-  opacity: 0.66;
-  pointer-events: auto;
-}
-
-.alisio-chat .chat-group-footer .chat-copy-btn,
-.alisio-chat .chat-group-footer .chat-expand-btn {
-  border-color: transparent;
-  background: transparent;
-}
-
-.alisio-chat .chat-group-footer button:hover {
-  background: transparent;
-  color: var(--text-strong);
 }
 
 .alisio-chat .chat-group-footer--active {
@@ -7805,8 +7800,8 @@ details[open] > .alisio-connections-entry__summary .alisio-connections-disclosur
 .alisio-models__target,
 .alisio-models__catalog-item {
   display: grid;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 12px;
+  padding: 16px 18px;
   border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--bg-elevated) 54%, transparent);
@@ -7830,10 +7825,127 @@ details[open] > .alisio-connections-entry__summary .alisio-connections-disclosur
   align-items: center;
 }
 
+.alisio-models__target-context {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alisio-models__target-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-models__target-heading {
+  color: var(--text-strong);
+  font-size: clamp(20px, 2.6vw, 24px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.alisio-models__target-summary.is-caution .alisio-models__target-heading {
+  color: color-mix(in srgb, var(--warning) 74%, var(--text-strong) 26%);
+}
+
+.alisio-models__target-summary.is-blocked .alisio-models__target-heading {
+  color: color-mix(in srgb, var(--danger) 74%, var(--text-strong) 26%);
+}
+
+.alisio-models__target-subheading {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.alisio-models__target-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 10px;
+}
+
+.alisio-models__target-stat {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+}
+
+.alisio-models__target-stat-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alisio-models__target-stat-value {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
 .alisio-models__model-main {
   display: grid;
   gap: 6px;
   min-width: 0;
+}
+
+.alisio-models__catalog-topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alisio-models__catalog-facts {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.alisio-models__fit-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.alisio-models__fit-badge.is-recommended {
+  color: #78b5a6;
+  border-color: color-mix(in srgb, #78b5a6 32%, transparent);
+}
+
+.alisio-models__fit-badge.is-works {
+  color: color-mix(in srgb, var(--accent) 74%, var(--text-strong) 26%);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.alisio-models__fit-badge.is-slow {
+  color: #c98b47;
+  border-color: color-mix(in srgb, #c98b47 32%, transparent);
+}
+
+.alisio-models__fit-badge.is-unsupported {
+  color: #d85c5c;
+  border-color: color-mix(in srgb, #d85c5c 32%, transparent);
+}
+
+.alisio-models__fit-badge.is-running {
+  color: color-mix(in srgb, var(--text-strong) 86%, var(--accent) 14%);
 }
 
 .alisio-models__model-facts,
@@ -7947,6 +8059,12 @@ details[open] > .alisio-connections-entry__summary .alisio-connections-disclosur
 
 .alisio-models__installed-list.is-interactive {
   gap: 10px;
+}
+
+.alisio-models__target-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .alisio-models__progress {

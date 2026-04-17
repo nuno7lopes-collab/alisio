@@ -1,4 +1,4 @@
-import { html, nothing } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import {
   alisioConnectorLimit,
   alisioConnectorUpgradeMessage,
@@ -7,6 +7,8 @@ import {
 } from "../../../../src/shared/alisio-billing.js";
 import { resolveAlisioConnectorSurfaceUiStatus } from "../../../../src/shared/alisio-connector-status.js";
 import { t } from "../../i18n/index.ts";
+import { icons } from "../icons.ts";
+import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type {
   AlisioAccountState,
   AlisioConnectorAuthorization,
@@ -15,18 +17,75 @@ import type {
   AlisioProvidersState,
 } from "../types.ts";
 import {
-  getConnectorActionBranding,
+  connectorBrandStyle,
   getConnectorBranding,
   type ConnectorBranding,
 } from "./connector-branding.ts";
 import { buildConnectorRows, type ConnectorRow } from "./connector-state.ts";
 import {
-  renderSkeletonButton,
   renderSkeletonInput,
-  renderSkeletonLines,
-  renderSkeletonPill,
+  renderSkeletonListItem,
   renderSurfaceEmptyState,
 } from "./loading-skeleton.ts";
+
+type ConnectorDialogMode = "details" | "install";
+
+type ConnectorEntry = {
+  row: ConnectorRow;
+  item?: AlisioProviderOverviewItem;
+  overviewStatus: AlisioProviderOverviewItem["status"];
+  actionStatus: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
+  isLinked: boolean;
+  summary: string;
+  detail: string;
+  connectedAs: string | null;
+  providerLabel: string;
+  chips: string[];
+  docsUrl: string | null;
+  branding: ConnectorBranding;
+};
+
+function uniqueTrimmedValues(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(trimmed);
+  }
+  return result;
+}
+
+function buildConnectedAccountLabel(
+  authorization: AlisioConnectorAuthorization,
+  item: AlisioProviderOverviewItem | undefined,
+): string | null {
+  const values = uniqueTrimmedValues([
+    authorization.connectedAccount?.label,
+    authorization.connectedAccount?.email,
+    authorization.connectedAccount?.handle,
+    item?.accountLabel,
+    item?.accountEmail,
+  ]);
+  return values.length > 0 ? values.join(" · ") : null;
+}
+
+function buildConnectorChips(
+  row: ConnectorRow,
+  item: AlisioProviderOverviewItem | undefined,
+  providerLabel: string,
+): string[] {
+  return uniqueTrimmedValues(
+    item?.chips?.length ? item.chips : [providerLabel, row.definition.category].filter(Boolean),
+  );
+}
 
 function normalizeSearchText(value: string) {
   return value.trim().toLowerCase();
@@ -108,373 +167,115 @@ function mapConnectorSurfaceStatusToOverviewStatus(
   }
 }
 
-function renderConnectorIcon(definition: AlisioConnectorDefinition) {
-  const branding = getConnectorBranding(definition.id, definition.providerLabel);
-
-  return html`
-    <span class="alisio-auth-card__icon">
-      <img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />
-    </span>
-  `;
-}
-
-function renderConnectorStatusBadge(status: AlisioProviderOverviewItem["status"]) {
-  if (status === "connected" || status === "ready") {
-    return nothing;
-  }
-  return html`<span class="pill ${statusClass(status)} alisio-auth-card__status"
-    >${statusLabel(status)}</span
-  >`;
-}
-
-function renderConnectorActionContent(label: string, branding: ConnectorBranding | null) {
-  return html`
-    ${branding
-      ? html`<img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />`
-      : nothing}
-    <span>${label}</span>
-  `;
-}
-
-function renderConnectorAction(
+function resolveConnectorDetail(
   row: ConnectorRow,
-  props: {
-    onBeginConnector: (connectorId: string) => void;
-    onRevokeConnector: (connectorId: string) => void;
-    planBlocksNewConnections?: boolean;
-    planLimitMessage?: string | null;
-    compact?: boolean;
-  },
-  text: {
-    revoke: string;
-    reconnect: string;
-    reviewSetup: string;
-  },
-  status: ConnectorRow["status"],
-  connectLabel?: string,
-) {
-  const actionBranding =
-    status === "connected"
-      ? null
-      : getConnectorActionBranding(row.definition.id, row.definition.providerLabel);
-  if (status === "connected") {
-    return html`
-      <button
-        class="btn btn--sm danger ${props.compact ? "alisio-auth-card__action-btn" : ""}"
-        @click=${() => props.onRevokeConnector(row.definition.id)}
-      >
-        ${text.revoke}
-      </button>
-    `;
+  item: AlisioProviderOverviewItem | undefined,
+  overviewStatus: AlisioProviderOverviewItem["status"],
+): string {
+  const overviewDetail = item?.detail?.trim();
+  if (overviewDetail) {
+    return overviewDetail;
   }
-  if (status === "ready") {
-    const disabled = props.planBlocksNewConnections === true;
-    const connectText = connectLabel ?? row.definition.connectLabel;
-    if (props.compact) {
-      return html`
-        <button
-          class="btn btn--sm alisio-auth-card__connect-btn alisio-auth-card__connect-btn--compact"
-          ?disabled=${disabled}
-          aria-label=${connectText}
-          title=${disabled ? (props.planLimitMessage ?? "") : connectText}
-          @click=${() => {
-            if (disabled) {
-              return;
-            }
-            props.onBeginConnector(row.definition.id);
-          }}
-        >
-          <span aria-hidden="true" class="alisio-auth-card__connect-plus">+</span>
-          <span class="sr-only">${connectText}</span>
-        </button>
-      `;
-    }
-    return html`
-      <button
-        class="btn btn--sm alisio-auth-card__connect-btn"
-        ?disabled=${disabled}
-        title=${disabled ? (props.planLimitMessage ?? "") : ""}
-        @click=${() => {
-          if (disabled) {
-            return;
-          }
-          props.onBeginConnector(row.definition.id);
-        }}
-      >
-        ${renderConnectorActionContent(connectText, actionBranding)}
-      </button>
-    `;
+  const definitionDetail = row.definition.detail?.trim();
+  if (definitionDetail) {
+    return definitionDetail;
   }
-  if (status === "needs_reconnect") {
-    return html`
-      <button
-        class="btn btn--sm alisio-auth-card__connect-btn ${props.compact
-          ? "alisio-auth-card__action-btn"
-          : ""}"
-        @click=${() => props.onBeginConnector(row.definition.id)}
-      >
-        ${renderConnectorActionContent(text.reconnect, actionBranding)}
-      </button>
-    `;
+  if (row.status === "setup_required") {
+    return t("alisio.authentications.hints.setupRequired");
   }
-  if (status === "setup_required") {
-    return html`
-      <button
-        class="btn btn--sm alisio-auth-card__connect-btn ${props.compact
-          ? "alisio-auth-card__action-btn"
-          : ""}"
-        @click=${() => props.onBeginConnector(row.definition.id)}
-      >
-        ${renderConnectorActionContent(text.reviewSetup, actionBranding)}
-      </button>
-    `;
+  if (row.status === "needs_reconnect") {
+    return t("alisio.authentications.hints.needsReconnect");
   }
-  return nothing;
+  switch (overviewStatus) {
+    case "connected":
+      return t("alisio.authentications.hints.connected");
+    case "coming_soon":
+      return t("alisio.authentications.hints.inReview");
+    case "unavailable":
+      return t("alisio.authentications.hints.unavailable");
+    case "ready":
+    default:
+      return t("alisio.authentications.hints.ready");
+  }
 }
 
-function renderConnectorCard(
-  row: ConnectorRow,
-  props: {
-    onBeginConnector: (connectorId: string) => void;
-    onRevokeConnector: (connectorId: string) => void;
-    planBlocksNewConnections?: boolean;
-    planLimitMessage?: string | null;
-    overviewStatus?: AlisioProviderOverviewItem["status"];
-    subtitle?: string;
-    connectLabel?: string;
-    actionStatus?: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
-    compact?: boolean;
-  },
-  text: {
-    revoke: string;
-    reconnect: string;
-    reviewSetup: string;
-  },
-) {
-  const connectedAs =
-    row.authorization.connectedAccount?.label?.trim() ||
-    row.authorization.connectedAccount?.email?.trim() ||
-    row.authorization.connectedAccount?.handle?.trim() ||
-    null;
-  const summary = props.subtitle?.trim() || row.definition.detail?.trim() || row.definition.summary;
-  const fallbackStatus =
-    row.status === "connected"
-      ? "connected"
-      : row.status === "needs_reconnect"
-        ? "attention"
-        : row.status === "in_review"
-          ? "coming_soon"
-          : row.status === "unavailable"
-            ? "unavailable"
-            : "ready";
-  const status = props.overviewStatus ?? fallbackStatus;
-  const actionStatus = props.actionStatus ?? row.status;
-
-  return html`
-    <article
-      class="alisio-auth-card ${row.status === "connected"
-        ? "alisio-auth-card--connected"
-        : ""} ${props.compact ? "alisio-auth-card--compact" : ""}"
-    >
-      <div class="alisio-auth-card__main">
-        <div class="alisio-auth-card__head">
-          <div class="alisio-auth-card__brand">
-            ${renderConnectorIcon(row.definition)}
-            <div class="alisio-auth-card__brand-copy">
-              <div class="list-title">${row.definition.title}</div>
-              <div class="list-sub">${summary}</div>
-              ${connectedAs
-                ? html`<div class="alisio-auth-card__meta">
-                    ${t("alisio.authentications.connectedAs")}: ${connectedAs}
-                  </div>`
-                : nothing}
-            </div>
-          </div>
-          ${renderConnectorStatusBadge(status)}
-        </div>
-      </div>
-      <div class="alisio-auth-card__aside">
-        ${renderConnectorAction(row, props, text, actionStatus, props.connectLabel)}
-      </div>
-    </article>
-  `;
-}
-
-function resolveConnectorCardState(
+function resolveConnectorEntryState(
   row: ConnectorRow,
   _item: AlisioProviderOverviewItem | undefined,
-): {
-  status: AlisioProviderOverviewItem["status"];
-  connected: boolean;
-  actionStatus: ConnectorRow["status"] | "connected" | "ready" | "unavailable";
-} {
-  const fallbackStatus = mapConnectorSurfaceStatusToOverviewStatus(
+): Pick<ConnectorEntry, "overviewStatus" | "actionStatus" | "isLinked"> {
+  const overviewStatus = mapConnectorSurfaceStatusToOverviewStatus(
     resolveAlisioConnectorSurfaceUiStatus({
       definition: row.definition,
       authorization: row.authorization,
     }),
   );
-  const status = fallbackStatus;
   return {
-    status,
-    connected: status === "connected",
+    overviewStatus,
     actionStatus:
       row.status === "connected"
         ? "connected"
-        : status === "attention"
+        : row.status === "needs_reconnect"
           ? "needs_reconnect"
-          : status === "coming_soon"
-            ? "in_review"
-            : status === "connected" || status === "ready" || status === "unavailable"
-              ? status
-              : row.status,
+          : row.status === "setup_required"
+            ? "unavailable"
+            : overviewStatus === "coming_soon"
+              ? "in_review"
+              : overviewStatus === "unavailable"
+                ? "unavailable"
+                : "ready",
+    isLinked: row.authorization.state !== "not_connected",
   };
 }
 
-function connectorStatusOrder(status: AlisioProviderOverviewItem["status"]) {
-  switch (status) {
-    case "connected":
+function safeDocsUrl(raw?: string): string | null {
+  if (!raw?.trim()) {
+    return null;
+  }
+  return resolveSafeExternalUrl(
+    raw.trim(),
+    typeof window !== "undefined" ? window.location.href : "https://docs.alisio.ai/",
+  );
+}
+
+function entrySortKey(entry: ConnectorEntry) {
+  if (entry.isLinked) {
+    switch (entry.row.status) {
+      case "connected":
+        return 0;
+      case "needs_reconnect":
+        return 1;
+      default:
+        return entry.overviewStatus === "coming_soon"
+          ? 2
+          : entry.overviewStatus === "unavailable"
+            ? 3
+            : 1;
+    }
+  }
+  switch (entry.overviewStatus) {
+    case "ready":
       return 0;
     case "attention":
       return 1;
-    case "ready":
-      return 2;
     case "coming_soon":
-      return 3;
+      return 2;
     case "unavailable":
+      return 3;
+    case "connected":
     default:
-      return 4;
+      return 0;
   }
 }
 
-function renderConnectorSection(params: {
-  id: "connected" | "available";
-  title: string;
-  subtitle?: string;
-  entries: Array<{
-    row: ConnectorRow;
-    item?: AlisioProviderOverviewItem;
-    state: ReturnType<typeof resolveConnectorCardState>;
-  }>;
-  props: {
-    onBeginConnector: (connectorId: string) => void;
-    onRevokeConnector: (connectorId: string) => void;
-    planBlocksNewConnections?: boolean;
-    planLimitMessage?: string | null;
-  };
-  text: {
-    revoke: string;
-    reconnect: string;
-    reviewSetup: string;
-  };
-  compactCards?: boolean;
-  grid?: boolean;
-}) {
-  if (params.entries.length === 0) {
-    return nothing;
-  }
-  return html`
-    <section class="card alisio-auth-page__section" data-section=${params.id}>
-      <div class="card-title">${params.title}</div>
-      ${params.subtitle ? html`<div class="card-sub">${params.subtitle}</div>` : nothing}
-      <div class=${params.grid ? "alisio-auth-grid" : "stack"}>
-        ${params.entries.map(({ row, item, state }) =>
-          renderConnectorCard(
-            row,
-            {
-              onBeginConnector: params.props.onBeginConnector,
-              onRevokeConnector: params.props.onRevokeConnector,
-              planBlocksNewConnections: params.props.planBlocksNewConnections,
-              planLimitMessage: params.props.planLimitMessage,
-              overviewStatus: state.status,
-              subtitle: item?.subtitle,
-              connectLabel: item?.connectLabel,
-              actionStatus: state.actionStatus,
-              compact: params.compactCards,
-            },
-            {
-              revoke: params.text.revoke,
-              reconnect: params.text.reconnect,
-              reviewSetup: params.text.reviewSetup,
-            },
-          ),
-        )}
-      </div>
-    </section>
-  `;
-}
-
-function renderAuthenticationsHeader(props: {
-  loading: boolean;
-  search: string;
-  searchPlaceholder: string;
-  onSearchChange: (value: string) => void;
-}) {
-  if (props.loading) {
-    return html`
-      <div class="loading-state__toolbar alisio-auth-page__header" aria-hidden="true">
-        <div class="loading-state__toolbar-main">
-          ${renderSkeletonLines(["short"], { compact: true })}
-        </div>
-        <div class="loading-state__toolbar-filter">${renderSkeletonInput()}</div>
-      </div>
-    `;
-  }
-  return html`
-    <header class="alisio-auth-page__header">
-      <div class="alisio-auth-page__copy">
-        <div class="card-title">${t("alisio.authentications.sections.apps")}</div>
-      </div>
-      <div class="alisio-auth-page__filters">
-        <label class="field alisio-filter alisio-filter--search">
-          <input
-            type="search"
-            placeholder=${props.searchPlaceholder}
-            .value=${props.search}
-            @input=${(event: Event) =>
-              props.onSearchChange((event.target as HTMLInputElement).value)}
-          />
-        </label>
-      </div>
-    </header>
-  `;
-}
-
-export function renderAuthentications(props: {
-  loading: boolean;
-  error: string | null;
-  account: AlisioAccountState | null;
+function buildConnectorEntries(params: {
   overview: AlisioProvidersState | null;
   connectorCatalog: AlisioConnectorDefinition[];
   connectorAuthorizations: AlisioConnectorAuthorization[];
   search: string;
-  onSearchChange: (value: string) => void;
-  onBeginConnector: (connectorId: string) => void;
-  onRevokeConnector: (connectorId: string) => void;
-}) {
-  const text = {
-    title: t("alisio.authentications.title"),
-    searchPlaceholder: t("alisio.authentications.searchPlaceholder"),
-    emptyFiltered: t("alisio.authentications.emptyFiltered"),
-    authorizedTitle: t("alisio.authentications.authorizedTitle"),
-    authorizedSubtitle: t("alisio.authentications.authorizedSubtitle"),
-    availableTitle: t("alisio.authentications.availableTitle"),
-    revoke: t("alisio.authentications.actions.revoke"),
-    reconnect: t("alisio.authentications.actions.reconnect"),
-    reviewSetup: t("alisio.authentications.actions.reviewSetup"),
-  };
-  const overviewConnectorCatalog = props.overview?.connectors.catalog ?? [];
-  const connectorCatalog =
-    props.connectorCatalog.length > 0 ? props.connectorCatalog : overviewConnectorCatalog;
-  const overviewConnectorAuthorizations = props.overview?.connectors.authorizations ?? [];
-  const connectorAuthorizations =
-    props.connectorAuthorizations.length > 0
-      ? props.connectorAuthorizations
-      : overviewConnectorAuthorizations;
-  const connectorRows = buildConnectorRows(connectorCatalog, connectorAuthorizations);
-  const overview = props.overview;
+}): ConnectorEntry[] {
+  const connectorRows = buildConnectorRows(params.connectorCatalog, params.connectorAuthorizations);
   const appOverviewByConnectorId = new Map(
-    (overview?.apps ?? [])
+    (params.overview?.apps ?? [])
       .filter(
         (
           item,
@@ -485,24 +286,37 @@ export function renderAuthentications(props: {
       .map((item) => [item.connectorId, item]),
   );
   const appOrderByConnectorId = new Map(
-    (overview?.apps ?? [])
+    (params.overview?.apps ?? [])
       .filter(
         (item): item is AlisioProviderOverviewItem & { connectorId: string } =>
           typeof item.connectorId === "string" && item.connectorId.trim().length > 0,
       )
       .map((item, index) => [item.connectorId, index]),
   );
-  const visibleConnectorRows = connectorRows.filter((row) =>
-    matchesConnectorSearch(row, appOverviewByConnectorId.get(row.definition.id), props.search),
-  );
-  const connectorEntries = visibleConnectorRows
+
+  return connectorRows
+    .filter((row) =>
+      matchesConnectorSearch(row, appOverviewByConnectorId.get(row.definition.id), params.search),
+    )
     .map((row) => {
       const item = appOverviewByConnectorId.get(row.definition.id);
+      const state = resolveConnectorEntryState(row, item);
+      const providerLabel = item?.providerLabel?.trim() || row.definition.providerLabel;
+      const connectedAs = buildConnectedAccountLabel(row.authorization, item);
       return {
         row,
         item,
-        state: resolveConnectorCardState(row, item),
-      };
+        overviewStatus: state.overviewStatus,
+        actionStatus: state.actionStatus,
+        isLinked: state.isLinked,
+        summary: item?.subtitle?.trim() || row.definition.summary,
+        detail: resolveConnectorDetail(row, item, state.overviewStatus),
+        connectedAs,
+        providerLabel,
+        chips: buildConnectorChips(row, item, providerLabel),
+        docsUrl: safeDocsUrl(item?.docsPath ?? row.definition.setupUrl),
+        branding: getConnectorBranding(row.definition.id, providerLabel),
+      } satisfies ConnectorEntry;
     })
     .toSorted((left, right) => {
       const leftOrder = appOrderByConnectorId.get(left.row.definition.id);
@@ -515,126 +329,536 @@ export function renderAuthentications(props: {
         );
       }
       return (
-        connectorStatusOrder(left.state.status) - connectorStatusOrder(right.state.status) ||
+        entrySortKey(left) - entrySortKey(right) ||
         left.row.definition.title.localeCompare(right.row.definition.title) ||
         left.row.definition.id.localeCompare(right.row.definition.id)
       );
     });
-  const connectedConnectorEntries = connectorEntries.filter((entry) => entry.state.connected);
-  const availableConnectorEntries = connectorEntries.filter((entry) => !entry.state.connected);
+}
+
+function renderHeader(props: {
+  loading: boolean;
+  search: string;
+  searchPlaceholder: string;
+  onSearchChange: (value: string) => void;
+}) {
+  if (props.loading) {
+    return html`
+      <div class="loading-state__toolbar alisio-auth-shell__header" aria-hidden="true">
+        <div class="loading-state__toolbar-main">
+          <div class="skeleton skeleton-line skeleton-line--short"></div>
+        </div>
+        <div class="loading-state__toolbar-filter">${renderSkeletonInput()}</div>
+      </div>
+    `;
+  }
+
+  return html`
+    <header class="alisio-auth-shell__header">
+      <div class="alisio-auth-shell__title-wrap">
+        <div class="card-title">${t("alisio.authentications.title")}</div>
+      </div>
+      <label class="field alisio-filter alisio-filter--search">
+        <span class="sr-only">${props.searchPlaceholder}</span>
+        <input
+          type="search"
+          placeholder=${props.searchPlaceholder}
+          .value=${props.search}
+          @input=${(event: Event) => props.onSearchChange((event.target as HTMLInputElement).value)}
+        />
+      </label>
+    </header>
+  `;
+}
+
+function renderSectionEmpty(message: string) {
+  return html`<div class="alisio-auth-panel__empty">${message}</div>`;
+}
+
+function renderRowStatus(entry: ConnectorEntry) {
+  const showBadge =
+    (entry.isLinked && entry.overviewStatus !== "connected") ||
+    (!entry.isLinked && entry.overviewStatus !== "ready");
+  return showBadge
+    ? html`<span class="pill ${statusClass(entry.overviewStatus)}"
+        >${statusLabel(entry.overviewStatus)}</span
+      >`
+    : nothing;
+}
+
+function renderRowAction(
+  entry: ConnectorEntry,
+  props: {
+    onOpenConnectorDetails: (connectorId: string) => void;
+    onOpenConnectorInstall: (connectorId: string) => void;
+    planBlocksNewConnections?: boolean;
+    planLimitMessage?: string | null;
+  },
+) {
+  if (entry.isLinked) {
+    const indicatorClass =
+      entry.overviewStatus === "connected"
+        ? "is-connected"
+        : entry.overviewStatus === "attention"
+          ? "is-warning"
+          : "is-muted";
+    return html`
+      <div class="alisio-app-row__aside">
+        ${renderRowStatus(entry)}
+        <span
+          class="alisio-app-row__indicator ${indicatorClass}"
+          aria-hidden="true"
+          title=${statusLabel(entry.overviewStatus)}
+          >${icons.check}</span
+        >
+      </div>
+    `;
+  }
+
+  if (entry.actionStatus === "ready") {
+    const disabled = props.planBlocksNewConnections === true;
+    return html`
+      <div class="alisio-app-row__aside">
+        <button
+          class="alisio-app-row__indicator is-action"
+          type="button"
+          ?disabled=${disabled}
+          aria-label=${t("alisio.authentications.actions.install", {
+            app: entry.row.definition.title,
+          })}
+          title=${disabled ? (props.planLimitMessage ?? "") : ""}
+          @click=${() => {
+            if (disabled) {
+              return;
+            }
+            props.onOpenConnectorInstall(entry.row.definition.id);
+          }}
+        >
+          ${icons.plus}
+        </button>
+      </div>
+    `;
+  }
+
+  return html`<div class="alisio-app-row__aside">${renderRowStatus(entry)}</div>`;
+}
+
+function renderConnectorRow(
+  entry: ConnectorEntry,
+  props: {
+    dialogConnectorId: string | null;
+    dialogMode: ConnectorDialogMode | null;
+    onOpenConnectorDetails: (connectorId: string) => void;
+    onOpenConnectorInstall: (connectorId: string) => void;
+    planBlocksNewConnections?: boolean;
+    planLimitMessage?: string | null;
+  },
+) {
+  const isSelected =
+    props.dialogMode === "details" && props.dialogConnectorId === entry.row.definition.id;
+  return html`
+    <article
+      class="alisio-app-row ${isSelected ? "is-selected" : ""}"
+      style=${connectorBrandStyle(entry.branding)}
+    >
+      <button
+        type="button"
+        class="alisio-app-row__surface"
+        @click=${() => props.onOpenConnectorDetails(entry.row.definition.id)}
+      >
+        <span class="alisio-app-row__icon">
+          <img src=${entry.branding.logoUrl} alt="" loading="lazy" decoding="async" />
+        </span>
+        <span class="alisio-app-row__copy">
+          <span class="alisio-app-row__title">${entry.row.definition.title}</span>
+          <span class="alisio-app-row__subtitle">${entry.summary}</span>
+        </span>
+      </button>
+      ${renderRowAction(entry, props)}
+    </article>
+  `;
+}
+
+function renderSection(params: {
+  id: "connected" | "available";
+  title: string;
+  entries: ConnectorEntry[];
+  emptyMessage: string;
+  props: {
+    dialogConnectorId: string | null;
+    dialogMode: ConnectorDialogMode | null;
+    onOpenConnectorDetails: (connectorId: string) => void;
+    onOpenConnectorInstall: (connectorId: string) => void;
+    planBlocksNewConnections?: boolean;
+    planLimitMessage?: string | null;
+  };
+}) {
+  return html`
+    <section class="alisio-auth-panel" data-section=${params.id}>
+      <div class="alisio-auth-panel__header">
+        <div class="alisio-auth-panel__title">${params.title}</div>
+        <span class="pill">${params.entries.length}</span>
+      </div>
+      <div class="alisio-auth-list">
+        ${params.entries.length === 0
+          ? renderSectionEmpty(params.emptyMessage)
+          : params.entries.map((entry) => renderConnectorRow(entry, params.props))}
+      </div>
+    </section>
+  `;
+}
+
+function renderLoadingPanels() {
+  return html`
+    <div class="alisio-auth-shell__columns">
+      ${["connected", "available"].map(
+        (section) => html`
+          <section class="alisio-auth-panel" data-section=${section} aria-hidden="true">
+            <div class="alisio-auth-panel__header">
+              <div class="skeleton skeleton-line skeleton-line--short"></div>
+              <div class="skeleton loading-state__pill loading-state__pill--small"></div>
+            </div>
+            <div class="alisio-auth-list">
+              ${Array.from({ length: 4 }, () =>
+                renderSkeletonListItem({ lines: ["medium", "long"], compact: true }),
+              )}
+            </div>
+          </section>
+        `,
+      )}
+    </div>
+  `;
+}
+
+function renderDialogFact(label: string, value: string | TemplateResult) {
+  return html`
+    <div class="alisio-auth-dialog__fact">
+      <div class="alisio-auth-dialog__fact-label">${label}</div>
+      <div class="alisio-auth-dialog__fact-value">${value}</div>
+    </div>
+  `;
+}
+
+function renderDialogActions(params: {
+  entry: ConnectorEntry;
+  mode: ConnectorDialogMode;
+  planBlocksNewConnections?: boolean;
+  planLimitMessage?: string | null;
+  onBeginConnector: (connectorId: string) => void;
+  onRevokeConnector: (connectorId: string) => void;
+  onTryConnectorInChat: (connectorId: string) => void;
+}) {
+  const { entry, mode, planBlocksNewConnections, planLimitMessage } = params;
+  const installDisabled = planBlocksNewConnections === true;
+  const installTitle = installDisabled ? (planLimitMessage ?? "") : "";
+
+  if (mode === "install") {
+    return html`
+      <div class="alisio-auth-dialog__actions">
+        <button
+          class="btn primary"
+          ?disabled=${installDisabled}
+          title=${installTitle}
+          @click=${() => params.onBeginConnector(entry.row.definition.id)}
+        >
+          ${t("alisio.authentications.actions.install", {
+            app: entry.row.definition.title,
+          })}
+        </button>
+      </div>
+    `;
+  }
+
+  if (entry.isLinked) {
+    const primaryAction =
+      entry.row.status === "needs_reconnect"
+        ? html`
+            <button
+              class="btn primary"
+              @click=${() => params.onBeginConnector(entry.row.definition.id)}
+            >
+              ${t("alisio.authentications.actions.reconnect")}
+            </button>
+          `
+        : entry.overviewStatus === "connected"
+          ? html`
+              <button
+                class="btn primary"
+                @click=${() => params.onTryConnectorInChat(entry.row.definition.id)}
+              >
+                ${t("alisio.authentications.actions.tryInChat")}
+              </button>
+            `
+          : nothing;
+    return html`
+      <div class="alisio-auth-dialog__actions">
+        ${primaryAction}
+        <button
+          class="btn danger"
+          @click=${() => params.onRevokeConnector(entry.row.definition.id)}
+        >
+          ${t("alisio.authentications.actions.remove")}
+        </button>
+      </div>
+    `;
+  }
+
+  if (entry.actionStatus === "ready") {
+    return html`
+      <div class="alisio-auth-dialog__actions">
+        <button
+          class="btn primary"
+          @click=${() => params.onTryConnectorInChat(entry.row.definition.id)}
+        >
+          ${t("alisio.authentications.actions.tryInChat")}
+        </button>
+        <button
+          class="btn"
+          ?disabled=${installDisabled}
+          title=${installTitle}
+          @click=${() => params.onBeginConnector(entry.row.definition.id)}
+        >
+          ${t("alisio.authentications.actions.install", {
+            app: entry.row.definition.title,
+          })}
+        </button>
+      </div>
+    `;
+  }
+
+  return nothing;
+}
+
+function renderConnectorDialog(params: {
+  entry: ConnectorEntry;
+  mode: ConnectorDialogMode;
+  planBlocksNewConnections?: boolean;
+  planLimitMessage?: string | null;
+  onCloseConnectorDialog: () => void;
+  onBeginConnector: (connectorId: string) => void;
+  onRevokeConnector: (connectorId: string) => void;
+  onTryConnectorInChat: (connectorId: string) => void;
+}) {
+  const title =
+    params.mode === "install"
+      ? t("alisio.authentications.actions.install", {
+          app: params.entry.row.definition.title,
+        })
+      : params.entry.row.definition.title;
+  const dialogId = `alisio-auth-dialog-${params.entry.row.definition.id}`;
+  return html`
+    <div
+      class="exec-approval-overlay alisio-auth-dialog__overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby=${dialogId}
+      @click=${(event: Event) => {
+        if (event.target === event.currentTarget) {
+          params.onCloseConnectorDialog();
+        }
+      }}
+    >
+      <div
+        class="exec-approval-card alisio-auth-dialog"
+        style=${connectorBrandStyle(params.entry.branding)}
+      >
+        <div class="alisio-auth-dialog__hero">
+          <div class="alisio-auth-dialog__hero-main">
+            <span class="alisio-auth-dialog__hero-icon">
+              <img src=${params.entry.branding.logoUrl} alt="" loading="lazy" decoding="async" />
+            </span>
+            <div class="alisio-auth-dialog__hero-copy">
+              <div class="alisio-auth-dialog__eyebrow">${params.entry.providerLabel}</div>
+              <div id=${dialogId} class="alisio-auth-dialog__title">${title}</div>
+              <div class="alisio-auth-dialog__subtitle">${params.entry.summary}</div>
+            </div>
+          </div>
+          <button class="btn btn--sm" type="button" @click=${params.onCloseConnectorDialog}>
+            ${t("alisio.authentications.actions.close")}
+          </button>
+        </div>
+
+        <div class="alisio-auth-dialog__body">
+          <div class="alisio-auth-dialog__lead">${params.entry.detail}</div>
+
+          <div class="alisio-auth-dialog__facts">
+            ${renderDialogFact(
+              t("alisio.authentications.labels.status"),
+              html`<span class="pill ${statusClass(params.entry.overviewStatus)}"
+                >${statusLabel(params.entry.overviewStatus)}</span
+              >`,
+            )}
+            ${renderDialogFact(
+              t("alisio.authentications.labels.provider"),
+              params.entry.providerLabel,
+            )}
+            ${params.entry.connectedAs
+              ? renderDialogFact(
+                  t("alisio.authentications.labels.account"),
+                  params.entry.connectedAs,
+                )
+              : nothing}
+          </div>
+
+          ${params.entry.chips.length > 0
+            ? html`
+                <div class="chip-row alisio-auth-dialog__chips">
+                  ${params.entry.chips.map((chip) => html`<span class="chip">${chip}</span>`)}
+                </div>
+              `
+            : nothing}
+          ${params.planLimitMessage
+            ? html`<div class="callout info">${params.planLimitMessage}</div>`
+            : nothing}
+
+          <div class="alisio-auth-dialog__footer">
+            ${renderDialogActions({
+              entry: params.entry,
+              mode: params.mode,
+              planBlocksNewConnections: params.planBlocksNewConnections,
+              planLimitMessage: params.planLimitMessage,
+              onBeginConnector: params.onBeginConnector,
+              onRevokeConnector: params.onRevokeConnector,
+              onTryConnectorInChat: params.onTryConnectorInChat,
+            })}
+            ${params.entry.docsUrl
+              ? html`
+                  <a
+                    class="btn"
+                    href=${params.entry.docsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    ${t("alisio.authentications.actions.openDocs")}
+                  </a>
+                `
+              : nothing}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderAuthentications(props: {
+  loading: boolean;
+  error: string | null;
+  account: AlisioAccountState | null;
+  overview: AlisioProvidersState | null;
+  connectorCatalog: AlisioConnectorDefinition[];
+  connectorAuthorizations: AlisioConnectorAuthorization[];
+  search: string;
+  dialogConnectorId: string | null;
+  dialogMode: ConnectorDialogMode | null;
+  onSearchChange: (value: string) => void;
+  onOpenConnectorDetails: (connectorId: string) => void;
+  onOpenConnectorInstall: (connectorId: string) => void;
+  onCloseConnectorDialog: () => void;
+  onBeginConnector: (connectorId: string) => void;
+  onRevokeConnector: (connectorId: string) => void;
+  onTryConnectorInChat: (connectorId: string) => void;
+}) {
+  const overviewConnectorCatalog = props.overview?.connectors.catalog ?? [];
+  const connectorCatalog =
+    props.connectorCatalog.length > 0 ? props.connectorCatalog : overviewConnectorCatalog;
+  const overviewConnectorAuthorizations = props.overview?.connectors.authorizations ?? [];
+  const connectorAuthorizations =
+    props.connectorAuthorizations.length > 0
+      ? props.connectorAuthorizations
+      : overviewConnectorAuthorizations;
+  const connectorEntries = buildConnectorEntries({
+    overview: props.overview,
+    connectorCatalog,
+    connectorAuthorizations,
+    search: props.search,
+  });
+  const linkedEntries = connectorEntries.filter((entry) => entry.isLinked);
+  const availableEntries = connectorEntries.filter((entry) => !entry.isLinked);
 
   const showInitialLoading =
     props.loading &&
-    !overview &&
+    !props.overview &&
     connectorCatalog.length === 0 &&
     connectorAuthorizations.length === 0;
   const currentPlan = normalizeAlisioPlan(props.account?.profile.plan);
   const connectorLimit = alisioConnectorLimit(currentPlan);
   const occupiedConnectorSlots = countAlisioConnectorPlanSlots(
-    connectorRows.map((row) => row.authorization),
+    connectorEntries.map((entry) => entry.row.authorization),
   );
   const connectorLimitReached = connectorLimit != null && occupiedConnectorSlots >= connectorLimit;
   const connectorLimitMessage = connectorLimitReached
     ? alisioConnectorUpgradeMessage(currentPlan)
     : null;
+  const dialogEntry =
+    props.dialogConnectorId != null
+      ? (connectorEntries.find((entry) => entry.row.definition.id === props.dialogConnectorId) ??
+        null)
+      : null;
 
   return html`
-    <section class="alisio-page alisio-auth-page">
-      ${renderAuthenticationsHeader({
+    <section class="alisio-page alisio-auth-shell">
+      ${renderHeader({
         loading: showInitialLoading,
         search: props.search,
-        searchPlaceholder: text.searchPlaceholder,
+        searchPlaceholder: t("alisio.authentications.searchPlaceholder"),
         onSearchChange: props.onSearchChange,
       })}
-      ${props.error
-        ? html`<div class="callout danger alisio-auth-page__error">${props.error}</div>`
-        : nothing}
-      ${connectorLimitMessage
-        ? html`<div class="callout info alisio-auth-page__error">${connectorLimitMessage}</div>`
-        : nothing}
+      ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
       ${showInitialLoading
-        ? html`
-            <section class="card">
-              <div class="stack">
-                ${Array.from({ length: 3 }).map(
-                  () => html`
-                    <article class="alisio-auth-card">
-                      <div class="alisio-auth-card__main">
-                        <div class="alisio-auth-card__head">
-                          <div class="alisio-auth-card__brand">
-                            ${renderSkeletonPill()}
-                            <div class="alisio-auth-card__brand-copy">
-                              ${renderSkeletonLines(["medium", "long"])}
-                            </div>
-                          </div>
-                          ${renderSkeletonPill({ small: true })}
-                        </div>
-                        <div class="chip-row" style="margin-top: 12px;">
-                          ${renderSkeletonPill({ small: true })}
-                          ${renderSkeletonPill({ small: true })}
-                        </div>
-                        <div class="muted" style="margin-top: 10px;">
-                          ${renderSkeletonLines(["full"])}
-                        </div>
-                      </div>
-                      <div class="alisio-auth-card__aside">
-                        ${renderSkeletonButton({ small: true })}
-                      </div>
-                    </article>
-                  `,
-                )}
-              </div>
-            </section>
-          `
-        : visibleConnectorRows.length === 0
+        ? renderLoadingPanels()
+        : connectorEntries.length === 0
           ? renderSurfaceEmptyState({
               title: props.search
-                ? text.emptyFiltered
+                ? t("alisio.authentications.emptyFiltered")
                 : t("alisio.authentications.emptyAuthorized"),
-              body: props.search ? text.title : text.authorizedSubtitle,
-              meta: props.search ? props.search : null,
+              body: props.search ? props.search : t("alisio.authentications.availableTitle"),
               compact: true,
               centered: true,
             })
           : html`
-              ${renderConnectorSection({
-                id: "connected",
-                title: text.authorizedTitle,
-                subtitle: text.authorizedSubtitle,
-                entries: connectedConnectorEntries,
-                props: {
-                  onBeginConnector: props.onBeginConnector,
-                  onRevokeConnector: props.onRevokeConnector,
-                  planBlocksNewConnections: connectorLimitReached,
-                  planLimitMessage: connectorLimitMessage,
-                },
-                text: {
-                  revoke: text.revoke,
-                  reconnect: text.reconnect,
-                  reviewSetup: text.reviewSetup,
-                },
-                compactCards: true,
-                grid: true,
-              })}
-              ${renderConnectorSection({
-                id: "available",
-                title: connectedConnectorEntries.length > 0 ? text.availableTitle : text.title,
-                entries: availableConnectorEntries,
-                props: {
-                  onBeginConnector: props.onBeginConnector,
-                  onRevokeConnector: props.onRevokeConnector,
-                  planBlocksNewConnections: connectorLimitReached,
-                  planLimitMessage: connectorLimitMessage,
-                },
-                text: {
-                  revoke: text.revoke,
-                  reconnect: text.reconnect,
-                  reviewSetup: text.reviewSetup,
-                },
-                compactCards: true,
-                grid: true,
-              })}
+              <div class="alisio-auth-shell__columns">
+                ${renderSection({
+                  id: "connected",
+                  title: t("alisio.authentications.authorizedTitle"),
+                  entries: linkedEntries,
+                  emptyMessage: t("alisio.authentications.emptyAuthorized"),
+                  props: {
+                    dialogConnectorId: props.dialogConnectorId,
+                    dialogMode: props.dialogMode,
+                    onOpenConnectorDetails: props.onOpenConnectorDetails,
+                    onOpenConnectorInstall: props.onOpenConnectorInstall,
+                    planBlocksNewConnections: connectorLimitReached,
+                    planLimitMessage: connectorLimitMessage,
+                  },
+                })}
+                ${renderSection({
+                  id: "available",
+                  title: t("alisio.authentications.availableTitle"),
+                  entries: availableEntries,
+                  emptyMessage: t("alisio.authentications.emptyAvailable"),
+                  props: {
+                    dialogConnectorId: props.dialogConnectorId,
+                    dialogMode: props.dialogMode,
+                    onOpenConnectorDetails: props.onOpenConnectorDetails,
+                    onOpenConnectorInstall: props.onOpenConnectorInstall,
+                    planBlocksNewConnections: connectorLimitReached,
+                    planLimitMessage: connectorLimitMessage,
+                  },
+                })}
+              </div>
             `}
+      ${dialogEntry && props.dialogMode
+        ? renderConnectorDialog({
+            entry: dialogEntry,
+            mode: props.dialogMode,
+            planBlocksNewConnections: connectorLimitReached,
+            planLimitMessage: connectorLimitMessage,
+            onCloseConnectorDialog: props.onCloseConnectorDialog,
+            onBeginConnector: props.onBeginConnector,
+            onRevokeConnector: props.onRevokeConnector,
+            onTryConnectorInChat: props.onTryConnectorInChat,
+          })
+        : nothing}
     </section>
   `;
 }

@@ -25,7 +25,7 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
     Install **Alisio.app** and launch it.
 
     <Note>
-    Linux, Windows, and headless gateway flows still exist, but they are secondary setup paths. Start there only if you are intentionally running Alisio without the Mac app.
+    Linux, Windows, and headless gateway installs use the dedicated install and CLI docs. Use those paths only when you are intentionally running Alisio without the Mac app.
     </Note>
 
   </Step>

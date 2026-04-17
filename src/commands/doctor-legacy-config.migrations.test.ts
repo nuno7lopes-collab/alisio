@@ -146,83 +146,31 @@ describe("normalizeCompatibilityConfigValues", () => {
     ]);
   });
 
-  it("migrates Discord streaming boolean alias to streaming enum", () => {
+  it("does not rewrite removed streaming aliases", () => {
     const res = normalizeCompatibilityConfigValues({
       channels: {
         discord: {
           streaming: true,
-          accounts: {
-            work: {
-              streaming: false,
-            },
-          },
         },
-      },
-    });
-
-    expect(res.config.channels?.discord?.streaming).toBe("partial");
-    expect(res.config.channels?.discord?.streamMode).toBeUndefined();
-    expect(res.config.channels?.discord?.accounts?.work?.streaming).toBe("off");
-    expect(res.config.channels?.discord?.accounts?.work?.streamMode).toBeUndefined();
-    expect(res.changes).toContain(
-      "Normalized channels.discord.streaming boolean → enum (partial).",
-    );
-    expect(res.changes).toContain(
-      "Normalized channels.discord.accounts.work.streaming boolean → enum (off).",
-    );
-  });
-
-  it("migrates Discord legacy streamMode into streaming enum", () => {
-    const res = normalizeCompatibilityConfigValues({
-      channels: {
-        discord: {
-          streaming: false,
-          streamMode: "block",
-        },
-      },
-    });
-
-    expect(res.config.channels?.discord?.streaming).toBe("block");
-    expect(res.config.channels?.discord?.streamMode).toBeUndefined();
-    expect(res.changes).toEqual([
-      "Moved channels.discord.streamMode → channels.discord.streaming (block).",
-      "Normalized channels.discord.streaming boolean → enum (block).",
-    ]);
-  });
-
-  it("migrates Telegram streamMode into streaming enum", () => {
-    const res = normalizeCompatibilityConfigValues({
-      channels: {
         telegram: {
           streamMode: "block",
         },
-      },
-    });
-
-    expect(res.config.channels?.telegram?.streaming).toBe("block");
-    expect(res.config.channels?.telegram?.streamMode).toBeUndefined();
-    expect(res.changes).toEqual([
-      "Moved channels.telegram.streamMode → channels.telegram.streaming (block).",
-    ]);
-  });
-
-  it("migrates Slack legacy streaming keys to unified config", () => {
-    const res = normalizeCompatibilityConfigValues({
-      channels: {
         slack: {
           streaming: false,
           streamMode: "status_final",
         },
       },
-    });
+    } as never);
 
-    expect(res.config.channels?.slack?.streaming).toBe("progress");
-    expect(res.config.channels?.slack?.nativeStreaming).toBe(false);
-    expect(res.config.channels?.slack?.streamMode).toBeUndefined();
-    expect(res.changes).toEqual([
-      "Moved channels.slack.streamMode → channels.slack.streaming (progress).",
-      "Moved channels.slack.streaming (boolean) → channels.slack.nativeStreaming (false).",
-    ]);
+    expect(res.config.channels?.discord as Record<string, unknown>).toEqual({ streaming: true });
+    expect(res.config.channels?.telegram as Record<string, unknown>).toEqual({
+      streamMode: "block",
+    });
+    expect(res.config.channels?.slack as Record<string, unknown>).toEqual({
+      streaming: false,
+      streamMode: "status_final",
+    });
+    expect(res.changes).toEqual([]);
   });
 
   it("moves missing default account from single-account top-level config when named accounts already exist", () => {
@@ -263,7 +211,7 @@ describe("normalizeCompatibilityConfigValues", () => {
     );
   });
 
-  it("migrates browser ssrfPolicy allowPrivateNetwork to dangerouslyAllowPrivateNetwork", () => {
+  it("does not rewrite removed browser SSRF alias", () => {
     const res = normalizeCompatibilityConfigValues({
       browser: {
         ssrfPolicy: {
@@ -271,31 +219,13 @@ describe("normalizeCompatibilityConfigValues", () => {
           allowedHostnames: ["localhost"],
         },
       },
+    } as never);
+
+    expect(res.config.browser?.ssrfPolicy as Record<string, unknown>).toEqual({
+      allowPrivateNetwork: true,
+      allowedHostnames: ["localhost"],
     });
-
-    expect(res.config.browser?.ssrfPolicy?.allowPrivateNetwork).toBeUndefined();
-    expect(res.config.browser?.ssrfPolicy?.dangerouslyAllowPrivateNetwork).toBe(true);
-    expect(res.config.browser?.ssrfPolicy?.allowedHostnames).toEqual(["localhost"]);
-    expect(res.changes).toContain(
-      "Moved browser.ssrfPolicy.allowPrivateNetwork → browser.ssrfPolicy.dangerouslyAllowPrivateNetwork (true).",
-    );
-  });
-
-  it("normalizes conflicting browser SSRF alias keys without changing effective behavior", () => {
-    const res = normalizeCompatibilityConfigValues({
-      browser: {
-        ssrfPolicy: {
-          allowPrivateNetwork: true,
-          dangerouslyAllowPrivateNetwork: false,
-        },
-      },
-    });
-
-    expect(res.config.browser?.ssrfPolicy?.allowPrivateNetwork).toBeUndefined();
-    expect(res.config.browser?.ssrfPolicy?.dangerouslyAllowPrivateNetwork).toBe(true);
-    expect(res.changes).toContain(
-      "Moved browser.ssrfPolicy.allowPrivateNetwork → browser.ssrfPolicy.dangerouslyAllowPrivateNetwork (true).",
-    );
+    expect(res.changes).toEqual([]);
   });
 
   it("migrates nano-banana skill config to native image generation config", () => {

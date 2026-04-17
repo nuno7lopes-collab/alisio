@@ -8,6 +8,7 @@ import {
 import { createServer as createHttpsServer } from "node:https";
 import type { TlsOptions } from "node:tls";
 import type { WebSocketServer } from "ws";
+import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { CANVAS_WS_PATH, handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
@@ -1073,7 +1074,10 @@ export function createGatewayHttpServer(opts: {
           run: () =>
             handleControlUiAvatarRequest(req, res, {
               basePath: controlUiBasePath,
-              resolveAvatar: (agentId) => resolveAgentAvatar(configSnapshot, agentId),
+              resolveAvatar: (agentId) =>
+                resolveAgentAvatar(configSnapshot, agentId, {
+                  includeUiAssistant: agentId === resolveDefaultAgentId(configSnapshot),
+                }),
             }),
         });
         requestStages.push({

@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveAgentDir } from "../agents/agent-scope.js";
 import type { AlisioConfig } from "../config/config.js";
@@ -24,16 +23,19 @@ import {
   setupAuthTestEnv,
 } from "./test-wizard-helpers.js";
 
-type DetectZaiEndpoint = typeof import("./zai-endpoint-detect.js").detectZaiEndpoint;
-
-const loginOpenAICodexOAuth = vi.hoisted(() =>
-  vi.fn<() => Promise<OAuthCredentials | null>>(async () => null),
-);
-vi.mock("./openai-codex-oauth.js", () => ({
-  loginOpenAICodexOAuth,
-}));
+type DetectZaiEndpoint = typeof import("../plugins/provider-zai-endpoint.js").detectZaiEndpoint;
 
 const resolvePluginProviders = vi.hoisted(() => vi.fn<() => ProviderPlugin[]>(() => []));
+const loginOpenAICodexOAuth = vi.hoisted(() =>
+  vi.fn<
+    () => Promise<{
+      email?: string;
+      refresh?: string;
+      access?: string;
+      expires?: number;
+    } | null>
+  >(async () => null),
+);
 vi.mock("../plugins/provider-auth-choice.runtime.js", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../plugins/provider-auth-choice.runtime.js")>();
@@ -44,7 +46,7 @@ vi.mock("../plugins/provider-auth-choice.runtime.js", async (importOriginal) => 
 });
 
 const detectZaiEndpoint = vi.hoisted(() => vi.fn<DetectZaiEndpoint>(async () => null));
-vi.mock("./zai-endpoint-detect.js", () => ({
+vi.mock("../plugins/provider-zai-endpoint.js", () => ({
   detectZaiEndpoint,
 }));
 

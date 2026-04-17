@@ -946,7 +946,6 @@
   },
   "scripts": {
     "alisio": "node scripts/run-node.mjs",
-    "alisio:legacy:cli": "node scripts/run-node.mjs",
     "alisio:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "alisio:supabase:audit": "node --import tsx scripts/alisio-supabase-audit.ts",
     "android:assemble": "cd apps/android && ./gradlew :app:assemblePlayDebug",

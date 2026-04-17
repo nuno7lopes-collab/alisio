@@ -53,12 +53,14 @@ export type GatewayErrorInfo = {
 };
 
 export class GatewayRequestError extends Error {
+  readonly code: string;
   readonly gatewayCode: string;
   readonly details?: unknown;
 
   constructor(error: GatewayErrorInfo) {
     super(error.message);
     this.name = "GatewayRequestError";
+    this.code = error.code;
     this.gatewayCode = error.code;
     this.details = error.details;
   }
@@ -182,6 +184,7 @@ export type GatewayConnectClientInfo = {
   id: GatewayClientName;
   version: string;
   platform: string;
+  deviceFamily?: string;
   mode: GatewayClientMode;
   instanceId?: string;
 };
@@ -670,7 +673,7 @@ export class GatewayBrowserClient {
         pending.reject(requestError);
         if (pending.method !== "connect" && isRecoverableRequestAuthError(requestError)) {
           this.closeForRecoverableRequestError({
-            code: requestError.gatewayCode,
+            code: requestError.code,
             message: requestError.message,
             details: requestError.details,
           });

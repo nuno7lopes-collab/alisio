@@ -22,6 +22,7 @@ const CAMERA_COMMANDS = ["camera.list"];
 const CAMERA_DANGEROUS_COMMANDS = ["camera.snap", "camera.clip"];
 
 const SCREEN_DANGEROUS_COMMANDS = ["screen.record"];
+const COMPUTER_COMMANDS = ["computer.observe", "computer.act"];
 
 const LOCATION_COMMANDS = ["location.get"];
 const NOTIFICATION_COMMANDS = ["notifications.list"];
@@ -71,6 +72,7 @@ export const DEFAULT_DANGEROUS_NODE_COMMANDS = [
   ...CALENDAR_DANGEROUS_COMMANDS,
   ...REMINDERS_DANGEROUS_COMMANDS,
   ...SMS_DANGEROUS_COMMANDS,
+  "computer.act",
 ];
 
 const PLATFORM_DEFAULTS: Record<string, string[]> = {
@@ -111,6 +113,7 @@ const PLATFORM_DEFAULTS: Record<string, string[]> = {
     ...PHOTOS_COMMANDS,
     ...MOTION_COMMANDS,
     ...SYSTEM_COMMANDS,
+    ...COMPUTER_COMMANDS,
   ],
   linux: [...SYSTEM_COMMANDS],
   windows: [...SYSTEM_COMMANDS],

@@ -13,6 +13,10 @@ internal fun isCanonicalMainSessionKey(raw: String?): Boolean {
 }
 
 internal fun resolveAgentIdFromMainSessionKey(raw: String?): String? {
+  return resolveAgentIdFromSessionKey(raw)
+}
+
+internal fun resolveAgentIdFromSessionKey(raw: String?): String? {
   val trimmed = raw?.trim().orEmpty()
   if (!trimmed.startsWith("agent:")) return null
   return trimmed.removePrefix("agent:").substringBefore(':').trim().ifEmpty { null }

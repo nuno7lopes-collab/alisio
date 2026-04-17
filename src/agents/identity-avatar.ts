@@ -9,7 +9,7 @@ import {
   isSupportedLocalAvatarExtension,
 } from "../shared/avatar-policy.js";
 import { resolveUserPath } from "../utils.js";
-import { resolveAgentWorkspaceDir } from "./agent-scope.js";
+import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "./agent-scope.js";
 import { loadAgentIdentityFromWorkspace } from "./identity-file.js";
 import { resolveAgentIdentity } from "./identity.js";
 
@@ -24,12 +24,30 @@ function normalizeAvatarValue(value: string | undefined | null): string | null {
   return trimmed ? trimmed : null;
 }
 
-function resolveAvatarSource(cfg: AlisioConfig, agentId: string): string | null {
+function resolveAvatarSource(
+  cfg: AlisioConfig,
+  agentId: string,
+  opts?: {
+    avatar?: string | null;
+    includeUiAssistant?: boolean;
+    workspaceDir?: string | null;
+  },
+): string | null {
+  const explicit = normalizeAvatarValue(opts?.avatar);
+  if (explicit) {
+    return explicit;
+  }
+  if (opts?.includeUiAssistant && agentId === resolveDefaultAgentId(cfg)) {
+    const fromUiAssistant = normalizeAvatarValue(cfg.ui?.assistant?.avatar);
+    if (fromUiAssistant) {
+      return fromUiAssistant;
+    }
+  }
   const fromConfig = normalizeAvatarValue(resolveAgentIdentity(cfg, agentId)?.avatar);
   if (fromConfig) {
     return fromConfig;
   }
-  const workspace = resolveAgentWorkspaceDir(cfg, agentId);
+  const workspace = opts?.workspaceDir ?? resolveAgentWorkspaceDir(cfg, agentId);
   const fromIdentity = normalizeAvatarValue(loadAgentIdentityFromWorkspace(workspace)?.avatar);
   return fromIdentity;
 }
@@ -73,8 +91,16 @@ function resolveLocalAvatarPath(params: {
   return { ok: true, filePath: realPath };
 }
 
-export function resolveAgentAvatar(cfg: AlisioConfig, agentId: string): AgentAvatarResolution {
-  const source = resolveAvatarSource(cfg, agentId);
+export function resolveAgentAvatar(
+  cfg: AlisioConfig,
+  agentId: string,
+  opts?: {
+    avatar?: string | null;
+    includeUiAssistant?: boolean;
+    workspaceDir?: string | null;
+  },
+): AgentAvatarResolution {
+  const source = resolveAvatarSource(cfg, agentId, opts);
   if (!source) {
     return { kind: "none", reason: "missing" };
   }
@@ -84,7 +110,7 @@ export function resolveAgentAvatar(cfg: AlisioConfig, agentId: string): AgentAva
   if (isAvatarDataUrl(source)) {
     return { kind: "data", url: source };
   }
-  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const workspaceDir = opts?.workspaceDir ?? resolveAgentWorkspaceDir(cfg, agentId);
   const resolved = resolveLocalAvatarPath({ raw: source, workspaceDir });
   if (!resolved.ok) {
     return { kind: "none", reason: resolved.reason };

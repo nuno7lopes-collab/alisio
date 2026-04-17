@@ -2,31 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
   Task,
+  TaskExecution,
   TaskProposalDraft,
   TaskProposalRecord,
-  TaskRecord,
+  TasksDetailResult,
   TasksOverviewResult,
 } from "../types.ts";
 import {
   launchTaskProposal,
+  loadTaskDetail,
   loadTasksOverview,
   resolveTaskProposal,
+  selectTask,
   type TasksState,
 } from "./tasks.ts";
-
-function createTask(taskId: string, overrides: Partial<TaskRecord> = {}): TaskRecord {
-  return {
-    taskId,
-    runtime: "subagent",
-    requesterSessionKey: "main",
-    task: "Implement task workflow",
-    status: "running",
-    deliveryStatus: "pending",
-    notifyPolicy: "done_only",
-    createdAt: 1,
-    ...overrides,
-  };
-}
 
 function createCanonicalTask(taskId: string, overrides: Partial<Task> = {}): Task {
   return {
@@ -38,6 +27,37 @@ function createCanonicalTask(taskId: string, overrides: Partial<Task> = {}): Tas
     status: "draft",
     createdAt: 1,
     updatedAt: 1,
+    ...overrides,
+  };
+}
+
+function createExecution(taskId: string, overrides: Partial<TaskExecution> = {}): TaskExecution {
+  return {
+    executionId: `execution-${taskId}`,
+    taskId,
+    kind: "orchestrator_session",
+    attempt: 1,
+    status: "running",
+    createdAt: 1,
+    startedAt: 1,
+    ...overrides,
+  };
+}
+
+function createDetail(
+  taskId = "task-1",
+  overrides: Partial<TasksDetailResult> = {},
+): TasksDetailResult {
+  return {
+    task: createCanonicalTask(taskId),
+    children: [],
+    childExecutions: [],
+    executions: [createExecution(taskId)],
+    assignments: [],
+    approvals: [],
+    events: [],
+    steps: [],
+    dependencies: [],
     ...overrides,
   };
 }
@@ -63,48 +83,6 @@ function createProposal(
 
 function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOverviewResult {
   return {
-    summary: {
-      total: 1,
-      active: 1,
-      terminal: 0,
-      failures: 0,
-      byStatus: {
-        queued: 0,
-        running: 1,
-        succeeded: 0,
-        failed: 0,
-        timed_out: 0,
-        cancelled: 0,
-        lost: 0,
-      },
-      byRuntime: {
-        subagent: 1,
-        acp: 0,
-        cli: 0,
-        cron: 0,
-      },
-    },
-    filteredSummary: {
-      total: 1,
-      active: 1,
-      terminal: 0,
-      failures: 0,
-      byStatus: {
-        queued: 0,
-        running: 1,
-        succeeded: 0,
-        failed: 0,
-        timed_out: 0,
-        cancelled: 0,
-        lost: 0,
-      },
-      byRuntime: {
-        subagent: 1,
-        acp: 0,
-        cli: 0,
-        cron: 0,
-      },
-    },
     canonicalSummary: {
       total: 0,
       roots: 0,
@@ -125,34 +103,9 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
       rejected: 0,
       launched: 0,
     },
-    audit: {
-      total: 0,
-      warnings: 0,
-      errors: 0,
-      byCode: {
-        stale_queued: 0,
-        stale_running: 0,
-        lost: 0,
-        delivery_failed: 0,
-        missing_cleanup: 0,
-        inconsistent_timestamps: 0,
-      },
-    },
-    findings: [],
-    maintenance: {
-      reconciled: 0,
-      cleanupStamped: 0,
-      pruned: 0,
-    },
     proposals: [],
-    tasks: [],
     canonicalTasks: [],
     canonicalExecutions: [],
-    canonicalAssignments: [],
-    canonicalApprovals: [],
-    canonicalEvents: [],
-    canonicalSteps: [],
-    canonicalDependencies: [],
     total: 0,
     limit: 50,
     offset: 0,
@@ -176,6 +129,8 @@ function createState(
     tasksBusy: false,
     tasksError: null,
     tasksOverview: null,
+    tasksDetailLoading: false,
+    tasksDetail: null,
     tasksSelectedId: null,
     tasksQuery: "",
     tasksRuntimeFilter: "all",
@@ -217,7 +172,7 @@ describe("tasks controller", () => {
           failed: 0,
         },
         canonicalTasks: [createCanonicalTask("task-1")],
-        tasks: [createTask("legacy-task-1")],
+        canonicalExecutions: [createExecution("task-1")],
         total: 1,
       }),
     );
@@ -244,20 +199,9 @@ describe("tasks controller", () => {
 
   it("keeps the tasks view compatible with gateways that do not send proposal fields yet", async () => {
     const request = vi.fn().mockResolvedValue({
-      summary: createOverview().summary,
-      filteredSummary: createOverview().filteredSummary,
-      audit: createOverview().audit,
-      findings: [],
-      maintenance: createOverview().maintenance,
-      tasks: [createTask("task-1")],
       canonicalSummary: createOverview().canonicalSummary,
       canonicalTasks: [],
       canonicalExecutions: [],
-      canonicalAssignments: [],
-      canonicalApprovals: [],
-      canonicalEvents: [],
-      canonicalSteps: [],
-      canonicalDependencies: [],
       total: 1,
       limit: 50,
       offset: 0,
@@ -284,7 +228,137 @@ describe("tasks controller", () => {
     expect(state.tasksSelectedId).toBeNull();
   });
 
-  it("maps the orchestrator runtime filter to the legacy overview contract", async () => {
+  it("loads canonical task detail after selecting a task", async () => {
+    const detail = createDetail("task-2");
+    const request = vi.fn(async (method: string) => {
+      if (method === "tasks.detail") {
+        return detail;
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    const state = createState(request, {
+      tasksOverview: createOverview({
+        canonicalTasks: [createCanonicalTask("task-1"), createCanonicalTask("task-2")],
+        canonicalExecutions: [createExecution("task-1"), createExecution("task-2")],
+      }),
+      tasksSelectedId: "task-1",
+    });
+
+    await selectTask(state, "task-2");
+
+    expect(request).toHaveBeenCalledWith("tasks.detail", { taskId: "task-2" });
+    expect(state.tasksSelectedId).toBe("task-2");
+    expect(state.tasksDetail?.task.taskId).toBe("task-2");
+  });
+
+  it("does not block the tasks overview on the selected task detail fetch", async () => {
+    let resolveDetail!: (value: TasksDetailResult) => void;
+    const detailPromise = new Promise<TasksDetailResult>((resolve) => {
+      resolveDetail = resolve;
+    });
+    const request = vi.fn((method: string) => {
+      if (method === "tasks.overview") {
+        return Promise.resolve(
+          createOverview({
+            canonicalTasks: [createCanonicalTask("task-1")],
+            canonicalExecutions: [createExecution("task-1")],
+          }),
+        );
+      }
+      if (method === "tasks.detail") {
+        return detailPromise;
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    const state = createState(request);
+
+    await loadTasksOverview(state);
+
+    expect(state.tasksOverview?.canonicalTasks[0]?.taskId).toBe("task-1");
+    expect(state.tasksLoading).toBe(false);
+    expect(state.tasksDetailLoading).toBe(true);
+    expect(state.tasksDetail).toBeNull();
+
+    resolveDetail(createDetail("task-1"));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(state.tasksDetailLoading).toBe(false);
+    expect(state.tasksDetail?.task.taskId).toBe("task-1");
+  });
+
+  it("skips reloading task detail during quiet polls when the selected task is unchanged", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "tasks.overview") {
+        return createOverview({
+          canonicalTasks: [
+            createCanonicalTask("task-1", {
+              status: "in_progress",
+              updatedAt: 42,
+              latestExecutionId: "execution-task-1",
+            }),
+          ],
+          canonicalExecutions: [
+            createExecution("task-1", {
+              executionId: "execution-task-1",
+            }),
+          ],
+        });
+      }
+      if (method === "tasks.detail") {
+        return createDetail("task-1", {
+          task: createCanonicalTask("task-1", {
+            status: "in_progress",
+            updatedAt: 42,
+            latestExecutionId: "execution-task-1",
+          }),
+        });
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    const state = createState(request, {
+      tasksSelectedId: "task-1",
+      tasksDetail: createDetail("task-1", {
+        task: createCanonicalTask("task-1", {
+          status: "in_progress",
+          updatedAt: 42,
+          latestExecutionId: "execution-task-1",
+        }),
+      }),
+    });
+
+    await loadTasksOverview(state, { quiet: true });
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("tasks.overview", {
+      runtime: "all",
+      status: "all",
+      query: undefined,
+      limit: 50,
+      offset: 0,
+    });
+  });
+
+  it("loads task detail directly when requested", async () => {
+    const detail = createDetail("task-1", {
+      steps: [],
+    });
+    const request = vi.fn(async (method: string) => {
+      if (method === "tasks.detail") {
+        return detail;
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    const state = createState(request);
+
+    await loadTaskDetail(state, "task-1");
+
+    expect(state.tasksDetailLoading).toBe(false);
+    expect(state.tasksDetail?.task.taskId).toBe("task-1");
+    expect(state.tasksError).toBeNull();
+  });
+
+  it("sends the orchestrator runtime filter through the canonical overview contract", async () => {
     const request = vi.fn().mockResolvedValue(
       createOverview({
         canonicalTasks: [createCanonicalTask("task-1")],
@@ -297,7 +371,7 @@ describe("tasks controller", () => {
     await loadTasksOverview(state);
 
     expect(request).toHaveBeenCalledWith("tasks.overview", {
-      runtime: "all",
+      runtime: "orchestrator_session",
       status: "all",
       query: undefined,
       limit: 50,

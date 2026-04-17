@@ -1,13 +1,13 @@
 import path from "node:path";
 import { describe, expect, it, test, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
+import { applyAgentDefaultPrimaryModel } from "../plugins/provider-model-primary.js";
 import type { RuntimeEnv } from "../runtime.js";
 import {
   buildCleanupPlan,
   removeStateAndLinkedPaths,
   removeWorkspaceDirs,
 } from "./cleanup-utils.js";
-import { applyAgentDefaultPrimaryModel } from "./model-default.js";
 
 describe("buildCleanupPlan", () => {
   test("resolves inside-state flags and workspace dirs", () => {
@@ -28,10 +28,7 @@ describe("buildCleanupPlan", () => {
     expect(plan.configInsideState).toBe(true);
     expect(plan.oauthInsideState).toBe(false);
     expect(new Set(plan.workspaceDirs)).toEqual(
-      new Set([
-        path.join(tmpRoot, "alisio-workspace-1"),
-        path.join(tmpRoot, "alisio-workspace-2"),
-      ]),
+      new Set([path.join(tmpRoot, "alisio-workspace-1"), path.join(tmpRoot, "alisio-workspace-2")]),
     );
   });
 });

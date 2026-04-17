@@ -38,6 +38,8 @@ export type ChannelFlags = {
   setupOnly: boolean;
 };
 
+const channelRowsCache = new WeakMap<ChannelsStatusSnapshot, ResolvedChannelRow[]>();
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -101,23 +103,33 @@ export function resolveChannelRows(snapshot: ChannelsStatusSnapshot | null): Res
   if (!snapshot) {
     return [];
   }
+  const cached = channelRowsCache.get(snapshot);
+  if (cached) {
+    return cached;
+  }
   const order = snapshot.channelOrder ?? [];
   const metaById = new Map<string, ChannelUiMetaEntry>();
   for (const entry of snapshot.channelMeta ?? []) {
     metaById.set(entry.id, entry);
   }
-  const ids = [...order];
-  for (const entry of snapshot.channelMeta ?? []) {
-    if (!ids.includes(entry.id)) {
-      ids.push(entry.id);
-    }
-  }
-  for (const channelId of Object.keys(snapshot.channels ?? {})) {
-    if (!ids.includes(channelId)) {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const pushId = (channelId: string) => {
+    if (!seen.has(channelId)) {
+      seen.add(channelId);
       ids.push(channelId);
     }
+  };
+  for (const channelId of order) {
+    pushId(channelId);
   }
-  return ids
+  for (const entry of snapshot.channelMeta ?? []) {
+    pushId(entry.id);
+  }
+  for (const channelId of Object.keys(snapshot.channels ?? {})) {
+    pushId(channelId);
+  }
+  const rows = ids
     .filter((channelId) => shouldIncludeProductChannel(snapshot, channelId))
     .map((channelId) => {
       const accounts = snapshot.channelAccounts[channelId] ?? [];
@@ -134,6 +146,8 @@ export function resolveChannelRows(snapshot: ChannelsStatusSnapshot | null): Res
         defaultAccount,
       };
     });
+  channelRowsCache.set(snapshot, rows);
+  return rows;
 }
 
 export function channelAccountLooksConnected(

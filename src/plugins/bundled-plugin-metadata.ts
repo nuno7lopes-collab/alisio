@@ -2,7 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
-import { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
+import {
+  resolveChannelConfigSurfaceExport,
+  resolveChannelConfigSchemaModulePath as resolveSourceChannelConfigSchemaModulePath,
+  type BuiltChannelConfigSurface,
+} from "../config/channel-config-surface.js";
 import { resolveBundledPluginsDir } from "./bundled-dir.js";
 import {
   getPackageManifestMetadata,
@@ -69,6 +73,7 @@ type ChannelConfigSurface = {
   schema: Record<string, unknown>;
   uiHints?: Record<string, PluginConfigUiHint>;
 };
+type ResolvedChannelConfigSurface = BuiltChannelConfigSurface & ChannelConfigSurface;
 
 const bundledPluginMetadataCache = new Map<string, readonly BundledPluginMetadata[]>();
 const jitiLoaders = new Map<string, ReturnType<typeof createJiti>>();
@@ -209,42 +214,6 @@ function resolveBundledPluginScanDir(packageRoot: string): string | undefined {
   return undefined;
 }
 
-function isBuiltChannelConfigSchema(value: unknown): value is ChannelConfigSurface {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const candidate = value as { schema?: unknown };
-  return Boolean(candidate.schema && typeof candidate.schema === "object");
-}
-
-function resolveConfigSchemaExport(imported: Record<string, unknown>): ChannelConfigSurface | null {
-  for (const [name, value] of Object.entries(imported)) {
-    if (name.endsWith("ChannelConfigSchema") && isBuiltChannelConfigSchema(value)) {
-      return value;
-    }
-  }
-
-  for (const [name, value] of Object.entries(imported)) {
-    if (!name.endsWith("ConfigSchema") || name.endsWith("AccountConfigSchema")) {
-      continue;
-    }
-    if (isBuiltChannelConfigSchema(value)) {
-      return value;
-    }
-    if (value && typeof value === "object") {
-      return buildChannelConfigSchema(value as never);
-    }
-  }
-
-  for (const value of Object.values(imported)) {
-    if (isBuiltChannelConfigSchema(value)) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
 function getJiti(modulePath: string) {
   const tryNative =
     shouldPreferNativeJiti(modulePath) || modulePath.includes(`${path.sep}dist${path.sep}`);
@@ -266,6 +235,10 @@ function getJiti(modulePath: string) {
 }
 
 function resolveChannelConfigSchemaModulePath(pluginDir: string): string | undefined {
+  const sourceModulePath = resolveSourceChannelConfigSchemaModulePath(pluginDir);
+  if (sourceModulePath) {
+    return sourceModulePath;
+  }
   for (const relativePath of SOURCE_CONFIG_SCHEMA_CANDIDATES) {
     const candidate = path.join(pluginDir, relativePath);
     if (fs.existsSync(candidate)) {
@@ -283,10 +256,12 @@ function resolveChannelConfigSchemaModulePath(pluginDir: string): string | undef
   return undefined;
 }
 
-function loadChannelConfigSurfaceModuleSync(modulePath: string): ChannelConfigSurface | null {
+function loadChannelConfigSurfaceModuleSync(
+  modulePath: string,
+): ResolvedChannelConfigSurface | null {
   try {
     const imported = getJiti(modulePath)(modulePath) as Record<string, unknown>;
-    return resolveConfigSchemaExport(imported);
+    return resolveChannelConfigSurfaceExport(imported) as ResolvedChannelConfigSurface | null;
   } catch {
     return null;
   }

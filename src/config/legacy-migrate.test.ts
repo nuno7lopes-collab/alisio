@@ -361,3 +361,71 @@ describe("legacy migrate controlUi.allowedOrigins seed (issue #29385)", () => {
     ]);
   });
 });
+
+describe("legacy migrate marketplace install metadata", () => {
+  it("rewrites plugin install records from clawhub to canonical marketplace fields", () => {
+    const res = migrateLegacyConfig({
+      plugins: {
+        installs: {
+          demo: {
+            source: "clawhub",
+            spec: "clawhub:demo@1.2.3",
+            resolvedSpec: "clawhub:demo@1.2.3",
+            clawhubUrl: "https://clawhub.ai",
+            clawhubPackage: "demo",
+            clawhubFamily: "code-plugin",
+            clawhubChannel: "official",
+          },
+        },
+      },
+    });
+
+    expect(res.changes).toContain(
+      "Migrated plugins.installs.demo from legacy clawhub metadata to marketplace metadata.",
+    );
+    expect(res.config?.plugins?.installs?.demo).toMatchObject({
+      source: "marketplace",
+      spec: "marketplace:demo@1.2.3",
+      resolvedSpec: "marketplace:demo@1.2.3",
+      marketplaceRegistryUrl: "https://clawhub.ai",
+      marketplacePackage: "demo",
+      marketplaceFamily: "code-plugin",
+      marketplaceChannel: "official",
+    });
+    expect(
+      (res.config?.plugins?.installs?.demo as { clawhubPackage?: string } | undefined)
+        ?.clawhubPackage,
+    ).toBeUndefined();
+  });
+
+  it("rewrites hook install records from clawhub metadata when present", () => {
+    const res = migrateLegacyConfig({
+      hooks: {
+        internal: {
+          installs: {
+            bundle: {
+              source: "clawhub",
+              spec: "clawhub:bundle@2.0.0",
+              clawhubUrl: "https://clawhub.ai",
+              clawhubPackage: "bundle",
+              clawhubFamily: "bundle-plugin",
+              clawhubChannel: "community",
+            },
+          },
+        },
+      },
+    });
+
+    expect(res.changes).toContain(
+      "Migrated hooks.internal.installs.bundle from legacy clawhub metadata to marketplace metadata.",
+    );
+    expect(res.config?.hooks?.internal?.installs?.bundle).toMatchObject({
+      source: "marketplace",
+      spec: "marketplace:bundle@2.0.0",
+      marketplaceRegistryUrl: "https://clawhub.ai",
+      marketplacePackage: "bundle",
+      marketplaceFamily: "bundle-plugin",
+      marketplaceChannel: "community",
+    });
+  });
+});

@@ -10,7 +10,7 @@ function appBundledPluginRoot(pluginId: string): string {
 
 const installPluginFromNpmSpecMock = vi.fn();
 const installPluginFromMarketplaceMock = vi.fn();
-const installPluginFromClawHubMock = vi.fn();
+const installPluginFromMarketplaceRegistryMock = vi.fn();
 const resolveBundledPluginSourcesMock = vi.fn();
 
 vi.mock("./install.js", () => ({
@@ -25,8 +25,9 @@ vi.mock("./marketplace.js", () => ({
   installPluginFromMarketplace: (...args: unknown[]) => installPluginFromMarketplaceMock(...args),
 }));
 
-vi.mock("./clawhub.js", () => ({
-  installPluginFromClawHub: (...args: unknown[]) => installPluginFromClawHubMock(...args),
+vi.mock("./marketplace-registry.js", () => ({
+  installPluginFromMarketplaceRegistry: (...args: unknown[]) =>
+    installPluginFromMarketplaceRegistryMock(...args),
 }));
 
 vi.mock("./bundled-sources.js", () => ({
@@ -101,25 +102,25 @@ function createMarketplaceInstallConfig(params: {
   };
 }
 
-function createClawHubInstallConfig(params: {
+function createMarketplaceRegistryInstallConfig(params: {
   pluginId: string;
   installPath: string;
-  clawhubUrl: string;
-  clawhubPackage: string;
-  clawhubFamily: "bundle-plugin" | "code-plugin";
-  clawhubChannel: "community" | "official" | "private";
+  marketplaceRegistryUrl: string;
+  marketplacePackage: string;
+  marketplaceFamily: "bundle-plugin" | "code-plugin";
+  marketplaceChannel: "community" | "official" | "private";
 }): AlisioConfig {
   return {
     plugins: {
       installs: {
         [params.pluginId]: {
-          source: "clawhub" as const,
-          spec: `clawhub:${params.clawhubPackage}`,
+          source: "marketplace" as const,
+          spec: `marketplace:${params.marketplacePackage}`,
           installPath: params.installPath,
-          clawhubUrl: params.clawhubUrl,
-          clawhubPackage: params.clawhubPackage,
-          clawhubFamily: params.clawhubFamily,
-          clawhubChannel: params.clawhubChannel,
+          marketplaceRegistryUrl: params.marketplaceRegistryUrl,
+          marketplacePackage: params.marketplacePackage,
+          marketplaceFamily: params.marketplaceFamily,
+          marketplaceChannel: params.marketplaceChannel,
         },
       },
     },
@@ -229,7 +230,7 @@ describe("updateNpmInstalledPlugins", () => {
   beforeEach(() => {
     installPluginFromNpmSpecMock.mockReset();
     installPluginFromMarketplaceMock.mockReset();
-    installPluginFromClawHubMock.mockReset();
+    installPluginFromMarketplaceRegistryMock.mockReset();
     resolveBundledPluginSourcesMock.mockReset();
   });
 
@@ -426,51 +427,51 @@ describe("updateNpmInstalledPlugins", () => {
     },
   );
 
-  it("updates ClawHub-installed plugins via recorded package metadata", async () => {
-    installPluginFromClawHubMock.mockResolvedValue({
+  it("updates marketplace registry-installed plugins via recorded package metadata", async () => {
+    installPluginFromMarketplaceRegistryMock.mockResolvedValue({
       ok: true,
       pluginId: "demo",
       targetDir: "/tmp/demo",
       version: "1.2.4",
-      clawhub: {
-        source: "clawhub",
-        clawhubUrl: "https://clawhub.ai",
-        clawhubPackage: "demo",
-        clawhubFamily: "code-plugin",
-        clawhubChannel: "official",
+      marketplaceRegistry: {
+        source: "marketplace",
+        marketplaceRegistryUrl: "https://clawhub.ai",
+        marketplacePackage: "demo",
+        marketplaceFamily: "code-plugin",
+        marketplaceChannel: "official",
         integrity: "sha256-next",
         resolvedAt: "2026-03-22T00:00:00.000Z",
       },
     });
 
     const result = await updateNpmInstalledPlugins({
-      config: createClawHubInstallConfig({
+      config: createMarketplaceRegistryInstallConfig({
         pluginId: "demo",
         installPath: "/tmp/demo",
-        clawhubUrl: "https://clawhub.ai",
-        clawhubPackage: "demo",
-        clawhubFamily: "code-plugin",
-        clawhubChannel: "official",
+        marketplaceRegistryUrl: "https://clawhub.ai",
+        marketplacePackage: "demo",
+        marketplaceFamily: "code-plugin",
+        marketplaceChannel: "official",
       }),
       pluginIds: ["demo"],
     });
 
-    expect(installPluginFromClawHubMock).toHaveBeenCalledWith(
+    expect(installPluginFromMarketplaceRegistryMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        spec: "clawhub:demo",
+        spec: "marketplace:demo",
         baseUrl: "https://clawhub.ai",
         expectedPluginId: "demo",
         mode: "update",
       }),
     );
     expect(result.config.plugins?.installs?.demo).toMatchObject({
-      source: "clawhub",
-      spec: "clawhub:demo",
+      source: "marketplace",
+      spec: "marketplace:demo",
       installPath: "/tmp/demo",
       version: "1.2.4",
-      clawhubPackage: "demo",
-      clawhubFamily: "code-plugin",
-      clawhubChannel: "official",
+      marketplacePackage: "demo",
+      marketplaceFamily: "code-plugin",
+      marketplaceChannel: "official",
       integrity: "sha256-next",
     });
   });

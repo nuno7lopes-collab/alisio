@@ -646,7 +646,7 @@ describe("installPluginFromArchive", () => {
     expectSuccessfulArchiveInstall({ result, stateDir, pluginId: "@alisio/zipper" });
   });
 
-  it("installs flat-root plugin archives from ClawHub-style downloads", async () => {
+  it("installs flat-root plugin archives from marketplace-registry-style downloads", async () => {
     const result = await installArchivePackageAndReturnResult({
       packageJson: {
         name: "@alisio/rootless",

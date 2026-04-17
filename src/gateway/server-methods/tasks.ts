@@ -1,6 +1,10 @@
 import { loadConfig } from "../../config/config.js";
 import { resolveAgentIdFromSessionKey } from "../../routing/session-key.js";
 import {
+  filterVisibleCanonicalTaskBundles,
+  isVisibleCanonicalTaskBundle,
+} from "../../tasks/canonical-task-visibility.js";
+import {
   attachTaskProposalLaunch,
   getTaskProposalViewById,
   listTaskProposalViews,
@@ -9,13 +13,8 @@ import {
   upsertTaskProposal,
 } from "../../tasks/task-proposals.js";
 import { cancelTaskById, updateTaskNotifyPolicyById } from "../../tasks/task-registry.js";
-import {
-  reconcileTaskLookupToken,
-} from "../../tasks/task-registry.maintenance.js";
-import { filterVisibleCanonicalTaskBundles, isVisibleCanonicalTaskBundle } from "../../tasks/canonical-task-visibility.js";
-import type {
-  TaskNotifyPolicy,
-} from "../../tasks/task-registry.types.js";
+import { reconcileTaskLookupToken } from "../../tasks/task-registry.maintenance.js";
+import type { TaskNotifyPolicy } from "../../tasks/task-registry.types.js";
 import {
   bindTaskExecutionRun,
   cancelTaskTree,
@@ -62,7 +61,7 @@ import {
 } from "../protocol/index.js";
 import { loadSessionEntry } from "../session-utils.js";
 import { createGatewaySessionEntry, sendGatewaySessionMessage } from "./sessions.js";
-import type { GatewayRequestHandlers, RespondFn } from "./types.js";
+import type { GatewayRequestHandlerOptions, GatewayRequestHandlers, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
 function buildFallbackLaunchPrompt(proposal: {
@@ -123,6 +122,8 @@ function buildTaskOrchestratorSystemPrompt(task: {
 type CanonicalTask = NonNullable<ReturnType<typeof getTask>>;
 type CanonicalTaskBundle = NonNullable<ReturnType<typeof getTaskBundle>>;
 type CanonicalTaskExecution = CanonicalTaskBundle["executions"][number];
+type CanonicalTaskOverviewRuntimeFilter = CanonicalTaskExecution["kind"] | "all";
+type CanonicalTaskOverviewStatusFilter = CanonicalTaskExecution["status"] | "all";
 
 function resolveProposalLaunchResult(params: {
   proposal: {
@@ -272,28 +273,13 @@ function resolveRecoverableProposalLaunchState(task: CanonicalTask): {
 }
 
 async function launchProposalTaskExecution(params: {
-  req: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
-    args: infer T,
-  ) => Promise<unknown>
-    ? T["req"]
-    : never;
-  context: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
-    args: infer T,
-  ) => Promise<unknown>
-    ? T["context"]
-    : never;
-  client: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
-    args: infer T,
-  ) => Promise<unknown>
-    ? T["client"]
-    : never;
-  isWebchatConnect: GatewayRequestHandlers["tasks.launchFromProposal"] extends (
-    args: infer T,
-  ) => Promise<unknown>
-    ? T["isWebchatConnect"]
-    : never;
+  req: GatewayRequestHandlerOptions["req"];
+  context: GatewayRequestHandlerOptions["context"];
+  client: GatewayRequestHandlerOptions["client"];
+  isWebchatConnect: GatewayRequestHandlerOptions["isWebchatConnect"];
   proposal: {
     proposalId: string;
+    kind: "task" | "project";
     title: string;
     summary?: string;
     rationale?: string;
@@ -330,7 +316,7 @@ async function launchProposalTaskExecution(params: {
       : null;
   let sessionKey = reusableSession?.sessionKey ?? "";
   let storePath = reusableSession?.storePath ?? "";
-  let entry = reusableSession?.entry ?? null;
+  let sessionEntry = reusableSession?.entry;
   if (!reusableSession) {
     const createdSession = await createGatewaySessionEntry({
       context: params.context,
@@ -342,7 +328,10 @@ async function launchProposalTaskExecution(params: {
     });
     sessionKey = createdSession.key;
     storePath = createdSession.storePath;
-    entry = createdSession.entry;
+    sessionEntry = createdSession.entry;
+  }
+  if (!sessionEntry) {
+    throw new Error("Task proposal launch session could not be initialized.");
   }
   const ownerAgentId =
     resolveAgentIdFromSessionKey(sessionKey) ??
@@ -377,7 +366,7 @@ async function launchProposalTaskExecution(params: {
       isWebchatConnect: params.isWebchatConnect,
       sessionKey,
       storePath,
-      entry,
+      entry: sessionEntry,
       message: prompt,
       extraSystemPrompt: reusableSession ? orchestratorSystemPrompt : undefined,
     });
@@ -452,6 +441,163 @@ function buildCanonicalTaskSummary(tasks: CanonicalTask[]) {
     cancelled: tasks.filter((task) => task.status === "cancelled").length,
     failed: tasks.filter((task) => task.status === "failed").length,
   };
+}
+
+function resolveLatestCanonicalExecution(
+  task: CanonicalTask,
+  executions: CanonicalTaskExecution[],
+): CanonicalTaskExecution | null {
+  if (executions.length === 0) {
+    return null;
+  }
+  if (task.activeExecutionId) {
+    const active = executions.find((execution) => execution.executionId === task.activeExecutionId);
+    if (active) {
+      return active;
+    }
+  }
+  if (task.latestExecutionId) {
+    const latest = executions.find((execution) => execution.executionId === task.latestExecutionId);
+    if (latest) {
+      return latest;
+    }
+  }
+  return (
+    executions.toSorted((left, right) => {
+      const leftAt = left.startedAt ?? left.createdAt;
+      const rightAt = right.startedAt ?? right.createdAt;
+      return rightAt - leftAt;
+    })[0] ?? null
+  );
+}
+
+function resolveCanonicalTaskDisplayStatus(
+  task: CanonicalTask,
+  execution: CanonicalTaskExecution | null,
+): CanonicalTaskOverviewStatusFilter {
+  if (execution) {
+    return execution.status;
+  }
+  switch (task.status) {
+    case "draft":
+    case "pending_approval":
+    case "ready":
+      return "queued";
+    case "in_progress":
+    case "awaiting_review":
+      return "running";
+    case "completed":
+      return "succeeded";
+    case "cancelled":
+      return "cancelled";
+    case "failed":
+    case "blocked":
+      return "failed";
+  }
+}
+
+function matchesCanonicalTaskQuery(bundle: CanonicalTaskBundle, query: string): boolean {
+  if (!query) {
+    return true;
+  }
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+  const searchable = [
+    bundle.task.taskId,
+    bundle.task.rootTaskId,
+    bundle.task.parentTaskId,
+    bundle.task.title,
+    bundle.task.summary,
+    bundle.task.description,
+    bundle.task.ownerAgentId,
+    bundle.task.requesterSessionKey,
+    bundle.task.orchestratorSessionKey,
+    ...bundle.task.acceptance,
+    ...bundle.executions.flatMap((execution) => [
+      execution.executionId,
+      execution.runId,
+      execution.sessionKey,
+      execution.agentId,
+      execution.label,
+      execution.summary,
+      execution.error,
+    ]),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.trim().toLowerCase());
+  return searchable.some((value) => value.includes(normalizedQuery));
+}
+
+function filterCanonicalTaskBundlesForOverview(
+  bundles: CanonicalTaskBundle[],
+  filters: {
+    runtime: CanonicalTaskOverviewRuntimeFilter | null;
+    status: CanonicalTaskOverviewStatusFilter | null;
+    query: string;
+  },
+): CanonicalTaskBundle[] {
+  return bundles.filter((bundle) => {
+    const latestExecution = resolveLatestCanonicalExecution(bundle.task, bundle.executions);
+    if (
+      filters.runtime &&
+      filters.runtime !== "all" &&
+      !bundle.executions.some((execution) => execution.kind === filters.runtime)
+    ) {
+      return false;
+    }
+    if (
+      filters.status &&
+      filters.status !== "all" &&
+      resolveCanonicalTaskDisplayStatus(bundle.task, latestExecution) !== filters.status
+    ) {
+      return false;
+    }
+    return matchesCanonicalTaskQuery(bundle, filters.query);
+  });
+}
+
+function sortCanonicalTaskBundlesForDisplay(bundles: CanonicalTaskBundle[]): CanonicalTaskBundle[] {
+  return bundles.toSorted((left, right) => {
+    const leftTask = left.task;
+    const rightTask = right.task;
+    if (
+      leftTask.rootTaskId !== rightTask.rootTaskId &&
+      !leftTask.parentTaskId &&
+      !rightTask.parentTaskId
+    ) {
+      return rightTask.updatedAt - leftTask.updatedAt;
+    }
+    return (
+      (rightTask.startedAt ?? rightTask.updatedAt) - (leftTask.startedAt ?? leftTask.updatedAt)
+    );
+  });
+}
+
+function flattenCanonicalTaskBundlesForDisplay(
+  bundles: CanonicalTaskBundle[],
+): CanonicalTaskBundle[] {
+  const visibleTaskIds = new Set(bundles.map((bundle) => bundle.task.taskId));
+  const byParent = new Map<string | undefined, CanonicalTaskBundle[]>();
+  for (const bundle of bundles) {
+    const parentKey =
+      bundle.task.parentTaskId && visibleTaskIds.has(bundle.task.parentTaskId)
+        ? bundle.task.parentTaskId
+        : undefined;
+    const bucket = byParent.get(parentKey) ?? [];
+    bucket.push(bundle);
+    byParent.set(parentKey, bucket);
+  }
+  const flattened: CanonicalTaskBundle[] = [];
+  const visit = (parentTaskId: string | undefined) => {
+    for (const bundle of sortCanonicalTaskBundlesForDisplay(byParent.get(parentTaskId) ?? [])) {
+      flattened.push(bundle);
+      visit(bundle.task.taskId);
+    }
+  };
+  visit(undefined);
+  return flattened;
 }
 
 function getVisibleCanonicalTaskBundle(taskId: string) {
@@ -536,11 +682,25 @@ export const tasksHandlers: GatewayRequestHandlers = {
     }
 
     const runtime =
-      typeof params.runtime === "string" && params.runtime.trim().length > 0
+      params.runtime === "all" ||
+      params.runtime === "acp" ||
+      params.runtime === "cli" ||
+      params.runtime === "cron" ||
+      params.runtime === "orchestrator_session" ||
+      params.runtime === "subagent"
         ? params.runtime
         : null;
     const status =
-      typeof params.status === "string" && params.status.trim().length > 0 ? params.status : null;
+      params.status === "all" ||
+      params.status === "cancelled" ||
+      params.status === "failed" ||
+      params.status === "lost" ||
+      params.status === "queued" ||
+      params.status === "running" ||
+      params.status === "succeeded" ||
+      params.status === "timed_out"
+        ? params.status
+        : null;
     const query = typeof params.query === "string" ? params.query.trim() : "";
     const offset =
       typeof params.offset === "number" && Number.isFinite(params.offset) ? params.offset : 0;
@@ -548,28 +708,43 @@ export const tasksHandlers: GatewayRequestHandlers = {
       typeof params.limit === "number" && Number.isFinite(params.limit) ? params.limit : 50;
 
     const proposals = listTaskProposalViews();
-    const canonicalBundles = filterVisibleCanonicalTaskBundles(
+    const visibleCanonicalBundles = filterVisibleCanonicalTaskBundles(
       listTasks()
         .map((task) => getTaskBundle(task.taskId))
-        .filter((bundle): bundle is NonNullable<ReturnType<typeof getTaskBundle>> => Boolean(bundle)),
+        .filter((bundle): bundle is NonNullable<ReturnType<typeof getTaskBundle>> =>
+          Boolean(bundle),
+        ),
     );
-    const canonicalTasks = canonicalBundles.map((bundle) => bundle.task);
-    const pagedTasks = canonicalTasks.slice(offset, offset + limit);
+    const filteredCanonicalBundles = flattenCanonicalTaskBundlesForDisplay(
+      filterCanonicalTaskBundlesForOverview(visibleCanonicalBundles, {
+        runtime: runtime as CanonicalTaskOverviewRuntimeFilter | null,
+        status: status as CanonicalTaskOverviewStatusFilter | null,
+        query,
+      }),
+    );
+    const pagedBundles = filteredCanonicalBundles.slice(offset, offset + limit);
+    const pagedTasks = pagedBundles.map((bundle) => bundle.task);
     const result: TasksOverviewResult = {
-      canonicalSummary: buildCanonicalTaskSummary(canonicalTasks),
+      canonicalSummary: buildCanonicalTaskSummary(
+        visibleCanonicalBundles.map((bundle) => bundle.task),
+      ),
       proposalSummary: summarizeTaskProposals(proposals),
       // The inbox stays canonical across tabs and chat cards. Task filters/search only
       // affect the task ledger view; proposals remain complete so the UI never drifts
       // into showing a saved proposal as a draft because of a previous tasks filter.
       proposals: proposals as unknown as TasksOverviewResult["proposals"],
       canonicalTasks: pagedTasks,
-      total: canonicalTasks.length,
+      canonicalExecutions: pagedBundles.flatMap((bundle) => bundle.executions),
+      total: filteredCanonicalBundles.length,
       limit,
       offset,
-      nextOffset: offset + pagedTasks.length < canonicalTasks.length ? offset + pagedTasks.length : null,
-      hasMore: offset + pagedTasks.length < canonicalTasks.length,
-      runtime: runtime as typeof params.runtime | null,
-      status: status as typeof params.status | null,
+      nextOffset:
+        offset + pagedTasks.length < filteredCanonicalBundles.length
+          ? offset + pagedTasks.length
+          : null,
+      hasMore: offset + pagedTasks.length < filteredCanonicalBundles.length,
+      runtime,
+      status,
       query: query || null,
     };
     respond(true, result, undefined);
@@ -587,14 +762,18 @@ export const tasksHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const proposal = bundle.task.proposalId
+      ? ((getTaskProposalViewById(bundle.task.proposalId) ?? undefined) as unknown as
+          | TasksDetailResult["proposal"]
+          | undefined)
+      : undefined;
     const result: TasksDetailResult = {
       task: bundle.task,
-      ...(bundle.task.proposalId
-        ? {
-            proposal: getTaskProposalViewById(bundle.task.proposalId) ?? undefined,
-          }
-        : {}),
+      ...(proposal ? { proposal } : {}),
       children: bundle.children,
+      childExecutions: bundle.children.flatMap(
+        (child) => getTaskBundle(child.taskId)?.executions ?? [],
+      ),
       executions: bundle.executions,
       assignments: bundle.assignments,
       approvals: bundle.approvals,

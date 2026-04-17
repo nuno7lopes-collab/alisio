@@ -42,6 +42,7 @@ describe("browser auth broker", () => {
     const broker = createBrowserAuthBroker({ authCache, now: () => 123 });
 
     const resolved = await broker.resolveTypeInput({
+      text: "",
       textRef: { source: "env", provider: "vault", id: "browser-password" },
       sessionKey: "Agent:Main:Main",
       origin: "https://example.com/login",
@@ -76,6 +77,7 @@ describe("browser auth broker", () => {
     const broker = createBrowserAuthBroker({ authCache, now: () => 456 });
 
     const resolved = await broker.resolveTypeInput({
+      text: "",
       textRef: { source: "env", provider: "vault", id: "browser-password" },
       preferReuseSession: true,
       sessionKey: "agent:main:main",

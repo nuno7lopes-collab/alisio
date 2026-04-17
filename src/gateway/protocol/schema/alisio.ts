@@ -990,6 +990,16 @@ export const AlisioModelRecommendationSchema = Type.Object(
   {
     modelId: NonEmptyString,
     grade: ModelRecommendationGradeSchema,
+    reasonCode: Type.Union([
+      Type.Literal("comfortable"),
+      Type.Literal("supported"),
+      Type.Literal("tight"),
+      Type.Literal("insufficient"),
+    ]),
+    requiredRamGb: Type.Number({ minimum: 0 }),
+    requiredVramGb: Type.Optional(Type.Number({ minimum: 0 })),
+    availableRamGb: Type.Number({ minimum: 0 }),
+    availableVramGb: Type.Optional(Type.Number({ minimum: 0 })),
     label: NonEmptyString,
     reason: NonEmptyString,
   },

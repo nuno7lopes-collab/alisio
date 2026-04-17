@@ -41,8 +41,6 @@ export const SessionSchema = z
     resetByType: z
       .object({
         direct: SessionResetConfigSchema.optional(),
-        /** @deprecated Use `direct` instead. Kept for backward compatibility. */
-        dm: SessionResetConfigSchema.optional(),
         group: SessionResetConfigSchema.optional(),
         thread: SessionResetConfigSchema.optional(),
       })

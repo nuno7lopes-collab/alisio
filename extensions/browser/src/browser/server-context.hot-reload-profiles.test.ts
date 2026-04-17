@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import type { BrowserServerState } from "./server-context.types.js";
 
 type TestProfileConfig = { cdpPort?: number; cdpUrl?: string; color?: string };
@@ -93,6 +94,7 @@ describe("server-context hot-reload profiles", () => {
       server: null,
       port: 40707,
       resolved,
+      authCache: createBrowserSessionAuthCache(),
       profiles: new Map(),
     };
 
@@ -138,6 +140,7 @@ describe("server-context hot-reload profiles", () => {
       server: null,
       port: 40707,
       resolved,
+      authCache: createBrowserSessionAuthCache(),
       profiles: new Map(),
     };
 
@@ -158,6 +161,7 @@ describe("server-context hot-reload profiles", () => {
       server: null,
       port: 40707,
       resolved,
+      authCache: createBrowserSessionAuthCache(),
       profiles: new Map(),
     };
 
@@ -180,6 +184,7 @@ describe("server-context hot-reload profiles", () => {
       server: null,
       port: 40707,
       resolved,
+      authCache: createBrowserSessionAuthCache(),
       profiles: new Map(),
     };
 
@@ -203,6 +208,7 @@ describe("server-context hot-reload profiles", () => {
       server: null,
       port: 40707,
       resolved,
+      authCache: createBrowserSessionAuthCache(),
       profiles: new Map([
         [
           "alisio",

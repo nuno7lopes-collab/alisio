@@ -193,7 +193,7 @@ export function normalizeAgentLabel(agent: {
   name?: string;
   identity?: { name?: string };
 }) {
-  return agent.name?.trim() || agent.identity?.name?.trim() || agent.id;
+  return agent.identity?.name?.trim() || agent.name?.trim() || agent.id;
 }
 
 const AVATAR_URL_RE = /^(https?:\/\/|data:image\/|\/)/i;
@@ -203,6 +203,7 @@ export function resolveAgentAvatarUrl(
   agentIdentity?: AgentIdentityResult | null,
 ): string | null {
   const candidates = [
+    agentIdentity?.avatarUrl?.trim(),
     agentIdentity?.avatar?.trim(),
     agent.identity?.avatarUrl?.trim(),
     agent.identity?.avatar?.trim(),

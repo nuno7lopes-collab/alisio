@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import type { BrowserPanePreviewState } from "../controllers/browser-pane.ts";
 import type { TaskRuntimeFilter, TaskStatusFilter } from "../controllers/tasks.ts";
 import { formatMs, formatRelativeTimestamp } from "../format.ts";
 import type {
@@ -7,12 +8,14 @@ import type {
   TaskApproval,
   TaskAssignment,
   TaskDependency,
+  TasksDetailResult,
   TaskEvent,
   TaskExecution,
   TaskExecutionStep,
   TaskProposalRecord,
   TasksOverviewResult,
 } from "../types.ts";
+import { renderBrowserPane } from "./browser-pane.ts";
 import {
   renderSkeletonButton,
   renderSkeletonInput,
@@ -27,6 +30,8 @@ export type TasksViewProps = {
   busy: boolean;
   error: string | null;
   overview: TasksOverviewResult | null;
+  detailLoading: boolean;
+  detail: TasksDetailResult | null;
   selectedId: string | null;
   query: string;
   runtimeFilter: TaskRuntimeFilter;
@@ -41,22 +46,23 @@ export type TasksViewProps = {
   onLaunchProposal: (proposal: TaskProposalRecord) => void;
   onOpenRequesterSession?: (sessionKey: string) => void;
   onOpenChildSession?: (sessionKey: string) => void;
+  resolveSessionBrowserPanePreview?: (sessionKey: string) => BrowserPanePreviewState | null;
 };
 
-type CanonicalTaskCollections = {
+type CanonicalTaskListCollections = {
   tasks: Task[];
   executions: TaskExecution[];
-  steps: TaskExecutionStep[];
-  assignments: TaskAssignment[];
-  approvals: TaskApproval[];
-  events: TaskEvent[];
-  dependencies: TaskDependency[];
 };
 
 type FlattenedTask = {
   task: Task;
   depth: number;
 };
+
+type TaskExecutionMap = Map<string, TaskExecution[]>;
+const executionMapCache = new WeakMap<TaskExecution[], TaskExecutionMap>();
+const taskIndexCache = new WeakMap<Task[], Map<string, Task>>();
+const flattenedTasksCache = new WeakMap<Task[], FlattenedTask[]>();
 
 function getTaskRuntimeOptions(): Array<{ value: TaskRuntimeFilter; label: string }> {
   return [
@@ -346,16 +352,36 @@ function renderProposalActionButton(
   `;
 }
 
-function getCollections(overview: TasksOverviewResult | null): CanonicalTaskCollections {
+function getCollections(overview: TasksOverviewResult | null): CanonicalTaskListCollections {
   return {
     tasks: overview?.canonicalTasks ?? [],
     executions: overview?.canonicalExecutions ?? [],
-    steps: overview?.canonicalSteps ?? [],
-    assignments: overview?.canonicalAssignments ?? [],
-    approvals: overview?.canonicalApprovals ?? [],
-    events: overview?.canonicalEvents ?? [],
-    dependencies: overview?.canonicalDependencies ?? [],
   };
+}
+
+function buildExecutionMap(executions: TaskExecution[]): TaskExecutionMap {
+  const cached = executionMapCache.get(executions);
+  if (cached) {
+    return cached;
+  }
+  const value: TaskExecutionMap = new Map();
+  for (const execution of executions) {
+    const next = value.get(execution.taskId) ?? [];
+    next.push(execution);
+    value.set(execution.taskId, next);
+  }
+  executionMapCache.set(executions, value);
+  return value;
+}
+
+function buildTaskIndex(tasks: Task[]): Map<string, Task> {
+  const cached = taskIndexCache.get(tasks);
+  if (cached) {
+    return cached;
+  }
+  const value = new Map(tasks.map((task) => [task.taskId, task]));
+  taskIndexCache.set(tasks, value);
+  return value;
 }
 
 function resolveLatestExecution(task: Task, executions: TaskExecution[]): TaskExecution | null {
@@ -374,116 +400,49 @@ function resolveLatestExecution(task: Task, executions: TaskExecution[]): TaskEx
       return latest;
     }
   }
-  return (
-    executions.toSorted((left, right) => {
-      const leftAt = left.startedAt ?? left.createdAt;
-      const rightAt = right.startedAt ?? right.createdAt;
-      return rightAt - leftAt;
-    })[0] ?? null
-  );
+  let latestExecution: TaskExecution | null = null;
+  let latestAt = Number.NEGATIVE_INFINITY;
+  for (const execution of executions) {
+    const executionAt = execution.startedAt ?? execution.createdAt;
+    if (executionAt > latestAt) {
+      latestExecution = execution;
+      latestAt = executionAt;
+    }
+  }
+  return latestExecution;
 }
 
-function resolveDisplayStatus(task: Task, execution: TaskExecution | null): TaskStatusFilter {
-  if (execution) {
-    return execution.status;
+function annotateTaskDepths(tasks: Task[]): FlattenedTask[] {
+  const cached = flattenedTasksCache.get(tasks);
+  if (cached) {
+    return cached;
   }
-  switch (task.status) {
-    case "draft":
-    case "pending_approval":
-    case "ready":
-      return "queued";
-    case "in_progress":
-    case "awaiting_review":
-      return "running";
-    case "completed":
-      return "succeeded";
-    case "cancelled":
-      return "cancelled";
-    case "failed":
-    case "blocked":
-      return "failed";
-  }
-}
-
-function filterCanonicalTasks(props: TasksViewProps, collections: CanonicalTaskCollections) {
-  const executionMap = new Map<string, TaskExecution[]>();
-  for (const execution of collections.executions) {
-    const next = executionMap.get(execution.taskId) ?? [];
-    next.push(execution);
-    executionMap.set(execution.taskId, next);
-  }
-  const query = props.query.trim().toLowerCase();
-  return collections.tasks.filter((task) => {
-    const executions = executionMap.get(task.taskId) ?? [];
-    const latestExecution = resolveLatestExecution(task, executions);
-    if (
-      props.runtimeFilter !== "all" &&
-      !executions.some((execution) => execution.kind === props.runtimeFilter)
-    ) {
-      return false;
+  const taskById = new Map(tasks.map((task) => [task.taskId, task]));
+  const depthCache = new Map<string, number>();
+  const resolveDepth = (task: Task, seen = new Set<string>()): number => {
+    const cached = depthCache.get(task.taskId);
+    if (typeof cached === "number") {
+      return cached;
     }
-    if (
-      props.statusFilter !== "all" &&
-      resolveDisplayStatus(task, latestExecution) !== props.statusFilter
-    ) {
-      return false;
+    const parentTaskId = task.parentTaskId?.trim();
+    if (!parentTaskId || seen.has(task.taskId)) {
+      depthCache.set(task.taskId, 0);
+      return 0;
     }
-    if (!query) {
-      return true;
+    const parent = taskById.get(parentTaskId);
+    if (!parent) {
+      depthCache.set(task.taskId, 0);
+      return 0;
     }
-    const searchable = [
-      task.taskId,
-      task.rootTaskId,
-      task.parentTaskId,
-      task.title,
-      task.summary,
-      task.description,
-      task.ownerAgentId,
-      task.requesterSessionKey,
-      task.orchestratorSessionKey,
-      ...task.acceptance,
-      ...executions.flatMap((execution) => [
-        execution.executionId,
-        execution.runId,
-        execution.sessionKey,
-        execution.agentId,
-        execution.label,
-        execution.summary,
-        execution.error,
-      ]),
-    ]
-      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-      .map((value) => value.trim().toLowerCase());
-    return searchable.some((value) => value.includes(query));
-  });
-}
-
-function flattenTaskTree(tasks: Task[]): FlattenedTask[] {
-  const byParent = new Map<string | undefined, Task[]>();
-  const visibleTaskIds = new Set(tasks.map((task) => task.taskId));
-  for (const task of tasks) {
-    const parentKey =
-      task.parentTaskId && visibleTaskIds.has(task.parentTaskId) ? task.parentTaskId : undefined;
-    const bucket = byParent.get(parentKey) ?? [];
-    bucket.push(task);
-    byParent.set(parentKey, bucket);
-  }
-  const sortTasks = (entries: Task[]) =>
-    entries.toSorted((left, right) => {
-      if (left.rootTaskId !== right.rootTaskId && !left.parentTaskId && !right.parentTaskId) {
-        return right.updatedAt - left.updatedAt;
-      }
-      return (right.startedAt ?? right.updatedAt) - (left.startedAt ?? left.updatedAt);
-    });
-  const flattened: FlattenedTask[] = [];
-  const visit = (parentTaskId: string | undefined, depth: number) => {
-    for (const task of sortTasks(byParent.get(parentTaskId) ?? [])) {
-      flattened.push({ task, depth });
-      visit(task.taskId, depth + 1);
-    }
+    const nextSeen = new Set(seen);
+    nextSeen.add(task.taskId);
+    const depth = resolveDepth(parent, nextSeen) + 1;
+    depthCache.set(task.taskId, depth);
+    return depth;
   };
-  visit(undefined, 0);
-  return flattened;
+  const value = tasks.map((task) => ({ task, depth: resolveDepth(task) }));
+  flattenedTasksCache.set(tasks, value);
+  return value;
 }
 
 function findSelectedCanonicalTask(props: TasksViewProps, visibleTasks: Task[]): Task | null {
@@ -874,9 +833,7 @@ function renderStepTimeline(steps: TaskExecutionStep[], events: TaskEvent[]) {
               : nothing}
             ${metaParts.length > 0
               ? html`
-                  <div class="agent-kv-sub" style="margin-top: 6px;">
-                    ${metaParts.join(" · ")}
-                  </div>
+                  <div class="agent-kv-sub" style="margin-top: 6px;">${metaParts.join(" · ")}</div>
                 `
               : nothing}
           </div>
@@ -914,12 +871,8 @@ function renderStepTimeline(steps: TaskExecutionStep[], events: TaskEvent[]) {
   return html`<div style="display: grid; gap: 10px;">${items.map((item) => item.node)}</div>`;
 }
 
-function renderCanonicalTaskDetail(
-  props: TasksViewProps,
-  selectedTask: Task | null,
-  collections: CanonicalTaskCollections,
-) {
-  if (!selectedTask) {
+function renderCanonicalTaskDetail(props: TasksViewProps, detail: TasksDetailResult | null) {
+  if (!detail) {
     return html`
       <div class="card">
         <div class="card-title">${t("tasksView.detail.title")}</div>
@@ -928,21 +881,15 @@ function renderCanonicalTaskDetail(
     `;
   }
 
-  const executions = collections.executions.filter(
-    (execution) => execution.taskId === selectedTask.taskId,
-  );
-  const assignments = collections.assignments.filter(
-    (assignment) => assignment.taskId === selectedTask.taskId,
-  );
-  const approvals = collections.approvals.filter(
-    (approval) => approval.taskId === selectedTask.taskId,
-  );
-  const events = collections.events.filter((event) => event.taskId === selectedTask.taskId);
-  const steps = collections.steps.filter((step) => step.taskId === selectedTask.taskId);
-  const dependencies = collections.dependencies.filter(
-    (dependency) => dependency.taskId === selectedTask.taskId,
-  );
-  const children = collections.tasks.filter((task) => task.parentTaskId === selectedTask.taskId);
+  const selectedTask = detail.task;
+  const executions = detail.executions;
+  const assignments = detail.assignments;
+  const approvals = detail.approvals;
+  const events = detail.events;
+  const steps = detail.steps;
+  const dependencies = detail.dependencies;
+  const children = detail.children;
+  const childExecutions = detail.childExecutions;
   const latestExecution = resolveLatestExecution(selectedTask, executions);
   const taskCanCancel =
     selectedTask.status !== "completed" &&
@@ -950,6 +897,17 @@ function renderCanonicalTaskDetail(
     selectedTask.status !== "failed";
   const openSessionKey =
     latestExecution?.sessionKey?.trim() || selectedTask.orchestratorSessionKey?.trim() || null;
+  const sessionPreview =
+    openSessionKey && props.resolveSessionBrowserPanePreview
+      ? props.resolveSessionBrowserPanePreview(openSessionKey)
+      : null;
+  const hasSessionPreview = Boolean(
+    sessionPreview?.observer ||
+    sessionPreview?.computer ||
+    sessionPreview?.markdown.content ||
+    sessionPreview?.markdown.error,
+  );
+  const childExecutionMap = buildExecutionMap(childExecutions);
 
   return html`
     <div class="card">
@@ -1065,6 +1023,23 @@ function renderCanonicalTaskDetail(
       <div style="margin-top: 16px;">${renderExecutionList(executions)}</div>
     </div>
 
+    ${hasSessionPreview
+      ? html`
+          <div class="card">
+            <div class="card-title">${t("tasksView.browser.title")}</div>
+            <div class="card-sub">${t("tasksView.browser.subtitle")}</div>
+            <div style="margin-top: 16px;">
+              ${renderBrowserPane({
+                observer: sessionPreview?.observer ?? null,
+                computer: sessionPreview?.computer ?? null,
+                markdown: sessionPreview?.markdown ?? null,
+                selectedSurface: sessionPreview?.selectedSurface ?? "observer",
+                embedded: true,
+              })}
+            </div>
+          </div>
+        `
+      : nothing}
     ${assignments.length > 0
       ? html`
           <div class="card">
@@ -1083,7 +1058,7 @@ function renderCanonicalTaskDetail(
               ${children.map((child) => {
                 const childLatestExecution = resolveLatestExecution(
                   child,
-                  collections.executions.filter((execution) => execution.taskId === child.taskId),
+                  childExecutionMap.get(child.taskId) ?? [],
                 );
                 return renderCanonicalTaskRow(props, child, childLatestExecution, 0, false);
               })}
@@ -1113,16 +1088,13 @@ export function renderTasks(props: TasksViewProps) {
   const overview = props.overview;
   const showInitialLoading = props.loading && !overview;
   const collections = getCollections(overview);
-  const visibleCanonicalTasks = filterCanonicalTasks(props, collections);
-  const flattenedTasks = flattenTaskTree(visibleCanonicalTasks);
+  const visibleCanonicalTasks = collections.tasks;
+  const flattenedTasks = annotateTaskDepths(visibleCanonicalTasks);
   const selectedCanonicalTask = findSelectedCanonicalTask(props, visibleCanonicalTasks);
-  const taskById = new Map(collections.tasks.map((task) => [task.taskId, task]));
-  const executionMap = new Map<string, TaskExecution[]>();
-  for (const execution of collections.executions) {
-    const next = executionMap.get(execution.taskId) ?? [];
-    next.push(execution);
-    executionMap.set(execution.taskId, next);
-  }
+  const selectedDetail =
+    props.detail?.task.taskId === selectedCanonicalTask?.taskId ? props.detail : null;
+  const taskById = buildTaskIndex(collections.tasks);
+  const executionMap = buildExecutionMap(collections.executions);
   const proposals = overview?.proposals ?? [];
   const showSummary =
     Boolean(overview) &&
@@ -1310,7 +1282,9 @@ export function renderTasks(props: TasksViewProps) {
                       `}
                 </div>
 
-                ${renderCanonicalTaskDetail(props, selectedCanonicalTask, collections)}
+                ${props.detailLoading && selectedCanonicalTask && !selectedDetail
+                  ? renderTasksDetailSkeleton()
+                  : renderCanonicalTaskDetail(props, selectedDetail)}
               </div>
             </div>
           `}

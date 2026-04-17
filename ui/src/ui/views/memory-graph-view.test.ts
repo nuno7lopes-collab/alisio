@@ -104,6 +104,23 @@ async function flushGraphView() {
   }
 }
 
+function setCanvasRect(canvas: HTMLElement, width: number, height: number) {
+  Object.defineProperty(canvas, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: width,
+      bottom: height,
+      width,
+      height,
+      toJSON() {},
+    }),
+  });
+}
+
 describe("memory-graph-view", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -228,29 +245,105 @@ describe("memory-graph-view", () => {
 
     const canvas = element.querySelector(".alisio-memory-graph__canvas") as HTMLElement | null;
     expect(canvas).toBeTruthy();
-    Object.defineProperty(canvas, "getBoundingClientRect", {
-      value: () => ({
-        x: 0,
-        y: 0,
-        left: 0,
-        top: 0,
-        right: 960,
-        bottom: 640,
-        width: 960,
-        height: 640,
-        toJSON() {},
-      }),
-    });
+    setCanvasRect(canvas!, 960, 640);
     (element as unknown as { requestUpdate: () => void }).requestUpdate();
     await flushGraphView();
 
     const svg = element.querySelector(".alisio-memory-graph__canvas svg");
     expect(svg?.getAttribute("viewBox")).toBe("-480 -320 960 640");
 
-    const circle = element.querySelector(".alisio-memory-graph__node circle");
+    const circle = element.querySelector(
+      ".alisio-memory-graph__node circle:not(.alisio-memory-graph__node-halo):not(.alisio-memory-graph__node-dot)",
+    );
     expect(circle?.getAttribute("fill")).toMatch(/rgb|rgba|#/);
     expect(circle?.getAttribute("stroke")).toMatch(/rgb|rgba|#/);
     expect(circle?.namespaceURI).toBe("http://www.w3.org/2000/svg");
+  });
+
+  it("só aplica atalhos de teclado quando o stage está focado", async () => {
+    const element = document.createElement("alisio-memory-graph-view") as HTMLElement & {
+      graph: ReturnType<typeof makeGraph>;
+    };
+    element.graph = makeGraph();
+    document.body.appendChild(element);
+
+    await flushGraphView();
+
+    const canvas = element.querySelector(".alisio-memory-graph__canvas") as HTMLElement | null;
+    expect(canvas).toBeTruthy();
+    setCanvasRect(canvas!, 960, 640);
+    (element as unknown as { requestUpdate: () => void }).requestUpdate();
+    await flushGraphView();
+
+    const camera = element.querySelector(".alisio-memory-graph__camera") as SVGGElement | null;
+    const stage = element.querySelector(".alisio-memory-graph__stage") as HTMLElement | null;
+    expect(camera).toBeTruthy();
+    expect(stage).toBeTruthy();
+
+    const before = camera?.getAttribute("transform");
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await flushGraphView();
+    expect(camera?.getAttribute("transform")).toBe(before);
+
+    stage?.focus();
+    await flushGraphView();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    await flushGraphView();
+    expect(camera?.getAttribute("transform")).not.toBe(before);
+  });
+
+  it("actualiza o viewport quando o canvas cresce", async () => {
+    const element = document.createElement("alisio-memory-graph-view") as HTMLElement & {
+      graph: ReturnType<typeof makeGraph>;
+    };
+    element.graph = makeGraph();
+    document.body.appendChild(element);
+
+    await flushGraphView();
+
+    const canvas = element.querySelector(".alisio-memory-graph__canvas") as HTMLElement | null;
+    expect(canvas).toBeTruthy();
+    setCanvasRect(canvas!, 960, 640);
+    (element as unknown as { requestUpdate: () => void }).requestUpdate();
+    await flushGraphView();
+
+    const svg = element.querySelector(".alisio-memory-graph__canvas svg");
+    expect(svg?.getAttribute("viewBox")).toBe("-480 -320 960 640");
+
+    setCanvasRect(canvas!, 1120, 760);
+    window.dispatchEvent(new Event("resize"));
+    await flushGraphView();
+
+    expect(svg?.getAttribute("viewBox")).toBe("-560 -380 1120 760");
+  });
+
+  it("mostra e alterna o inspector de arestas ao seleccionar uma ligação", async () => {
+    const element = document.createElement("alisio-memory-graph-view") as HTMLElement & {
+      graph: ReturnType<typeof makeGraph>;
+    };
+    element.graph = makeGraph();
+    document.body.appendChild(element);
+
+    await flushGraphView();
+
+    const edgeHit = element.querySelector(
+      ".alisio-memory-graph__edge-hit",
+    ) as SVGLineElement | null;
+    expect(edgeHit).toBeTruthy();
+
+    edgeHit?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushGraphView();
+
+    const card = element.querySelector(".alisio-memory-graph__selection-card");
+    expect(card).toBeTruthy();
+    expect(card?.textContent).toContain("depends-on");
+    expect(card?.textContent).toContain("Atlas");
+    expect(card?.textContent).toContain("Roadmap");
+
+    edgeHit?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    await flushGraphView();
+
+    expect(element.querySelector(".alisio-memory-graph__selection-card")).toBeNull();
   });
 
   it("mantém a rede viva durante o arrasto e faz o nó regressar ao equilíbrio", () => {

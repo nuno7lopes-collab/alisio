@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import fs from "node:fs";
 import path from "node:path";
+import { resolveChannelConfigSchemaModulePath } from "../src/config/channel-config-surface.js";
 import { readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 import { loadChannelConfigSurfaceModule } from "./load-channel-config-surface.ts";
 
@@ -65,21 +65,6 @@ type BundledChannelConfigMetadata = {
   schema: Record<string, unknown>;
   uiHints?: Record<string, unknown>;
 };
-
-function resolveChannelConfigSchemaModulePath(rootDir: string): string | null {
-  const candidates = [
-    path.join(rootDir, "src", "config-schema.ts"),
-    path.join(rootDir, "src", "config-schema.js"),
-    path.join(rootDir, "src", "config-schema.mts"),
-    path.join(rootDir, "src", "config-schema.mjs"),
-  ];
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
 
 function resolvePackageChannelMeta(source: BundledPluginSource) {
   const pluginMeta = readPackageBrandConfig(source.packageJson) as Record<string, unknown> | null;

@@ -46,6 +46,23 @@ function createBootstrap(): AlisioBootstrapState {
   } as AlisioBootstrapState;
 }
 
+function createRecommendation(
+  overrides: Partial<NonNullable<AlisioModelsState["targets"]>[number]["recommendations"][number]>,
+): NonNullable<AlisioModelsState["targets"]>[number]["recommendations"][number] {
+  return {
+    modelId: "qwen3-8b-q4-k-m",
+    grade: "recommended",
+    reasonCode: "comfortable",
+    requiredRamGb: 12,
+    requiredVramGb: 8,
+    availableRamGb: 36,
+    availableVramGb: 18,
+    label: "Recommended",
+    reason: "Best fit for this computer",
+    ...overrides,
+  };
+}
+
 function createModelsState(): AlisioModelsState {
   return {
     backend: "llama.cpp",
@@ -102,14 +119,7 @@ function createModelsState(): AlisioModelsState {
         supportsUninstall: true,
         consentRequired: true,
         installedModels: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
-        recommendations: [
-          {
-            modelId: "qwen3-8b-q4-k-m",
-            grade: "recommended",
-            label: "Recommended",
-            reason: "Best fit for this computer",
-          },
-        ],
+        recommendations: [createRecommendation({})],
         bestModelId: "qwen3-8b-q4-k-m",
         bestModelName: "Qwen3 8B",
         hardware: {
@@ -144,12 +154,9 @@ function createModelsState(): AlisioModelsState {
         consentRequired: true,
         installedModels: [{ id: "qwen3-8b-q4-k-m", name: "Qwen3 8B", ownedBy: "llama.cpp" }],
         recommendations: [
-          {
-            modelId: "qwen3-8b-q4-k-m",
-            grade: "recommended",
-            label: "Recommended",
+          createRecommendation({
             reason: "Good fit for this node",
-          },
+          }),
         ],
       },
     ],
@@ -358,12 +365,17 @@ describe("renderModelsHub", () => {
           {
             ...createModelsState().targets[0],
             recommendations: [
-              {
+              createRecommendation({
                 modelId: "qwen3-32b-q4-k-m",
                 grade: "unsupported",
+                reasonCode: "insufficient",
+                requiredRamGb: 32,
+                requiredVramGb: 20,
+                availableRamGb: 36,
+                availableVramGb: 18,
                 label: "Not recommended",
                 reason: "Needs about ~32 GB RAM / ~20 GB VRAM.",
-              },
+              }),
             ],
           },
           ...createModelsState().targets.slice(1),
@@ -374,12 +386,14 @@ describe("renderModelsHub", () => {
 
     render(renderModelsHub(props), container);
 
-    expect(container.textContent).toContain("Qwen3 32B");
-    expect(container.textContent).toContain("Needs about ~32 GB RAM / ~20 GB VRAM.");
+    expect(container.textContent).not.toContain("Qwen3 32B");
+    expect(container.textContent).toContain(
+      "Qwen3 32B needs more RAM or VRAM than this computer has.",
+    );
     const blockedInstallButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),
     ).find((button) => button.textContent?.trim() === "Install" && button.disabled);
-    expect(blockedInstallButton).toBeTruthy();
+    expect(blockedInstallButton).toBeFalsy();
   });
 
   it("keeps update progress copy in sync with the update action", () => {

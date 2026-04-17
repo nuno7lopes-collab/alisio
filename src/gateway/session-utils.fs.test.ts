@@ -542,39 +542,42 @@ describe("readSessionMessages", () => {
     const sessionId = "test-session-active-branch";
     const transcriptPath = path.join(tmpDir, `${sessionId}.jsonl`);
     const sessionManager = SessionManager.open(transcriptPath);
+    const transientAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "erro temporário" }],
+      stopReason: "error",
+      timestamp: 2,
+    } as unknown as Parameters<typeof sessionManager.appendMessage>[0];
+    const repeatedUserPrompt = {
+      role: "user",
+      content: [{ type: "text", text: "abre o google" }],
+      timestamp: 3,
+    } as unknown as Parameters<typeof sessionManager.appendMessage>[0];
+    const finalAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Abri o Google." }],
+      timestamp: 4,
+    } as unknown as Parameters<typeof sessionManager.appendMessage>[0];
     const userId = sessionManager.appendMessage({
       role: "user",
       content: [{ type: "text", text: "abre o google" }],
       timestamp: 1,
     });
-    sessionManager.appendMessage({
-      role: "assistant",
-      content: [{ type: "text", text: "erro temporário" }],
-      stopReason: "error",
-      timestamp: 2,
-    });
-    sessionManager.appendMessage({
-      role: "user",
-      content: [{ type: "text", text: "abre o google" }],
-      timestamp: 3,
-    });
+    sessionManager.appendMessage(transientAssistantReply);
+    sessionManager.appendMessage(repeatedUserPrompt);
     restoreTranscriptLeafInSessionManager({
       sessionManager,
       targetEntryId: userId,
     });
-    sessionManager.appendMessage({
-      role: "assistant",
-      content: [{ type: "text", text: "Abri o Google." }],
-      timestamp: 4,
-    });
+    sessionManager.appendMessage(finalAssistantReply);
 
     const out = readSessionMessages(sessionId, storePath);
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({ role: "user" });
     expect(out[1]).toMatchObject({ role: "assistant" });
-    expect(
-      (out[0] as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? "",
-    ).toContain("abre o google");
+    expect((out[0] as { content?: Array<{ text?: string }> }).content?.[0]?.text ?? "").toContain(
+      "abre o google",
+    );
   });
 });
 

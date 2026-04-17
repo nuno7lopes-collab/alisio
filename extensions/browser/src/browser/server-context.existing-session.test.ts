@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import type { BrowserServerState } from "./server-context.js";
 
 vi.mock("./chrome-mcp.js", () => ({
@@ -54,6 +55,7 @@ function makeState(): BrowserServerState {
       extraArgs: [],
       ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     },
+    authCache: createBrowserSessionAuthCache(),
     profiles: new Map(),
   };
 }

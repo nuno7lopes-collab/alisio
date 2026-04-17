@@ -15,6 +15,7 @@ import type { ToolFsPolicy } from "./tool-fs-policy.js";
 import { createAgentsListTool } from "./tools/agents-list-tool.js";
 import { createCanvasTool } from "./tools/canvas-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
+import { createComputerTool } from "./tools/computer-tool.js";
 import { createCronTool } from "./tools/cron-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
 import { createGitHubTool } from "./tools/github-tool.js";
@@ -195,6 +196,10 @@ export function createAlisioTools(
       });
   const tools: AnyAgentTool[] = [
     createCanvasTool({ config: options?.config }),
+    createComputerTool({
+      agentSessionKey: options?.agentSessionKey,
+      config: options?.config,
+    }),
     createNodesTool({
       agentSessionKey: options?.agentSessionKey,
       agentChannel: options?.agentChannel,

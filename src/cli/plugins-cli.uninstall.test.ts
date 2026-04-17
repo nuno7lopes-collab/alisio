@@ -4,7 +4,7 @@ import type { AlisioConfig } from "../config/config.js";
 import {
   buildPluginStatusReport,
   loadConfig,
-  parseClawHubPluginSpec,
+  parseMarketplaceRegistryPluginSpec,
   promptYesNo,
   resetPluginsCliTestState,
   runPluginsCommand,
@@ -124,7 +124,7 @@ describe("plugins cli uninstall", () => {
     expect(uninstallPlugin).not.toHaveBeenCalled();
   });
 
-  it("accepts the recorded ClawHub spec as an uninstall target", async () => {
+  it("accepts the recorded legacy marketplace spec as an uninstall target", async () => {
     loadConfig.mockReturnValue({
       plugins: {
         entries: {
@@ -134,7 +134,7 @@ describe("plugins cli uninstall", () => {
           "linkmind-context": {
             source: "npm",
             spec: "clawhub:linkmind-context",
-            clawhubPackage: "linkmind-context",
+            marketplacePackage: "linkmind-context",
           },
         },
       },
@@ -143,7 +143,7 @@ describe("plugins cli uninstall", () => {
       plugins: [{ id: "linkmind-context", name: "linkmind-context" }],
       diagnostics: [],
     });
-    parseClawHubPluginSpec.mockImplementation((raw: string) =>
+    parseMarketplaceRegistryPluginSpec.mockImplementation((raw: string) =>
       raw === "clawhub:linkmind-context" ? { name: "linkmind-context" } : null,
     );
 
@@ -156,7 +156,7 @@ describe("plugins cli uninstall", () => {
     );
   });
 
-  it("accepts a versionless ClawHub spec when the install was pinned", async () => {
+  it("accepts a versionless legacy marketplace spec when the install was pinned", async () => {
     loadConfig.mockReturnValue({
       plugins: {
         entries: {
@@ -174,7 +174,7 @@ describe("plugins cli uninstall", () => {
       plugins: [{ id: "linkmind-context", name: "linkmind-context" }],
       diagnostics: [],
     });
-    parseClawHubPluginSpec.mockImplementation((raw: string) => {
+    parseMarketplaceRegistryPluginSpec.mockImplementation((raw: string) => {
       if (raw === "clawhub:linkmind-context") {
         return { name: "linkmind-context" };
       }

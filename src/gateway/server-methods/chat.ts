@@ -11,8 +11,8 @@ import {
   DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
   stripHeartbeatToken,
 } from "../../auto-reply/heartbeat.js";
-import { stripInboundMetadata } from "../../auto-reply/reply/strip-inbound-meta.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
+import { stripInboundMetadata } from "../../auto-reply/reply/strip-inbound-meta.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
@@ -1181,7 +1181,7 @@ function collapseInvisibleRetryHistoryArtifacts(messages: unknown[]): unknown[] 
     return messages;
   }
   const collapsed: unknown[] = [];
-  let retryCandidateUser: unknown | null = null;
+  let retryCandidateUser: unknown = null;
   let changed = false;
   for (const message of messages) {
     if (isInvisibleRetryHistoryMessage(message)) {
@@ -1218,11 +1218,7 @@ function collapseAdjacentRetryDuplicateUserMessages(messages: unknown[]): unknow
     if (previous && areEquivalentRetryDuplicateUserMessages(previous, message)) {
       const previousTs = readChatHistoryMessageTimestamp(previous);
       const nextTs = readChatHistoryMessageTimestamp(message);
-      if (
-        previousTs === null ||
-        nextTs === null ||
-        Math.abs(nextTs - previousTs) <= 5 * 60_000
-      ) {
+      if (previousTs === null || nextTs === null || Math.abs(nextTs - previousTs) <= 5 * 60_000) {
         changed = true;
         continue;
       }

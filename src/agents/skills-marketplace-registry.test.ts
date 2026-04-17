@@ -3,22 +3,22 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fetchClawHubSkillDetailMock = vi.fn();
-const downloadClawHubSkillArchiveMock = vi.fn();
-const listClawHubSkillsMock = vi.fn();
-const resolveClawHubBaseUrlMock = vi.fn(() => "https://clawhub.ai");
-const searchClawHubSkillsMock = vi.fn();
+const fetchMarketplaceRegistrySkillDetailMock = vi.fn();
+const downloadMarketplaceRegistrySkillArchiveMock = vi.fn();
+const listMarketplaceRegistrySkillsMock = vi.fn();
+const resolveMarketplaceRegistryBaseUrlMock = vi.fn(() => "https://clawhub.ai");
+const searchMarketplaceRegistrySkillsMock = vi.fn();
 const archiveCleanupMock = vi.fn();
 const withExtractedArchiveRootMock = vi.fn();
 const installPackageDirMock = vi.fn();
 const fileExistsMock = vi.fn();
 
 vi.mock("../infra/skills-marketplace-registry.js", () => ({
-  fetchMarketplaceSkillDetail: fetchClawHubSkillDetailMock,
-  downloadMarketplaceSkillArchive: downloadClawHubSkillArchiveMock,
-  listMarketplaceSkills: listClawHubSkillsMock,
-  resolveSkillsMarketplaceBaseUrl: resolveClawHubBaseUrlMock,
-  searchMarketplaceSkills: searchClawHubSkillsMock,
+  fetchMarketplaceSkillDetail: fetchMarketplaceRegistrySkillDetailMock,
+  downloadMarketplaceSkillArchive: downloadMarketplaceRegistrySkillArchiveMock,
+  listMarketplaceSkills: listMarketplaceRegistrySkillsMock,
+  resolveSkillsMarketplaceBaseUrl: resolveMarketplaceRegistryBaseUrlMock,
+  searchMarketplaceSkills: searchMarketplaceRegistrySkillsMock,
 }));
 
 vi.mock("../infra/install-flow.js", () => ({
@@ -38,19 +38,19 @@ const { installMarketplaceRegistrySkill, searchSkillsFromMarketplace, updateMark
 
 describe("skills marketplace", () => {
   beforeEach(() => {
-    fetchClawHubSkillDetailMock.mockReset();
-    downloadClawHubSkillArchiveMock.mockReset();
-    listClawHubSkillsMock.mockReset();
-    resolveClawHubBaseUrlMock.mockReset();
-    searchClawHubSkillsMock.mockReset();
+    fetchMarketplaceRegistrySkillDetailMock.mockReset();
+    downloadMarketplaceRegistrySkillArchiveMock.mockReset();
+    listMarketplaceRegistrySkillsMock.mockReset();
+    resolveMarketplaceRegistryBaseUrlMock.mockReset();
+    searchMarketplaceRegistrySkillsMock.mockReset();
     archiveCleanupMock.mockReset();
     withExtractedArchiveRootMock.mockReset();
     installPackageDirMock.mockReset();
     fileExistsMock.mockReset();
 
-    resolveClawHubBaseUrlMock.mockReturnValue("https://clawhub.ai");
+    resolveMarketplaceRegistryBaseUrlMock.mockReturnValue("https://clawhub.ai");
     fileExistsMock.mockImplementation(async (input: string) => input.endsWith("SKILL.md"));
-    fetchClawHubSkillDetailMock.mockResolvedValue({
+    fetchMarketplaceRegistrySkillDetailMock.mockResolvedValue({
       skill: {
         slug: "agentreceipt",
         displayName: "AgentReceipt",
@@ -62,13 +62,13 @@ describe("skills marketplace", () => {
         createdAt: 3,
       },
     });
-    downloadClawHubSkillArchiveMock.mockResolvedValue({
+    downloadMarketplaceRegistrySkillArchiveMock.mockResolvedValue({
       archivePath: "/tmp/agentreceipt.zip",
       integrity: "sha256-test",
       cleanup: archiveCleanupMock,
     });
     archiveCleanupMock.mockResolvedValue(undefined);
-    searchClawHubSkillsMock.mockResolvedValue([]);
+    searchMarketplaceRegistrySkillsMock.mockResolvedValue([]);
     withExtractedArchiveRootMock.mockImplementation(async (params) => {
       expect(params.rootMarkers).toEqual(["SKILL.md"]);
       return await params.onExtracted("/tmp/extracted-skill");
@@ -79,13 +79,13 @@ describe("skills marketplace", () => {
     });
   });
 
-  it("installs ClawHub skills from flat-root archives", async () => {
+  it("installs marketplace skills from flat-root archives", async () => {
     const result = await installMarketplaceRegistrySkill({
       workspaceDir: "/tmp/workspace",
       slug: "agentreceipt",
     });
 
-    expect(downloadClawHubSkillArchiveMock).toHaveBeenCalledWith({
+    expect(downloadMarketplaceRegistrySkillArchiveMock).toHaveBeenCalledWith({
       slug: "agentreceipt",
       version: "1.0.0",
       baseUrl: undefined,
@@ -164,11 +164,11 @@ describe("skills marketplace", () => {
           workspaceDir,
         });
 
-        expect(fetchClawHubSkillDetailMock).toHaveBeenCalledWith({
+        expect(fetchMarketplaceRegistrySkillDetailMock).toHaveBeenCalledWith({
           slug,
           baseUrl: "https://legacy.clawhub.ai",
         });
-        expect(downloadClawHubSkillArchiveMock).toHaveBeenCalledWith({
+        expect(downloadMarketplaceRegistrySkillArchiveMock).toHaveBeenCalledWith({
           slug,
           version: "1.0.0",
           baseUrl: "https://legacy.clawhub.ai",
@@ -339,7 +339,7 @@ describe("skills marketplace", () => {
   });
 
   it("uses search for browse-all skill discovery", async () => {
-    searchClawHubSkillsMock.mockResolvedValueOnce([
+    searchMarketplaceRegistrySkillsMock.mockResolvedValueOnce([
       {
         score: 1,
         slug: "calendar",
@@ -360,11 +360,11 @@ describe("skills marketplace", () => {
         updatedAt: 123,
       },
     ]);
-    expect(searchClawHubSkillsMock).toHaveBeenCalledWith({
+    expect(searchMarketplaceRegistrySkillsMock).toHaveBeenCalledWith({
       query: "*",
       limit: 20,
       baseUrl: undefined,
     });
-    expect(listClawHubSkillsMock).not.toHaveBeenCalled();
+    expect(listMarketplaceRegistrySkillsMock).not.toHaveBeenCalled();
   });
 });

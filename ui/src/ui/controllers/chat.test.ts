@@ -15,6 +15,12 @@ import {
   type ChatEventPayload,
   type ChatState,
 } from "./chat.ts";
+import {
+  loadComputerSession,
+  readComputerSessionEvent,
+  readComputerSessionState,
+  updateComputerSession,
+} from "./computer-session.ts";
 
 function createState(overrides: Partial<ChatState> = {}): ChatState {
   return {
@@ -142,6 +148,136 @@ describe("browser pane controller helpers", () => {
       sessionKey: "main",
       observer: null,
     });
+  });
+
+  it("parses computer session updates from tool events", () => {
+    const session = {
+      sessionKey: "main",
+      backend: "local-mac" as const,
+      status: "observing" as const,
+      mode: "control-approved-apps" as const,
+      approvedApps: [],
+      permissions: {
+        accessibility: true,
+        screenRecording: false,
+      },
+      context: {
+        display: {
+          width: 1440,
+          height: 900,
+          scale: 2,
+        },
+        capturedAt: 10,
+      },
+      frame: {
+        dataUrl: "data:image/jpeg;base64,abc",
+        mimeType: "image/jpeg",
+        width: 1440,
+        height: 900,
+        capturedAt: 10,
+      },
+      timeline: [],
+      startedAt: 1,
+      updatedAt: 10,
+    };
+
+    expect(
+      readComputerSessionEvent({
+        stream: "tool",
+        sessionKey: "main",
+        data: {
+          name: "computer",
+          partialResult: {
+            details: {
+              computerSession: session,
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      sessionKey: "main",
+      session,
+    });
+    expect(readComputerSessionState({ status: "observing" })).toBeNull();
+  });
+
+  it("treats missing computer session methods as a silent no-op", async () => {
+    const host = {
+      client: {
+        request: vi.fn(async () => {
+          throw new GatewayRequestError({
+            code: "METHOD_NOT_FOUND",
+            message: "unknown method",
+          });
+        }),
+      },
+      connected: true,
+      sessionKey: "main",
+      computerSessionLoading: false,
+      computerSessionError: null,
+      setComputerSession: vi.fn(),
+    };
+
+    const session = await loadComputerSession(host);
+
+    expect(session).toBeNull();
+    expect(host.setComputerSession).toHaveBeenCalledWith("main", null);
+    expect(host.computerSessionError).toBeNull();
+  });
+
+  it("sends permissions through computer session updates", async () => {
+    const responseSession = {
+      sessionKey: "main",
+      backend: "local-mac" as const,
+      status: "observing" as const,
+      mode: "control-approved-apps" as const,
+      approvedApps: [],
+      permissions: {
+        accessibility: true,
+        screenRecording: true,
+      },
+      context: {
+        display: {
+          width: 1440,
+          height: 900,
+          scale: 2,
+        },
+        capturedAt: 10,
+      },
+      frame: {
+        dataUrl: "data:image/jpeg;base64,abc",
+        mimeType: "image/jpeg",
+        width: 1440,
+        height: 900,
+        capturedAt: 10,
+      },
+      timeline: [],
+      startedAt: 1,
+      updatedAt: 10,
+    };
+    const host = {
+      client: {
+        request: vi.fn(async () => ({ session: responseSession })),
+      },
+      connected: true,
+      sessionKey: "main",
+      computerSessionLoading: false,
+      computerSessionError: null,
+      setComputerSession: vi.fn(),
+    };
+
+    const session = await updateComputerSession(
+      host as Parameters<typeof updateComputerSession>[0],
+      {
+        permissions: { screenRecording: true },
+      },
+    );
+
+    expect(host.client.request).toHaveBeenCalledWith("computer.session.update", {
+      sessionKey: "main",
+      permissions: { screenRecording: true },
+    });
+    expect(session?.permissions.screenRecording).toBe(true);
   });
 
   it("merges a persisted replay of the same user turn even when transcript and optimistic ids differ", () => {
@@ -1323,7 +1459,7 @@ describe("loadChatHistory", () => {
 
 describe("sendChatMessage", () => {
   it("dedupes repeated pending sends with the same semantic payload", async () => {
-    let resolveRequest: ((value: { status: "started" }) => void) | null = null;
+    let resolveRequest!: (value: { status: "started" }) => void;
     const request = vi.fn(
       () =>
         new Promise<{ status: "started" }>((resolve) => {
@@ -1339,7 +1475,7 @@ describe("sendChatMessage", () => {
     const secondSend = sendChatMessage(state, "  abre   o   google  ");
 
     expect(request).toHaveBeenCalledTimes(1);
-    resolveRequest?.({ status: "started" });
+    resolveRequest({ status: "started" });
     const firstRunId = await firstSend;
     const secondRunId = await secondSend;
     expect(firstRunId).toBeTruthy();
@@ -1347,9 +1483,7 @@ describe("sendChatMessage", () => {
     expect(
       state.chatMessages.filter(
         (message) =>
-          message &&
-          typeof message === "object" &&
-          (message as { role?: unknown }).role === "user",
+          message && typeof message === "object" && (message as { role?: unknown }).role === "user",
       ),
     ).toHaveLength(1);
   });
@@ -1379,9 +1513,7 @@ describe("sendChatMessage", () => {
     expect(
       state.chatMessages.filter(
         (message) =>
-          message &&
-          typeof message === "object" &&
-          (message as { role?: unknown }).role === "user",
+          message && typeof message === "object" && (message as { role?: unknown }).role === "user",
       ),
     ).toHaveLength(1);
   });

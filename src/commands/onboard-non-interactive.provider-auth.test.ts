@@ -44,7 +44,7 @@ vi.mock("./onboard-non-interactive/local/auth-choice.plugin-providers.js", async
     import("../plugins/provider-api-key-auth.js"),
     import("../plugins/provider-api-key-auth.runtime.js"),
     import("../plugins/provider-self-hosted-setup.js"),
-    import("./zai-endpoint-detect.js"),
+    import("../plugins/provider-zai-endpoint.js"),
     import("../plugin-sdk/openai.js"),
   ]);
 
@@ -1484,20 +1484,17 @@ describe("onboard (non-interactive): provider auth", () => {
   });
 
   it("fails custom provider auth when compatibility is invalid", async () => {
-    await withOnboardEnv(
-      "alisio-onboard-custom-provider-invalid-compat-",
-      async ({ runtime }) => {
-        await expect(
-          runNonInteractiveSetupWithDefaults(runtime, {
-            authChoice: "custom-api-key",
-            customBaseUrl: "https://models.custom.local/v1",
-            customModelId: "local-large",
-            customCompatibility: "xmlrpc",
-            skipSkills: true,
-          }),
-        ).rejects.toThrow('Invalid --custom-compatibility (use "openai" or "anthropic").');
-      },
-    );
+    await withOnboardEnv("alisio-onboard-custom-provider-invalid-compat-", async ({ runtime }) => {
+      await expect(
+        runNonInteractiveSetupWithDefaults(runtime, {
+          authChoice: "custom-api-key",
+          customBaseUrl: "https://models.custom.local/v1",
+          customModelId: "local-large",
+          customCompatibility: "xmlrpc",
+          skipSkills: true,
+        }),
+      ).rejects.toThrow('Invalid --custom-compatibility (use "openai" or "anthropic").');
+    });
   });
 
   it("fails custom provider auth when explicit provider id is invalid", async () => {

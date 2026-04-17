@@ -57,6 +57,11 @@ export type WizardStatusResult =
 export type WizardStep = import("../../../src/gateway/protocol/index.js").WizardStep;
 export type AlisioAuthStage = "entry" | "email-link";
 import type { ProductChannelSurfaceMode } from "../../../src/channels/product-surface.shared.js";
+import type {
+  ComputerApprovalMode,
+  ComputerPermissionState,
+  ComputerSessionState,
+} from "../../../src/computer/types.js";
 import type { CronJobBase } from "../../../src/cron/types-shared.js";
 import type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
 import type {
@@ -454,7 +459,9 @@ export type AgentIdentityResult = {
   agentId: string;
   name: string;
   avatar: string;
+  avatarUrl?: string;
   emoji?: string;
+  theme?: string;
 };
 
 export type AgentFileEntry = {
@@ -547,6 +554,31 @@ export type GatewaySessionRow = {
   model?: string;
   modelProvider?: string;
   contextTokens?: number;
+};
+
+export type {
+  ComputerActionType,
+  ComputerApprovalMode,
+  ComputerApprovalRequest,
+  ComputerBackendKind,
+  ComputerFrame,
+  ComputerObservationContext,
+  ComputerPermissionState,
+  ComputerSessionState,
+  ComputerSessionStatus,
+  ComputerStructuredAction,
+  ComputerTimelineEntry,
+} from "../../../src/computer/types.js";
+
+export type ComputerSessionUpdateResult = {
+  sessionKey: string;
+  session: ComputerSessionState | null;
+};
+
+export type ComputerSessionPatch = {
+  command?: "pause" | "resume" | "stop";
+  mode?: ComputerApprovalMode;
+  permissions?: Partial<ComputerPermissionState>;
 };
 
 export type SessionsListResult = SessionsListResultBase<GatewaySessionsDefaults, GatewaySessionRow>;
@@ -727,8 +759,7 @@ export type CanonicalTaskSummary =
   import("../../../src/gateway/protocol/index.js").CanonicalTaskSummary;
 export type Task = import("../../../src/gateway/protocol/index.js").Task;
 export type TaskExecution = import("../../../src/gateway/protocol/index.js").TaskExecution;
-export type TaskExecutionStep =
-  import("../../../src/gateway/protocol/index.js").TaskExecutionStep;
+export type TaskExecutionStep = import("../../../src/gateway/protocol/index.js").TaskExecutionStep;
 export type TaskAssignment = import("../../../src/gateway/protocol/index.js").TaskAssignment;
 export type TaskApproval = import("../../../src/gateway/protocol/index.js").TaskApproval;
 export type TaskEvent = import("../../../src/gateway/protocol/index.js").TaskEvent;
@@ -746,8 +777,7 @@ export type TaskMaintenanceSummary =
   import("../../../src/gateway/protocol/index.js").TaskMaintenanceSummary;
 export type TasksOverviewResult =
   import("../../../src/gateway/protocol/index.js").TasksOverviewResult;
-export type TasksDetailResult =
-  import("../../../src/gateway/protocol/index.js").TasksDetailResult;
+export type TasksDetailResult = import("../../../src/gateway/protocol/index.js").TasksDetailResult;
 
 export type TaskProposalDraft = {
   clientKey: string;

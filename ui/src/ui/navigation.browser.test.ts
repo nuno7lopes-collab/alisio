@@ -190,7 +190,9 @@ describe("control UI routing", () => {
     await vi.waitFor(async () => {
       await app.updateComplete;
       expect(app.querySelector(".dashboard-header__title")?.textContent).toContain("Definições");
-      expect(app.querySelector(".alisio-settings-field--inline select")?.value).toBe("pt-PT");
+      expect(
+        app.querySelector<HTMLSelectElement>(".alisio-settings-field--inline select")?.value,
+      ).toBe("pt-PT");
     });
   });
 

@@ -39,6 +39,7 @@ import { detectTextDirection } from "../text-direction.ts";
 import type {
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
+  ComputerSessionState,
   GatewaySessionRow,
   SessionsListResult,
   TaskProposalDraft,
@@ -112,6 +113,9 @@ export type ChatProps = {
   sidebarError?: string | null;
   browserPaneSurfaceKind?: BrowserPaneSurfaceKind;
   browserPaneObserver?: BrowserPaneObserver | null;
+  computerSessionLoading?: boolean;
+  computerSessionError?: string | null;
+  computerSession?: ComputerSessionState | null;
   splitRatio?: number;
   assistantName: string;
   assistantAvatar: string | null;
@@ -146,6 +150,9 @@ export type ChatProps = {
   onOpenSidebar?: (content: string) => void;
   onCloseSidebar?: () => void;
   onSelectBrowserPaneSurface?: (surface: BrowserPaneSurfaceKind) => void;
+  onComputerSessionCommand?: (command: "pause" | "resume" | "stop") => void;
+  onComputerSessionApproval?: (decision: "allow-once" | "allow-session" | "deny") => void;
+  onRequestComputerPermission?: (permission: "accessibility" | "screenRecording") => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
   composerModelSelect?: TemplateResult | typeof nothing;
@@ -844,6 +851,12 @@ const WELCOME_FEATURED_CONNECTORS = [
     connectedActionKey: "welcome.featuredApps.googleCalendarConnectedAction",
     promptKey: "welcome.featuredApps.googleCalendarPrompt",
   },
+  {
+    connectActionKey: "welcome.featuredApps.youtubeConnectAction",
+    id: "youtube",
+    connectedActionKey: "welcome.featuredApps.youtubeConnectedAction",
+    promptKey: "welcome.featuredApps.youtubePrompt",
+  },
 ] as const;
 
 type WelcomeFeaturedConnector = (typeof WELCOME_FEATURED_CONNECTORS)[number];
@@ -1347,7 +1360,10 @@ export function renderChat(props: ChatProps) {
   const sidebarOpen = Boolean(
     props.sidebarOpen &&
     props.onCloseSidebar &&
-    (props.browserPaneObserver || browserPaneMarkdown.content || browserPaneMarkdown.error),
+    (props.browserPaneObserver ||
+      props.computerSession ||
+      browserPaneMarkdown.content ||
+      browserPaneMarkdown.error),
   );
 
   const handleCodeBlockCopy = (e: Event) => {
@@ -1727,9 +1743,15 @@ export function renderChat(props: ChatProps) {
               <div class="chat-sidebar">
                 ${renderBrowserPane({
                   observer: props.browserPaneObserver ?? null,
+                  computer: props.computerSession ?? null,
+                  computerLoading: props.computerSessionLoading ?? false,
+                  computerError: props.computerSessionError ?? null,
                   markdown: browserPaneMarkdown,
                   selectedSurface: props.browserPaneSurfaceKind ?? "observer",
                   onSelectSurface: props.onSelectBrowserPaneSurface,
+                  onComputerSessionCommand: props.onComputerSessionCommand,
+                  onComputerSessionApproval: props.onComputerSessionApproval,
+                  onRequestComputerPermission: props.onRequestComputerPermission,
                   onClose: props.onCloseSidebar!,
                   onViewRawText: () => {
                     if (!props.sidebarContent || !props.onOpenSidebar) {

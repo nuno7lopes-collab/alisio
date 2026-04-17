@@ -653,25 +653,33 @@ public struct AgentIdentityResult: Codable, Sendable {
     public let agentid: String
     public let name: String?
     public let avatar: String?
+    public let avatarurl: String?
     public let emoji: String?
+    public let theme: String?
 
     public init(
         agentid: String,
         name: String?,
         avatar: String?,
-        emoji: String?)
+        avatarurl: String?,
+        emoji: String?,
+        theme: String?)
     {
         self.agentid = agentid
         self.name = name
         self.avatar = avatar
+        self.avatarurl = avatarurl
         self.emoji = emoji
+        self.theme = theme
     }
 
     private enum CodingKeys: String, CodingKey {
         case agentid = "agentId"
         case name
         case avatar
+        case avatarurl = "avatarUrl"
         case emoji
+        case theme
     }
 }
 

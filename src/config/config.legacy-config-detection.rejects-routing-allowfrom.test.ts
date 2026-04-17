@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { migrateLegacyConfig } from "./legacy-migrate.js";
-import type { AlisioConfig } from "./types.js";
 import { validateConfigObject } from "./validation.js";
 
 function getChannelConfig(config: unknown, provider: string) {
@@ -375,30 +374,17 @@ describe("legacy config detection", () => {
         expect(channel?.groupPolicy, provider).toBe("allowlist");
         if (provider === "telegram") {
           expect(channel?.streaming, provider).toBe("partial");
-          expect(channel?.streamMode, provider).toBeUndefined();
         }
       }
     },
   );
   it.each([
     {
-      name: "top-level off",
-      input: { channels: { telegram: { streamMode: "off" } } },
-      assert: (config: NonNullable<AlisioConfig>) => {
-        expect(config.channels?.telegram?.streaming).toBe("off");
-        expect(config.channels?.telegram?.streamMode).toBeUndefined();
-      },
+      name: "telegram streamMode alias",
+      input: { channels: { telegram: { streamMode: "off" } } } as never,
     },
     {
-      name: "top-level block",
-      input: { channels: { telegram: { streamMode: "block" } } },
-      assert: (config: NonNullable<AlisioConfig>) => {
-        expect(config.channels?.telegram?.streaming).toBe("block");
-        expect(config.channels?.telegram?.streamMode).toBeUndefined();
-      },
-    },
-    {
-      name: "per-account off",
+      name: "telegram account streamMode alias",
       input: {
         channels: {
           telegram: {
@@ -409,78 +395,18 @@ describe("legacy config detection", () => {
             },
           },
         },
-      },
-      assert: (config: NonNullable<AlisioConfig>) => {
-        expect(config.channels?.telegram?.accounts?.ops?.streaming).toBe("off");
-        expect(config.channels?.telegram?.accounts?.ops?.streamMode).toBeUndefined();
-      },
+      } as never,
     },
-  ] as const)("normalizes telegram legacy streamMode alias: $name", ({ input, assert, name }) => {
-    const res = validateConfigObject(input);
-    expect(res.ok, name).toBe(true);
-    if (res.ok) {
-      assert(res.config);
-    }
-  });
-
-  it.each([
     {
-      name: "boolean streaming=true",
+      name: "discord boolean streaming alias",
       input: { channels: { discord: { streaming: true } } },
-      expectedChanges: ["Normalized channels.discord.streaming boolean → enum (partial)."],
-      expectedStreaming: "partial",
     },
     {
-      name: "streamMode with streaming boolean",
-      input: { channels: { discord: { streaming: false, streamMode: "block" } } },
-      expectedChanges: [
-        "Moved channels.discord.streamMode → channels.discord.streaming (block).",
-        "Normalized channels.discord.streaming boolean → enum (block).",
-      ],
-      expectedStreaming: "block",
-    },
-  ] as const)(
-    "normalizes discord streaming fields during legacy migration: $name",
-    ({ input, expectedChanges, expectedStreaming, name }) => {
-      const res = migrateLegacyConfig(input);
-      for (const expectedChange of expectedChanges) {
-        expect(res.changes, name).toContain(expectedChange);
-      }
-      expect(res.config?.channels?.discord?.streaming, name).toBe(expectedStreaming);
-      expect(res.config?.channels?.discord?.streamMode, name).toBeUndefined();
-    },
-  );
-
-  it.each([
-    {
-      name: "streaming=true",
-      input: { channels: { discord: { streaming: true } } },
-      expectedStreaming: "partial",
+      name: "discord streamMode alias",
+      input: { channels: { discord: { streamMode: "block", streaming: "off" } } } as never,
     },
     {
-      name: "streaming=false",
-      input: { channels: { discord: { streaming: false } } },
-      expectedStreaming: "off",
-    },
-    {
-      name: "streamMode overrides streaming boolean",
-      input: { channels: { discord: { streamMode: "block", streaming: false } } },
-      expectedStreaming: "block",
-    },
-  ] as const)(
-    "normalizes discord streaming fields during validation: $name",
-    ({ input, expectedStreaming, name }) => {
-      const res = validateConfigObject(input);
-      expect(res.ok, name).toBe(true);
-      if (res.ok) {
-        expect(res.config.channels?.discord?.streaming, name).toBe(expectedStreaming);
-        expect(res.config.channels?.discord?.streamMode, name).toBeUndefined();
-      }
-    },
-  );
-  it.each([
-    {
-      name: "discord account streaming boolean",
+      name: "discord account boolean streaming alias",
       input: {
         channels: {
           discord: {
@@ -492,48 +418,39 @@ describe("legacy config detection", () => {
           },
         },
       },
-      assert: (config: NonNullable<AlisioConfig>) => {
-        expect(config.channels?.discord?.accounts?.work?.streaming).toBe("partial");
-        expect(config.channels?.discord?.accounts?.work?.streamMode).toBeUndefined();
-      },
     },
     {
       name: "slack streamMode alias",
-      input: {
-        channels: {
-          slack: {
-            streamMode: "status_final",
-          },
-        },
-      },
-      assert: (config: NonNullable<AlisioConfig>) => {
-        expect(config.channels?.slack?.streaming).toBe("progress");
-        expect(config.channels?.slack?.streamMode).toBeUndefined();
-        expect(config.channels?.slack?.nativeStreaming).toBe(true);
-      },
+      input: { channels: { slack: { streamMode: "status_final" } } } as never,
     },
     {
-      name: "slack streaming boolean legacy",
-      input: {
-        channels: {
-          slack: {
-            streaming: false,
-          },
-        },
-      },
-      assert: (config: NonNullable<AlisioConfig>) => {
-        expect(config.channels?.slack?.streaming).toBe("off");
-        expect(config.channels?.slack?.nativeStreaming).toBe(false);
-      },
+      name: "slack boolean streaming alias",
+      input: { channels: { slack: { streaming: false } } },
+    },
+  ] as const)("rejects removed streaming alias during validation: $name", ({ input, name }) => {
+    const res = validateConfigObject(input);
+    expect(res.ok, name).toBe(false);
+  });
+
+  it.each([
+    {
+      name: "telegram streamMode alias",
+      input: { channels: { telegram: { streamMode: "off" } } } as never,
+    },
+    {
+      name: "discord boolean streaming alias",
+      input: { channels: { discord: { streaming: true } } },
+    },
+    {
+      name: "slack streamMode alias",
+      input: { channels: { slack: { streamMode: "status_final" } } } as never,
     },
   ] as const)(
-    "normalizes account-level discord/slack streaming alias: $name",
-    ({ input, assert, name }) => {
-      const res = validateConfigObject(input);
-      expect(res.ok, name).toBe(true);
-      if (res.ok) {
-        assert(res.config);
-      }
+    "does not rewrite removed streaming alias during legacy migration: $name",
+    ({ input, name }) => {
+      const res = migrateLegacyConfig(input);
+      expect(res.config, name).toBeNull();
+      expect(res.changes, name).toEqual([]);
     },
   );
   it("accepts historyLimit overrides per provider and account", async () => {

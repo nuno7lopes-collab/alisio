@@ -717,19 +717,8 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
           additionalProperties: false,
         },
         streaming: {
-          anyOf: [
-            {
-              type: "boolean",
-            },
-            {
-              type: "string",
-              enum: ["off", "partial", "block", "progress"],
-            },
-          ],
-        },
-        streamMode: {
           type: "string",
-          enum: ["partial", "block", "off"],
+          enum: ["off", "partial", "block", "progress"],
         },
         draftChunk: {
           type: "object",
@@ -1925,19 +1914,8 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
                 additionalProperties: false,
               },
               streaming: {
-                anyOf: [
-                  {
-                    type: "boolean",
-                  },
-                  {
-                    type: "string",
-                    enum: ["off", "partial", "block", "progress"],
-                  },
-                ],
-              },
-              streamMode: {
                 type: "string",
-                enum: ["partial", "block", "off"],
+                enum: ["off", "partial", "block", "progress"],
               },
               draftChunk: {
                 type: "object",
@@ -2966,11 +2944,7 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       },
       streaming: {
         label: "Discord Streaming Mode",
-        help: 'Unified Discord stream preview mode: "off" | "partial" | "block" | "progress". "progress" maps to "partial" on Discord. Legacy boolean/streamMode keys are auto-mapped.',
-      },
-      streamMode: {
-        label: "Discord Stream Mode (Legacy)",
-        help: "Legacy Discord preview mode alias (off | partial | block); auto-migrated to channels.discord.streaming.",
+        help: 'Unified Discord stream preview mode: "off" | "partial" | "block" | "progress". "progress" maps to "partial" on Discord.',
       },
       "draftChunk.minChars": {
         label: "Discord Draft Chunk Min Chars",
@@ -9908,22 +9882,11 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
           additionalProperties: false,
         },
         streaming: {
-          anyOf: [
-            {
-              type: "boolean",
-            },
-            {
-              type: "string",
-              enum: ["off", "partial", "block", "progress"],
-            },
-          ],
+          type: "string",
+          enum: ["off", "partial", "block", "progress"],
         },
         nativeStreaming: {
           type: "boolean",
-        },
-        streamMode: {
-          type: "string",
-          enum: ["replace", "status_final", "append"],
         },
         mediaMaxMb: {
           type: "number",
@@ -10716,22 +10679,11 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
                 additionalProperties: false,
               },
               streaming: {
-                anyOf: [
-                  {
-                    type: "boolean",
-                  },
-                  {
-                    type: "string",
-                    enum: ["off", "partial", "block", "progress"],
-                  },
-                ],
+                type: "string",
+                enum: ["off", "partial", "block", "progress"],
               },
               nativeStreaming: {
                 type: "boolean",
-              },
-              streamMode: {
-                type: "string",
-                enum: ["replace", "status_final", "append"],
               },
               mediaMaxMb: {
                 type: "number",
@@ -11164,15 +11116,11 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       },
       streaming: {
         label: "Slack Streaming Mode",
-        help: 'Unified Slack stream preview mode: "off" | "partial" | "block" | "progress". Legacy boolean/streamMode keys are auto-mapped.',
+        help: 'Unified Slack stream preview mode: "off" | "partial" | "block" | "progress".',
       },
       nativeStreaming: {
         label: "Slack Native Streaming",
         help: "Enable native Slack text streaming (chat.startStream/chat.appendStream/chat.stopStream) when channels.slack.streaming is partial (default: true).",
-      },
-      streamMode: {
-        label: "Slack Stream Mode (Legacy)",
-        help: "Legacy Slack preview mode alias (replace | status_final | append); auto-migrated to channels.slack.streaming.",
       },
       "thread.historyScope": {
         label: "Slack Thread History Scope",
@@ -11823,15 +11771,8 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
           enum: ["length", "newline"],
         },
         streaming: {
-          anyOf: [
-            {
-              type: "boolean",
-            },
-            {
-              type: "string",
-              enum: ["off", "partial", "block", "progress"],
-            },
-          ],
+          type: "string",
+          enum: ["off", "partial", "block", "progress"],
         },
         blockStreaming: {
           type: "boolean",
@@ -11888,10 +11829,6 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
             },
           },
           additionalProperties: false,
-        },
-        streamMode: {
-          type: "string",
-          enum: ["off", "partial", "block"],
         },
         mediaMaxMb: {
           type: "number",
@@ -12774,15 +12711,8 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
                 enum: ["length", "newline"],
               },
               streaming: {
-                anyOf: [
-                  {
-                    type: "boolean",
-                  },
-                  {
-                    type: "string",
-                    enum: ["off", "partial", "block", "progress"],
-                  },
-                ],
+                type: "string",
+                enum: ["off", "partial", "block", "progress"],
               },
               blockStreaming: {
                 type: "boolean",
@@ -12839,10 +12769,6 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
                   },
                 },
                 additionalProperties: false,
-              },
-              streamMode: {
-                type: "string",
-                enum: ["off", "partial", "block"],
               },
               mediaMaxMb: {
                 type: "number",
@@ -13153,7 +13079,7 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       },
       streaming: {
         label: "Telegram Streaming Mode",
-        help: 'Unified Telegram stream preview mode: "off" | "partial" | "block" | "progress" (default: "partial"). "progress" maps to "partial" on Telegram. Legacy boolean/streamMode keys are auto-mapped.',
+        help: 'Unified Telegram stream preview mode: "off" | "partial" | "block" | "progress" (default: "partial"). "progress" maps to "partial" on Telegram.',
       },
       "retry.attempts": {
         label: "Telegram Retry Attempts",

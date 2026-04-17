@@ -431,22 +431,69 @@ describe("tasksHandlers", () => {
     });
   });
 
-  it("filters and paginates the task overview", async () => {
-    const matchingTask = createTask({
-      taskId: "task-running",
-      runtime: "subagent",
-      task: "Inspect background task state",
-      status: "running",
+  it("filters and paginates canonical tasks in the overview while preserving the toolbar state", async () => {
+    const matchingTask = createCanonicalTask({
+      taskId: "canonical-task-running",
+      rootTaskId: "canonical-task-running",
+      title: "Background follow-up orchestration",
+      requesterSessionKey: "agent:main:main",
+      status: "in_progress",
+      updatedAt: 5_000,
     });
-    const nonMatchingTask = createTask({
-      taskId: "task-failed",
-      runtime: "cron",
-      task: "Cron follow-up",
-      status: "failed",
+    const nonMatchingTask = createCanonicalTask({
+      taskId: "canonical-task-failed",
+      rootTaskId: "canonical-task-failed",
+      title: "Cron retry worker",
+      requesterSessionKey: "agent:main:main",
+      status: "completed",
+      updatedAt: 4_000,
     });
-    mocks.reconcileInspectableTasksMock.mockReturnValue([matchingTask, nonMatchingTask]);
+    mocks.listTasksMock.mockReturnValue([matchingTask, nonMatchingTask]);
+    mocks.getTaskBundleMock.mockImplementation((taskId: string) => {
+      if (taskId === matchingTask.taskId) {
+        return {
+          task: matchingTask,
+          children: [],
+          executions: [
+            createExecution({
+              executionId: "execution-running",
+              taskId,
+              kind: "orchestrator_session",
+              status: "running",
+              sessionKey: "agent:main:task:running",
+            }),
+          ],
+          assignments: [],
+          approvals: [],
+          events: [createEvent({ taskId, actor: "nuno" })],
+          steps: [],
+          dependencies: [],
+        };
+      }
+      if (taskId === nonMatchingTask.taskId) {
+        return {
+          task: nonMatchingTask,
+          children: [],
+          executions: [
+            createExecution({
+              executionId: "execution-failed",
+              taskId,
+              kind: "cron",
+              status: "succeeded",
+              sessionKey: "cron:task:1",
+            }),
+          ],
+          assignments: [],
+          approvals: [],
+          events: [createEvent({ eventId: "event-failed", taskId, actor: "cron" })],
+          steps: [],
+          dependencies: [],
+        };
+      }
+      return null;
+    });
     const opts = createOptions("tasks.overview", {
-      runtime: "subagent",
+      runtime: "orchestrator_session",
       status: "running",
       query: "background",
       limit: 1,
@@ -455,7 +502,6 @@ describe("tasksHandlers", () => {
 
     await tasksHandlers["tasks.overview"](opts);
 
-    expect(mocks.summarizeTaskRecordsMock).toHaveBeenCalledWith([matchingTask]);
     expect(opts.respond).toHaveBeenCalledWith(
       true,
       expect.objectContaining({
@@ -471,11 +517,22 @@ describe("tasksHandlers", () => {
           launched: 0,
         },
         proposals: [],
-        runtime: "subagent",
+        runtime: "orchestrator_session",
         status: "running",
         query: "background",
-        tasks: [matchingTask],
-        canonicalSteps: [],
+        canonicalTasks: [matchingTask],
+        canonicalExecutions: [
+          expect.objectContaining({
+            taskId: matchingTask.taskId,
+            kind: "orchestrator_session",
+            status: "running",
+          }),
+        ],
+        canonicalSummary: expect.objectContaining({
+          total: 2,
+          inProgress: 1,
+          completed: 1,
+        }),
       }),
       undefined,
     );
@@ -591,6 +648,110 @@ describe("tasksHandlers", () => {
         ],
       }),
       undefined,
+    );
+  });
+
+  it("returns canonical task detail from the dedicated detail handler", async () => {
+    const task = createCanonicalTask({
+      taskId: "canonical-task-1",
+      proposalId: "proposal-1",
+      status: "in_progress",
+    });
+    const childTask = createCanonicalTask({ taskId: "child-task-1", parentTaskId: task.taskId });
+    const proposal = createProposal({ proposalId: "proposal-1", launchedTaskId: task.taskId });
+    const execution = createExecution({
+      executionId: "execution-1",
+      taskId: task.taskId,
+      kind: "orchestrator_session",
+      status: "running",
+      sessionKey: "agent:main:task:1",
+    });
+    const childExecution = createExecution({
+      executionId: "execution-child-1",
+      taskId: childTask.taskId,
+      kind: "subagent",
+      status: "queued",
+    });
+    mocks.getTaskBundleMock.mockImplementation((taskId: string) => {
+      if (taskId === task.taskId) {
+        return {
+          task,
+          children: [childTask],
+          executions: [execution],
+          assignments: [createAssignment({ taskId: task.taskId })],
+          approvals: [createApproval({ taskId: task.taskId })],
+          events: [createEvent({ taskId: task.taskId, actor: "nuno" })],
+          steps: [],
+          dependencies: [],
+        };
+      }
+      if (taskId === childTask.taskId) {
+        return {
+          task: childTask,
+          children: [],
+          executions: [childExecution],
+          assignments: [],
+          approvals: [],
+          events: [],
+          steps: [],
+          dependencies: [],
+        };
+      }
+      return null;
+    });
+    mocks.getTaskProposalViewByIdMock.mockReturnValue(proposal);
+    const opts = createOptions("tasks.detail", { taskId: task.taskId });
+
+    await tasksHandlers["tasks.detail"](opts);
+
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        task,
+        proposal,
+        children: [expect.objectContaining({ taskId: childTask.taskId })],
+        childExecutions: [childExecution],
+        executions: [execution],
+        assignments: [expect.objectContaining({ taskId: task.taskId })],
+        approvals: [expect.objectContaining({ taskId: task.taskId })],
+        events: [expect.objectContaining({ taskId: task.taskId })],
+        steps: [],
+        dependencies: [],
+      }),
+      undefined,
+    );
+  });
+
+  it("rejects hidden legacy canonical tasks from the detail handler", async () => {
+    const legacyTask = createCanonicalTask({
+      taskId: "legacy-task-1",
+      rootTaskId: "legacy-task-1",
+      title: "Usa o browser",
+      status: "completed",
+    });
+    mocks.getTaskBundleMock.mockReturnValue({
+      task: legacyTask,
+      children: [],
+      executions: [
+        createExecution({ taskId: legacyTask.taskId, kind: "cli", status: "succeeded" }),
+      ],
+      assignments: [],
+      approvals: [],
+      events: [createEvent({ taskId: legacyTask.taskId, actor: "gateway.agent" })],
+      steps: [],
+      dependencies: [],
+    });
+    const opts = createOptions("tasks.detail", { taskId: legacyTask.taskId });
+
+    await tasksHandlers["tasks.detail"](opts);
+
+    expect(opts.respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: `Task not found: ${legacyTask.taskId}`,
+      }),
     );
   });
 
@@ -745,7 +906,9 @@ describe("tasksHandlers", () => {
     mocks.getTaskBundleMock.mockReturnValue({
       task: legacyTask,
       children: [],
-      executions: [createExecution({ taskId: legacyTask.taskId, kind: "cli", status: "succeeded" })],
+      executions: [
+        createExecution({ taskId: legacyTask.taskId, kind: "cli", status: "succeeded" }),
+      ],
       assignments: [],
       approvals: [],
       events: [createEvent({ taskId: legacyTask.taskId, actor: "gateway.agent" })],

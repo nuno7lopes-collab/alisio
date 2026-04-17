@@ -48,7 +48,7 @@ function createState(
   } as TestSessionsState;
 }
 
-function buildSessionsResult(keys: string[]) {
+function buildSessionsResult(keys: string[]): import("../types.ts").SessionsListResult {
   return {
     ts: 0,
     path: "",

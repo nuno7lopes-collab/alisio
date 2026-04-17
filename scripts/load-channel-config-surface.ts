@@ -3,52 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
-import { buildChannelConfigSchema } from "../src/channels/plugins/config-schema.js";
+import {
+  isBuiltChannelConfigSchema,
+  resolveChannelConfigSurfaceExport,
+} from "../src/config/channel-config-surface.js";
 import {
   buildPluginLoaderJitiOptions,
   resolvePluginSdkAliasFile,
   resolvePluginSdkScopedAliasMap,
 } from "../src/plugins/sdk-alias.js";
-
-function isBuiltChannelConfigSchema(
-  value: unknown,
-): value is { schema: Record<string, unknown>; uiHints?: Record<string, unknown> } {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const candidate = value as { schema?: unknown };
-  return Boolean(candidate.schema && typeof candidate.schema === "object");
-}
-
-function resolveConfigSchemaExport(
-  imported: Record<string, unknown>,
-): { schema: Record<string, unknown>; uiHints?: Record<string, unknown> } | null {
-  for (const [name, value] of Object.entries(imported)) {
-    if (name.endsWith("ChannelConfigSchema") && isBuiltChannelConfigSchema(value)) {
-      return value;
-    }
-  }
-
-  for (const [name, value] of Object.entries(imported)) {
-    if (!name.endsWith("ConfigSchema") || name.endsWith("AccountConfigSchema")) {
-      continue;
-    }
-    if (isBuiltChannelConfigSchema(value)) {
-      return value;
-    }
-    if (value && typeof value === "object") {
-      return buildChannelConfigSchema(value as never);
-    }
-  }
-
-  for (const value of Object.values(imported)) {
-    if (isBuiltChannelConfigSchema(value)) {
-      return value;
-    }
-  }
-
-  return null;
-}
 
 function resolveRepoRoot(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -197,39 +160,19 @@ export async function loadChannelConfigSurfaceModule(
 ): Promise<{ schema: Record<string, unknown>; uiHints?: Record<string, unknown> } | null> {
   const repoRoot = options?.repoRoot ?? resolveRepoRoot();
   const loaderRepoRoot = resolveRepoRoot();
-  const bunBuildChannelConfigSchemaUrl = pathToFileURL(
-    path.join(loaderRepoRoot, "src/channels/plugins/config-schema.ts"),
+  const channelConfigSurfaceModuleUrl = pathToFileURL(
+    path.join(loaderRepoRoot, "src/config/channel-config-surface.ts"),
   ).href;
   const loadViaBun = (candidatePath: string) => {
     const script = `
       import { pathToFileURL } from "node:url";
-      const { buildChannelConfigSchema } = await import(${JSON.stringify(bunBuildChannelConfigSchemaUrl)});
+      const { resolveChannelConfigSurfaceExport } = await import(${JSON.stringify(channelConfigSurfaceModuleUrl)});
       const modulePath = process.env.ALISIO_CONFIG_SURFACE_MODULE;
       if (!modulePath) {
         throw new Error("missing ALISIO_CONFIG_SURFACE_MODULE");
       }
       const imported = await import(pathToFileURL(modulePath).href);
-      const isBuilt = (value) => Boolean(
-        value &&
-          typeof value === "object" &&
-          value.schema &&
-          typeof value.schema === "object"
-      );
-      const resolve = (mod) => {
-        for (const [name, value] of Object.entries(mod)) {
-          if (name.endsWith("ChannelConfigSchema") && isBuilt(value)) return value;
-        }
-        for (const [name, value] of Object.entries(mod)) {
-          if (!name.endsWith("ConfigSchema") || name.endsWith("AccountConfigSchema")) continue;
-          if (isBuilt(value)) return value;
-          if (value && typeof value === "object") return buildChannelConfigSchema(value);
-        }
-        for (const value of Object.values(mod)) {
-          if (isBuilt(value)) return value;
-        }
-        return null;
-      };
-      process.stdout.write(JSON.stringify(resolve(imported)));
+      process.stdout.write(JSON.stringify(resolveChannelConfigSurfaceExport(imported)));
     `;
     const result = spawnSync("bun", ["-e", script], {
       cwd: repoRoot,
@@ -291,7 +234,7 @@ export async function loadChannelConfigSurfaceModule(
     }
 
     const imported = loadViaJiti(candidatePath);
-    return resolveConfigSchemaExport(imported);
+    return resolveChannelConfigSurfaceExport(imported);
   };
 
   try {

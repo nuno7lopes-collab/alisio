@@ -8611,7 +8611,7 @@
         "storage"
       ],
       "label": "Browser Profile Driver",
-      "help": "Per-profile browser driver mode. Use \"alisio\" (or legacy \"clawd\") for CDP-based profiles, or use \"existing-session\" for host-local Chrome DevTools MCP attachment.",
+      "help": "Per-profile browser driver mode. Use \"alisio\" for CDP-based profiles, or use \"existing-session\" for host-local Chrome DevTools MCP attachment.",
       "hasChildren": false
     },
     {
@@ -8720,20 +8720,6 @@
       "deprecated": false,
       "sensitive": false,
       "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "browser.ssrfPolicy.allowPrivateNetwork",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "access"
-      ],
-      "label": "Browser Allow Private Network",
-      "help": "Legacy alias for browser.ssrfPolicy.dangerouslyAllowPrivateNetwork. Prefer the dangerously-named key so risk intent is explicit.",
       "hasChildren": false
     },
     {
@@ -11748,31 +11734,13 @@
     {
       "path": "channels.discord.accounts.*.streaming",
       "kind": "channel",
-      "type": [
-        "boolean",
-        "string"
-      ],
+      "type": "string",
       "required": false,
       "enumValues": [
         "off",
         "partial",
         "block",
         "progress"
-      ],
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "channels.discord.accounts.*.streamMode",
-      "kind": "channel",
-      "type": "string",
-      "required": false,
-      "enumValues": [
-        "partial",
-        "block",
-        "off"
       ],
       "deprecated": false,
       "sensitive": false,
@@ -14342,10 +14310,7 @@
     {
       "path": "channels.discord.streaming",
       "kind": "channel",
-      "type": [
-        "boolean",
-        "string"
-      ],
+      "type": "string",
       "required": false,
       "enumValues": [
         "off",
@@ -14360,27 +14325,7 @@
         "network"
       ],
       "label": "Discord Streaming Mode",
-      "help": "Unified Discord stream preview mode: \"off\" | \"partial\" | \"block\" | \"progress\". \"progress\" maps to \"partial\" on Discord. Legacy boolean/streamMode keys are auto-mapped.",
-      "hasChildren": false
-    },
-    {
-      "path": "channels.discord.streamMode",
-      "kind": "channel",
-      "type": "string",
-      "required": false,
-      "enumValues": [
-        "partial",
-        "block",
-        "off"
-      ],
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "channels",
-        "network"
-      ],
-      "label": "Discord Stream Mode (Legacy)",
-      "help": "Legacy Discord preview mode alias (off | partial | block); auto-migrated to channels.discord.streaming.",
+      "help": "Unified Discord stream preview mode: \"off\" | \"partial\" | \"block\" | \"progress\". \"progress\" maps to \"partial\" on Discord.",
       "hasChildren": false
     },
     {
@@ -29530,31 +29475,13 @@
     {
       "path": "channels.slack.accounts.*.streaming",
       "kind": "channel",
-      "type": [
-        "boolean",
-        "string"
-      ],
+      "type": "string",
       "required": false,
       "enumValues": [
         "off",
         "partial",
         "block",
         "progress"
-      ],
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "channels.slack.accounts.*.streamMode",
-      "kind": "channel",
-      "type": "string",
-      "required": false,
-      "enumValues": [
-        "replace",
-        "status_final",
-        "append"
       ],
       "deprecated": false,
       "sensitive": false,
@@ -30941,10 +30868,7 @@
     {
       "path": "channels.slack.streaming",
       "kind": "channel",
-      "type": [
-        "boolean",
-        "string"
-      ],
+      "type": "string",
       "required": false,
       "enumValues": [
         "off",
@@ -30959,27 +30883,7 @@
         "network"
       ],
       "label": "Slack Streaming Mode",
-      "help": "Unified Slack stream preview mode: \"off\" | \"partial\" | \"block\" | \"progress\". Legacy boolean/streamMode keys are auto-mapped.",
-      "hasChildren": false
-    },
-    {
-      "path": "channels.slack.streamMode",
-      "kind": "channel",
-      "type": "string",
-      "required": false,
-      "enumValues": [
-        "replace",
-        "status_final",
-        "append"
-      ],
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "channels",
-        "network"
-      ],
-      "label": "Slack Stream Mode (Legacy)",
-      "help": "Legacy Slack preview mode alias (replace | status_final | append); auto-migrated to channels.slack.streaming.",
+      "help": "Unified Slack stream preview mode: \"off\" | \"partial\" | \"block\" | \"progress\".",
       "hasChildren": false
     },
     {
@@ -32981,31 +32885,13 @@
     {
       "path": "channels.telegram.accounts.*.streaming",
       "kind": "channel",
-      "type": [
-        "boolean",
-        "string"
-      ],
+      "type": "string",
       "required": false,
       "enumValues": [
         "off",
         "partial",
         "block",
         "progress"
-      ],
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "channels.telegram.accounts.*.streamMode",
-      "kind": "channel",
-      "type": "string",
-      "required": false,
-      "enumValues": [
-        "off",
-        "partial",
-        "block"
       ],
       "deprecated": false,
       "sensitive": false,
@@ -35090,10 +34976,7 @@
     {
       "path": "channels.telegram.streaming",
       "kind": "channel",
-      "type": [
-        "boolean",
-        "string"
-      ],
+      "type": "string",
       "required": false,
       "enumValues": [
         "off",
@@ -35108,22 +34991,7 @@
         "network"
       ],
       "label": "Telegram Streaming Mode",
-      "help": "Unified Telegram stream preview mode: \"off\" | \"partial\" | \"block\" | \"progress\" (default: \"partial\"). \"progress\" maps to \"partial\" on Telegram. Legacy boolean/streamMode keys are auto-mapped.",
-      "hasChildren": false
-    },
-    {
-      "path": "channels.telegram.streamMode",
-      "kind": "channel",
-      "type": "string",
-      "required": false,
-      "enumValues": [
-        "off",
-        "partial",
-        "block"
-      ],
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
+      "help": "Unified Telegram stream preview mode: \"off\" | \"partial\" | \"block\" | \"progress\" (default: \"partial\"). \"progress\" maps to \"partial\" on Telegram.",
       "hasChildren": false
     },
     {
@@ -42275,46 +42143,6 @@
       "hasChildren": true
     },
     {
-      "path": "hooks.internal.installs.*.clawhubChannel",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "hooks.internal.installs.*.clawhubFamily",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "hooks.internal.installs.*.clawhubPackage",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "hooks.internal.installs.*.clawhubUrl",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
       "path": "hooks.internal.installs.*.hooks",
       "kind": "core",
       "type": "array",
@@ -42356,6 +42184,46 @@
     },
     {
       "path": "hooks.internal.installs.*.integrity",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [],
+      "hasChildren": false
+    },
+    {
+      "path": "hooks.internal.installs.*.marketplaceChannel",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [],
+      "hasChildren": false
+    },
+    {
+      "path": "hooks.internal.installs.*.marketplaceFamily",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [],
+      "hasChildren": false
+    },
+    {
+      "path": "hooks.internal.installs.*.marketplacePackage",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [],
+      "hasChildren": false
+    },
+    {
+      "path": "hooks.internal.installs.*.marketplaceRegistryUrl",
       "kind": "core",
       "type": "string",
       "required": false,
@@ -58827,46 +58695,6 @@
       "hasChildren": true
     },
     {
-      "path": "plugins.installs.*.clawhubChannel",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.installs.*.clawhubFamily",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.installs.*.clawhubPackage",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "plugins.installs.*.clawhubUrl",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
       "path": "plugins.installs.*.installedAt",
       "kind": "core",
       "type": "string",
@@ -58909,6 +58737,34 @@
       "hasChildren": false
     },
     {
+      "path": "plugins.installs.*.marketplaceChannel",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "advanced"
+      ],
+      "label": "Plugin Marketplace Channel",
+      "help": "Marketplace channel recorded for registry-backed installs (\"official\", \"community\", or \"private\").",
+      "hasChildren": false
+    },
+    {
+      "path": "plugins.installs.*.marketplaceFamily",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "advanced"
+      ],
+      "label": "Plugin Marketplace Family",
+      "help": "Marketplace package family recorded for registry-backed installs (\"code-plugin\" or \"bundle-plugin\").",
+      "hasChildren": false
+    },
+    {
       "path": "plugins.installs.*.marketplaceName",
       "kind": "core",
       "type": "string",
@@ -58923,6 +58779,20 @@
       "hasChildren": false
     },
     {
+      "path": "plugins.installs.*.marketplacePackage",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "advanced"
+      ],
+      "label": "Plugin Marketplace Package",
+      "help": "Marketplace package slug/name recorded for registry-backed marketplace installs.",
+      "hasChildren": false
+    },
+    {
       "path": "plugins.installs.*.marketplacePlugin",
       "kind": "core",
       "type": "string",
@@ -58934,6 +58804,20 @@
       ],
       "label": "Plugin Marketplace Plugin",
       "help": "Plugin entry name inside the source marketplace, used for later updates.",
+      "hasChildren": false
+    },
+    {
+      "path": "plugins.installs.*.marketplaceRegistryUrl",
+      "kind": "core",
+      "type": "string",
+      "required": false,
+      "deprecated": false,
+      "sensitive": false,
+      "tags": [
+        "advanced"
+      ],
+      "label": "Plugin Marketplace Registry URL",
+      "help": "Marketplace registry base URL recorded for registry-backed marketplace installs.",
       "hasChildren": false
     },
     {
@@ -59031,7 +58915,7 @@
         "advanced"
       ],
       "label": "Plugin Install Source",
-      "help": "Install source (\"npm\", \"archive\", or \"path\").",
+      "help": "Install source (\"npm\", \"archive\", \"path\", or \"marketplace\").",
       "hasChildren": false
     },
     {
@@ -59920,50 +59804,6 @@
     },
     {
       "path": "session.resetByType.direct.mode",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "session.resetByType.dm",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "storage"
-      ],
-      "label": "Session Reset (DM Deprecated Alias)",
-      "help": "Deprecated alias for direct reset behavior kept for backward compatibility with older configs. Use session.resetByType.direct instead so future tooling and validation remain consistent.",
-      "hasChildren": true
-    },
-    {
-      "path": "session.resetByType.dm.atHour",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "session.resetByType.dm.idleMinutes",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "session.resetByType.dm.mode",
       "kind": "core",
       "type": "string",
       "required": false,
@@ -60935,7 +60775,7 @@
         "media"
       ],
       "label": "Talk Voice Aliases",
-      "help": "Use this legacy ElevenLabs voice alias map (for example {\"Clawd\":\"EXAVITQu4vr4xnSDxMaL\"}) only during migration. Prefer talk.providers.elevenlabs.voiceAliases.",
+      "help": "Use this legacy ElevenLabs voice alias map (for example {\"Alisio\":\"EXAVITQu4vr4xnSDxMaL\"}) only during migration. Prefer talk.providers.elevenlabs.voiceAliases.",
       "hasChildren": true
     },
     {

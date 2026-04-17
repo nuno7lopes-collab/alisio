@@ -1649,6 +1649,20 @@ private extension NodeAppModel {
 }
 
 extension NodeAppModel {
+    private func resolvedAgentID(for sessionKey: String?) -> String? {
+        let selected = (self.selectedAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultId = (self.gatewayDefaultAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return SessionKey.resolveAgentID(from: sessionKey) ??
+            SessionKey.resolveAgentID(from: self.mainSessionKey) ??
+            (!selected.isEmpty ? selected : nil) ??
+            (!defaultId.isEmpty ? defaultId : nil)
+    }
+
+    private func resolvedAgent(for sessionKey: String?) -> AgentSummary? {
+        guard let agentID = self.resolvedAgentID(for: sessionKey), !agentID.isEmpty else { return nil }
+        return self.gatewayAgents.first(where: { $0.id == agentID })
+    }
+
     var mainSessionKey: String {
         let base = SessionKey.normalizeMainKey(self.mainSessionBaseKey)
         let agentId = (self.selectedAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1664,15 +1678,101 @@ extension NodeAppModel {
     }
 
     var activeAgentName: String {
-        let agentId = (self.selectedAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let defaultId = (self.gatewayDefaultAgentId ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedId = agentId.isEmpty ? defaultId : agentId
-        if resolvedId.isEmpty { return "Main" }
-        if let match = self.gatewayAgents.first(where: { $0.id == resolvedId }) {
-            let name = (match.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if let match = self.resolvedAgent(for: self.chatSessionKey) {
+            let name = self.resolvedAgentDisplayName(for: match)
             return name.isEmpty ? match.id : name
         }
-        return resolvedId
+        return self.resolvedAgentID(for: self.chatSessionKey) ?? "Main"
+    }
+
+    var activeAgentAvatarURL: String? {
+        guard let match = self.resolvedAgent(for: self.chatSessionKey) else { return nil }
+        return self.resolvedAgentAvatarURL(for: match)
+    }
+
+    func resolvedAssistantIdentity(
+        for sessionKey: String,
+        fallbackName: String? = nil,
+        fallbackAvatarURL: String? = nil)
+        -> AlisioChatAssistantIdentity
+    {
+        if let match = self.resolvedAgent(for: sessionKey) {
+            return .init(
+                name: self.resolvedAgentDisplayName(for: match),
+                avatarURL: self.resolvedAgentAvatarURL(for: match) ?? fallbackAvatarURL)
+        }
+        let fallbackRaw = (
+            fallbackName ??
+                self.resolvedAgentID(for: sessionKey) ??
+                ""
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = fallbackRaw.isEmpty ? "Assistant" : fallbackRaw
+        let avatarURL = fallbackAvatarURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return .init(name: name, avatarURL: avatarURL?.isEmpty == false ? avatarURL : nil)
+    }
+
+    func resolvedAgentDisplayName(for agent: AgentSummary) -> String {
+        if let identity = agent.identity,
+           let raw = identity["name"]?.value as? String
+        {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        let fallback = (agent.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallback.isEmpty ? agent.id : fallback
+    }
+
+    func resolvedAgentAvatarURL(for agent: AgentSummary) -> String? {
+        if let identity = agent.identity {
+            if let raw = identity["avatarUrl"]?.value as? String {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    return trimmed
+                }
+            }
+            if let raw = identity["avatar"]?.value as? String {
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") || trimmed.hasPrefix("data:image/") {
+                    return trimmed
+                }
+            }
+        }
+        return nil
+    }
+
+    func resolvedAgentAvatarBadge(for agent: AgentSummary) -> String {
+        if let identity = agent.identity,
+           let raw = identity["avatar"]?.value as? String
+        {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty &&
+                !trimmed.contains("://") &&
+                !trimmed.hasPrefix("data:image/") &&
+                !trimmed.contains("/") &&
+                !trimmed.contains("\\") &&
+                !trimmed.contains(".")
+            {
+                return trimmed
+            }
+        }
+        if let identity = agent.identity,
+           let emoji = identity["emoji"]?.value as? String
+        {
+            let trimmed = emoji.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        let words = self.resolvedAgentDisplayName(for: agent)
+            .split(whereSeparator: { $0.isWhitespace || $0 == "-" || $0 == "_" })
+            .prefix(2)
+        let initials = words.compactMap { $0.first }.map(String.init).joined()
+        if !initials.isEmpty {
+            return initials.uppercased()
+        }
+        return "OC"
     }
 
     func connectToGateway(

@@ -197,6 +197,12 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
     showCronSessionsHidden: "Mostrar sessões de cron ({count} ocultas)",
     onboardingDisabled: "Desativado durante a integração",
   },
+  tasksView: {
+    browser: {
+      title: "Sessão ao vivo",
+      subtitle: "A superfície mais recente de browser ou ferramenta ligada a esta tarefa.",
+    },
+  },
   alisio: {
     chat: {
       defaultAssistantName: "Assistente",
@@ -214,7 +220,41 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
         unavailable: "Sem painel disponível",
         surfaces: {
           observer: "Browser",
+          computer: "Computer",
           markdown: "Saída da ferramenta",
+        },
+        computer: {
+          desktop: "Área de trabalho",
+          unknown: "Desconhecido",
+          loading: "Carregando sessão de computer…",
+          noFrame: "Ainda sem frame capturado",
+          frameAlt: "Frame do computer",
+          timeline: "Timeline",
+          noTimeline: "Ainda sem atividade de computer",
+          targetApp: "App alvo",
+          display: "Tela",
+          pause: "Pausar",
+          resume: "Retomar",
+          stop: "Parar",
+          requestPermission: "Conceder acesso",
+          awaitingApproval: "Aguardando aprovação",
+          approveOnce: "Aprovar uma vez",
+          approveSession: "Aprovar na sessão",
+          deny: "Negar",
+          modes: {
+            "observe-only": "Só observar",
+            "control-approved-apps": "Apps aprovados",
+            "elevated-watch": "Watch mode",
+          },
+          status: {
+            idle: "Idle",
+            observing: "Observando",
+            running: "Em execução",
+            paused: "Pausado",
+            "awaiting-approval": "Aguardando aprovação",
+            error: "Erro",
+            stopped: "Parado",
+          },
         },
       },
       attachments: {
@@ -334,6 +374,15 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
         done: "Concluído",
         hiddenPreview:
           "O raciocínio interno fica oculto. As ações aparecem abaixo em cartões recolhidos.",
+      },
+      context: {
+        compact: "{pct}% ctx",
+      },
+      jsonSummary: {
+        arrayOne: "Array ({count} item)",
+        arrayMany: "Array ({count} itens)",
+        object: "Objeto ({count} chaves)",
+        json: "JSON",
       },
       actions: {
         showMore: "Mostrar mais",

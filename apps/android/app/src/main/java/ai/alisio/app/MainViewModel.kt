@@ -114,6 +114,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
   val chatStreamingAssistantText: StateFlow<String?> = runtimeState(initial = null) { it.chatStreamingAssistantText }
   val chatPendingToolCalls: StateFlow<List<ChatPendingToolCall>> = runtimeState(initial = emptyList()) { it.chatPendingToolCalls }
   val chatSessions: StateFlow<List<ChatSessionEntry>> = runtimeState(initial = emptyList()) { it.chatSessions }
+  val chatAssistantIdentity: StateFlow<ChatAssistantIdentity> =
+    runtimeState(initial = ChatAssistantIdentity()) { it.chatAssistantIdentity }
   val pendingRunCount: StateFlow<Int> = runtimeState(initial = 0) { it.pendingRunCount }
 
   init {

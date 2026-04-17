@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import {
   appendCdpPath,
   getHeadersWithAuth,
@@ -229,6 +230,7 @@ describe("browser server-context listKnownProfileNames", () => {
       server: null as unknown as BrowserServerState["server"],
       port: 40707,
       resolved,
+      authCache: createBrowserSessionAuthCache(),
       profiles: new Map([
         [
           "stale-removed",

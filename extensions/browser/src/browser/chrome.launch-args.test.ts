@@ -20,7 +20,7 @@ describe("browser chrome launch args", () => {
         headless: false,
         noSandbox: false,
         attachOnly: false,
-        ssrfPolicy: { allowPrivateNetwork: true },
+        ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
         defaultProfile: "alisio",
         profiles: {
           alisio: { cdpPort: 40716, color: "#FF4500" },

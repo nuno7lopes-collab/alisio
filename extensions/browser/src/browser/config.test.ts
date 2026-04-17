@@ -232,7 +232,7 @@ describe("browser config", () => {
   it("resolves browser SSRF policy when configured", () => {
     const resolved = resolveBrowserConfig({
       ssrfPolicy: {
-        allowPrivateNetwork: true,
+        dangerouslyAllowPrivateNetwork: true,
         allowedHostnames: [" localhost ", ""],
         hostnameAllowlist: [" *.trusted.example ", " "],
       },

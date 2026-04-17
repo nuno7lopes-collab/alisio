@@ -367,8 +367,9 @@ function buildCalendarPeriod(cursorMs: number, mode: CronCalendarMode): Calendar
 
 function buildOccurrenceResolvers(jobs: CronJob[]): JobOccurrenceResolver[] {
   return jobs.map((job) => {
-    if (job.schedule.kind === "at") {
-      const atMs = Date.parse(job.schedule.at);
+    const schedule = job.schedule;
+    if (schedule.kind === "at") {
+      const atMs = Date.parse(schedule.at);
       return {
         job,
         collect(dayStartMs, dayEndMs) {
@@ -385,14 +386,14 @@ function buildOccurrenceResolvers(jobs: CronJob[]): JobOccurrenceResolver[] {
       };
     }
 
-    if (job.schedule.kind === "every") {
+    if (schedule.kind === "every") {
       return {
         job,
         collect(dayStartMs, dayEndMs) {
-          const everyMs = Math.max(1, Math.floor(job.schedule.everyMs));
+          const everyMs = Math.max(1, Math.floor(schedule.everyMs));
           const anchorMs = Math.max(
             0,
-            Math.floor(job.schedule.anchorMs ?? job.createdAtMs ?? dayStartMs),
+            Math.floor(schedule.anchorMs ?? job.createdAtMs ?? dayStartMs),
           );
           if (!Number.isFinite(everyMs) || everyMs <= 0) {
             return null;
@@ -417,13 +418,14 @@ function buildOccurrenceResolvers(jobs: CronJob[]): JobOccurrenceResolver[] {
       };
     }
 
+    const cronSchedule = schedule;
     let cron: Cron | null = null;
     let cronOffsetMs = 0;
     try {
-      cron = new Cron(job.schedule.expr, {
+      cron = new Cron(cronSchedule.expr, {
         paused: true,
         catch: false,
-        timezone: resolveCronTimezone(job.schedule.tz),
+        timezone: resolveCronTimezone(cronSchedule.tz),
       });
       cronOffsetMs = resolveCronOffsetMs(job, cron);
     } catch {
@@ -547,32 +549,32 @@ function resolveVisualDurationMinutes(startAtMs: number, dayEndMs: number, conde
 }
 
 function buildWeekEventSeeds(day: Pick<CalendarDay, "dayEndMs" | "items">) {
-  return day.items.flatMap((item) => {
+  const seeds: WeekEventSeed[] = [];
+  for (const item of day.items) {
     const condensed = shouldCondenseWeekItem(item);
     if (condensed) {
       const durationMinutes = resolveVisualDurationMinutes(item.firstAtMs, day.dayEndMs, true);
-      return [
-        {
-          id: `${item.job.id}:${item.firstAtMs}:summary`,
-          job: item.job,
-          startAtMs: item.firstAtMs,
-          endAtMs: item.firstAtMs + durationMinutes * 60_000,
-          startMinutes: getMinutesIntoDay(item.firstAtMs),
-          durationMinutes,
-          condensed: true,
-          count: item.count,
-          truncated: item.truncated,
-          summary: formatItemSummary(item, true),
-          isDue: item.isDue,
-          isRunning: item.isRunning,
-          lastStatus: item.lastStatus,
-        } satisfies WeekEventSeed,
-      ];
+      seeds.push({
+        id: `${item.job.id}:${item.firstAtMs}:summary`,
+        job: item.job,
+        startAtMs: item.firstAtMs,
+        endAtMs: item.firstAtMs + durationMinutes * 60_000,
+        startMinutes: getMinutesIntoDay(item.firstAtMs),
+        durationMinutes,
+        condensed: true,
+        count: item.count,
+        truncated: item.truncated,
+        summary: formatItemSummary(item, true),
+        isDue: item.isDue,
+        isRunning: item.isRunning,
+        lastStatus: item.lastStatus,
+      });
+      continue;
     }
 
-    return item.sampleAtMs.map((atMs, index) => {
+    item.sampleAtMs.forEach((atMs, index) => {
       const durationMinutes = resolveVisualDurationMinutes(atMs, day.dayEndMs, false);
-      return {
+      seeds.push({
         id: `${item.job.id}:${atMs}:${index}`,
         job: item.job,
         startAtMs: atMs,
@@ -586,9 +588,10 @@ function buildWeekEventSeeds(day: Pick<CalendarDay, "dayEndMs" | "items">) {
         isDue: item.isDue && index === 0,
         isRunning: item.isRunning,
         lastStatus: item.lastStatus,
-      } satisfies WeekEventSeed;
+      });
     });
-  });
+  }
+  return seeds;
 }
 
 function assignWeekEventLanes(blocks: WeekEventSeed[]): WeekEventBlock[] {
@@ -638,35 +641,34 @@ function buildCalendarDays(props: CronProps, period: CalendarPeriod): CalendarDa
   const resolvers = buildOccurrenceResolvers(props.jobs);
 
   return period.days.map((day) => {
-    const items = resolvers
-      .map((resolver) => {
-        const summary = resolver.collect(day.dayMs, day.dayEndMs);
-        if (!summary) {
-          return null;
-        }
-        const nextRunAtMs = resolver.job.state?.nextRunAtMs;
-        return {
-          job: resolver.job,
-          firstAtMs: summary.firstAtMs,
-          count: summary.count,
-          sampleAtMs: summary.sampleAtMs,
-          truncated: summary.truncated,
-          isDue:
-            resolver.job.enabled &&
-            typeof nextRunAtMs === "number" &&
-            nextRunAtMs <= Date.now() &&
-            isSameDay(nextRunAtMs, day.dayMs),
-          isRunning: typeof resolver.job.state?.runningAtMs === "number",
-          lastStatus: resolver.job.state?.lastStatus,
-        } satisfies CalendarAgendaItem;
-      })
-      .filter((item): item is CalendarAgendaItem => Boolean(item))
-      .toSorted((left, right) => {
-        if (left.firstAtMs !== right.firstAtMs) {
-          return left.firstAtMs - right.firstAtMs;
-        }
-        return left.job.name.localeCompare(right.job.name);
+    const items: CalendarAgendaItem[] = [];
+    for (const resolver of resolvers) {
+      const summary = resolver.collect(day.dayMs, day.dayEndMs);
+      if (!summary) {
+        continue;
+      }
+      const nextRunAtMs = resolver.job.state?.nextRunAtMs;
+      items.push({
+        job: resolver.job,
+        firstAtMs: summary.firstAtMs,
+        count: summary.count,
+        sampleAtMs: summary.sampleAtMs,
+        truncated: summary.truncated,
+        isDue:
+          resolver.job.enabled &&
+          typeof nextRunAtMs === "number" &&
+          nextRunAtMs <= Date.now() &&
+          isSameDay(nextRunAtMs, day.dayMs),
+        isRunning: typeof resolver.job.state?.runningAtMs === "number",
+        lastStatus: resolver.job.state?.lastStatus,
       });
+    }
+    items.sort((left, right) => {
+      if (left.firstAtMs !== right.firstAtMs) {
+        return left.firstAtMs - right.firstAtMs;
+      }
+      return left.job.name.localeCompare(right.job.name);
+    });
 
     return {
       ...day,

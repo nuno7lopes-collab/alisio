@@ -9,15 +9,10 @@ describe("resolveTelegramStreamMode", () => {
     expect(resolveTelegramStreamMode({})).toBe("partial");
   });
 
-  it("prefers explicit streaming boolean", () => {
-    expect(resolveTelegramStreamMode({ streaming: true })).toBe("partial");
-    expect(resolveTelegramStreamMode({ streaming: false })).toBe("off");
-  });
-
-  it("maps legacy streamMode values", () => {
-    expect(resolveTelegramStreamMode({ streamMode: "off" })).toBe("off");
-    expect(resolveTelegramStreamMode({ streamMode: "partial" })).toBe("partial");
-    expect(resolveTelegramStreamMode({ streamMode: "block" })).toBe("block");
+  it("accepts explicit streaming enum values", () => {
+    expect(resolveTelegramStreamMode({ streaming: "off" })).toBe("off");
+    expect(resolveTelegramStreamMode({ streaming: "partial" })).toBe("partial");
+    expect(resolveTelegramStreamMode({ streaming: "block" })).toBe("block");
   });
 
   it("maps unified progress mode to partial on Telegram", () => {

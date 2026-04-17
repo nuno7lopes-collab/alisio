@@ -57,7 +57,7 @@ describe("chat.history model catalog fallback", () => {
 
     await chatHandlers["chat.history"]({
       params: { sessionKey: "main", limit: 200 },
-      respond: (ok, payload, error) => {
+      respond: (ok: boolean, payload?: unknown, error?: { message?: string }) => {
         response = {
           ok,
           payload: (payload as Record<string, unknown> | undefined) ?? undefined,
@@ -119,7 +119,7 @@ describe("chat.history model catalog fallback", () => {
 
     await chatHandlers["chat.history"]({
       params: { sessionKey: "main", limit: 200 },
-      respond: (ok, payload, error) => {
+      respond: (ok: boolean, payload?: unknown, error?: { message?: string }) => {
         response = {
           ok,
           payload: (payload as Record<string, unknown> | undefined) ?? undefined,
@@ -157,7 +157,7 @@ describe("chat.history model catalog fallback", () => {
         content: [
           {
             type: "text",
-            text: "Sender (untrusted metadata):\n```json\n{\"label\":\"alisio-control-ui\"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google",
+            text: 'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
           },
         ],
         timestamp: 1_000,
@@ -174,7 +174,7 @@ describe("chat.history model catalog fallback", () => {
         content: [
           {
             type: "text",
-            text: "Sender (untrusted metadata):\n```json\n{\"label\":\"alisio-control-ui\"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google",
+            text: 'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
           },
         ],
         timestamp: 75_000,
@@ -196,7 +196,7 @@ describe("chat.history model catalog fallback", () => {
 
     await chatHandlers["chat.history"]({
       params: { sessionKey: "main", limit: 200 },
-      respond: (ok, payload, error) => {
+      respond: (ok: boolean, payload?: unknown, error?: { message?: string }) => {
         response = {
           ok,
           payload: (payload as Record<string, unknown> | undefined) ?? undefined,
@@ -247,7 +247,7 @@ describe("chat.history model catalog fallback", () => {
 
     await chatHandlers["chat.history"]({
       params: { sessionKey: "main", limit: 200 },
-      respond: (ok, payload, error) => {
+      respond: (ok: boolean, payload?: unknown, error?: { message?: string }) => {
         response = {
           ok,
           payload: (payload as Record<string, unknown> | undefined) ?? undefined,

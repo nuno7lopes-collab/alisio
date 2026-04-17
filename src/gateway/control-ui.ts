@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
+import { resolveDefaultAgentId } from "../agents/agent-scope.js";
+import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import type { AlisioConfig } from "../config/config.js";
 import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
 import { type AlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
@@ -13,13 +15,13 @@ import {
   isPackageProvenControlUiRootSync,
   resolveControlUiRootSync,
 } from "../infra/control-ui-assets.js";
+import { resolveCurrentDeviceMetadata } from "../infra/current-device-metadata.js";
 import { issueDeviceBootstrapToken } from "../infra/device-bootstrap.js";
 import {
   loadOrCreateDeviceIdentity,
   publicKeyRawBase64UrlFromPem,
   signDevicePayload,
 } from "../infra/device-identity.js";
-import { resolveCurrentDeviceMetadata } from "../infra/current-device-metadata.js";
 import { isWithinDir } from "../infra/path-safety.js";
 import { openVerifiedFileSync } from "../infra/safe-open-sync.js";
 import { AVATAR_MAX_BYTES } from "../shared/avatar-policy.js";
@@ -105,6 +107,36 @@ function contentTypeForExt(ext: string): string {
     default:
       return "application/octet-stream";
   }
+}
+
+function resolveBootstrapAssistantAvatar(params: {
+  config?: AlisioConfig;
+  identity: {
+    agentId: string;
+    avatar: string;
+  };
+  basePath?: string;
+}): string {
+  const basePath = normalizeControlUiBasePath(params.basePath);
+  const config = params.config;
+  if (config) {
+    const resolved = resolveAgentAvatar(config, params.identity.agentId, {
+      includeUiAssistant: params.identity.agentId === resolveDefaultAgentId(config),
+    });
+    if (resolved.kind === "local") {
+      return buildControlUiAvatarUrl(basePath, params.identity.agentId);
+    }
+    if (resolved.kind === "remote" || resolved.kind === "data") {
+      return resolved.url;
+    }
+  }
+  return (
+    resolveAssistantAvatarUrl({
+      avatar: params.identity.avatar,
+      agentId: params.identity.agentId,
+      basePath,
+    }) ?? params.identity.avatar
+  );
 }
 
 /**
@@ -301,6 +333,7 @@ export async function handleAlisioBootstrapHttpRequest(
           email: account.profile.email,
           ...(account.profile.agentName ? { agentName: account.profile.agentName } : {}),
           avatarLabel: account.profile.avatarLabel,
+          ...(account.profile.avatarUrl ? { avatarUrl: account.profile.avatarUrl } : {}),
           plan: account.profile.plan,
         }
       : null,
@@ -625,9 +658,9 @@ export function handleControlUiHttpRequest(
     const identity = config
       ? resolveAssistantIdentity({ cfg: config, agentId: opts?.agentId })
       : DEFAULT_ASSISTANT_IDENTITY;
-    const avatarValue = resolveAssistantAvatarUrl({
-      avatar: identity.avatar,
-      agentId: identity.agentId,
+    const avatarValue = resolveBootstrapAssistantAvatar({
+      config,
+      identity,
       basePath,
     });
     if (req.method === "HEAD") {
@@ -640,7 +673,7 @@ export function handleControlUiHttpRequest(
     sendJson(res, 200, {
       basePath,
       assistantName: identity.name,
-      assistantAvatar: avatarValue ?? identity.avatar,
+      assistantAvatar: avatarValue,
       assistantAgentId: identity.agentId,
       serverVersion: resolveRuntimeServiceVersion(process.env),
     } satisfies ControlUiBootstrapConfig);

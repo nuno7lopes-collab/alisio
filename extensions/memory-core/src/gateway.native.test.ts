@@ -515,7 +515,7 @@ describe("native memory gateway handlers", () => {
     await fs.rm(seeded.test.root, { recursive: true, force: true });
   });
 
-  it("does not force a sync for readable note list requests", async () => {
+  it("syncs dirty note list requests before reading the canonical store", async () => {
     const seeded = await seedNativeMemory();
     const sync = vi.fn().mockResolvedValue(undefined);
     const close = vi.fn().mockResolvedValue(undefined);
@@ -545,7 +545,7 @@ describe("native memory gateway handlers", () => {
       }),
       undefined,
     );
-    expect(sync).not.toHaveBeenCalled();
+    expect(sync).toHaveBeenCalledWith({ reason: "memory.notes.list", force: true });
     expect(close).toHaveBeenCalled();
 
     await fs.rm(seeded.test.root, { recursive: true, force: true });

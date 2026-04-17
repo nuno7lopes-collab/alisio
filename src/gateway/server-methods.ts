@@ -11,6 +11,7 @@ import { alisioHandlers } from "./server-methods/alisio.js";
 import { approvalAuditHandlers } from "./server-methods/approval-audit.js";
 import { channelsHandlers } from "./server-methods/channels.js";
 import { chatHandlers } from "./server-methods/chat.js";
+import { computerHandlers } from "./server-methods/computer.js";
 import { configHandlers } from "./server-methods/config.js";
 import { connectHandlers } from "./server-methods/connect.js";
 import { cronHandlers } from "./server-methods/cron.js";
@@ -91,6 +92,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...alisioSecurityPolicyHandlers,
   ...channelsHandlers,
   ...chatHandlers,
+  ...computerHandlers,
   ...cronHandlers,
   ...tasksHandlers,
   ...deviceHandlers,

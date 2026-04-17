@@ -449,7 +449,6 @@ export const AlisioSchema = z
         snapshotDefaults: BrowserSnapshotDefaultsSchema,
         ssrfPolicy: z
           .object({
-            allowPrivateNetwork: z.boolean().optional(),
             dangerouslyAllowPrivateNetwork: z.boolean().optional(),
             allowedHostnames: z.array(z.string()).optional(),
             hostnameAllowlist: z.array(z.string()).optional(),

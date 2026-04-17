@@ -1,23 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const parseClawHubPluginSpecMock = vi.fn();
-const fetchClawHubPackageDetailMock = vi.fn();
-const fetchClawHubPackageVersionMock = vi.fn();
-const downloadClawHubPackageArchiveMock = vi.fn();
+const parseMarketplaceRegistryPluginSpecMock = vi.fn();
+const fetchMarketplaceRegistryPackageDetailMock = vi.fn();
+const fetchMarketplaceRegistryPackageVersionMock = vi.fn();
+const downloadMarketplaceRegistryPackageArchiveMock = vi.fn();
 const archiveCleanupMock = vi.fn();
 const resolveLatestVersionFromPackageMock = vi.fn();
 const resolveCompatibilityHostVersionMock = vi.fn();
 const installPluginFromArchiveMock = vi.fn();
 
-vi.mock("../infra/clawhub.js", async () => {
-  const actual = await vi.importActual<typeof import("../infra/clawhub.js")>("../infra/clawhub.js");
+vi.mock("../infra/marketplace-registry.js", async () => {
+  const actual = await vi.importActual<typeof import("../infra/marketplace-registry.js")>(
+    "../infra/marketplace-registry.js",
+  );
   return {
     ...actual,
-    parseClawHubPluginSpec: (...args: unknown[]) => parseClawHubPluginSpecMock(...args),
-    fetchClawHubPackageDetail: (...args: unknown[]) => fetchClawHubPackageDetailMock(...args),
-    fetchClawHubPackageVersion: (...args: unknown[]) => fetchClawHubPackageVersionMock(...args),
-    downloadClawHubPackageArchive: (...args: unknown[]) =>
-      downloadClawHubPackageArchiveMock(...args),
+    parseMarketplaceRegistryPluginSpec: (...args: unknown[]) =>
+      parseMarketplaceRegistryPluginSpecMock(...args),
+    fetchMarketplaceRegistryPackageDetail: (...args: unknown[]) =>
+      fetchMarketplaceRegistryPackageDetailMock(...args),
+    fetchMarketplaceRegistryPackageVersion: (...args: unknown[]) =>
+      fetchMarketplaceRegistryPackageVersionMock(...args),
+    downloadMarketplaceRegistryPackageArchive: (...args: unknown[]) =>
+      downloadMarketplaceRegistryPackageArchiveMock(...args),
     resolveLatestVersionFromPackage: (...args: unknown[]) =>
       resolveLatestVersionFromPackageMock(...args),
   };
@@ -32,21 +37,24 @@ vi.mock("./install.js", () => ({
   installPluginFromArchive: (...args: unknown[]) => installPluginFromArchiveMock(...args),
 }));
 
-const { ClawHubRequestError } = await import("../infra/clawhub.js");
-const { CLAWHUB_INSTALL_ERROR_CODE, formatClawHubSpecifier, installPluginFromClawHub } =
-  await import("./clawhub.js");
+const { MarketplaceRegistryRequestError } = await import("../infra/marketplace-registry.js");
+const {
+  MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE,
+  formatMarketplaceRegistrySpecifier,
+  installPluginFromMarketplaceRegistry,
+} = await import("./marketplace-registry.js");
 
-async function expectClawHubInstallError(params: {
+async function expectMarketplaceRegistryInstallError(params: {
   setup?: () => void;
   spec: string;
   expected: {
     ok: false;
-    code: (typeof CLAWHUB_INSTALL_ERROR_CODE)[keyof typeof CLAWHUB_INSTALL_ERROR_CODE];
+    code: (typeof MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE)[keyof typeof MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE];
     error: string;
   };
 }) {
   params.setup?.();
-  await expect(installPluginFromClawHub({ spec: params.spec })).resolves.toMatchObject(
+  await expect(installPluginFromMarketplaceRegistry({ spec: params.spec })).resolves.toMatchObject(
     params.expected,
   );
 }
@@ -58,18 +66,18 @@ function createLoggerSpies() {
   };
 }
 
-function expectClawHubInstallFlow(params: {
+function expectMarketplaceRegistryInstallFlow(params: {
   baseUrl: string;
   version: string;
   archivePath: string;
 }) {
-  expect(fetchClawHubPackageDetailMock).toHaveBeenCalledWith(
+  expect(fetchMarketplaceRegistryPackageDetailMock).toHaveBeenCalledWith(
     expect.objectContaining({
       name: "demo",
       baseUrl: params.baseUrl,
     }),
   );
-  expect(fetchClawHubPackageVersionMock).toHaveBeenCalledWith(
+  expect(fetchMarketplaceRegistryPackageVersionMock).toHaveBeenCalledWith(
     expect.objectContaining({
       name: "demo",
       version: params.version,
@@ -82,34 +90,34 @@ function expectClawHubInstallFlow(params: {
   );
 }
 
-function expectSuccessfulClawHubInstall(result: unknown) {
+function expectSuccessfulMarketplaceRegistryInstall(result: unknown) {
   expect(result).toMatchObject({
     ok: true,
     pluginId: "demo",
     version: "2026.3.22",
-    clawhub: {
-      source: "clawhub",
-      clawhubPackage: "demo",
-      clawhubFamily: "code-plugin",
-      clawhubChannel: "official",
+    marketplaceRegistry: {
+      source: "marketplace",
+      marketplacePackage: "demo",
+      marketplaceFamily: "code-plugin",
+      marketplaceChannel: "official",
       integrity: "sha256-demo",
     },
   });
 }
 
-describe("installPluginFromClawHub", () => {
+describe("installPluginFromMarketplaceRegistry", () => {
   beforeEach(() => {
-    parseClawHubPluginSpecMock.mockReset();
-    fetchClawHubPackageDetailMock.mockReset();
-    fetchClawHubPackageVersionMock.mockReset();
-    downloadClawHubPackageArchiveMock.mockReset();
+    parseMarketplaceRegistryPluginSpecMock.mockReset();
+    fetchMarketplaceRegistryPackageDetailMock.mockReset();
+    fetchMarketplaceRegistryPackageVersionMock.mockReset();
+    downloadMarketplaceRegistryPackageArchiveMock.mockReset();
     archiveCleanupMock.mockReset();
     resolveLatestVersionFromPackageMock.mockReset();
     resolveCompatibilityHostVersionMock.mockReset();
     installPluginFromArchiveMock.mockReset();
 
-    parseClawHubPluginSpecMock.mockReturnValue({ name: "demo" });
-    fetchClawHubPackageDetailMock.mockResolvedValue({
+    parseMarketplaceRegistryPluginSpecMock.mockReturnValue({ name: "demo" });
+    fetchMarketplaceRegistryPackageDetailMock.mockResolvedValue({
       package: {
         name: "demo",
         displayName: "Demo",
@@ -125,7 +133,7 @@ describe("installPluginFromClawHub", () => {
       },
     });
     resolveLatestVersionFromPackageMock.mockReturnValue("2026.3.22");
-    fetchClawHubPackageVersionMock.mockResolvedValue({
+    fetchMarketplaceRegistryPackageVersionMock.mockResolvedValue({
       version: {
         version: "2026.3.22",
         createdAt: 0,
@@ -136,8 +144,8 @@ describe("installPluginFromClawHub", () => {
         },
       },
     });
-    downloadClawHubPackageArchiveMock.mockResolvedValue({
-      archivePath: "/tmp/clawhub-demo/archive.zip",
+    downloadMarketplaceRegistryPackageArchiveMock.mockResolvedValue({
+      archivePath: "/tmp/marketplace-demo/archive.zip",
       integrity: "sha256-demo",
       cleanup: archiveCleanupMock,
     });
@@ -152,26 +160,26 @@ describe("installPluginFromClawHub", () => {
   });
 
   it("formats marketplace specifiers", () => {
-    expect(formatClawHubSpecifier({ name: "demo" })).toBe("marketplace:demo");
-    expect(formatClawHubSpecifier({ name: "demo", version: "1.2.3" })).toBe(
+    expect(formatMarketplaceRegistrySpecifier({ name: "demo" })).toBe("marketplace:demo");
+    expect(formatMarketplaceRegistrySpecifier({ name: "demo", version: "1.2.3" })).toBe(
       "marketplace:demo@1.2.3",
     );
   });
 
-  it("installs a ClawHub code plugin through the archive installer", async () => {
+  it("installs a marketplace registry code plugin through the archive installer", async () => {
     const logger = createLoggerSpies();
-    const result = await installPluginFromClawHub({
-      spec: "clawhub:demo",
+    const result = await installPluginFromMarketplaceRegistry({
+      spec: "marketplace:demo",
       baseUrl: "https://clawhub.ai",
       logger,
     });
 
-    expectClawHubInstallFlow({
+    expectMarketplaceRegistryInstallFlow({
       baseUrl: "https://clawhub.ai",
       version: "2026.3.22",
-      archivePath: "/tmp/clawhub-demo/archive.zip",
+      archivePath: "/tmp/marketplace-demo/archive.zip",
     });
-    expectSuccessfulClawHubInstall(result);
+    expectSuccessfulMarketplaceRegistryInstall(result);
     expect(logger.info).toHaveBeenCalledWith(
       "Marketplace code-plugin demo@2026.3.22 channel=official",
     );
@@ -188,8 +196,8 @@ describe("installPluginFromClawHub", () => {
       error: "bad archive",
     });
 
-    const result = await installPluginFromClawHub({
-      spec: "clawhub:demo",
+    const result = await installPluginFromMarketplaceRegistry({
+      spec: "marketplace:demo",
       baseUrl: "https://clawhub.ai",
     });
 
@@ -206,10 +214,10 @@ describe("installPluginFromClawHub", () => {
       setup: () => {
         resolveCompatibilityHostVersionMock.mockReturnValueOnce("2026.3.21");
       },
-      spec: "clawhub:demo",
+      spec: "marketplace:demo",
       expected: {
         ok: false,
-        code: CLAWHUB_INSTALL_ERROR_CODE.INCOMPATIBLE_PLUGIN_API,
+        code: MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.INCOMPATIBLE_PLUGIN_API,
         error:
           'Plugin "demo" requires plugin API >=2026.3.22, but this Alisio runtime exposes 2026.3.21.',
       },
@@ -217,7 +225,7 @@ describe("installPluginFromClawHub", () => {
     {
       name: "rejects skill families and redirects to skills install",
       setup: () => {
-        fetchClawHubPackageDetailMock.mockResolvedValueOnce({
+        fetchMarketplaceRegistryPackageDetailMock.mockResolvedValueOnce({
           package: {
             name: "calendar",
             displayName: "Calendar",
@@ -229,51 +237,54 @@ describe("installPluginFromClawHub", () => {
           },
         });
       },
-      spec: "clawhub:calendar",
+      spec: "marketplace:calendar",
       expected: {
         ok: false,
-        code: CLAWHUB_INSTALL_ERROR_CODE.SKILL_PACKAGE,
+        code: MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.SKILL_PACKAGE,
         error: '"calendar" is a skill. Use "alisio skills install calendar" instead.',
       },
     },
     {
       name: "returns typed package-not-found failures",
       setup: () => {
-        fetchClawHubPackageDetailMock.mockRejectedValueOnce(
-          new ClawHubRequestError({
+        fetchMarketplaceRegistryPackageDetailMock.mockRejectedValueOnce(
+          new MarketplaceRegistryRequestError({
             path: "/api/v1/packages/demo",
             status: 404,
             body: "Package not found",
           }),
         );
       },
-      spec: "clawhub:demo",
+      spec: "marketplace:demo",
       expected: {
         ok: false,
-        code: CLAWHUB_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
+        code: MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
         error: "Package not found in Local Marketplace.",
       },
     },
     {
       name: "returns typed version-not-found failures",
       setup: () => {
-        parseClawHubPluginSpecMock.mockReturnValueOnce({ name: "demo", version: "9.9.9" });
-        fetchClawHubPackageVersionMock.mockRejectedValueOnce(
-          new ClawHubRequestError({
+        parseMarketplaceRegistryPluginSpecMock.mockReturnValueOnce({
+          name: "demo",
+          version: "9.9.9",
+        });
+        fetchMarketplaceRegistryPackageVersionMock.mockRejectedValueOnce(
+          new MarketplaceRegistryRequestError({
             path: "/api/v1/packages/demo/versions/9.9.9",
             status: 404,
             body: "Version not found",
           }),
         );
       },
-      spec: "clawhub:demo@9.9.9",
+      spec: "marketplace:demo@9.9.9",
       expected: {
         ok: false,
-        code: CLAWHUB_INSTALL_ERROR_CODE.VERSION_NOT_FOUND,
+        code: MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.VERSION_NOT_FOUND,
         error: "Version not found in Local Marketplace: demo@9.9.9.",
       },
     },
   ] as const)("$name", async ({ setup, spec, expected }) => {
-    await expectClawHubInstallError({ setup, spec, expected });
+    await expectMarketplaceRegistryInstallError({ setup, spec, expected });
   });
 });

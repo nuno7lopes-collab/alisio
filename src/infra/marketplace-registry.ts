@@ -8,18 +8,18 @@ import { isAtLeast, parseSemver } from "./runtime-guard.js";
 import { compareComparableSemver, parseComparableSemver } from "./semver-compare.js";
 import { createTempDownloadTarget } from "./temp-download.js";
 
-const DEFAULT_CLAWHUB_URL = "https://clawhub.ai";
+const DEFAULT_MARKETPLACE_REGISTRY_URL = "https://clawhub.ai";
 const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
 
-export type ClawHubPackageFamily = "skill" | "code-plugin" | "bundle-plugin";
-export type ClawHubPackageChannel = "official" | "community" | "private";
-export type ClawHubPackageCompatibility = ExternalPluginCompatibility;
-export type ClawHubPackageListItem = {
+export type MarketplaceRegistryPackageFamily = "skill" | "code-plugin" | "bundle-plugin";
+export type MarketplaceRegistryPackageChannel = "official" | "community" | "private";
+export type MarketplaceRegistryPackageCompatibility = ExternalPluginCompatibility;
+export type MarketplaceRegistryPackageListItem = {
   name: string;
   displayName: string;
-  family: ClawHubPackageFamily;
+  family: MarketplaceRegistryPackageFamily;
   runtimeId?: string | null;
-  channel: ClawHubPackageChannel;
+  channel: MarketplaceRegistryPackageChannel;
   isOfficial: boolean;
   summary?: string | null;
   ownerHandle?: string | null;
@@ -30,11 +30,11 @@ export type ClawHubPackageListItem = {
   executesCode?: boolean;
   verificationTier?: string | null;
 };
-export type ClawHubPackageDetail = {
+export type MarketplaceRegistryPackageDetail = {
   package:
-    | (ClawHubPackageListItem & {
+    | (MarketplaceRegistryPackageListItem & {
         tags?: Record<string, string>;
-        compatibility?: ClawHubPackageCompatibility | null;
+        compatibility?: MarketplaceRegistryPackageCompatibility | null;
         capabilities?: {
           executesCode?: boolean;
           runtimeId?: string;
@@ -65,11 +65,11 @@ export type ClawHubPackageDetail = {
   } | null;
 };
 
-export type ClawHubPackageVersion = {
+export type MarketplaceRegistryPackageVersion = {
   package: {
     name: string;
     displayName: string;
-    family: ClawHubPackageFamily;
+    family: MarketplaceRegistryPackageFamily;
   } | null;
   version: {
     version: string;
@@ -77,13 +77,13 @@ export type ClawHubPackageVersion = {
     changelog: string;
     distTags?: string[];
     files?: unknown;
-    compatibility?: ClawHubPackageCompatibility | null;
-    capabilities?: ClawHubPackageDetail["package"] extends infer T
+    compatibility?: MarketplaceRegistryPackageCompatibility | null;
+    capabilities?: MarketplaceRegistryPackageDetail["package"] extends infer T
       ? T extends { capabilities?: infer C }
         ? C
         : never
       : never;
-    verification?: ClawHubPackageDetail["package"] extends infer T
+    verification?: MarketplaceRegistryPackageDetail["package"] extends infer T
       ? T extends { verification?: infer C }
         ? C
         : never
@@ -91,12 +91,12 @@ export type ClawHubPackageVersion = {
   } | null;
 };
 
-export type ClawHubPackageSearchResult = {
+export type MarketplaceRegistryPackageSearchResult = {
   score: number;
-  package: ClawHubPackageListItem;
+  package: MarketplaceRegistryPackageListItem;
 };
 
-export type ClawHubSkillSearchResult = {
+export type MarketplaceRegistrySkillSearchResult = {
   score: number;
   slug: string;
   displayName: string;
@@ -105,7 +105,7 @@ export type ClawHubSkillSearchResult = {
   updatedAt?: number;
 };
 
-export type ClawHubSkillDetail = {
+export type MarketplaceRegistrySkillDetail = {
   skill: {
     slug: string;
     displayName: string;
@@ -130,7 +130,7 @@ export type ClawHubSkillDetail = {
   } | null;
 };
 
-export type ClawHubSkillListResponse = {
+export type MarketplaceRegistrySkillListResponse = {
   items: Array<{
     slug: string;
     displayName: string;
@@ -151,7 +151,7 @@ export type ClawHubSkillListResponse = {
   nextCursor?: string | null;
 };
 
-export type ClawHubDownloadResult = {
+export type MarketplaceRegistryDownloadResult = {
   archivePath: string;
   integrity: string;
   cleanup: () => Promise<void>;
@@ -159,7 +159,7 @@ export type ClawHubDownloadResult = {
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-type ClawHubRequestParams = {
+type MarketplaceRegistryRequestParams = {
   baseUrl?: string;
   path: string;
   token?: string;
@@ -168,25 +168,25 @@ type ClawHubRequestParams = {
   fetchImpl?: FetchLike;
 };
 
-type ClawHubConfigLike = {
+type MarketplaceRegistryConfigLike = {
   token?: unknown;
   accessToken?: unknown;
   authToken?: unknown;
   apiToken?: unknown;
-  auth?: ClawHubConfigLike | null;
-  session?: ClawHubConfigLike | null;
-  credentials?: ClawHubConfigLike | null;
-  user?: ClawHubConfigLike | null;
+  auth?: MarketplaceRegistryConfigLike | null;
+  session?: MarketplaceRegistryConfigLike | null;
+  credentials?: MarketplaceRegistryConfigLike | null;
+  user?: MarketplaceRegistryConfigLike | null;
 };
 
-export class ClawHubRequestError extends Error {
+export class MarketplaceRegistryRequestError extends Error {
   readonly status: number;
   readonly requestPath: string;
   readonly responseBody: string;
 
   constructor(params: { path: string; status: number; body: string }) {
-    super(`ClawHub ${params.path} failed (${params.status}): ${params.body}`);
-    this.name = "ClawHubRequestError";
+    super(`Marketplace registry ${params.path} failed (${params.status}): ${params.body}`);
+    this.name = "MarketplaceRegistryRequestError";
     this.status = params.status;
     this.requestPath = params.path;
     this.responseBody = params.body;
@@ -195,43 +195,53 @@ export class ClawHubRequestError extends Error {
 
 function normalizeBaseUrl(baseUrl?: string): string {
   const envValue =
+    readEnv("ALISIO_MARKETPLACE_REGISTRY_URL", {
+      fallback: runtimeEnvKey("MARKETPLACE_REGISTRY_URL"),
+      description: "Marketplace registry base URL",
+    }) ||
     readEnv("ALISIO_CLAWHUB_URL", {
       fallback: runtimeEnvKey("CLAWHUB_URL"),
-      description: "ClawHub base URL",
+      description: "Legacy marketplace registry base URL",
     }) ||
+    process.env.MARKETPLACE_REGISTRY_URL?.trim() ||
     process.env.CLAWHUB_URL?.trim() ||
-    DEFAULT_CLAWHUB_URL;
+    DEFAULT_MARKETPLACE_REGISTRY_URL;
   const value = (baseUrl?.trim() || envValue).replace(/\/+$/, "");
-  return value || DEFAULT_CLAWHUB_URL;
+  return value || DEFAULT_MARKETPLACE_REGISTRY_URL;
 }
 
 function readNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function extractTokenFromClawHubConfig(value: unknown): string | undefined {
+function extractTokenFromMarketplaceRegistryConfig(value: unknown): string | undefined {
   if (!value || typeof value !== "object") {
     return undefined;
   }
-  const record = value as ClawHubConfigLike;
+  const record = value as MarketplaceRegistryConfigLike;
   return (
     readNonEmptyString(record.accessToken) ??
     readNonEmptyString(record.authToken) ??
     readNonEmptyString(record.apiToken) ??
     readNonEmptyString(record.token) ??
-    extractTokenFromClawHubConfig(record.auth) ??
-    extractTokenFromClawHubConfig(record.session) ??
-    extractTokenFromClawHubConfig(record.credentials) ??
-    extractTokenFromClawHubConfig(record.user)
+    extractTokenFromMarketplaceRegistryConfig(record.auth) ??
+    extractTokenFromMarketplaceRegistryConfig(record.session) ??
+    extractTokenFromMarketplaceRegistryConfig(record.credentials) ??
+    extractTokenFromMarketplaceRegistryConfig(record.user)
   );
 }
 
-function resolveClawHubConfigPaths(): string[] {
+function resolveMarketplaceRegistryConfigPaths(): string[] {
   const explicit =
+    readEnv("ALISIO_MARKETPLACE_REGISTRY_CONFIG_PATH", {
+      fallback: runtimeEnvKey("MARKETPLACE_REGISTRY_CONFIG_PATH"),
+      description: "Marketplace registry config path",
+    }) ||
     readEnv("ALISIO_CLAWHUB_CONFIG_PATH", {
       fallback: runtimeEnvKey("CLAWHUB_CONFIG_PATH"),
-      description: "ClawHub config path",
+      description: "Legacy marketplace registry config path",
     }) ||
+    process.env.MARKETPLACE_REGISTRY_CONFIG_PATH?.trim() ||
     process.env.CLAWHUB_CONFIG_PATH?.trim() ||
     process.env.CLAWDHUB_CONFIG_PATH?.trim(); // legacy misspelling from older clawhub CLI builds; keep for back-compat
   if (explicit) {
@@ -241,35 +251,50 @@ function resolveClawHubConfigPaths(): string[] {
   const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
   const configHome =
     xdgConfigHome && xdgConfigHome.length > 0 ? xdgConfigHome : path.join(os.homedir(), ".config");
-  const xdgPath = path.join(configHome, "clawhub", "config.json");
+  const marketplaceXdgPath = path.join(configHome, "alisio-marketplace", "config.json");
+  const legacyXdgPath = path.join(configHome, "clawhub", "config.json");
 
   if (process.platform === "darwin") {
     return [
+      path.join(
+        os.homedir(),
+        "Library",
+        "Application Support",
+        "alisio-marketplace",
+        "config.json",
+      ),
       path.join(os.homedir(), "Library", "Application Support", "clawhub", "config.json"),
-      xdgPath,
+      marketplaceXdgPath,
+      legacyXdgPath,
     ];
   }
 
-  return [xdgPath];
+  return [marketplaceXdgPath, legacyXdgPath];
 }
 
-export async function resolveClawHubAuthToken(): Promise<string | undefined> {
+export async function resolveMarketplaceRegistryAuthToken(): Promise<string | undefined> {
   const envToken =
-    readEnv("ALISIO_CLAWHUB_TOKEN", {
-      fallback: runtimeEnvKey("CLAWHUB_TOKEN"),
-      description: "ClawHub auth token",
+    readEnv("ALISIO_MARKETPLACE_REGISTRY_TOKEN", {
+      fallback: runtimeEnvKey("MARKETPLACE_REGISTRY_TOKEN"),
+      description: "Marketplace registry auth token",
       redact: true,
     }) ||
+    readEnv("ALISIO_CLAWHUB_TOKEN", {
+      fallback: runtimeEnvKey("CLAWHUB_TOKEN"),
+      description: "Legacy marketplace registry auth token",
+      redact: true,
+    }) ||
+    process.env.MARKETPLACE_REGISTRY_TOKEN?.trim() ||
     process.env.CLAWHUB_TOKEN?.trim() ||
     process.env.CLAWHUB_AUTH_TOKEN?.trim();
   if (envToken) {
     return envToken;
   }
 
-  for (const configPath of resolveClawHubConfigPaths()) {
+  for (const configPath of resolveMarketplaceRegistryConfigPaths()) {
     try {
       const raw = await fs.readFile(configPath, "utf8");
-      const token = extractTokenFromClawHubConfig(JSON.parse(raw));
+      const token = extractTokenFromMarketplaceRegistryConfig(JSON.parse(raw));
       if (token) {
         return token;
       }
@@ -351,7 +376,9 @@ function satisfiesSemverRange(version: string, range: string): boolean {
   return tokens.every((token) => satisfiesComparator(version, token));
 }
 
-function buildUrl(params: Pick<ClawHubRequestParams, "baseUrl" | "path" | "search">): URL {
+function buildUrl(
+  params: Pick<MarketplaceRegistryRequestParams, "baseUrl" | "path" | "search">,
+): URL {
   const url = new URL(params.path, `${normalizeBaseUrl(params.baseUrl)}/`);
   for (const [key, value] of Object.entries(params.search ?? {})) {
     if (!value) {
@@ -362,17 +389,17 @@ function buildUrl(params: Pick<ClawHubRequestParams, "baseUrl" | "path" | "searc
   return url;
 }
 
-async function clawhubRequest(
-  params: ClawHubRequestParams,
+async function marketplaceRegistryRequest(
+  params: MarketplaceRegistryRequestParams,
 ): Promise<{ response: Response; url: URL }> {
   const url = buildUrl(params);
-  const token = params.token?.trim() || (await resolveClawHubAuthToken());
+  const token = params.token?.trim() || (await resolveMarketplaceRegistryAuthToken());
   const controller = new AbortController();
   const timeout = setTimeout(
     () =>
       controller.abort(
         new Error(
-          `ClawHub request timed out after ${params.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS}ms`,
+          `Marketplace registry request timed out after ${params.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS}ms`,
         ),
       ),
     params.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS,
@@ -397,10 +424,10 @@ async function readErrorBody(response: Response): Promise<string> {
   }
 }
 
-async function fetchJson<T>(params: ClawHubRequestParams): Promise<T> {
-  const { response, url } = await clawhubRequest(params);
+async function fetchJson<T>(params: MarketplaceRegistryRequestParams): Promise<T> {
+  const { response, url } = await marketplaceRegistryRequest(params);
   if (!response.ok) {
-    throw new ClawHubRequestError({
+    throw new MarketplaceRegistryRequestError({
       path: url.pathname,
       status: response.status,
       body: await readErrorBody(response),
@@ -409,7 +436,7 @@ async function fetchJson<T>(params: ClawHubRequestParams): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function resolveClawHubBaseUrl(baseUrl?: string): string {
+export function resolveMarketplaceRegistryBaseUrl(baseUrl?: string): string {
   return normalizeBaseUrl(baseUrl);
 }
 
@@ -418,7 +445,7 @@ export function formatSha256Integrity(bytes: Uint8Array): string {
   return `sha256-${digest}`;
 }
 
-export function parseClawHubPluginSpec(raw: string): {
+export function parseMarketplaceRegistryPluginSpec(raw: string): {
   name: string;
   version?: string;
   baseUrl?: string;
@@ -447,14 +474,14 @@ export function parseClawHubPluginSpec(raw: string): {
   };
 }
 
-export async function fetchClawHubPackageDetail(params: {
+export async function fetchMarketplaceRegistryPackageDetail(params: {
   name: string;
   baseUrl?: string;
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
-}): Promise<ClawHubPackageDetail> {
-  return await fetchJson<ClawHubPackageDetail>({
+}): Promise<MarketplaceRegistryPackageDetail> {
+  return await fetchJson<MarketplaceRegistryPackageDetail>({
     baseUrl: params.baseUrl,
     path: `/api/v1/packages/${encodeURIComponent(params.name)}`,
     token: params.token,
@@ -463,15 +490,15 @@ export async function fetchClawHubPackageDetail(params: {
   });
 }
 
-export async function fetchClawHubPackageVersion(params: {
+export async function fetchMarketplaceRegistryPackageVersion(params: {
   name: string;
   version: string;
   baseUrl?: string;
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
-}): Promise<ClawHubPackageVersion> {
-  return await fetchJson<ClawHubPackageVersion>({
+}): Promise<MarketplaceRegistryPackageVersion> {
+  return await fetchJson<MarketplaceRegistryPackageVersion>({
     baseUrl: params.baseUrl,
     path: `/api/v1/packages/${encodeURIComponent(params.name)}/versions/${encodeURIComponent(
       params.version,
@@ -482,16 +509,16 @@ export async function fetchClawHubPackageVersion(params: {
   });
 }
 
-export async function searchClawHubPackages(params: {
+export async function searchMarketplaceRegistryPackages(params: {
   query: string;
-  family?: ClawHubPackageFamily;
+  family?: MarketplaceRegistryPackageFamily;
   baseUrl?: string;
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
   limit?: number;
-}): Promise<ClawHubPackageSearchResult[]> {
-  const result = await fetchJson<{ results: ClawHubPackageSearchResult[] }>({
+}): Promise<MarketplaceRegistryPackageSearchResult[]> {
+  const result = await fetchJson<{ results: MarketplaceRegistryPackageSearchResult[] }>({
     baseUrl: params.baseUrl,
     path: "/api/v1/packages/search",
     token: params.token,
@@ -506,15 +533,15 @@ export async function searchClawHubPackages(params: {
   return result.results ?? [];
 }
 
-export async function searchClawHubSkills(params: {
+export async function searchMarketplaceRegistrySkills(params: {
   query: string;
   baseUrl?: string;
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
   limit?: number;
-}): Promise<ClawHubSkillSearchResult[]> {
-  const result = await fetchJson<{ results: ClawHubSkillSearchResult[] }>({
+}): Promise<MarketplaceRegistrySkillSearchResult[]> {
+  const result = await fetchJson<{ results: MarketplaceRegistrySkillSearchResult[] }>({
     baseUrl: params.baseUrl,
     path: "/api/v1/search",
     token: params.token,
@@ -528,14 +555,14 @@ export async function searchClawHubSkills(params: {
   return result.results ?? [];
 }
 
-export async function fetchClawHubSkillDetail(params: {
+export async function fetchMarketplaceRegistrySkillDetail(params: {
   slug: string;
   baseUrl?: string;
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
-}): Promise<ClawHubSkillDetail> {
-  return await fetchJson<ClawHubSkillDetail>({
+}): Promise<MarketplaceRegistrySkillDetail> {
+  return await fetchJson<MarketplaceRegistrySkillDetail>({
     baseUrl: params.baseUrl,
     path: `/api/v1/skills/${encodeURIComponent(params.slug)}`,
     token: params.token,
@@ -544,14 +571,14 @@ export async function fetchClawHubSkillDetail(params: {
   });
 }
 
-export async function listClawHubSkills(params: {
+export async function listMarketplaceRegistrySkills(params: {
   baseUrl?: string;
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
   limit?: number;
-}): Promise<ClawHubSkillListResponse> {
-  return await fetchJson<ClawHubSkillListResponse>({
+}): Promise<MarketplaceRegistrySkillListResponse> {
+  return await fetchJson<MarketplaceRegistrySkillListResponse>({
     baseUrl: params.baseUrl,
     path: "/api/v1/skills",
     token: params.token,
@@ -563,7 +590,7 @@ export async function listClawHubSkills(params: {
   });
 }
 
-export async function downloadClawHubPackageArchive(params: {
+export async function downloadMarketplaceRegistryPackageArchive(params: {
   name: string;
   version?: string;
   tag?: string;
@@ -571,13 +598,13 @@ export async function downloadClawHubPackageArchive(params: {
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
-}): Promise<ClawHubDownloadResult> {
+}): Promise<MarketplaceRegistryDownloadResult> {
   const search = params.version
     ? { version: params.version }
     : params.tag
       ? { tag: params.tag }
       : undefined;
-  const { response, url } = await clawhubRequest({
+  const { response, url } = await marketplaceRegistryRequest({
     baseUrl: params.baseUrl,
     path: `/api/v1/packages/${encodeURIComponent(params.name)}/download`,
     search,
@@ -586,7 +613,7 @@ export async function downloadClawHubPackageArchive(params: {
     fetchImpl: params.fetchImpl,
   });
   if (!response.ok) {
-    throw new ClawHubRequestError({
+    throw new MarketplaceRegistryRequestError({
       path: url.pathname,
       status: response.status,
       body: await readErrorBody(response),
@@ -594,7 +621,7 @@ export async function downloadClawHubPackageArchive(params: {
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const target = await createTempDownloadTarget({
-    prefix: "alisio-clawhub-package",
+    prefix: "alisio-marketplace-registry-package",
     fileName: `${params.name}.zip`,
     tmpDir: os.tmpdir(),
   });
@@ -606,7 +633,7 @@ export async function downloadClawHubPackageArchive(params: {
   };
 }
 
-export async function downloadClawHubSkillArchive(params: {
+export async function downloadMarketplaceRegistrySkillArchive(params: {
   slug: string;
   version?: string;
   tag?: string;
@@ -614,8 +641,8 @@ export async function downloadClawHubSkillArchive(params: {
   token?: string;
   timeoutMs?: number;
   fetchImpl?: FetchLike;
-}): Promise<ClawHubDownloadResult> {
-  const { response, url } = await clawhubRequest({
+}): Promise<MarketplaceRegistryDownloadResult> {
+  const { response, url } = await marketplaceRegistryRequest({
     baseUrl: params.baseUrl,
     path: "/api/v1/download",
     token: params.token,
@@ -628,7 +655,7 @@ export async function downloadClawHubSkillArchive(params: {
     },
   });
   if (!response.ok) {
-    throw new ClawHubRequestError({
+    throw new MarketplaceRegistryRequestError({
       path: url.pathname,
       status: response.status,
       body: await readErrorBody(response),
@@ -636,7 +663,7 @@ export async function downloadClawHubSkillArchive(params: {
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const target = await createTempDownloadTarget({
-    prefix: "alisio-clawhub-skill",
+    prefix: "alisio-marketplace-registry-skill",
     fileName: `${params.slug}.zip`,
     tmpDir: os.tmpdir(),
   });
@@ -648,11 +675,15 @@ export async function downloadClawHubSkillArchive(params: {
   };
 }
 
-export function resolveLatestVersionFromPackage(detail: ClawHubPackageDetail): string | null {
+export function resolveLatestVersionFromPackage(
+  detail: MarketplaceRegistryPackageDetail,
+): string | null {
   return detail.package?.latestVersion ?? detail.package?.tags?.latest ?? null;
 }
 
-export function isClawHubFamilySkill(detail: ClawHubPackageDetail | ClawHubSkillDetail): boolean {
+export function isMarketplaceRegistryFamilySkill(
+  detail: MarketplaceRegistryPackageDetail | MarketplaceRegistrySkillDetail,
+): boolean {
   if ("package" in detail) {
     return detail.package?.family === "skill";
   }

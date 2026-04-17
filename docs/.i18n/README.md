@@ -73,7 +73,7 @@ Notes:
 After regeneration:
 
 ```bash
-rg -n "Alisio|alisio|ClawHub|alisio.ai" docs/zh-CN
+rg -n "Alisio|alisio|Marketplace|alisio.ai" docs/zh-CN
 pnpm check:docs
 ```
 

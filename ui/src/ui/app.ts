@@ -2,7 +2,7 @@ import { LitElement } from "lit";
 import { state } from "lit/decorators.js";
 import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.js";
 import type { NodeListNode } from "../../../src/shared/node-list-types.js";
-import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
+import { i18n, I18nController, isSupportedLocale, t } from "../i18n/index.ts";
 import {
   clearAlisioAccountEmailLinkAuthFromUrl,
   emitAlisioAccountAuthSignal,
@@ -19,6 +19,7 @@ import {
   type PendingAlisioConnectorChatResume,
   type AlisioConnectorOAuthSignal,
 } from "./alisio-connector-oauth.ts";
+import { requestNativePermission } from "./alisio-host.ts";
 import {
   refreshAfterAlisioOpenAiOAuth,
   subscribeAlisioOpenAiOAuthSignals,
@@ -77,11 +78,17 @@ import {
   readBrowserPaneObserverStateFromSessionRow,
   resolveBrowserPaneSessionObserver,
   saveBrowserPaneUiState,
+  type BrowserPanePreviewState,
   type BrowserPaneMarkdownState,
   type BrowserPaneObserver,
   type BrowserPaneSurfaceKind,
   type BrowserPaneUiState,
 } from "./controllers/browser-pane.ts";
+import {
+  approveComputerSession,
+  loadComputerSession,
+  updateComputerSession,
+} from "./controllers/computer-session.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
@@ -95,7 +102,6 @@ import type {
   SecurityAccessMode,
 } from "./controllers/security-access.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
-import "./alisio-host.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import {
   DEFAULT_MODELS_AI_PROFILE_SORT,
@@ -122,6 +128,7 @@ import type {
   LogLevel,
   ModelCatalogEntry,
   NativeShellState,
+  ComputerSessionState,
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
@@ -158,7 +165,9 @@ export class AlisioApp extends LitElement {
   private browserPaneMarkdownBySession = new Map<string, BrowserPaneMarkdownState>();
   private browserPaneObserverBySession = new Map<string, BrowserPaneObserver>();
   private browserPaneObserverIdentityBySession = new Map<string, string>();
-  private browserPanePendingActivityBySession = new Set<string>();
+  private computerSessionBySession = new Map<string, ComputerSessionState>();
+  private browserPaneComputerPresenceBySession = new Map<string, boolean>();
+  private browserPanePendingActivityBySession = new Map<string, BrowserPaneSurfaceKind>();
   clientInstanceId = generateUUID();
   connectGeneration = 0;
   @state() settings: UiSettings = loadSettings();
@@ -239,6 +248,8 @@ export class AlisioApp extends LitElement {
     null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null = null;
   @state() alisioConnectorsSearch = "";
+  @state() alisioConnectorDialogId: string | null = null;
+  @state() alisioConnectorDialogMode: "details" | "install" | null = null;
   @state() alisioOrganizationDraftMode: "create" | "join" = "create";
   @state() alisioOrganizationName = "";
   @state() alisioOrganizationInviteEmail = "";
@@ -311,6 +322,9 @@ export class AlisioApp extends LitElement {
     sessionKey: this.settings.sessionKey,
   }).selectedSurface;
   @state() browserPaneObserver: BrowserPaneObserver | null = null;
+  @state() computerSessionLoading = false;
+  @state() computerSessionError: string | null = null;
+  @state() computerSession: ComputerSessionState | null = null;
   @state() splitRatio = this.settings.splitRatio;
 
   @state() nodesLoading = false;
@@ -744,6 +758,14 @@ export class AlisioApp extends LitElement {
     if (changed.has("sessionKey") || changed.has("sessionsResult") || changed.has("settings")) {
       this.syncBrowserPaneForSession(this.sessionKey);
     }
+    if (
+      changed.has("sessionKey") ||
+      changed.has("connected") ||
+      changed.has("client") ||
+      changed.has("settings")
+    ) {
+      void this.refreshComputerSession(this.sessionKey, { quiet: true });
+    }
     if (changed.has("execApprovalQueue")) {
       if (this.execApprovalQueue.length > 0 && this.execApprovalTicker == null) {
         this.execApprovalTicker = window.setInterval(() => this.requestUpdate(), 1000);
@@ -1159,6 +1181,36 @@ export class AlisioApp extends LitElement {
     this.browserPaneMarkdownBySession.set(scopeKey, next);
   }
 
+  private getComputerSession(sessionKey: string): ComputerSessionState | null {
+    return this.computerSessionBySession.get(this.getBrowserPaneScopeKey(sessionKey)) ?? null;
+  }
+
+  setComputerSession(sessionKey: string, session: ComputerSessionState | null): void {
+    const normalizedSessionKey = sessionKey.trim();
+    if (!normalizedSessionKey) {
+      return;
+    }
+    const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
+    if (session) {
+      this.computerSessionBySession.set(scopeKey, session);
+    } else {
+      this.computerSessionBySession.delete(scopeKey);
+    }
+    if (normalizedSessionKey === this.sessionKey) {
+      this.syncBrowserPaneForSession(normalizedSessionKey);
+    }
+  }
+
+  private async refreshComputerSession(
+    sessionKey = this.sessionKey,
+    opts?: { quiet?: boolean },
+  ): Promise<void> {
+    await loadComputerSession(this, {
+      sessionKey,
+      quiet: opts?.quiet,
+    });
+  }
+
   private resolveSessionBrowserPaneObserver(sessionKey: string): BrowserPaneObserver | null {
     const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
     const sessionRow = this.sessionsResult?.sessions?.find((entry) => entry.key === sessionKey);
@@ -1184,6 +1236,19 @@ export class AlisioApp extends LitElement {
     return liveObserver;
   }
 
+  resolveSessionBrowserPanePreview(sessionKey: string): BrowserPanePreviewState | null {
+    const normalizedSessionKey = sessionKey.trim();
+    if (!normalizedSessionKey) {
+      return null;
+    }
+    return {
+      observer: this.resolveSessionBrowserPaneObserver(normalizedSessionKey),
+      computer: this.getComputerSession(normalizedSessionKey),
+      markdown: this.getBrowserPaneMarkdownState(normalizedSessionKey),
+      selectedSurface: this.getBrowserPaneUiState(normalizedSessionKey).selectedSurface,
+    };
+  }
+
   setBrowserPaneObserver(sessionKey: string, observer: BrowserPaneObserver | null): void {
     const normalizedSessionKey = sessionKey.trim();
     if (!normalizedSessionKey) {
@@ -1201,12 +1266,16 @@ export class AlisioApp extends LitElement {
   }
 
   notifyBrowserPaneActivity(sessionKey: string): void {
+    this.notifyBrowserPaneActivityForSurface(sessionKey, "observer");
+  }
+
+  notifyBrowserPaneActivityForSurface(sessionKey: string, surface: BrowserPaneSurfaceKind): void {
     const normalizedSessionKey = sessionKey.trim();
     if (!normalizedSessionKey) {
       return;
     }
     const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
-    this.browserPanePendingActivityBySession.add(scopeKey);
+    this.browserPanePendingActivityBySession.set(scopeKey, surface);
     if (normalizedSessionKey === this.sessionKey) {
       this.syncBrowserPaneForSession(normalizedSessionKey);
     }
@@ -1218,37 +1287,59 @@ export class AlisioApp extends LitElement {
     const ui = this.getBrowserPaneUiState(normalizedSessionKey);
     const markdown = this.getBrowserPaneMarkdownState(normalizedSessionKey);
     const observer = this.resolveSessionBrowserPaneObserver(normalizedSessionKey);
+    const computerSession = this.getComputerSession(normalizedSessionKey);
     const observerIdentity = getBrowserPaneObserverIdentity(observer);
-    const previousObserverIdentity = this.browserPaneObserverIdentityBySession.get(scopeKey) ?? null;
-    const observerJustAppeared = Boolean(observerIdentity) && observerIdentity !== previousObserverIdentity;
+    const previousObserverIdentity =
+      this.browserPaneObserverIdentityBySession.get(scopeKey) ?? null;
+    const observerJustAppeared =
+      Boolean(observerIdentity) && observerIdentity !== previousObserverIdentity;
+    const hadComputerSession = this.browserPaneComputerPresenceBySession.get(scopeKey) === true;
+    const hasComputerSession = Boolean(computerSession);
+    const computerJustAppeared = hasComputerSession && !hadComputerSession;
     if (observerIdentity) {
       this.browserPaneObserverIdentityBySession.set(scopeKey, observerIdentity);
     } else {
       this.browserPaneObserverIdentityBySession.delete(scopeKey);
     }
+    if (hasComputerSession) {
+      this.browserPaneComputerPresenceBySession.set(scopeKey, true);
+    } else {
+      this.browserPaneComputerPresenceBySession.delete(scopeKey);
+    }
     const hasMarkdown = Boolean(markdown.content || markdown.error);
     let selectedSurface = ui.selectedSurface;
     if (observerJustAppeared) {
       selectedSurface = "observer";
-    } else if (selectedSurface === "observer" && !observer && hasMarkdown) {
-      selectedSurface = "markdown";
+    } else if (computerJustAppeared) {
+      selectedSurface = "computer";
+    } else if (selectedSurface === "observer" && !observer) {
+      selectedSurface = computerSession ? "computer" : hasMarkdown ? "markdown" : selectedSurface;
+    } else if (selectedSurface === "computer" && !computerSession) {
+      selectedSurface = observer ? "observer" : hasMarkdown ? "markdown" : selectedSurface;
     } else if (selectedSurface === "markdown" && !hasMarkdown && observer) {
       selectedSurface = "observer";
+    } else if (selectedSurface === "markdown" && !hasMarkdown && computerSession) {
+      selectedSurface = "computer";
     }
-    const hasSurface = Boolean(observer || hasMarkdown);
-    const hasPendingBrowserActivity = this.browserPanePendingActivityBySession.has(scopeKey);
-    const shouldOpenForBrowserActivity = hasPendingBrowserActivity && Boolean(observer);
-    if (shouldOpenForBrowserActivity) {
+    const hasSurface = Boolean(observer || computerSession || hasMarkdown);
+    const pendingActivitySurface = this.browserPanePendingActivityBySession.get(scopeKey) ?? null;
+    const shouldOpenForPaneActivity =
+      (pendingActivitySurface === "observer" && Boolean(observer)) ||
+      (pendingActivitySurface === "computer" && Boolean(computerSession)) ||
+      (pendingActivitySurface === "markdown" && hasMarkdown);
+    if (shouldOpenForPaneActivity && pendingActivitySurface) {
       this.browserPanePendingActivityBySession.delete(scopeKey);
-      selectedSurface = "observer";
+      selectedSurface = pendingActivitySurface;
     }
     const autoOpenObserver =
       observerJustAppeared ||
-      (!ui.touched && Boolean(observer)) ||
-      shouldOpenForBrowserActivity;
+      computerJustAppeared ||
+      (!ui.touched && Boolean(observer || computerSession)) ||
+      shouldOpenForPaneActivity;
     this.sidebarContent = markdown.content;
     this.sidebarError = markdown.error;
     this.browserPaneObserver = observer;
+    this.computerSession = computerSession;
     this.browserPaneSurfaceKind = selectedSurface;
     this.sidebarOpen = hasSurface && (ui.open || autoOpenObserver);
   }
@@ -1292,6 +1383,47 @@ export class AlisioApp extends LitElement {
     const newRatio = Math.max(0.4, Math.min(0.7, ratio));
     this.splitRatio = newRatio;
     this.applySettings({ ...this.settings, splitRatio: newRatio });
+  }
+
+  handleComputerSessionCommand(command: "pause" | "resume" | "stop") {
+    void updateComputerSession(this, {
+      sessionKey: this.sessionKey,
+      command,
+    });
+  }
+
+  handleComputerSessionApproval(decision: "allow-once" | "allow-session" | "deny") {
+    const requestId = this.computerSession?.awaitingApproval?.id;
+    if (!requestId) {
+      return;
+    }
+    void approveComputerSession(this, {
+      sessionKey: this.sessionKey,
+      requestId,
+      decision,
+    });
+  }
+
+  async handleRequestComputerPermission(
+    permission: "accessibility" | "screenRecording",
+  ): Promise<void> {
+    const granted = await requestNativePermission(permission);
+    const grantedValue = granted[permission];
+    if (this.nativeShellState) {
+      this.nativeShellState = {
+        ...this.nativeShellState,
+        permissions: {
+          ...this.nativeShellState.permissions,
+          [permission]: grantedValue,
+        },
+      };
+    }
+    await updateComputerSession(this, {
+      sessionKey: this.sessionKey,
+      permissions: {
+        [permission]: grantedValue,
+      },
+    });
   }
 
   render() {

@@ -66,12 +66,16 @@ function memoryText() {
     graphLoading: t("alisio.memory.graphLoading"),
     graphEmpty: t("alisio.memory.graphEmpty"),
     graphUnavailable: t("alisio.memory.graphUnavailable"),
+    graphCanvasHint: t("alisio.memory.graph.canvasHint"),
     graphFocus: t("alisio.memory.graph.focus"),
     graphGlobal: t("alisio.memory.graph.global"),
     graphLocal: t("alisio.memory.graph.local"),
     graphNodesCount: t("alisio.memory.graph.nodesCount"),
+    graphRelationType: t("alisio.memory.graph.relationType"),
     graphResetView: t("alisio.memory.graph.resetView"),
     graphShowAttachments: t("alisio.memory.graph.showAttachments"),
+    graphSource: t("alisio.memory.graph.source"),
+    graphTarget: t("alisio.memory.graph.target"),
     graphFilterTags: t("alisio.memory.graph.filterTags"),
     graphGroups: t("alisio.memory.graph.groups"),
     graphGroupNone: t("alisio.memory.graph.groupNone"),
@@ -81,6 +85,8 @@ function memoryText() {
     graphGroupSource: t("alisio.memory.graph.groupSource"),
     graphGroupNote: t("alisio.memory.graph.groupNote"),
     graphGroupAttachment: t("alisio.memory.graph.groupAttachment"),
+    graphZoomIn: t("alisio.memory.graph.zoomIn"),
+    graphZoomOut: t("alisio.memory.graph.zoomOut"),
     none: t("common.none"),
     na: t("common.na"),
     noteBacklinks: t("alisio.memory.wiki.backlinks"),
@@ -357,8 +363,8 @@ function convertWikiLinks(markdown: string) {
   });
 }
 
-function renderMarkdownPreview(markdown: string) {
-  return unsafeHTML(toSanitizedMarkdownHtml(convertWikiLinks(stripFrontmatter(markdown))));
+function buildMarkdownPreviewHtml(markdown: string) {
+  return toSanitizedMarkdownHtml(convertWikiLinks(stripFrontmatter(markdown)));
 }
 
 function normalizeLookupKey(value: string) {
@@ -418,6 +424,10 @@ export class AlisioMemoryNativeHub extends LitElement {
   private attachmentToken = 0;
   private graphToken = 0;
   private searchReloadTimer: number | null = null;
+  private explorerTreeSource: MemoryNoteListEntry[] | null = null;
+  private explorerTreeCache: NoteExplorerTreeNode | null = null;
+  private notePreviewMarkdown = "";
+  private notePreviewHtml = "";
 
   disconnectedCallback() {
     this.clearSearchReloadTimer();
@@ -561,6 +571,28 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private shouldRefreshGraphForCurrentView() {
     return this.mainPaneMode === "graph";
+  }
+
+  private getExplorerTree() {
+    const notes = this.notesList?.notes ?? null;
+    if (this.explorerTreeSource === notes && this.explorerTreeCache) {
+      return this.explorerTreeCache;
+    }
+    const nextTree = buildNoteExplorerTree(notes ?? []);
+    this.explorerTreeSource = notes;
+    this.explorerTreeCache = nextTree;
+    return nextTree;
+  }
+
+  private getNotePreviewHtml() {
+    const markdown = this.note?.content ?? "";
+    if (this.notePreviewMarkdown === markdown) {
+      return this.notePreviewHtml;
+    }
+    const nextHtml = buildMarkdownPreviewHtml(markdown);
+    this.notePreviewMarkdown = markdown;
+    this.notePreviewHtml = nextHtml;
+    return nextHtml;
   }
 
   private async reloadGraphForCurrentContext(
@@ -1212,7 +1244,7 @@ export class AlisioMemoryNativeHub extends LitElement {
   }
 
   private renderExplorer(text: ReturnType<typeof memoryText>) {
-    const tree = buildNoteExplorerTree(this.notesList?.notes ?? []);
+    const tree = this.getExplorerTree();
     const explorerError =
       this.notesError && !isMemoryBusyError(this.notesError) ? this.notesError : null;
     const emptyAction = html`
@@ -1630,7 +1662,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                   class="alisio-memory-preview__body sidebar-markdown memory-note__article-markdown"
                   @click=${this.handlePreviewClick}
                 >
-                  ${renderMarkdownPreview(this.note.content)}
+                  ${unsafeHTML(this.getNotePreviewHtml())}
                 </div>
               </div>
             `}
@@ -1687,6 +1719,12 @@ export class AlisioMemoryNativeHub extends LitElement {
           graphEdgesCount: text.graphEdgesCount,
           graphCenterFocus: text.graphCenterFocus,
           graphShowAttachments: text.graphShowAttachments,
+          graphZoomIn: text.graphZoomIn,
+          graphZoomOut: text.graphZoomOut,
+          graphRelationType: text.graphRelationType,
+          graphSource: text.graphSource,
+          graphTarget: text.graphTarget,
+          graphCanvasHint: text.graphCanvasHint,
         }}
         @alisio-memory-graph-open-node=${(event: CustomEvent<{ nodeId: string }>) => {
           const nodeId = event.detail?.nodeId?.trim();

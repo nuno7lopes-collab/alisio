@@ -2,12 +2,13 @@
 
 import { render } from "lit";
 import { describe, expect, it } from "vitest";
+import type { BrowserPanePreviewState } from "../controllers/browser-pane.ts";
 import type {
   Task,
   TaskExecution,
   TaskExecutionStep,
+  TasksDetailResult,
   TaskProposalRecord,
-  TaskRecord,
   TasksOverviewResult,
 } from "../types.ts";
 import { renderTasks, type TasksViewProps } from "./tasks.ts";
@@ -58,67 +59,9 @@ function createStep(overrides: Partial<TaskExecutionStep> = {}): TaskExecutionSt
   };
 }
 
-function createLegacyTask(overrides: Partial<TaskRecord> = {}): TaskRecord {
-  return {
-    taskId: "legacy-task-1",
-    runtime: "subagent",
-    requesterSessionKey: "main",
-    childSessionKey: "task-session",
-    runId: "run-1",
-    task: "Ship the tasks tab",
-    status: "running",
-    deliveryStatus: "pending",
-    notifyPolicy: "state_changes",
-    createdAt: 1,
-    ...overrides,
-  };
-}
-
 function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOverviewResult {
   const canonicalTask = createCanonicalTask();
   return {
-    summary: {
-      total: 1,
-      active: 1,
-      terminal: 0,
-      failures: 0,
-      byStatus: {
-        queued: 0,
-        running: 1,
-        succeeded: 0,
-        failed: 0,
-        timed_out: 0,
-        cancelled: 0,
-        lost: 0,
-      },
-      byRuntime: {
-        subagent: 1,
-        acp: 0,
-        cli: 0,
-        cron: 0,
-      },
-    },
-    filteredSummary: {
-      total: 1,
-      active: 1,
-      terminal: 0,
-      failures: 0,
-      byStatus: {
-        queued: 0,
-        running: 1,
-        succeeded: 0,
-        failed: 0,
-        timed_out: 0,
-        cancelled: 0,
-        lost: 0,
-      },
-      byRuntime: {
-        subagent: 1,
-        acp: 0,
-        cli: 0,
-        cron: 0,
-      },
-    },
     canonicalSummary: {
       total: 1,
       roots: 1,
@@ -139,25 +82,6 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
       rejected: 0,
       launched: 0,
     },
-    audit: {
-      total: 0,
-      warnings: 0,
-      errors: 0,
-      byCode: {
-        stale_queued: 0,
-        stale_running: 0,
-        lost: 0,
-        delivery_failed: 0,
-        missing_cleanup: 0,
-        inconsistent_timestamps: 0,
-      },
-    },
-    findings: [],
-    maintenance: {
-      reconciled: 0,
-      cleanupStamped: 0,
-      pruned: 0,
-    },
     proposals: [
       {
         proposalId: "proposal-1",
@@ -172,14 +96,8 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
         updatedAt: 1,
       } satisfies TaskProposalRecord,
     ],
-    tasks: [createLegacyTask()],
     canonicalTasks: [canonicalTask],
     canonicalExecutions: [createExecution()],
-    canonicalAssignments: [],
-    canonicalApprovals: [],
-    canonicalEvents: [],
-    canonicalSteps: [createStep()],
-    canonicalDependencies: [],
     total: 1,
     limit: 50,
     offset: 0,
@@ -192,12 +110,29 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
   };
 }
 
+function createDetail(overrides: Partial<TasksDetailResult> = {}): TasksDetailResult {
+  return {
+    task: createCanonicalTask(),
+    children: [],
+    childExecutions: [],
+    executions: [createExecution()],
+    assignments: [],
+    approvals: [],
+    events: [],
+    steps: [createStep()],
+    dependencies: [],
+    ...overrides,
+  };
+}
+
 function createProps(overrides: Partial<TasksViewProps> = {}): TasksViewProps {
   return {
     loading: false,
     busy: false,
     error: null,
     overview: createOverview(),
+    detailLoading: false,
+    detail: createDetail(),
     selectedId: "canonical-task-1",
     query: "",
     runtimeFilter: "all",
@@ -212,6 +147,20 @@ function createProps(overrides: Partial<TasksViewProps> = {}): TasksViewProps {
     onLaunchProposal: () => undefined,
     onOpenRequesterSession: () => undefined,
     onOpenChildSession: () => undefined,
+    resolveSessionBrowserPanePreview: () => null,
+    ...overrides,
+  };
+}
+
+function createPreview(overrides: Partial<BrowserPanePreviewState> = {}): BrowserPanePreviewState {
+  return {
+    computer: null,
+    observer: null,
+    markdown: {
+      content: "Resumo live da task",
+      error: null,
+    },
+    selectedSurface: "markdown",
     ...overrides,
   };
 }
@@ -224,6 +173,7 @@ describe("tasks view", () => {
         createProps({
           loading: true,
           overview: null,
+          detail: null,
           selectedId: null,
         }),
       ),
@@ -263,8 +213,8 @@ describe("tasks view", () => {
           overview: createOverview({
             canonicalTasks: [],
             canonicalExecutions: [],
-            canonicalSteps: [],
           }),
+          detail: null,
           selectedId: "legacy-task-1",
         }),
       ),
@@ -282,5 +232,20 @@ describe("tasks view", () => {
 
     expect(container.textContent).toContain("git status");
     expect(container.textContent).toContain("command started");
+  });
+
+  it("renders the linked live browser session inside the task detail", () => {
+    const container = document.createElement("div");
+    render(
+      renderTasks(
+        createProps({
+          resolveSessionBrowserPanePreview: () => createPreview(),
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Live session");
+    expect(container.textContent).toContain("Resumo live da task");
   });
 });

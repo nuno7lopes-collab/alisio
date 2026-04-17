@@ -1,21 +1,22 @@
 import {
-  ClawHubRequestError,
-  downloadClawHubPackageArchive,
-  fetchClawHubPackageDetail,
-  fetchClawHubPackageVersion,
-  parseClawHubPluginSpec,
+  MarketplaceRegistryRequestError,
+  downloadMarketplaceRegistryPackageArchive,
+  fetchMarketplaceRegistryPackageDetail,
+  fetchMarketplaceRegistryPackageVersion,
+  parseMarketplaceRegistryPluginSpec,
+  resolveMarketplaceRegistryBaseUrl,
   resolveLatestVersionFromPackage,
   satisfiesGatewayMinimum,
   satisfiesPluginApiRange,
-  type ClawHubPackageChannel,
-  type ClawHubPackageCompatibility,
-  type ClawHubPackageDetail,
-  type ClawHubPackageFamily,
-} from "../infra/clawhub.js";
+  type MarketplaceRegistryPackageChannel,
+  type MarketplaceRegistryPackageCompatibility,
+  type MarketplaceRegistryPackageDetail,
+  type MarketplaceRegistryPackageFamily,
+} from "../infra/marketplace-registry.js";
 import { resolveCompatibilityHostVersion } from "../version.js";
 import { installPluginFromArchive, type InstallPluginResult } from "./install.js";
 
-export const CLAWHUB_INSTALL_ERROR_CODE = {
+export const MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE = {
   INVALID_SPEC: "invalid_spec",
   PACKAGE_NOT_FOUND: "package_not_found",
   VERSION_NOT_FOUND: "version_not_found",
@@ -27,64 +28,69 @@ export const CLAWHUB_INSTALL_ERROR_CODE = {
   INCOMPATIBLE_GATEWAY: "incompatible_gateway",
 } as const;
 
-export type ClawHubInstallErrorCode =
-  (typeof CLAWHUB_INSTALL_ERROR_CODE)[keyof typeof CLAWHUB_INSTALL_ERROR_CODE];
+export type MarketplaceRegistryInstallErrorCode =
+  (typeof MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE)[keyof typeof MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE];
 
 type PluginInstallLogger = {
   info?: (message: string) => void;
   warn?: (message: string) => void;
 };
 
-export type ClawHubPluginInstallRecordFields = {
-  source: "clawhub";
-  clawhubUrl: string;
-  clawhubPackage: string;
-  clawhubFamily: Exclude<ClawHubPackageFamily, "skill">;
-  clawhubChannel?: ClawHubPackageChannel;
+export type MarketplaceRegistryPluginInstallRecordFields = {
+  source: "marketplace";
+  marketplaceRegistryUrl: string;
+  marketplacePackage: string;
+  marketplaceFamily: Exclude<MarketplaceRegistryPackageFamily, "skill">;
+  marketplaceChannel?: MarketplaceRegistryPackageChannel;
   version?: string;
   integrity?: string;
   resolvedAt?: string;
   installedAt?: string;
 };
 
-type ClawHubInstallFailure = {
+type MarketplaceRegistryInstallFailure = {
   ok: false;
   error: string;
-  code?: ClawHubInstallErrorCode;
+  code?: MarketplaceRegistryInstallErrorCode;
 };
 
-export function formatClawHubSpecifier(params: { name: string; version?: string }): string {
+export function formatMarketplaceRegistrySpecifier(params: {
+  name: string;
+  version?: string;
+}): string {
   return `marketplace:${params.name}${params.version ? `@${params.version}` : ""}`;
 }
 
-function buildClawHubInstallFailure(
+function buildMarketplaceRegistryInstallFailure(
   error: string,
-  code?: ClawHubInstallErrorCode,
-): ClawHubInstallFailure {
+  code?: MarketplaceRegistryInstallErrorCode,
+): MarketplaceRegistryInstallFailure {
   return { ok: false, error, code };
 }
 
-function mapClawHubRequestError(
+function mapMarketplaceRegistryRequestError(
   error: unknown,
   context: { stage: "package" | "version"; name: string; version?: string },
-): ClawHubInstallFailure {
-  if (error instanceof ClawHubRequestError && error.status === 404) {
+): MarketplaceRegistryInstallFailure {
+  if (error instanceof MarketplaceRegistryRequestError && error.status === 404) {
     if (context.stage === "package") {
-      return buildClawHubInstallFailure(
+      return buildMarketplaceRegistryInstallFailure(
         "Package not found in Local Marketplace.",
-        CLAWHUB_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
+        MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
       );
     }
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `Version not found in Local Marketplace: ${context.name}@${context.version ?? "unknown"}.`,
-      CLAWHUB_INSTALL_ERROR_CODE.VERSION_NOT_FOUND,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.VERSION_NOT_FOUND,
     );
   }
-  return buildClawHubInstallFailure(error instanceof Error ? error.message : String(error));
+  return buildMarketplaceRegistryInstallFailure(
+    error instanceof Error ? error.message : String(error),
+  );
 }
 
 function resolveRequestedVersion(params: {
-  detail: ClawHubPackageDetail;
+  detail: MarketplaceRegistryPackageDetail;
   requestedVersion?: string;
 }): string | null {
   if (params.requestedVersion) {
@@ -94,7 +100,7 @@ function resolveRequestedVersion(params: {
 }
 
 async function resolveCompatiblePackageVersion(params: {
-  detail: ClawHubPackageDetail;
+  detail: MarketplaceRegistryPackageDetail;
   requestedVersion?: string;
   baseUrl?: string;
   token?: string;
@@ -102,27 +108,27 @@ async function resolveCompatiblePackageVersion(params: {
   | {
       ok: true;
       version: string;
-      compatibility?: ClawHubPackageCompatibility | null;
+      compatibility?: MarketplaceRegistryPackageCompatibility | null;
     }
-  | ClawHubInstallFailure
+  | MarketplaceRegistryInstallFailure
 > {
   const version = resolveRequestedVersion(params);
   if (!version) {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `Marketplace package "${params.detail.package?.name ?? "unknown"}" has no installable version.`,
-      CLAWHUB_INSTALL_ERROR_CODE.NO_INSTALLABLE_VERSION,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.NO_INSTALLABLE_VERSION,
     );
   }
   let versionDetail;
   try {
-    versionDetail = await fetchClawHubPackageVersion({
+    versionDetail = await fetchMarketplaceRegistryPackageVersion({
       name: params.detail.package?.name ?? "",
       version,
       baseUrl: params.baseUrl,
       token: params.token,
     });
   } catch (error) {
-    return mapClawHubRequestError(error, {
+    return mapMarketplaceRegistryRequestError(error, {
       stage: "version",
       name: params.detail.package?.name ?? "unknown",
       version,
@@ -136,34 +142,34 @@ async function resolveCompatiblePackageVersion(params: {
   };
 }
 
-function validateClawHubPluginPackage(params: {
-  detail: ClawHubPackageDetail;
-  compatibility?: ClawHubPackageCompatibility | null;
+function validateMarketplaceRegistryPluginPackage(params: {
+  detail: MarketplaceRegistryPackageDetail;
+  compatibility?: MarketplaceRegistryPackageCompatibility | null;
   runtimeVersion: string;
-}): ClawHubInstallFailure | null {
+}): MarketplaceRegistryInstallFailure | null {
   const pkg = params.detail.package;
   if (!pkg) {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       "Package not found in Local Marketplace.",
-      CLAWHUB_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
     );
   }
   if (pkg.family === "skill") {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `"${pkg.name}" is a skill. Use "alisio skills install ${pkg.name}" instead.`,
-      CLAWHUB_INSTALL_ERROR_CODE.SKILL_PACKAGE,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.SKILL_PACKAGE,
     );
   }
   if (pkg.family !== "code-plugin" && pkg.family !== "bundle-plugin") {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `Unsupported Marketplace package family: ${String(pkg.family)}`,
-      CLAWHUB_INSTALL_ERROR_CODE.UNSUPPORTED_FAMILY,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.UNSUPPORTED_FAMILY,
     );
   }
   if (pkg.channel === "private") {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `"${pkg.name}" is private in Local Marketplace and cannot be installed anonymously.`,
-      CLAWHUB_INSTALL_ERROR_CODE.PRIVATE_PACKAGE,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.PRIVATE_PACKAGE,
     );
   }
 
@@ -173,9 +179,9 @@ function validateClawHubPluginPackage(params: {
     compatibility?.pluginApiRange &&
     !satisfiesPluginApiRange(runtimeVersion, compatibility.pluginApiRange)
   ) {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `Plugin "${pkg.name}" requires plugin API ${compatibility.pluginApiRange}, but this Alisio runtime exposes ${runtimeVersion}.`,
-      CLAWHUB_INSTALL_ERROR_CODE.INCOMPATIBLE_PLUGIN_API,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.INCOMPATIBLE_PLUGIN_API,
     );
   }
 
@@ -183,18 +189,18 @@ function validateClawHubPluginPackage(params: {
     compatibility?.minGatewayVersion &&
     !satisfiesGatewayMinimum(runtimeVersion, compatibility.minGatewayVersion)
   ) {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `Plugin "${pkg.name}" requires Alisio >=${compatibility.minGatewayVersion}, but this host is ${runtimeVersion}.`,
-      CLAWHUB_INSTALL_ERROR_CODE.INCOMPATIBLE_GATEWAY,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.INCOMPATIBLE_GATEWAY,
     );
   }
   return null;
 }
 
-function logClawHubPackageSummary(params: {
-  detail: ClawHubPackageDetail;
+function logMarketplaceRegistryPackageSummary(params: {
+  detail: MarketplaceRegistryPackageDetail;
   version: string;
-  compatibility?: ClawHubPackageCompatibility | null;
+  compatibility?: MarketplaceRegistryPackageCompatibility | null;
   logger?: PluginInstallLogger;
 }) {
   const pkg = params.detail.package;
@@ -223,7 +229,7 @@ function logClawHubPackageSummary(params: {
   }
 }
 
-export async function installPluginFromClawHub(params: {
+export async function installPluginFromMarketplaceRegistry(params: {
   spec: string;
   baseUrl?: string;
   token?: string;
@@ -235,30 +241,30 @@ export async function installPluginFromClawHub(params: {
   | ({
       ok: true;
     } & Extract<InstallPluginResult, { ok: true }> & {
-        clawhub: ClawHubPluginInstallRecordFields;
+        marketplaceRegistry: MarketplaceRegistryPluginInstallRecordFields;
         packageName: string;
       })
-  | ClawHubInstallFailure
+  | MarketplaceRegistryInstallFailure
   | Extract<InstallPluginResult, { ok: false }>
 > {
-  const parsed = parseClawHubPluginSpec(params.spec);
+  const parsed = parseMarketplaceRegistryPluginSpec(params.spec);
   if (!parsed?.name) {
-    return buildClawHubInstallFailure(
+    return buildMarketplaceRegistryInstallFailure(
       `invalid marketplace plugin spec: ${params.spec}`,
-      CLAWHUB_INSTALL_ERROR_CODE.INVALID_SPEC,
+      MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.INVALID_SPEC,
     );
   }
 
-  params.logger?.info?.(`Resolving ${formatClawHubSpecifier(parsed)}…`);
-  let detail: ClawHubPackageDetail;
+  params.logger?.info?.(`Resolving ${formatMarketplaceRegistrySpecifier(parsed)}…`);
+  let detail: MarketplaceRegistryPackageDetail;
   try {
-    detail = await fetchClawHubPackageDetail({
+    detail = await fetchMarketplaceRegistryPackageDetail({
       name: parsed.name,
       baseUrl: params.baseUrl,
       token: params.token,
     });
   } catch (error) {
-    return mapClawHubRequestError(error, {
+    return mapMarketplaceRegistryRequestError(error, {
       stage: "package",
       name: parsed.name,
     });
@@ -273,7 +279,7 @@ export async function installPluginFromClawHub(params: {
     return versionState;
   }
   const runtimeVersion = resolveCompatibilityHostVersion();
-  const validationFailure = validateClawHubPluginPackage({
+  const validationFailure = validateMarketplaceRegistryPluginPackage({
     detail,
     compatibility: versionState.compatibility,
     runtimeVersion,
@@ -281,7 +287,7 @@ export async function installPluginFromClawHub(params: {
   if (validationFailure) {
     return validationFailure;
   }
-  logClawHubPackageSummary({
+  logMarketplaceRegistryPackageSummary({
     detail,
     version: versionState.version,
     compatibility: versionState.compatibility,
@@ -290,14 +296,16 @@ export async function installPluginFromClawHub(params: {
 
   let archive;
   try {
-    archive = await downloadClawHubPackageArchive({
+    archive = await downloadMarketplaceRegistryPackageArchive({
       name: parsed.name,
       version: versionState.version,
       baseUrl: params.baseUrl,
       token: params.token,
     });
   } catch (error) {
-    return buildClawHubInstallFailure(error instanceof Error ? error.message : String(error));
+    return buildMarketplaceRegistryInstallFailure(
+      error instanceof Error ? error.message : String(error),
+    );
   }
   try {
     params.logger?.info?.(
@@ -315,26 +323,23 @@ export async function installPluginFromClawHub(params: {
     }
 
     const pkg = detail.package!;
-    const clawhubFamily =
+    const marketplaceFamily =
       pkg.family === "code-plugin" || pkg.family === "bundle-plugin" ? pkg.family : null;
-    if (!clawhubFamily) {
-      return buildClawHubInstallFailure(
+    if (!marketplaceFamily) {
+      return buildMarketplaceRegistryInstallFailure(
         `Unsupported Marketplace package family: ${pkg.family}`,
-        CLAWHUB_INSTALL_ERROR_CODE.UNSUPPORTED_FAMILY,
+        MARKETPLACE_REGISTRY_INSTALL_ERROR_CODE.UNSUPPORTED_FAMILY,
       );
     }
     return {
       ...installResult,
       packageName: parsed.name,
-      clawhub: {
-        source: "clawhub",
-        clawhubUrl:
-          params.baseUrl?.trim() ||
-          process.env.ALISIO_CLAWHUB_URL?.trim() ||
-          "https://clawhub.ai",
-        clawhubPackage: parsed.name,
-        clawhubFamily,
-        clawhubChannel: pkg.channel,
+      marketplaceRegistry: {
+        source: "marketplace",
+        marketplaceRegistryUrl: resolveMarketplaceRegistryBaseUrl(params.baseUrl),
+        marketplacePackage: parsed.name,
+        marketplaceFamily,
+        marketplaceChannel: pkg.channel,
         version: installResult.version ?? versionState.version,
         integrity: archive.integrity,
         resolvedAt: new Date().toISOString(),

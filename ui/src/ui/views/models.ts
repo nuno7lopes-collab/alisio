@@ -115,10 +115,25 @@ function modelsText() {
     openAiRuntimeHint: t("alisio.settings.models.openAiRuntimeHint"),
     runtimeErrorHint: t("alisio.settings.models.runtimeErrorHint"),
     hardware: t("alisio.settings.models.hardware"),
+    hardwareFit: t("alisio.settings.models.hardwareFit"),
     ownedBy: t("alisio.settings.models.ownedBy"),
     recommendedUpTo: t("alisio.settings.models.recommendedUpTo"),
     memory: t("alisio.settings.models.memory"),
     disk: t("alisio.settings.models.disk"),
+    cpu: t("alisio.settings.models.cpu"),
+    compatibleToInstall: t("alisio.settings.models.compatibleToInstall"),
+    installedNow: t("alisio.settings.models.installedNow"),
+    installHint: t("alisio.settings.models.installHint"),
+    noFurtherInstall: t("alisio.settings.models.noFurtherInstall"),
+    fitRecommended: t("alisio.settings.models.fitRecommended"),
+    fitWorks: t("alisio.settings.models.fitWorks"),
+    fitSlow: t("alisio.settings.models.fitSlow"),
+    fitUnsupported: t("alisio.settings.models.fitUnsupported"),
+    fitSummaryUnavailable: t("alisio.settings.models.fitSummaryUnavailable"),
+    blockedModelsHidden: t("alisio.settings.models.blockedModelsHidden"),
+    blockedModelsHiddenSingle: t("alisio.settings.models.blockedModelsHiddenSingle"),
+    installedCountSummary: t("alisio.settings.models.installedCountSummary"),
+    runtime: t("alisio.settings.models.runtime"),
     noModelChoices: t("alisio.settings.models.noModelChoices"),
     modelsAvailable: t("alisio.settings.models.modelsAvailable"),
     suggestion: t("alisio.settings.models.suggestion"),
@@ -392,20 +407,12 @@ function usageBarStyle(remainingPercent: number) {
   return `width:${clamped}%; background:hsl(${hue} 76% 52%);`;
 }
 
-function formatHardwareSummary(target: LocalModelTarget) {
-  const text = modelsText();
+function resolveEffectiveVramGb(target: Pick<LocalModelTarget, "hardware">) {
   if (!target.hardware) {
     return null;
   }
-  const parts = [
-    `${target.hardware.ramTotalGb ?? target.hardware.totalMemoryGb} GB RAM`,
-    typeof target.hardware.vramTotalGb === "number"
-      ? `${target.hardware.vramTotalGb} GB VRAM`
-      : null,
-    target.hardware.gpuBackend ? target.hardware.gpuBackend.toUpperCase() : null,
-    `${target.hardware.cpuCores} CPU`,
-  ].filter(Boolean);
-  return parts.length > 0 ? `${text.hardware} · ${parts.join(" · ")}` : null;
+  const effective = Math.max(target.hardware.vramUnifiedGb ?? 0, target.hardware.vramTotalGb ?? 0);
+  return effective > 0 ? effective : null;
 }
 
 function formatPlatformLabel(platform: string | null | undefined) {
@@ -434,14 +441,6 @@ function formatPlatformLabel(platform: string | null | undefined) {
     return "Android";
   }
   return platform?.trim() ?? "";
-}
-
-function resolveTargetRecommendationLabel(target: LocalModelTarget) {
-  const text = modelsText();
-  if (!target.bestModelName) {
-    return null;
-  }
-  return `${text.recommendedUpTo} ${target.bestModelName}`;
 }
 
 function resolveModelRecommendation(
@@ -568,11 +567,6 @@ function resolveTargetRuntimeLabel(target: LocalModelTarget) {
     return target.runtimeLabel.trim();
   }
   return "llama.cpp";
-}
-
-function resolveTargetModelsLabel(target: LocalModelTarget) {
-  const text = modelsText();
-  return target.supportsInstall ? text.installedModels : text.availableModels;
 }
 
 function resolveTargetEmptyModelsLabel(target: LocalModelTarget) {
@@ -729,6 +723,300 @@ function resolveTargetCatalogLookupEntries(
   }));
 }
 
+function resolveRecommendationCode(
+  recommendation: LocalModelTarget["recommendations"][number] | null | undefined,
+) {
+  if (!recommendation) {
+    return "insufficient" as const;
+  }
+  if (recommendation.reasonCode) {
+    return recommendation.reasonCode;
+  }
+  switch (recommendation.grade) {
+    case "recommended":
+      return "comfortable" as const;
+    case "works":
+      return "supported" as const;
+    case "slow":
+      return "tight" as const;
+    default:
+      return "insufficient" as const;
+  }
+}
+
+function formatRequiredResourcesLabel(params: { requiredRamGb?: number; requiredVramGb?: number }) {
+  const parts = [];
+  if (typeof params.requiredRamGb === "number" && Number.isFinite(params.requiredRamGb)) {
+    parts.push(`~${params.requiredRamGb} GB RAM`);
+  }
+  if (typeof params.requiredVramGb === "number" && Number.isFinite(params.requiredVramGb)) {
+    parts.push(`~${params.requiredVramGb} GB VRAM`);
+  }
+  return parts.join(" / ");
+}
+
+function formatAvailableResourcesLabel(target: LocalModelTarget) {
+  if (!target.hardware) {
+    return "";
+  }
+  const parts = [`${target.hardware.ramTotalGb ?? target.hardware.totalMemoryGb} GB RAM`];
+  const effectiveVram = resolveEffectiveVramGb(target);
+  if (typeof effectiveVram === "number") {
+    parts.push(`${effectiveVram} GB VRAM`);
+  }
+  return parts.join(" / ");
+}
+
+function resolveRecommendationLabel(
+  recommendation: LocalModelTarget["recommendations"][number] | null | undefined,
+) {
+  const text = modelsText();
+  switch (resolveRecommendationCode(recommendation)) {
+    case "comfortable":
+      return text.fitRecommended;
+    case "supported":
+      return text.fitWorks;
+    case "tight":
+      return text.fitSlow;
+    default:
+      return text.fitUnsupported;
+  }
+}
+
+function resolveRecommendationReason(params: {
+  target: LocalModelTarget;
+  model: Pick<TargetCatalogEntryView, "name" | "memoryGb" | "vramGb">;
+  recommendation: LocalModelTarget["recommendations"][number] | null | undefined;
+}) {
+  const { target, model, recommendation } = params;
+  const reasonCode = resolveRecommendationCode(recommendation);
+  if (reasonCode === "comfortable") {
+    return t("alisio.settings.models.fitReasonComfortable", { model: model.name });
+  }
+  if (reasonCode === "supported") {
+    return t("alisio.settings.models.fitReasonSupported", { model: model.name });
+  }
+  if (reasonCode === "tight") {
+    return t("alisio.settings.models.fitReasonTight", { model: model.name });
+  }
+  return t("alisio.settings.models.fitReasonInsufficient", {
+    model: model.name,
+    required: formatRequiredResourcesLabel({
+      requiredRamGb: recommendation?.requiredRamGb ?? model.memoryGb,
+      requiredVramGb: recommendation?.requiredVramGb ?? model.vramGb,
+    }),
+    available: formatAvailableResourcesLabel(target),
+  });
+}
+
+function resolveRecommendationToneClass(
+  recommendation: LocalModelTarget["recommendations"][number] | null | undefined,
+) {
+  switch (resolveRecommendationCode(recommendation)) {
+    case "comfortable":
+      return "is-recommended";
+    case "supported":
+      return "is-works";
+    case "tight":
+      return "is-slow";
+    default:
+      return "is-unsupported";
+  }
+}
+
+function formatModelFacts(entry: TargetCatalogEntryView | null) {
+  if (!entry) {
+    return "";
+  }
+  const text = modelsText();
+  return [
+    typeof entry.parametersBillions === "number" ? `${entry.parametersBillions}B` : "",
+    entry.quantization ?? "",
+    typeof entry.memoryGb === "number" ? `${text.memory} ${entry.memoryGb} GB` : "",
+    typeof entry.vramGb === "number" ? `VRAM ${entry.vramGb} GB` : "",
+    typeof entry.diskGb === "number" ? `${text.disk} ${entry.diskGb} GB` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function resolveBestCatalogEntry(
+  target: LocalModelTarget,
+  catalog: readonly TargetCatalogEntryView[],
+) {
+  const normalizedBestId = target.bestModelId?.trim().toLowerCase();
+  if (normalizedBestId) {
+    const bestById = catalog.find((entry) => entry.id.trim().toLowerCase() === normalizedBestId);
+    if (bestById) {
+      return bestById;
+    }
+  }
+  const normalizedBestName = target.bestModelName?.trim().toLowerCase();
+  if (normalizedBestName) {
+    const bestByName = catalog.find(
+      (entry) => entry.name.trim().toLowerCase() === normalizedBestName,
+    );
+    if (bestByName) {
+      return bestByName;
+    }
+  }
+  return (
+    catalog.find((entry) => entry.recommendation && entry.recommendation.grade !== "unsupported") ??
+    null
+  );
+}
+
+function resolveTargetCompatibilityState(
+  target: LocalModelTarget,
+  catalog: readonly AlisioModelsState["catalog"][number][],
+) {
+  const allChoices = resolveTargetAvailableCatalogEntries(target, catalog);
+  const compatible = allChoices.filter(
+    (entry) => (entry.recommendation?.grade ?? "unsupported") !== "unsupported",
+  );
+  const hiddenUnsupported = allChoices.filter(
+    (entry) => (entry.recommendation?.grade ?? "unsupported") === "unsupported",
+  );
+  return {
+    compatibleChoices: compatible.slice(0, 3),
+    hiddenUnsupported,
+  };
+}
+
+function resolveTargetFitSummary(
+  recommendation: LocalModelTarget["recommendations"][number] | null | undefined,
+  modelName: string,
+) {
+  switch (resolveRecommendationCode(recommendation)) {
+    case "comfortable":
+      return t("alisio.settings.models.fitSummaryComfortable", { model: modelName });
+    case "supported":
+      return t("alisio.settings.models.fitSummarySupported", { model: modelName });
+    case "tight":
+      return t("alisio.settings.models.fitSummaryTight", { model: modelName });
+    default:
+      return t("alisio.settings.models.fitSummaryUnavailable");
+  }
+}
+
+function resolveHiddenModelsSummary(hiddenUnsupported: readonly TargetCatalogEntryView[]) {
+  if (hiddenUnsupported.length === 0) {
+    return "";
+  }
+  if (hiddenUnsupported.length === 1) {
+    return t("alisio.settings.models.blockedModelsHiddenSingle", {
+      model: hiddenUnsupported[0]?.name ?? "",
+    });
+  }
+  return t("alisio.settings.models.blockedModelsHidden", {
+    count: String(hiddenUnsupported.length),
+  });
+}
+
+function resolveTargetDecision(params: {
+  target: LocalModelTarget;
+  catalog: readonly TargetCatalogEntryView[];
+}) {
+  const { target, catalog } = params;
+  const text = modelsText();
+  const bestEntry = resolveBestCatalogEntry(target, catalog);
+  const bestRecommendation = bestEntry?.recommendation ?? null;
+  const installedPrimary = target.installedModels[0] ?? null;
+  const installedHasBest =
+    Boolean(bestEntry) &&
+    target.installedModels.some(
+      (model) => model.id.trim().toLowerCase() === bestEntry!.id.trim().toLowerCase(),
+    );
+  const runtimeMessage =
+    target.runtimeMessage && !isGenericRuntimeMessage(target.runtimeMessage)
+      ? target.runtimeMessage
+      : "";
+
+  if (!target.connected) {
+    return {
+      tone: "blocked",
+      headline: text.targetNotConnected,
+      description: resolveTargetStatusDetail(target),
+    } as const;
+  }
+
+  if (target.runtimeStatus === "error") {
+    return {
+      tone: "blocked",
+      headline: text.runtimeError,
+      description: runtimeMessage || resolveTargetStatusDetail(target),
+    } as const;
+  }
+
+  if (installedPrimary) {
+    return {
+      tone: resolveRecommendationCode(bestRecommendation) === "tight" ? "caution" : "ready",
+      headline:
+        target.installedModels.length === 1
+          ? installedPrimary.name
+          : t("alisio.settings.models.installedCountSummary", {
+              count: String(target.installedModels.length),
+            }),
+      description:
+        bestEntry && !installedHasBest
+          ? resolveTargetFitSummary(bestRecommendation, bestEntry.name)
+          : text.noFurtherInstall,
+    } as const;
+  }
+
+  if (bestEntry) {
+    return {
+      tone: resolveRecommendationCode(bestRecommendation) === "tight" ? "caution" : "ready",
+      headline: resolveTargetFitSummary(bestRecommendation, bestEntry.name),
+      description:
+        runtimeMessage ||
+        resolveTargetStatusDetail(target) ||
+        resolveRecommendationReason({
+          target,
+          model: bestEntry,
+          recommendation: bestRecommendation,
+        }),
+    } as const;
+  }
+
+  return {
+    tone: "blocked",
+    headline: text.fitSummaryUnavailable,
+    description: runtimeMessage || resolveTargetStatusDetail(target) || text.installHint,
+  } as const;
+}
+
+function resolveTargetHardwareStats(target: LocalModelTarget) {
+  const text = modelsText();
+  if (!target.hardware) {
+    return [];
+  }
+  return [
+    {
+      label: text.memory,
+      value: `${target.hardware.ramTotalGb ?? target.hardware.totalMemoryGb} GB`,
+    },
+    ...(typeof resolveEffectiveVramGb(target) === "number"
+      ? [
+          {
+            label: "VRAM",
+            value: `${resolveEffectiveVramGb(target)} GB`,
+          },
+        ]
+      : []),
+    {
+      label: text.cpu,
+      value: String(target.hardware.cpuCores),
+    },
+    {
+      label: text.runtime,
+      value: [resolveTargetRuntimeLabel(target), formatPlatformLabel(target.platform)]
+        .filter(Boolean)
+        .join(" · "),
+    },
+  ];
+}
+
 function formatModelBytes(value: number | undefined) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return "";
@@ -839,16 +1127,23 @@ function resolveCatalogEntryById(catalog: readonly TargetCatalogEntryView[], mod
   return catalog.find((entry) => entry.id.trim().toLowerCase() === normalizedId) ?? null;
 }
 
-function resolveInstalledModelDetail(entry: TargetCatalogEntryView | null) {
-  if (!entry) {
-    return "";
+function renderTargetHardwareStats(target: LocalModelTarget) {
+  const stats = resolveTargetHardwareStats(target);
+  if (stats.length === 0) {
+    return nothing;
   }
-  const parts = [
-    typeof entry.parametersBillions === "number" ? `${entry.parametersBillions}B` : "",
-    entry.quantization ?? "",
-    entry.summary ?? "",
-  ].filter(Boolean);
-  return parts.join(" · ");
+  return html`
+    <div class="alisio-models__target-stats">
+      ${stats.map(
+        (stat) => html`
+          <div class="alisio-models__target-stat">
+            <span class="alisio-models__target-stat-label">${stat.label}</span>
+            <strong class="alisio-models__target-stat-value">${stat.value}</strong>
+          </div>
+        `,
+      )}
+    </div>
+  `;
 }
 
 function renderInstalledModelRows(props: {
@@ -877,10 +1172,12 @@ function renderInstalledModelRows(props: {
           <div class="alisio-models__model-row is-installed">
             <div class="alisio-models__model-main">
               <div class="list-title">${catalogEntry?.name ?? model.name}</div>
-              <div class="list-sub">
-                ${resolveInstalledModelDetail(catalogEntry) || text.installed}
+              <div class="alisio-models__catalog-facts">
+                ${formatModelFacts(catalogEntry) || text.installed}
               </div>
-              ${model.running ? html`<div class="list-sub">${text.running}</div>` : nothing}
+              ${model.running
+                ? html` <span class="alisio-models__fit-badge is-running">${text.running}</span> `
+                : nothing}
             </div>
             <div class="alisio-models__model-actions">
               ${props.onUpdateModel
@@ -936,41 +1233,49 @@ function renderTargetCatalog(props: {
           model.id,
         );
         const installBusy = operation?.action === "install" && operation.phase !== "failed";
-        const installBlocked = recommendation?.grade === "unsupported";
         return html`
           <div class="alisio-models__catalog-item">
             <div class="alisio-models__model-main">
-              <div class="list-title">${model.name}</div>
-              ${model.summary ? html`<div class="list-sub">${model.summary}</div>` : nothing}
-              <div class="alisio-models__model-facts">
-                ${typeof model.parametersBillions === "number"
-                  ? html`<span class="pill">${model.parametersBillions}B</span>`
-                  : nothing}
-                ${model.quantization
-                  ? html`<span class="pill">${model.quantization}</span>`
-                  : nothing}
-                ${typeof model.memoryGb === "number"
-                  ? html`<span class="pill">${text.memory} ${model.memoryGb} GB</span>`
-                  : nothing}
-                ${typeof model.vramGb === "number"
-                  ? html`<span class="pill">VRAM ${model.vramGb} GB</span>`
-                  : nothing}
-                ${typeof model.diskGb === "number"
-                  ? html`<span class="pill">${text.disk} ${model.diskGb} GB</span>`
+              <div class="alisio-models__catalog-topline">
+                <div class="list-title">${model.name}</div>
+                ${recommendation
+                  ? html`
+                      <span
+                        class="alisio-models__fit-badge ${resolveRecommendationToneClass(
+                          recommendation,
+                        )}"
+                      >
+                        ${resolveRecommendationLabel(recommendation)}
+                      </span>
+                    `
                   : nothing}
               </div>
+              ${model.summary ? html`<div class="list-sub">${model.summary}</div>` : nothing}
+              <div class="alisio-models__catalog-facts">${formatModelFacts(model)}</div>
               ${recommendation
-                ? html`<div class="list-sub">
-                    ${recommendation.label} · ${recommendation.reason}
-                  </div>`
+                ? html`
+                    <div class="list-sub">
+                      ${resolveRecommendationReason({
+                        target: props.target,
+                        model,
+                        recommendation,
+                      })}
+                    </div>
+                  `
                 : nothing}
             </div>
             <div class="alisio-models__catalog-actions">
               <button
                 class="btn primary"
-                ?disabled=${props.busy || !props.target.connected || installBusy || installBlocked}
+                ?disabled=${props.busy || !props.target.connected || installBusy}
                 @click=${() => props.onInstallModel(props.target.targetId, model.id)}
-                title=${recommendation?.reason ?? ""}
+                title=${recommendation
+                  ? resolveRecommendationReason({
+                      target: props.target,
+                      model,
+                      recommendation,
+                    })
+                  : ""}
               >
                 ${installBusy ? text.installing : text.install}
               </button>
@@ -1004,29 +1309,21 @@ function renderTargetCard(props: {
   const targetCatalogEntries = props.installCatalog
     ? resolveTargetCatalogLookupEntries(props.target, props.installCatalog)
     : [];
-  const targetManageCatalog = props.installCatalog
-    ? resolveTargetAvailableCatalogEntries(props.target, props.installCatalog)
-    : [];
-  const hasInstallableCatalog = targetManageCatalog.length > 0;
-  const statusLabel = !props.target.connected
-    ? text.targetNotConnected
-    : props.target.runtimeStatus === "ready"
-      ? text.modelSourceReady
-      : props.target.runtimeStatus === "not_configured"
-        ? text.runtimeNotConfigured
-        : text.runtimeError;
-  const statusDetail = resolveTargetStatusDetail(props.target);
-  const runtimeMessage =
-    props.target.runtimeMessage && !isGenericRuntimeMessage(props.target.runtimeMessage)
-      ? props.target.runtimeMessage
-      : "";
-  const title = props.target.current ? text.currentComputer : props.target.label;
+  const { compatibleChoices, hiddenUnsupported } = props.installCatalog
+    ? resolveTargetCompatibilityState(props.target, props.installCatalog)
+    : { compatibleChoices: [], hiddenUnsupported: [] };
+  const decision = resolveTargetDecision({
+    target: props.target,
+    catalog: targetCatalogEntries,
+  });
   const subtitle = [
     resolveTargetRuntimeLabel(props.target),
     formatPlatformLabel(props.target.platform),
+    props.target.access === "shared" ? text.readOnlyTarget : "",
   ]
     .filter(Boolean)
     .join(" · ");
+  const hiddenUnsupportedSummary = resolveHiddenModelsSummary(hiddenUnsupported);
   return html`
     <div
       class="alisio-models__target ${props.target.current ? "is-current" : ""} ${!props.target
@@ -1036,47 +1333,17 @@ function renderTargetCard(props: {
           ? "is-ready"
           : ""}"
     >
-      <div class="alisio-models__target-head">
-        <div>
-          <div class="list-title">${title}</div>
-          <div class="list-sub">${subtitle}</div>
-        </div>
-        <div class="alisio-settings-ai__profile-badges">
-          <span class="pill">${resolveTargetRuntimeLabel(props.target)}</span>
-          ${props.target.current ? html`<span class="pill">${text.activeComputer}</span>` : nothing}
-          ${props.target.access === "shared"
-            ? html`<span class="pill">${text.readOnlyTarget}</span>`
-            : nothing}
-          ${!props.target.current && props.target.ownerLabel
-            ? html`<span class="pill">${text.sharedTarget}</span>`
-            : nothing}
-          ${props.target.connected ? html`<span class="pill">${text.connected}</span>` : nothing}
-        </div>
+      <div class="alisio-models__target-context">
+        ${props.target.current ? text.currentComputer : props.target.label}
       </div>
-      <div class="alisio-models__target-meta">
-        <span
-          class=${props.target.connected && props.target.runtimeStatus === "ready"
-            ? "alisio-models__status is-ready"
-            : "alisio-models__status"}
-        >
-          ${statusLabel}
-        </span>
-        ${!props.target.current && props.target.ownerLabel
-          ? html`<span class="alisio-models__status"
-              >${text.ownedBy.replace("{owner}", props.target.ownerLabel)}</span
-            >`
-          : nothing}
-        ${formatHardwareSummary(props.target)
-          ? html`<span class="alisio-models__status">${formatHardwareSummary(props.target)}</span>`
-          : nothing}
+      <div class="alisio-models__target-summary is-${decision.tone}">
+        <div class="alisio-models__target-heading">${decision.headline}</div>
+        <div class="alisio-models__target-subheading">${subtitle}</div>
+        <div class="list-sub">${decision.description}</div>
       </div>
-      ${statusDetail ? html`<div class="list-sub">${statusDetail}</div>` : nothing}
-      ${runtimeMessage ? html`<div class="list-sub">${runtimeMessage}</div>` : nothing}
-      ${resolveTargetRecommendationLabel(props.target)
-        ? html`<div class="list-sub">${resolveTargetRecommendationLabel(props.target)}</div>`
-        : nothing}
+      ${renderTargetHardwareStats(props.target)}
       <div class="alisio-models__installed">
-        <div class="alisio-models__installed-title">${resolveTargetModelsLabel(props.target)}</div>
+        <div class="alisio-models__installed-title">${text.installedNow}</div>
         ${canManageInstalledModels
           ? renderInstalledModelRows({
               target: props.target,
@@ -1099,19 +1366,22 @@ function renderTargetCard(props: {
       ${props.installCatalog &&
       props.onInstallModel &&
       props.target.supportsInstall &&
-      hasInstallableCatalog
+      compatibleChoices.length > 0
         ? html`
             <div class="alisio-models__installed">
-              <div class="alisio-models__installed-title">${text.recommendedToInstall}</div>
+              <div class="alisio-models__installed-title">${text.compatibleToInstall}</div>
               ${renderTargetCatalog({
                 target: props.target,
-                catalog: targetManageCatalog,
+                catalog: compatibleChoices,
                 operations: props.operations,
                 busy: props.busy ?? false,
                 onInstallModel: props.onInstallModel,
               })}
             </div>
           `
+        : nothing}
+      ${hiddenUnsupportedSummary
+        ? html`<div class="alisio-models__target-note">${hiddenUnsupportedSummary}</div>`
         : nothing}
     </div>
   `;
@@ -1866,7 +2136,9 @@ export function renderModelsHub(props: {
     (total, target) =>
       total +
       (target.supportsInstall
-        ? resolveTargetAvailableCatalogEntries(target, localCatalog).length
+        ? resolveTargetAvailableCatalogEntries(target, localCatalog).filter(
+            (entry) => (entry.recommendation?.grade ?? "unsupported") !== "unsupported",
+          ).length
         : 0),
     0,
   );

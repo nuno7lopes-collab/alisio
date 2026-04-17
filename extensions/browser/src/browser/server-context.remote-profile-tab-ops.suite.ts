@@ -107,7 +107,7 @@ describe("browser server-context remote profile tab operations", () => {
     expect(createPageViaPlaywright).toHaveBeenCalledWith({
       cdpUrl: "https://browserless.example/chrome?token=abc",
       url: "http://127.0.0.1:3000",
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     });
 
     await remote.closeTab("T1");

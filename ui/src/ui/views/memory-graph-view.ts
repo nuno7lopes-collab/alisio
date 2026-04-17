@@ -42,6 +42,12 @@ export type MemoryGraphViewText = {
   graphEdgesCount: string;
   graphCenterFocus?: string;
   graphShowAttachments?: string;
+  graphZoomIn?: string;
+  graphZoomOut?: string;
+  graphRelationType?: string;
+  graphSource?: string;
+  graphTarget?: string;
+  graphCanvasHint?: string;
 };
 
 type GraphGroupMode = "none" | "folder" | "tag" | "kind" | "source";
@@ -50,6 +56,21 @@ type GraphContextMenuState = {
   nodeId: string;
   x: number;
   y: number;
+};
+
+type GraphGroupSummary = {
+  label: string;
+  detail: string;
+};
+
+type GraphClusterOverlay = {
+  id: string;
+  label: string;
+  color: string;
+  count: number;
+  x: number;
+  y: number;
+  radius: number;
 };
 
 type DragState =
@@ -213,6 +234,86 @@ function buildNodeGroups(view: MemoryGraphViewModel, mode: GraphGroupMode) {
   return groups;
 }
 
+function describeGraphGroup(groupId: string, text: MemoryGraphViewText): GraphGroupSummary {
+  const label =
+    groupId === "note"
+      ? (text.graphGroupNote ?? "Note")
+      : groupId === "attachment"
+        ? (text.graphGroupAttachment ?? "Attachment")
+        : groupId.startsWith("folder:")
+          ? groupId.slice("folder:".length)
+          : groupId.startsWith("tag:")
+            ? `#${groupId.slice("tag:".length)}`
+            : groupId.startsWith("source:")
+              ? titleCase(groupId.slice("source:".length))
+              : titleCase(groupId);
+  const detail =
+    groupId === "note"
+      ? `${text.graphGroupKind ?? "Type"} · ${text.graphGroupNote ?? "Note"}`
+      : groupId === "attachment"
+        ? `${text.graphGroupKind ?? "Type"} · ${text.graphGroupAttachment ?? "Attachment"}`
+        : label;
+  return {
+    label,
+    detail,
+  };
+}
+
+function buildGraphClusterOverlays(params: {
+  view: MemoryGraphViewModel;
+  layout: MemoryGraphLayout;
+  nodeGroups: Record<string, string | null | undefined>;
+  text: MemoryGraphViewText;
+}): GraphClusterOverlay[] {
+  const groups = new Map<string, Array<{ x: number; y: number }>>();
+  for (const node of params.view.nodes) {
+    const groupId = params.nodeGroups[node.id];
+    const position = params.layout[node.id];
+    if (!groupId || !position) {
+      continue;
+    }
+    const entries = groups.get(groupId) ?? [];
+    entries.push(position);
+    groups.set(groupId, entries);
+  }
+  if (groups.size <= 1) {
+    return [];
+  }
+  return Array.from(groups.entries())
+    .map(([groupId, points]) => {
+      const centroid = points.reduce(
+        (acc, point) => {
+          acc.x += point.x;
+          acc.y += point.y;
+          return acc;
+        },
+        { x: 0, y: 0 },
+      );
+      centroid.x /= points.length;
+      centroid.y /= points.length;
+      const radius = clamp(
+        points.reduce(
+          (maxRadius, point) =>
+            Math.max(maxRadius, Math.hypot(point.x - centroid.x, point.y - centroid.y)),
+          0,
+        ) + 84,
+        96,
+        312,
+      );
+      const summary = describeGraphGroup(groupId, params.text);
+      return {
+        id: groupId,
+        label: summary.label,
+        color: resolveGraphColor(groupId),
+        count: points.length,
+        x: centroid.x,
+        y: centroid.y,
+        radius,
+      } satisfies GraphClusterOverlay;
+    })
+    .toSorted((left, right) => right.radius - left.radius);
+}
+
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof HTMLElement &&
@@ -276,6 +377,10 @@ export class AlisioMemoryGraphView extends LitElement {
   private canvasHeight = 0;
   private settingsOpen = false;
   private pendingViewportFit = true;
+  private interactionActive = false;
+  private readonly svgIds = {
+    arrow: `alisio-memory-graph-arrow-${Math.random().toString(36).slice(2, 9)}`,
+  };
 
   connectedCallback() {
     super.connectedCallback();
@@ -283,6 +388,7 @@ export class AlisioMemoryGraphView extends LitElement {
     window.addEventListener("mouseup", this.handleGlobalMouseUp);
     window.addEventListener("mousedown", this.handleGlobalMouseDown);
     window.addEventListener("keydown", this.handleGlobalKeyDown);
+    window.addEventListener("resize", this.handleViewportResize);
   }
 
   disconnectedCallback() {
@@ -290,6 +396,7 @@ export class AlisioMemoryGraphView extends LitElement {
     window.removeEventListener("mouseup", this.handleGlobalMouseUp);
     window.removeEventListener("mousedown", this.handleGlobalMouseDown);
     window.removeEventListener("keydown", this.handleGlobalKeyDown);
+    window.removeEventListener("resize", this.handleViewportResize);
     if (this.simulationFrame !== null) {
       window.cancelAnimationFrame(this.simulationFrame);
       this.simulationFrame = null;
@@ -334,6 +441,13 @@ export class AlisioMemoryGraphView extends LitElement {
         graphEdgesCount: "Edges",
         graphCenterFocus: "Center focus",
         graphShowAttachments: "Attachments",
+        graphZoomIn: "Zoom in",
+        graphZoomOut: "Zoom out",
+        graphRelationType: "Relation",
+        graphSource: "Source",
+        graphTarget: "Target",
+        graphCanvasHint:
+          "Drag to pan, scroll to zoom, hover a node to inspect it, click to open it, and right-click for more actions.",
       }
     );
   }
@@ -383,6 +497,40 @@ export class AlisioMemoryGraphView extends LitElement {
     this.canvasWidth = nextWidth;
     this.canvasHeight = nextHeight;
     return true;
+  }
+
+  private handleViewportResize = () => {
+    if (!this.syncCanvasMetrics()) {
+      return;
+    }
+    if (this.pendingViewportFit) {
+      this.fitGraphToViewport();
+      return;
+    }
+    this.requestUpdate();
+  };
+
+  private setInteractionActive(active: boolean) {
+    if (this.interactionActive === active) {
+      return;
+    }
+    this.interactionActive = active;
+    this.requestUpdate();
+  }
+
+  private focusStage() {
+    const stage = this.querySelector(".alisio-memory-graph__stage");
+    if (stage instanceof HTMLElement) {
+      stage.focus({ preventScroll: true });
+    }
+  }
+
+  private hasKeyboardFocus() {
+    const stage = this.querySelector(".alisio-memory-graph__stage");
+    return (
+      stage instanceof HTMLElement &&
+      (document.activeElement === stage || stage.contains(document.activeElement))
+    );
   }
 
   private projectScreenPointToWorld(localX: number, localY: number) {
@@ -627,27 +775,57 @@ export class AlisioMemoryGraphView extends LitElement {
       }
       this.startSimulation();
     }
+    if (!this.hasKeyboardFocus() && !this.contextMenu) {
+      this.setInteractionActive(false);
+    }
   };
 
   private handleGlobalMouseDown = (event: MouseEvent) => {
-    if (!this.contextMenu) {
-      return;
-    }
     const target = event.target;
-    if (target instanceof Element && target.closest(".alisio-memory-graph__context-menu")) {
-      return;
+    let changed = false;
+    if (
+      this.settingsOpen &&
+      !(
+        target instanceof Element &&
+        target.closest(".alisio-memory-graph__settings, .alisio-memory-graph__settings-toggle")
+      )
+    ) {
+      this.settingsOpen = false;
+      changed = true;
     }
-    this.contextMenu = null;
-    this.requestUpdate();
+    if (this.contextMenu) {
+      if (target instanceof Element && target.closest(".alisio-memory-graph__context-menu")) {
+        return;
+      }
+      this.contextMenu = null;
+      changed = true;
+    }
+    if (changed) {
+      this.requestUpdate();
+    }
   };
 
   private handleGlobalKeyDown = (event: KeyboardEvent) => {
     if (isEditableTarget(event.target)) {
       return;
     }
+    if (!this.hasKeyboardFocus() && !this.contextMenu) {
+      return;
+    }
     if (event.key === "Escape") {
+      const hadSelectedEdge = Boolean(this.filters.selectedEdgeId);
+      let changed = false;
       if (this.contextMenu) {
         this.contextMenu = null;
+        changed = true;
+      }
+      if (this.settingsOpen) {
+        this.settingsOpen = false;
+        changed = true;
+      }
+      if (hadSelectedEdge) {
+        this.updateFilters({ selectedEdgeId: null, hoveredNodeId: null });
+      } else if (changed) {
         this.requestUpdate();
       }
       return;
@@ -660,6 +838,11 @@ export class AlisioMemoryGraphView extends LitElement {
     if (event.key === "-") {
       event.preventDefault();
       this.adjustZoom(0.92);
+      return;
+    }
+    if (event.key === "0") {
+      event.preventDefault();
+      this.resetViewport();
       return;
     }
     const step = event.shiftKey ? 72 : 28;
@@ -690,6 +873,28 @@ export class AlisioMemoryGraphView extends LitElement {
       this.pendingViewportFit = false;
       this.requestUpdate();
     }
+  };
+
+  private handleStageMouseEnter = () => {
+    this.setInteractionActive(true);
+  };
+
+  private handleStageMouseLeave = () => {
+    if (!this.dragState && !this.hasKeyboardFocus() && !this.contextMenu) {
+      this.setInteractionActive(false);
+    }
+  };
+
+  private handleStageFocusIn = () => {
+    this.setInteractionActive(true);
+  };
+
+  private handleStageFocusOut = () => {
+    queueMicrotask(() => {
+      if (!this.dragState && !this.hasKeyboardFocus() && !this.contextMenu) {
+        this.setInteractionActive(false);
+      }
+    });
   };
 
   private dispatchNodeOpen(nodeId: string) {
@@ -761,6 +966,11 @@ export class AlisioMemoryGraphView extends LitElement {
       return;
     }
     event.preventDefault();
+    this.focusStage();
+    this.setInteractionActive(true);
+    if (this.filters.selectedEdgeId || this.filters.hoveredNodeId) {
+      this.updateFilters({ selectedEdgeId: null, hoveredNodeId: null });
+    }
     this.dragState = {
       kind: "pan",
       lastX: event.clientX,
@@ -773,6 +983,8 @@ export class AlisioMemoryGraphView extends LitElement {
     if (event.button !== 0) {
       return;
     }
+    this.focusStage();
+    this.setInteractionActive(true);
     this.dragState = {
       kind: "node",
       nodeId,
@@ -785,6 +997,8 @@ export class AlisioMemoryGraphView extends LitElement {
   private handleNodeContextMenu(event: MouseEvent, nodeId: string) {
     event.preventDefault();
     event.stopPropagation();
+    this.focusStage();
+    this.setInteractionActive(true);
     this.contextMenu = {
       nodeId,
       x: event.clientX,
@@ -795,6 +1009,7 @@ export class AlisioMemoryGraphView extends LitElement {
 
   private handleWheel = (event: WheelEvent) => {
     event.preventDefault();
+    this.setInteractionActive(true);
     const canvas = event.currentTarget;
     if (!(canvas instanceof HTMLElement)) {
       this.adjustZoom(event.deltaY < 0 ? 1.08 : 0.92);
@@ -813,6 +1028,7 @@ export class AlisioMemoryGraphView extends LitElement {
   };
 
   private renderTopbar(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
+    const zoomLabel = `${Math.round(this.zoom * 100)}%`;
     return html`
       <div class="alisio-memory-graph__topbar">
         <div class="alisio-memory-graph__scope">
@@ -841,11 +1057,14 @@ export class AlisioMemoryGraphView extends LitElement {
           <span class="alisio-memory-graph__pill"
             >${text.graphEdgesCount}: ${view.edges.length}</span
           >
+          <span class="alisio-memory-graph__pill">${zoomLabel}</span>
         </div>
         <div class="alisio-memory-graph__toolbar">
           <button
             type="button"
             class="btn btn--icon btn--ghost"
+            title=${text.graphZoomIn ?? "Zoom in"}
+            aria-label=${text.graphZoomIn ?? "Zoom in"}
             @click=${() => this.adjustZoom(1.08)}
           >
             ${icons.plus}
@@ -853,6 +1072,8 @@ export class AlisioMemoryGraphView extends LitElement {
           <button
             type="button"
             class="btn btn--icon btn--ghost"
+            title=${text.graphZoomOut ?? "Zoom out"}
+            aria-label=${text.graphZoomOut ?? "Zoom out"}
             @click=${() => this.adjustZoom(0.92)}
           >
             -
@@ -870,10 +1091,14 @@ export class AlisioMemoryGraphView extends LitElement {
           </button>
           <button
             type="button"
-            class="btn btn--icon ${this.settingsOpen ? "primary" : "btn--ghost"}"
+            class="btn btn--icon alisio-memory-graph__settings-toggle ${this.settingsOpen
+              ? "primary"
+              : "btn--ghost"}"
             title=${text.graphTitle}
             aria-label=${text.graphTitle}
             @click=${() => {
+              this.focusStage();
+              this.setInteractionActive(true);
               this.settingsOpen = !this.settingsOpen;
               this.requestUpdate();
             }}
@@ -960,26 +1185,10 @@ export class AlisioMemoryGraphView extends LitElement {
     ).toSorted((left, right) => left.localeCompare(right));
     const groups = groupIds.map((groupId) => {
       const count = view.nodes.filter((node) => assignments[node.id] === groupId).length;
-      const label =
-        groupId === "note"
-          ? (text.graphGroupNote ?? "Note")
-          : groupId === "attachment"
-            ? (text.graphGroupAttachment ?? "Attachment")
-            : groupId.startsWith("folder:")
-              ? groupId.slice("folder:".length)
-              : groupId.startsWith("tag:")
-                ? `#${groupId.slice("tag:".length)}`
-                : groupId.startsWith("source:")
-                  ? titleCase(groupId.slice("source:".length))
-                  : titleCase(groupId);
+      const summary = describeGraphGroup(groupId, text);
       return {
         id: groupId,
-        label:
-          groupId === "note"
-            ? `${text.graphGroupKind ?? "Type"} · ${text.graphGroupNote ?? "Note"}`
-            : groupId === "attachment"
-              ? `${text.graphGroupKind ?? "Type"} · ${text.graphGroupAttachment ?? "Attachment"}`
-              : label,
+        label: summary.detail,
         count,
         color: resolveGraphColor(groupId),
       };
@@ -1047,11 +1256,15 @@ export class AlisioMemoryGraphView extends LitElement {
     step: number;
     onInput: (value: number) => void;
   }) {
+    const formattedValue =
+      Number.isInteger(params.value) && Number.isInteger(params.step)
+        ? String(params.value)
+        : params.value.toFixed(2);
     return html`
       <label class="alisio-memory-graph__slider">
         <span>
           <strong>${params.label}</strong>
-          <em>${params.value.toFixed(2)}</em>
+          <em>${formattedValue}</em>
         </span>
         <input
           type="range"
@@ -1074,10 +1287,14 @@ export class AlisioMemoryGraphView extends LitElement {
     if (!node) {
       return nothing;
     }
+    const menuWidth = 232;
+    const menuHeight = 156;
+    const left = clamp(this.contextMenu.x, 12, Math.max(12, window.innerWidth - menuWidth - 12));
+    const top = clamp(this.contextMenu.y, 12, Math.max(12, window.innerHeight - menuHeight - 12));
     return html`
       <div
         class="alisio-memory-graph__context-menu"
-        style=${`left:${String(this.contextMenu.x)}px;top:${String(this.contextMenu.y)}px;`}
+        style=${`left:${String(left)}px;top:${String(top)}px;`}
       >
         <button
           type="button"
@@ -1109,6 +1326,45 @@ export class AlisioMemoryGraphView extends LitElement {
         >
           ${text.graphContextMenuLocal ?? "Open local graph"}
         </button>
+      </div>
+    `;
+  }
+
+  private renderSelectionCard(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
+    const edge = view.selectedEdge;
+    if (!edge) {
+      return nothing;
+    }
+    const source =
+      view.nodes.find((node) => node.id === edge.fromId) ??
+      this.graph?.nodes.find((node) => node.id === edge.fromId) ??
+      null;
+    const target =
+      view.nodes.find((node) => node.id === edge.toId) ??
+      this.graph?.nodes.find((node) => node.id === edge.toId) ??
+      null;
+    const kindLabel =
+      edge.reason.kind === "attachment-reference"
+        ? (text.graphGroupAttachment ?? "Attachment")
+        : (text.graphRelationType ?? "Relation");
+    return html`
+      <div class="alisio-memory-graph__hud">
+        <div class="alisio-memory-graph__selection-card">
+          <div class="alisio-memory-graph__selection-head">
+            <span class="alisio-memory-graph__selection-kicker">${kindLabel}</span>
+            <span class="alisio-memory-graph__selection-relation">${edge.relationType}</span>
+          </div>
+          <div class="alisio-memory-graph__selection-grid">
+            <span>
+              <strong>${text.graphSource ?? "Source"}</strong>
+              <em>${source?.title ?? edge.fromPageId}</em>
+            </span>
+            <span>
+              <strong>${text.graphTarget ?? "Target"}</strong>
+              <em>${target?.title ?? edge.toPageId}</em>
+            </span>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1182,6 +1438,12 @@ export class AlisioMemoryGraphView extends LitElement {
     const palette = this.resolveThemePalette();
     const focusNode = view.focusNode;
     const nodeGroups = buildNodeGroups(view, this.groupMode);
+    const clusterOverlays = buildGraphClusterOverlays({
+      view,
+      layout: this.layout,
+      nodeGroups,
+      text,
+    });
     const viewport = this.viewportViewBox();
     const gridWidth = Math.max(viewport.width, 960);
     const gridHeight = Math.max(viewport.height, 640);
@@ -1206,7 +1468,7 @@ export class AlisioMemoryGraphView extends LitElement {
           >
             <defs>
               <marker
-                id="alisio-memory-graph-arrow"
+                id=${this.svgIds.arrow}
                 markerWidth="10"
                 markerHeight="10"
                 refX="8"
@@ -1227,8 +1489,43 @@ export class AlisioMemoryGraphView extends LitElement {
                   svg`<line x1=${-gridWidth} y1=${offset} x2=${gridWidth} y2=${offset}></line>`,
               )}
             </g>
-            <g transform=${`translate(${this.panX} ${this.panY})`}>
-              <g transform=${`scale(${this.zoom})`}>
+            <g class="alisio-memory-graph__camera" transform=${`translate(${this.panX} ${this.panY})`}>
+              <g class="alisio-memory-graph__scene" transform=${`scale(${this.zoom})`}>
+                ${clusterOverlays.map((group) => {
+                  const clusterLabel = `${shortenGraphLabel(group.label, 24)} · ${String(group.count)}`;
+                  const labelWidth = clamp(clusterLabel.length * 7.1 + 34, 104, 248);
+                  return svg`
+                    <g
+                      class="alisio-memory-graph__cluster"
+                      transform=${`translate(${group.x} ${group.y})`}
+                    >
+                      <circle
+                        class="alisio-memory-graph__cluster-surface"
+                        r=${group.radius}
+                        fill=${withAlpha(group.color, 0.08)}
+                        stroke=${withAlpha(group.color, 0.2)}
+                      ></circle>
+                      <rect
+                        class="alisio-memory-graph__cluster-label"
+                        x=${-labelWidth / 2}
+                        y=${-group.radius + 18}
+                        width=${labelWidth}
+                        height="24"
+                        rx="12"
+                        fill=${withAlpha(group.color, 0.18)}
+                        stroke=${withAlpha(group.color, 0.24)}
+                      ></rect>
+                      <text
+                        class="alisio-memory-graph__cluster-copy"
+                        y=${-group.radius + 34}
+                        text-anchor="middle"
+                        fill=${withAlpha(palette.text, 0.84)}
+                      >
+                        ${clusterLabel}
+                      </text>
+                    </g>
+                  `;
+                })}
                 ${view.edges.map((edge) => {
                   const source = this.layout[edge.fromId];
                   const target = this.layout[edge.toId];
@@ -1237,18 +1534,34 @@ export class AlisioMemoryGraphView extends LitElement {
                   }
                   const highlighted = view.highlightedEdgeIds.has(edge.id);
                   const attachmentEdge = edge.reason.kind === "attachment-reference";
-                  const dimmed =
-                    view.highlightedNodeIds.size > 0 &&
-                    !highlighted &&
-                    !view.selectedEdge?.id &&
-                    !view.highlightedEdgeIds.has(edge.id);
+                  const selected = view.selectedEdge?.id === edge.id;
+                  const dimmed = view.highlightedNodeIds.size > 0 && !highlighted;
                   const edgeColor = this.resolveEdgeColor({
                     palette,
                     highlighted,
                     attachmentEdge,
                     dimmed,
                   });
+                  const edgeGlowColor = attachmentEdge
+                    ? withAlpha(mixColors(palette.edgeHighlight, palette.attachment, 0.24), 0.18)
+                    : withAlpha(palette.edgeHighlight, 0.18);
                   return svg`
+                    ${
+                      highlighted || selected
+                        ? svg`
+                          <line
+                            class="alisio-memory-graph__edge-glow"
+                            x1=${source.x}
+                            y1=${source.y}
+                            x2=${target.x}
+                            y2=${target.y}
+                            style=${`stroke:${edgeGlowColor};stroke-width:${String(
+                              (highlighted ? 10 : 8) * this.linkThickness,
+                            )}`}
+                          ></line>
+                        `
+                        : nothing
+                    }
                     <line
                       class="alisio-memory-graph__edge ${highlighted ? "is-highlighted" : ""} ${
                         dimmed ? "is-dimmed" : ""
@@ -1260,7 +1573,7 @@ export class AlisioMemoryGraphView extends LitElement {
                       style=${`stroke:${edgeColor};color:${edgeColor};stroke-width:${String(
                         (highlighted ? 3 : 2) * this.linkThickness,
                       )}`}
-                      marker-end=${this.showArrows ? "url(#alisio-memory-graph-arrow)" : nothing}
+                      marker-end=${this.showArrows ? `url(#${this.svgIds.arrow})` : nothing}
                     ></line>
                     <line
                       class="alisio-memory-graph__edge-hit"
@@ -1268,7 +1581,15 @@ export class AlisioMemoryGraphView extends LitElement {
                       y1=${source.y}
                       x2=${target.x}
                       y2=${target.y}
-                      @click=${() => this.updateFilters({ selectedEdgeId: edge.id })}
+                      @mousedown=${(event: MouseEvent) => {
+                        event.stopPropagation();
+                        this.focusStage();
+                        this.setInteractionActive(true);
+                      }}
+                      @click=${() =>
+                        this.updateFilters({
+                          selectedEdgeId: this.filters.selectedEdgeId === edge.id ? null : edge.id,
+                        })}
                     ></line>
                   `;
                 })}
@@ -1284,16 +1605,14 @@ export class AlisioMemoryGraphView extends LitElement {
                   });
                   const highlighted = view.highlightedNodeIds.has(node.id);
                   const dimmed =
-                    view.highlightedNodeIds.size > 0 &&
-                    !highlighted &&
-                    node.id !== focusNode?.id &&
-                    !view.selectedEdge;
+                    view.highlightedNodeIds.size > 0 && !highlighted && node.id !== focusNode?.id;
                   const focused = node.id === focusNode?.id;
                   const baseRadius =
                     node.kind === "attachment"
                       ? 11 + Math.min(node.degree * 1.5, 6)
                       : 14 + Math.min(node.degree * 2, 12);
                   const radius = (focused ? Math.max(baseRadius, 28) : baseRadius) * this.nodeScale;
+                  const label = shortenGraphLabel(node.title, focused ? 28 : 22);
                   const showLabel =
                     focused ||
                     highlighted ||
@@ -1302,6 +1621,7 @@ export class AlisioMemoryGraphView extends LitElement {
                   const labelOpacity = showLabel
                     ? 1
                     : clamp((this.zoom - this.textFadeThreshold + 0.25) / 0.35, 0, 0.72);
+                  const shouldRenderLabel = showLabel || labelOpacity > 0.08;
                   const fill = this.resolveNodeFill(tone, palette, { focus: focused, dimmed });
                   const stroke = this.resolveNodeStroke(tone, palette, {
                     focus: focused,
@@ -1309,6 +1629,17 @@ export class AlisioMemoryGraphView extends LitElement {
                     dimmed,
                   });
                   const labelColor = dimmed ? withAlpha(palette.textMuted, 0.4) : palette.text;
+                  const halo = dimmed
+                    ? withAlpha(tone, 0.06)
+                    : withAlpha(tone, focused ? 0.22 : highlighted ? 0.16 : 0.09);
+                  const labelWidth = clamp(label.length * 7.6 + 24, 72, 212);
+                  const labelFill = dimmed
+                    ? withAlpha(fill, 0.18)
+                    : withAlpha(
+                        mixColors(palette.surfaceElevated, tone, focused ? 0.18 : 0.12),
+                        0.9,
+                      );
+                  const labelStroke = dimmed ? withAlpha(stroke, 0.12) : withAlpha(stroke, 0.34);
                   return svg`
                     <g
                       class="alisio-memory-graph__node ${focused ? "is-focus" : ""} ${
@@ -1324,20 +1655,50 @@ export class AlisioMemoryGraphView extends LitElement {
                         this.handleNodeContextMenu(event, node.id)}
                     >
                       <circle
+                        class="alisio-memory-graph__node-halo"
+                        r=${radius + 8}
+                        fill=${halo}
+                      ></circle>
+                      <circle
                         r=${radius}
                         fill=${fill}
                         stroke=${stroke}
                         stroke-width=${focused ? "3" : "2"}
                       ></circle>
-                      <text
-                        class="alisio-memory-graph__label"
-                        y=${radius + 18}
-                        text-anchor="middle"
-                        fill=${labelColor}
-                        style=${`opacity:${String(labelOpacity)}`}
-                      >
-                        ${shortenGraphLabel(node.title)}
-                      </text>
+                      <circle
+                        class="alisio-memory-graph__node-dot"
+                        r=${Math.max(2.8, Math.min(radius * 0.22, 5.4))}
+                        fill=${dimmed ? withAlpha(stroke, 0.44) : withAlpha(stroke, 0.92)}
+                      ></circle>
+                      ${
+                        shouldRenderLabel
+                          ? svg`
+                            <g
+                              class="alisio-memory-graph__node-label"
+                              style=${`opacity:${String(labelOpacity)}`}
+                            >
+                              <rect
+                                class="alisio-memory-graph__label-chip"
+                                x=${-labelWidth / 2}
+                                y=${radius + 10}
+                                width=${labelWidth}
+                                height="22"
+                                rx="11"
+                                fill=${labelFill}
+                                stroke=${labelStroke}
+                              ></rect>
+                              <text
+                                class="alisio-memory-graph__label"
+                                y=${radius + 25}
+                                text-anchor="middle"
+                                fill=${labelColor}
+                              >
+                                ${label}
+                              </text>
+                            </g>
+                          `
+                          : nothing
+                      }
                     </g>
                   `;
                 })}
@@ -1345,6 +1706,7 @@ export class AlisioMemoryGraphView extends LitElement {
             </g>
           </svg>
         `}
+        ${this.renderSelectionCard(view, text)}
       </section>
     `;
   }
@@ -1401,6 +1763,14 @@ export class AlisioMemoryGraphView extends LitElement {
         .alisio-memory-graph__stage {
           position: relative;
           min-width: 0;
+          outline: none;
+        }
+        .alisio-memory-graph__stage.is-interacting .alisio-memory-graph__canvas,
+        .alisio-memory-graph__stage:focus-within .alisio-memory-graph__canvas {
+          border-color: color-mix(in srgb, var(--accent-primary) 24%, var(--border-subtle));
+          box-shadow:
+            0 18px 44px ${withAlpha(palette.text, 0.1)},
+            inset 0 1px 0 color-mix(in srgb, var(--surface-elevated) 64%, transparent);
         }
         .alisio-memory-graph__topbar {
           position: absolute;
@@ -1418,10 +1788,21 @@ export class AlisioMemoryGraphView extends LitElement {
         .alisio-memory-graph__topbar > * {
           pointer-events: auto;
         }
+        .alisio-memory-graph__scope,
+        .alisio-memory-graph__toolbar,
         .alisio-memory-graph__topbar-meta {
           display: flex;
+          align-items: center;
           flex-wrap: wrap;
           gap: 8px;
+          padding: 8px;
+          border-radius: 18px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 82%, transparent);
+          backdrop-filter: blur(18px);
+          box-shadow: 0 18px 36px ${withAlpha(palette.text, 0.08)};
+        }
+        .alisio-memory-graph__topbar-meta {
           justify-content: center;
           flex: 1 1 280px;
         }
@@ -1500,6 +1881,7 @@ export class AlisioMemoryGraphView extends LitElement {
           max-height: calc(100% - 86px);
           overflow: auto;
           padding-right: 2px;
+          backdrop-filter: blur(18px);
         }
         .alisio-memory-graph__settings .alisio-memory-graph__slider input[type="range"] {
           width: 100%;
@@ -1514,11 +1896,20 @@ export class AlisioMemoryGraphView extends LitElement {
           overflow: hidden;
           background:
             radial-gradient(
-              circle at top,
-              color-mix(in srgb, var(--accent-primary) 12%, transparent),
-              transparent 42%
+              circle at 18% 12%,
+              color-mix(in srgb, var(--accent-primary) 14%, transparent),
+              transparent 34%
             ),
-            color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+            radial-gradient(
+              circle at 84% 0%,
+              color-mix(in srgb, var(--accent) 10%, transparent),
+              transparent 30%
+            ),
+            linear-gradient(
+              180deg,
+              color-mix(in srgb, var(--surface-elevated) 96%, transparent),
+              color-mix(in srgb, var(--surface-panel) 98%, transparent)
+            );
         }
         .alisio-memory-graph.is-compact .alisio-memory-graph__canvas {
           height: min(56vh, 560px);
@@ -1543,17 +1934,43 @@ export class AlisioMemoryGraphView extends LitElement {
         .alisio-memory-graph__canvas svg:active {
           cursor: grabbing;
         }
+        .alisio-memory-graph__grid {
+          opacity: 0.82;
+        }
         .alisio-memory-graph__grid line {
           stroke: ${palette.gridLine};
           stroke-width: 1;
         }
+        .alisio-memory-graph__cluster,
+        .alisio-memory-graph__cluster-copy,
+        .alisio-memory-graph__cluster-label,
+        .alisio-memory-graph__cluster-surface,
+        .alisio-memory-graph__node-halo,
+        .alisio-memory-graph__node-dot,
+        .alisio-memory-graph__node-label {
+          pointer-events: none;
+        }
+        .alisio-memory-graph__cluster-surface,
+        .alisio-memory-graph__cluster-label {
+          stroke-width: 1.25;
+        }
+        .alisio-memory-graph__cluster-copy {
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+        }
         .alisio-memory-graph__edge-hit {
           stroke: transparent;
-          stroke-width: 16;
+          stroke-width: 18;
           cursor: pointer;
+        }
+        .alisio-memory-graph__edge-glow {
+          stroke-linecap: round;
+          opacity: 0.94;
         }
         .alisio-memory-graph__edge {
           stroke-linecap: round;
+          vector-effect: non-scaling-stroke;
           transition:
             opacity 120ms ease,
             stroke-width 120ms ease;
@@ -1566,21 +1983,108 @@ export class AlisioMemoryGraphView extends LitElement {
         }
         .alisio-memory-graph__node {
           cursor: pointer;
-          transition: opacity 120ms ease;
+          filter: drop-shadow(0 10px 18px ${withAlpha(palette.text, 0.12)});
+          transition:
+            opacity 120ms ease,
+            filter 120ms ease;
         }
         .alisio-memory-graph__node.is-dimmed {
-          opacity: 0.25;
+          opacity: 0.34;
         }
         .alisio-memory-graph__node circle {
           transition:
             fill 120ms ease,
             stroke 120ms ease,
             transform 120ms ease;
+          transform-box: fill-box;
+          transform-origin: center;
+        }
+        .alisio-memory-graph__node.is-highlighted circle:not(.alisio-memory-graph__node-halo),
+        .alisio-memory-graph__node.is-focus circle:not(.alisio-memory-graph__node-halo) {
+          transform: scale(1.03);
+        }
+        .alisio-memory-graph__label-chip {
+          stroke-width: 1;
+          transition:
+            fill 120ms ease,
+            stroke 120ms ease,
+            opacity 120ms ease;
         }
         .alisio-memory-graph__label {
           font-size: 13px;
+          font-weight: 600;
           pointer-events: none;
           transition: opacity 120ms ease;
+        }
+        .alisio-memory-graph__hud {
+          position: absolute;
+          left: 16px;
+          right: 16px;
+          bottom: 16px;
+          z-index: 2;
+          display: flex;
+          justify-content: flex-end;
+          pointer-events: none;
+        }
+        .alisio-memory-graph__selection-card {
+          width: min(420px, 100%);
+          padding: 12px 14px;
+          border-radius: 18px;
+          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 86%, transparent);
+          box-shadow: 0 20px 44px ${palette.shadow};
+          backdrop-filter: blur(20px);
+          pointer-events: auto;
+        }
+        .alisio-memory-graph__selection-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+        .alisio-memory-graph__selection-kicker,
+        .alisio-memory-graph__selection-relation {
+          display: inline-flex;
+          align-items: center;
+          min-height: 26px;
+          padding: 0 10px;
+          border-radius: 999px;
+          font-size: 0.76rem;
+          font-weight: 700;
+        }
+        .alisio-memory-graph__selection-kicker {
+          background: color-mix(in srgb, var(--surface-elevated) 86%, transparent);
+          color: var(--text-muted);
+        }
+        .alisio-memory-graph__selection-relation {
+          background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+          color: var(--text);
+        }
+        .alisio-memory-graph__selection-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .alisio-memory-graph__selection-grid span {
+          display: grid;
+          gap: 4px;
+          min-width: 0;
+        }
+        .alisio-memory-graph__selection-grid strong {
+          color: var(--text-muted);
+          font-size: 0.74rem;
+          font-weight: 700;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+        .alisio-memory-graph__selection-grid em {
+          color: var(--text);
+          font-style: normal;
+          font-weight: 600;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
         .alisio-memory-graph__context-menu {
           position: fixed;
@@ -1593,6 +2097,11 @@ export class AlisioMemoryGraphView extends LitElement {
           border: 1px solid color-mix(in srgb, var(--border-subtle) 84%, transparent);
           background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
           box-shadow: 0 20px 40px ${palette.shadow};
+          backdrop-filter: blur(18px);
+        }
+        .alisio-memory-graph__context-menu .btn {
+          justify-content: flex-start;
+          width: 100%;
         }
         @media (max-width: 980px) {
           .alisio-memory-graph__canvas {
@@ -1608,6 +2117,14 @@ export class AlisioMemoryGraphView extends LitElement {
             right: 12px;
             width: min(340px, calc(100% - 24px));
             max-height: calc(100% - 76px);
+          }
+          .alisio-memory-graph__hud {
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+          }
+          .alisio-memory-graph__selection-grid {
+            grid-template-columns: 1fr;
           }
         }
       </style>
@@ -1633,7 +2150,17 @@ export class AlisioMemoryGraphView extends LitElement {
                 </div>`
               : html`
                   <div class="alisio-memory-graph ${this.compact ? "is-compact" : ""}">
-                    <section class="alisio-memory-graph__stage">
+                    <section
+                      class="alisio-memory-graph__stage ${this.interactionActive
+                        ? "is-interacting"
+                        : ""}"
+                      tabindex="0"
+                      title=${text.graphCanvasHint ?? nothing}
+                      @mouseenter=${this.handleStageMouseEnter}
+                      @mouseleave=${this.handleStageMouseLeave}
+                      @focusin=${this.handleStageFocusIn}
+                      @focusout=${this.handleStageFocusOut}
+                    >
                       ${this.renderTopbar(view, text)} ${this.renderSettingsPanel(view, text)}
                       ${this.renderCanvas(view, text)}
                     </section>

@@ -111,8 +111,8 @@ struct SettingsTab: View {
                                 let defaultId = (self.appModel.gatewayDefaultAgentId ?? "")
                                     .trimmingCharacters(in: .whitespacesAndNewlines)
                                 ForEach(self.appModel.gatewayAgents.filter { $0.id != defaultId }, id: \.id) { agent in
-                                    let name = (agent.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                                    Text(name.isEmpty ? agent.id : name).tag(agent.id)
+                                    let name = self.appModel.resolvedAgentDisplayName(for: agent)
+                                        Text(name.isEmpty ? agent.id : name).tag(agent.id)
                                 }
                             }
                             Text("Controls which bot Chat and Talk speak to.")

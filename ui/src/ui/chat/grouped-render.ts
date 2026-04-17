@@ -1,4 +1,4 @@
-import { html, nothing } from "lit";
+import { html, nothing, type TemplateResult } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { t } from "../../i18n/index.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
@@ -419,7 +419,9 @@ function renderMessageMeta(meta: GroupMeta | null) {
         : pct >= 75
           ? "msg-meta__ctx msg-meta__ctx--warn"
           : "msg-meta__ctx";
-    parts.push(html`<span class="${cls}">${pct}% ctx</span>`);
+    parts.push(
+      html`<span class="${cls}">${chatText("context.compact", { pct: String(pct) })}</span>`,
+    );
   }
 
   // Model
@@ -829,16 +831,18 @@ function detectJson(text: string): { parsed: unknown; pretty: string } | null {
 /** Build a short summary label for collapsed JSON (type + key count or array length). */
 function jsonSummaryLabel(parsed: unknown): string {
   if (Array.isArray(parsed)) {
-    return `Array (${parsed.length} item${parsed.length === 1 ? "" : "s"})`;
+    return chatText(parsed.length === 1 ? "jsonSummary.arrayOne" : "jsonSummary.arrayMany", {
+      count: String(parsed.length),
+    });
   }
   if (parsed && typeof parsed === "object") {
     const keys = Object.keys(parsed as Record<string, unknown>);
     if (keys.length <= 4) {
       return `{ ${keys.join(", ")} }`;
     }
-    return `Object (${keys.length} keys)`;
+    return chatText("jsonSummary.object", { count: String(keys.length) });
   }
-  return "JSON";
+  return chatText("jsonSummary.json");
 }
 
 function renderExpandButton(markdown: string, onOpenSidebar: (content: string) => void) {

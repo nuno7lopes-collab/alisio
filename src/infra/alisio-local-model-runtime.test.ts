@@ -40,6 +40,9 @@ describe("listManagedLocalAvailableModels", () => {
       runtimeKind: "llama.cpp",
       recommendation: expect.objectContaining({
         modelId: "qwen3-8b-q4-k-m",
+        reasonCode: "supported",
+        requiredRamGb: 12,
+        requiredVramGb: 8,
       }),
     });
   });

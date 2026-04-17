@@ -27,7 +27,12 @@ import {
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadConfig } from "./controllers/config.ts";
-import { loadCronJobsPage, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
+import {
+  loadCronJobs,
+  loadCronJobsPage,
+  loadCronRuns,
+  loadCronStatus,
+} from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
@@ -118,6 +123,30 @@ type RefreshActiveTabOptions = {
   includeChatHistory?: boolean;
   preloadedShellState?: "bootstrap" | "doctor";
 };
+
+const cronJobsHydrationSeq = new WeakMap<object, number>();
+
+function nextCronJobsHydrationToken(host: SettingsHost) {
+  const token = (cronJobsHydrationSeq.get(host as object) ?? 0) + 1;
+  cronJobsHydrationSeq.set(host as object, token);
+  return token;
+}
+
+function isCronJobsHydrationCurrent(host: SettingsHost, token: number) {
+  return cronJobsHydrationSeq.get(host as object) === token && host.tab === "cron";
+}
+
+function runInBackground(task: () => Promise<void>) {
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(() => {
+      void task();
+    });
+    return;
+  }
+  globalThis.setTimeout(() => {
+    void task();
+  }, 0);
+}
 
 function bootstrapBlocksChatAccess(
   bootstrap: import("./types.ts").AlisioBootstrapState | null | undefined,
@@ -382,15 +411,7 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     if (!hasBootstrapShellState) {
       await loadAlisioBootstrap(host as unknown as AlisioApp);
     }
-    await Promise.allSettled([
-      loadAlisioModels(host as unknown as AlisioApp),
-      loadSessions(host as unknown as AlisioApp, {
-        activeMinutes: 0,
-        limit: 0,
-        includeGlobal: true,
-        includeUnknown: true,
-      }),
-    ]);
+    await loadAlisioModels(host as unknown as AlisioApp);
   }
   if (host.tab === "memory") {
     await loadAgents(host as unknown as AlisioApp);
@@ -417,19 +438,25 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     });
   }
   if (host.tab === "capabilities") {
-    await Promise.allSettled([
-      loadSkills(host as unknown as AlisioApp),
-      loadChannels(host as unknown as AlisioApp, false),
-      loadAlisioProviderOverview(host as unknown as AlisioApp),
-    ]);
+    await loadSkills(host as unknown as AlisioApp);
+    runInBackground(async () => {
+      await Promise.allSettled([
+        loadChannels(host as unknown as AlisioApp, false),
+        loadAlisioProviderOverview(host as unknown as AlisioApp),
+      ]);
+    });
   }
   if (host.tab === "connections") {
     await Promise.allSettled([
       loadNodes(host as unknown as AlisioApp),
       loadDevices(host as unknown as AlisioApp),
-      loadAlisioSharing(host as unknown as AlisioApp),
-      loadNodePairings(host as unknown as AlisioApp),
     ]);
+    runInBackground(async () => {
+      await Promise.allSettled([
+        loadAlisioSharing(host as unknown as AlisioApp),
+        loadNodePairings(host as unknown as AlisioApp),
+      ]);
+    });
   }
   if (host.tab === "security") {
     await Promise.allSettled([
@@ -758,6 +785,9 @@ function applyTabSelection(
 ) {
   next = publicTabFor(next);
   const prev = host.tab;
+  if (prev === "cron" && next !== "cron") {
+    nextCronJobsHydrationToken(host);
+  }
   if (host.tab !== next) {
     host.tab = next;
   }
@@ -969,6 +999,7 @@ function buildAttentionItems(host: AlisioApp) {
 
 export async function loadCron(host: SettingsHost) {
   const app = host as unknown as AlisioApp;
+  const hydrationToken = nextCronJobsHydrationToken(host);
   const activeCronJobId = app.cronRunsScope === "job" ? app.cronRunsJobId : null;
   app.cronJobsQuery = "";
   app.cronJobsEnabledFilter = "all";
@@ -979,12 +1010,22 @@ export async function loadCron(host: SettingsHost) {
   await Promise.all([
     loadChannels(app, false),
     loadCronStatus(app),
-    (async () => {
-      await loadCronJobsPage(app, { append: false });
-      while (app.cronJobsHasMore && !app.cronError) {
-        await loadCronJobsPage(app, { append: true });
-      }
-    })(),
+    loadCronJobsPage(app, { append: false }),
     loadCronRuns(app, activeCronJobId),
   ]);
+  if (!app.cronJobsHasMore || app.cronError || !isCronJobsHydrationCurrent(host, hydrationToken)) {
+    return;
+  }
+  runInBackground(async () => {
+    while (
+      isCronJobsHydrationCurrent(host, hydrationToken) &&
+      app.cronJobsHasMore &&
+      !app.cronError
+    ) {
+      await loadCronJobsPage(app, { append: true });
+      await new Promise<void>((resolve) => {
+        globalThis.setTimeout(resolve, 0);
+      });
+    }
+  });
 }

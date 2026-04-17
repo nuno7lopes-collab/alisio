@@ -221,7 +221,7 @@ describe("cdp", () => {
     const created = await createTargetViaCdp({
       cdpUrl: `http://127.0.0.1:${httpPort}`,
       url: "http://127.0.0.1:8080",
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     });
 
     expect(created.targetId).toBe("TARGET_LOCAL");

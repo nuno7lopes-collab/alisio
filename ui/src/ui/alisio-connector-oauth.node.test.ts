@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { refreshAfterAlisioConnectorOAuth } from "./alisio-connector-oauth.ts";
+import {
+  buildPendingAlisioConnectorChatResume,
+  refreshAfterAlisioConnectorOAuth,
+} from "./alisio-connector-oauth.ts";
 
 const loadAlisioConnectorsMock = vi.hoisted(() =>
   vi.fn(async (_target?: unknown, _opts?: unknown) => undefined),
@@ -150,5 +153,22 @@ describe("refreshAfterAlisioConnectorOAuth", () => {
         active: true,
       }),
     ]);
+  });
+});
+
+describe("buildPendingAlisioConnectorChatResume", () => {
+  it("prefers an explicit prompt override when the flow starts outside chat", () => {
+    const pending = buildPendingAlisioConnectorChatResume({
+      connectorId: "youtube",
+      sessionKey: "agent:main",
+      messageOverride: "Revê o meu canal de YouTube e resume o que precisa de atenção.",
+      messages: [],
+    });
+
+    expect(pending).toMatchObject({
+      connectorId: "youtube",
+      sessionKey: "agent:main",
+      message: "Revê o meu canal de YouTube e resume o que precisa de atenção.",
+    });
   });
 });

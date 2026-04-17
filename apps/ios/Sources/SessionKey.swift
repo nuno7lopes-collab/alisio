@@ -20,4 +20,12 @@ enum SessionKey {
         if trimmed == "global" { return true }
         return trimmed.hasPrefix("agent:")
     }
+
+    static func resolveAgentID(from value: String?) -> String? {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("agent:") else { return nil }
+        let rest = trimmed.dropFirst("agent:".count)
+        let agentID = rest.prefix { $0 != ":" }.trimmingCharacters(in: .whitespacesAndNewlines)
+        return agentID.isEmpty ? nil : agentID
+    }
 }

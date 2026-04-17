@@ -145,17 +145,13 @@ export type SlackAccountConfig = {
    * - "partial": replace preview text with the latest partial output (default)
    * - "block": append chunked preview updates
    * - "progress": show progress status, then send final text
-   *
-   * Legacy boolean values are still accepted and auto-migrated.
    */
-  streaming?: SlackStreamingMode | boolean;
+  streaming?: SlackStreamingMode;
   /**
    * Slack native text streaming toggle (`chat.startStream` / `chat.appendStream` / `chat.stopStream`).
    * Used when `streaming` is `partial`. Default: true.
    */
   nativeStreaming?: boolean;
-  /** @deprecated Legacy preview mode key; migrated automatically to `streaming`. */
-  streamMode?: SlackLegacyStreamMode;
   mediaMaxMb?: number;
   /** Reaction notification mode (off|own|all|allowlist). Default: own. */
   reactionNotifications?: SlackReactionNotificationMode;

@@ -40,7 +40,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
       cdpUrl: "http://127.0.0.1:40708",
       url: "https://example.com",
       timeoutMs: 10,
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     });
 
     expect(goto).toHaveBeenCalledWith("https://example.com", { timeout: 1000 });
@@ -61,7 +61,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
       cdpUrl: "http://127.0.0.1:40708",
       targetId: "tab-1",
       url: "https://example.com/recovered",
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
     });
 
     expect(getPwToolsCoreSessionMocks().getPageForTargetId).toHaveBeenCalledTimes(2);

@@ -30,4 +30,10 @@ describe("createAlisioTools owner authorization", () => {
     expect(tools.get("canvas")).toBeDefined();
     expect(tools.get("canvas")?.ownerOnly).not.toBe(true);
   });
+
+  it("registers computer by default", () => {
+    const tools = readToolByName();
+    expect(tools.get("computer")).toBeDefined();
+    expect(tools.get("computer")?.ownerOnly).not.toBe(true);
+  });
 });

@@ -147,6 +147,7 @@ import {
   loadTasksOverview,
   resolveTaskProposal,
   saveTaskProposal,
+  selectTask,
 } from "./controllers/tasks.ts";
 import { icons } from "./icons.ts";
 import "./components/dashboard-header.ts";
@@ -369,7 +370,10 @@ function connectorSetupErrorMessage(
 function beginConnectorFlow(
   state: AppViewState,
   connectorId: string,
-  opts?: { resumeChatIntent?: boolean },
+  opts?: {
+    resumeChatIntent?: boolean;
+    resumeMessage?: string;
+  },
 ) {
   state.alisioConnectorsError = null;
   state.alisioConnectorSetupGuide = null;
@@ -380,6 +384,7 @@ function beginConnectorFlow(
       connectorId,
       sessionKey: state.sessionKey,
       messages: state.chatMessages,
+      messageOverride: opts.resumeMessage,
     });
     if (pendingResume) {
       state.pendingConnectorChatResume = rememberPendingAlisioConnectorChatResume(pendingResume);
@@ -434,6 +439,46 @@ function beginConnectorFlow(
       state.alisioConnectorsError =
         error instanceof Error ? error.message : t("alisio.authentications.errors.startFailed");
     });
+}
+
+function resolveConnectorChatPrompt(state: AppViewState, connectorId: string): string {
+  const definition =
+    state.alisioProviders?.connectors.catalog.find((entry) => entry.id === connectorId) ??
+    state.alisioConnectorCatalog.find((entry) => entry.id === connectorId);
+  const title = definition?.title ?? connectorId;
+  switch (connectorId) {
+    case "gmail-read":
+      return t("alisio.chat.welcome.featuredApps.gmailReadPrompt");
+    case "gmail-send":
+      return t("alisio.chat.welcome.featuredApps.gmailSendPrompt");
+    case "google-calendar":
+      return t("alisio.chat.welcome.featuredApps.googleCalendarPrompt");
+    case "youtube":
+      return t("alisio.authentications.chatPrompts.youtube");
+    case "github":
+      return t("alisio.authentications.chatPrompts.github");
+    default:
+      return t("alisio.authentications.chatPrompts.default", { app: title });
+  }
+}
+
+function tryConnectorInChat(state: AppViewState, connectorId: string) {
+  const prompt = resolveConnectorChatPrompt(state, connectorId);
+  const authorization =
+    state.alisioProviders?.connectors.authorizations.find(
+      (entry) => entry.connectorId === connectorId,
+    ) ?? state.alisioConnectorAuthorizations.find((entry) => entry.connectorId === connectorId);
+  state.alisioConnectorDialogId = null;
+  state.alisioConnectorDialogMode = null;
+  state.setTab("chat");
+  if (authorization?.state === "connected") {
+    void state.handleSendChat(prompt);
+    return;
+  }
+  beginConnectorFlow(state, connectorId, {
+    resumeChatIntent: true,
+    resumeMessage: prompt,
+  });
 }
 
 export function renderApp(state: AppViewState) {
@@ -952,14 +997,35 @@ export function renderApp(state: AppViewState) {
               connectorCatalog: state.alisioConnectorCatalog,
               connectorAuthorizations: state.alisioConnectorAuthorizations,
               search: state.alisioConnectorsSearch,
+              dialogConnectorId: state.alisioConnectorDialogId,
+              dialogMode: state.alisioConnectorDialogMode,
               onSearchChange: (value) => {
                 state.alisioConnectorsSearch = value;
               },
+              onOpenConnectorDetails: (connectorId) => {
+                state.alisioConnectorDialogId = connectorId;
+                state.alisioConnectorDialogMode = "details";
+              },
+              onOpenConnectorInstall: (connectorId) => {
+                state.alisioConnectorDialogId = connectorId;
+                state.alisioConnectorDialogMode = "install";
+              },
+              onCloseConnectorDialog: () => {
+                state.alisioConnectorDialogId = null;
+                state.alisioConnectorDialogMode = null;
+              },
               onBeginConnector: (connectorId) => {
+                state.alisioConnectorDialogId = null;
+                state.alisioConnectorDialogMode = null;
                 beginConnectorFlow(state, connectorId);
               },
               onRevokeConnector: (connectorId) => {
+                state.alisioConnectorDialogId = null;
+                state.alisioConnectorDialogMode = null;
                 void revokeAlisioConnector(state, connectorId);
+              },
+              onTryConnectorInChat: (connectorId) => {
+                tryConnectorInChat(state, connectorId);
               },
             })
           : nothing}
@@ -1378,6 +1444,8 @@ export function renderApp(state: AppViewState) {
               busy: state.tasksBusy,
               error: state.tasksError,
               overview: state.tasksOverview,
+              detailLoading: state.tasksDetailLoading,
+              detail: state.tasksDetail,
               selectedId: state.tasksSelectedId,
               query: state.tasksQuery,
               runtimeFilter: state.tasksRuntimeFilter,
@@ -1398,7 +1466,7 @@ export function renderApp(state: AppViewState) {
                 void loadTasksOverview(state, { quiet: true });
               },
               onSelectTask: (taskId) => {
-                state.tasksSelectedId = taskId;
+                void selectTask(state, taskId);
               },
               onCancelTask: (taskId) => {
                 void cancelTask(state, taskId);
@@ -1424,6 +1492,8 @@ export function renderApp(state: AppViewState) {
                 switchChatSession(state, sessionKey);
                 state.setTab?.("chat");
               },
+              resolveSessionBrowserPanePreview: (sessionKey) =>
+                state.resolveSessionBrowserPanePreview?.(sessionKey) ?? null,
             })
           : nothing}
         ${activeTab === "cron"
@@ -1608,11 +1678,20 @@ export function renderApp(state: AppViewState) {
                   sidebarError: state.sidebarError,
                   browserPaneSurfaceKind: state.browserPaneSurfaceKind,
                   browserPaneObserver: state.browserPaneObserver,
+                  computerSessionLoading: state.computerSessionLoading,
+                  computerSessionError: state.computerSessionError,
+                  computerSession: state.computerSession,
                   splitRatio: state.splitRatio,
                   onOpenSidebar: (content: string) => state.handleOpenSidebar(content),
                   onCloseSidebar: () => state.handleCloseSidebar(),
                   onSelectBrowserPaneSurface: (surface) =>
                     state.handleSelectBrowserPaneSurface(surface),
+                  onComputerSessionCommand: (command) =>
+                    state.handleComputerSessionCommand(command),
+                  onComputerSessionApproval: (decision) =>
+                    state.handleComputerSessionApproval(decision),
+                  onRequestComputerPermission: (permission) =>
+                    state.handleRequestComputerPermission(permission),
                   onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                   assistantName: state.assistantName,
                   assistantAvatar: state.assistantAvatar,

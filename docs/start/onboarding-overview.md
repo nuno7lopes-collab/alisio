@@ -9,9 +9,9 @@ sidebarTitle: "Onboarding Overview"
 
 # Onboarding Overview
 
-Alisio has two setup paths, but they are not equal.
+Alisio has two setup paths.
 
-The primary path is the macOS app. The CLI path still exists for operators, servers, and non-macOS environments.
+The default path is the macOS app. The CLI path is for operators, servers, and non-macOS environments.
 
 ## Which Path Should I Use?
 
@@ -23,7 +23,7 @@ The primary path is the macOS app. The CLI path still exists for operators, serv
 | **Primary surface**   | App UI                         | Terminal                       |
 | **Command**           | Launch the app                 | `alisio onboard`               |
 
-Most people should start with **macOS app onboarding**.
+If you are setting up a Mac for daily use, start with **macOS app onboarding**.
 
 ## What Onboarding Configures
 

@@ -96,7 +96,7 @@ For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 ## Product Notes
 
 - The macOS app is the primary product shell.
-- The CLI is still available, but it is a secondary operational surface.
+- The CLI remains available for operator, server, and non-macOS workflows.
 - Permissions should stay explicit and reversible.
 - OpenAI, Local, and Server are all first-class options in the product story.
 

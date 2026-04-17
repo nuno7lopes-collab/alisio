@@ -303,7 +303,7 @@ describe("user prompt canonicalization helpers", () => {
             type: "text",
             text: "System: [2026-04-14 23:31:26 GMT+1] reason connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola",
           },
-          { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+          { type: "image", data: "abc", mimeType: "image/png" },
         ],
         timestamp: 3,
       }),
@@ -332,10 +332,9 @@ describe("user prompt canonicalization helpers", () => {
         content: [
           {
             type: "text",
-            text:
-              'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
+            text: 'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
           },
-          { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+          { type: "image", data: "abc", mimeType: "image/png" },
         ],
         timestamp: 2,
       }),
@@ -356,7 +355,7 @@ describe("user prompt canonicalization helpers", () => {
         role: "user",
         content: [
           { type: "text", text: "System: [t] connect\n\n[Tue 2026-04-14 23:45 GMT+1] ola" },
-          { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+          { type: "image", data: "abc", mimeType: "image/png" },
         ],
         timestamp: 1,
       },
@@ -367,7 +366,7 @@ describe("user prompt canonicalization helpers", () => {
       role: "user",
       content: [
         { type: "text", text: "ola" },
-        { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+        { type: "image", data: "abc", mimeType: "image/png" },
       ],
       timestamp: 1,
     });
@@ -406,10 +405,9 @@ describe("user prompt canonicalization helpers", () => {
           content: [
             {
               type: "text",
-              text:
-                'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
+              text: 'Sender (untrusted metadata):\n```json\n{"label":"alisio-control-ui"}\n```\n\n[Thu 2026-04-16 15:02 GMT+1] abre o google',
             },
-            { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+            { type: "image", data: "abc", mimeType: "image/png" },
           ],
           timestamp: 2,
         },
@@ -423,7 +421,7 @@ describe("user prompt canonicalization helpers", () => {
       role: "user",
       content: [
         { type: "text", text: "abre o google" },
-        { type: "image", source: { type: "base64", media_type: "image/png", data: "abc" } },
+        { type: "image", data: "abc", mimeType: "image/png" },
       ],
       timestamp: 2,
     });

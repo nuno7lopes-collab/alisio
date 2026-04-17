@@ -142,6 +142,7 @@ struct ChatMessageBubble: View {
     let message: AlisioChatMessage
     let style: AlisioChatView.Style
     let markdownVariant: ChatMarkdownVariant
+    let assistantIdentity: AlisioChatAssistantIdentity
     let userAccent: Color?
     let showsAssistantTrace: Bool
 
@@ -151,6 +152,7 @@ struct ChatMessageBubble: View {
             isUser: self.isUser,
             style: self.style,
             markdownVariant: self.markdownVariant,
+            assistantIdentity: self.assistantIdentity,
             userAccent: self.userAccent,
             showsAssistantTrace: self.showsAssistantTrace)
             .frame(maxWidth: self.maxWidth, alignment: self.isUser ? .trailing : .leading)
@@ -174,6 +176,7 @@ private struct ChatMessageBody: View {
     let isUser: Bool
     let style: AlisioChatView.Style
     let markdownVariant: ChatMarkdownVariant
+    let assistantIdentity: AlisioChatAssistantIdentity
     let userAccent: Color?
     let showsAssistantTrace: Bool
 
@@ -182,6 +185,9 @@ private struct ChatMessageBody: View {
         let textColor = self.isUser ? AlisioChatTheme.userText : AlisioChatTheme.assistantText
 
         VStack(alignment: .leading, spacing: 10) {
+            if self.shouldShowAssistantHeader {
+                AssistantHeader(identity: self.assistantIdentity)
+            }
             if self.isToolResultMessage, self.showsAssistantTrace {
                 if !text.isEmpty {
                     ToolResultCard(
@@ -240,6 +246,10 @@ private struct ChatMessageBody: View {
         .shadow(color: self.bubbleShadowColor, radius: self.bubbleShadowRadius, y: self.bubbleShadowYOffset)
         .padding(.leading, self.tailPaddingLeading)
         .padding(.trailing, self.tailPaddingTrailing)
+    }
+
+    private var shouldShowAssistantHeader: Bool {
+        !self.isUser && self.message.role.lowercased() == "assistant"
     }
 
     private var primaryText: String {
@@ -506,11 +516,15 @@ private struct ToolResultCard: View {
 @MainActor
 struct ChatTypingIndicatorBubble: View {
     let style: AlisioChatView.Style
+    let assistantIdentity: AlisioChatAssistantIdentity
 
     var body: some View {
-        HStack(spacing: 10) {
-            TypingDots()
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 10) {
+            AssistantHeader(identity: self.assistantIdentity)
+            HStack(spacing: 10) {
+                TypingDots()
+                Spacer(minLength: 0)
+            }
         }
         .padding(.vertical, self.style == .alisio ? 2 : (self.style == .standard ? 12 : 10))
         .padding(.horizontal, self.style == .alisio ? 0 : (self.style == .standard ? 12 : 14))
@@ -527,7 +541,7 @@ struct ChatTypingIndicatorBubble: View {
 
 extension ChatTypingIndicatorBubble: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.style == rhs.style
+        lhs.style == rhs.style && lhs.assistantIdentity == rhs.assistantIdentity
     }
 }
 
@@ -549,10 +563,12 @@ private extension View {
 struct ChatStreamingAssistantBubble: View {
     let text: String
     let markdownVariant: ChatMarkdownVariant
+    let assistantIdentity: AlisioChatAssistantIdentity
     let showsAssistantTrace: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            AssistantHeader(identity: self.assistantIdentity, suffix: "Live")
             ChatAssistantTextBody(
                 text: self.text,
                 markdownVariant: self.markdownVariant,
@@ -566,9 +582,11 @@ struct ChatStreamingAssistantBubble: View {
 @MainActor
 struct ChatPendingToolsBubble: View {
     let toolCalls: [AlisioChatPendingToolCall]
+    let assistantIdentity: AlisioChatAssistantIdentity
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            AssistantHeader(identity: self.assistantIdentity, suffix: "Tools")
             Label("Running tools…", systemImage: "hammer")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -602,7 +620,83 @@ struct ChatPendingToolsBubble: View {
 
 extension ChatPendingToolsBubble: @MainActor Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.toolCalls == rhs.toolCalls
+        lhs.toolCalls == rhs.toolCalls && lhs.assistantIdentity == rhs.assistantIdentity
+    }
+}
+
+@MainActor
+private struct AssistantHeader: View {
+    let identity: AlisioChatAssistantIdentity
+    var suffix: String? = nil
+
+    var body: some View {
+        HStack(spacing: 8) {
+            AssistantAvatar(identity: self.identity)
+            Text(self.label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var label: String {
+        let baseRaw = self.identity.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let base = baseRaw.isEmpty ? "Assistant" : baseRaw
+        let suffixRaw = self.suffix?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !suffixRaw.isEmpty {
+            return "\(base) · \(suffixRaw)"
+        }
+        return base
+    }
+}
+
+@MainActor
+private struct AssistantAvatar: View {
+    let identity: AlisioChatAssistantIdentity
+
+    var body: some View {
+        let badge = self.badge
+        let avatarURL = self.avatarURL
+        ZStack {
+            Circle()
+                .fill(Color.white.opacity(0.08))
+            Circle()
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+            if let avatarURL {
+                AsyncImage(url: avatarURL) { phase in
+                    switch phase {
+                    case let .success(image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        Text(badge)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Text(badge)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 24, height: 24)
+        .clipShape(Circle())
+    }
+
+    private var badge: String {
+        let raw = self.identity.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "A"
+        return String(raw.prefix(1)).uppercased()
+    }
+
+    private var avatarURL: URL? {
+        guard let raw = self.identity.avatarURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty
+        else {
+            return nil
+        }
+        return URL(string: raw)
     }
 }
 

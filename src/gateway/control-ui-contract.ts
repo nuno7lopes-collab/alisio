@@ -17,6 +17,7 @@ export type AlisioHttpBootstrapAccount = {
   email: string;
   agentName?: string;
   avatarLabel: string;
+  avatarUrl?: string;
   plan: import("../shared/alisio-billing.js").AlisioPlan;
 } | null;
 

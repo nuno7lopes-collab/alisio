@@ -623,9 +623,15 @@ function renderAccountSection(props: {
               aria-busy=${props.accountLoading ? "true" : "false"}
             >
               <div class="alisio-profile-pill">
-                <span class="alisio-profile-pill__avatar"
-                  >${props.account?.profile.avatarLabel ?? "A"}</span
-                >
+                ${props.account?.profile.avatarUrl
+                  ? html`<img
+                      class="alisio-profile-pill__avatar alisio-profile-pill__avatar--image"
+                      src=${props.account.profile.avatarUrl}
+                      alt=${props.account.profile.displayName ?? text.localUser}
+                    />`
+                  : html`<span class="alisio-profile-pill__avatar"
+                      >${props.account?.profile.avatarLabel ?? "A"}</span
+                    >`}
                 <div class="alisio-profile-pill__identity">
                   <div class="list-title">
                     ${props.account?.profile.displayName ?? text.localUser}

@@ -1010,7 +1010,6 @@ export async function handleMemoryFilesListGatewayRequest({
     method: "memory.files.list",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -1049,7 +1048,6 @@ export async function handleMemoryFilesGetGatewayRequest({
     method: "memory.files.get",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;

@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { buildNpmInstallRecordFields } from "../../cli/npm-resolution.js";
 import {
-  buildPreferredClawHubSpec,
+  buildPreferredMarketplaceRegistrySpec,
   createPluginInstallLogger,
-  decidePreferredClawHubFallback,
+  decidePreferredMarketplaceRegistryFallback,
   resolveFileNpmSpecToLocalPath,
 } from "../../cli/plugins-command-helpers.js";
 import { persistPluginInstall } from "../../cli/plugins-install-persist.js";
@@ -15,10 +15,13 @@ import {
 import type { AlisioConfig } from "../../config/config.js";
 import type { PluginInstallRecord } from "../../config/types.plugins.js";
 import { resolveArchiveKind } from "../../infra/archive.js";
-import { parseClawHubPluginSpec } from "../../infra/clawhub.js";
-import { formatClawHubSpecifier, installPluginFromClawHub } from "../../plugins/clawhub.js";
+import { parseMarketplaceRegistryPluginSpec } from "../../infra/marketplace-registry.js";
 import { installPluginFromNpmSpec, installPluginFromPath } from "../../plugins/install.js";
 import { clearPluginManifestRegistryCache } from "../../plugins/manifest-registry.js";
+import {
+  formatMarketplaceRegistrySpecifier,
+  installPluginFromMarketplaceRegistry,
+} from "../../plugins/marketplace-registry.js";
 import type { PluginRecord } from "../../plugins/registry.js";
 import {
   buildAllPluginInspectReports,
@@ -190,9 +193,9 @@ async function installPluginFromPluginsCommand(params: {
     return { ok: false, error: `Path not found: ${resolved}` };
   }
 
-  const clawhubSpec = parseClawHubPluginSpec(params.raw);
-  if (clawhubSpec) {
-    const result = await installPluginFromClawHub({
+  const marketplaceRegistrySpec = parseMarketplaceRegistryPluginSpec(params.raw);
+  if (marketplaceRegistrySpec) {
+    const result = await installPluginFromMarketplaceRegistry({
       spec: params.raw,
       logger: createPluginInstallLogger(),
     });
@@ -205,51 +208,54 @@ async function installPluginFromPluginsCommand(params: {
       pluginId: result.pluginId,
       install: {
         source: "marketplace",
-        spec: formatClawHubSpecifier({
-          name: result.clawhub.clawhubPackage,
-          version: result.clawhub.version,
+        spec: formatMarketplaceRegistrySpecifier({
+          name: result.marketplaceRegistry.marketplacePackage,
+          version: result.marketplaceRegistry.version,
         }),
         installPath: result.targetDir,
         version: result.version,
-        integrity: result.clawhub.integrity,
-        resolvedAt: result.clawhub.resolvedAt,
-        marketplaceRegistryUrl: result.clawhub.clawhubUrl,
-        marketplacePackage: result.clawhub.clawhubPackage,
-        marketplaceFamily: result.clawhub.clawhubFamily,
-        marketplaceChannel: result.clawhub.clawhubChannel,
+        integrity: result.marketplaceRegistry.integrity,
+        resolvedAt: result.marketplaceRegistry.resolvedAt,
+        marketplaceRegistryUrl: result.marketplaceRegistry.marketplaceRegistryUrl,
+        marketplacePackage: result.marketplaceRegistry.marketplacePackage,
+        marketplaceFamily: result.marketplaceRegistry.marketplaceFamily,
+        marketplaceChannel: result.marketplaceRegistry.marketplaceChannel,
       },
     });
     return { ok: true, pluginId: result.pluginId };
   }
 
-  const preferredClawHubSpec = buildPreferredClawHubSpec(params.raw);
-  if (preferredClawHubSpec) {
-    const clawhubResult = await installPluginFromClawHub({
-      spec: preferredClawHubSpec,
+  const preferredMarketplaceRegistrySpec = buildPreferredMarketplaceRegistrySpec(params.raw);
+  if (preferredMarketplaceRegistrySpec) {
+    const marketplaceRegistryResult = await installPluginFromMarketplaceRegistry({
+      spec: preferredMarketplaceRegistrySpec,
       logger: createPluginInstallLogger(),
     });
-    if (clawhubResult.ok) {
+    if (marketplaceRegistryResult.ok) {
       clearPluginManifestRegistryCache();
       await persistPluginInstall({
         config: params.config,
-        pluginId: clawhubResult.pluginId,
+        pluginId: marketplaceRegistryResult.pluginId,
         install: {
           source: "marketplace",
-          spec: preferredClawHubSpec,
-          installPath: clawhubResult.targetDir,
-          version: clawhubResult.version,
-          integrity: clawhubResult.clawhub.integrity,
-          resolvedAt: clawhubResult.clawhub.resolvedAt,
-          marketplaceRegistryUrl: clawhubResult.clawhub.clawhubUrl,
-          marketplacePackage: clawhubResult.clawhub.clawhubPackage,
-          marketplaceFamily: clawhubResult.clawhub.clawhubFamily,
-          marketplaceChannel: clawhubResult.clawhub.clawhubChannel,
+          spec: preferredMarketplaceRegistrySpec,
+          installPath: marketplaceRegistryResult.targetDir,
+          version: marketplaceRegistryResult.version,
+          integrity: marketplaceRegistryResult.marketplaceRegistry.integrity,
+          resolvedAt: marketplaceRegistryResult.marketplaceRegistry.resolvedAt,
+          marketplaceRegistryUrl:
+            marketplaceRegistryResult.marketplaceRegistry.marketplaceRegistryUrl,
+          marketplacePackage: marketplaceRegistryResult.marketplaceRegistry.marketplacePackage,
+          marketplaceFamily: marketplaceRegistryResult.marketplaceRegistry.marketplaceFamily,
+          marketplaceChannel: marketplaceRegistryResult.marketplaceRegistry.marketplaceChannel,
         },
       });
-      return { ok: true, pluginId: clawhubResult.pluginId };
+      return { ok: true, pluginId: marketplaceRegistryResult.pluginId };
     }
-    if (decidePreferredClawHubFallback(clawhubResult) !== "fallback_to_npm") {
-      return { ok: false, error: clawhubResult.error };
+    if (
+      decidePreferredMarketplaceRegistryFallback(marketplaceRegistryResult) !== "fallback_to_npm"
+    ) {
+      return { ok: false, error: marketplaceRegistryResult.error };
     }
   }
 

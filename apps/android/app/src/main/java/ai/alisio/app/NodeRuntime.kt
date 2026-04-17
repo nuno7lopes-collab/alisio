@@ -230,6 +230,9 @@ class NodeRuntime(
   private val _isForeground = MutableStateFlow(true)
   val isForeground: StateFlow<Boolean> = _isForeground.asStateFlow()
 
+  private val _chatAssistantIdentity = MutableStateFlow(ChatAssistantIdentity())
+  val chatAssistantIdentity: StateFlow<ChatAssistantIdentity> = _chatAssistantIdentity.asStateFlow()
+
   private var gatewayDefaultAgentId: String? = null
   private var gatewayAgents: List<GatewayAgentSummary> = emptyList()
   private var didAutoRequestCanvasRehydrate = false
@@ -267,6 +270,7 @@ class NodeRuntime(
         _seamColorArgb.value = DEFAULT_SEAM_COLOR_ARGB
         chat.applyMainSessionKey(resolveMainSessionKey())
         chat.onDisconnected(message)
+        updateChatAssistantIdentity()
         updateStatus()
         micCapture.onGatewayConnectionChanged(false)
       },
@@ -569,6 +573,12 @@ class NodeRuntime(
 
     scope.launch {
       prefs.loadGatewayToken()
+    }
+
+    scope.launch {
+      chat.sessionKey.collect {
+        updateChatAssistantIdentity()
+      }
     }
 
     scope.launch {
@@ -1025,18 +1035,28 @@ class NodeRuntime(
           val obj = item.asObjectOrNull() ?: return@mapNotNull null
           val id = obj["id"].asStringOrNull()?.trim().orEmpty()
           if (id.isEmpty()) return@mapNotNull null
-          val name = obj["name"].asStringOrNull()?.trim()
-          val emoji = obj["identity"].asObjectOrNull()?.get("emoji").asStringOrNull()?.trim()
+          val identity = obj["identity"].asObjectOrNull()
+          val name =
+            identity?.get("name").asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+              ?: obj["name"].asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+              ?: id
+          val avatar = identity?.get("avatar").asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+          val avatarUrl =
+            identity?.get("avatarUrl").asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
+          val emoji = identity?.get("emoji").asStringOrNull()?.trim()?.takeIf { it.isNotEmpty() }
           GatewayAgentSummary(
             id = id,
-            name = name?.takeIf { it.isNotEmpty() },
-            emoji = emoji?.takeIf { it.isNotEmpty() },
+            name = name,
+            avatar = avatar,
+            avatarUrl = avatarUrl,
+            emoji = emoji,
           )
         } ?: emptyList()
 
       gatewayDefaultAgentId = defaultAgentId.ifEmpty { null }
       gatewayAgents = agents
       syncMainSessionKey(resolveAgentIdFromMainSessionKey(mainKey) ?: gatewayDefaultAgentId)
+      updateChatAssistantIdentity()
       updateHomeCanvasState()
     } catch (_: Throwable) {
       // ignore
@@ -1060,6 +1080,7 @@ class NodeRuntime(
     val gatewayLabel = gatewayName ?: gatewayAddress ?: "Gateway"
     val activeAgentId = resolveActiveAgentId()
     val agents = homeCanvasAgents(activeAgentId)
+    val activeAgent = agents.firstOrNull { it.isActive }
 
     return when (state) {
       HomeCanvasGatewayState.Connected ->
@@ -1071,7 +1092,8 @@ class NodeRuntime(
             "This phone stays dormant until the gateway needs it, then wakes, syncs, and goes back to sleep.",
           gatewayLabel = gatewayLabel,
           activeAgentName = resolveActiveAgentName(activeAgentId),
-          activeAgentBadge = agents.firstOrNull { it.isActive }?.badge ?: "OC",
+          activeAgentBadge = activeAgent?.badge ?: "OC",
+          activeAgentAvatarUrl = activeAgent?.avatarUrl,
           activeAgentCaption = "Selected on this phone",
           agentCount = agents.size,
           agents = agents.take(6),
@@ -1087,6 +1109,7 @@ class NodeRuntime(
           gatewayLabel = gatewayLabel,
           activeAgentName = resolveActiveAgentName(activeAgentId),
           activeAgentBadge = "OC",
+          activeAgentAvatarUrl = null,
           activeAgentCaption = "Gateway session in progress",
           agentCount = agents.size,
           agents = agents.take(4),
@@ -1102,6 +1125,7 @@ class NodeRuntime(
           gatewayLabel = gatewayLabel,
           activeAgentName = "Main",
           activeAgentBadge = "OC",
+          activeAgentAvatarUrl = null,
           activeAgentCaption = "Connect to load your agents",
           agentCount = agents.size,
           agents = agents.take(4),
@@ -1121,11 +1145,8 @@ class NodeRuntime(
   }
 
   private fun resolveActiveAgentId(): String {
-    val mainKey = _mainSessionKey.value.trim()
-    if (mainKey.startsWith("agent:")) {
-      val agentId = mainKey.removePrefix("agent:").substringBefore(':').trim()
-      if (agentId.isNotEmpty()) return agentId
-    }
+    val agentId = resolveAgentIdFromSessionKey(_mainSessionKey.value)
+    if (!agentId.isNullOrEmpty()) return agentId
     return gatewayDefaultAgentId?.trim().orEmpty()
   }
 
@@ -1149,6 +1170,7 @@ class NodeRuntime(
           id = agent.id,
           name = normalized(agent.name) ?: agent.id,
           badge = homeCanvasBadge(agent),
+          avatarUrl = agentAvatarUrl(agent),
           caption =
             when {
               isActive -> "Active on this phone"
@@ -1161,8 +1183,31 @@ class NodeRuntime(
   }
 
   private fun homeCanvasBadge(agent: GatewayAgentSummary): String {
+    val explicitAvatar = normalized(agent.avatar)
+    if (agentAvatarUrl(agent) != null && !explicitAvatar.isNullOrEmpty()) {
+      val trimmed = explicitAvatar.trim()
+      if (
+        !trimmed.contains("://") &&
+          !trimmed.startsWith("data:image/") &&
+          !trimmed.contains("/") &&
+          !trimmed.contains("\\") &&
+          !trimmed.contains(".")
+      ) {
+        return trimmed
+      }
+    }
     val emoji = normalized(agent.emoji)
     if (emoji != null) return emoji
+    if (
+      !explicitAvatar.isNullOrEmpty() &&
+        !explicitAvatar.contains("://") &&
+        !explicitAvatar.startsWith("data:image/") &&
+        !explicitAvatar.contains("/") &&
+        !explicitAvatar.contains("\\") &&
+        !explicitAvatar.contains(".")
+    ) {
+      return explicitAvatar
+    }
     val initials =
       (normalized(agent.name) ?: agent.id)
         .split(' ', '-', '_')
@@ -1176,6 +1221,36 @@ class NodeRuntime(
   private fun normalized(value: String?): String? {
     val trimmed = value?.trim().orEmpty()
     return trimmed.ifEmpty { null }
+  }
+
+  private fun agentAvatarUrl(agent: GatewayAgentSummary): String? {
+    val explicit = normalized(agent.avatarUrl)
+    if (explicit != null) return explicit
+    val avatar = normalized(agent.avatar)
+    if (avatar != null && (avatar.startsWith("http://") || avatar.startsWith("https://") || avatar.startsWith("data:image/"))) {
+      return avatar
+    }
+    return null
+  }
+
+  private fun updateChatAssistantIdentity() {
+    val agentId =
+      resolveAgentIdFromSessionKey(chat.sessionKey.value)?.trim().orEmpty().ifEmpty {
+        gatewayDefaultAgentId?.trim().orEmpty().ifEmpty { resolveActiveAgentId() }
+      }
+    val agent = gatewayAgents.firstOrNull { it.id == agentId }
+    val name = normalized(agent?.name) ?: agentId.ifEmpty { "Assistant" }
+    val avatarUrl = agent?.let(::agentAvatarUrl)
+    val fallbackBadge =
+      homeCanvasBadge(
+        agent ?: GatewayAgentSummary(id = name, name = name, avatar = null, avatarUrl = null, emoji = null),
+      )
+    _chatAssistantIdentity.value =
+      ChatAssistantIdentity(
+        name = name,
+        avatar = if (!avatarUrl.isNullOrEmpty()) avatarUrl else normalized(agent?.avatar) ?: normalized(agent?.emoji) ?: fallbackBadge,
+        avatarUrl = avatarUrl,
+      )
   }
 
   private fun triggerCameraFlash() {
@@ -1206,8 +1281,16 @@ private enum class HomeCanvasGatewayState {
 
 private data class GatewayAgentSummary(
   val id: String,
-  val name: String?,
+  val name: String,
+  val avatar: String?,
+  val avatarUrl: String?,
   val emoji: String?,
+)
+
+data class ChatAssistantIdentity(
+  val name: String = "Assistant",
+  val avatar: String? = null,
+  val avatarUrl: String? = null,
 )
 
 @Serializable
@@ -1219,6 +1302,7 @@ private data class HomeCanvasPayload(
   val gatewayLabel: String,
   val activeAgentName: String,
   val activeAgentBadge: String,
+  val activeAgentAvatarUrl: String? = null,
   val activeAgentCaption: String,
   val agentCount: Int,
   val agents: List<HomeCanvasAgentCard>,
@@ -1230,6 +1314,7 @@ private data class HomeCanvasAgentCard(
   val id: String,
   val name: String,
   val badge: String,
+  val avatarUrl: String? = null,
   val caption: String,
   val isActive: Boolean,
 )

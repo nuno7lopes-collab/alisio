@@ -1014,7 +1014,12 @@ function buildNativeListSemanticIndex(db: DatabaseSync): NativeListSemanticIndex
   return {
     claims: claims.map((row) => ({
       claimId: row.claim_id,
-      haystack: [row.subject, row.predicate, row.object, ...(evidenceByClaim.get(row.claim_id) ?? [])]
+      haystack: [
+        row.subject,
+        row.predicate,
+        row.object,
+        ...(evidenceByClaim.get(row.claim_id) ?? []),
+      ]
         .join(" ")
         .toLowerCase(),
     })),
@@ -2100,7 +2105,6 @@ export async function handleMemoryNotesListGatewayRequest({
     method: "memory.notes.list",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2139,7 +2143,6 @@ export async function handleMemoryNotesGetGatewayRequest({
     method: "memory.notes.get",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2189,7 +2192,6 @@ export async function handleMemoryNotesUpdateGatewayRequest({
     method: "memory.notes.update",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2269,7 +2271,6 @@ export async function handleMemoryNotesHistoryGatewayRequest({
     method: "memory.notes.history",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2299,7 +2300,6 @@ export async function handleMemoryWikiListGatewayRequest({
     method: "memory.wiki.list",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2338,7 +2338,6 @@ export async function handleMemoryWikiGetGatewayRequest({
     method: "memory.wiki.get",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2388,7 +2387,6 @@ export async function handleMemoryWikiUpdateGatewayRequest({
     method: "memory.wiki.update",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2468,7 +2466,6 @@ export async function handleMemoryWikiHistoryGatewayRequest({
     method: "memory.wiki.history",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2591,7 +2588,6 @@ export async function handleMemoryTraceGetGatewayRequest({
     method: "memory.trace.get",
     request: params,
     respond,
-    syncIfDirty: false,
   });
   if (!context) {
     return;

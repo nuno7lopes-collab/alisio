@@ -223,7 +223,11 @@ export const CanonicalTaskSummarySchema = Type.Object(
   { additionalProperties: false },
 );
 
-const TaskRuntimeFilterSchema = Type.Union([TaskRuntimeSchema, Type.Literal("all")]);
+const TaskRuntimeFilterSchema = Type.Union([
+  TaskRuntimeSchema,
+  Type.Literal("orchestrator_session"),
+  Type.Literal("all"),
+]);
 const TaskStatusFilterSchema = Type.Union([TaskStatusSchema, Type.Literal("all")]);
 
 export const TasksOverviewParamsSchema = Type.Object(
@@ -540,6 +544,7 @@ export const TasksOverviewResultSchema = Type.Object(
     proposalSummary: TaskProposalSummarySchema,
     proposals: Type.Array(TaskProposalRecordSchema),
     canonicalTasks: Type.Array(TaskSchema),
+    canonicalExecutions: Type.Array(TaskExecutionSchema),
     total: Type.Integer({ minimum: 0 }),
     limit: Type.Integer({ minimum: 1 }),
     offset: Type.Integer({ minimum: 0 }),
@@ -564,6 +569,7 @@ export const TasksDetailResultSchema = Type.Object(
     task: TaskSchema,
     proposal: Type.Optional(TaskProposalRecordSchema),
     children: Type.Array(TaskSchema),
+    childExecutions: Type.Array(TaskExecutionSchema),
     executions: Type.Array(TaskExecutionSchema),
     assignments: Type.Array(TaskAssignmentSchema),
     approvals: Type.Array(TaskApprovalSchema),

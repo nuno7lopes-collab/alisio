@@ -2,7 +2,11 @@ import type { NodeListNode } from "../../../src/shared/node-list-types.js";
 import type { PendingAlisioConnectorChatResume } from "./alisio-connector-oauth.ts";
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus, FallbackStatus } from "./app-tool-stream.ts";
-import type { BrowserPaneObserver, BrowserPaneSurfaceKind } from "./controllers/browser-pane.ts";
+import type {
+  BrowserPaneObserver,
+  BrowserPanePreviewState,
+  BrowserPaneSurfaceKind,
+} from "./controllers/browser-pane.ts";
 import type { CronModelSuggestionsState, CronState } from "./controllers/cron.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
@@ -23,7 +27,7 @@ import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ResolvedTheme, ThemeAccents, ThemeFamily, ThemeMode } from "./theme.ts";
-import type { AlisioAuthStage, ProviderUsageSummary } from "./types.ts";
+import type { AlisioAuthStage, ComputerSessionState, ProviderUsageSummary } from "./types.ts";
 import type {
   AlisioAccountState,
   AlisioConnectorAuthorization,
@@ -123,6 +127,8 @@ export type AppViewState = {
   alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null;
   alisioConnectorsSearch: string;
+  alisioConnectorDialogId: string | null;
+  alisioConnectorDialogMode: "details" | "install" | null;
   alisioOrganizationDraftMode: "create" | "join";
   alisioOrganizationName: string;
   alisioOrganizationInviteEmail: string;
@@ -192,6 +198,10 @@ export type AppViewState = {
   sidebarError: string | null;
   browserPaneSurfaceKind: BrowserPaneSurfaceKind;
   browserPaneObserver: BrowserPaneObserver | null;
+  resolveSessionBrowserPanePreview?: (sessionKey: string) => BrowserPanePreviewState | null;
+  computerSessionLoading: boolean;
+  computerSessionError: string | null;
+  computerSession: ComputerSessionState | null;
   splitRatio: number;
   scrollToBottom: (opts?: { smooth?: boolean }) => void;
   devicesLoading: boolean;
@@ -410,6 +420,9 @@ export type AppViewState = {
   | "cronRunsStatusFilter"
   | "cronRunsQuery"
   | "cronRunsSortDir"
+  | "cronCalendarMode"
+  | "cronCalendarCursorMs"
+  | "cronCalendarSelectedDayMs"
   | "cronBusy"
 > &
   Pick<CronModelSuggestionsState, "cronModelSuggestions"> & {
@@ -510,5 +523,10 @@ export type AppViewState = {
     handleOpenSidebar: (content: string) => void;
     handleCloseSidebar: () => void;
     handleSelectBrowserPaneSurface: (surface: BrowserPaneSurfaceKind) => void;
+    handleComputerSessionCommand: (command: "pause" | "resume" | "stop") => void;
+    handleComputerSessionApproval: (decision: "allow-once" | "allow-session" | "deny") => void;
+    handleRequestComputerPermission: (
+      permission: "accessibility" | "screenRecording",
+    ) => Promise<void>;
     handleSplitRatioChange: (ratio: number) => void;
   };

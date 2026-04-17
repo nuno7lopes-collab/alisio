@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { listAgentIds } from "../../agents/agent-scope.js";
+import { listAgentIds, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import type { AgentInternalEvent } from "../../agents/internal-events.js";
+import { resolveResolvedAgentIdentity } from "../../agents/resolved-identity.js";
 import {
   normalizeSpawnedRunMetadata,
   resolveIngressWorkspaceOverrideForSpawnedRun,
@@ -28,10 +29,7 @@ import { classifySessionKeyShape, normalizeAgentId } from "../../routing/session
 import { defaultRuntime } from "../../runtime.js";
 import { normalizeInputProvenance, type InputProvenance } from "../../sessions/input-provenance.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
-import {
-  endTaskExecutionByRunId,
-  getTaskExecutionByRunId,
-} from "../../tasks/task-service.js";
+import { endTaskExecutionByRunId, getTaskExecutionByRunId } from "../../tasks/task-service.js";
 import { normalizeSessionDeliveryFields } from "../../utils/delivery-context.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
@@ -39,9 +37,7 @@ import {
   isGatewayMessageChannel,
   normalizeMessageChannel,
 } from "../../utils/message-channel.js";
-import { resolveAssistantIdentity } from "../assistant-identity.js";
 import { parseMessageWithAttachments } from "../chat-attachments.js";
-import { resolveAssistantAvatarUrl } from "../control-ui-shared.js";
 import { ADMIN_SCOPE } from "../method-scopes.js";
 import { GATEWAY_CLIENT_CAPS, hasGatewayClientCap } from "../protocol/client-info.js";
 import {
@@ -870,22 +866,30 @@ export const agentHandlers: GatewayRequestHandlers = {
       agentId = resolved;
     }
     const cfg = loadConfig();
+    const resolvedAgentId = agentId ?? normalizeAgentId(resolveDefaultAgentId(cfg));
     const account = await getAlisioAccountState().catch(() => null);
-    const identity = resolveAssistantIdentity({
+    const identity = resolveResolvedAgentIdentity({
       cfg,
-      agentId,
+      agentId: resolvedAgentId,
+      includeUiAssistant: true,
+      includeAccountIdentity: true,
       accountProfile:
         account && hasRestorableAlisioAccount(account.profile, account.session)
           ? account.profile
           : undefined,
     });
-    const avatarValue =
-      resolveAssistantAvatarUrl({
+    respond(
+      true,
+      {
+        agentId: resolvedAgentId,
+        name: identity.name,
         avatar: identity.avatar,
-        agentId: identity.agentId,
-        basePath: cfg.gateway?.controlUi?.basePath,
-      }) ?? identity.avatar;
-    respond(true, { ...identity, avatar: avatarValue }, undefined);
+        ...(identity.avatarUrl ? { avatarUrl: identity.avatarUrl } : {}),
+        ...(identity.emoji ? { emoji: identity.emoji } : {}),
+        ...(identity.theme ? { theme: identity.theme } : {}),
+      },
+      undefined,
+    );
   },
   "agent.wait": async ({ params, respond, context }) => {
     if (!validateAgentWaitParams(params)) {

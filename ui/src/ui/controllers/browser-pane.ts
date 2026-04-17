@@ -1,7 +1,8 @@
 import { getSafeLocalStorage } from "../../local-storage.ts";
+import type { ComputerSessionState } from "../types.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
 
-export type BrowserPaneSurfaceKind = "observer" | "markdown";
+export type BrowserPaneSurfaceKind = "observer" | "computer" | "markdown";
 
 export type BrowserPaneObserver = {
   kind: "novnc";
@@ -14,8 +15,16 @@ export type BrowserPaneMarkdownState = {
   error: string | null;
 };
 
+export type BrowserPanePreviewState = {
+  observer: BrowserPaneObserver | null;
+  computer: ComputerSessionState | null;
+  markdown: BrowserPaneMarkdownState;
+  selectedSurface: BrowserPaneSurfaceKind;
+};
+
 export type BrowserPaneSurface =
   | { kind: "observer"; observer: BrowserPaneObserver }
+  | { kind: "computer"; session: ComputerSessionState }
   | { kind: "markdown"; content: string | null; error: string | null };
 
 export type BrowserPaneUiState = {
@@ -45,7 +54,7 @@ type BrowserPaneObserverFieldState = {
 };
 
 function isBrowserPaneSurfaceKind(value: unknown): value is BrowserPaneSurfaceKind {
-  return value === "observer" || value === "markdown";
+  return value === "observer" || value === "computer" || value === "markdown";
 }
 
 function hasOwnRecordKey(record: Record<string, unknown>, key: string): boolean {
@@ -246,11 +255,15 @@ export function readBrowserPaneObserverEvent(
 
 export function getBrowserPaneAvailableSurfaces(params: {
   observer?: BrowserPaneObserver | null;
+  computer?: ComputerSessionState | null;
   markdown?: BrowserPaneMarkdownState | null;
 }): BrowserPaneSurfaceKind[] {
   const available: BrowserPaneSurfaceKind[] = [];
   if (params.observer) {
     available.push("observer");
+  }
+  if (params.computer) {
+    available.push("computer");
   }
   if (params.markdown?.content || params.markdown?.error) {
     available.push("markdown");
@@ -261,6 +274,7 @@ export function getBrowserPaneAvailableSurfaces(params: {
 export function resolveBrowserPaneSurface(params: {
   preferredSurface: BrowserPaneSurfaceKind;
   observer?: BrowserPaneObserver | null;
+  computer?: ComputerSessionState | null;
   markdown?: BrowserPaneMarkdownState | null;
 }): BrowserPaneSurface | null {
   const available = getBrowserPaneAvailableSurfaces(params);
@@ -272,6 +286,9 @@ export function resolveBrowserPaneSurface(params: {
     : available[0];
   if (preferred === "observer" && params.observer) {
     return { kind: "observer", observer: params.observer };
+  }
+  if (preferred === "computer" && params.computer) {
+    return { kind: "computer", session: params.computer };
   }
   return {
     kind: "markdown",

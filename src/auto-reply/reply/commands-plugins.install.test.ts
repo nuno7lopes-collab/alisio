@@ -7,7 +7,7 @@ import { createCommandWorkspaceHarness } from "./commands-filesystem.test-suppor
 import { buildCommandTestParams } from "./commands.test-harness.js";
 
 const installPluginFromPathMock = vi.fn();
-const installPluginFromClawHubMock = vi.fn();
+const installPluginFromMarketplaceRegistryMock = vi.fn();
 const persistPluginInstallMock = vi.fn();
 
 vi.mock("../../plugins/install.js", async () => {
@@ -20,13 +20,13 @@ vi.mock("../../plugins/install.js", async () => {
   };
 });
 
-vi.mock("../../plugins/clawhub.js", async () => {
-  const actual = await vi.importActual<typeof import("../../plugins/clawhub.js")>(
-    "../../plugins/clawhub.js",
+vi.mock("../../plugins/marketplace-registry.js", async () => {
+  const actual = await vi.importActual<typeof import("../../plugins/marketplace-registry.js")>(
+    "../../plugins/marketplace-registry.js",
   );
   return {
     ...actual,
-    installPluginFromClawHub: installPluginFromClawHubMock,
+    installPluginFromMarketplaceRegistry: installPluginFromMarketplaceRegistryMock,
   };
 });
 
@@ -39,7 +39,7 @@ const workspaceHarness = createCommandWorkspaceHarness("alisio-command-plugins-i
 describe("handleCommands /plugins install", () => {
   afterEach(async () => {
     installPluginFromPathMock.mockReset();
-    installPluginFromClawHubMock.mockReset();
+    installPluginFromMarketplaceRegistryMock.mockReset();
     persistPluginInstallMock.mockReset();
     await workspaceHarness.cleanupWorkspaces();
   });
@@ -93,20 +93,20 @@ describe("handleCommands /plugins install", () => {
     });
   });
 
-  it("installs from an explicit clawhub: spec", async () => {
-    installPluginFromClawHubMock.mockResolvedValue({
+  it("installs from an explicit marketplace: spec", async () => {
+    installPluginFromMarketplaceRegistryMock.mockResolvedValue({
       ok: true,
-      pluginId: "clawhub-demo",
-      targetDir: "/tmp/clawhub-demo",
+      pluginId: "marketplace-demo",
+      targetDir: "/tmp/marketplace-demo",
       version: "1.2.3",
       extensions: ["index.js"],
-      packageName: "@alisio/clawhub-demo",
-      clawhub: {
-        source: "clawhub",
-        clawhubUrl: "https://clawhub.ai",
-        clawhubPackage: "@alisio/clawhub-demo",
-        clawhubFamily: "code-plugin",
-        clawhubChannel: "official",
+      packageName: "@alisio/marketplace-demo",
+      marketplaceRegistry: {
+        source: "marketplace",
+        marketplaceRegistryUrl: "https://clawhub.ai",
+        marketplacePackage: "@alisio/marketplace-demo",
+        marketplaceFamily: "code-plugin",
+        marketplaceChannel: "official",
         version: "1.2.3",
         integrity: "sha512-demo",
         resolvedAt: "2026-03-22T12:00:00.000Z",
@@ -117,7 +117,7 @@ describe("handleCommands /plugins install", () => {
     await withTempHome("alisio-command-plugins-home-", async () => {
       const workspaceDir = await workspaceHarness.createWorkspace();
       const params = buildCommandTestParams(
-        "/plugins install clawhub:@alisio/clawhub-demo@1.2.3",
+        "/plugins install marketplace:@alisio/marketplace-demo@1.2.3",
         {
           commands: {
             text: true,
@@ -130,23 +130,23 @@ describe("handleCommands /plugins install", () => {
       params.command.senderIsOwner = true;
 
       const result = await handleCommands(params);
-      expect(result.reply?.text).toContain('Installed plugin "clawhub-demo"');
-      expect(installPluginFromClawHubMock).toHaveBeenCalledWith(
+      expect(result.reply?.text).toContain('Installed plugin "marketplace-demo"');
+      expect(installPluginFromMarketplaceRegistryMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          spec: "clawhub:@alisio/clawhub-demo@1.2.3",
+          spec: "marketplace:@alisio/marketplace-demo@1.2.3",
         }),
       );
       expect(persistPluginInstallMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          pluginId: "clawhub-demo",
+          pluginId: "marketplace-demo",
           install: expect.objectContaining({
-            source: "clawhub",
-            spec: "clawhub:@alisio/clawhub-demo@1.2.3",
-            installPath: "/tmp/clawhub-demo",
+            source: "marketplace",
+            spec: "marketplace:@alisio/marketplace-demo@1.2.3",
+            installPath: "/tmp/marketplace-demo",
             version: "1.2.3",
             integrity: "sha512-demo",
-            clawhubPackage: "@alisio/clawhub-demo",
-            clawhubChannel: "official",
+            marketplacePackage: "@alisio/marketplace-demo",
+            marketplaceChannel: "official",
           }),
         }),
       );
@@ -154,19 +154,19 @@ describe("handleCommands /plugins install", () => {
   });
 
   it("treats /plugin add as an install alias", async () => {
-    installPluginFromClawHubMock.mockResolvedValue({
+    installPluginFromMarketplaceRegistryMock.mockResolvedValue({
       ok: true,
       pluginId: "alias-demo",
       targetDir: "/tmp/alias-demo",
       version: "1.0.0",
       extensions: ["index.js"],
       packageName: "@alisio/alias-demo",
-      clawhub: {
-        source: "clawhub",
-        clawhubUrl: "https://clawhub.ai",
-        clawhubPackage: "@alisio/alias-demo",
-        clawhubFamily: "code-plugin",
-        clawhubChannel: "official",
+      marketplaceRegistry: {
+        source: "marketplace",
+        marketplaceRegistryUrl: "https://clawhub.ai",
+        marketplacePackage: "@alisio/alias-demo",
+        marketplaceFamily: "code-plugin",
+        marketplaceChannel: "official",
         version: "1.0.0",
         integrity: "sha512-alias",
         resolvedAt: "2026-03-23T12:00:00.000Z",
@@ -177,7 +177,7 @@ describe("handleCommands /plugins install", () => {
     await withTempHome("alisio-command-plugins-home-", async () => {
       const workspaceDir = await workspaceHarness.createWorkspace();
       const params = buildCommandTestParams(
-        "/plugin add clawhub:@alisio/alias-demo@1.0.0",
+        "/plugin add marketplace:@alisio/alias-demo@1.0.0",
         {
           commands: {
             text: true,
@@ -191,9 +191,9 @@ describe("handleCommands /plugins install", () => {
 
       const result = await handleCommands(params);
       expect(result.reply?.text).toContain('Installed plugin "alias-demo"');
-      expect(installPluginFromClawHubMock).toHaveBeenCalledWith(
+      expect(installPluginFromMarketplaceRegistryMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          spec: "clawhub:@alisio/alias-demo@1.0.0",
+          spec: "marketplace:@alisio/alias-demo@1.0.0",
         }),
       );
     });

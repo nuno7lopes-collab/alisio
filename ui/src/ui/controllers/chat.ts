@@ -452,7 +452,7 @@ function collapseInvisibleRetryHistoryArtifacts(messages: unknown[]): unknown[] 
     return messages;
   }
   const collapsed: unknown[] = [];
-  let retryCandidateUser: unknown | null = null;
+  let retryCandidateUser: unknown = null;
   for (const message of messages) {
     if (isInvisibleAssistantRetryError(message)) {
       const previousVisible = collapsed.at(-1);

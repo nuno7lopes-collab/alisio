@@ -5,7 +5,7 @@ import type { AlisioConfig } from "../config/config.js";
 import { loadConfig, readConfigFileSnapshot, replaceConfigFile } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
-import { parseClawHubPluginSpec } from "../infra/clawhub.js";
+import { parseMarketplaceRegistryPluginSpec } from "../infra/marketplace-registry.js";
 import { enablePluginInConfig } from "../plugins/enable.js";
 import { listMarketplacePlugins } from "../plugins/marketplace.js";
 import type { PluginRecord } from "../plugins/registry.js";
@@ -86,14 +86,14 @@ function resolvePluginUninstallId(params: {
     }
   }
 
-  const requestedClawHub = parseClawHubPluginSpec(rawId);
-  if (requestedClawHub) {
+  const requestedMarketplaceRegistry = parseMarketplaceRegistryPluginSpec(rawId);
+  if (requestedMarketplaceRegistry) {
     for (const [pluginId, install] of Object.entries(params.config.plugins?.installs ?? {})) {
-      const installedClawHubName =
+      const installedMarketplaceRegistryName =
         install.marketplacePackage ??
-        parseClawHubPluginSpec(install.spec ?? "")?.name ??
-        parseClawHubPluginSpec(install.resolvedSpec ?? "")?.name;
-      if (installedClawHubName === requestedClawHub.name) {
+        parseMarketplaceRegistryPluginSpec(install.spec ?? "")?.name ??
+        parseMarketplaceRegistryPluginSpec(install.resolvedSpec ?? "")?.name;
+      if (installedMarketplaceRegistryName === requestedMarketplaceRegistry.name) {
         return { pluginId };
       }
     }

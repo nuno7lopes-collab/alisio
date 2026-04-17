@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
+import { createBrowserSessionAuthCache } from "./browser-session-auth-cache.js";
 import type { BrowserServerState } from "./server-context.js";
 import { createBrowserRouteContext } from "./server-context.js";
 
@@ -28,7 +29,7 @@ export function makeState(
       headless: true,
       noSandbox: false,
       attachOnly: false,
-      ssrfPolicy: { allowPrivateNetwork: true },
+      ssrfPolicy: { dangerouslyAllowPrivateNetwork: true },
       defaultProfile: profile,
       profiles: {
         remote: {
@@ -39,6 +40,7 @@ export function makeState(
         alisio: { cdpPort: 40716, color: "#FF4500" },
       },
     },
+    authCache: createBrowserSessionAuthCache(),
     profiles: new Map(),
   };
 }

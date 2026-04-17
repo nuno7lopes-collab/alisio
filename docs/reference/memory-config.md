@@ -283,11 +283,18 @@ is idle. They promote candidate pages, run dedup/health checks, and distill
 canonical daily notes (`memory/YYYY-MM-DD.md`) into the long-term `MEMORY.md`
 projection.
 
-| Key                       | Type      | Default | Description                                    |
-| ------------------------- | --------- | ------- | ---------------------------------------------- |
-| `memory.jobs.enabled`     | `boolean` | `true`  | Enable background memory maintenance           |
-| `memory.jobs.maxSliceMs`  | `number`  | `75`    | Max cooperative runtime budget per idle slice  |
-| `memory.jobs.autoSleep.enabled` | `boolean` | `true`  | Allow idle auto-sleep scheduling for memory jobs |
+- `memory.jobs.enabled`
+  Type: `boolean`
+  Default: `true`
+  Enable background memory maintenance.
+- `memory.jobs.maxSliceMs`
+  Type: `number`
+  Default: `75`
+  Max cooperative runtime budget per idle slice.
+- `memory.jobs.autoSleep.enabled`
+  Type: `boolean`
+  Default: `true`
+  Allow idle auto-sleep scheduling for memory jobs.
 
 `MEMORY.md` stays the injected long-term bootstrap file, but when background
 jobs are enabled its auto-promoted section is generated from canonical daily

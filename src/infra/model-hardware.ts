@@ -19,10 +19,20 @@ export type AlisioModelHardwareProfile = {
 };
 
 export type AlisioModelRecommendationGrade = "recommended" | "works" | "slow" | "unsupported";
+export type AlisioModelRecommendationReasonCode =
+  | "comfortable"
+  | "supported"
+  | "tight"
+  | "insufficient";
 
 export type AlisioModelRecommendation = {
   modelId: string;
   grade: AlisioModelRecommendationGrade;
+  reasonCode: AlisioModelRecommendationReasonCode;
+  requiredRamGb: number;
+  requiredVramGb?: number;
+  availableRamGb: number;
+  availableVramGb?: number;
   label: string;
   reason: string;
 };
@@ -162,6 +172,21 @@ function formatAvailableResources(profile: AlisioModelHardwareProfile) {
   return parts.join(" / ");
 }
 
+function buildRecommendationResources(
+  profile: AlisioModelHardwareProfile,
+  entry: RecommenderCatalogEntry,
+) {
+  const availableRamGb = profile.ramTotalGb ?? profile.totalMemoryGb;
+  const availableVramGb =
+    Math.max(profile.vramUnifiedGb ?? 0, profile.vramTotalGb ?? 0) || undefined;
+  return {
+    requiredRamGb: entry.memoryGb,
+    requiredVramGb: entry.vramGb,
+    availableRamGb,
+    availableVramGb,
+  };
+}
+
 export function recommendModelForHardware(
   profile: AlisioModelHardwareProfile,
   entry: RecommenderCatalogEntry,
@@ -171,11 +196,14 @@ export function recommendModelForHardware(
   const vramHeadroom = resolveVramHeadroom(profile, entry.vramGb);
   const requiredResources = formatRequiredResources(entry);
   const availableResources = formatAvailableResources(profile);
+  const resources = buildRecommendationResources(profile, entry);
 
   if (memoryHeadroom < 0.85 || cpuHeadroom < 1) {
     return {
       modelId: entry.id,
       grade: "unsupported",
+      reasonCode: "insufficient",
+      ...resources,
       label: "Not recommended",
       reason: `${entry.name} needs about ${requiredResources}. This computer currently has ${availableResources}.`,
     };
@@ -185,6 +213,8 @@ export function recommendModelForHardware(
     return {
       modelId: entry.id,
       grade: "recommended",
+      reasonCode: "comfortable",
+      ...resources,
       label: "Recommended",
       reason: `${entry.name} needs about ${requiredResources}. This computer has ${availableResources}, so it should run comfortably.`,
     };
@@ -194,6 +224,8 @@ export function recommendModelForHardware(
     return {
       modelId: entry.id,
       grade: "works",
+      reasonCode: "supported",
+      ...resources,
       label: "Works well",
       reason: `${entry.name} needs about ${requiredResources}. This computer should run it reliably.`,
     };
@@ -207,6 +239,8 @@ export function recommendModelForHardware(
     return {
       modelId: entry.id,
       grade: "slow",
+      reasonCode: "tight",
+      ...resources,
       label: "May be slow",
       reason: `${entry.name} needs about ${requiredResources}. It should work here, but expect slower responses or less headroom.${vramNote}`,
     };
@@ -215,6 +249,8 @@ export function recommendModelForHardware(
   return {
     modelId: entry.id,
     grade: "unsupported",
+    reasonCode: "insufficient",
+    ...resources,
     label: "Not recommended",
     reason: `${entry.name} needs about ${requiredResources}. This computer currently has ${availableResources}.`,
   };

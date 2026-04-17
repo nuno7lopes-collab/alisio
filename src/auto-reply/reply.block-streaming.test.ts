@@ -106,7 +106,7 @@ function createReplyConfig(streamMode?: "block"): AlisioConfig {
         workspace: "/tmp/workspace",
       },
     },
-    channels: { telegram: { allowFrom: ["*"], streamMode } },
+    channels: { telegram: { allowFrom: ["*"], streaming: streamMode } },
     session: { store: "/tmp/sessions.json" },
   };
 }

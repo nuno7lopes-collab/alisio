@@ -43,6 +43,13 @@ export type TasksState = {
   assistantAgentId?: string | null;
 };
 
+type TrackedTaskDetailRequest = {
+  taskId: string;
+  token: symbol;
+};
+
+const taskDetailRequests = new WeakMap<TasksState, TrackedTaskDetailRequest>();
+
 function taskErrorMessage(
   kind: "load" | "cancel" | "save" | "approve" | "reject" | "launch",
 ): string {
@@ -239,7 +246,7 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
     return null;
   }
   const value = raw as Partial<TasksOverviewResult>;
-  if (!value.canonicalSummary || !value.proposalSummary) {
+  if (typeof value.total !== "number" || typeof value.limit !== "number") {
     return null;
   }
   const proposals = (Array.isArray(value.proposals) ? value.proposals : [])
@@ -248,12 +255,18 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
   const canonicalTasks = (Array.isArray(value.canonicalTasks) ? value.canonicalTasks : [])
     .map(normalizeCanonicalTask)
     .filter((entry): entry is Task => Boolean(entry));
+  const canonicalExecutions = (
+    Array.isArray(value.canonicalExecutions) ? value.canonicalExecutions : []
+  )
+    .map(normalizeTaskExecution)
+    .filter((entry): entry is TaskExecution => Boolean(entry));
   return {
     ...(value as TasksOverviewResult),
     canonicalSummary: normalizeCanonicalTaskSummary(value.canonicalSummary),
     proposalSummary: normalizeTaskProposalSummary(value.proposalSummary),
     proposals,
     canonicalTasks,
+    canonicalExecutions,
   };
 }
 
@@ -270,6 +283,9 @@ function normalizeTaskDetailResult(raw: unknown): TasksDetailResult | null {
   const children = (Array.isArray(value.children) ? value.children : [])
     .map(normalizeCanonicalTask)
     .filter((entry): entry is Task => Boolean(entry));
+  const childExecutions = (Array.isArray(value.childExecutions) ? value.childExecutions : [])
+    .map(normalizeTaskExecution)
+    .filter((entry): entry is TaskExecution => Boolean(entry));
   const executions = (Array.isArray(value.executions) ? value.executions : [])
     .map(normalizeTaskExecution)
     .filter((entry): entry is TaskExecution => Boolean(entry));
@@ -292,6 +308,7 @@ function normalizeTaskDetailResult(raw: unknown): TasksDetailResult | null {
     task,
     ...(proposal ? { proposal } : {}),
     children,
+    childExecutions,
     executions,
     assignments,
     approvals,
@@ -356,6 +373,7 @@ function syncSelectedTask(state: TasksState): boolean {
     const changed = state.tasksSelectedId !== null || state.tasksDetail !== null;
     state.tasksSelectedId = null;
     state.tasksDetail = null;
+    state.tasksDetailLoading = false;
     return changed;
   }
   if (state.tasksSelectedId && tasks.some((task) => task.taskId === state.tasksSelectedId)) {
@@ -365,28 +383,96 @@ function syncSelectedTask(state: TasksState): boolean {
   return true;
 }
 
+function beginTaskDetailRequest(
+  state: TasksState,
+  taskId: string,
+): TrackedTaskDetailRequest | null {
+  if (!state.client || !state.connected || !taskId.trim()) {
+    return null;
+  }
+  const request = {
+    taskId,
+    token: Symbol("tasks-detail-request"),
+  } satisfies TrackedTaskDetailRequest;
+  taskDetailRequests.set(state, request);
+  return request;
+}
+
+function isTaskDetailRequestCurrent(state: TasksState, request: TrackedTaskDetailRequest): boolean {
+  return taskDetailRequests.get(state)?.token === request.token;
+}
+
+function finishTaskDetailRequest(state: TasksState, request: TrackedTaskDetailRequest): void {
+  if (taskDetailRequests.get(state)?.token === request.token) {
+    taskDetailRequests.delete(state);
+  }
+}
+
+function shouldRefreshTaskDetail(
+  state: TasksState,
+  task: Task,
+  selectionChanged: boolean,
+  opts?: { quiet?: boolean },
+): boolean {
+  if (!state.tasksDetail || state.tasksDetail.task.taskId !== task.taskId) {
+    return true;
+  }
+  if (selectionChanged || !opts?.quiet) {
+    return true;
+  }
+  if (state.tasksDetailLoading) {
+    return false;
+  }
+  const current = state.tasksDetail.task;
+  return (
+    current.updatedAt !== task.updatedAt ||
+    current.status !== task.status ||
+    current.activeExecutionId !== task.activeExecutionId ||
+    current.latestExecutionId !== task.latestExecutionId ||
+    current.parentTaskId !== task.parentTaskId
+  );
+}
+
 export async function loadTaskDetail(
   state: TasksState,
   taskId: string,
-  opts?: { quiet?: boolean },
+  opts?: { quiet?: boolean; optional?: boolean },
 ): Promise<void> {
-  if (!state.client || !state.connected || !taskId.trim()) {
+  const resolvedTaskId = taskId.trim();
+  if (!state.client || !state.connected || !resolvedTaskId) {
     state.tasksDetail = null;
+    state.tasksDetailLoading = false;
+    return;
+  }
+  const trackedRequest = beginTaskDetailRequest(state, resolvedTaskId);
+  if (!trackedRequest) {
+    state.tasksDetailLoading = false;
     return;
   }
   if (!opts?.quiet) {
     state.tasksDetailLoading = true;
   }
   try {
-    const result = await state.client.request<TasksDetailResult>("tasks.detail", { taskId });
+    const result = await state.client.request<TasksDetailResult>("tasks.detail", {
+      taskId: resolvedTaskId,
+    });
     const normalized = normalizeTaskDetailResult(result);
-    if (!normalized || normalized.task.taskId !== taskId) {
+    if (!normalized || normalized.task.taskId !== resolvedTaskId) {
       throw new Error("Invalid task detail response.");
+    }
+    if (!isTaskDetailRequestCurrent(state, trackedRequest)) {
+      return;
     }
     state.tasksDetail = normalized;
     state.tasksError = null;
   } catch (error) {
+    if (!isTaskDetailRequestCurrent(state, trackedRequest)) {
+      return;
+    }
     state.tasksDetail = null;
+    if (opts?.optional) {
+      return;
+    }
     if (isMissingOperatorReadScopeError(error)) {
       state.tasksOverview = null;
       state.tasksSelectedId = null;
@@ -395,7 +481,10 @@ export async function loadTaskDetail(
       state.tasksError = taskErrorMessage("load");
     }
   } finally {
-    state.tasksDetailLoading = false;
+    finishTaskDetailRequest(state, trackedRequest);
+    if (!taskDetailRequests.has(state)) {
+      state.tasksDetailLoading = false;
+    }
   }
 }
 
@@ -410,10 +499,8 @@ export async function loadTasksOverview(
     state.tasksLoading = true;
   }
   try {
-    const runtimeFilter =
-      state.tasksRuntimeFilter === "orchestrator_session" ? "all" : state.tasksRuntimeFilter;
     const result = await state.client.request<TasksOverviewResult>("tasks.overview", {
-      runtime: runtimeFilter,
+      runtime: state.tasksRuntimeFilter,
       status: state.tasksStatusFilter,
       query: state.tasksQuery.trim() || undefined,
       limit: state.tasksLimit,
@@ -426,15 +513,20 @@ export async function loadTasksOverview(
     state.tasksOverview = normalized;
     state.tasksError = null;
     const selectionChanged = syncSelectedTask(state);
-    if (state.tasksSelectedId) {
-      await loadTaskDetail(state, state.tasksSelectedId, {
+    const selectedTask = state.tasksSelectedId
+      ? (normalized.canonicalTasks.find((task) => task.taskId === state.tasksSelectedId) ?? null)
+      : null;
+    if (selectedTask && shouldRefreshTaskDetail(state, selectedTask, selectionChanged, opts)) {
+      void loadTaskDetail(state, selectedTask.taskId, {
         quiet: opts?.quiet && !selectionChanged,
+        optional: true,
       });
     }
   } catch (error) {
     if (isMissingOperatorReadScopeError(error)) {
       state.tasksOverview = null;
       state.tasksDetail = null;
+      state.tasksDetailLoading = false;
       state.tasksError = formatMissingOperatorReadScopeMessage("background tasks");
       state.tasksSelectedId = null;
     } else {

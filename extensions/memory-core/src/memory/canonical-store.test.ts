@@ -149,7 +149,10 @@ describe("canonical memory store", () => {
         path.join(test.workspaceDir, "memory", "alpha.md"),
         "utf8",
       );
-      const mirroredRoot = await fs.readFile(path.join(test.stateDir, "workspace", "MEMORY.md"), "utf8");
+      const mirroredRoot = await fs.readFile(
+        path.join(test.stateDir, "workspace", "MEMORY.md"),
+        "utf8",
+      );
       const mirroredAlpha = await fs.readFile(
         path.join(test.stateDir, "workspace", "memory", "alpha.md"),
         "utf8",
@@ -302,6 +305,71 @@ describe("canonical memory store", () => {
         );
       } finally {
         revivedDb.close();
+      }
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps projected workspace pages active across repeated syncs when markdown is unchanged", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-repeat-sync-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      await fs.writeFile(
+        path.join(test.workspaceDir, "MEMORY.md"),
+        "# Team Memory\n\nSee [[memory/alpha]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
+        "# Alpha\n\nStill here.\n",
+        "utf8",
+      );
+
+      const initial = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+
+      const repeated = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+
+      const db = openDb(repeated.path);
+      try {
+        const pages = db
+          .prepare(
+            `SELECT title, tombstoned
+             FROM pages
+             ORDER BY title ASC`,
+          )
+          .all() as Array<{ title: string; tombstoned: number }>;
+        const importedCount =
+          (
+            db.prepare(`SELECT COUNT(*) AS count FROM imported_files`).get() as
+              | { count?: number }
+              | undefined
+          )?.count ?? 0;
+
+        expect(initial.entities).toBe(2);
+        expect(repeated.entities).toBe(2);
+        expect(importedCount).toBe(2);
+        expect(pages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ title: "Alpha", tombstoned: 0 }),
+            expect.objectContaining({ title: "Team Memory", tombstoned: 0 }),
+          ]),
+        );
+      } finally {
+        db.close();
       }
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });

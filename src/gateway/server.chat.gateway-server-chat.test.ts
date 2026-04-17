@@ -271,7 +271,8 @@ describe("gateway server chat", () => {
           message.event === "sessions.changed" &&
           message.payload?.phase === "observer" &&
           message.payload?.sessionKey === "main" &&
-          message.payload?.observer?.url === "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+          (message.payload?.observer as { url?: string } | undefined)?.url ===
+            "http://127.0.0.1:19000/sandbox/novnc?token=abc",
       );
 
       emitAgentEvent({

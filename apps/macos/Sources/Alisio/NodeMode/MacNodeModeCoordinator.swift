@@ -149,6 +149,8 @@ final class MacNodeModeCoordinator {
             AlisioCanvasA2UICommand.pushJSONL.rawValue,
             AlisioCanvasA2UICommand.reset.rawValue,
             MacNodeScreenCommand.record.rawValue,
+            MacNodeComputerCommand.observe.rawValue,
+            MacNodeComputerCommand.act.rawValue,
             AlisioSystemCommand.notify.rawValue,
             AlisioSystemCommand.which.rawValue,
             AlisioSystemCommand.run.rawValue,

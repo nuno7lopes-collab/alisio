@@ -263,6 +263,7 @@
         border: 1px solid rgba(255, 255, 255, 0.12);
         font-size: 24px;
         font-weight: 700;
+        overflow: hidden;
       }
 
       .agent-focus .name {
@@ -335,6 +336,15 @@
         border: 1px solid rgba(255, 255, 255, 0.08);
         font-size: 16px;
         font-weight: 700;
+        overflow: hidden;
+      }
+
+      .agent-badge img,
+      .agent-row .badge img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
       }
 
       .agent-row .name {
@@ -607,6 +617,19 @@
           while (node.firstChild) node.removeChild(node.firstChild);
         }
 
+        function setBadgeContent(node, badgeText, avatarUrl, altText) {
+          if (!node) return;
+          clearChildren(node);
+          if (avatarUrl) {
+            const img = document.createElement('img');
+            img.src = avatarUrl;
+            img.alt = altText || badgeText || 'Agent';
+            node.appendChild(img);
+            return;
+          }
+          node.textContent = badgeText || 'OC';
+        }
+
         function createAgentCard(agent) {
           const card = document.createElement('div');
           card.className = `agent-card${agent.isActive ? ' active' : ''}`;
@@ -616,7 +639,11 @@
 
           const badge = document.createElement('div');
           badge.className = 'badge';
-          badge.textContent = agent.badge || 'OC';
+          setBadgeContent(
+            badge,
+            agent.badge || 'OC',
+            agent.avatarUrl || agent.avatarURL || null,
+            agent.name || agent.id || 'Agent');
 
           const text = document.createElement('div');
 
@@ -648,7 +675,11 @@
           home.gatewayCaption.textContent = state.gatewayState === 'connected'
             ? `${state.agentCount || 0} agent${state.agentCount === 1 ? '' : 's'} available`
             : (state.activeAgentCaption || 'Connect to load your agents');
-          home.activeBadge.textContent = state.activeAgentBadge || 'OC';
+          setBadgeContent(
+            home.activeBadge,
+            state.activeAgentBadge || 'OC',
+            state.activeAgentAvatarUrl || state.activeAgentAvatarURL || null,
+            state.activeAgentName || 'Agent');
           home.activeName.textContent = state.activeAgentName || 'Main';
           home.activeCaption.textContent = state.activeAgentCaption || '';
           home.agentCount.textContent = `${state.agentCount || 0} agent${state.agentCount === 1 ? '' : 's'}`;
