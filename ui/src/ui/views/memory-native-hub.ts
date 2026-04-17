@@ -781,7 +781,11 @@ export class AlisioMemoryNativeHub extends LitElement {
                 nodeLimit: 48,
                 edgeLimit: 120,
               }
-            : {}),
+            : {
+                nodeLimit: 96,
+                edgeLimit: 192,
+                relationLimit: 24,
+              }),
           ...(includeAttachments ? { includeAttachments: true } : {}),
         },
         { force: options?.force },

@@ -33,7 +33,10 @@ export async function loadNodes(state: NodesState, opts?: { quiet?: boolean }) {
     setNodesError(state, null);
   }
   try {
-    const res = await state.client.request<{ nodes?: NodeListNode[] }>("node.list", {});
+    const res = await state.client.request<{ nodes?: NodeListNode[] }>("node.list", {
+      // Node inventory is auxiliary UI state; do not let it stall reconnect.
+      timeoutMs: 4_000,
+    });
     state.nodes = Array.isArray(res.nodes) ? res.nodes : [];
     state.nodesLoaded = true;
   } catch (err) {

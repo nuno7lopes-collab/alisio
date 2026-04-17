@@ -386,13 +386,35 @@ function shouldPreferHostForProfile(profileName: string | undefined) {
   return capabilities.usesChromeMcp;
 }
 
+function shouldForceSandboxForAgentSession(opts: {
+  sandboxBridgeUrl?: string;
+  preferSandbox?: boolean;
+  agentSessionKey?: string;
+}): boolean {
+  if (opts.preferSandbox || opts.sandboxBridgeUrl?.trim()) {
+    return true;
+  }
+  const sessionKey = opts.agentSessionKey?.trim() ?? "";
+  if (!sessionKey.startsWith("agent:")) {
+    return false;
+  }
+  const cfg = browserToolDeps.loadConfig();
+  const sandboxDefaults = cfg.agents?.defaults?.sandbox;
+  return sandboxDefaults?.mode === "all" && sandboxDefaults.browser?.enabled === true;
+}
+
 export function createBrowserTool(opts?: {
   sandboxBridgeUrl?: string;
   allowHostControl?: boolean;
   preferSandbox?: boolean;
   agentSessionKey?: string;
 }): AnyAgentTool {
-  const targetDefault = opts?.preferSandbox || opts?.sandboxBridgeUrl ? "sandbox" : "host";
+  const forceSandboxForSession = shouldForceSandboxForAgentSession({
+    sandboxBridgeUrl: opts?.sandboxBridgeUrl,
+    preferSandbox: opts?.preferSandbox,
+    agentSessionKey: opts?.agentSessionKey,
+  });
+  const targetDefault = forceSandboxForSession ? "sandbox" : "host";
   const hostHint =
     opts?.allowHostControl === false ? "Host target blocked by policy." : "Host target allowed.";
   return {
@@ -401,9 +423,10 @@ export function createBrowserTool(opts?: {
     description: [
       "Control the browser via Alisio's browser control server (status/start/stop/profiles/tabs/open/snapshot/screenshot/actions).",
       "Browser choice: omit profile by default for the isolated Alisio-managed browser (`alisio`).",
-      "When a sandbox browser is available, prefer that isolated browser and omit target unless the user explicitly asks for another target.",
+      "When a sandbox browser is available, it is the default operating surface for normal browsing tasks.",
+      "If the user asks to open a site, search, click, type, or scroll, do it in the sandbox browser immediately and omit target.",
       'For the logged-in user browser on the local host, use profile="user". A supported Chromium-based browser (v144+) must be running. Use only when existing logins/cookies matter and the user is present.',
-      'Use target="host" only when the user explicitly needs the existing host browser or a host-only profile such as profile="user".',
+      'Do not ask the user to choose between sandbox and host in normal use. Use target="host" only when the user explicitly needs the existing host browser or a host-only profile such as profile="user".',
       'When a node-hosted browser proxy is available, the tool may auto-route to it. Pin a node with node=<id|name> or target="node".',
       "When using refs from snapshot (e.g. e12), keep the same tab: prefer passing targetId from the snapshot response into subsequent actions (act/click/type/etc).",
       'For stable, self-resolving refs across calls, use snapshot with refs="aria" (Playwright aria-ref ids). Default refs="role" are role+name-based.',
@@ -440,7 +463,7 @@ export function createBrowserTool(opts?: {
 
       if (
         target === "host" &&
-        opts?.preferSandbox &&
+        forceSandboxForSession &&
         !requestedNode &&
         !isUserBrowserProfile
       ) {
@@ -451,20 +474,23 @@ export function createBrowserTool(opts?: {
         target = "sandbox";
       }
 
+      const preferredTarget =
+        target ?? (forceSandboxForSession ? "sandbox" : undefined);
+
       const nodeTarget = await resolveBrowserNodeTarget({
         requestedNode: requestedNode ?? undefined,
-        target,
+        target: preferredTarget,
         sandboxBridgeUrl: opts?.sandboxBridgeUrl,
       });
 
-      const resolvedTarget = target === "node" ? undefined : target;
+      const resolvedTarget = preferredTarget === "node" ? undefined : preferredTarget;
       const baseUrl = nodeTarget
         ? undefined
-          : resolveBrowserBaseUrl({
+        : resolveBrowserBaseUrl({
             target: resolvedTarget,
             sandboxBridgeUrl: opts?.sandboxBridgeUrl,
             allowHostControl: opts?.allowHostControl,
-            preferSandbox: opts?.preferSandbox,
+            preferSandbox: forceSandboxForSession,
           });
       const trackingBaseUrl = nodeTarget
         ? undefined

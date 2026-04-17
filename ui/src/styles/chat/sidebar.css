@@ -1,7 +1,7 @@
 /* Split View Layout */
 .chat-split-container {
   display: flex;
-  gap: 14px;
+  gap: var(--chat-pane-gap, 14px);
   flex: 1;
   min-height: 0;
   height: 100%;
@@ -36,22 +36,22 @@
   }
 }
 
-/* Sidebar Panel */
-.sidebar-panel {
+/* Browser pane */
+.browser-pane__panel {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: color-mix(in srgb, var(--card) 98%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: 20px;
+  border-radius: var(--chat-pane-radius, 20px);
   box-shadow: none;
 }
 
-.sidebar-header {
+.browser-pane__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  padding: 12px var(--chat-pane-padding, 14px);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   flex-shrink: 0;
   position: sticky;
@@ -60,15 +60,21 @@
   background: color-mix(in srgb, var(--card) 98%, transparent);
 }
 
-/* Smaller close button for sidebar */
-.sidebar-header .btn {
+.browser-pane__header-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.browser-pane__close {
   padding: 4px 8px;
   font-size: 14px;
   min-width: auto;
   line-height: 1;
 }
 
-.sidebar-title {
+.browser-pane__title {
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 0.04em;
@@ -76,10 +82,55 @@
   color: var(--text-strong);
 }
 
-.sidebar-content {
+.browser-pane__switch {
+  display: inline-flex;
+  gap: 6px;
+  padding: 2px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-elevated) 74%, transparent);
+}
+
+.browser-pane__switch-button {
+  min-height: 32px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.browser-pane__switch-button--active {
+  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  color: var(--text-strong);
+}
+
+.browser-pane__content {
   flex: 1;
   overflow: auto;
-  padding: 14px;
+  padding: var(--chat-pane-padding, 14px);
+}
+
+.browser-pane__content--observer {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.browser-pane__iframe {
+  width: 100%;
+  min-height: 420px;
+  flex: 1 1 0;
+  border: 0;
+  border-radius: calc(var(--chat-pane-radius, 20px) - 4px);
+  background: #05070b;
+}
+
+.browser-pane__raw-action {
+  margin-top: 12px;
+}
+
+.browser-pane__empty {
+  padding: 2px 0;
 }
 
 .sidebar-markdown {

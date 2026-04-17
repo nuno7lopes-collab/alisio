@@ -401,6 +401,45 @@ describe("gateway server chat", () => {
     expect(sanitizedRes.ok).toBe(true);
   });
 
+  test("dedupes repeated chat.send payloads with different idempotency keys while the first run is still in flight", async () => {
+    const releaseBlockedReply = mockBlockedChatReply();
+    const realNow = Date.now.bind(Date);
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow());
+
+    try {
+      const first = await rpcReq(ws, "chat.send", {
+        sessionKey: "main",
+        message: "abre o google",
+        idempotencyKey: "idem-semantic-1",
+      });
+      expect(first.ok).toBe(true);
+      expect(first.payload?.status).toBe("started");
+
+      const second = await rpcReq(ws, "chat.send", {
+        sessionKey: "main",
+        message: "  abre   o   google  ",
+        idempotencyKey: "idem-semantic-2",
+      });
+      expect(second.ok).toBe(true);
+      expect(second.payload?.status).toBe("in_flight");
+      expect(second.payload?.runId).toBe("idem-semantic-1");
+
+      nowSpy.mockImplementation(() => realNow() + 15_000);
+      const third = await rpcReq(ws, "chat.send", {
+        sessionKey: "main",
+        message: "abre o google",
+        idempotencyKey: "idem-semantic-3",
+      });
+      expect(third.ok).toBe(true);
+      expect(third.payload?.status).toBe("in_flight");
+      expect(third.payload?.runId).toBe("idem-semantic-1");
+      nowSpy.mockImplementation(() => realNow());
+    } finally {
+      nowSpy.mockRestore();
+      releaseBlockedReply();
+    }
+  });
+
   test("handles chat send and history flows", async () => {
     const tempDirs: string[] = [];
     let webchatWs: WebSocket | undefined;

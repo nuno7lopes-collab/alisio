@@ -13,6 +13,36 @@ private enum AlisioWorkspaceLayout {
     static let anchorPadding: CGFloat = 8
 }
 
+func shouldKeepWorkspaceNavigationInsideApp(
+    currentURL: URL?,
+    targetURL: URL,
+    isMainFrame: Bool)
+    -> Bool
+{
+    guard let scheme = targetURL.scheme?.lowercased() else { return false }
+    if scheme == "about" || scheme == "blob" || scheme == "data" || scheme == "javascript" {
+        return true
+    }
+    guard scheme == "http" || scheme == "https" else { return false }
+    if !isMainFrame {
+        return isLoopbackWorkspaceHost(targetURL.host)
+    }
+    guard let current = currentURL else { return true }
+    return current.scheme?.lowercased() == scheme
+        && current.host?.lowercased() == targetURL.host?.lowercased()
+        && current.port == targetURL.port
+}
+
+private func isLoopbackWorkspaceHost(_ host: String?) -> Bool {
+    guard let normalized = host?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+          !normalized.isEmpty
+    else { return false }
+    if normalized == "localhost" || normalized == "::1" || normalized == "[::1]" {
+        return true
+    }
+    return normalized == "127.0.0.1" || normalized.hasPrefix("127.")
+}
+
 private enum AlisioWorkspaceBootstrap {
     static let readyEventName = "alisio-ui-ready"
     static let messageHandlerName = "alisioWorkspaceBootstrap"
@@ -439,17 +469,15 @@ final class AlisioWorkspaceWindowController:
         }
     }
 
-    private func shouldKeepNavigationInsideWorkspace(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased() else { return false }
-        if scheme == "about" || scheme == "blob" || scheme == "data" || scheme == "javascript" {
-            return true
-        }
-        guard scheme == "http" || scheme == "https" else { return false }
-        guard let current = self.webView.url else { return true }
-        let sameOrigin = current.scheme?.lowercased() == scheme
-            && current.host?.lowercased() == url.host?.lowercased()
-            && current.port == url.port
-        return sameOrigin
+    private func shouldKeepNavigationInsideWorkspace(
+        _ url: URL,
+        navigationAction: WKNavigationAction? = nil)
+        -> Bool
+    {
+        shouldKeepWorkspaceNavigationInsideApp(
+            currentURL: self.webView.url,
+            targetURL: url,
+            isMainFrame: navigationAction?.targetFrame?.isMainFrame ?? true)
     }
 
     private func openExternallyIfPossible(_ url: URL) {
@@ -480,7 +508,7 @@ final class AlisioWorkspaceWindowController:
             return
         }
 
-        if self.shouldKeepNavigationInsideWorkspace(url) {
+        if self.shouldKeepNavigationInsideWorkspace(url, navigationAction: navigationAction) {
             decisionHandler(.allow)
             return
         }
@@ -496,7 +524,7 @@ final class AlisioWorkspaceWindowController:
         windowFeatures _: WKWindowFeatures) -> WKWebView?
     {
         if let url = navigationAction.request.url {
-            if self.shouldKeepNavigationInsideWorkspace(url) {
+            if self.shouldKeepNavigationInsideWorkspace(url, navigationAction: navigationAction) {
                 self.webView.load(navigationAction.request)
             } else {
                 self.openExternallyIfPossible(url)

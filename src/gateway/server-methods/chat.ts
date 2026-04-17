@@ -119,7 +119,10 @@ const CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES = 128 * 1024;
 const CHAT_HISTORY_OVERSIZED_PLACEHOLDER = "[chat.history omitted: message too large]";
 const CHAT_HISTORY_INLINE_IMAGE_MAX_BYTES = 48 * 1024;
 const CHAT_HISTORY_ATTACHMENT_READ_MAX_BYTES = 5_000_000;
-const CHAT_SEND_SEMANTIC_DEDUPE_WINDOW_MS = 10_000;
+// Control UI retries and reconnect recovery can replay the same chat.send well
+// after the original 10s window. Keep this long enough to collapse duplicate
+// sends into the same in-flight/cached run instead of persisting repeated turns.
+const CHAT_SEND_SEMANTIC_DEDUPE_WINDOW_MS = 30_000;
 let chatHistoryPlaceholderEmitCount = 0;
 const CHANNEL_AGNOSTIC_SESSION_SCOPES = new Set([
   "main",
@@ -2039,6 +2042,11 @@ export const chatHandlers: GatewayRequestHandlers = {
     });
     const now = Date.now();
     const clientRunId = p.idempotencyKey;
+    const semanticDedupeKey = buildChatSendSemanticDedupeKey({
+      attachments: normalizedAttachments,
+      message: inboundMessage,
+      sessionKey,
+    });
 
     const sendPolicy = resolveSendPolicy({
       cfg,
@@ -2070,6 +2078,34 @@ export const chatHandlers: GatewayRequestHandlers = {
         return;
       }
       respond(true, { ok: true, aborted: res.aborted, runIds: res.runIds });
+      return;
+    }
+
+    const semanticCached = context.dedupe.get(semanticDedupeKey);
+    if (semanticCached && now - semanticCached.ts <= CHAT_SEND_SEMANTIC_DEDUPE_WINDOW_MS) {
+      const semanticRunId = readChatSendRunIdFromDedupeEntry(semanticCached);
+      if (semanticRunId) {
+        const semanticActive = context.chatAbortControllers.get(semanticRunId);
+        if (semanticActive) {
+          respond(true, { runId: semanticRunId, status: "in_flight" as const }, undefined, {
+            cached: true,
+            runId: semanticRunId,
+          });
+          return;
+        }
+        const semanticTerminal = context.dedupe.get(`chat:${semanticRunId}`);
+        if (semanticTerminal) {
+          respond(semanticTerminal.ok, semanticTerminal.payload, semanticTerminal.error, {
+            cached: true,
+            runId: semanticRunId,
+          });
+          return;
+        }
+      }
+      respond(semanticCached.ok, semanticCached.payload, semanticCached.error, {
+        cached: true,
+        runId: semanticRunId ?? undefined,
+      });
       return;
     }
 
@@ -2105,6 +2141,15 @@ export const chatHandlers: GatewayRequestHandlers = {
         runId: clientRunId,
         status: "started" as const,
       };
+      setGatewayDedupeEntry({
+        dedupe: context.dedupe,
+        key: semanticDedupeKey,
+        entry: {
+          ts: now,
+          ok: true,
+          payload: ackPayload,
+        },
+      });
       respond(true, ackPayload, undefined, { runId: clientRunId });
       const persistedAttachmentsPromise = persistChatSendAttachments({
         attachments: parsedAttachments,
@@ -2388,6 +2433,15 @@ export const chatHandlers: GatewayRequestHandlers = {
               payload: { runId: clientRunId, status: "ok" as const },
             },
           });
+          setGatewayDedupeEntry({
+            dedupe: context.dedupe,
+            key: semanticDedupeKey,
+            entry: {
+              ts: Date.now(),
+              ok: true,
+              payload: { runId: clientRunId, status: "ok" as const },
+            },
+          });
         })
         .catch((err) => {
           void rewriteUserTranscriptMedia().catch((rewriteErr) => {
@@ -2404,6 +2458,20 @@ export const chatHandlers: GatewayRequestHandlers = {
           setGatewayDedupeEntry({
             dedupe: context.dedupe,
             key: `chat:${clientRunId}`,
+            entry: {
+              ts: Date.now(),
+              ok: false,
+              payload: {
+                runId: clientRunId,
+                status: "error" as const,
+                summary: String(err),
+              },
+              error,
+            },
+          });
+          setGatewayDedupeEntry({
+            dedupe: context.dedupe,
+            key: semanticDedupeKey,
             entry: {
               ts: Date.now(),
               ok: false,
@@ -2435,6 +2503,16 @@ export const chatHandlers: GatewayRequestHandlers = {
       setGatewayDedupeEntry({
         dedupe: context.dedupe,
         key: `chat:${clientRunId}`,
+        entry: {
+          ts: Date.now(),
+          ok: false,
+          payload,
+          error,
+        },
+      });
+      setGatewayDedupeEntry({
+        dedupe: context.dedupe,
+        key: semanticDedupeKey,
         entry: {
           ts: Date.now(),
           ok: false,

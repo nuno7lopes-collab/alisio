@@ -5,10 +5,10 @@ import { createCliRuntimeCapture } from "./test-runtime-capture.js";
 const loadConfigMock = vi.fn(() => ({}));
 const resolveDefaultAgentIdMock = vi.fn(() => "main");
 const resolveAgentWorkspaceDirMock = vi.fn(() => "/tmp/workspace");
-const searchSkillsFromClawHubMock = vi.fn();
-const installSkillFromClawHubMock = vi.fn();
-const updateSkillsFromClawHubMock = vi.fn();
-const readTrackedClawHubSkillSlugsMock = vi.fn();
+const searchSkillsFromMarketplaceMock = vi.fn();
+const installMarketplaceRegistrySkillMock = vi.fn();
+const updateMarketplaceSkillsMock = vi.fn();
+const readTrackedMarketplaceSkillSlugsMock = vi.fn();
 
 const { defaultRuntime, runtimeLogs, runtimeErrors, resetRuntimeCapture } =
   createCliRuntimeCapture();
@@ -26,11 +26,13 @@ vi.mock("../agents/agent-scope.js", () => ({
   resolveAgentWorkspaceDir: () => resolveAgentWorkspaceDirMock(),
 }));
 
-vi.mock("../agents/skills-clawhub.js", () => ({
-  searchSkillsFromClawHub: (...args: unknown[]) => searchSkillsFromClawHubMock(...args),
-  installSkillFromClawHub: (...args: unknown[]) => installSkillFromClawHubMock(...args),
-  updateSkillsFromClawHub: (...args: unknown[]) => updateSkillsFromClawHubMock(...args),
-  readTrackedClawHubSkillSlugs: (...args: unknown[]) => readTrackedClawHubSkillSlugsMock(...args),
+vi.mock("../agents/skills-marketplace-remote.js", () => ({
+  searchSkillsFromMarketplace: (...args: unknown[]) => searchSkillsFromMarketplaceMock(...args),
+  installMarketplaceRegistrySkill: (...args: unknown[]) =>
+    installMarketplaceRegistrySkillMock(...args),
+  updateMarketplaceSkills: (...args: unknown[]) => updateMarketplaceSkillsMock(...args),
+  readTrackedMarketplaceSkillSlugs: (...args: unknown[]) =>
+    readTrackedMarketplaceSkillSlugsMock(...args),
 }));
 
 const { registerSkillsCli } = await import("./skills-cli.js");
@@ -50,25 +52,25 @@ describe("skills cli commands", () => {
     loadConfigMock.mockReset();
     resolveDefaultAgentIdMock.mockReset();
     resolveAgentWorkspaceDirMock.mockReset();
-    searchSkillsFromClawHubMock.mockReset();
-    installSkillFromClawHubMock.mockReset();
-    updateSkillsFromClawHubMock.mockReset();
-    readTrackedClawHubSkillSlugsMock.mockReset();
+    searchSkillsFromMarketplaceMock.mockReset();
+    installMarketplaceRegistrySkillMock.mockReset();
+    updateMarketplaceSkillsMock.mockReset();
+    readTrackedMarketplaceSkillSlugsMock.mockReset();
 
     loadConfigMock.mockReturnValue({});
     resolveDefaultAgentIdMock.mockReturnValue("main");
     resolveAgentWorkspaceDirMock.mockReturnValue("/tmp/workspace");
-    searchSkillsFromClawHubMock.mockResolvedValue([]);
-    installSkillFromClawHubMock.mockResolvedValue({
+    searchSkillsFromMarketplaceMock.mockResolvedValue([]);
+    installMarketplaceRegistrySkillMock.mockResolvedValue({
       ok: false,
       error: "install disabled in test",
     });
-    updateSkillsFromClawHubMock.mockResolvedValue([]);
-    readTrackedClawHubSkillSlugsMock.mockResolvedValue([]);
+    updateMarketplaceSkillsMock.mockResolvedValue([]);
+    readTrackedMarketplaceSkillSlugsMock.mockResolvedValue([]);
   });
 
-  it("searches ClawHub skills from the native CLI", async () => {
-    searchSkillsFromClawHubMock.mockResolvedValue([
+  it("searches Local Marketplace skills from the native CLI", async () => {
+    searchSkillsFromMarketplaceMock.mockResolvedValue([
       {
         slug: "calendar",
         displayName: "Calendar",
@@ -79,15 +81,15 @@ describe("skills cli commands", () => {
 
     await runCommand(["skills", "search", "calendar"]);
 
-    expect(searchSkillsFromClawHubMock).toHaveBeenCalledWith({
+    expect(searchSkillsFromMarketplaceMock).toHaveBeenCalledWith({
       query: "calendar",
       limit: undefined,
     });
     expect(runtimeLogs.some((line) => line.includes("calendar v1.2.3  Calendar"))).toBe(true);
   });
 
-  it("installs a skill from ClawHub into the active workspace", async () => {
-    installSkillFromClawHubMock.mockResolvedValue({
+  it("installs a skill from Local Marketplace into the active workspace", async () => {
+    installMarketplaceRegistrySkillMock.mockResolvedValue({
       ok: true,
       slug: "calendar",
       version: "1.2.3",
@@ -96,7 +98,7 @@ describe("skills cli commands", () => {
 
     await runCommand(["skills", "install", "calendar", "--version", "1.2.3"]);
 
-    expect(installSkillFromClawHubMock).toHaveBeenCalledWith({
+    expect(installMarketplaceRegistrySkillMock).toHaveBeenCalledWith({
       workspaceDir: "/tmp/workspace",
       slug: "calendar",
       version: "1.2.3",
@@ -110,9 +112,9 @@ describe("skills cli commands", () => {
     ).toBe(true);
   });
 
-  it("updates all tracked ClawHub skills", async () => {
-    readTrackedClawHubSkillSlugsMock.mockResolvedValue(["calendar"]);
-    updateSkillsFromClawHubMock.mockResolvedValue([
+  it("updates all tracked Local Marketplace skills", async () => {
+    readTrackedMarketplaceSkillSlugsMock.mockResolvedValue(["calendar"]);
+    updateMarketplaceSkillsMock.mockResolvedValue([
       {
         ok: true,
         slug: "calendar",
@@ -125,8 +127,8 @@ describe("skills cli commands", () => {
 
     await runCommand(["skills", "update", "--all"]);
 
-    expect(readTrackedClawHubSkillSlugsMock).toHaveBeenCalledWith("/tmp/workspace");
-    expect(updateSkillsFromClawHubMock).toHaveBeenCalledWith({
+    expect(readTrackedMarketplaceSkillSlugsMock).toHaveBeenCalledWith("/tmp/workspace");
+    expect(updateMarketplaceSkillsMock).toHaveBeenCalledWith({
       workspaceDir: "/tmp/workspace",
       slug: undefined,
       logger: expect.any(Object),

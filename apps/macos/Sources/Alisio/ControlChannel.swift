@@ -135,22 +135,34 @@ final class ControlChannel {
     }
 
     func health(timeout: TimeInterval? = nil) async throws -> Data {
+        let start = Date()
+        let timeoutMs = (timeout ?? 15) * 1000
+        var params: [String: AnyHashable]?
+        if let timeout {
+            params = ["timeout": AnyHashable(Int(timeout * 1000))]
+        }
         do {
-            let start = Date()
-            var params: [String: AnyHashable]?
-            if let timeout {
-                params = ["timeout": AnyHashable(Int(timeout * 1000))]
-            }
-            let timeoutMs = (timeout ?? 15) * 1000
             let payload = try await self.request(method: "health", params: params, timeoutMs: timeoutMs)
             let ms = Date().timeIntervalSince(start) * 1000
             self.lastPingMs = ms
             self.state = .connected
             return payload
         } catch {
-            let message = self.friendlyGatewayMessage(error)
-            self.state = .degraded(message)
-            throw ControlChannelError.badResponse(message)
+            do {
+                // Some gateway builds already serve the control websocket while
+                // the dedicated health RPC is still timing out during startup.
+                // Treat a successful status RPC as enough liveness so the shell
+                // does not flap into Offline/Reconnecting.
+                let payload = try await self.request(method: "status", timeoutMs: timeoutMs)
+                let ms = Date().timeIntervalSince(start) * 1000
+                self.lastPingMs = ms
+                self.state = .connected
+                return payload
+            } catch {
+                let message = self.friendlyGatewayMessage(error)
+                self.state = .degraded(message)
+                throw ControlChannelError.badResponse(message)
+            }
         }
     }
 

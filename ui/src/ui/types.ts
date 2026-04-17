@@ -727,6 +727,8 @@ export type CanonicalTaskSummary =
   import("../../../src/gateway/protocol/index.js").CanonicalTaskSummary;
 export type Task = import("../../../src/gateway/protocol/index.js").Task;
 export type TaskExecution = import("../../../src/gateway/protocol/index.js").TaskExecution;
+export type TaskExecutionStep =
+  import("../../../src/gateway/protocol/index.js").TaskExecutionStep;
 export type TaskAssignment = import("../../../src/gateway/protocol/index.js").TaskAssignment;
 export type TaskApproval = import("../../../src/gateway/protocol/index.js").TaskApproval;
 export type TaskEvent = import("../../../src/gateway/protocol/index.js").TaskEvent;

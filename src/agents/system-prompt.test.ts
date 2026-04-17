@@ -449,7 +449,7 @@ describe("buildAgentSystemPrompt", () => {
 
   it("hints to use session_status for current date/time", () => {
     const prompt = buildAgentSystemPrompt({
-      workspaceDir: "/tmp/clawd",
+      workspaceDir: "/tmp/alisio-workspace",
       userTimezone: "America/Chicago",
     });
 
@@ -462,7 +462,7 @@ describe("buildAgentSystemPrompt", () => {
   // Agents should use session_status or message timestamps to determine the date/time.
   it("does NOT include a date or time in the system prompt (cache stability)", () => {
     const prompt = buildAgentSystemPrompt({
-      workspaceDir: "/tmp/clawd",
+      workspaceDir: "/tmp/alisio-workspace",
       userTimezone: "America/Chicago",
       userTime: "Monday, January 5th, 2026 — 3:26 PM",
       userTimeFormat: "12",
@@ -717,11 +717,9 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("You are running in a sandboxed runtime");
     expect(prompt).toContain("Sub-agents stay sandboxed");
     expect(prompt).toContain("Sandbox browser: enabled.");
+    expect(prompt).toContain("Sandbox browser observer: visible in the app UI.");
     expect(prompt).toContain(
-      "Sandbox browser observer (noVNC): http://127.0.0.1:19000/sandbox/novnc?token=abc",
-    );
-    expect(prompt).toContain(
-      "When you use the browser tool in this session, prefer the sandbox browser and omit `target` unless the user explicitly asks for the host browser or an existing logged-in host profile.",
+      "When the user asks to open, search, click, type, scroll, or browse, use the sandbox browser by default and do it immediately.",
     );
     expect(prompt).toContain("Host browser control: blocked.");
     expect(prompt).toContain("User can toggle with /elevated on|off|ask|full.");

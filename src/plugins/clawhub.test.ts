@@ -151,9 +151,11 @@ describe("installPluginFromClawHub", () => {
     });
   });
 
-  it("formats clawhub specifiers", () => {
-    expect(formatClawHubSpecifier({ name: "demo" })).toBe("clawhub:demo");
-    expect(formatClawHubSpecifier({ name: "demo", version: "1.2.3" })).toBe("clawhub:demo@1.2.3");
+  it("formats marketplace specifiers", () => {
+    expect(formatClawHubSpecifier({ name: "demo" })).toBe("marketplace:demo");
+    expect(formatClawHubSpecifier({ name: "demo", version: "1.2.3" })).toBe(
+      "marketplace:demo@1.2.3",
+    );
   });
 
   it("installs a ClawHub code plugin through the archive installer", async () => {
@@ -170,7 +172,9 @@ describe("installPluginFromClawHub", () => {
       archivePath: "/tmp/clawhub-demo/archive.zip",
     });
     expectSuccessfulClawHubInstall(result);
-    expect(logger.info).toHaveBeenCalledWith("ClawHub code-plugin demo@2026.3.22 channel=official");
+    expect(logger.info).toHaveBeenCalledWith(
+      "Marketplace code-plugin demo@2026.3.22 channel=official",
+    );
     expect(logger.info).toHaveBeenCalledWith(
       "Compatibility: pluginApi=>=2026.3.22 minGateway=2026.3.0",
     );
@@ -247,7 +251,7 @@ describe("installPluginFromClawHub", () => {
       expected: {
         ok: false,
         code: CLAWHUB_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
-        error: "Package not found on ClawHub.",
+        error: "Package not found in Local Marketplace.",
       },
     },
     {
@@ -266,7 +270,7 @@ describe("installPluginFromClawHub", () => {
       expected: {
         ok: false,
         code: CLAWHUB_INSTALL_ERROR_CODE.VERSION_NOT_FOUND,
-        error: "Version not found on ClawHub: demo@9.9.9.",
+        error: "Version not found in Local Marketplace: demo@9.9.9.",
       },
     },
   ] as const)("$name", async ({ setup, spec, expected }) => {

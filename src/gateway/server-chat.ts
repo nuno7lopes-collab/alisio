@@ -4,6 +4,7 @@ import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import { loadConfig } from "../config/config.js";
 import { type AgentEventPayload, getAgentRunContext } from "../infra/agent-events.js";
 import { resolveHeartbeatVisibility } from "../infra/heartbeat-visibility.js";
+import { getTaskExecutionByRunId, recordTaskExecutionStep } from "../tasks/task-service.js";
 import { stripInlineDirectiveTagsForDisplay } from "../utils/directive-tags.js";
 import {
   deriveGatewaySessionLifecycleSnapshot,
@@ -110,6 +111,154 @@ function appendUniqueSuffix(base: string, suffix: string): string {
     }
   }
   return base + suffix;
+}
+
+function trimTaskTraceText(value: unknown, maxLength = 240): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return undefined;
+  }
+  return normalized.slice(0, maxLength);
+}
+
+function normalizeTaskToolStep(evt: AgentEventPayload) {
+  if (evt.stream !== "tool") {
+    return null;
+  }
+  const execution = getTaskExecutionByRunId(evt.runId);
+  if (!execution) {
+    return null;
+  }
+  const data =
+    evt.data && typeof evt.data === "object" && !Array.isArray(evt.data)
+      ? (evt.data)
+      : {};
+  const phase = typeof data.phase === "string" ? data.phase : "result";
+  const toolName = trimTaskTraceText(data.name, 120);
+  if (!toolName) {
+    return null;
+  }
+  const args =
+    data.args && typeof data.args === "object" && !Array.isArray(data.args)
+      ? (data.args as Record<string, unknown>)
+      : {};
+  const path =
+    trimTaskTraceText(args.path) ??
+    trimTaskTraceText(args.file) ??
+    trimTaskTraceText(args.targetPath) ??
+    trimTaskTraceText(args.destinationPath);
+  const command = trimTaskTraceText(args.command) ?? trimTaskTraceText(args.cmd);
+  const url = trimTaskTraceText(args.url) ?? trimTaskTraceText(args.href);
+  const query = trimTaskTraceText(args.query) ?? trimTaskTraceText(args.pattern);
+  const lowerName = toolName.toLowerCase();
+  const browserTool =
+    lowerName.includes("browser") ||
+    lowerName.includes("page") ||
+    lowerName.includes("tab") ||
+    lowerName.includes("navigate") ||
+    lowerName.includes("goto");
+  const browserSnapshotTool =
+    browserTool &&
+    (lowerName.includes("snapshot") ||
+      lowerName.includes("screenshot") ||
+      lowerName.includes("capture"));
+  const writeTool =
+    lowerName === "edit" ||
+    lowerName === "write" ||
+    lowerName === "create" ||
+    lowerName === "rename" ||
+    lowerName === "apply_patch";
+  const searchTool =
+    lowerName === "search" ||
+    lowerName === "grep" ||
+    lowerName === "rg" ||
+    lowerName === "find";
+  const isStart = phase === "start";
+  const isError = phase === "error";
+
+  let kind:
+    | "command_started"
+    | "command_finished"
+    | "file_read"
+    | "file_written"
+    | "search_performed"
+    | "browser_navigated"
+    | "browser_snapshot"
+    | "tool_called"
+    | "tool_result";
+  if (lowerName === "exec" || lowerName === "command") {
+    kind = isStart ? "command_started" : "command_finished";
+  } else if (writeTool) {
+    kind = "file_written";
+  } else if (lowerName === "read" || lowerName === "view" || lowerName === "cat") {
+    kind = "file_read";
+  } else if (searchTool) {
+    kind = "search_performed";
+  } else if (browserSnapshotTool) {
+    kind = "browser_snapshot";
+  } else if (browserTool) {
+    kind = "browser_navigated";
+  } else {
+    kind = isStart ? "tool_called" : "tool_result";
+  }
+  if (
+    phase !== "start" &&
+    phase !== "error" &&
+    kind !== "command_finished" &&
+    kind !== "tool_result"
+  ) {
+    return null;
+  }
+
+  const summary =
+    trimTaskTraceText(data.summary) ??
+    command ??
+    path ??
+    url ??
+    query ??
+    toolName;
+
+  return {
+    taskId: execution.taskId,
+    executionId: execution.executionId,
+    kind,
+    status: isError
+      ? "failed"
+      : isStart
+        ? kind === "file_read" || kind === "file_written" || kind === "search_performed"
+          ? "info"
+          : "running"
+        : "succeeded",
+    tool: toolName,
+    summary,
+    dataJson: JSON.stringify({
+      toolCallId: trimTaskTraceText(data.toolCallId, 120),
+      phase,
+      kind: execution.kind,
+      runId: execution.runId,
+      sessionKey: execution.sessionKey,
+      command,
+      path,
+      url,
+      query,
+    }),
+    createdAt: evt.ts,
+  } as const;
+}
+
+function recordTaskToolStep(evt: AgentEventPayload) {
+  const step = normalizeTaskToolStep(evt);
+  if (!step) {
+    return;
+  }
+  try {
+    recordTaskExecutionStep(step);
+  } catch {
+    // Tool delivery must stay live even if the task trace store fails.
+  }
 }
 
 function resolveMergedAssistantText(params: {
@@ -876,6 +1025,7 @@ export function createAgentEventHandler({
     agentRunSeq.set(evt.runId, evt.seq);
     if (isToolEvent) {
       const toolPhase = typeof evt.data?.phase === "string" ? evt.data.phase : "";
+      recordTaskToolStep(evt);
       // Flush pending assistant text before tool-start events so clients can
       // render complete pre-tool text above tool cards (not truncated by delta throttle).
       if (toolPhase === "start" && isControlUiVisible && sessionKey && !isAborted) {

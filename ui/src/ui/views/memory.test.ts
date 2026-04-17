@@ -765,8 +765,9 @@ describe("renderMemoryHub", () => {
           method === "memory.graph" &&
           (params as Record<string, unknown>).scope === "global" &&
           !("pageId" in ((params as Record<string, unknown>) ?? {})) &&
-          !("nodeLimit" in ((params as Record<string, unknown>) ?? {})) &&
-          !("edgeLimit" in ((params as Record<string, unknown>) ?? {})),
+          (params as Record<string, unknown>).nodeLimit === 96 &&
+          (params as Record<string, unknown>).edgeLimit === 192 &&
+          (params as Record<string, unknown>).relationLimit === 24,
       ),
     ).toBe(true);
   });

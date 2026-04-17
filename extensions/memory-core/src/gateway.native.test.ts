@@ -39,7 +39,11 @@ import {
   handleMemoryFilesGetGatewayRequest,
   handleMemoryFilesListGatewayRequest,
 } from "./gateway/files.js";
-import { memoryWriteEvent, syncCanonicalMemoryStore } from "./memory/canonical-store.js";
+import {
+  buildCanonicalMemoryStoreStatus,
+  memoryWriteEvent,
+  syncCanonicalMemoryStore,
+} from "./memory/canonical-store.js";
 
 type TestWorkspace = {
   root: string;
@@ -509,6 +513,102 @@ describe("native memory gateway handlers", () => {
     expect(updateResult.note?.content).toContain("Atlas updated from notes API.");
 
     await fs.rm(seeded.test.root, { recursive: true, force: true });
+  });
+
+  it("does not force a sync for readable note list requests", async () => {
+    const seeded = await seedNativeMemory();
+    const sync = vi.fn().mockResolvedValue(undefined);
+    const close = vi.fn().mockResolvedValue(undefined);
+
+    getMemorySearchManager.mockResolvedValue({
+      manager: {
+        status: () => ({
+          backend: "builtin",
+          dirty: true,
+          workspaceDir: seeded.test.workspaceDir,
+          custom: {
+            canonicalStore: seeded.status,
+          },
+        }),
+        sync,
+        close,
+      },
+    });
+
+    const respond = await invoke(handleMemoryNotesListGatewayRequest, {
+      agentId: "main",
+    });
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        notes: expect.arrayContaining([expect.objectContaining({ title: "Project Atlas" })]),
+      }),
+      undefined,
+    );
+    expect(sync).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalled();
+
+    await fs.rm(seeded.test.root, { recursive: true, force: true });
+  });
+
+  it("bootstraps notes from the legacy compatibility mirror when the canonical db is unreadable", async () => {
+    const test = await createTestWorkspace("alisio-memory-gateway-native-compat-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      const compatibilityRoot = path.join(test.stateDir, "workspace");
+      await fs.mkdir(path.join(compatibilityRoot, "memory"), { recursive: true });
+      await fs.writeFile(
+        path.join(compatibilityRoot, "MEMORY.md"),
+        "# Memory\n\nSee [[memory/atlas]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(compatibilityRoot, "memory", "atlas.md"),
+        "# Atlas\n\nRecovered from compatibility storage.\n",
+        "utf8",
+      );
+
+      const emptyStatus = buildCanonicalMemoryStoreStatus({
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: {
+          ...process.env,
+          ALISIO_STATE_DIR: test.stateDir,
+        },
+      });
+      await fs.mkdir(path.dirname(emptyStatus.path), { recursive: true });
+      await fs.writeFile(emptyStatus.path, "");
+
+      loadConfig.mockReturnValue(test.cfg);
+      getMemorySearchManager.mockResolvedValue({
+        manager: {
+          status: () => ({
+            backend: "builtin",
+            dirty: false,
+            workspaceDir: test.workspaceDir,
+            custom: {
+              canonicalStore: emptyStatus,
+            },
+          }),
+          close: vi.fn().mockResolvedValue(undefined),
+        },
+      });
+
+      const respond = await invoke(handleMemoryNotesListGatewayRequest, {
+        agentId: "main",
+      });
+      expect(respond).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({
+          notes: expect.arrayContaining([expect.objectContaining({ title: "Atlas" })]),
+        }),
+        undefined,
+      );
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
   });
 
   it("serves files, related pages, and exports coherent snapshots", async () => {

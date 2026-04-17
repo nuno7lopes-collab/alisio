@@ -477,10 +477,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                     {
                       type: "string",
-                      const: "clawd",
-                    },
-                    {
-                      type: "string",
                       const: "existing-session",
                     },
                   ],
@@ -12531,7 +12527,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "browser.profiles.*.driver": {
       label: "Browser Profile Driver",
-      help: 'Per-profile browser driver mode. Use "alisio" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.',
+      help: 'Per-profile browser driver mode. Use "alisio" for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.',
       tags: ["storage"],
     },
     "browser.profiles.*.attachOnly": {
@@ -15354,7 +15350,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "talk.voiceAliases": {
       label: "Talk Voice Aliases",
-      help: 'Use this legacy ElevenLabs voice alias map (for example {"Clawd":"EXAVITQu4vr4xnSDxMaL"}) only during migration. Prefer talk.providers.elevenlabs.voiceAliases.',
+      help: 'Use this legacy ElevenLabs voice alias map (for example {"Alisio":"EXAVITQu4vr4xnSDxMaL"}) only during migration. Prefer talk.providers.elevenlabs.voiceAliases.',
       tags: ["media"],
     },
     "talk.modelId": {

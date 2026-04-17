@@ -30,6 +30,7 @@ export type SandboxBrowserRegistryEntry = {
   configHash?: string;
   cdpPort: number;
   noVncPort?: number;
+  noVncPassword?: string;
 };
 
 type SandboxBrowserRegistry = {

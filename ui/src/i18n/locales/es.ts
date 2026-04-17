@@ -1,7 +1,7 @@
-import { en } from "./en.ts";
-import { mergeTranslationMaps } from "../lib/merge.ts";
 import { DEFAULT_LOCAL_GATEWAY_WS_URL } from "../../../../src/shared/gateway-defaults.js";
+import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
+import { en } from "./en.ts";
 
 export const es: TranslationMap = mergeTranslationMaps(en, {
   common: {
@@ -108,6 +108,23 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     },
     chat: {
       defaultAssistantName: "Asistente",
+      participants: {
+        you: "Tú",
+        tool: "Herramienta",
+      },
+      browserPane: {
+        title: "Panel",
+        surfacePicker: "Superficie del panel",
+        close: "Cerrar panel",
+        observerTitle: "Navegador observado",
+        viewRawText: "Ver texto sin formato",
+        noContent: "No hay contenido disponible",
+        unavailable: "No hay panel disponible",
+        surfaces: {
+          observer: "Browser",
+          markdown: "Salida de la herramienta",
+        },
+      },
       welcome: {
         greetingNamed: "Hola, {name}.",
         greetingGeneric: "Hola.",
@@ -152,6 +169,27 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       attachments: {
         preview: "Vista previa del adjunto",
         remove: "Eliminar adjunto",
+        imageAlt: "Imagen adjunta",
+      },
+      taskProposals: {
+        kind: {
+          task: "Propuesta de tarea",
+          project: "Propuesta de proyecto",
+        },
+        decision: {
+          draft: "Borrador",
+          pending: "Pendiente",
+          approved: "Aprobada",
+          rejected: "Rechazada",
+        },
+        linkedTask: "Tarea vinculada: {status} · {runtime} · {taskId}",
+        launchedRun: "Ejecución lanzada: {runId}",
+        saveToInbox: "Guardar en la bandeja",
+        approve: "Aprobar",
+        reject: "Rechazar",
+        launch: "Lanzar",
+        openLaunchedChat: "Abrir chat lanzado",
+        openTasks: "Abrir tareas",
       },
       pinned: {
         count: "{count} fijados",
@@ -824,8 +862,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         documentsBody:
           "Abre PDF y otros ficheros, extrae lo importante y mantén la salida legible.",
         imagesTitle: "Crear y adaptar imágenes",
-        imagesBody:
-          "Genera imágenes, mockups y variaciones visuales cuando la tarea lo pida.",
+        imagesBody: "Genera imágenes, mockups y variaciones visuales cuando la tarea lo pida.",
         automationTitle: "Ejecutar rutinas útiles",
         automationBody:
           "Prepara trabajo recurrente y automatizaciones sin obligar a nadie a pensar en términos técnicos.",
@@ -1982,8 +2019,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       title: "Cómo conectarse",
       step1: "Inicia Alisio en tu máquina host:",
       step2: "Obtén una URL del panel con token:",
-      step3:
-        "Pega arriba la URL de WebSocket y el token, o abre directamente la URL con token.",
+      step3: "Pega arriba la URL de WebSocket y el token, o abre directamente la URL con token.",
       step4: "O genera un token reutilizable:",
       docsHint: "Para acceso remoto se recomienda Tailscale Serve. ",
       docsLink: "Leer la documentación →",
@@ -2254,6 +2290,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     renameConversationTitle: "Cambiar el nombre de este chat",
     deleteConversationTitle: "Eliminar este chat",
     renameConversationPlaceholder: "Nombre del chat",
+    renameConversationFailed: "No se pudo renombrar el chat: {error}",
     menuOn: "Activado",
     menuOff: "Desactivado",
     menuHidden: "Ocultas",
@@ -2261,6 +2298,13 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     refreshTitle: "Actualizar datos del chat",
     thinkingToggle: "Alternar salida de pensamiento/trabajo del asistente",
     toolCallsToggle: "Alternar llamadas a herramientas y resultados de herramientas",
+    localModelsSubagentOnly:
+      "Los modelos locales solo están disponibles para sesiones de subagente.",
+    setModelFailed: "No se pudo establecer el modelo: {error}",
+    configDraftRequired:
+      "Guarda o recarga el borrador de configuración antes de cambiar el modelo predeterminado.",
+    configHashMissing: "Falta el hash de la configuración. Recarga e inténtalo de nuevo.",
+    setDefaultModelFailed: "No se pudo establecer el modelo predeterminado: {error}",
     focusToggle: "Alternar modo de enfoque (ocultar barra lateral + cabecera)",
     hideCronSessions: "Ocultar sesiones de cron",
     showCronSessions: "Mostrar sesiones de cron",
@@ -2418,7 +2462,8 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     },
     legacyDiagnostics: {
       title: "Diagnóstico legado",
-      subtitle: "Señales de compatibilidad procedentes del antiguo ledger de tareas en segundo plano.",
+      subtitle:
+        "Señales de compatibilidad procedentes del antiguo ledger de tareas en segundo plano.",
     },
     legacyRuns: {
       title: "Ejecuciones legadas en segundo plano",

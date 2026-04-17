@@ -703,13 +703,45 @@ async function resolveNativeMemoryContext(params: {
   try {
     const initialStatus = manager.status();
     let canonicalStore = asCanonicalStoreStatus(initialStatus.custom?.canonicalStore);
-    if (
-      params.syncIfDirty !== false &&
-      manager.sync &&
-      (initialStatus.dirty || canonicalStore?.state !== "ready")
-    ) {
+    if (canonicalStore && canReadCanonicalStore(canonicalStore)) {
+      if (
+        params.syncIfDirty !== false &&
+        manager.sync &&
+        (initialStatus.dirty || canonicalStore.state !== "ready")
+      ) {
+        await manager.sync({ reason: params.method, force: true });
+        const syncedStore = asCanonicalStoreStatus(manager.status().custom?.canonicalStore);
+        if (syncedStore && canReadCanonicalStore(syncedStore)) {
+          canonicalStore = syncedStore;
+        }
+      }
+      return {
+        cfg,
+        agentId,
+        canonicalStore,
+        async close() {
+          await manager.close?.().catch(() => {});
+        },
+      };
+    }
+    if (params.syncIfDirty !== false && manager.sync) {
       await manager.sync({ reason: params.method, force: true });
       canonicalStore = asCanonicalStoreStatus(manager.status().custom?.canonicalStore);
+      if (canonicalStore && canReadCanonicalStore(canonicalStore)) {
+        return {
+          cfg,
+          agentId,
+          canonicalStore,
+          async close() {
+            await manager.close?.().catch(() => {});
+          },
+        };
+      }
+    }
+    const fallback = await tryDirectCanonicalStore().catch(() => null);
+    if (fallback && canReadCanonicalStore(fallback.canonicalStore)) {
+      await manager.close?.().catch(() => {});
+      return fallback;
     }
     if (!canonicalStore) {
       respondGatewayError(
@@ -719,14 +751,12 @@ async function resolveNativeMemoryContext(params: {
       );
       return null;
     }
-    return {
-      cfg,
-      agentId,
-      canonicalStore,
-      async close() {
-        await manager.close?.().catch(() => {});
-      },
-    };
+    respondGatewayError(
+      params.respond,
+      "UNAVAILABLE",
+      `${params.method} unavailable: canonical memory store is not initialized yet`,
+    );
+    return null;
   } catch (error) {
     await manager.close?.().catch(() => {});
     const fallback = await tryDirectCanonicalStore().catch(() => null);
@@ -745,6 +775,31 @@ async function resolveNativeMemoryContext(params: {
 function openCanonicalDb(status: CanonicalMemoryStoreStatus, readOnly = true): DatabaseSync {
   const { DatabaseSync } = requireNodeSqlite();
   return new DatabaseSync(status.path, readOnly ? { readOnly: true } : undefined);
+}
+
+function canReadCanonicalStore(status: CanonicalMemoryStoreStatus): boolean {
+  try {
+    const db = openCanonicalDb(status);
+    try {
+      const row = db
+        .prepare(
+          `SELECT 1 AS found
+           FROM sqlite_master
+           WHERE type = 'table' AND name = 'pages'
+           LIMIT 1`,
+        )
+        .get() as
+        | {
+            found?: number;
+          }
+        | undefined;
+      return row?.found === 1;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
 }
 
 function buildSyncSurface(status: CanonicalMemoryStoreStatus): MemorySyncSurface {
@@ -852,14 +907,7 @@ function findRelevantClaimIds(
   identity: PageIdentity,
   _body: string,
 ): Set<string> {
-  const needles = uniqueStrings([
-    identity.pageId.toLowerCase(),
-    identity.title.toLowerCase(),
-    identity.slug.toLowerCase(),
-    identity.path.toLowerCase(),
-    ...identity.aliases.map((alias) => alias.toLowerCase()),
-    path.posix.basename(identity.path, ".md").toLowerCase(),
-  ]);
+  const needles = buildPageIdentityNeedles(identity);
   const claims = db
     .prepare(
       `SELECT claim_id, subject, predicate, object
@@ -905,6 +953,113 @@ function findRelevantClaimIds(
     }
   }
   return relevant;
+}
+
+type NativeListSemanticIndex = {
+  claims: Array<{
+    claimId: string;
+    haystack: string;
+  }>;
+  evidence: Array<{
+    claimId: string;
+    haystack: string;
+  }>;
+};
+
+function buildPageIdentityNeedles(identity: PageIdentity): string[] {
+  return uniqueStrings([
+    identity.pageId.toLowerCase(),
+    identity.title.toLowerCase(),
+    identity.slug.toLowerCase(),
+    identity.path.toLowerCase(),
+    ...identity.aliases.map((alias) => alias.toLowerCase()),
+    path.posix.basename(identity.path, ".md").toLowerCase(),
+  ]);
+}
+
+function buildNativeListSemanticIndex(db: DatabaseSync): NativeListSemanticIndex | null {
+  const claims = db
+    .prepare(
+      `SELECT claim_id, subject, predicate, object
+       FROM claims
+       WHERE status IS NULL OR status != 'retracted'
+       ORDER BY updated_at_ms DESC, claim_id ASC`,
+    )
+    .all() as Array<{
+    claim_id: string;
+    subject: string;
+    predicate: string;
+    object: string;
+  }>;
+  const evidence = db
+    .prepare(
+      `SELECT claim_id, source_locator, quote
+       FROM evidence
+       ORDER BY created_at_ms DESC, evidence_id ASC`,
+    )
+    .all() as Array<{
+    claim_id: string;
+    source_locator: string;
+    quote: string;
+  }>;
+  if (claims.length === 0 && evidence.length === 0) {
+    return null;
+  }
+  const evidenceByClaim = new Map<string, string[]>();
+  for (const row of evidence) {
+    const entry = evidenceByClaim.get(row.claim_id) ?? [];
+    entry.push(`${row.source_locator} ${row.quote}`.toLowerCase());
+    evidenceByClaim.set(row.claim_id, entry);
+  }
+  return {
+    claims: claims.map((row) => ({
+      claimId: row.claim_id,
+      haystack: [row.subject, row.predicate, row.object, ...(evidenceByClaim.get(row.claim_id) ?? [])]
+        .join(" ")
+        .toLowerCase(),
+    })),
+    evidence: evidence.map((row) => ({
+      claimId: row.claim_id,
+      haystack: `${row.source_locator} ${row.quote}`.toLowerCase(),
+    })),
+  };
+}
+
+function countRelevantSemanticMatches(
+  index: NativeListSemanticIndex | null,
+  identity: PageIdentity,
+  limit = 3,
+): { claims: number; evidence: number } {
+  if (!index) {
+    return { claims: 0, evidence: 0 };
+  }
+  const needles = buildPageIdentityNeedles(identity);
+  const relevantClaimIds = new Set<string>();
+  let claims = 0;
+  for (const claim of index.claims) {
+    if (!needles.some((needle) => claim.haystack.includes(needle))) {
+      continue;
+    }
+    relevantClaimIds.add(claim.claimId);
+    claims += 1;
+    if (claims >= limit) {
+      break;
+    }
+  }
+  let evidence = 0;
+  for (const row of index.evidence) {
+    if (
+      !relevantClaimIds.has(row.claimId) &&
+      !needles.some((needle) => row.haystack.includes(needle))
+    ) {
+      continue;
+    }
+    evidence += 1;
+    if (evidence >= limit) {
+      break;
+    }
+  }
+  return { claims, evidence };
 }
 
 function loadClaims(
@@ -1579,6 +1734,7 @@ function loadTraceById(
 }
 
 function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
+  const semanticIndex = buildNativeListSemanticIndex(params.db);
   const rows = params.db
     .prepare(
       `SELECT
@@ -1631,37 +1787,21 @@ function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
       const parsed = parseFrontmatter(markdown);
       const body = parsed.body;
       const tags = uniqueStrings([...parseJsonStringArray(row.tags_json), ...(parsed.tags ?? [])]);
-      const claims = loadClaims(
-        params.db,
-        {
-          pageId,
-          title,
-          slug,
-          path: pagePath,
-          aliases: parseJsonStringArray(row.aliases_json),
-        },
-        body,
-        3,
-      );
-      const evidence = loadEvidence(
-        params.db,
-        {
-          pageId,
-          title,
-          slug,
-          path: pagePath,
-          aliases: parseJsonStringArray(row.aliases_json),
-        },
-        body,
-        3,
-      );
+      const identity = {
+        pageId,
+        title,
+        slug,
+        path: pagePath,
+        aliases: parseJsonStringArray(row.aliases_json),
+      };
+      const semanticCounts = countRelevantSemanticMatches(semanticIndex, identity, 3);
       const updatedAtMs = normalizeNumber(row.updated_at_ms);
       const reason = query
         ? scoreByQuery(
             query,
             {
               title: [title],
-              alias: parseJsonStringArray(row.aliases_json),
+              alias: identity.aliases,
               path: [pagePath],
               tag: tags,
               body: [body],
@@ -1678,8 +1818,8 @@ function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
               candidateCount,
               hitCount: 0,
               backlinks: normalizeNumber(row.backlink_count) ?? 0,
-              claims: claims.length,
-              evidence: evidence.length,
+              claims: semanticCounts.claims,
+              evidence: semanticCounts.evidence,
             })
           : undefined;
       return {
@@ -1697,8 +1837,8 @@ function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
           }),
           updatedAt: toIso(row.updated_at_ms),
           backlinks: normalizeNumber(row.backlink_count) ?? 0,
-          claims: claims.length,
-          evidence: evidence.length,
+          claims: semanticCounts.claims,
+          evidence: semanticCounts.evidence,
           ...(reason.reasonTags.length > 0 ? { reasonTags: reason.reasonTags } : {}),
           ...(trace ? { trace, traceSummary: buildTraceSummary(trace, reason.reasonTags) } : {}),
         } satisfies NativeWikiListPage,
@@ -1960,6 +2100,7 @@ export async function handleMemoryNotesListGatewayRequest({
     method: "memory.notes.list",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -1998,6 +2139,7 @@ export async function handleMemoryNotesGetGatewayRequest({
     method: "memory.notes.get",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2127,6 +2269,7 @@ export async function handleMemoryNotesHistoryGatewayRequest({
     method: "memory.notes.history",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2156,6 +2299,7 @@ export async function handleMemoryWikiListGatewayRequest({
     method: "memory.wiki.list",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2194,6 +2338,7 @@ export async function handleMemoryWikiGetGatewayRequest({
     method: "memory.wiki.get",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -2323,6 +2468,7 @@ export async function handleMemoryWikiHistoryGatewayRequest({
     method: "memory.wiki.history",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;

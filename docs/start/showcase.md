@@ -11,7 +11,7 @@ read_when:
 Real projects from the community. See what people are building with Alisio.
 
 <Info>
-**Want to be featured?** Share your project in [#showcase on Discord](https://discord.gg/clawd) or [tag the project on X](https://x.com/alisio).
+**Want to be featured?** Share your project in [#showcase on Discord](https://discord.gg/qkhbAGHRBT) or [tag the project on X](https://x.com/alisio).
 </Info>
 
 ## 🎥 Alisio in Action
@@ -407,7 +407,7 @@ Have something to share? We'd love to feature it!
 
 <Steps>
   <Step title="Share It">
-    Post in [#showcase on Discord](https://discord.gg/clawd) or [share it on X](https://x.com/alisio)
+    Post in [#showcase on Discord](https://discord.gg/qkhbAGHRBT) or [share it on X](https://x.com/alisio)
   </Step>
   <Step title="Include Details">
     Tell us what it does, link to the repo/demo, share a screenshot if you have one

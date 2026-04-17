@@ -1,6 +1,6 @@
-import { en } from "./en.ts";
 import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
+import { en } from "./en.ts";
 
 export const de: TranslationMap = mergeTranslationMaps(en, {
   common: {
@@ -110,11 +110,63 @@ export const de: TranslationMap = mergeTranslationMaps(en, {
     disconnected: "Verbindung zu Alisio getrennt.",
     refreshTitle: "Chat-Daten aktualisieren",
     thinkingToggle: "Ausgabe des Assistenten ein-/ausblenden",
+    renameConversationFailed: "Chat konnte nicht umbenannt werden: {error}",
+    localModelsSubagentOnly: "Lokale Modelle sind nur für Subagent-Sitzungen verfügbar.",
+    setModelFailed: "Modell konnte nicht gesetzt werden: {error}",
+    configDraftRequired:
+      "Speichern oder laden Sie den Konfigurationsentwurf neu, bevor Sie das Standardmodell ändern.",
+    configHashMissing: "Konfigurations-Hash fehlt. Neu laden und erneut versuchen.",
+    setDefaultModelFailed: "Standardmodell konnte nicht gesetzt werden: {error}",
     focusToggle: "Fokusmodus ein-/ausschalten (Seitenleiste + Kopfzeile ausblenden)",
     hideCronSessions: "Cron-Sitzungen ausblenden",
     showCronSessions: "Cron-Sitzungen anzeigen",
     showCronSessionsHidden: "Cron-Sitzungen anzeigen ({count} ausgeblendet)",
     onboardingDisabled: "Während der Einrichtung deaktiviert",
+  },
+  alisio: {
+    chat: {
+      defaultAssistantName: "Assistent",
+      participants: {
+        you: "Du",
+        tool: "Werkzeug",
+      },
+      browserPane: {
+        title: "Bereich",
+        surfacePicker: "Bereichsansicht",
+        close: "Bereich schließen",
+        observerTitle: "Browser-Beobachter",
+        viewRawText: "Rohtext anzeigen",
+        noContent: "Kein Inhalt verfügbar",
+        unavailable: "Keine Bereichsansicht verfügbar",
+        surfaces: {
+          observer: "Browser",
+          markdown: "Tool-Ausgabe",
+        },
+      },
+      attachments: {
+        imageAlt: "Angehängtes Bild",
+      },
+      taskProposals: {
+        kind: {
+          task: "Aufgabenvorschlag",
+          project: "Projektvorschlag",
+        },
+        decision: {
+          draft: "Entwurf",
+          pending: "Ausstehend",
+          approved: "Genehmigt",
+          rejected: "Abgelehnt",
+        },
+        linkedTask: "Verknüpfte Aufgabe: {status} · {runtime} · {taskId}",
+        launchedRun: "Gestarteter Lauf: {runId}",
+        saveToInbox: "Im Postfach speichern",
+        approve: "Genehmigen",
+        reject: "Ablehnen",
+        launch: "Starten",
+        openLaunchedChat: "Gestarteten Chat öffnen",
+        openTasks: "Aufgaben öffnen",
+      },
+    },
   },
   languages: {
     en: "English",

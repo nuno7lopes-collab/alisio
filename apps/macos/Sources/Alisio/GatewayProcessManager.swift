@@ -6,6 +6,7 @@ import AlisioSupport
 @Observable
 final class GatewayProcessManager {
     static let shared = GatewayProcessManager()
+    private let readinessProbeTimeoutMs = 5000
 
     enum Status: Equatable {
         case stopped
@@ -199,14 +200,9 @@ final class GatewayProcessManager {
         let instanceText = instance.map { self.describeBrandedRuntime(instance: $0) }
         let hasListener = instance != nil
 
-        let attemptAttach = {
-            try await self.connection.requestRaw(method: .health, timeoutMs: 2000)
-        }
-
         for attempt in 0..<(hasListener ? 3 : 1) {
             do {
-                let data = try await attemptAttach()
-                let snap = decodeHealthSnapshot(from: data)
+                let snap = try await self.probeGatewayLiveness(timeoutMs: self.readinessProbeTimeoutMs)
                 if let incompatibleReason = await self.incompatibleExistingGatewayReason(port: port) {
                     self.existingGatewayDetails = instanceText
                     self.status = .starting
@@ -247,6 +243,20 @@ final class GatewayProcessManager {
 
         self.existingGatewayDetails = nil
         return false
+    }
+
+    private func probeGatewayLiveness(timeoutMs: Int) async throws -> HealthSnapshot? {
+        do {
+            let data = try await self.connection.requestRaw(
+                method: .health,
+                timeoutMs: Double(timeoutMs))
+            return decodeHealthSnapshot(from: data)
+        } catch {
+            _ = try await self.connection.requestRaw(
+                method: .status,
+                timeoutMs: Double(timeoutMs))
+            return nil
+        }
     }
 
     private func incompatibleExistingGatewayReason(port: Int) async -> String? {
@@ -451,7 +461,7 @@ final class GatewayProcessManager {
         while Date() < deadline {
             if !self.desiredActive { return false }
             do {
-                _ = try await self.connection.requestRaw(method: .health, timeoutMs: 1500)
+                _ = try await self.probeGatewayLiveness(timeoutMs: self.readinessProbeTimeoutMs)
                 self.clearLastFailure()
                 return true
             } catch {
@@ -537,7 +547,7 @@ final class GatewayProcessManager {
         while Date() < deadline {
             if !self.desiredActive { return false }
             do {
-                _ = try await self.connection.requestRaw(method: .health, timeoutMs: 1500)
+                _ = try await self.probeGatewayLiveness(timeoutMs: self.readinessProbeTimeoutMs)
                 let instance = await PortGuardian.shared.describe(port: port)
                 let details = instance.map { "pid \($0.pid)" }
                 self.clearLastFailure()

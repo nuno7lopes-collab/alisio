@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type {
   Task,
   TaskExecution,
+  TaskExecutionStep,
   TaskProposalRecord,
   TaskRecord,
   TasksOverviewResult,
@@ -38,6 +39,21 @@ function createExecution(overrides: Partial<TaskExecution> = {}): TaskExecution 
     status: "running",
     createdAt: 1,
     startedAt: 2,
+    ...overrides,
+  };
+}
+
+function createStep(overrides: Partial<TaskExecutionStep> = {}): TaskExecutionStep {
+  return {
+    stepId: "step-1",
+    taskId: "canonical-task-1",
+    executionId: "execution-1",
+    kind: "command_started",
+    status: "running",
+    tool: "exec",
+    summary: "git status",
+    createdAt: 3,
+    dataJson: JSON.stringify({ toolCallId: "tool-1", command: "git status", phase: "start" }),
     ...overrides,
   };
 }
@@ -162,6 +178,7 @@ function createOverview(overrides: Partial<TasksOverviewResult> = {}): TasksOver
     canonicalAssignments: [],
     canonicalApprovals: [],
     canonicalEvents: [],
+    canonicalSteps: [createStep()],
     canonicalDependencies: [],
     total: 1,
     limit: 50,
@@ -246,6 +263,7 @@ describe("tasks view", () => {
           overview: createOverview({
             canonicalTasks: [],
             canonicalExecutions: [],
+            canonicalSteps: [],
           }),
           selectedId: "legacy-task-1",
         }),
@@ -256,5 +274,13 @@ describe("tasks view", () => {
     expect(container.textContent).not.toContain("Earlier background runs");
     expect(container.textContent).toContain("No tasks match the current filters yet.");
     expect(container.textContent).not.toContain("Open task chat");
+  });
+
+  it("renders canonical work trace entries in the task timeline", () => {
+    const container = document.createElement("div");
+    render(renderTasks(createProps()), container);
+
+    expect(container.textContent).toContain("git status");
+    expect(container.textContent).toContain("command started");
   });
 });

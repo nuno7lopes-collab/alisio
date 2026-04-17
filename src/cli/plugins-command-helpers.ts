@@ -147,7 +147,7 @@ export function buildPreferredClawHubSpec(raw: string): string | null {
   if (!parsed) {
     return null;
   }
-  return `clawhub:${parsed.name}${parsed.selector ? `@${parsed.selector}` : ""}`;
+  return `marketplace:${parsed.name}${parsed.selector ? `@${parsed.selector}` : ""}`;
 }
 
 export const PREFERRED_CLAWHUB_FALLBACK_DECISION = {

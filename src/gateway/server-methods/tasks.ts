@@ -20,6 +20,7 @@ import {
   getInspectableTaskRegistrySummary,
 } from "../../tasks/task-registry.maintenance.js";
 import { summarizeTaskRecords } from "../../tasks/task-registry.summary.js";
+import { filterVisibleCanonicalTaskBundles, isVisibleCanonicalTaskBundle } from "../../tasks/canonical-task-visibility.js";
 import type {
   TaskNotifyPolicy,
   TaskRecord,
@@ -497,7 +498,7 @@ async function launchProposalTaskExecution(params: {
   };
 }
 
-function buildCanonicalTaskSummary(tasks: ReturnType<typeof listTasks>) {
+function buildCanonicalTaskSummary(tasks: CanonicalTask[]) {
   return {
     total: tasks.length,
     roots: tasks.filter((task) => !task.parentTaskId).length,
@@ -519,14 +520,39 @@ function resolveCanonicalTaskLookup(lookup: string) {
     return null;
   }
   const exactTask = getTask(normalizedLookup);
-  if (exactTask) {
+  if (exactTask && isVisibleCanonicalTaskBundle(getTaskBundle(exactTask.taskId) ?? { task: exactTask, executions: [], events: [] })) {
     return exactTask;
   }
   const execution = getTaskExecutionByRunId(normalizedLookup);
   if (execution) {
-    return getTask(execution.taskId);
+    const executionTask = getTask(execution.taskId);
+    if (
+      executionTask &&
+      isVisibleCanonicalTaskBundle(
+        getTaskBundle(executionTask.taskId) ?? {
+          task: executionTask,
+          executions: [],
+          events: [],
+        },
+      )
+    ) {
+      return executionTask;
+    }
   }
-  return findTaskForSessionKey(normalizedLookup);
+  const sessionTask = findTaskForSessionKey(normalizedLookup);
+  if (
+    sessionTask &&
+    isVisibleCanonicalTaskBundle(
+      getTaskBundle(sessionTask.taskId) ?? {
+        task: sessionTask,
+        executions: [],
+        events: [],
+      },
+    )
+  ) {
+    return sessionTask;
+  }
+  return null;
 }
 
 function resolveProposalActorLabel(
@@ -570,10 +596,12 @@ export const tasksHandlers: GatewayRequestHandlers = {
 
     const tasks = reconcileInspectableTasks();
     const proposals = listTaskProposalViews();
-    const canonicalTasks = listTasks();
-    const canonicalBundles = canonicalTasks
+    const canonicalBundles = filterVisibleCanonicalTaskBundles(
+      listTasks()
       .map((task) => getTaskBundle(task.taskId))
-      .filter((bundle): bundle is NonNullable<ReturnType<typeof getTaskBundle>> => Boolean(bundle));
+      .filter((bundle): bundle is NonNullable<ReturnType<typeof getTaskBundle>> => Boolean(bundle)),
+    );
+    const canonicalTasks = canonicalBundles.map((bundle) => bundle.task);
     const filteredTasks = filterTasks({
       tasks,
       runtime: runtime as TaskRuntime | "all" | undefined,
@@ -601,6 +629,7 @@ export const tasksHandlers: GatewayRequestHandlers = {
       canonicalAssignments: canonicalBundles.flatMap((bundle) => bundle.assignments),
       canonicalApprovals: canonicalBundles.flatMap((bundle) => bundle.approvals),
       canonicalEvents: canonicalBundles.flatMap((bundle) => bundle.events),
+      canonicalSteps: canonicalBundles.flatMap((bundle) => bundle.steps),
       canonicalDependencies: canonicalBundles.flatMap((bundle) => bundle.dependencies),
       total: filteredTasks.length,
       limit,

@@ -147,6 +147,12 @@ function parseLatestConnectFrame(ws: MockWebSocket): ConnectFrame {
   return JSON.parse(ws.sent.at(-1) ?? "{}") as ConnectFrame;
 }
 
+function parseLatestRequestFrame(
+  ws: MockWebSocket,
+): { id?: string; method?: string; params?: unknown } {
+  return JSON.parse(ws.sent.at(-1) ?? "{}") as { id?: string; method?: string; params?: unknown };
+}
+
 async function continueConnect(ws: MockWebSocket, nonce = "nonce-1") {
   ws.emitOpen();
   ws.emitMessage({
@@ -731,6 +737,47 @@ describe("GatewayBrowserClient", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(wsInstances).toHaveLength(1);
 
+    vi.useRealTimers();
+  });
+
+  it("reconnects after an established request fails with JWT expiry", async () => {
+    vi.useFakeTimers();
+
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:40705",
+      token: "shared-auth-token",
+    });
+
+    const { ws: firstWs, connectFrame } = await startConnect(client);
+    firstWs.emitMessage({
+      type: "res",
+      id: connectFrame.id,
+      ok: true,
+      payload: { type: "hello-ok", protocol: 3 },
+    });
+
+    const requestP = client.request("node.list", { timeoutMs: 4_000 });
+    const requestFrame = parseLatestRequestFrame(firstWs);
+    expect(requestFrame.method).toBe("node.list");
+
+    firstWs.emitMessage({
+      type: "res",
+      id: requestFrame.id,
+      ok: false,
+      error: {
+        code: "UNAVAILABLE",
+        message: "JWT expired",
+      },
+    });
+
+    await expect(requestP).rejects.toThrow(/JWT expired/i);
+    expect(firstWs.readyState).toBe(3);
+    firstWs.emitClose(4008, "request auth refresh");
+
+    await vi.advanceTimersByTimeAsync(800);
+    expect(wsInstances).toHaveLength(2);
+
+    client.stop();
     vi.useRealTimers();
   });
 });

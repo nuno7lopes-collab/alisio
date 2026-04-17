@@ -5,6 +5,9 @@ import type { SandboxConfig } from "./types.js";
 
 let BROWSER_BRIDGES: Map<string, unknown>;
 let ensureSandboxBrowser: typeof import("./browser.js").ensureSandboxBrowser;
+let getLiveSandboxBrowserBridgeUrl: typeof import("./browser.js").getLiveSandboxBrowserBridgeUrl;
+let getLiveSandboxBrowserObserverUrl: typeof import("./browser.js").getLiveSandboxBrowserObserverUrl;
+let browserTesting: typeof import("./browser.js").__testing;
 let resetNoVncObserverTokensForTests: typeof import("./novnc-auth.js").resetNoVncObserverTokensForTests;
 
 const dockerMocks = vi.hoisted(() => ({
@@ -62,7 +65,12 @@ vi.mock("../../plugin-sdk/browser-runtime.js", async (importOriginal) => {
 async function loadFreshBrowserModulesForTest() {
   vi.resetModules();
   ({ BROWSER_BRIDGES } = await import("./browser-bridges.js"));
-  ({ ensureSandboxBrowser } = await import("./browser.js"));
+  ({
+    ensureSandboxBrowser,
+    getLiveSandboxBrowserBridgeUrl,
+    getLiveSandboxBrowserObserverUrl,
+    __testing: browserTesting,
+  } = await import("./browser.js"));
   ({ resetNoVncObserverTokensForTests } = await import("./novnc-auth.js"));
 }
 
@@ -302,5 +310,31 @@ describe("ensureSandboxBrowser create args", () => {
     expect(dockerMocks.execDocker).not.toHaveBeenCalledWith(["rm", "-f", containerName], {
       allowFailure: true,
     });
+  });
+
+  it("rehydrates a live browser bridge from the registry after process restart", async () => {
+    registryMocks.readBrowserRegistry.mockResolvedValue({
+      entries: [
+        {
+          containerName: "alisio-sbx-browser-session-test",
+          sessionKey: "session:test",
+          createdAtMs: 1,
+          lastUsedAtMs: Date.now(),
+          image: "alisio-sandbox-browser:bookworm-slim",
+          cdpPort: 49100,
+          noVncPort: 49101,
+          noVncPassword: "Abc12345",
+        },
+      ],
+    });
+    dockerMocks.dockerContainerState.mockResolvedValue({ exists: true, running: true });
+
+    await browserTesting.bootstrapSandboxBrowserBridges();
+
+    expect(getLiveSandboxBrowserBridgeUrl("session:test")).toBe("http://127.0.0.1:19000");
+    expect(getLiveSandboxBrowserObserverUrl("session:test")).toMatch(
+      /^http:\/\/127\.0\.0\.1:19000\/sandbox\/novnc\?token=/,
+    );
+    expect(bridgeMocks.startBrowserBridgeServer).toHaveBeenCalledTimes(1);
   });
 });

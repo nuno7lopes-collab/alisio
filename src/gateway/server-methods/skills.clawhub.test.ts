@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loadConfigMock = vi.fn(() => ({}));
 const resolveDefaultAgentIdMock = vi.fn(() => "main");
 const resolveAgentWorkspaceDirMock = vi.fn(() => "/tmp/workspace");
-const installSkillFromClawHubMock = vi.fn();
-const updateSkillsFromClawHubMock = vi.fn();
+const installMarketplaceRegistrySkillMock = vi.fn();
+const updateMarketplaceSkillsMock = vi.fn();
 
 vi.mock("../../config/config.js", () => ({
   loadConfig: () => loadConfigMock(),
@@ -17,28 +17,29 @@ vi.mock("../../agents/agent-scope.js", () => ({
   resolveAgentWorkspaceDir: () => resolveAgentWorkspaceDirMock(),
 }));
 
-vi.mock("../../agents/skills-clawhub.js", () => ({
-  installSkillFromClawHub: (...args: unknown[]) => installSkillFromClawHubMock(...args),
-  updateSkillsFromClawHub: (...args: unknown[]) => updateSkillsFromClawHubMock(...args),
+vi.mock("../../agents/skills-marketplace-remote.js", () => ({
+  installMarketplaceRegistrySkill: (...args: unknown[]) =>
+    installMarketplaceRegistrySkillMock(...args),
+  updateMarketplaceSkills: (...args: unknown[]) => updateMarketplaceSkillsMock(...args),
 }));
 
 const { skillsHandlers } = await import("./skills.js");
 
-describe("skills gateway handlers (clawhub)", () => {
+describe("skills gateway handlers (marketplace)", () => {
   beforeEach(() => {
     loadConfigMock.mockReset();
     resolveDefaultAgentIdMock.mockReset();
     resolveAgentWorkspaceDirMock.mockReset();
-    installSkillFromClawHubMock.mockReset();
-    updateSkillsFromClawHubMock.mockReset();
+    installMarketplaceRegistrySkillMock.mockReset();
+    updateMarketplaceSkillsMock.mockReset();
 
     loadConfigMock.mockReturnValue({});
     resolveDefaultAgentIdMock.mockReturnValue("main");
     resolveAgentWorkspaceDirMock.mockReturnValue("/tmp/workspace");
   });
 
-  it("installs a ClawHub skill through skills.install", async () => {
-    installSkillFromClawHubMock.mockResolvedValue({
+  it("installs a Local Marketplace skill through skills.install", async () => {
+    installMarketplaceRegistrySkillMock.mockResolvedValue({
       ok: true,
       slug: "calendar",
       version: "1.2.3",
@@ -65,7 +66,7 @@ describe("skills gateway handlers (clawhub)", () => {
       },
     });
 
-    expect(installSkillFromClawHubMock).toHaveBeenCalledWith({
+    expect(installMarketplaceRegistrySkillMock).toHaveBeenCalledWith({
       workspaceDir: "/tmp/workspace",
       slug: "calendar",
       version: "1.2.3",
@@ -81,8 +82,8 @@ describe("skills gateway handlers (clawhub)", () => {
     });
   });
 
-  it("updates ClawHub skills through skills.update", async () => {
-    updateSkillsFromClawHubMock.mockResolvedValue([
+  it("updates Local Marketplace skills through skills.update", async () => {
+    updateMarketplaceSkillsMock.mockResolvedValue([
       {
         ok: true,
         slug: "calendar",
@@ -112,7 +113,7 @@ describe("skills gateway handlers (clawhub)", () => {
       },
     });
 
-    expect(updateSkillsFromClawHubMock).toHaveBeenCalledWith({
+    expect(updateMarketplaceSkillsMock).toHaveBeenCalledWith({
       workspaceDir: "/tmp/workspace",
       slug: "calendar",
     });
@@ -134,7 +135,7 @@ describe("skills gateway handlers (clawhub)", () => {
     });
   });
 
-  it("rejects ClawHub skills.update requests without slug or all", async () => {
+  it("rejects marketplace skills.update requests without slug or all", async () => {
     let ok: boolean | null = null;
     let error: { code?: string; message?: string } | undefined;
     await skillsHandlers["skills.update"]({
@@ -153,6 +154,6 @@ describe("skills gateway handlers (clawhub)", () => {
 
     expect(ok).toBe(false);
     expect(error?.message).toContain('requires "slug" or "all"');
-    expect(updateSkillsFromClawHubMock).not.toHaveBeenCalled();
+    expect(updateMarketplaceSkillsMock).not.toHaveBeenCalled();
   });
 });

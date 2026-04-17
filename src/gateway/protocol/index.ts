@@ -359,6 +359,12 @@ import {
   TaskExecutionSchema,
   type TaskExecutionKind,
   TaskExecutionKindSchema,
+  type TaskExecutionStep,
+  TaskExecutionStepSchema,
+  type TaskExecutionStepKind,
+  TaskExecutionStepKindSchema,
+  type TaskExecutionStepStatus,
+  TaskExecutionStepStatusSchema,
   type TaskExecutionStatus,
   TaskExecutionStatusSchema,
   type TaskMaintenanceSummary,
@@ -399,6 +405,10 @@ import {
   TasksCreateParamsSchema,
   type TasksCreateResult,
   TasksCreateResultSchema,
+  type TasksDetailParams,
+  TasksDetailParamsSchema,
+  type TasksDetailResult,
+  TasksDetailResultSchema,
   type TasksExecutionCancelParams,
   TasksExecutionCancelParamsSchema,
   type TasksExecutionCancelResult,
@@ -1083,6 +1093,8 @@ export const validateTasksOverviewParams =
   ajv.compile<TasksOverviewParams>(TasksOverviewParamsSchema);
 export const validateTasksOverviewResult =
   ajv.compile<TasksOverviewResult>(TasksOverviewResultSchema);
+export const validateTasksDetailParams = ajv.compile<TasksDetailParams>(TasksDetailParamsSchema);
+export const validateTasksDetailResult = ajv.compile<TasksDetailResult>(TasksDetailResultSchema);
 export const validateTasksCreateParams = ajv.compile<TasksCreateParams>(TasksCreateParamsSchema);
 export const validateTasksCreateResult = ajv.compile<TasksCreateResult>(TasksCreateResultSchema);
 export const validateTasksUpdateParams = ajv.compile<TasksUpdateParams>(TasksUpdateParamsSchema);
@@ -1514,6 +1526,9 @@ export {
   TaskSchema,
   TaskExecutionSchema,
   TaskExecutionKindSchema,
+  TaskExecutionStepSchema,
+  TaskExecutionStepKindSchema,
+  TaskExecutionStepStatusSchema,
   TaskExecutionStatusSchema,
   TaskAssignmentSchema,
   TaskAssignmentStatusSchema,
@@ -1542,6 +1557,8 @@ export {
   TaskMaintenanceSummarySchema,
   TasksOverviewParamsSchema,
   TasksOverviewResultSchema,
+  TasksDetailParamsSchema,
+  TasksDetailResultSchema,
   TasksCreateParamsSchema,
   TasksCreateResultSchema,
   TasksUpdateParamsSchema,
@@ -1859,6 +1876,9 @@ export type {
   Task,
   TaskExecution,
   TaskExecutionKind,
+  TaskExecutionStep,
+  TaskExecutionStepKind,
+  TaskExecutionStepStatus,
   TaskExecutionStatus,
   TaskAssignment,
   TaskAssignmentStatus,
@@ -1887,6 +1907,8 @@ export type {
   TaskMaintenanceSummary,
   TasksOverviewParams,
   TasksOverviewResult,
+  TasksDetailParams,
+  TasksDetailResult,
   TasksCreateParams,
   TasksCreateResult,
   TasksUpdateParams,

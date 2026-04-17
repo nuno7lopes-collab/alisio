@@ -925,6 +925,95 @@ describe("Alisio sharing state", () => {
     });
   });
 
+  it("caches repeated sharing-cloud access-index reads between node polls", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await switchStoredAlisioCloudUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        accessToken: "access-owner",
+        plan: "plus",
+      });
+      const { fetchMock } = createSharingCloudFetchMock();
+      vi.stubGlobal("fetch", fetchMock);
+      __testing.resetAlisioSharingCloudReadCache();
+      __testing.setAlisioSharingCloudReadTimingForTests({
+        timeoutMs: 200,
+        cacheTtlMs: 60_000,
+      });
+      try {
+        const input = {
+          targets: [createSharingTarget("owner-device", "Owner Device")],
+        };
+
+        await getAlisioSharingTargetAccessIndex(input, env);
+        const firstReadCallCount = fetchMock.mock.calls.length;
+
+        expect(firstReadCallCount).toBeGreaterThan(0);
+
+        await getAlisioSharingTargetAccessIndex(input, env);
+
+        expect(fetchMock).toHaveBeenCalledTimes(firstReadCallCount);
+      } finally {
+        __testing.resetAlisioSharingCloudReadCache();
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  it("falls back to stale sharing-cloud cache when a refresh stalls", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await switchStoredAlisioCloudUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        accessToken: "access-owner",
+        plan: "plus",
+      });
+      const { fetchMock: baseFetch } = createSharingCloudFetchMock();
+      let callCount = 0;
+      const delayedFetch = vi.fn<typeof fetch>(async (input, init) => {
+        callCount += 1;
+        if (callCount > 7) {
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+        return await baseFetch(input, init);
+      });
+
+      vi.stubGlobal("fetch", delayedFetch);
+      __testing.resetAlisioSharingCloudReadCache();
+      __testing.setAlisioSharingCloudReadTimingForTests({
+        timeoutMs: 20,
+        cacheTtlMs: 0,
+      });
+      try {
+        const input = {
+          targets: [createSharingTarget("owner-device", "Owner Device")],
+        };
+
+        const first = await getAlisioSharingTargetAccessIndex(input, env);
+        const startedAt = Date.now();
+        const second = await getAlisioSharingTargetAccessIndex(input, env);
+        const elapsedMs = Date.now() - startedAt;
+
+        expect(first["owner-device"]).toMatchObject({
+          targetId: "owner-device",
+        });
+        expect(second["owner-device"]).toMatchObject({
+          targetId: "owner-device",
+        });
+        expect(elapsedMs).toBeLessThan(100);
+      } finally {
+        __testing.resetAlisioSharingCloudReadCache();
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
   it("persists denied requests with canonical audit actions", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);

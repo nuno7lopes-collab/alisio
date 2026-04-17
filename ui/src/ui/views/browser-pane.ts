@@ -1,5 +1,6 @@
 import { html } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { t } from "../../i18n/index.ts";
 import {
   getBrowserPaneAvailableSurfaces,
   resolveBrowserPaneSurface,
@@ -9,6 +10,8 @@ import {
 } from "../controllers/browser-pane.ts";
 import { icons } from "../icons.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
+
+const chatText = (key: string) => t(`alisio.chat.${key}`);
 
 export type BrowserPaneProps = {
   observer?: BrowserPaneObserver | null;
@@ -22,9 +25,9 @@ export type BrowserPaneProps = {
 function getBrowserPaneLabel(kind: BrowserPaneSurfaceKind): string {
   switch (kind) {
     case "observer":
-      return "Browser";
+      return chatText("browserPane.surfaces.observer");
     case "markdown":
-      return "Tool Output";
+      return chatText("browserPane.surfaces.markdown");
   }
 }
 
@@ -40,33 +43,33 @@ export function renderBrowserPane(props: BrowserPaneProps) {
   });
   const selectedSurface = surface?.kind ?? null;
   const title =
-    selectedSurface && available.length <= 1 ? getBrowserPaneLabel(selectedSurface) : "Right Pane";
+    selectedSurface && available.length <= 1
+      ? getBrowserPaneLabel(selectedSurface)
+      : chatText("browserPane.title");
 
   return html`
-    <div class="sidebar-panel browser-pane">
-      <div class="sidebar-header">
-        <div style="display: flex; min-width: 0; align-items: center; gap: 10px;">
-          <div class="sidebar-title">${title}</div>
+    <div class="browser-pane browser-pane__panel">
+      <div class="browser-pane__header">
+        <div class="browser-pane__header-main">
+          <div class="browser-pane__title">${title}</div>
           ${available.length > 1 && props.onSelectSurface
             ? html`
                 <div
                   class="browser-pane__switch"
                   role="tablist"
-                  aria-label="Pane surface"
-                  style="display: inline-flex; gap: 6px;"
+                  aria-label=${chatText("browserPane.surfacePicker")}
                 >
                   ${available.map((kind) => {
                     const active = selectedSurface === kind;
                     return html`
                       <button
-                        class="btn btn--sm"
+                        class="btn btn--sm browser-pane__switch-button ${active
+                          ? "browser-pane__switch-button--active"
+                          : ""}"
                         type="button"
                         role="tab"
                         aria-selected=${active ? "true" : "false"}
                         @click=${() => props.onSelectSurface?.(kind)}
-                        style=${active
-                          ? "background: color-mix(in srgb, var(--accent) 18%, var(--panel));"
-                          : ""}
                       >
                         ${getBrowserPaneLabel(kind)}
                       </button>
@@ -76,24 +79,27 @@ export function renderBrowserPane(props: BrowserPaneProps) {
               `
             : null}
         </div>
-        <button @click=${props.onClose} class="btn" title="Close pane" aria-label="Close pane">
+        <button
+          @click=${props.onClose}
+          class="btn browser-pane__close"
+          title=${chatText("browserPane.close")}
+          aria-label=${chatText("browserPane.close")}
+        >
           ${icons.x}
         </button>
       </div>
       <div
-        class="sidebar-content"
-        style=${surface?.kind === "observer"
-          ? "display: flex; min-height: 0; flex-direction: column;"
-          : ""}
+        class="browser-pane__content ${surface?.kind === "observer"
+          ? "browser-pane__content--observer"
+          : ""}"
       >
         ${surface?.kind === "observer"
           ? html`
               <iframe
                 class="browser-pane__iframe"
-                title=${surface.observer.label ?? "Browser observer"}
+                title=${surface.observer.label ?? chatText("browserPane.observerTitle")}
                 src=${surface.observer.url}
                 referrerpolicy="no-referrer"
-                style="width: 100%; min-height: 420px; flex: 1 1 0; border: 0; border-radius: 16px; background: #05070b;"
               ></iframe>
             `
           : surface?.kind === "markdown"
@@ -102,8 +108,8 @@ export function renderBrowserPane(props: BrowserPaneProps) {
                   <div class="callout danger">${surface.error}</div>
                   ${props.onViewRawText
                     ? html`
-                        <button @click=${props.onViewRawText} class="btn" style="margin-top: 12px;">
-                          View Raw Text
+                        <button @click=${props.onViewRawText} class="btn browser-pane__raw-action">
+                          ${chatText("browserPane.viewRawText")}
                         </button>
                       `
                     : null}
@@ -112,8 +118,12 @@ export function renderBrowserPane(props: BrowserPaneProps) {
                 ? html`<div class="sidebar-markdown">
                     ${unsafeHTML(toSanitizedMarkdownHtml(surface.content))}
                   </div>`
-                : html`<div class="muted">No content available</div>`
-            : html`<div class="muted">No pane surface available</div>`}
+                : html`<div class="muted browser-pane__empty">
+                    ${chatText("browserPane.noContent")}
+                  </div>`
+            : html`<div class="muted browser-pane__empty">
+                ${chatText("browserPane.unavailable")}
+              </div>`}
       </div>
     </div>
   `;

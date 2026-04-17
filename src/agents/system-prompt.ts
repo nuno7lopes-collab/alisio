@@ -524,13 +524,13 @@ export function buildAgentSystemPrompt(params: {
             : "",
           params.sandboxInfo.browserBridgeUrl ? "Sandbox browser: enabled." : "",
           params.sandboxInfo.browserNoVncUrl
-            ? `Sandbox browser observer (noVNC): ${sanitizeForPromptLiteral(params.sandboxInfo.browserNoVncUrl)}`
+            ? "Sandbox browser observer: visible in the app UI."
             : "",
           params.sandboxInfo.browserBridgeUrl
-            ? "When you use the browser tool in this session, prefer the sandbox browser and omit `target` unless the user explicitly asks for the host browser or an existing logged-in host profile."
+            ? 'When the user asks to open, search, click, type, scroll, or browse, use the sandbox browser by default and do it immediately. Omit `target` in normal use. Do not ask whether to use sandbox or host unless the user explicitly asks for the host browser or an existing logged-in host profile.'
             : "",
           !params.sandboxInfo.browserBridgeUrl && params.sandboxInfo.hostBrowserAllowed === false
-            ? "Sandbox browser policy is still sandbox-first. If the live browser bridge is temporarily unavailable, do not switch to `target=\"host\"`; wait/retry the sandbox browser instead."
+            ? 'Sandbox browser policy is still sandbox-first. If the live browser bridge is temporarily unavailable, do not switch to `target="host"` and do not ask the user to choose; wait or retry the sandbox browser instead.'
             : "",
           params.sandboxInfo.hostBrowserAllowed === true
             ? "Host browser control: allowed."

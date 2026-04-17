@@ -79,13 +79,13 @@ cp docs/reference/AGENTS.default.md ~/.alisio/workspace/AGENTS.md
 
 ## Backup tip (recommended)
 
-If you treat this workspace as Clawd’s “memory”, make it a git repo (ideally private) so `AGENTS.md` and your memory files are backed up.
+If you treat this workspace as Alisio’s “memory”, make it a git repo (ideally private) so `AGENTS.md` and your memory files are backed up.
 
 ```bash
 cd ~/.alisio/workspace
 git init
 git add AGENTS.md
-git commit -m "Add Clawd workspace"
+git commit -m "Add Alisio workspace"
 # Optional: add a private remote + push
 ```
 

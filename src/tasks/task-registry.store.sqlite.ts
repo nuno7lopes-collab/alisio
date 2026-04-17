@@ -13,6 +13,7 @@ import type {
   TaskDependency,
   TaskEvent,
   TaskExecution,
+  TaskExecutionStep,
 } from "./task-service.types.js";
 
 type TaskRegistryRow = {
@@ -151,6 +152,19 @@ type TaskEventRow = {
   created_at: number | bigint;
 };
 
+type TaskExecutionStepRow = {
+  step_id: string;
+  task_id: string;
+  execution_id: string | null;
+  kind: TaskExecutionStep["kind"];
+  status: TaskExecutionStep["status"];
+  actor: string | null;
+  tool: string | null;
+  summary: string | null;
+  data_json: string | null;
+  created_at: number | bigint;
+};
+
 type TaskDependencyRow = {
   dependency_id: string;
   task_id: string;
@@ -182,6 +196,8 @@ type TaskRegistryStatements = {
   upsertTaskApproval: StatementSync;
   selectEventsByTaskId: StatementSync;
   insertTaskEvent: StatementSync;
+  selectStepsByTaskId: StatementSync;
+  insertTaskExecutionStep: StatementSync;
   selectDependenciesByTaskId: StatementSync;
   upsertTaskDependency: StatementSync;
   upsertRow: StatementSync;
@@ -543,6 +559,36 @@ function bindTaskEvent(event: TaskEvent) {
     summary: event.summary ?? null,
     data_json: event.dataJson ?? null,
     created_at: event.createdAt,
+  };
+}
+
+function rowToTaskExecutionStep(row: TaskExecutionStepRow): TaskExecutionStep {
+  return {
+    stepId: row.step_id,
+    taskId: row.task_id,
+    ...(row.execution_id ? { executionId: row.execution_id } : {}),
+    kind: row.kind,
+    status: row.status,
+    ...(row.actor ? { actor: row.actor } : {}),
+    ...(row.tool ? { tool: row.tool } : {}),
+    ...(row.summary ? { summary: row.summary } : {}),
+    ...(row.data_json ? { dataJson: row.data_json } : {}),
+    createdAt: normalizeNumber(row.created_at) ?? 0,
+  };
+}
+
+function bindTaskExecutionStep(step: TaskExecutionStep) {
+  return {
+    step_id: step.stepId,
+    task_id: step.taskId,
+    execution_id: step.executionId ?? null,
+    kind: step.kind,
+    status: step.status,
+    actor: step.actor ?? null,
+    tool: step.tool ?? null,
+    summary: step.summary ?? null,
+    data_json: step.dataJson ?? null,
+    created_at: step.createdAt,
   };
 }
 
@@ -1160,6 +1206,57 @@ function createStatements(db: DatabaseSync): TaskRegistryStatements {
         data_json = excluded.data_json,
         created_at = excluded.created_at
     `),
+    selectStepsByTaskId: db.prepare(`
+      SELECT
+        step_id,
+        task_id,
+        execution_id,
+        kind,
+        status,
+        actor,
+        tool,
+        summary,
+        data_json,
+        created_at
+      FROM task_execution_steps
+      WHERE task_id = ?
+      ORDER BY created_at ASC, step_id ASC
+    `),
+    insertTaskExecutionStep: db.prepare(`
+      INSERT INTO task_execution_steps (
+        step_id,
+        task_id,
+        execution_id,
+        kind,
+        status,
+        actor,
+        tool,
+        summary,
+        data_json,
+        created_at
+      ) VALUES (
+        @step_id,
+        @task_id,
+        @execution_id,
+        @kind,
+        @status,
+        @actor,
+        @tool,
+        @summary,
+        @data_json,
+        @created_at
+      )
+      ON CONFLICT(step_id) DO UPDATE SET
+        task_id = excluded.task_id,
+        execution_id = excluded.execution_id,
+        kind = excluded.kind,
+        status = excluded.status,
+        actor = excluded.actor,
+        tool = excluded.tool,
+        summary = excluded.summary,
+        data_json = excluded.data_json,
+        created_at = excluded.created_at
+    `),
     selectDependenciesByTaskId: db.prepare(`
       SELECT
         dependency_id,
@@ -1436,6 +1533,20 @@ function ensureSchema(db: DatabaseSync) {
     );
   `);
   db.exec(`
+    CREATE TABLE IF NOT EXISTS task_execution_steps (
+      step_id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      execution_id TEXT,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      actor TEXT,
+      tool TEXT,
+      summary TEXT,
+      data_json TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
+  db.exec(`
     CREATE TABLE IF NOT EXISTS task_dependencies (
       dependency_id TEXT PRIMARY KEY,
       task_id TEXT NOT NULL,
@@ -1543,6 +1654,12 @@ function ensureSchema(db: DatabaseSync) {
     `CREATE INDEX IF NOT EXISTS idx_task_approvals_task_status ON task_approvals(task_id, status);`,
   );
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_events_task_id ON task_events(task_id);`);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_execution_steps_task_id ON task_execution_steps(task_id);`,
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_task_execution_steps_execution_id ON task_execution_steps(execution_id);`,
+  );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_task_dependencies_task_id ON task_dependencies(task_id);`,
   );
@@ -1799,6 +1916,18 @@ export function listTaskEventsFromSqlite(taskId: string): TaskEvent[] {
 export function insertTaskEventToSqlite(event: TaskEvent) {
   const store = openTaskRegistryDatabase();
   store.statements.insertTaskEvent.run(bindTaskEvent(event));
+  ensureTaskRegistryPermissions(store.path);
+}
+
+export function listTaskExecutionStepsFromSqlite(taskId: string): TaskExecutionStep[] {
+  const { statements } = openTaskRegistryDatabase();
+  const rows = statements.selectStepsByTaskId.all(taskId) as TaskExecutionStepRow[];
+  return rows.map((row) => rowToTaskExecutionStep(row));
+}
+
+export function insertTaskExecutionStepToSqlite(step: TaskExecutionStep) {
+  const store = openTaskRegistryDatabase();
+  store.statements.insertTaskExecutionStep.run(bindTaskExecutionStep(step));
   ensureTaskRegistryPermissions(store.path);
 }
 

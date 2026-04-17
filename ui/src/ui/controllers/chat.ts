@@ -1,3 +1,4 @@
+import { stripInboundMetadata } from "../../../../src/auto-reply/reply/strip-inbound-meta.js";
 import { resetToolStream } from "../app-tool-stream.ts";
 import { isImageChatAttachmentMimeType } from "../chat/attachment-support.ts";
 import { extractText } from "../chat/message-extract.ts";
@@ -13,6 +14,7 @@ import {
 
 const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
 const PENDING_CHAT_SEND_STALE_MS = 15_000;
+const USER_TURN_BURST_DEDUPE_WINDOW_MS = 30_000;
 
 function isSilentReplyStream(text: string): boolean {
   return SILENT_REPLY_PATTERN.test(text);
@@ -208,7 +210,7 @@ function extractComparableMessageText(message: unknown): string {
   }
   // Back-compat for older optimistic sends that encoded attachment summaries
   // as text instead of structured attachment blocks.
-  return text
+  return stripInboundMetadata(text)
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => !/^attachments?:\s/i.test(line))
@@ -563,6 +565,70 @@ function findEquivalentMessageIndex(messages: unknown[], candidate: unknown): nu
   return -1;
 }
 
+function buildBurstDuplicateUserFingerprint(message: unknown): string | null {
+  if (normalizeComparableRole(message) !== "user") {
+    return null;
+  }
+  const text = extractComparableMessageText(message);
+  const mediaCount = resolveComparableMediaCount(message);
+  if (!text && mediaCount <= 0) {
+    return null;
+  }
+  return JSON.stringify({
+    mediaCount,
+    text,
+  });
+}
+
+function shouldDropBurstDuplicateUserMessage(messages: unknown[], candidate: unknown): boolean {
+  const candidateFingerprint = buildBurstDuplicateUserFingerprint(candidate);
+  if (!candidateFingerprint) {
+    return false;
+  }
+  const candidateTimestamp = getMessageTimestamp(candidate);
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const existing = messages[index];
+    if (buildBurstDuplicateUserFingerprint(existing) !== candidateFingerprint) {
+      continue;
+    }
+    const existingTimestamp = getMessageTimestamp(existing);
+    if (candidateTimestamp === null || existingTimestamp === null) {
+      return true;
+    }
+    return Math.abs(candidateTimestamp - existingTimestamp) <= USER_TURN_BURST_DEDUPE_WINDOW_MS;
+  }
+  return false;
+}
+
+function findRecentEquivalentUserTurn(
+  messages: unknown[],
+  candidate: { text: string; mediaCount: number; timestamp: number },
+): { runId: string | null } | null {
+  const normalizedText = candidate.text.trim().replace(/\s+/g, " ");
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const existing = messages[index];
+    if (normalizeComparableRole(existing) !== "user") {
+      continue;
+    }
+    const existingTimestamp = getMessageTimestamp(existing);
+    if (
+      existingTimestamp !== null &&
+      Math.abs(candidate.timestamp - existingTimestamp) > USER_TURN_BURST_DEDUPE_WINDOW_MS
+    ) {
+      continue;
+    }
+    const existingText = extractComparableMessageText(existing).trim().replace(/\s+/g, " ");
+    const existingMediaCount = resolveComparableMediaCount(existing);
+    if (existingText !== normalizedText || existingMediaCount !== candidate.mediaCount) {
+      continue;
+    }
+    return {
+      runId: resolveComparableStableId(existing),
+    };
+  }
+  return null;
+}
+
 function mergeUnmatchedMessageSlices(localSlice: unknown[], historySlice: unknown[]): unknown[] {
   if (localSlice.length === 0) {
     return historySlice;
@@ -671,10 +737,15 @@ function mergeLocalPendingMessagesIntoHistory(
 
 function appendChatMessageIfDistinct(state: ChatState, message: unknown): void {
   const previous = state.chatMessages.at(-1);
-  if (previous && isDuplicateAdjacentMessage(previous, message)) {
+  if (
+    (previous &&
+      (isDuplicateAdjacentMessage(previous, message) ||
+        isLikelyRetryDuplicateAdjacentMessage(previous, message))) ||
+    shouldDropBurstDuplicateUserMessage(state.chatMessages, message)
+  ) {
     return;
   }
-  state.chatMessages = [...state.chatMessages, message];
+  state.chatMessages = dedupeAdjacentChatMessages([...state.chatMessages, message]);
 }
 
 function upsertChatMessage(state: ChatState, message: unknown): void {
@@ -1113,6 +1184,16 @@ export async function sendChatMessage(
   if (existingRunId) {
     return existingRunId;
   }
+  if (state.chatRunId || state.chatFinalizing) {
+    const recentEquivalentTurn = findRecentEquivalentUserTurn(state.chatMessages, {
+      text: msg,
+      mediaCount: normalizedAttachments.length,
+      timestamp: now,
+    });
+    if (recentEquivalentTurn) {
+      return state.chatRunId ?? recentEquivalentTurn.runId ?? null;
+    }
+  }
   const runId = generateUUID();
   rememberPendingChatSend(state, {
     fingerprint,
@@ -1149,15 +1230,12 @@ export async function sendChatMessage(
     }
   }
 
-  state.chatMessages = [
-    ...state.chatMessages,
-    {
-      role: "user",
-      content: contentBlocks,
-      timestamp: now,
-      idempotencyKey: runId,
-    },
-  ];
+  appendChatMessageIfDistinct(state, {
+    role: "user",
+    content: contentBlocks,
+    timestamp: now,
+    idempotencyKey: runId,
+  });
 
   state.chatSending = true;
   state.lastError = null;
@@ -1205,16 +1283,16 @@ export async function sendChatMessage(
     state.chatRuntimeSetupHint = runtimeSetupHint;
     state.lastError = runtimeSetupHint?.message ?? error;
     if (!runtimeSetupHint) {
-      state.chatMessages = [
-        ...state.chatMessages,
-        {
-          role: "assistant",
-          content: [{ type: "text", text: "Error: " + error }],
-          timestamp: Date.now(),
-        },
-      ];
+      appendChatMessageIfDistinct(state, {
+        role: "assistant",
+        content: [{ type: "text", text: "Error: " + error }],
+        timestamp: Date.now(),
+      });
     }
     clearPendingChatSendByRunId(state, runId);
+    state.chatMessages = dedupeAdjacentChatMessages(
+      collapseInvisibleRetryHistoryArtifacts(state.chatMessages),
+    );
     return null;
   } finally {
     state.chatSending = false;
@@ -1326,6 +1404,9 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatFinalizing = false;
     state.chatRuntimeSetupHint = runtimeSetupHint;
     state.lastError = runtimeSetupHint?.message ?? payload.errorMessage ?? "chat error";
+    state.chatMessages = dedupeAdjacentChatMessages(
+      collapseInvisibleRetryHistoryArtifacts(state.chatMessages),
+    );
   }
   return payload.state;
 }

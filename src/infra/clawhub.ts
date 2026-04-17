@@ -424,10 +424,16 @@ export function parseClawHubPluginSpec(raw: string): {
   baseUrl?: string;
 } | null {
   const trimmed = raw.trim();
-  if (!trimmed.toLowerCase().startsWith("clawhub:")) {
+  const lower = trimmed.toLowerCase();
+  const prefix = lower.startsWith("marketplace:")
+    ? "marketplace:"
+    : lower.startsWith("clawhub:")
+      ? "clawhub:"
+      : null;
+  if (!prefix) {
     return null;
   }
-  const spec = trimmed.slice("clawhub:".length).trim();
+  const spec = trimmed.slice(prefix.length).trim();
   if (!spec) {
     return null;
   }

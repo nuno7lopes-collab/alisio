@@ -6,6 +6,7 @@ import {
   resolveToolUseId,
 } from "../../../../src/chat/tool-content.js";
 import { canonicalToolStreamMarkerKey } from "../../brand-compat.ts";
+import { t } from "../../i18n/index.ts";
 import { truncateText } from "../format.ts";
 import { icons } from "../icons.ts";
 import { formatToolDetail, resolveToolDisplay } from "../tool-display.ts";
@@ -43,6 +44,8 @@ type ConnectorAuthRequiredDetails = {
   message?: string;
   reconnectRequired?: boolean;
 };
+
+const chatText = (key: string, params?: Record<string, string>) => t(`alisio.chat.${key}`, params);
 
 function extractToolMessageMeta(message: unknown): {
   toolCallId?: string;
@@ -273,7 +276,12 @@ function renderConnectorAuthCallout(
                   onBeginConnector(details.connectorId);
                 }}
               >
-                ${details.reconnectRequired ? "Reconnect" : "Connect"} ${providerLabel}
+                ${chatText(
+                  details.reconnectRequired
+                    ? "toolCards.actions.reconnectProvider"
+                    : "toolCards.actions.connectProvider",
+                  { provider: providerLabel },
+                )}
               </button>
             </div>
           `
@@ -419,22 +427,30 @@ function resolveToolState(entry: ToolTimelineEntry): ToolState {
   const authRequired = readConnectorAuthRequiredDetails(entry.details);
   if (authRequired) {
     return {
-      label: authRequired.reconnectRequired ? "Reconnect" : "Needs auth",
+      label: authRequired.reconnectRequired
+        ? chatText("toolCards.states.reconnect")
+        : chatText("toolCards.states.needsAuth"),
       tone: "error",
       icon: "x",
     };
   }
   const outputText = stringifyToolValue(entry.text);
   if (entry.phase === "start" || entry.phase === "update") {
-    return { label: "Running", tone: "active", icon: "loader" };
+    return { label: chatText("toolCards.states.running"), tone: "active", icon: "loader" };
   }
   if (entry.isError) {
     const rejected =
       typeof outputText === "string" &&
       (/\brejected\b/i.test(outputText) || /"status"\s*:\s*"rejected"/i.test(outputText));
-    return { label: rejected ? "Rejected" : "Error", tone: "error", icon: "x" };
+    return {
+      label: rejected
+        ? chatText("toolCards.states.rejected")
+        : chatText("toolCards.states.error"),
+      tone: "error",
+      icon: "x",
+    };
   }
-  return { label: "Done", tone: "done", icon: "check" };
+  return { label: chatText("toolCards.states.done"), tone: "done", icon: "check" };
 }
 
 function stringifyToolValue(value: unknown): string | null {
@@ -458,6 +474,44 @@ function renderToolSection(label: string, value: string, tone: "input" | "output
       <div class="chat-tool-card__section-label">${label}</div>
       <pre class="chat-tool-card__section-content mono"><code>${value}</code></pre>
     </section>
+  `;
+}
+
+function getToolSectionLabel(tone: "input" | "output" | "error"): string {
+  switch (tone) {
+    case "input":
+      return chatText("toolCards.sections.input");
+    case "error":
+      return chatText("toolCards.sections.error");
+    case "output":
+    default:
+      return chatText("toolCards.sections.output");
+  }
+}
+
+function getToolCopyLabel(hasOutput: boolean): string {
+  return chatText(hasOutput ? "toolCards.actions.copyOutput" : "toolCards.actions.copyInput");
+}
+
+function getToolOpenLabel(hasOutput: boolean): string {
+  return chatText(hasOutput ? "toolCards.actions.viewOutput" : "toolCards.actions.viewInput");
+}
+
+function renderToolFooterActionButton(params: {
+  label: string;
+  icon: unknown;
+  onClick: (event: Event) => void;
+}) {
+  return html`
+    <button
+      class="btn btn--xs chat-tool-card__open"
+      type="button"
+      title=${params.label}
+      aria-label=${params.label}
+      @click=${params.onClick}
+    >
+      <span class="chat-tool-card__open-icon" aria-hidden="true">${params.icon}</span>
+    </button>
   `;
 }
 
@@ -493,9 +547,8 @@ function renderToolTimelineEntry(
   const state = resolveToolState(entry);
   const authRequired = readConnectorAuthRequiredDetails(entry.details);
   const openText = output.full ?? input.full;
+  const hasOutput = Boolean(output.full);
   const canOpenSidebar = Boolean(onOpenSidebar && openText);
-  // Keep tool cards collapsed by default; users can expand them manually if needed.
-  const shouldOpen = false;
   const openSidebar = () => {
     if (!canOpenSidebar || !openText) {
       return;
@@ -504,10 +557,7 @@ function renderToolTimelineEntry(
   };
 
   return html`
-    <details
-      class="chat-tool-card chat-tool-card__details chat-tool-card__details--${state.tone}"
-      ?open=${shouldOpen}
-    >
+    <details class="chat-tool-card chat-tool-card__details chat-tool-card__details--${state.tone}">
       <summary class="chat-tool-card__summary">
         <span class="chat-tool-card__summary-left">
           <span class="chat-tool-card__chevron">${icons.chevronRight}</span>
@@ -524,39 +574,35 @@ function renderToolTimelineEntry(
       </summary>
       <div class="chat-tool-card__body">
         ${authRequired ? renderConnectorAuthCallout(authRequired, onBeginConnector) : nothing}
-        ${input.preview ? renderToolSection("Input", input.preview, "input") : nothing}
+        ${input.preview
+          ? renderToolSection(getToolSectionLabel("input"), input.preview, "input")
+          : nothing}
         ${!authRequired && output.preview
           ? renderToolSection(
-              state.tone === "error" ? "Error" : "Output",
+              getToolSectionLabel(state.tone === "error" ? "error" : "output"),
               output.preview,
               state.tone === "error" ? "error" : "output",
             )
           : state.tone === "active"
-            ? html` <div class="chat-tool-card__pending">Waiting for tool output.</div> `
+            ? html`
+                <div class="chat-tool-card__pending">${chatText("toolCards.pending")}</div>
+              `
             : nothing}
         ${openText
           ? html`
               <div class="chat-tool-card__footer">
                 <div class="chat-tool-card__footer-actions">
-                  ${renderCopyButton(openText, output.full ? "Copy output" : "Copy input")}
+                  ${renderCopyButton(openText, getToolCopyLabel(hasOutput))}
                   ${canOpenSidebar
-                    ? html`
-                        <button
-                          class="btn btn--xs chat-tool-card__open"
-                          type="button"
-                          title=${output.full ? "View full output" : "View full input"}
-                          aria-label=${output.full ? "View full output" : "View full input"}
-                          @click=${(event: Event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            openSidebar();
-                          }}
-                        >
-                          <span class="chat-tool-card__open-icon" aria-hidden="true">
-                            ${icons.panelRightOpen}
-                          </span>
-                        </button>
-                      `
+                    ? renderToolFooterActionButton({
+                        label: getToolOpenLabel(hasOutput),
+                        icon: icons.panelRightOpen,
+                        onClick: (event: Event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openSidebar();
+                        },
+                      })
                     : nothing}
                 </div>
               </div>

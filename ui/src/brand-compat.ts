@@ -1,5 +1,5 @@
 export const canonicalToolStreamMarkerKey = "__alisio";
-export const canonicalDocsOrigin = "https://docs.alisio.pt";
+export const canonicalDocsOrigin = "https://docs.alisio.ai";
 
 export const canonicalSkillSources = {
   bundled: "alisio-bundled",
@@ -9,20 +9,12 @@ export const canonicalSkillSources = {
   extra: "alisio-extra",
 } as const;
 
-const legacySkillSourceAliases: Record<string, string> = {
-  "openclaw-bundled": canonicalSkillSources.bundled,
-  "openclaw-managed": canonicalSkillSources.managed,
-  "openclaw-workspace": canonicalSkillSources.workspace,
-  "openclaw-plugin": canonicalSkillSources.plugin,
-  "openclaw-extra": canonicalSkillSources.extra,
-};
-
 export function normalizeSkillSource(source: string): string {
   const normalized = source.trim();
   if (!normalized) {
     return "unknown";
   }
-  return legacySkillSourceAliases[normalized] ?? normalized;
+  return normalized;
 }
 
 export const commandPrefixPattern = /^(?:alisio)\s+|^\/start(?:@[a-z0-9_]+)?(?:\s+.+)?$/i;

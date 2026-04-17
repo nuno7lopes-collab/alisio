@@ -560,8 +560,17 @@ extension GatewayConnection {
     }
 
     func healthOK(timeoutMs: Int = 8000) async throws -> Bool {
-        let data = try await self.requestRaw(method: .health, timeoutMs: Double(timeoutMs))
-        return (try? self.decoder.decode(AlisioGatewayHealthOK.self, from: data))?.ok ?? true
+        do {
+            let data = try await self.requestRaw(method: .health, timeoutMs: Double(timeoutMs))
+            return (try? self.decoder.decode(AlisioGatewayHealthOK.self, from: data))?.ok ?? true
+        } catch {
+            // Some gateway builds can serve the control UI and websocket correctly while the
+            // dedicated `health` RPC is still unavailable or timing out during startup/restart.
+            // Treat a successful `status` RPC as sufficient liveness for the ControlChannel so
+            // the shell does not flap into Offline/Reconnecting while the gateway is otherwise usable.
+            _ = try await self.requestRaw(method: .status, timeoutMs: Double(timeoutMs))
+            return true
+        }
     }
 
     // MARK: - Skills

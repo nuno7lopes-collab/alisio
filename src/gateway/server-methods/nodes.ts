@@ -62,6 +62,7 @@ const NODE_WAKE_THROTTLE_MS = 15_000;
 const NODE_WAKE_NUDGE_THROTTLE_MS = 10 * 60_000;
 const NODE_PENDING_ACTION_TTL_MS = 10 * 60_000;
 const NODE_PENDING_ACTION_MAX_PER_NODE = 64;
+const NODE_LIST_CACHE_TTL_MS = 60_000;
 
 type NodeWakeState = {
   lastWakeAtMs: number;
@@ -99,6 +100,132 @@ type PendingNodeAction = {
 };
 
 const pendingNodeActionsById = new Map<string, PendingNodeAction[]>();
+let cachedVisibleNodeList:
+  | {
+      expiresAtMs: number;
+      payload: { ts: number; nodes: ReturnType<typeof listKnownNodes> };
+    }
+  | undefined;
+let inflightVisibleNodeList:
+  | Promise<{ ts: number; nodes: ReturnType<typeof listKnownNodes> }>
+  | undefined;
+
+type NodeSharingTarget = {
+  targetId: string;
+  computerId?: string;
+  computerLabel?: string;
+  label: string;
+  platform?: string;
+  sourceKind: "node";
+  connected: boolean;
+  current: false;
+};
+
+function clearVisibleNodeListCache() {
+  cachedVisibleNodeList = undefined;
+  inflightVisibleNodeList = undefined;
+}
+
+function buildDegradedNodeAccessIndex(targets: readonly NodeSharingTarget[]) {
+  const timestamp = new Date().toISOString();
+  return Object.fromEntries(
+    targets.map((target) => [
+      target.targetId,
+      {
+        ...target,
+        ownerKey: "user:degraded-runtime",
+        ownerScope: "user" as const,
+        ownerLabel: "Current user",
+        registeredAt: timestamp,
+        updatedAt: timestamp,
+        deviceAccess: "owner" as const,
+        modelAccess: "owner" as const,
+        execAccess: "owner" as const,
+      },
+    ]),
+  );
+}
+
+async function loadNodeSharingAccessIndex(targets: readonly NodeSharingTarget[]) {
+  if (targets.length === 0) {
+    return {};
+  }
+  try {
+    return await getAlisioSharingTargetAccessIndex({ targets: [...targets] });
+  } catch {
+    // Paired-node visibility should degrade locally when optional cloud sharing
+    // state is stale instead of pushing the whole control UI into reconnecting.
+    return buildDegradedNodeAccessIndex(targets);
+  }
+}
+
+async function loadVisibleNodeList(
+  context: Parameters<NonNullable<GatewayRequestHandlers["node.list"]>>[0]["context"],
+) {
+  const now = Date.now();
+  if (cachedVisibleNodeList && cachedVisibleNodeList.expiresAtMs > now) {
+    return cachedVisibleNodeList.payload;
+  }
+  if (cachedVisibleNodeList) {
+    // Node inventory is auxiliary UI state. Once we have a usable snapshot,
+    // serve it immediately and refresh in the background instead of letting a
+    // slow sharing/index probe push the whole control UI into reconnecting.
+    inflightVisibleNodeList ??= (async () => {
+      const payload = await refreshVisibleNodeList(context);
+      return payload;
+    })().finally(() => {
+      inflightVisibleNodeList = undefined;
+    });
+    void inflightVisibleNodeList.catch(() => undefined);
+    return cachedVisibleNodeList.payload;
+  }
+  if (inflightVisibleNodeList) {
+    return await inflightVisibleNodeList;
+  }
+  inflightVisibleNodeList = (async () => {
+    const payload = await refreshVisibleNodeList(context);
+    return payload;
+  })().finally(() => {
+    inflightVisibleNodeList = undefined;
+  });
+  return await inflightVisibleNodeList;
+}
+
+async function refreshVisibleNodeList(
+  context: Parameters<NonNullable<GatewayRequestHandlers["node.list"]>>[0]["context"],
+) {
+  const list = await listDevicePairing();
+  const catalog = createKnownNodeCatalog({
+    pairedDevices: list.paired,
+    connectedNodes: context.nodeRegistry.listConnected(),
+  });
+  const nodes = listKnownNodes(catalog);
+  const accessIndex = await loadNodeSharingAccessIndex(
+    nodes.map((node) => ({
+      targetId: node.nodeId,
+      computerId: node.computerId,
+      computerLabel: node.computerLabel,
+      label: node.displayName ?? node.nodeId,
+      platform: node.platform,
+      sourceKind: "node" as const,
+      connected: node.connected === true,
+      current: false as const,
+    })),
+  );
+  const visibleNodes = nodes.filter((node) => {
+    const access = accessIndex[node.nodeId];
+    return access?.execAccess === "owner" || access?.execAccess === "shared";
+  });
+  const payload = {
+    ts: Date.now(),
+    nodes: visibleNodes,
+  };
+  cachedVisibleNodeList = {
+    expiresAtMs: Date.now() + NODE_LIST_CACHE_TTL_MS,
+    payload,
+  };
+  return payload;
+}
 
 async function resolveDirectNodePushConfig() {
   const auth = await resolveApnsAuthConfigFromEnv(process.env);
@@ -575,20 +702,18 @@ async function resolveKnownNodeSharingAccess(params: {
   if (!node) {
     return null;
   }
-  const accessIndex = await getAlisioSharingTargetAccessIndex({
-    targets: [
-      {
-        targetId: node.nodeId,
-        computerId: node.computerId,
-        computerLabel: node.computerLabel,
-        label: node.displayName ?? node.nodeId,
-        platform: node.platform,
-        sourceKind: "node",
-        connected: node.connected === true,
-        current: false,
-      },
-    ],
-  });
+  const accessIndex = await loadNodeSharingAccessIndex([
+    {
+      targetId: node.nodeId,
+      computerId: node.computerId,
+      computerLabel: node.computerLabel,
+      label: node.displayName ?? node.nodeId,
+      platform: node.platform,
+      sourceKind: "node",
+      connected: node.connected === true,
+      current: false,
+    },
+  ]);
   return {
     node,
     access: accessIndex[node.nodeId] ?? null,
@@ -622,6 +747,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
         remoteIp: p.remoteIp,
         silent: p.silent,
       });
+      clearVisibleNodeListCache();
       if (result.status === "pending" && result.created) {
         context.broadcast("node.pair.requested", result.request, {
           dropIfSlow: true,
@@ -674,6 +800,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"));
         return;
       }
+      clearVisibleNodeListCache();
       const approvedNode = approved.node;
       context.broadcast(
         "node.pair.resolved",
@@ -704,6 +831,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"));
         return;
       }
+      clearVisibleNodeListCache();
       context.broadcast(
         "node.pair.resolved",
         {
@@ -759,6 +887,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
         return;
       }
+      clearVisibleNodeListCache();
       respond(true, { nodeId: updated.nodeId, displayName: updated.displayName }, undefined);
     });
   },
@@ -772,29 +901,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
       return;
     }
     await respondUnavailableOnThrow(respond, async () => {
-      const list = await listDevicePairing();
-      const catalog = createKnownNodeCatalog({
-        pairedDevices: list.paired,
-        connectedNodes: context.nodeRegistry.listConnected(),
-      });
-      const nodes = listKnownNodes(catalog);
-      const accessIndex = await getAlisioSharingTargetAccessIndex({
-        targets: nodes.map((node) => ({
-          targetId: node.nodeId,
-          computerId: node.computerId,
-          computerLabel: node.computerLabel,
-          label: node.displayName ?? node.nodeId,
-          platform: node.platform,
-          sourceKind: "node",
-          connected: node.connected === true,
-          current: false,
-        })),
-      });
-      const visibleNodes = nodes.filter((node) => {
-        const access = accessIndex[node.nodeId];
-        return access?.execAccess === "owner" || access?.execAccess === "shared";
-      });
-      respond(true, { ts: Date.now(), nodes: visibleNodes }, undefined);
+      respond(true, await loadVisibleNodeList(context), undefined);
     });
   },
   "node.describe": async ({ params, respond, context }) => {
@@ -823,20 +930,18 @@ export const nodeHandlers: GatewayRequestHandlers = {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
         return;
       }
-      const accessIndex = await getAlisioSharingTargetAccessIndex({
-        targets: [
-          {
-            targetId: node.nodeId,
-            computerId: node.computerId,
-            computerLabel: node.computerLabel,
-            label: node.displayName ?? node.nodeId,
-            platform: node.platform,
-            sourceKind: "node",
-            connected: node.connected === true,
-            current: false,
-          },
-        ],
-      });
+      const accessIndex = await loadNodeSharingAccessIndex([
+        {
+          targetId: node.nodeId,
+          computerId: node.computerId,
+          computerLabel: node.computerLabel,
+          label: node.displayName ?? node.nodeId,
+          platform: node.platform,
+          sourceKind: "node",
+          connected: node.connected === true,
+          current: false,
+        },
+      ]);
       const access = accessIndex[node.nodeId];
       if (!access || (access.execAccess !== "owner" && access.execAccess !== "shared")) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
@@ -1499,6 +1604,10 @@ export const nodeHandlers: GatewayRequestHandlers = {
       respond(true, { ok: true }, undefined);
     });
   },
+};
+
+export const __testing = {
+  clearVisibleNodeListCache,
 };
 
 function buildNodeCommandRejectionHint(

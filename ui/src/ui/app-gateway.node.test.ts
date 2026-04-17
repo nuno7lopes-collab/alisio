@@ -184,6 +184,7 @@ type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
   toolStreamOrder: string[];
   toolStreamSyncTimer: number | null;
   setBrowserPaneObserver: ReturnType<typeof vi.fn>;
+  notifyBrowserPaneActivity: ReturnType<typeof vi.fn>;
 };
 
 function createHost(): GatewayTestHost {
@@ -254,6 +255,7 @@ function createHost(): GatewayTestHost {
     updateAvailable: null,
     alisioModelOperations: {},
     setBrowserPaneObserver: vi.fn(),
+    notifyBrowserPaneActivity: vi.fn(),
   };
 }
 
@@ -286,6 +288,7 @@ function emitToolResultEvent(client: GatewayClientMock) {
 
 describe("connectGateway", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     gatewayClientInstances.length = 0;
     loadChatHistoryMock.mockClear();
     refreshActiveTabMock.mockClear();
@@ -562,6 +565,29 @@ describe("connectGateway", () => {
       url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
       label: "Observed browser",
     });
+  });
+
+  it("marks browser pane activity when browser tool events arrive", () => {
+    const { host, client } = connectHostGateway();
+
+    client.emitEvent({
+      event: "agent",
+      payload: {
+        runId: "engine-run-browser-1",
+        seq: 1,
+        stream: "tool",
+        ts: 1,
+        sessionKey: "main",
+        data: {
+          toolCallId: "tool-browser-1",
+          name: "browser",
+          phase: "result",
+          result: { text: "ok" },
+        },
+      },
+    });
+
+    expect(host.notifyBrowserPaneActivity).toHaveBeenCalledWith("main");
   });
 
   it("clears observer metadata when the gateway explicitly removes it", () => {
@@ -1055,6 +1081,39 @@ describe("connectGateway", () => {
     expect(gatewayClientInstances).toHaveLength(2);
     expect(host.lastError).toBe("Resyncing live state…");
     expect(host.lastErrorCode).toBeNull();
+  });
+
+  it("recreates the gateway client when reconnecting stays stuck without hello", () => {
+    vi.useFakeTimers();
+    const host = createHost();
+
+    connectGateway(host);
+    const firstClient = gatewayClientInstances[0];
+    expect(firstClient).toBeDefined();
+
+    firstClient.emitClose({ code: 1006, reason: "tick timeout" });
+    expect(host.lastError).toBe("Reconnecting…");
+
+    vi.advanceTimersByTime(12_000);
+
+    expect(gatewayClientInstances).toHaveLength(2);
+    expect(host.client).not.toBeNull();
+    expect(host.client).not.toBe(firstClient as never);
+  });
+
+  it("clears the reconnect watchdog once hello arrives", () => {
+    vi.useFakeTimers();
+    const host = createHost();
+
+    connectGateway(host);
+    const firstClient = gatewayClientInstances[0];
+    expect(firstClient).toBeDefined();
+
+    firstClient.emitHello();
+    vi.advanceTimersByTime(12_000);
+
+    expect(gatewayClientInstances).toHaveLength(1);
+    expect(host.lastError).toBeNull();
   });
 
   it("keeps shutdown restart reasons on service restart closes", () => {

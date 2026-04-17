@@ -27,12 +27,12 @@ Save to `~/.alisio/alisio.json` and you can DM the bot from that number.
 ### Recommended starter
 
 ```json5
-{
-  identity: {
-    name: "Clawd",
-    theme: "helpful assistant",
-    emoji: "🦞",
-  },
+  {
+    identity: {
+      name: "Alisio",
+      theme: "helpful assistant",
+      emoji: "🦞",
+    },
   agent: {
     workspace: "~/.alisio/workspace",
     model: { primary: "anthropic/claude-sonnet-4-6" },

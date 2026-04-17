@@ -414,6 +414,24 @@ describe("handleSendChat", () => {
     ]);
   });
 
+  it("does not queue the same follow-up twice while the current run is still busy", async () => {
+    const host = makeHost({
+      client: { request: vi.fn() } as unknown as ChatHost["client"],
+      chatFinalizing: true,
+      chatMessage: "abre o google",
+    });
+
+    await handleSendChat(host);
+    host.chatMessage = "  abre   o   google  ";
+    await handleSendChat(host);
+
+    expect(host.chatQueue).toEqual([
+      expect.objectContaining({
+        text: "abre o google",
+      }),
+    ]);
+  });
+
   it("uses override attachments when replaying a message after connector auth", async () => {
     const sendChatMessageMock = vi.fn(async () => "run-override");
     vi.doMock("./controllers/chat.ts", async () => {
@@ -460,6 +478,41 @@ describe("handleSendChat", () => {
         mimeType: "image/jpeg",
       },
     ]);
+  });
+
+  it("suppresses duplicated local submits before chatSending flips to true", async () => {
+    let resolveSend: ((runId: string) => void) | null = null;
+    const sendChatMessageMock = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
+    vi.doMock("./controllers/chat.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("./controllers/chat.ts")>("./controllers/chat.ts");
+      return {
+        ...actual,
+        sendChatMessage: sendChatMessageMock,
+      };
+    });
+    await loadChatHelpers();
+
+    const host = makeHost({
+      client: { request: vi.fn() } as unknown as ChatHost["client"],
+      chatMessage: "abre o google",
+    });
+
+    const first = handleSendChat(host);
+    const second = handleSendChat(host);
+    await Promise.resolve();
+
+    expect(sendChatMessageMock).toHaveBeenCalledTimes(1);
+
+    if (resolveSend) {
+      resolveSend("run-1");
+    }
+    await Promise.all([first, second]);
   });
 });
 

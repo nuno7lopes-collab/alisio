@@ -353,6 +353,36 @@ export const TaskExecutionStatusSchema = Type.Union([
   Type.Literal("lost"),
 ]);
 
+export const TaskExecutionStepKindSchema = Type.Union([
+  Type.Literal("execution_started"),
+  Type.Literal("execution_running"),
+  Type.Literal("execution_finished"),
+  Type.Literal("execution_cancelled"),
+  Type.Literal("approval_requested"),
+  Type.Literal("approval_decided"),
+  Type.Literal("assignment_claimed"),
+  Type.Literal("assignment_released"),
+  Type.Literal("child_task_spawned"),
+  Type.Literal("command_started"),
+  Type.Literal("command_finished"),
+  Type.Literal("file_read"),
+  Type.Literal("file_written"),
+  Type.Literal("search_performed"),
+  Type.Literal("browser_navigated"),
+  Type.Literal("browser_snapshot"),
+  Type.Literal("tool_called"),
+  Type.Literal("tool_result"),
+]);
+
+export const TaskExecutionStepStatusSchema = Type.Union([
+  Type.Literal("pending"),
+  Type.Literal("running"),
+  Type.Literal("succeeded"),
+  Type.Literal("failed"),
+  Type.Literal("cancelled"),
+  Type.Literal("info"),
+]);
+
 export const TaskAssignmentStatusSchema = Type.Union([
   Type.Literal("active"),
   Type.Literal("released"),
@@ -447,6 +477,22 @@ export const TaskAssignmentSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const TaskExecutionStepSchema = Type.Object(
+  {
+    stepId: NonEmptyString,
+    taskId: NonEmptyString,
+    executionId: Type.Optional(Type.String()),
+    kind: TaskExecutionStepKindSchema,
+    status: TaskExecutionStepStatusSchema,
+    actor: Type.Optional(Type.String()),
+    tool: Type.Optional(Type.String()),
+    summary: Type.Optional(Type.String()),
+    dataJson: Type.Optional(Type.String()),
+    createdAt: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
 export const TaskApprovalSchema = Type.Object(
   {
     approvalId: NonEmptyString,
@@ -490,21 +536,10 @@ export const TaskDependencySchema = Type.Object(
 
 export const TasksOverviewResultSchema = Type.Object(
   {
-    summary: TaskRegistrySummarySchema,
-    filteredSummary: TaskRegistrySummarySchema,
-    canonicalSummary: Type.Optional(CanonicalTaskSummarySchema),
+    canonicalSummary: CanonicalTaskSummarySchema,
     proposalSummary: TaskProposalSummarySchema,
-    audit: TaskAuditSummarySchema,
-    findings: Type.Array(TaskAuditFindingSchema),
-    maintenance: TaskMaintenanceSummarySchema,
     proposals: Type.Array(TaskProposalRecordSchema),
-    tasks: Type.Array(TaskRecordSchema),
-    canonicalTasks: Type.Optional(Type.Array(TaskSchema)),
-    canonicalExecutions: Type.Optional(Type.Array(TaskExecutionSchema)),
-    canonicalAssignments: Type.Optional(Type.Array(TaskAssignmentSchema)),
-    canonicalApprovals: Type.Optional(Type.Array(TaskApprovalSchema)),
-    canonicalEvents: Type.Optional(Type.Array(TaskEventSchema)),
-    canonicalDependencies: Type.Optional(Type.Array(TaskDependencySchema)),
+    canonicalTasks: Type.Array(TaskSchema),
     total: Type.Integer({ minimum: 0 }),
     limit: Type.Integer({ minimum: 1 }),
     offset: Type.Integer({ minimum: 0 }),
@@ -513,6 +548,28 @@ export const TasksOverviewResultSchema = Type.Object(
     runtime: Type.Union([TaskRuntimeFilterSchema, Type.Null()]),
     status: Type.Union([TaskStatusFilterSchema, Type.Null()]),
     query: Type.Union([Type.String(), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+export const TasksDetailParamsSchema = Type.Object(
+  {
+    taskId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const TasksDetailResultSchema = Type.Object(
+  {
+    task: TaskSchema,
+    proposal: Type.Optional(TaskProposalRecordSchema),
+    children: Type.Array(TaskSchema),
+    executions: Type.Array(TaskExecutionSchema),
+    assignments: Type.Array(TaskAssignmentSchema),
+    approvals: Type.Array(TaskApprovalSchema),
+    events: Type.Array(TaskEventSchema),
+    steps: Type.Array(TaskExecutionStepSchema),
+    dependencies: Type.Array(TaskDependencySchema),
   },
   { additionalProperties: false },
 );
@@ -783,6 +840,8 @@ export type TaskMaintenanceSummary = Static<typeof TaskMaintenanceSummarySchema>
 export type CanonicalTaskSummary = Static<typeof CanonicalTaskSummarySchema>;
 export type TasksOverviewParams = Static<typeof TasksOverviewParamsSchema>;
 export type TasksOverviewResult = Static<typeof TasksOverviewResultSchema>;
+export type TasksDetailParams = Static<typeof TasksDetailParamsSchema>;
+export type TasksDetailResult = Static<typeof TasksDetailResultSchema>;
 export type TasksCancelParams = Static<typeof TasksCancelParamsSchema>;
 export type TasksCancelResult = Static<typeof TasksCancelResultSchema>;
 export type TasksNotifyParams = Static<typeof TasksNotifyParamsSchema>;
@@ -798,12 +857,15 @@ export type TasksLaunchFromProposalResult = Static<typeof TasksLaunchFromProposa
 export type CanonicalTaskStatus = Static<typeof CanonicalTaskStatusSchema>;
 export type TaskExecutionKind = Static<typeof TaskExecutionKindSchema>;
 export type TaskExecutionStatus = Static<typeof TaskExecutionStatusSchema>;
+export type TaskExecutionStepKind = Static<typeof TaskExecutionStepKindSchema>;
+export type TaskExecutionStepStatus = Static<typeof TaskExecutionStepStatusSchema>;
 export type TaskAssignmentStatus = Static<typeof TaskAssignmentStatusSchema>;
 export type TaskApprovalStatus = Static<typeof TaskApprovalStatusSchema>;
 export type TaskEventKindV2 = Static<typeof TaskEventKindV2Schema>;
 export type TaskDependencyKind = Static<typeof TaskDependencyKindSchema>;
 export type Task = Static<typeof TaskSchema>;
 export type TaskExecution = Static<typeof TaskExecutionSchema>;
+export type TaskExecutionStep = Static<typeof TaskExecutionStepSchema>;
 export type TaskAssignment = Static<typeof TaskAssignmentSchema>;
 export type TaskApproval = Static<typeof TaskApprovalSchema>;
 export type TaskEvent = Static<typeof TaskEventSchema>;

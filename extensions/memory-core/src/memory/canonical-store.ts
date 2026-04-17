@@ -1761,31 +1761,83 @@ async function collectWorkspaceMarkdownPages(params: {
   workspaceDir: string;
   importedPageIdByPath: ReadonlyMap<string, string>;
   projectedFileRowsByPath?: ReadonlyMap<string, ProjectedFileRow>;
+  compatibilityRootDir?: string;
+  compatibilityProjectedFileRowsByPath?: ReadonlyMap<string, ProjectedFileRow>;
+  tombstonedPageIds?: ReadonlySet<string>;
+  tombstonedPageIdByPath?: ReadonlyMap<string, string>;
 }): Promise<CanonicalImportedPage[]> {
-  const discoveredFiles = await listMemoryFiles(params.workspaceDir);
-  const entries = (
-    await runWithConcurrency(
-      discoveredFiles.map((file) => async () => await buildFileEntry(file, params.workspaceDir)),
-      8,
+  const collectPagesFromRoot = async (
+    rootDir: string,
+    rootKind?: ReadonlyMap<string, ProjectedFileRow>,
+  ) => {
+    const allowProjectedReplay =
+      (params.tombstonedPageIds?.size ?? 0) > 0 || (params.tombstonedPageIdByPath?.size ?? 0) > 0;
+    const discoveredFiles = await listMemoryFiles(rootDir);
+    const entries = (
+      await runWithConcurrency(
+        discoveredFiles.map((file) => async () => await buildFileEntry(file, rootDir)),
+        8,
+      )
     )
-  )
-    .filter((entry): entry is MemoryFileEntry => entry !== null)
-    .filter((entry) => {
-      const projected = params.projectedFileRowsByPath?.get(normalizeDisplayPath(entry.path));
-      return !projected || projected.content_hash !== entry.hash;
-    });
-  const pages = await Promise.all(
-    entries.map(async (entry) => {
-      const markdown = await fs.readFile(entry.absPath, "utf8");
-      return buildLegacyPageFromFile({
-        entry,
-        workspaceDir: params.workspaceDir,
-        markdown,
-        existingPageId: params.importedPageIdByPath.get(normalizeDisplayPath(entry.path)),
+      .filter((entry): entry is MemoryFileEntry => entry !== null)
+      .filter((entry) => {
+        if (allowProjectedReplay) {
+          return true;
+        }
+        const relativePath = normalizeDisplayPath(entry.path);
+        const tombstonedPageId = params.tombstonedPageIdByPath?.get(relativePath);
+        if (tombstonedPageId) {
+          return true;
+        }
+        const existingPageId = params.importedPageIdByPath.get(relativePath);
+        if (existingPageId && params.tombstonedPageIds?.has(existingPageId)) {
+          return true;
+        }
+        const projected = rootKind?.get(relativePath);
+        return !projected || projected.content_hash !== entry.hash;
       });
-    }),
+    const pages = await Promise.all(
+      entries.map(async (entry) => {
+        const markdown = await fs.readFile(entry.absPath, "utf8");
+        return buildLegacyPageFromFile({
+          entry,
+          workspaceDir: rootDir,
+          markdown,
+          existingPageId: params.importedPageIdByPath.get(normalizeDisplayPath(entry.path)),
+        });
+      }),
+    );
+    return pages.toSorted((left, right) => left.relativePath.localeCompare(right.relativePath));
+  };
+
+  const workspacePages = await collectPagesFromRoot(
+    params.workspaceDir,
+    params.projectedFileRowsByPath,
   );
-  return pages.toSorted((left, right) => left.relativePath.localeCompare(right.relativePath));
+  const compatibilityRootDir = params.compatibilityRootDir?.trim();
+  if (!compatibilityRootDir) {
+    return workspacePages;
+  }
+  if (path.resolve(compatibilityRootDir) === path.resolve(params.workspaceDir)) {
+    return workspacePages;
+  }
+  const compatibilityPages = await collectPagesFromRoot(
+    compatibilityRootDir,
+    params.compatibilityProjectedFileRowsByPath,
+  );
+  if (compatibilityPages.length === 0) {
+    return workspacePages;
+  }
+  const mergedPages = new Map<string, CanonicalImportedPage>();
+  for (const page of compatibilityPages) {
+    mergedPages.set(page.relativePath, page);
+  }
+  for (const page of workspacePages) {
+    mergedPages.set(page.relativePath, page);
+  }
+  return Array.from(mergedPages.values()).toSorted((left, right) =>
+    left.relativePath.localeCompare(right.relativePath),
+  );
 }
 
 function renderLegacyProjectionMarkdown(params: {
@@ -2134,6 +2186,45 @@ function readImportedFileRows(db: DatabaseSync): Map<string, ImportedFileRow> {
     )
     .all() as ImportedFileRow[];
   return new Map(rows.map((row) => [row.source_path, row]));
+}
+
+function readTombstonedPageIds(db: DatabaseSync): Set<string> {
+  const rows = db
+    .prepare(
+      `SELECT page_id
+       FROM pages
+       WHERE tombstoned = 1
+       ORDER BY page_id ASC`,
+    )
+    .all() as Array<{
+    page_id: string;
+  }>;
+  return new Set(rows.map((row) => row.page_id));
+}
+
+function readTombstonedProjectionPageIdsByPath(db: DatabaseSync): Map<string, string> {
+  const rows = db
+    .prepare(
+      `SELECT p.page_id, pr.kind
+       FROM pages p
+       INNER JOIN projections pr
+         ON pr.page_id = p.page_id
+       WHERE p.tombstoned = 1
+       ORDER BY p.page_id ASC, pr.kind ASC`,
+    )
+    .all() as Array<{
+    page_id: string;
+    kind: string;
+  }>;
+  const byPath = new Map<string, string>();
+  for (const row of rows) {
+    const relativePath = parseMarkdownProjectionPath(row.kind);
+    if (!relativePath || byPath.has(relativePath)) {
+      continue;
+    }
+    byPath.set(relativePath, row.page_id);
+  }
+  return byPath;
 }
 
 function updateImportedFileRow(db: DatabaseSync, page: CanonicalImportedPage): void {
@@ -2868,6 +2959,10 @@ async function migrateLegacyStateIfNeeded(params: CanonicalStoreContext): Promis
   const workspacePages = await collectWorkspaceMarkdownPages({
     workspaceDir: params.workspaceDir,
     importedPageIdByPath: buildImportPageIdMap(importedRows),
+    compatibilityRootDir: resolveCompatibilityProjectionRoot(params.env),
+    compatibilityProjectedFileRowsByPath: readProjectedFileRows(params.db, "legacy"),
+    tombstonedPageIds: readTombstonedPageIds(params.db),
+    tombstonedPageIdByPath: readTombstonedProjectionPageIdsByPath(params.db),
   });
   const legacyPages = collectLegacyCanonicalPages(params.db);
   const mergedPages = mergeImportedPages(workspacePages, legacyPages);
@@ -2920,6 +3015,10 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
     workspaceDir: params.workspaceDir,
     importedPageIdByPath: buildImportPageIdMap(importedRows),
     projectedFileRowsByPath: readProjectedFileRows(params.db, "workspace"),
+    compatibilityRootDir: resolveCompatibilityProjectionRoot(params.env),
+    compatibilityProjectedFileRowsByPath: readProjectedFileRows(params.db, "legacy"),
+    tombstonedPageIds: readTombstonedPageIds(params.db),
+    tombstonedPageIdByPath: readTombstonedProjectionPageIdsByPath(params.db),
   });
   const lookupByAlias = buildReferenceLookup({
     db: params.db,
@@ -2945,8 +3044,10 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
     });
   }
   const seenPaths = new Set<string>();
+  const seenPageIds = new Set<string>();
   for (const page of pages) {
     seenPaths.add(page.relativePath);
+    seenPageIds.add(page.pageId);
     updateImportedFileRow(params.db, page);
   }
   for (const relativePath of importedRows.keys()) {
@@ -2954,6 +3055,10 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
       continue;
     }
     const pageId = importedRows.get(relativePath)?.page_id;
+    if (pageId && seenPageIds.has(pageId)) {
+      deleteImportedFileRow(params.db, relativePath);
+      continue;
+    }
     if (pageId) {
       await applyEventDrafts({
         context: params,

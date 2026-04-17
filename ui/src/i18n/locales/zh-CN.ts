@@ -1,6 +1,6 @@
-import { en } from "./en.ts";
 import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
+import { en } from "./en.ts";
 
 export const zh_CN: TranslationMap = mergeTranslationMaps(en, {
   common: {
@@ -136,6 +136,51 @@ export const zh_CN: TranslationMap = mergeTranslationMaps(en, {
       noResults: "无结果",
     },
   },
+  alisio: {
+    chat: {
+      defaultAssistantName: "助手",
+      participants: {
+        you: "你",
+        tool: "工具",
+      },
+      browserPane: {
+        title: "面板",
+        surfacePicker: "面板视图",
+        close: "关闭面板",
+        observerTitle: "浏览器观察器",
+        viewRawText: "查看原始文本",
+        noContent: "暂无内容",
+        unavailable: "暂无可用面板",
+        surfaces: {
+          observer: "浏览器",
+          markdown: "工具输出",
+        },
+      },
+      attachments: {
+        imageAlt: "已附加图片",
+      },
+      taskProposals: {
+        kind: {
+          task: "任务提案",
+          project: "项目提案",
+        },
+        decision: {
+          draft: "草稿",
+          pending: "待处理",
+          approved: "已批准",
+          rejected: "已拒绝",
+        },
+        linkedTask: "关联任务: {status} · {runtime} · {taskId}",
+        launchedRun: "已启动运行: {runId}",
+        saveToInbox: "保存到收件箱",
+        approve: "批准",
+        reject: "拒绝",
+        launch: "启动",
+        openLaunchedChat: "打开已启动聊天",
+        openTasks: "打开任务",
+      },
+    },
+  },
   login: {
     subtitle: "网关仪表盘",
     passwordPlaceholder: "可选",
@@ -144,6 +189,12 @@ export const zh_CN: TranslationMap = mergeTranslationMaps(en, {
     disconnected: "已断开与网关的连接。",
     refreshTitle: "刷新聊天数据",
     thinkingToggle: "切换助手思考/工作输出",
+    renameConversationFailed: "重命名聊天失败: {error}",
+    localModelsSubagentOnly: "本地模型仅适用于子代理会话。",
+    setModelFailed: "设置模型失败: {error}",
+    configDraftRequired: "更改默认模型前，请先保存或重新加载配置草稿。",
+    configHashMissing: "缺少配置哈希。请重新加载后再试。",
+    setDefaultModelFailed: "设置默认模型失败: {error}",
     focusToggle: "切换专注模式 (隐藏侧边栏 + 页面页眉)",
     hideCronSessions: "隐藏定时任务会话",
     showCronSessions: "显示定时任务会话",

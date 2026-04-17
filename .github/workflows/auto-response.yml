@@ -53,13 +53,13 @@ jobs:
                 label: "r: skill",
                 close: true,
                 message:
-                  "Thanks for the contribution! New skills should be published to [Clawhub](https://clawhub.ai) for everyone to use. We’re keeping the core lean on skills, so I’m closing this out.",
+                  "Thanks for the contribution! New skills should be published to [Local Marketplace](https://docs.alisio.ai/tools/marketplace) for everyone to use. We’re keeping the core lean on skills, so I’m closing this out.",
               },
               {
                 label: "r: support",
                 close: true,
                 message:
-                  `Please use [our support server](https://discord.gg/clawd) and ask in #help or #users-helping-users to resolve this, or follow the stuck FAQ at ${faqUrl}.`,
+                  `Please use [our support server](https://discord.gg/qkhbAGHRBT) and ask in #help or #users-helping-users to resolve this, or follow the stuck FAQ at ${faqUrl}.`,
               },
               {
                 label: "r: no-ci-pr",
@@ -101,7 +101,7 @@ jobs:
 
             const maintainerTeam = "maintainer";
             const pingWarningMessage =
-              "Please don’t spam-ping multiple maintainers at once. Be patient, or join our community Discord for help: https://discord.gg/clawd";
+              "Please don’t spam-ping multiple maintainers at once. Be patient, or join our community Discord for help: https://discord.gg/qkhbAGHRBT";
             const mentionRegex = /@([A-Za-z0-9-]+)/g;
             const maintainerCache = new Map();
             const normalizeLogin = (login) => login.toLowerCase();

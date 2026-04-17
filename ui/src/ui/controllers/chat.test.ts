@@ -1322,6 +1322,70 @@ describe("loadChatHistory", () => {
 });
 
 describe("sendChatMessage", () => {
+  it("dedupes repeated pending sends with the same semantic payload", async () => {
+    let resolveRequest: ((value: { status: "started" }) => void) | null = null;
+    const request = vi.fn(
+      () =>
+        new Promise<{ status: "started" }>((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    const firstSend = sendChatMessage(state, "abre o google");
+    const secondSend = sendChatMessage(state, "  abre   o   google  ");
+
+    expect(request).toHaveBeenCalledTimes(1);
+    resolveRequest?.({ status: "started" });
+    const firstRunId = await firstSend;
+    const secondRunId = await secondSend;
+    expect(firstRunId).toBeTruthy();
+    expect(secondRunId).toBe(firstRunId);
+    expect(
+      state.chatMessages.filter(
+        (message) =>
+          message &&
+          typeof message === "object" &&
+          (message as { role?: unknown }).role === "user",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("drops burst duplicate optimistic user turns that re-enter with a fresh id", async () => {
+    const request = vi.fn().mockResolvedValue({ status: "started" });
+    const now = Date.now();
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+      chatRunId: "run-existing",
+      chatSending: true,
+      chatMessages: [
+        {
+          role: "user",
+          content: [{ type: "text", text: "abre o google" }],
+          timestamp: now,
+          idempotencyKey: "run-existing",
+        },
+      ],
+    });
+
+    const result = await sendChatMessage(state, "  abre   o   google  ");
+
+    expect(result).toBe("run-existing");
+    expect(request).not.toHaveBeenCalled();
+    expect(
+      state.chatMessages.filter(
+        (message) =>
+          message &&
+          typeof message === "object" &&
+          (message as { role?: unknown }).role === "user",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("adds structured document attachment blocks to the optimistic user turn", async () => {
     const request = vi.fn().mockResolvedValue({ status: "started" });
     const state = createState({

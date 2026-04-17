@@ -31,11 +31,15 @@ describe("clawhub helpers", () => {
     }
   });
 
-  it("parses explicit ClawHub package specs", () => {
+  it("parses explicit marketplace package specs", () => {
     expect(parseClawHubPluginSpec("clawhub:demo")).toEqual({
       name: "demo",
     });
     expect(parseClawHubPluginSpec("clawhub:demo@1.2.3")).toEqual({
+      name: "demo",
+      version: "1.2.3",
+    });
+    expect(parseClawHubPluginSpec("marketplace:demo@1.2.3")).toEqual({
       name: "demo",
       version: "1.2.3",
     });

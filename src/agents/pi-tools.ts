@@ -7,7 +7,7 @@ import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
-import { resolveAgentConfig } from "./agent-scope.js";
+import { resolveAgentConfig, resolveSessionAgentId } from "./agent-scope.js";
 import { createApplyPatchTool } from "./apply-patch.js";
 import {
   createExecTool,
@@ -101,27 +101,47 @@ function resolveBrowserToolRuntimeContext(params: {
     };
   }
 
-  const runtime = resolveSandboxRuntimeStatus({ cfg, sessionKey });
-  if (!runtime.sandboxed) {
+  const agentId = resolveSessionAgentId({
+    sessionKey,
+    config: cfg,
+  });
+  const sandboxCfg = resolveSandboxConfigForAgent(cfg, agentId);
+  const sandboxBrowserEnabled =
+    sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
+  const liveScopeKey = sandboxBrowserEnabled
+    ? resolveSandboxScopeKey(sandboxCfg.scope, sessionKey)
+    : undefined;
+  const liveSandboxBridgeUrl = liveScopeKey
+    ? getLiveSandboxBrowserBridgeUrl(liveScopeKey)
+    : undefined;
+
+  if (liveSandboxBridgeUrl) {
     return {
-      sandboxBridgeUrl: directSandboxBridgeUrl,
-      allowHostControl: true,
-      preferSandbox: false,
+      sandboxBridgeUrl: directSandboxBridgeUrl ?? liveSandboxBridgeUrl,
+      allowHostControl: sandboxCfg.browser.allowHostControl,
+      preferSandbox: true,
     };
   }
 
-  const sandboxCfg = resolveSandboxConfigForAgent(cfg, runtime.agentId);
-  const sandboxBrowserEnabled =
-    sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
+  const runtime = resolveSandboxRuntimeStatus({ cfg, sessionKey });
+  if (!runtime.sandboxed) {
+    const forceSandboxFirst = sandboxBrowserEnabled && sandboxCfg.mode === "all";
+    return {
+      sandboxBridgeUrl: directSandboxBridgeUrl,
+      allowHostControl: forceSandboxFirst ? sandboxCfg.browser.allowHostControl : true,
+      preferSandbox: forceSandboxFirst,
+    };
+  }
+
   const scopeKey = sandboxBrowserEnabled
     ? resolveSandboxScopeKey(sandboxCfg.scope, runtime.sessionKey || sessionKey)
     : undefined;
   // If the sandbox runtime already exists, reuse its bridge instead of silently
   // falling back to the host browser for stale dashboard sessions.
-  const liveSandboxBridgeUrl = scopeKey ? getLiveSandboxBrowserBridgeUrl(scopeKey) : undefined;
+  const runtimeSandboxBridgeUrl = scopeKey ? getLiveSandboxBrowserBridgeUrl(scopeKey) : undefined;
 
   return {
-    sandboxBridgeUrl: directSandboxBridgeUrl ?? liveSandboxBridgeUrl,
+    sandboxBridgeUrl: directSandboxBridgeUrl ?? runtimeSandboxBridgeUrl,
     allowHostControl: sandboxBrowserEnabled ? sandboxCfg.browser.allowHostControl : true,
     preferSandbox: sandboxBrowserEnabled,
   };
@@ -248,6 +268,7 @@ export const __testing = {
   wrapToolParamNormalization,
   assertRequiredParams,
   applyModelProviderToolPolicy,
+  resolveBrowserToolRuntimeContext,
 } as const;
 
 export function createAlisioCodingTools(options?: {

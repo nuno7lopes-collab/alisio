@@ -24,7 +24,7 @@
   /* Grow, shrink, and use 0 base for proper scrolling */
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 0 6px 6px;
+  padding: 0 var(--chat-thread-shell-inline, 6px) var(--chat-thread-shell-bottom, 6px);
   margin: 0 0 0 0;
   min-height: 0;
   /* Allow shrinking for flex scroll behavior */
@@ -191,13 +191,13 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  margin: 0 18px 14px;
+  margin: 0 var(--chat-compose-inline, 18px) var(--chat-compose-bottom, 14px);
   padding: 0;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--card) 94%, transparent), var(--card)),
     color-mix(in srgb, var(--card) 96%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 28px;
+  border-radius: var(--chat-compose-radius, 28px);
   flex-shrink: 0;
   transition:
     border-color var(--duration-fast) ease,
@@ -1277,6 +1277,27 @@ details.chat-tools-menu > .chat-tools-menu__panel {
   height: 18px;
 }
 
+.chat-tools-menu__item-icon-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chat-tools-menu__item-icon-badge-count {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 14px;
+  padding: 1px 4px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 88%, black 12%);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1;
+  text-align: center;
+  pointer-events: none;
+}
+
 .chat-tools-menu__item-label {
   font-size: 13px;
   font-weight: 600;
@@ -1583,7 +1604,7 @@ details.chat-tools-menu > .chat-tools-menu__panel {
   justify-content: center;
   text-align: center;
   gap: 18px;
-  padding: 56px 24px 32px;
+  padding: var(--chat-welcome-shell-padding, 56px 24px 32px);
   flex: 1;
   min-height: 0;
   overflow: visible;
@@ -1616,6 +1637,16 @@ details.chat-tools-menu > .chat-tools-menu__panel {
   color: var(--muted);
   font-size: 0.98rem;
   line-height: 1.5;
+}
+
+.agent-chat__welcome-avatar {
+  position: relative;
+  z-index: 1;
+  width: var(--chat-welcome-avatar-size, 56px);
+  height: var(--chat-welcome-avatar-size, 56px);
+  border-radius: var(--chat-welcome-avatar-radius, var(--radius-full));
+  object-fit: cover;
+  display: block;
 }
 
 .agent-chat__avatar--logo {
@@ -1769,6 +1800,11 @@ details.chat-tools-menu > .chat-tools-menu__panel {
   .agent-chat__welcome {
     padding: 40px 16px 24px;
     gap: 14px;
+  }
+
+  .agent-chat__welcome-avatar {
+    width: 52px;
+    height: 52px;
   }
 
   .agent-chat__avatar--logo {

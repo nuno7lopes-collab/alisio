@@ -5,6 +5,7 @@ import type {
   Task,
   TaskApproval,
   TaskAssignment,
+  TaskEvent,
   TaskExecution,
 } from "../../tasks/task-service.types.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
@@ -271,6 +272,16 @@ function createApproval(overrides: Partial<TaskApproval> = {}): TaskApproval {
   };
 }
 
+function createEvent(overrides: Partial<TaskEvent> = {}): TaskEvent {
+  return {
+    eventId: "event-1",
+    taskId: "canonical-task-1",
+    kind: "created",
+    createdAt: 1_000,
+    ...overrides,
+  };
+}
+
 describe("tasksHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -464,6 +475,7 @@ describe("tasksHandlers", () => {
         status: "running",
         query: "background",
         tasks: [matchingTask],
+        canonicalSteps: [],
       }),
       undefined,
     );
@@ -502,6 +514,81 @@ describe("tasksHandlers", () => {
       expect.objectContaining({
         proposals: [matchingProposal, nonMatchingProposal],
         proposalSummary: expect.objectContaining({ total: 2, pending: 2 }),
+      }),
+      undefined,
+    );
+  });
+
+  it("hides legacy gateway-promoted canonical tasks from the structured tasks surface", async () => {
+    const legacyTask = createCanonicalTask({
+      taskId: "legacy-task-1",
+      rootTaskId: "legacy-task-1",
+      title: "Usa o browser",
+      status: "completed",
+    });
+    const visibleTask = createCanonicalTask({
+      taskId: "visible-task-1",
+      rootTaskId: "visible-task-1",
+      title: "Implementar fluxo de aprovacoes",
+      requesterSessionKey: "agent:main:main",
+      status: "in_progress",
+    });
+    mocks.reconcileInspectableTasksMock.mockReturnValue([]);
+    mocks.listTasksMock.mockReturnValue([legacyTask, visibleTask]);
+    mocks.getTaskBundleMock.mockImplementation((taskId: string) => {
+      if (taskId === legacyTask.taskId) {
+        return {
+          task: legacyTask,
+          children: [],
+          executions: [createExecution({ taskId, kind: "cli", status: "succeeded" })],
+          assignments: [],
+          approvals: [],
+          events: [createEvent({ taskId, actor: "gateway.agent", summary: legacyTask.title })],
+          steps: [],
+          dependencies: [],
+        };
+      }
+      if (taskId === visibleTask.taskId) {
+        return {
+          task: visibleTask,
+          children: [],
+          executions: [
+            createExecution({
+              executionId: "execution-visible-1",
+              taskId,
+              kind: "orchestrator_session",
+              status: "running",
+              sessionKey: "agent:main:task:1",
+            }),
+          ],
+          assignments: [],
+          approvals: [],
+          events: [createEvent({ eventId: "event-visible-1", taskId, actor: "nuno" })],
+          steps: [],
+          dependencies: [],
+        };
+      }
+      return null;
+    });
+    const opts = createOptions("tasks.overview", {});
+
+    await tasksHandlers["tasks.overview"](opts);
+
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        canonicalTasks: [visibleTask],
+        canonicalSummary: expect.objectContaining({
+          total: 1,
+          inProgress: 1,
+          completed: 0,
+        }),
+        canonicalExecutions: [
+          expect.objectContaining({
+            taskId: "visible-task-1",
+            kind: "orchestrator_session",
+          }),
+        ],
       }),
       undefined,
     );
@@ -614,6 +701,16 @@ describe("tasksHandlers", () => {
 
   it("cancels canonical tasks before falling back to the legacy task ledger", async () => {
     mocks.getTaskMock.mockReturnValue(createCanonicalTask({ taskId: "canonical-task-1" }));
+    mocks.getTaskBundleMock.mockReturnValue({
+      task: createCanonicalTask({ taskId: "canonical-task-1" }),
+      children: [],
+      executions: [],
+      assignments: [],
+      approvals: [],
+      events: [],
+      steps: [],
+      dependencies: [],
+    });
     mocks.cancelTaskTreeMock.mockReturnValue(
       createCanonicalTask({ taskId: "canonical-task-1", status: "cancelled" }),
     );
@@ -634,6 +731,40 @@ describe("tasksHandlers", () => {
         canonicalTask: expect.objectContaining({ taskId: "canonical-task-1" }),
       }),
       undefined,
+    );
+  });
+
+  it("does not expose hidden legacy canonical tasks through the canonical cancel path", async () => {
+    const legacyTask = createCanonicalTask({
+      taskId: "legacy-task-1",
+      rootTaskId: "legacy-task-1",
+      title: "Usa o browser",
+      status: "completed",
+    });
+    mocks.getTaskMock.mockReturnValue(legacyTask);
+    mocks.getTaskBundleMock.mockReturnValue({
+      task: legacyTask,
+      children: [],
+      executions: [createExecution({ taskId: legacyTask.taskId, kind: "cli", status: "succeeded" })],
+      assignments: [],
+      approvals: [],
+      events: [createEvent({ taskId: legacyTask.taskId, actor: "gateway.agent" })],
+      steps: [],
+      dependencies: [],
+    });
+    mocks.reconcileTaskLookupTokenMock.mockReturnValue(null);
+    const opts = createOptions("tasks.cancel", { lookup: "legacy-task-1" });
+
+    await tasksHandlers["tasks.cancel"](opts);
+
+    expect(mocks.cancelTaskTreeMock).not.toHaveBeenCalled();
+    expect(opts.respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        code: "INVALID_REQUEST",
+        message: "Task not found: legacy-task-1",
+      }),
     );
   });
 
@@ -934,6 +1065,7 @@ describe("tasksHandlers", () => {
       assignments: [],
       approvals: [],
       events: [],
+      steps: [],
       dependencies: [],
     });
     mocks.attachTaskProposalLaunchMock.mockReturnValue(attachedProposal);
@@ -1006,6 +1138,7 @@ describe("tasksHandlers", () => {
       assignments: [],
       approvals: [],
       events: [],
+      steps: [],
       dependencies: [],
     });
     mocks.attachTaskProposalLaunchMock.mockReturnValue(attachedProposal);

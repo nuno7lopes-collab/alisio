@@ -9,6 +9,9 @@ import type {
 } from "./canonical-store.js";
 
 const MARKDOWN_PROJECTION_PREFIX_ALIASES = ["md-path:", "legacy-markdown:"] as const;
+const GLOBAL_GRAPH_DEFAULT_RELATION_LIMIT = 24;
+const GLOBAL_GRAPH_DEFAULT_NODE_LIMIT = 120;
+const GLOBAL_GRAPH_DEFAULT_EDGE_LIMIT = 240;
 
 type GraphDirection = "incoming" | "outgoing";
 type GraphScope = "global" | "local";
@@ -935,7 +938,7 @@ export function queryCanonicalMemoryGraphFromStore(params: {
       typeof params.relationLimit === "number" && Number.isFinite(params.relationLimit)
         ? Math.max(1, Math.floor(params.relationLimit))
         : scope === "global"
-          ? Number.MAX_SAFE_INTEGER
+          ? GLOBAL_GRAPH_DEFAULT_RELATION_LIMIT
           : undefined;
     const relationLimits = resolveRelationLimits({
       direction: params.direction,
@@ -949,13 +952,13 @@ export function queryCanonicalMemoryGraphFromStore(params: {
       typeof params.nodeLimit === "number" && Number.isFinite(params.nodeLimit)
         ? Math.max(1, Math.floor(params.nodeLimit))
         : scope === "global"
-          ? Number.MAX_SAFE_INTEGER
+          ? GLOBAL_GRAPH_DEFAULT_NODE_LIMIT
           : 24;
     const edgeLimit =
       typeof params.edgeLimit === "number" && Number.isFinite(params.edgeLimit)
         ? Math.max(1, Math.floor(params.edgeLimit))
         : scope === "global"
-          ? Number.MAX_SAFE_INTEGER
+          ? GLOBAL_GRAPH_DEFAULT_EDGE_LIMIT
           : 48;
     const maxDepth = resolveDepth(scope, params.depth);
     const catalogById = new Map(catalog.map((entry) => [entry.pageId, entry]));

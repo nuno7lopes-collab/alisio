@@ -1,6 +1,6 @@
-import { en } from "./en.ts";
 import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
+import { en } from "./en.ts";
 
 export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
   common: {
@@ -177,6 +177,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
     renameConversationTitle: "Renomear este chat",
     deleteConversationTitle: "Apagar este chat",
     renameConversationPlaceholder: "Nome do chat",
+    renameConversationFailed: "Falha ao renomear o chat: {error}",
     menuOn: "Ligado",
     menuOff: "Desligado",
     menuHidden: "Ocultas",
@@ -184,6 +185,12 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
     refreshTitle: "Atualizar dados do chat",
     thinkingToggle: "Alternar saída de pensamento/trabalho do assistente",
     toolCallsToggle: "Alternar chamadas e resultados de ferramentas",
+    localModelsSubagentOnly: "Os modelos locais só estão disponíveis para sessões de subagente.",
+    setModelFailed: "Falha ao definir o modelo: {error}",
+    configDraftRequired:
+      "Salve ou recarregue o rascunho da configuração antes de mudar o modelo padrão.",
+    configHashMissing: "Falta o hash da configuração. Recarregue e tente novamente.",
+    setDefaultModelFailed: "Falha ao definir o modelo padrão: {error}",
     focusToggle: "Alternar modo de foco (ocultar barra lateral + cabeçalho da página)",
     hideCronSessions: "Ocultar sessões de cron",
     showCronSessions: "Mostrar sessões de cron",
@@ -192,6 +199,71 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
   },
   alisio: {
     chat: {
+      defaultAssistantName: "Assistente",
+      participants: {
+        you: "Você",
+        tool: "Ferramenta",
+      },
+      browserPane: {
+        title: "Painel",
+        surfacePicker: "Superfície do painel",
+        close: "Fechar painel",
+        observerTitle: "Browser observado",
+        viewRawText: "Ver texto bruto",
+        noContent: "Sem conteúdo disponível",
+        unavailable: "Sem painel disponível",
+        surfaces: {
+          observer: "Browser",
+          markdown: "Saída da ferramenta",
+        },
+      },
+      attachments: {
+        imageAlt: "Imagem anexada",
+      },
+      taskProposals: {
+        kind: {
+          task: "Proposta de tarefa",
+          project: "Proposta de projeto",
+        },
+        decision: {
+          draft: "Rascunho",
+          pending: "Pendente",
+          approved: "Aprovada",
+          rejected: "Rejeitada",
+        },
+        linkedTask: "Tarefa vinculada: {status} · {runtime} · {taskId}",
+        launchedRun: "Execução lançada: {runId}",
+        saveToInbox: "Salvar na inbox",
+        approve: "Aprovar",
+        reject: "Rejeitar",
+        launch: "Lançar",
+        openLaunchedChat: "Abrir chat lançado",
+        openTasks: "Abrir tarefas",
+      },
+      toolCards: {
+        states: {
+          running: "Em execução",
+          done: "Concluído",
+          error: "Erro",
+          rejected: "Rejeitado",
+          needsAuth: "Precisa de autenticação",
+          reconnect: "Reconectar",
+        },
+        sections: {
+          input: "Entrada",
+          output: "Saída",
+          error: "Erro",
+        },
+        actions: {
+          copyInput: "Copiar entrada",
+          copyOutput: "Copiar saída",
+          viewInput: "Ver entrada completa",
+          viewOutput: "Ver saída completa",
+          connectProvider: "Conectar {provider}",
+          reconnectProvider: "Reconectar {provider}",
+        },
+        pending: "Aguardando saída da ferramenta.",
+      },
       welcome: {
         greetingNamed: "Olá, {name}.",
         greetingGeneric: "Olá.",

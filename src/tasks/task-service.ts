@@ -6,6 +6,7 @@ import {
   getTaskExecutionByIdFromSqlite,
   getTaskExecutionByRunIdFromSqlite,
   insertTaskEventToSqlite,
+  insertTaskExecutionStepToSqlite,
   listChildCanonicalTasksFromSqlite,
   listCanonicalTasksFromSqlite,
   listTaskApprovalsFromSqlite,
@@ -13,6 +14,7 @@ import {
   listTaskDependenciesFromSqlite,
   listTaskExecutionsBySessionKeyFromSqlite,
   listTaskEventsFromSqlite,
+  listTaskExecutionStepsFromSqlite,
   listTaskExecutionsFromSqlite,
   upsertCanonicalTaskToSqlite,
   upsertTaskApprovalToSqlite,
@@ -26,6 +28,7 @@ import type {
   TaskAssignment,
   TaskEvent,
   TaskExecution,
+  TaskExecutionStep,
 } from "./task-service.types.js";
 
 const DEFAULT_LEASE_MS = 5 * 60_000;
@@ -180,6 +183,27 @@ function recordTaskEvent(
   };
   insertTaskEventToSqlite(event);
   return event;
+}
+
+function recordTaskExecutionStepInternal(
+  params: Omit<TaskExecutionStep, "stepId" | "createdAt"> & { createdAt?: number },
+) {
+  const step: TaskExecutionStep = {
+    stepId: randomUUID(),
+    taskId: params.taskId,
+    ...(params.executionId ? { executionId: params.executionId } : {}),
+    kind: params.kind,
+    status: params.status,
+    ...(params.actor ? { actor: params.actor } : {}),
+    ...(params.tool ? { tool: params.tool } : {}),
+    ...(trimToUndefined(params.summary, MAX_SUMMARY_LENGTH)
+      ? { summary: trimToUndefined(params.summary, MAX_SUMMARY_LENGTH) }
+      : {}),
+    ...(params.dataJson ? { dataJson: params.dataJson } : {}),
+    createdAt: params.createdAt ?? Date.now(),
+  };
+  insertTaskExecutionStepToSqlite(step);
+  return step;
 }
 
 function cancelPendingApprovalsForTask(params: {
@@ -464,6 +488,22 @@ function startTaskExecutionInternal(params: {
     summary: execution.label ?? execution.kind,
     createdAt: now,
   });
+  recordTaskExecutionStepInternal({
+    taskId: task.taskId,
+    executionId,
+    kind: "execution_started",
+    status: status === "queued" ? "pending" : "running",
+    actor: execution.agentId,
+    summary: execution.summary ?? execution.label ?? execution.kind,
+    dataJson: JSON.stringify({
+      kind: execution.kind,
+      attempt: execution.attempt,
+      status,
+      runId: execution.runId,
+      sessionKey: execution.sessionKey,
+    }),
+    createdAt: now,
+  });
   return {
     task: loadTaskOrThrow(task.taskId),
     execution: loadExecutionOrThrow(executionId),
@@ -505,6 +545,23 @@ function markTaskExecutionRunningInternal(params: {
     startedAt,
   );
   upsertCanonicalTaskToSqlite(nextTask);
+  if (execution.status !== "running") {
+    recordTaskExecutionStepInternal({
+      taskId: task.taskId,
+      executionId: execution.executionId,
+      kind: "execution_running",
+      status: "running",
+      actor: nextExecution.agentId,
+      summary: nextExecution.summary ?? nextExecution.label ?? nextExecution.kind,
+      dataJson: JSON.stringify({
+        kind: nextExecution.kind,
+        attempt: nextExecution.attempt,
+        runId: nextExecution.runId,
+        sessionKey: nextExecution.sessionKey,
+      }),
+      createdAt: startedAt,
+    });
+  }
   return {
     task: loadTaskOrThrow(task.taskId),
     execution: loadExecutionOrThrow(execution.executionId),
@@ -585,6 +642,22 @@ function endTaskExecutionInternal(params: {
     summary: nextExecution.summary ?? nextExecution.error ?? nextExecution.status,
     createdAt: endedAt,
   });
+  recordTaskExecutionStepInternal({
+    taskId: task.taskId,
+    executionId: execution.executionId,
+    kind: "execution_finished",
+    status: params.status === "succeeded" ? "succeeded" : "failed",
+    actor: nextExecution.agentId,
+    summary: nextExecution.summary ?? nextExecution.error ?? nextExecution.status,
+    dataJson: JSON.stringify({
+      kind: nextExecution.kind,
+      status: nextExecution.status,
+      terminalOutcome: nextExecution.terminalOutcome,
+      error: nextExecution.error,
+      runId: nextExecution.runId,
+    }),
+    createdAt: endedAt,
+  });
   return {
     task: loadTaskOrThrow(task.taskId),
     execution: loadExecutionOrThrow(execution.executionId),
@@ -625,6 +698,20 @@ function cancelTaskExecutionInternal(params: {
     kind: "execution_cancelled",
     actor: execution.agentId,
     summary: nextExecution.cancellationReason ?? "Execution cancelled",
+    createdAt: endedAt,
+  });
+  recordTaskExecutionStepInternal({
+    taskId: task.taskId,
+    executionId: execution.executionId,
+    kind: "execution_cancelled",
+    status: "cancelled",
+    actor: nextExecution.agentId,
+    summary: nextExecution.cancellationReason ?? "Execution cancelled",
+    dataJson: JSON.stringify({
+      kind: nextExecution.kind,
+      runId: nextExecution.runId,
+      cancellationReason: nextExecution.cancellationReason,
+    }),
     createdAt: endedAt,
   });
   return {
@@ -669,6 +756,15 @@ function requestTaskApprovalInternal(params: {
     kind: "approval_requested",
     actor: approval.requestedBy,
     summary: approval.note ?? task.title,
+    createdAt: now,
+  });
+  recordTaskExecutionStepInternal({
+    taskId: task.taskId,
+    kind: "approval_requested",
+    status: "pending",
+    actor: approval.requestedBy,
+    summary: approval.note ?? task.title,
+    dataJson: JSON.stringify({ approvalId, status: approval.status }),
     createdAt: now,
   });
   return {
@@ -732,6 +828,20 @@ function decideTaskApprovalInternal(params: {
     kind: "approval_decided",
     actor: nextApproval.decidedBy,
     summary: nextApproval.note ?? nextApproval.status,
+    createdAt: now,
+  });
+  recordTaskExecutionStepInternal({
+    taskId: task.taskId,
+    kind: "approval_decided",
+    status:
+      params.decision === "approved"
+        ? "succeeded"
+        : params.decision === "cancelled"
+          ? "cancelled"
+          : "failed",
+    actor: nextApproval.decidedBy,
+    summary: nextApproval.note ?? nextApproval.status,
+    dataJson: JSON.stringify({ approvalId: approval.approvalId, decision: params.decision }),
     createdAt: now,
   });
   return {
@@ -879,6 +989,21 @@ export function createTaskWithExecution(params: {
           summary: nextExecution.label ?? nextExecution.kind,
           createdAt: now,
         });
+        recordTaskExecutionStepInternal({
+          taskId: existingTask.taskId,
+          executionId: existingExecution.executionId,
+          kind: "execution_running",
+          status: "running",
+          actor: nextExecution.agentId,
+          summary: nextExecution.summary ?? nextExecution.label ?? nextExecution.kind,
+          dataJson: JSON.stringify({
+            kind: nextExecution.kind,
+            attempt: nextExecution.attempt,
+            runId: nextExecution.runId,
+            sessionKey: nextExecution.sessionKey,
+          }),
+          createdAt: now,
+        });
       }
       upsertCanonicalTaskToSqlite(persistedTask);
       upsertTaskExecutionToSqlite(nextExecution);
@@ -1009,6 +1134,18 @@ export function claimTask(params: {
       summary: assignment.agentId,
       createdAt: now,
     });
+    recordTaskExecutionStepInternal({
+      taskId: task.taskId,
+      kind: "assignment_claimed",
+      status: "info",
+      actor: assignment.claimedBy ?? assignment.agentId,
+      summary: assignment.agentId,
+      dataJson: JSON.stringify({
+        assignmentId: assignment.assignmentId,
+        sessionKey: assignment.sessionKey,
+      }),
+      createdAt: now,
+    });
     return {
       task: loadTaskOrThrow(task.taskId),
       assignment: getTaskAssignmentByIdFromSqlite(assignment.assignmentId) as TaskAssignment,
@@ -1064,6 +1201,18 @@ export function releaseTask(params: {
       summary: released.agentId,
       createdAt: now,
     });
+    recordTaskExecutionStepInternal({
+      taskId: task.taskId,
+      kind: "assignment_released",
+      status: "info",
+      actor: trimToUndefined(params.releasedBy, 160) ?? released.agentId,
+      summary: released.agentId,
+      dataJson: JSON.stringify({
+        assignmentId: released.assignmentId,
+        sessionKey: released.sessionKey,
+      }),
+      createdAt: now,
+    });
     return {
       task: loadTaskOrThrow(task.taskId),
       assignment: getTaskAssignmentByIdFromSqlite(released.assignmentId) as TaskAssignment,
@@ -1114,6 +1263,16 @@ export function spawnChildTask(params: {
       summary: child.title,
       dataJson: JSON.stringify({ childTaskId: child.taskId }),
     });
+    recordTaskExecutionStepInternal({
+      taskId: parent.taskId,
+      executionId: parent.activeExecutionId,
+      kind: "child_task_spawned",
+      status: "info",
+      actor: trimToUndefined(params.ownerAgentId, 120),
+      summary: child.title,
+      dataJson: JSON.stringify({ childTaskId: child.taskId }),
+      createdAt: Date.now(),
+    });
     if (params.startExecution) {
       const started = startTaskExecutionInternal({
         taskId: child.taskId,
@@ -1122,8 +1281,8 @@ export function spawnChildTask(params: {
         runId: params.executionRunId,
         sessionKey: params.executionSessionKey,
         agentId: params.executionAgentId,
-        label: params.executionLabel,
-        summary: params.executionSummary,
+        label: trimToUndefined(params.executionLabel, MAX_TITLE_LENGTH),
+        summary: trimToUndefined(params.executionSummary, MAX_SUMMARY_LENGTH),
         status: params.executionStatus,
       });
       return {
@@ -1384,6 +1543,12 @@ export function getTaskExecutionByRunId(runId: string) {
   return getTaskExecutionByRunIdFromSqlite(runId);
 }
 
+export function recordTaskExecutionStep(
+  params: Omit<TaskExecutionStep, "stepId" | "createdAt"> & { createdAt?: number },
+) {
+  return withTaskRegistrySqliteWriteTransaction(() => recordTaskExecutionStepInternal(params));
+}
+
 export function findTaskForSessionKey(sessionKey: string) {
   return findTaskForSessionKeyInternal(sessionKey);
 }
@@ -1404,6 +1569,7 @@ export function getTaskBundle(taskId: string) {
     assignments: listTaskAssignmentsFromSqlite(taskId),
     approvals: listTaskApprovalsFromSqlite(taskId),
     events: listTaskEventsFromSqlite(taskId),
+    steps: listTaskExecutionStepsFromSqlite(taskId),
     dependencies: listTaskDependenciesFromSqlite(taskId),
   };
 }

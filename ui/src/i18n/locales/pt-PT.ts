@@ -1,5 +1,5 @@
-import { mergeTranslationMaps } from "../lib/merge.ts";
 import { DEFAULT_LOCAL_GATEWAY_WS_URL } from "../../../../src/shared/gateway-defaults.js";
+import { mergeTranslationMaps } from "../lib/merge.ts";
 import type { TranslationMap } from "../lib/types.ts";
 import { pt_BR } from "./pt-BR.ts";
 
@@ -71,8 +71,15 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     menuVisible: "Visíveis",
     menuToolCalls: "Ferramentas",
     menuCron: "Conversas de cron job",
+    renameConversationFailed: "Falha ao renomear o chat: {error}",
     toolCallsToggle: "Alternar chamadas e resultados de ferramentas",
     modelSelect: "Modelo do chat",
+    localModelsSubagentOnly: "Os modelos locais só estão disponíveis em sessões de subagente.",
+    setModelFailed: "Falha ao definir o modelo: {error}",
+    configDraftRequired:
+      "Guarda ou recarrega o rascunho da configuração antes de mudares o modelo predefinido.",
+    configHashMissing: "Falta o hash da configuração. Recarrega e tenta novamente.",
+    setDefaultModelFailed: "Falha ao definir o modelo predefinido: {error}",
     localCommands: {
       tasksTitle: "Tarefas",
       tasksBody: "Abriu a inbox de tarefas e a vista de tarefas em segundo plano.",
@@ -355,12 +362,29 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     },
     chat: {
       defaultAssistantName: "Assistente",
+      participants: {
+        you: "Tu",
+        tool: "Ferramenta",
+      },
+      browserPane: {
+        title: "Painel",
+        surfacePicker: "Superfície do painel",
+        close: "Fechar painel",
+        observerTitle: "Browser observado",
+        viewRawText: "Ver texto em bruto",
+        noContent: "Sem conteúdo disponível",
+        unavailable: "Sem painel disponível",
+        surfaces: {
+          observer: "Browser",
+          markdown: "Saída da ferramenta",
+        },
+      },
       welcome: {
         greetingNamed: "Olá, {name}.",
         greetingGeneric: "Olá.",
-      titleConnected: "O que queres tratar?",
-      titleDisconnected: "Quando estiveres pronto, começamos.",
-      openApps: "Abrir apps",
+        titleConnected: "O que queres tratar?",
+        titleDisconnected: "Quando estiveres pronto, começamos.",
+        openApps: "Abrir apps",
         quickActions: {
           newTaskTitle: "Criar uma task",
           newTaskPrompt: "Ajuda-me a criar uma task recorrente.",
@@ -399,6 +423,51 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
       attachments: {
         preview: "Pré-visualização do anexo",
         remove: "Remover anexo",
+        imageAlt: "Imagem anexada",
+      },
+      taskProposals: {
+        kind: {
+          task: "Proposta de tarefa",
+          project: "Proposta de projeto",
+        },
+        decision: {
+          draft: "Rascunho",
+          pending: "Pendente",
+          approved: "Aprovada",
+          rejected: "Rejeitada",
+        },
+        linkedTask: "Task associada: {status} · {runtime} · {taskId}",
+        launchedRun: "Execução lançada: {runId}",
+        saveToInbox: "Guardar na inbox",
+        approve: "Aprovar",
+        reject: "Rejeitar",
+        launch: "Lançar",
+        openLaunchedChat: "Abrir chat lançado",
+        openTasks: "Abrir tasks",
+      },
+      toolCards: {
+        states: {
+          running: "Em execução",
+          done: "Concluído",
+          error: "Erro",
+          rejected: "Rejeitado",
+          needsAuth: "Precisa de autenticação",
+          reconnect: "Voltar a ligar",
+        },
+        sections: {
+          input: "Entrada",
+          output: "Saída",
+          error: "Erro",
+        },
+        actions: {
+          copyInput: "Copiar entrada",
+          copyOutput: "Copiar saída",
+          viewInput: "Ver entrada completa",
+          viewOutput: "Ver saída completa",
+          connectProvider: "Ligar {provider}",
+          reconnectProvider: "Voltar a ligar {provider}",
+        },
+        pending: "À espera da saída da ferramenta.",
       },
       pinned: {
         count: "{count} fixados",
@@ -931,8 +1000,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         startFailed: "Não foi possível iniciar esta autenticação agora.",
         openAiRefreshFailed:
           "Não foi possível terminar a ligação ao OpenAI. Tenta novamente em Apps.",
-        accountRefreshFailed:
-          "Não foi possível actualizar a tua conta. Tenta novamente em Apps.",
+        accountRefreshFailed: "Não foi possível actualizar a tua conta. Tenta novamente em Apps.",
         connectorRefreshFailed:
           "Não foi possível actualizar esta ligação à app. Tenta novamente em Apps.",
         missingUrl: "Falta o URL de autenticação para este connector.",
@@ -1051,7 +1119,8 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         reject: "Recusar",
         rejectConfirm: "Recusar este pedido de acesso do Telegram?",
         approved: "Pedido de acesso aprovado.",
-        approvedTelegram: "Conta de Telegram aprovada. Envia uma mensagem para começar a conversar.",
+        approvedTelegram:
+          "Conta de Telegram aprovada. Envia uma mensagem para começar a conversar.",
         rejected: "Pedido de acesso recusado.",
       },
       status: {
@@ -2326,7 +2395,8 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
   },
   usage: {
     page: {
-      subtitle: "Vê para onde vão os tokens, quando é que as sessões disparam e o que pesa no custo.",
+      subtitle:
+        "Vê para onde vão os tokens, quando é que as sessões disparam e o que pesa no custo.",
     },
     common: {
       emptyValue: "—",
@@ -2530,7 +2600,8 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     mosaic: {
       title: "Actividade por hora",
       subtitleEmpty: "As estimativas exigem timestamps das sessões.",
-      subtitle: "Estimado a partir do intervalo das sessões (primeira/última actividade). Fuso horário: {zone}.",
+      subtitle:
+        "Estimado a partir do intervalo das sessões (primeira/última actividade). Fuso horário: {zone}.",
       noTimelineData: "Ainda não há dados de cronologia.",
       dayOfWeek: "Dia da semana",
       midnight: "Meia-noite",
@@ -2638,7 +2709,8 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
       namePlaceholder: "Resumo matinal",
       descriptionPlaceholder: "Contexto opcional para esta tarefa",
       agentPlaceholder: "main ou ops",
-      agentHelp: "Começa a escrever para escolher um agente conhecido ou introduz um personalizado.",
+      agentHelp:
+        "Começa a escrever para escolher um agente conhecido ou introduz um personalizado.",
       schedule: "Agendamento",
       scheduleSub: "Controla quando esta tarefa corre.",
       every: "Cada",
@@ -2655,13 +2727,15 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
       timezoneOptional: "Fuso horário (opcional)",
       timezonePlaceholder: "America/Los_Angeles",
       timezoneHelp: "Escolhe um fuso horário comum ou introduz qualquer fuso IANA válido.",
-      jitterHelp: "Precisas de variação? Usa Avançado → Janela de escalonamento / Unidade de escalonamento.",
+      jitterHelp:
+        "Precisas de variação? Usa Avançado → Janela de escalonamento / Unidade de escalonamento.",
       execution: "Execução",
       executionSub: "Escolhe quando despertar e o que esta tarefa deve fazer.",
       session: "Sessão",
       main: "Principal",
       isolated: "Isolada",
-      sessionHelp: "A principal publica um evento do sistema. A isolada corre um turno dedicado do agente.",
+      sessionHelp:
+        "A principal publica um evento do sistema. A isolada corre um turno dedicado do agente.",
       wakeMode: "Modo de despertar",
       now: "Agora",
       nextHeartbeat: "Próximo heartbeat",
@@ -2708,7 +2782,8 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
       seconds: "Segundos",
       model: "Modelo",
       modelPlaceholder: "openai/gpt-5.2",
-      modelHelp: "Começa a escrever para escolher um modelo conhecido ou introduz um personalizado.",
+      modelHelp:
+        "Começa a escrever para escolher um modelo conhecido ou introduz um personalizado.",
       thinking: "Pensamento",
       thinkingPlaceholder: "baixo",
       thinkingHelp: "Usa um nível sugerido ou introduz um valor específico do fornecedor.",

@@ -82,6 +82,15 @@ export type ChatHost = {
 };
 
 export const CHAT_SESSIONS_ACTIVE_MINUTES = 120;
+const QUEUED_CHAT_DUPLICATE_WINDOW_MS = 15_000;
+const LOCAL_CHAT_SUBMISSION_DEDUPE_WINDOW_MS = 1_500;
+
+type PendingLocalChatSubmission = {
+  fingerprint: string;
+  ts: number;
+};
+
+const pendingLocalChatSubmissions = new WeakMap<object, PendingLocalChatSubmission>();
 
 export function isChatBusy(host: ChatHost) {
   return host.chatSending || Boolean(host.chatRunId) || Boolean(host.chatFinalizing);
@@ -137,13 +146,20 @@ function enqueueChatMessage(
   if (!trimmed && !hasAttachments) {
     return;
   }
+  const lastQueued = host.chatQueue.at(-1);
+  const nextAttachments = hasAttachments
+    ? attachments?.map((att) => ({ ...att })).filter(Boolean)
+    : undefined;
+  if (lastQueued && isEquivalentQueuedChatMessage(lastQueued, trimmed, nextAttachments)) {
+    return;
+  }
   host.chatQueue = [
     ...host.chatQueue,
     {
       id: generateUUID(),
       text: trimmed,
       createdAt: Date.now(),
-      attachments: hasAttachments ? attachments?.map((att) => ({ ...att })) : undefined,
+      attachments: nextAttachments,
       refreshSessions,
       localCommandArgs: localCommand?.args,
       localCommandName: localCommand?.name,
@@ -156,6 +172,14 @@ function enqueuePendingRunMessage(host: ChatHost, text: string, pendingRunId: st
   if (!trimmed) {
     return;
   }
+  const lastQueued = host.chatQueue.at(-1);
+  if (
+    lastQueued &&
+    lastQueued.pendingRunId === pendingRunId &&
+    isEquivalentQueuedChatMessage(lastQueued, trimmed)
+  ) {
+    return;
+  }
   host.chatQueue = [
     ...host.chatQueue,
     {
@@ -165,6 +189,84 @@ function enqueuePendingRunMessage(host: ChatHost, text: string, pendingRunId: st
       pendingRunId,
     },
   ];
+}
+
+function buildQueuedAttachmentFingerprint(attachments?: ChatAttachment[]): string {
+  if (!attachments?.length) {
+    return "";
+  }
+  return attachments
+    .map((attachment) =>
+      JSON.stringify({
+        dataUrl: attachment.dataUrl,
+        fileName: attachment.fileName ?? null,
+        mimeType: attachment.mimeType,
+      }),
+    )
+    .join("\u0002");
+}
+
+function buildLocalChatSubmissionFingerprint(text: string, attachments?: ChatAttachment[]): string {
+  return JSON.stringify({
+    attachments: buildQueuedAttachmentFingerprint(attachments),
+    text: text.trim().replace(/\s+/g, " "),
+  });
+}
+
+function shouldSuppressDuplicateLocalSubmission(
+  host: ChatHost,
+  text: string,
+  attachments?: ChatAttachment[],
+): boolean {
+  const existing = pendingLocalChatSubmissions.get(host as object);
+  if (!existing) {
+    return false;
+  }
+  if (Date.now() - existing.ts > LOCAL_CHAT_SUBMISSION_DEDUPE_WINDOW_MS) {
+    pendingLocalChatSubmissions.delete(host as object);
+    return false;
+  }
+  return existing.fingerprint === buildLocalChatSubmissionFingerprint(text, attachments);
+}
+
+function rememberPendingLocalSubmission(
+  host: ChatHost,
+  text: string,
+  attachments?: ChatAttachment[],
+): PendingLocalChatSubmission {
+  const next = {
+    fingerprint: buildLocalChatSubmissionFingerprint(text, attachments),
+    ts: Date.now(),
+  };
+  pendingLocalChatSubmissions.set(host as object, next);
+  return next;
+}
+
+function clearPendingLocalSubmission(host: ChatHost, pending: PendingLocalChatSubmission): void {
+  const current = pendingLocalChatSubmissions.get(host as object);
+  if (current === pending) {
+    pendingLocalChatSubmissions.delete(host as object);
+  }
+}
+
+function isEquivalentQueuedChatMessage(
+  queued: ChatHost["chatQueue"][number],
+  text: string,
+  attachments?: ChatAttachment[],
+): boolean {
+  const ageMs = Date.now() - queued.createdAt;
+  if (ageMs > QUEUED_CHAT_DUPLICATE_WINDOW_MS) {
+    return false;
+  }
+  const normalizedQueuedText = queued.text.trim().replace(/\s+/g, " ");
+  const normalizedNextText = text.trim().replace(/\s+/g, " ");
+  if (normalizedQueuedText !== normalizedNextText) {
+    return false;
+  }
+  return (
+    buildQueuedAttachmentFingerprint(queued.attachments) ===
+    buildQueuedAttachmentFingerprint(attachments)
+  );
 }
 
 async function sendChatMessageNow(
@@ -398,10 +500,7 @@ async function handleLocalSecurityCommand(host: ChatHost, name: string, args: st
         : null;
 
   if (!nextMode) {
-    injectCommandResult(
-      host,
-      t("chat.localCommands.unknownSecurityMode", { action }),
-    );
+    injectCommandResult(host, t("chat.localCommands.unknownSecurityMode", { action }));
     return;
   }
 
@@ -433,10 +532,7 @@ async function handleLocalSecurityCommand(host: ChatHost, name: string, args: st
       )}`,
     );
   } catch (err) {
-    injectCommandResult(
-      host,
-      t("chat.localCommands.securityChangeFailed", { error: String(err) }),
-    );
+    injectCommandResult(host, t("chat.localCommands.securityChangeFailed", { error: String(err) }));
   }
 }
 
@@ -455,6 +551,10 @@ export async function handleSendChat(
   const hasAttachments = attachmentsToSend.length > 0;
 
   if (!message && !hasAttachments) {
+    return;
+  }
+
+  if (shouldSuppressDuplicateLocalSubmission(host, message, attachmentsToSend)) {
     return;
   }
 
@@ -500,14 +600,19 @@ export async function handleSendChat(
     return;
   }
 
-  await sendChatMessageNow(host, message, {
-    previousDraft: messageOverride == null ? previousDraft : undefined,
-    restoreDraft: Boolean(messageOverride && opts?.restoreDraft),
-    attachments: hasAttachments ? attachmentsToSend : undefined,
-    previousAttachments: messageOverride == null ? attachments : undefined,
-    restoreAttachments: Boolean(messageOverride && opts?.restoreDraft),
-    refreshSessions,
-  });
+  const pendingSubmission = rememberPendingLocalSubmission(host, message, attachmentsToSend);
+  try {
+    await sendChatMessageNow(host, message, {
+      previousDraft: messageOverride == null ? previousDraft : undefined,
+      restoreDraft: Boolean(messageOverride && opts?.restoreDraft),
+      attachments: hasAttachments ? attachmentsToSend : undefined,
+      previousAttachments: messageOverride == null ? attachments : undefined,
+      restoreAttachments: Boolean(messageOverride && opts?.restoreDraft),
+      refreshSessions,
+    });
+  } finally {
+    clearPendingLocalSubmission(host, pendingSubmission);
+  }
 }
 
 function shouldQueueLocalSlashCommand(name: string): boolean {

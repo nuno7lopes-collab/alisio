@@ -15,7 +15,7 @@ Alisio = CLAW + TARDIS, because every space lobster needs a time and space machi
 
 - **Peter Steinberger** ([@steipete](https://x.com/steipete)) - Creator, lobster whisperer
 - **Mario Zechner** ([@badlogicc](https://x.com/badlogicgames)) - Pi creator, security pen tester
-- **Clawd** - The space lobster who demanded a better name
+- **The Alisio lobster** - The mascot that pushed the product toward its final name
 
 ## Core contributors
 

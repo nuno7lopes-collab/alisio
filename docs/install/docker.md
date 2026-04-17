@@ -184,18 +184,18 @@ and rolling file logs under `/tmp/alisio/`.
 
 ### Shell helpers (optional)
 
-For easier day-to-day Docker management, install `ClawDock`:
+For easier day-to-day Docker management, install Alisio Docker Helpers:
 
 ```bash
-mkdir -p ~/.clawdock && curl -sL https://raw.githubusercontent.com/alisio/alisio/main/scripts/clawdock/clawdock-helpers.sh -o ~/.clawdock/clawdock-helpers.sh
-echo 'source ~/.clawdock/clawdock-helpers.sh' >> ~/.zshrc && source ~/.zshrc
+mkdir -p ~/.alisio-docker && curl -sL https://raw.githubusercontent.com/alisio/alisio/main/scripts/alisio-docker/helpers.sh -o ~/.alisio-docker/helpers.sh
+echo 'source ~/.alisio-docker/helpers.sh' >> ~/.zshrc && source ~/.zshrc
 ```
 
-If you installed ClawDock from the older `scripts/shell-helpers/clawdock-helpers.sh` raw path, rerun the install command above so your local helper file tracks the new location.
+If you installed an older helper script, rerun the install command above so your local helper file tracks the current location.
 
-Then use `clawdock-start`, `clawdock-stop`, `clawdock-dashboard`, etc. Run
-`clawdock-help` for all commands.
-See [ClawDock](/install/clawdock) for the full helper guide.
+Then use `alisio-docker-start`, `alisio-docker-stop`, `alisio-docker-dashboard`, etc. Run
+`alisio-docker-help` for all commands.
+See [Alisio Docker Helpers](/install/alisio-docker) for the full helper guide.
 
 <AccordionGroup>
   <Accordion title="Enable agent sandbox for Docker gateway">

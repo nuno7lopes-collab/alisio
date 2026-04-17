@@ -8,6 +8,15 @@
   --shell-nav-width: 228px;
   --shell-nav-rail-width: 88px;
   --shell-topbar-height: 64px;
+  --shell-topbar-inline-start: 8px;
+  --shell-topbar-inline-end: 18px;
+  --shell-control-height: 44px;
+  --shell-control-radius: 16px;
+  --shell-search-inline: 14px;
+  --shell-nav-padding: 14px 12px 18px 14px;
+  --shell-sidebar-padding: 18px 16px 14px;
+  --shell-sidebar-collapsed-padding: 14px 8px 12px;
+  --shell-sidebar-radius: 24px;
   --shell-focus-duration: 200ms;
   --shell-focus-ease: var(--ease-out);
   --sidebar-item-hover-bg: color-mix(in srgb, var(--bg-hover) 72%, var(--bg-elevated) 28%);
@@ -111,7 +120,7 @@
   z-index: 40;
   display: flex;
   align-items: center;
-  padding: 0 18px 0 8px;
+  padding: 0 var(--shell-topbar-inline-end) 0 var(--shell-topbar-inline-start);
   min-height: var(--shell-topbar-height);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
   background: color-mix(in srgb, var(--panel) 99%, transparent);
@@ -120,7 +129,7 @@
 }
 
 .topbar--chat {
-  padding: 0 18px 0 8px;
+  padding: 0 var(--shell-topbar-inline-end) 0 var(--shell-topbar-inline-start);
   border-bottom: none;
   background: transparent;
 }
@@ -183,7 +192,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 44px;
+  min-height: var(--shell-control-height);
   min-width: 0;
 }
 
@@ -236,11 +245,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 44px;
+  min-height: var(--shell-control-height);
   min-width: 160px;
-  padding: 0 14px;
+  padding: 0 var(--shell-search-inline);
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 16px;
+  border-radius: var(--shell-control-radius);
   background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
   color: var(--muted);
   font-size: 13px;
@@ -308,7 +317,7 @@
   min-height: 100%;
   overflow: visible;
   box-sizing: border-box;
-  padding: 14px 12px 18px 14px;
+  padding: var(--shell-nav-padding);
   transition: width var(--shell-focus-duration) var(--shell-focus-ease);
   border-right: none;
   background: transparent;
@@ -335,9 +344,9 @@
   min-height: 0;
   flex: 1;
   width: 100%;
-  padding: 18px 16px 14px;
+  padding: var(--shell-sidebar-padding);
   border: 1px solid color-mix(in srgb, var(--border) 64%, transparent);
-  border-radius: 24px;
+  border-radius: var(--shell-sidebar-radius);
   background: color-mix(in srgb, var(--bg-elevated) 92%, var(--panel) 8%);
   box-shadow: var(--shadow-lg);
 }
@@ -398,8 +407,8 @@
 }
 
 .sidebar--collapsed .sidebar-shell {
-  padding: 14px 8px 12px;
-  border-radius: 24px;
+  padding: var(--shell-sidebar-collapsed-padding);
+  border-radius: var(--shell-sidebar-radius);
 }
 
 .sidebar--collapsed .sidebar-shell__header {

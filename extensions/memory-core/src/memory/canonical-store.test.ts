@@ -204,6 +204,110 @@ describe("canonical memory store", () => {
     }
   });
 
+  it("imports legacy compatibility markdown when the visible workspace is still empty", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-compat-import-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      const compatibilityRoot = path.join(test.stateDir, "workspace");
+      await fs.mkdir(path.join(compatibilityRoot, "memory"), { recursive: true });
+      await fs.writeFile(
+        path.join(compatibilityRoot, "MEMORY.md"),
+        "# Team Memory\n\nSee [[memory/alpha]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(compatibilityRoot, "memory", "alpha.md"),
+        "# Alpha\n\nRecovered from the legacy mirror.\n",
+        "utf8",
+      );
+
+      const status = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+
+      expect(status.state).toBe("ready");
+      expect(status.entities).toBe(2);
+      expect(status.projections).toBe(2);
+
+      const materializedRoot = await fs.readFile(path.join(test.workspaceDir, "MEMORY.md"), "utf8");
+      const materializedAlpha = await fs.readFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
+        "utf8",
+      );
+      expect(materializedRoot).toContain("[[memory/alpha]]");
+      expect(materializedAlpha).toContain("Recovered from the legacy mirror.");
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
+
+  it("revives tombstoned projected pages even when imported_files is empty", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-revive-projected-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      await fs.writeFile(
+        path.join(test.workspaceDir, "MEMORY.md"),
+        "# Team Memory\n\nSee [[memory/alpha]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
+        "# Alpha\n\nRevive me.\n",
+        "utf8",
+      );
+
+      const initial = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+
+      const db = openDb(initial.path);
+      try {
+        db.exec(`DELETE FROM imported_files;`);
+        db.exec(`UPDATE pages SET tombstoned = 1;`);
+      } finally {
+        db.close();
+      }
+
+      const revived = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+      const revivedDb = openDb(revived.path);
+      try {
+        const rows = revivedDb
+          .prepare(
+            `SELECT title, tombstoned
+             FROM pages
+             ORDER BY title ASC`,
+          )
+          .all() as Array<{ title: string; tombstoned: number }>;
+        expect(rows).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ title: "Alpha", tombstoned: 0 }),
+            expect.objectContaining({ title: "Team Memory", tombstoned: 0 }),
+          ]),
+        );
+      } finally {
+        revivedDb.close();
+      }
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
+
   it("prefers config sync settings over legacy env vars", async () => {
     const test = await createTestWorkspace("alisio-canonical-memory-sync-config-");
     vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);

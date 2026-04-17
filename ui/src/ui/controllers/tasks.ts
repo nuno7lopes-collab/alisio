@@ -8,6 +8,7 @@ import type {
   TaskDependency,
   TaskEvent,
   TaskExecution,
+  TaskExecutionStep,
   TaskProposalDecision,
   TaskProposalDraft,
   TaskProposalRecord,
@@ -230,6 +231,21 @@ function normalizeTaskEvent(entry: unknown): TaskEvent | null {
   return event as TaskEvent;
 }
 
+function normalizeTaskExecutionStep(entry: unknown): TaskExecutionStep | null {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+  const step = entry as Partial<TaskExecutionStep>;
+  if (
+    typeof step.stepId !== "string" ||
+    typeof step.taskId !== "string" ||
+    typeof step.createdAt !== "number"
+  ) {
+    return null;
+  }
+  return step as TaskExecutionStep;
+}
+
 function normalizeTaskDependency(entry: unknown): TaskDependency | null {
   if (!entry || typeof entry !== "object") {
     return null;
@@ -298,6 +314,9 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
   const canonicalEvents = (Array.isArray(value.canonicalEvents) ? value.canonicalEvents : [])
     .map(normalizeTaskEvent)
     .filter((entry): entry is TaskEvent => Boolean(entry));
+  const canonicalSteps = (Array.isArray(value.canonicalSteps) ? value.canonicalSteps : [])
+    .map(normalizeTaskExecutionStep)
+    .filter((entry): entry is TaskExecutionStep => Boolean(entry));
   const canonicalDependencies = (
     Array.isArray(value.canonicalDependencies) ? value.canonicalDependencies : []
   )
@@ -314,6 +333,7 @@ function normalizeTasksOverviewResult(raw: unknown): TasksOverviewResult | null 
     canonicalAssignments,
     canonicalApprovals,
     canonicalEvents,
+    canonicalSteps,
     canonicalDependencies,
   };
 }

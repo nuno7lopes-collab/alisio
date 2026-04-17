@@ -185,7 +185,7 @@ describe("openExternalTarget", () => {
     const windowOpenMock = vi.spyOn(window, "open").mockImplementation(() => ({}) as Window);
 
     const result = await openExternalTarget("https://example.com/oauth", {
-      baseHref: "https://openclaw.ai/chat",
+      baseHref: "https://alisio.ai/chat",
       openViaHost,
       preferNewTab: true,
     });
@@ -208,7 +208,7 @@ describe("openExternalTarget", () => {
     vi.spyOn(window, "open").mockReturnValue(null);
     vi.stubGlobal("window", {
       location: {
-        href: "https://openclaw.ai/chat",
+        href: "https://alisio.ai/chat",
         assign: locationAssign,
       },
       open: originalOpen,

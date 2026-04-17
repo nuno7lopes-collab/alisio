@@ -224,15 +224,15 @@ export function renderMessageGroup(
   },
 ) {
   const normalizedRole = normalizeRoleForGrouping(group.role);
-  const assistantName = opts.assistantName ?? "Assistant";
+  const assistantName = opts.assistantName ?? chatText("defaultAssistantName");
   const userLabel = group.senderLabel?.trim();
   const who =
     normalizedRole === "user"
-      ? (userLabel ?? "You")
+      ? (userLabel ?? chatText("participants.you"))
       : normalizedRole === "assistant"
         ? assistantName
         : normalizedRole === "tool"
-          ? "Tool"
+          ? chatText("participants.tool")
           : normalizedRole;
   const roleClass =
     normalizedRole === "user"
@@ -297,12 +297,17 @@ export function renderMessageGroup(
             ? html`
                 <span class="chat-group-footer-actions">
                   ${canCopyGroupMarkdown ? renderCopyAsMarkdownButton(groupMarkdown!) : nothing}
-                  ${canExpandGroup ? renderExpandButton(groupMarkdown!, opts.onOpenSidebar!) : nothing}
+                  ${canExpandGroup
+                    ? renderExpandButton(groupMarkdown!, opts.onOpenSidebar!)
+                    : nothing}
                   ${normalizedRole === "assistant" && isTtsSupported()
                     ? renderTtsButton(group)
                     : nothing}
                   ${opts.onDelete
-                    ? renderDeleteButton(opts.onDelete, normalizedRole === "user" ? "left" : "right")
+                    ? renderDeleteButton(
+                        opts.onDelete,
+                        normalizedRole === "user" ? "left" : "right",
+                      )
                     : nothing}
                 </span>
               `
@@ -458,7 +463,9 @@ function extractMessageDisplayMarkdown(message: unknown, sessionKey: string): st
     requesterSessionKey: sessionKey,
     message,
   });
-  const markdown = taskProposalBlock.cleanedMarkdown?.trim() ? taskProposalBlock.cleanedMarkdown : null;
+  const markdown = taskProposalBlock.cleanedMarkdown?.trim()
+    ? taskProposalBlock.cleanedMarkdown
+    : null;
   return markdown;
 }
 
@@ -618,7 +625,7 @@ function renderAvatar(
   basePath?: string,
 ) {
   const normalized = normalizeRoleForGrouping(role);
-  const assistantName = assistant?.name?.trim() || "Assistant";
+  const assistantName = assistant?.name?.trim() || chatText("defaultAssistantName");
   const assistantAvatar = assistant?.avatar?.trim() || "";
   const initial =
     normalized === "user"
@@ -714,7 +721,7 @@ function renderMessageImages(images: ImageBlock[]) {
         (img) => html`
           <img
             src=${img.url}
-            alt=${img.alt ?? "Attached image"}
+            alt=${img.alt ?? chatText("attachments.imageAlt")}
             class="chat-message-image"
             @click=${() => openImage(img.url)}
           />
@@ -722,6 +729,39 @@ function renderMessageImages(images: ImageBlock[]) {
       )}
     </div>
   `;
+}
+
+function renderTaskProposalCards(cards: TemplateResult[]) {
+  if (cards.length === 0) {
+    return nothing;
+  }
+  return html`<div class="chat-task-proposal-list">${cards}</div>`;
+}
+
+function getTaskProposalDecisionLabel(
+  decision: TaskProposalRecord["decision"] | "draft" | undefined,
+): string {
+  switch (decision) {
+    case "approved":
+      return chatText("taskProposals.decision.approved");
+    case "rejected":
+      return chatText("taskProposals.decision.rejected");
+    case "pending":
+      return chatText("taskProposals.decision.pending");
+    case "draft":
+    default:
+      return chatText("taskProposals.decision.draft");
+  }
+}
+
+function getTaskProposalKindLabel(kind: TaskProposalDraft["kind"]): string {
+  switch (kind) {
+    case "project":
+      return chatText("taskProposals.kind.project");
+    case "task":
+    default:
+      return chatText("taskProposals.kind.task");
+  }
 }
 
 function renderMessageAttachments(attachments: AttachmentBlock[]) {
@@ -868,10 +908,14 @@ function renderMarkdownMessage(role: string, markdown: string) {
       <div class="chat-message-collapse__content">${messageBody}</div>
       <summary class="chat-message-collapse__toggle">
         <span class="chat-message-collapse__toggle-copy">
-          <span class="chat-message-collapse__toggle-label chat-message-collapse__toggle-label--closed">
+          <span
+            class="chat-message-collapse__toggle-label chat-message-collapse__toggle-label--closed"
+          >
             ${chatText("actions.showMore")}
           </span>
-          <span class="chat-message-collapse__toggle-label chat-message-collapse__toggle-label--open">
+          <span
+            class="chat-message-collapse__toggle-label chat-message-collapse__toggle-label--open"
+          >
             ${chatText("actions.showLess")}
           </span>
         </span>
@@ -922,7 +966,10 @@ function renderThinkingPanel(message: unknown) {
   }
 
   return html`
-    <div class="chat-thinking-summary-card chat-thinking-panel chat-thinking-panel--hidden" role="note">
+    <div
+      class="chat-thinking-summary-card chat-thinking-panel chat-thinking-panel--hidden"
+      role="note"
+    >
       <div class="chat-thinking-summary chat-thinking-summary--static">
         <span class="chat-thinking-summary__lead">
           <span class="chat-thinking-summary__icon">${icons.brain}</span>
@@ -937,7 +984,9 @@ function renderThinkingPanel(message: unknown) {
             ${chatText("thinkingPanel.done")}
           </span>
         </span>
-        <span class="chat-thinking-summary__preview">${chatText("thinkingPanel.hiddenPreview")}</span>
+        <span class="chat-thinking-summary__preview"
+          >${chatText("thinkingPanel.hiddenPreview")}</span
+        >
       </div>
     </div>
   `;
@@ -1051,16 +1100,11 @@ function renderGroupedMessage(
         ? html`
             <div class="chat-tool-msg-body chat-tool-msg-body--flat">
               ${renderMessageImages(images)} ${renderMessageAttachments(attachments)}
-              ${thinkingPanel}
-              ${hasToolCards ? nothing : renderedMessageContent}
+              ${thinkingPanel} ${hasToolCards ? nothing : renderedMessageContent}
               ${hasToolCards
                 ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
                 : nothing}
-              ${taskProposalCards.length > 0
-                ? html`<div style="display: grid; gap: 10px; margin-top: 12px;">
-                    ${taskProposalCards}
-                  </div>`
-                : nothing}
+              ${renderTaskProposalCards(taskProposalCards)}
             </div>
           `
         : html`
@@ -1069,11 +1113,7 @@ function renderGroupedMessage(
             ${hasToolCards
               ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
               : nothing}
-            ${taskProposalCards.length > 0
-              ? html`<div style="display: grid; gap: 10px; margin-top: 12px;">
-                  ${taskProposalCards}
-                </div>`
-              : nothing}
+            ${renderTaskProposalCards(taskProposalCards)}
           `}
     </div>
   `;
@@ -1093,18 +1133,16 @@ function renderTaskProposalCard(params: {
   const persisted = params.persisted;
   const launchedSessionKey = persisted?.launchedSessionKey?.trim() || null;
   const launchable = persisted?.decision === "approved" && !persisted.launchedRunId?.trim();
-  const decisionLabel = persisted?.decision ?? "draft";
+  const decisionLabel = getTaskProposalDecisionLabel(persisted?.decision ?? "draft");
   const details = proposal.summary?.trim() || proposal.rationale?.trim() || proposal.title;
 
   return html`
-    <div
-      style="display: grid; gap: 10px; padding: 12px; border-radius: 14px; border: 1px solid var(--hairline, rgba(255,255,255,0.12)); background: color-mix(in srgb, var(--card-bg, rgba(255,255,255,0.04)) 88%, transparent);"
-    >
-      <div style="display: flex; justify-content: space-between; gap: 12px;">
-        <div style="font-weight: 600;">${proposal.title}</div>
+    <div class="chat-task-proposal-card">
+      <div class="chat-task-proposal-card__header">
+        <div class="chat-task-proposal-card__title">${proposal.title}</div>
         <div class="muted">${decisionLabel}</div>
       </div>
-      <div class="list-sub">${proposal.kind} proposal</div>
+      <div class="list-sub">${getTaskProposalKindLabel(proposal.kind)}</div>
       <div>${details}</div>
       ${proposal.acceptance.length > 0
         ? html`
@@ -1121,14 +1159,21 @@ function renderTaskProposalCard(params: {
       ${persisted?.linkedTask
         ? html`
             <div class="list-sub">
-              Linked task: ${persisted.linkedTask.status} · ${persisted.linkedTask.runtime} ·
-              ${persisted.linkedTask.taskId}
+              ${chatText("taskProposals.linkedTask", {
+                status: persisted.linkedTask.status,
+                runtime: persisted.linkedTask.runtime,
+                taskId: persisted.linkedTask.taskId,
+              })}
             </div>
           `
         : persisted?.launchedRunId?.trim()
-          ? html`<div class="list-sub">Launched run: ${persisted.launchedRunId}</div>`
+          ? html`<div class="list-sub">
+              ${chatText("taskProposals.launchedRun", {
+                runId: persisted.launchedRunId,
+              })}
+            </div>`
           : nothing}
-      <div class="row" style="gap: 8px; flex-wrap: wrap;">
+      <div class="row chat-task-proposal-card__actions">
         ${!persisted && params.onSave
           ? html`
               <button
@@ -1136,7 +1181,7 @@ function renderTaskProposalCard(params: {
                 ?disabled=${params.busy}
                 @click=${() => params.onSave?.(proposal)}
               >
-                Save to inbox
+                ${chatText("taskProposals.saveToInbox")}
               </button>
             `
           : nothing}
@@ -1147,14 +1192,14 @@ function renderTaskProposalCard(params: {
                 ?disabled=${params.busy}
                 @click=${() => params.onResolve?.(proposal, "approved")}
               >
-                Approve
+                ${chatText("taskProposals.approve")}
               </button>
               <button
                 class="btn"
                 ?disabled=${params.busy}
                 @click=${() => params.onResolve?.(proposal, "rejected")}
               >
-                Reject
+                ${chatText("taskProposals.reject")}
               </button>
             `
           : nothing}
@@ -1165,7 +1210,7 @@ function renderTaskProposalCard(params: {
                 ?disabled=${params.busy}
                 @click=${() => params.onLaunch?.(proposal, persisted)}
               >
-                Launch
+                ${chatText("taskProposals.launch")}
               </button>
             `
           : nothing}
@@ -1176,14 +1221,14 @@ function renderTaskProposalCard(params: {
                 ?disabled=${params.busy}
                 @click=${() => params.onOpenTaskSession?.(launchedSessionKey)}
               >
-                Open launched chat
+                ${chatText("taskProposals.openLaunchedChat")}
               </button>
             `
           : nothing}
         ${params.onOpenTasks
           ? html`
               <button class="btn" ?disabled=${params.busy} @click=${() => params.onOpenTasks?.()}>
-                Open tasks
+                ${chatText("taskProposals.openTasks")}
               </button>
             `
           : nothing}

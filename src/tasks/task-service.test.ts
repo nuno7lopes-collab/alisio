@@ -78,6 +78,64 @@ describe("task-service", () => {
     rmSync(stateDir, { recursive: true, force: true });
   });
 
+  it("records canonical execution steps for lifecycle and approval changes", () => {
+    const stateDir = mkdtempSync(path.join(os.tmpdir(), "alisio-task-service-"));
+    process.env.ALISIO_STATE_DIR = stateDir;
+
+    const task = createTask({
+      title: "Traceable task",
+      requestedBy: "nuno",
+    });
+    const requested = requestTaskApproval({
+      taskId: task.taskId,
+      requestedBy: "nuno",
+      note: "Need approval",
+    });
+    decideTaskApproval({
+      approvalId: requested.approval.approvalId,
+      decision: "approved",
+      decidedBy: "owner",
+    });
+    const started = startTaskExecution({
+      taskId: task.taskId,
+      kind: "subagent",
+      runId: "run-trace",
+      summary: "Boot subagent",
+    });
+    endTaskExecution({
+      executionId: started.execution.executionId,
+      status: "succeeded",
+      summary: "Done",
+    });
+
+    const bundle = getTaskBundle(task.taskId);
+    expect(bundle?.steps).toEqual([
+      expect.objectContaining({
+        kind: "approval_requested",
+        status: "pending",
+        summary: "Need approval",
+      }),
+      expect.objectContaining({
+        kind: "approval_decided",
+        status: "succeeded",
+      }),
+      expect.objectContaining({
+        kind: "execution_started",
+        status: "running",
+        executionId: started.execution.executionId,
+        summary: "Boot subagent",
+      }),
+      expect.objectContaining({
+        kind: "execution_finished",
+        status: "succeeded",
+        executionId: started.execution.executionId,
+        summary: "Done",
+      }),
+    ]);
+
+    rmSync(stateDir, { recursive: true, force: true });
+  });
+
   it("spawns child tasks with executions linked by taskId", () => {
     const stateDir = mkdtempSync(path.join(os.tmpdir(), "alisio-task-service-"));
     process.env.ALISIO_STATE_DIR = stateDir;

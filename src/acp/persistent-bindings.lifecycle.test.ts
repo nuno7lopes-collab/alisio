@@ -61,7 +61,7 @@ describe("resetAcpSessionInPlace", () => {
         agent: "claude",
         mode: "persistent",
         backend: "acpx",
-        runtimeOptions: { cwd: "/home/bob/clawd" },
+        runtimeOptions: { cwd: "/home/bob/alisio-workspace" },
       },
     });
     resolveMocks.resolveConfiguredAcpBindingSpecBySessionKey.mockImplementation(() => {

@@ -809,7 +809,6 @@ export function renderApp(state: AppViewState) {
                   ? nothing
                   : html`
                       <span class="sidebar-brand__copy">
-                        <span class="sidebar-brand__eyebrow">Alisio</span>
                         <span class="sidebar-brand__title">Alisio</span>
                       </span>
                     `}

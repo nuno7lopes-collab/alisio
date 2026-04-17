@@ -975,16 +975,12 @@ function renderWelcomeState(props: ChatProps): TemplateResult {
       : [];
 
   return html`
-    <div class="agent-chat__welcome" style="--agent-color: var(--accent)">
+    <div class="agent-chat__welcome">
       <div class="agent-chat__welcome-glow"></div>
       ${avatar
-        ? html`<img
-            src=${avatar}
-            alt=${name}
-            style="width:56px; height:56px; border-radius:50%; object-fit:cover;"
-          />`
+        ? html`<img class="agent-chat__welcome-avatar" src=${avatar} alt=${name} />`
         : html`<div class="agent-chat__avatar agent-chat__avatar--logo">
-            <img src=${logoUrl} alt="Alisio" />
+            <img src=${logoUrl} alt=${name} />
           </div>`}
       <div class="agent-chat__welcome-hero">
         <h2>${greeting}</h2>
@@ -1547,6 +1543,10 @@ export function renderChat(props: ChatProps) {
       if (e.isComposing || e.keyCode === 229) {
         return;
       }
+      if (e.repeat || props.sending) {
+        e.preventDefault();
+        return;
+      }
       if (!canSendMessage) {
         return;
       }
@@ -1683,7 +1683,9 @@ export function renderChat(props: ChatProps) {
       @drop=${(e: DragEvent) => handleDrop(e, props, requestUpdate)}
       @dragover=${(e: DragEvent) => e.preventDefault()}
     >
-      ${showGenericDisabledReason ? html`<div class="callout">${props.disabledReason}</div>` : nothing}
+      ${showGenericDisabledReason
+        ? html`<div class="callout">${props.disabledReason}</div>`
+        : nothing}
       ${runtimeSetupCallout}
       ${props.error && !props.runtimeSetupHint
         ? html`<div class="callout danger">${props.error}</div>`

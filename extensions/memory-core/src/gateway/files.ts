@@ -1,10 +1,13 @@
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { GatewayRequestHandlerOptions } from "alisio/plugin-sdk/core";
+import { resolveAgentWorkspaceDir } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { requireNodeSqlite } from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import { loadConfig, resolveStateDir } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import { resolveMemoryBackendConfig } from "alisio/plugin-sdk/memory-core-host-runtime-files";
+import { syncCanonicalMemoryStore } from "../memory/canonical-store.js";
 import { readAttachmentOriginsFromLedger } from "../memory/ledger-interop.js";
-import type { CanonicalMemoryStoreStatus } from "./memory/canonical-store.js";
+import { type CanonicalMemoryStoreStatus } from "./memory/canonical-store.js";
 import { getMemorySearchManager } from "./memory/index.js";
 
 type GatewayRespond = GatewayRequestHandlerOptions["respond"];
@@ -409,12 +412,35 @@ async function resolveNativeMemoryContext(params: {
     return null;
   }
   const cfg = loadConfig();
+  const tryDirectCanonicalStore = async (): Promise<NativeMemoryContext | null> => {
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const backendConfig = resolveMemoryBackendConfig({ cfg, agentId });
+    if (!workspaceDir || !backendConfig) {
+      return null;
+    }
+    const canonicalStore = await syncCanonicalMemoryStore({
+      cfg,
+      agentId,
+      workspaceDir,
+      backend: backendConfig.backend,
+      env: process.env,
+    });
+    return {
+      agentId,
+      canonicalStore,
+      async close() {},
+    };
+  };
   const { manager, error } = await getMemorySearchManager({
     cfg,
     agentId,
     purpose: "status",
   });
   if (!manager) {
+    const fallback = await tryDirectCanonicalStore().catch(() => null);
+    if (fallback) {
+      return fallback;
+    }
     respondGatewayError(
       params.respond,
       "UNAVAILABLE",
@@ -425,13 +451,43 @@ async function resolveNativeMemoryContext(params: {
   try {
     const initialStatus = manager.status();
     let canonicalStore = asCanonicalStoreStatus(initialStatus.custom?.canonicalStore);
-    if (
-      params.syncIfDirty !== false &&
-      manager.sync &&
-      (initialStatus.dirty || canonicalStore?.state !== "ready")
-    ) {
+    if (canonicalStore && canReadCanonicalStore(canonicalStore)) {
+      if (
+        params.syncIfDirty !== false &&
+        manager.sync &&
+        (initialStatus.dirty || canonicalStore.state !== "ready")
+      ) {
+        await manager.sync({ reason: params.method, force: true });
+        const syncedStore = asCanonicalStoreStatus(manager.status().custom?.canonicalStore);
+        if (syncedStore && canReadCanonicalStore(syncedStore)) {
+          canonicalStore = syncedStore;
+        }
+      }
+      return {
+        agentId,
+        canonicalStore,
+        async close() {
+          await manager.close?.().catch(() => {});
+        },
+      };
+    }
+    if (params.syncIfDirty !== false && manager.sync) {
       await manager.sync({ reason: params.method, force: true });
       canonicalStore = asCanonicalStoreStatus(manager.status().custom?.canonicalStore);
+      if (canonicalStore && canReadCanonicalStore(canonicalStore)) {
+        return {
+          agentId,
+          canonicalStore,
+          async close() {
+            await manager.close?.().catch(() => {});
+          },
+        };
+      }
+    }
+    const fallback = await tryDirectCanonicalStore().catch(() => null);
+    if (fallback && canReadCanonicalStore(fallback.canonicalStore)) {
+      await manager.close?.().catch(() => {});
+      return fallback;
     }
     if (!canonicalStore) {
       respondGatewayError(
@@ -441,15 +497,18 @@ async function resolveNativeMemoryContext(params: {
       );
       return null;
     }
-    return {
-      agentId,
-      canonicalStore,
-      async close() {
-        await manager.close?.().catch(() => {});
-      },
-    };
+    respondGatewayError(
+      params.respond,
+      "UNAVAILABLE",
+      `${params.method} unavailable: canonical memory store is not initialized yet`,
+    );
+    return null;
   } catch (error) {
     await manager.close?.().catch(() => {});
+    const fallback = await tryDirectCanonicalStore().catch(() => null);
+    if (fallback && canReadCanonicalStore(fallback.canonicalStore)) {
+      return fallback;
+    }
     respondGatewayError(
       params.respond,
       "UNAVAILABLE",
@@ -462,6 +521,31 @@ async function resolveNativeMemoryContext(params: {
 function openCanonicalDb(status: CanonicalMemoryStoreStatus): DatabaseSync {
   const { DatabaseSync } = requireNodeSqlite();
   return new DatabaseSync(status.path, { readOnly: true });
+}
+
+function canReadCanonicalStore(status: CanonicalMemoryStoreStatus): boolean {
+  try {
+    const db = openCanonicalDb(status);
+    try {
+      const row = db
+        .prepare(
+          `SELECT 1 AS found
+           FROM sqlite_master
+           WHERE type = 'table' AND name = 'pages'
+           LIMIT 1`,
+        )
+        .get() as
+        | {
+            found?: number;
+          }
+        | undefined;
+      return row?.found === 1;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
 }
 
 function buildSyncSurface(status: CanonicalMemoryStoreStatus): MemorySyncSurface {
@@ -926,6 +1010,7 @@ export async function handleMemoryFilesListGatewayRequest({
     method: "memory.files.list",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;
@@ -964,6 +1049,7 @@ export async function handleMemoryFilesGetGatewayRequest({
     method: "memory.files.get",
     request: params,
     respond,
+    syncIfDirty: false,
   });
   if (!context) {
     return;

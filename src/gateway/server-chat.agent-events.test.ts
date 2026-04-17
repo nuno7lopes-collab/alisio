@@ -5,6 +5,8 @@ import { resolveHeartbeatVisibility } from "../infra/heartbeat-visibility.js";
 import { loadGatewaySessionRow } from "./session-utils.js";
 
 const persistGatewaySessionLifecycleEventMock = vi.fn();
+const getTaskExecutionByRunIdMock = vi.fn();
+const recordTaskExecutionStepMock = vi.fn();
 
 vi.mock("./session-lifecycle-state.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./session-lifecycle-state.js")>();
@@ -42,6 +44,11 @@ vi.mock("./session-utils.js", async (importOriginal) => {
   };
 });
 
+vi.mock("../tasks/task-service.js", () => ({
+  getTaskExecutionByRunId: (...args: unknown[]) => getTaskExecutionByRunIdMock(...args),
+  recordTaskExecutionStep: (...args: unknown[]) => recordTaskExecutionStepMock(...args),
+}));
+
 describe("agent event handler", () => {
   beforeEach(() => {
     vi.mocked(loadConfig).mockReturnValue({});
@@ -52,6 +59,8 @@ describe("agent event handler", () => {
     });
     vi.mocked(loadGatewaySessionRow).mockReset().mockReturnValue(null);
     persistGatewaySessionLifecycleEventMock.mockReset().mockResolvedValue(undefined);
+    getTaskExecutionByRunIdMock.mockReset().mockReturnValue(null);
+    recordTaskExecutionStepMock.mockReset();
     resetAgentRunContextForTest();
   });
 
@@ -732,6 +741,49 @@ describe("agent event handler", () => {
     expect(broadcast).not.toHaveBeenCalled();
     expect(broadcastToConnIds).toHaveBeenCalledTimes(1);
     resetAgentRunContextForTest();
+  });
+
+  it("records canonical task steps for tool events linked to a task execution", () => {
+    const { toolEventRecipients, handler } = createHarness({
+      resolveSessionKeyForRun: () => "session-1",
+    });
+
+    getTaskExecutionByRunIdMock.mockReturnValue({
+      executionId: "execution-1",
+      taskId: "task-1",
+      kind: "subagent",
+      attempt: 1,
+      runId: "run-tool-step",
+      sessionKey: "session-1",
+      status: "running",
+      createdAt: 1_000,
+    });
+    toolEventRecipients.add("run-tool-step", "conn-1");
+
+    handler({
+      runId: "run-tool-step",
+      seq: 1,
+      stream: "tool",
+      ts: 2_000,
+      data: {
+        phase: "start",
+        name: "exec",
+        toolCallId: "tool-step-1",
+        args: { command: "git status" },
+      },
+    });
+
+    expect(recordTaskExecutionStepMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskId: "task-1",
+        executionId: "execution-1",
+        kind: "command_started",
+        status: "running",
+        tool: "exec",
+        summary: "git status",
+        createdAt: 2_000,
+      }),
+    );
   });
 
   it("broadcasts tool events to WS recipients even when verbose is off, but skips node send", () => {

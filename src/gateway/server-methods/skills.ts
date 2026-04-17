@@ -3,7 +3,10 @@ import {
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../../agents/agent-scope.js";
-import { installSkillFromClawHub, updateSkillsFromClawHub } from "../../agents/skills-clawhub.js";
+import {
+  installMarketplaceRegistrySkill,
+  updateMarketplaceSkills,
+} from "../../agents/skills-marketplace-remote.js";
 import { installSkill } from "../../agents/skills-install.js";
 import {
   buildWorkspaceSkillStatus,
@@ -200,7 +203,7 @@ export const skillsHandlers: GatewayRequestHandlers = {
         version?: string;
         force?: boolean;
       };
-      const result = await installSkillFromClawHub({
+      const result = await installMarketplaceRegistrySkill({
         workspaceDir: workspaceDirRaw,
         slug: p.slug,
         version: p.version,
@@ -573,7 +576,10 @@ export const skillsHandlers: GatewayRequestHandlers = {
         respond(
           false,
           undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, 'clawhub skills.update requires "slug" or "all"'),
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            'marketplace skills.update requires "slug" or "all"',
+          ),
         );
         return;
       }
@@ -583,14 +589,14 @@ export const skillsHandlers: GatewayRequestHandlers = {
           undefined,
           errorShape(
             ErrorCodes.INVALID_REQUEST,
-            'clawhub skills.update accepts either "slug" or "all", not both',
+            'marketplace skills.update accepts either "slug" or "all", not both',
           ),
         );
         return;
       }
       const cfg = loadConfig();
       const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
-      const results = await updateSkillsFromClawHub({
+      const results = await updateMarketplaceSkills({
         workspaceDir,
         slug: p.slug,
       });

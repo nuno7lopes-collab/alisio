@@ -420,6 +420,53 @@ describe("browser tool snapshot maxChars", () => {
     expect(browserClientMocks.browserStatus).not.toHaveBeenCalled();
   });
 
+  it("does not auto-route sandbox-first sessions into node browser proxy fallback", async () => {
+    mockSingleBrowserProxyNode();
+    const tool = createBrowserTool({
+      allowHostControl: true,
+      preferSandbox: true,
+    });
+
+    await expect(
+      tool.execute?.("call-1", {
+        action: "status",
+      }),
+    ).rejects.toThrow(/Sandbox browser is unavailable/i);
+
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+    expect(browserClientMocks.browserStatus).not.toHaveBeenCalled();
+  });
+
+  it("forces sandbox-first semantics from runtime config for agent sessions with stale host targets", async () => {
+    configMocks.loadConfig.mockReturnValue({
+      browser: {},
+      agents: {
+        defaults: {
+          sandbox: {
+            mode: "all",
+            browser: {
+              enabled: true,
+            },
+          },
+        },
+      },
+    });
+    const tool = createBrowserTool({
+      agentSessionKey: "agent:main:main",
+      sandboxBridgeUrl: "http://127.0.0.1:9999",
+      allowHostControl: true,
+    });
+
+    await tool.execute?.("call-1", {
+      action: "status",
+      target: "host",
+    });
+
+    expect(browserClientMocks.browserStatus).toHaveBeenCalledWith("http://127.0.0.1:9999", {
+      profile: undefined,
+    });
+  });
+
   it("defaults to host for custom existing-session profiles too", async () => {
     setResolvedBrowserProfiles({
       "chrome-live": { driver: "existing-session", attachOnly: true, color: "#00AA00" },

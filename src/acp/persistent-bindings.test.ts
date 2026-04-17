@@ -892,11 +892,11 @@ describe("ensureConfiguredAcpBindingSession", () => {
 
   it("keeps a matching ready session even when the stored ACP session is in error state", async () => {
     const spec = createDiscordPersistentSpec({
-      cwd: "/home/bob/clawd",
+      cwd: "/home/bob/alisio-workspace",
     });
     const sessionKey = mockReadySession({
       spec,
-      cwd: "/home/bob/clawd",
+      cwd: "/home/bob/alisio-workspace",
       state: "error",
     });
 
@@ -977,7 +977,7 @@ describe("resetAcpSessionInPlace", () => {
         agent: "claude",
         mode: "persistent",
         backend: "acpx",
-        runtimeOptions: { cwd: "/home/bob/clawd" },
+        runtimeOptions: { cwd: "/home/bob/alisio-workspace" },
       },
     });
     managerMocks.initializeSession.mockRejectedValueOnce(new Error("backend unavailable"));

@@ -1049,6 +1049,20 @@ function resolveConnectorTokenEncryptionKey(
 export const __testing = {
   hasUsableConnectorTokenKeychain,
   resolveConnectorTokenKeychainAccounts,
+  resetAlisioSharingCloudReadCache() {
+    ALISIO_SHARING_CLOUD_READ_CACHE.clear();
+    ALISIO_SHARING_CLOUD_READ_INFLIGHT.clear();
+    ALISIO_SHARING_CLOUD_READ_TIMEOUT_MS = 1_500;
+    ALISIO_SHARING_CLOUD_READ_CACHE_TTL_MS = 8_000;
+  },
+  setAlisioSharingCloudReadTimingForTests(params: { timeoutMs?: number; cacheTtlMs?: number }) {
+    if (typeof params.timeoutMs === "number" && Number.isFinite(params.timeoutMs)) {
+      ALISIO_SHARING_CLOUD_READ_TIMEOUT_MS = Math.max(0, Math.floor(params.timeoutMs));
+    }
+    if (typeof params.cacheTtlMs === "number" && Number.isFinite(params.cacheTtlMs)) {
+      ALISIO_SHARING_CLOUD_READ_CACHE_TTL_MS = Math.max(0, Math.floor(params.cacheTtlMs));
+    }
+  },
 };
 
 function encryptConnectorToken(plaintext: string, env: NodeJS.ProcessEnv) {
@@ -3548,6 +3562,166 @@ async function loadAlisioSharingStateFromCloud(
     }),
     policies: mergeRemoteAndLocalSharingPolicies(remote.policies, state.sharing?.policies),
   };
+}
+
+type CachedAlisioSharingCloudRead = {
+  value: NonNullable<Awaited<ReturnType<typeof loadAlisioSharingStateFromCloud>>>;
+  fetchedAtMs: number;
+};
+
+const MAX_ALISIO_SHARING_CLOUD_READ_CACHE_ENTRIES = 32;
+let ALISIO_SHARING_CLOUD_READ_TIMEOUT_MS = 1_500;
+let ALISIO_SHARING_CLOUD_READ_CACHE_TTL_MS = 8_000;
+const ALISIO_SHARING_CLOUD_READ_CACHE = new Map<string, CachedAlisioSharingCloudRead>();
+const ALISIO_SHARING_CLOUD_READ_INFLIGHT = new Map<
+  string,
+  Promise<NonNullable<Awaited<ReturnType<typeof loadAlisioSharingStateFromCloud>>> | null>
+>();
+
+function pruneAlisioSharingCloudReadCache() {
+  while (ALISIO_SHARING_CLOUD_READ_CACHE.size > MAX_ALISIO_SHARING_CLOUD_READ_CACHE_ENTRIES) {
+    const oldestKey = ALISIO_SHARING_CLOUD_READ_CACHE.keys().next().value;
+    if (typeof oldestKey !== "string" || !oldestKey) {
+      break;
+    }
+    ALISIO_SHARING_CLOUD_READ_CACHE.delete(oldestKey);
+  }
+}
+
+function buildAlisioSharingTargetSignature(
+  target: Pick<
+    AlisioSharingRuntimeTarget,
+    | "targetId"
+    | "computerId"
+    | "computerLabel"
+    | "label"
+    | "platform"
+    | "sourceKind"
+    | "connected"
+    | "current"
+  >,
+) {
+  return JSON.stringify({
+    targetId: target.targetId,
+    computerId: target.computerId ?? null,
+    computerLabel: target.computerLabel ?? null,
+    label: target.label,
+    platform: target.platform,
+    sourceKind: target.sourceKind,
+    connected: target.connected,
+    current: target.current,
+  });
+}
+
+function resolveAlisioSharingCloudReadCacheKey(
+  state: AlisioStoredState,
+  input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
+  env?: NodeJS.ProcessEnv,
+): string | null {
+  const accessToken = resolveActiveAlisioSharingCloudAccessToken(state, env);
+  if (!accessToken) {
+    return null;
+  }
+  const viewer = buildCurrentSharingPrincipal(state);
+  const targetsSignature = (input?.targets ?? [])
+    .map((target) => buildAlisioSharingTargetSignature(target))
+    .toSorted()
+    .join("|");
+  const tokenHash = createHash("sha256").update(accessToken).digest("hex").slice(0, 16);
+  return `${viewer.ownerKey}|${tokenHash}|${targetsSignature}`;
+}
+
+function getCachedAlisioSharingCloudRead(
+  cacheKey: string,
+  nowMs: number,
+): { entry: CachedAlisioSharingCloudRead; fresh: boolean } | null {
+  const cached = ALISIO_SHARING_CLOUD_READ_CACHE.get(cacheKey);
+  if (!cached) {
+    return null;
+  }
+  const fresh = nowMs - cached.fetchedAtMs <= ALISIO_SHARING_CLOUD_READ_CACHE_TTL_MS;
+  if (fresh) {
+    ALISIO_SHARING_CLOUD_READ_CACHE.delete(cacheKey);
+    ALISIO_SHARING_CLOUD_READ_CACHE.set(cacheKey, cached);
+  }
+  return { entry: cached, fresh };
+}
+
+function setCachedAlisioSharingCloudRead(
+  cacheKey: string,
+  value: NonNullable<Awaited<ReturnType<typeof loadAlisioSharingStateFromCloud>>>,
+  nowMs: number,
+) {
+  ALISIO_SHARING_CLOUD_READ_CACHE.set(cacheKey, {
+    value,
+    fetchedAtMs: nowMs,
+  });
+  pruneAlisioSharingCloudReadCache();
+}
+
+async function withAlisioSharingCloudReadTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return await promise;
+  }
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const error = new Error("sharing_cloud_read_timeout");
+      error.name = "AbortError";
+      reject(error);
+    }, timeoutMs);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function loadAlisioSharingStateFromCloudForRead(
+  state: AlisioStoredState,
+  input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
+  env?: NodeJS.ProcessEnv,
+) {
+  const cacheKey = resolveAlisioSharingCloudReadCacheKey(state, input, env);
+  if (!cacheKey) {
+    return null;
+  }
+  const now = Date.now();
+  const cached = getCachedAlisioSharingCloudRead(cacheKey, now);
+  if (cached?.fresh) {
+    return cached.entry.value;
+  }
+
+  let inflight = ALISIO_SHARING_CLOUD_READ_INFLIGHT.get(cacheKey);
+  if (!inflight) {
+    inflight = loadAlisioSharingStateFromCloud(state, input, env)
+      .then((value) => {
+        if (value) {
+          setCachedAlisioSharingCloudRead(cacheKey, value, Date.now());
+        }
+        return value;
+      })
+      .finally(() => {
+        if (ALISIO_SHARING_CLOUD_READ_INFLIGHT.get(cacheKey) === inflight) {
+          ALISIO_SHARING_CLOUD_READ_INFLIGHT.delete(cacheKey);
+        }
+      });
+    ALISIO_SHARING_CLOUD_READ_INFLIGHT.set(cacheKey, inflight);
+  }
+
+  try {
+    return await withAlisioSharingCloudReadTimeout(inflight, ALISIO_SHARING_CLOUD_READ_TIMEOUT_MS);
+  } catch {
+    return cached?.entry.value ?? null;
+  }
 }
 
 function normalizeAlisioSharingRequestStatus(
@@ -6057,15 +6231,16 @@ export async function getAlisioSharingState(
   input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
   env?: NodeJS.ProcessEnv,
 ): Promise<AlisioSharingState> {
+  const initialState = await loadStoredState(env);
+  const remoteSharing = await loadAlisioSharingStateFromCloudForRead(initialState, input, env);
+  if (remoteSharing) {
+    return buildAlisioSharingStateFromStoredState({
+      ...initialState,
+      sharing: remoteSharing,
+    });
+  }
   return withLock(async () => {
     const state = await loadStoredState(env);
-    const remoteSharing = await loadAlisioSharingStateFromCloud(state, input, env);
-    if (remoteSharing) {
-      return buildAlisioSharingStateFromStoredState({
-        ...state,
-        sharing: remoteSharing,
-      });
-    }
     let changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
     changed = canonicalizeAlisioSharingTargetsOnState(state) || changed;
     if (changed) {
@@ -6079,15 +6254,16 @@ export async function getAlisioSharingTargetAccessIndex(
   input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
   env?: NodeJS.ProcessEnv,
 ): Promise<Record<string, AlisioSharingTargetState>> {
+  const initialState = await loadStoredState(env);
+  const remoteSharing = await loadAlisioSharingStateFromCloudForRead(initialState, input, env);
+  if (remoteSharing) {
+    return buildAlisioSharingAccessIndexFromState({
+      ...initialState,
+      sharing: remoteSharing,
+    });
+  }
   return withLock(async () => {
     const state = await loadStoredState(env);
-    const remoteSharing = await loadAlisioSharingStateFromCloud(state, input, env);
-    if (remoteSharing) {
-      return buildAlisioSharingAccessIndexFromState({
-        ...state,
-        sharing: remoteSharing,
-      });
-    }
     let changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
     changed = canonicalizeAlisioSharingTargetsOnState(state) || changed;
     if (changed) {

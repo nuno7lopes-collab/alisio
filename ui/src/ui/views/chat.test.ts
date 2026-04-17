@@ -534,6 +534,28 @@ describe("chat view", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("ignores repeated Enter keydown events while a send is already in progress", () => {
+    const container = document.createElement("div");
+    const onSend = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          draft: "abre o google",
+          sending: true,
+          onSend,
+        }),
+      ),
+      container,
+    );
+
+    const composer = container.querySelector<HTMLTextAreaElement>("textarea");
+    composer?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", repeat: true, bubbles: true }),
+    );
+
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it("shows a runtime setup callout instead of the raw error when setup is missing", () => {
     const container = document.createElement("div");
     const onOpenRuntimeSetup = vi.fn();
@@ -661,7 +683,7 @@ describe("chat view", () => {
     );
     expect(switchButtons.map((button) => button.textContent?.trim())).toEqual([
       "Browser",
-      "Tool Output",
+      "Tool output",
     ]);
 
     switchButtons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -712,6 +734,30 @@ describe("chat view", () => {
     await app.updateComplete;
 
     expect(app.sidebarOpen).toBe(false);
+  });
+
+  it("reopens the observer pane when browser activity arrives after the user closed it", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+
+    app.setBrowserPaneObserver("main", {
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Observed browser",
+    });
+    await app.updateComplete;
+    app.handleCloseSidebar();
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+
+    app.notifyBrowserPaneActivity("main");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.browserPaneSurfaceKind).toBe("observer");
+    expect(app.querySelector("iframe.browser-pane__iframe")).not.toBeNull();
   });
 
   it("does not open an empty split when the session has no observer and no markdown", () => {

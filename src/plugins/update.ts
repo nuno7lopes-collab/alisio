@@ -91,7 +91,7 @@ function formatClawHubInstallFailure(params: {
   phase: "check" | "update";
   error: string;
 }): string {
-  return `Failed to ${params.phase} ${params.pluginId}: ${params.error} (ClawHub ${params.spec}).`;
+  return `Failed to ${params.phase} ${params.pluginId}: ${params.error} (Local Marketplace ${params.spec}).`;
 }
 
 type InstallIntegrityDrift = {
@@ -317,7 +317,7 @@ export async function updateNpmInstalledPlugins(params: {
       outcomes.push({
         pluginId,
         status: "skipped",
-        message: `Skipping "${pluginId}" (missing ClawHub package metadata).`,
+        message: `Skipping "${pluginId}" (missing Local Marketplace package metadata).`,
       });
       continue;
     }
@@ -371,7 +371,7 @@ export async function updateNpmInstalledPlugins(params: {
               })
             : record.source === "clawhub"
               ? await installPluginFromClawHub({
-                  spec: effectiveSpec ?? `clawhub:${record.clawhubPackage!}`,
+                  spec: effectiveSpec ?? `marketplace:${record.clawhubPackage!}`,
                   baseUrl: record.clawhubUrl,
                   mode: "update",
                   dryRun: true,
@@ -409,7 +409,7 @@ export async function updateNpmInstalledPlugins(params: {
               : record.source === "clawhub"
                 ? formatClawHubInstallFailure({
                     pluginId,
-                    spec: effectiveSpec ?? `clawhub:${record.clawhubPackage!}`,
+                    spec: effectiveSpec ?? `marketplace:${record.clawhubPackage!}`,
                     phase: "check",
                     error: probe.error,
                   })
@@ -468,7 +468,7 @@ export async function updateNpmInstalledPlugins(params: {
             })
           : record.source === "clawhub"
             ? await installPluginFromClawHub({
-                spec: effectiveSpec ?? `clawhub:${record.clawhubPackage!}`,
+                spec: effectiveSpec ?? `marketplace:${record.clawhubPackage!}`,
                 baseUrl: record.clawhubUrl,
                 mode: "update",
                 expectedPluginId: pluginId,
@@ -504,7 +504,7 @@ export async function updateNpmInstalledPlugins(params: {
             : record.source === "clawhub"
               ? formatClawHubInstallFailure({
                   pluginId,
-                  spec: effectiveSpec ?? `clawhub:${record.clawhubPackage!}`,
+                  spec: effectiveSpec ?? `marketplace:${record.clawhubPackage!}`,
                   phase: "update",
                   error: result.error,
                 })
@@ -542,7 +542,7 @@ export async function updateNpmInstalledPlugins(params: {
       next = recordPluginInstall(next, {
         pluginId: resolvedPluginId,
         source: "clawhub",
-        spec: effectiveSpec ?? record.spec ?? `clawhub:${record.clawhubPackage!}`,
+        spec: effectiveSpec ?? record.spec ?? `marketplace:${record.clawhubPackage!}`,
         installPath: result.targetDir,
         version: nextVersion,
         integrity: clawhubResult.clawhub.integrity,

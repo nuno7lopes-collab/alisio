@@ -1,5 +1,6 @@
 import { AlisioAccountCloudError } from "../../infra/alisio-account-cloud.js";
 import { AlisioAiError } from "../../infra/alisio-ai.js";
+import { startAlisioDeveloperRebuild } from "../../infra/alisio-dev-rebuild.js";
 import {
   installAlisioLocalModel,
   uninstallAlisioLocalModel,
@@ -9,10 +10,7 @@ import {
   loadAlisioModelProviderSnapshot,
 } from "../../infra/alisio-model-snapshot.js";
 import { loadAlisioProviderOverview } from "../../infra/alisio-provider-overview.js";
-import {
-  loadAlisioRuntimeSetupStateWithTimeout,
-} from "../../infra/alisio-runtime.js";
-import { startAlisioDeveloperRebuild } from "../../infra/alisio-dev-rebuild.js";
+import { loadAlisioRuntimeSetupStateWithTimeout } from "../../infra/alisio-runtime.js";
 import {
   beginAlisioAccountEmailAuth,
   completeAlisioAccountEmailLinkAuth,
@@ -125,6 +123,28 @@ type LocalModelOperationEvent = {
   message?: string;
 };
 
+type RuntimeSetupState = Awaited<ReturnType<typeof loadAlisioRuntimeSetupStateWithTimeout>>;
+type StoredBootstrapState = Awaited<ReturnType<typeof loadStoredAlisioBootstrapState>>;
+type BootstrapShellState = {
+  wizardSessionId: string | null;
+  runtimeSetup: RuntimeSetupState;
+  stored: StoredBootstrapState;
+};
+
+const ALISIO_BOOTSTRAP_SHELL_CACHE_TTL_MS = 3_000;
+let cachedBootstrapShellState:
+  | {
+      expiresAtMs: number;
+      key: {
+        findRunningWizard: GatewayRequestContext["findRunningWizard"];
+        loadGatewayModelCatalog: GatewayRequestContext["loadGatewayModelCatalog"];
+        nodeRegistry: GatewayRequestContext["nodeRegistry"];
+      };
+      value: BootstrapShellState;
+    }
+  | undefined;
+let inflightBootstrapShellState: Promise<BootstrapShellState> | undefined;
+
 function safeParseJson(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -134,6 +154,74 @@ function safeParseJson(value: string | null | undefined) {
   } catch {
     return null;
   }
+}
+
+async function refreshBootstrapShellState(
+  context: Pick<
+    GatewayRequestContext,
+    "findRunningWizard" | "loadGatewayModelCatalog" | "nodeRegistry"
+  >,
+): Promise<BootstrapShellState> {
+  const wizardSessionId = context.findRunningWizard();
+  const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout({
+    loadGatewayModelCatalog: context.loadGatewayModelCatalog,
+    ...context,
+    includeDynamicCatalog: false,
+  });
+  const stored = await loadStoredAlisioBootstrapState({
+    wizardRunning: Boolean(wizardSessionId),
+    providerReady: runtimeSetup.providerReady,
+    connectionRequired: false,
+  });
+  const value: BootstrapShellState = {
+    wizardSessionId,
+    runtimeSetup,
+    stored,
+  };
+  cachedBootstrapShellState = {
+    expiresAtMs: Date.now() + ALISIO_BOOTSTRAP_SHELL_CACHE_TTL_MS,
+    key: {
+      findRunningWizard: context.findRunningWizard,
+      loadGatewayModelCatalog: context.loadGatewayModelCatalog,
+      nodeRegistry: context.nodeRegistry,
+    },
+    value,
+  };
+  return value;
+}
+
+async function loadBootstrapShellState(
+  context: Pick<
+    GatewayRequestContext,
+    "findRunningWizard" | "loadGatewayModelCatalog" | "nodeRegistry"
+  >,
+): Promise<BootstrapShellState> {
+  const now = Date.now();
+  const matchesCachedContext =
+    cachedBootstrapShellState?.key.findRunningWizard === context.findRunningWizard &&
+    cachedBootstrapShellState?.key.loadGatewayModelCatalog === context.loadGatewayModelCatalog &&
+    cachedBootstrapShellState?.key.nodeRegistry === context.nodeRegistry;
+  if (
+    cachedBootstrapShellState &&
+    matchesCachedContext &&
+    cachedBootstrapShellState.expiresAtMs > now
+  ) {
+    return cachedBootstrapShellState.value;
+  }
+  if (cachedBootstrapShellState && matchesCachedContext) {
+    inflightBootstrapShellState ??= refreshBootstrapShellState(context).finally(() => {
+      inflightBootstrapShellState = undefined;
+    });
+    void inflightBootstrapShellState.catch(() => undefined);
+    return cachedBootstrapShellState.value;
+  }
+  if (inflightBootstrapShellState) {
+    return await inflightBootstrapShellState;
+  }
+  inflightBootstrapShellState = refreshBootstrapShellState(context).finally(() => {
+    inflightBootstrapShellState = undefined;
+  });
+  return await inflightBootstrapShellState;
 }
 
 export async function publishAlisioDynamicModelProvidersForContext(
@@ -1054,19 +1142,8 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      const wizardSessionId = context.findRunningWizard();
-      const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout({
-        ...context,
-        includeDynamicCatalog: false,
-      });
-      const [{ models }, { snapshot, summary }] = await Promise.all([
-        Promise.resolve(runtimeSetup),
-        loadStoredAlisioBootstrapState({
-          wizardRunning: Boolean(wizardSessionId),
-          providerReady: runtimeSetup.providerReady,
-          connectionRequired: false,
-        }),
-      ]);
+      const { wizardSessionId, runtimeSetup, stored } = await loadBootstrapShellState(context);
+      const { snapshot, summary } = stored;
       const result = {
         ...summary,
         account: snapshot.account,
@@ -1077,7 +1154,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
           running: Boolean(wizardSessionId),
           sessionId: wizardSessionId,
         },
-        models,
+        models: runtimeSetup.models,
       };
       if (!validateAlisioBootstrapResult(result)) {
         respond(
@@ -1094,6 +1171,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       }
       respond(true, result, undefined);
     } catch (err) {
+      console.error("[alisio.models.get] failed", err);
       respond(
         false,
         undefined,
@@ -1617,28 +1695,14 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      const wizardSessionId = context.findRunningWizard();
-      const runtimeSetup = await loadAlisioRuntimeSetupStateWithTimeout({
-        ...context,
-        includeDynamicCatalog: false,
-      });
-      const bootstrapStatePromise = loadStoredAlisioBootstrapState({
+      const { wizardSessionId, runtimeSetup, stored } = await loadBootstrapShellState(context);
+      const { snapshot, summary: bootstrapSummary } = stored;
+      const doctorSummary = await getAlisioDoctorSummary({
         wizardRunning: wizardSessionId !== null,
         providerReady: runtimeSetup.providerReady,
         connectionRequired: false,
+        bootstrap: bootstrapSummary,
       });
-      const doctorSummaryPromise = bootstrapStatePromise.then(({ summary }) =>
-        getAlisioDoctorSummary({
-          wizardRunning: wizardSessionId !== null,
-          providerReady: runtimeSetup.providerReady,
-          connectionRequired: false,
-          bootstrap: summary,
-        }),
-      );
-      const [{ snapshot, summary: bootstrapSummary }, doctorSummary] = await Promise.all([
-        bootstrapStatePromise,
-        doctorSummaryPromise,
-      ]);
       const bootstrap = {
         ...bootstrapSummary,
         account: snapshot.account,
@@ -1796,10 +1860,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(
-          ErrorCodes.UNAVAILABLE,
-          `failed to start app rebuild: ${formatError(err)}`,
-        ),
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to start app rebuild: ${formatError(err)}`),
       );
     }
   },

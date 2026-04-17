@@ -46,7 +46,7 @@
       },
       {
         "label": "Discord",
-        "href": "https://discord.com/invite/clawd",
+        "href": "https://discord.gg/qkhbAGHRBT",
         "icon": "discord"
       }
     ]
@@ -339,18 +339,6 @@
     {
       "source": "/camera",
       "destination": "/nodes/camera"
-    },
-    {
-      "source": "/clawd",
-      "destination": "/start/alisio"
-    },
-    {
-      "source": "/start/clawd",
-      "destination": "/start/alisio"
-    },
-    {
-      "source": "/start/clawd/",
-      "destination": "/start/alisio"
     },
     {
       "source": "/start/alisio",
@@ -924,7 +912,7 @@
                 "pages": [
                   "install/ansible",
                   "install/bun",
-                  "install/clawdock",
+                  "install/alisio-docker",
                   "install/docker",
                   "install/nix",
                   "install/podman"
@@ -1452,7 +1440,6 @@
                     "group": "Utility",
                     "pages": [
                       "cli/acp",
-                      "cli/clawbot",
                       "cli/completion",
                       "cli/dns",
                       "cli/docs",

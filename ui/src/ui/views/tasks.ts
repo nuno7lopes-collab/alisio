@@ -9,6 +9,7 @@ import type {
   TaskDependency,
   TaskEvent,
   TaskExecution,
+  TaskExecutionStep,
   TaskProposalRecord,
   TasksOverviewResult,
 } from "../types.ts";
@@ -45,6 +46,7 @@ export type TasksViewProps = {
 type CanonicalTaskCollections = {
   tasks: Task[];
   executions: TaskExecution[];
+  steps: TaskExecutionStep[];
   assignments: TaskAssignment[];
   approvals: TaskApproval[];
   events: TaskEvent[];
@@ -348,6 +350,7 @@ function getCollections(overview: TasksOverviewResult | null): CanonicalTaskColl
   return {
     tasks: overview?.canonicalTasks ?? [],
     executions: overview?.canonicalExecutions ?? [],
+    steps: overview?.canonicalSteps ?? [],
     assignments: overview?.canonicalAssignments ?? [],
     approvals: overview?.canonicalApprovals ?? [],
     events: overview?.canonicalEvents ?? [],
@@ -779,33 +782,136 @@ function renderDependencyList(dependencies: TaskDependency[]) {
   `;
 }
 
-function renderEventTimeline(events: TaskEvent[]) {
-  if (events.length === 0) {
+function stepStatusTone(status: TaskExecutionStep["status"]) {
+  switch (status) {
+    case "running":
+      return "running";
+    case "succeeded":
+      return "good";
+    case "failed":
+    case "cancelled":
+      return "bad";
+    case "pending":
+      return "warn";
+    case "info":
+    default:
+      return "neutral";
+  }
+}
+
+function parseStepData(step: TaskExecutionStep): Record<string, unknown> | null {
+  if (!step.dataJson?.trim()) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(step.dataJson) as Record<string, unknown>;
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveStepPrimaryDetail(step: TaskExecutionStep, data: Record<string, unknown> | null) {
+  const candidates = [
+    typeof data?.command === "string" ? data.command : null,
+    typeof data?.path === "string" ? data.path : null,
+    typeof data?.url === "string" ? data.url : null,
+    typeof data?.query === "string" ? data.query : null,
+  ];
+  return candidates.find((candidate) => typeof candidate === "string" && candidate.trim()) ?? null;
+}
+
+function resolveStepSummary(step: TaskExecutionStep, data: Record<string, unknown> | null) {
+  if (step.summary?.trim()) {
+    return step.summary;
+  }
+  const primary = resolveStepPrimaryDetail(step, data);
+  if (primary) {
+    return primary;
+  }
+  return step.kind.replaceAll("_", " ");
+}
+
+function renderStepTimeline(steps: TaskExecutionStep[], events: TaskEvent[]) {
+  const mirroredEventKinds = new Set<TaskEvent["kind"]>([
+    "approval_requested",
+    "approval_decided",
+    "claimed",
+    "released",
+    "child_spawned",
+    "execution_started",
+    "execution_ended",
+    "execution_cancelled",
+  ]);
+  const items = [
+    ...steps.map((step) => {
+      const data = parseStepData(step);
+      const primary = resolveStepPrimaryDetail(step, data);
+      const metaParts = [
+        step.tool?.trim() || null,
+        typeof data?.toolCallId === "string" ? data.toolCallId : null,
+        typeof data?.phase === "string" ? data.phase : null,
+        step.actor?.trim() || null,
+      ].filter((value): value is string => Boolean(value));
+      return {
+        key: step.stepId,
+        createdAt: step.createdAt,
+        node: html`
+          <div class="list-item">
+            <div
+              class="list-title"
+              style="display: flex; justify-content: space-between; gap: 12px; align-items: center;"
+            >
+              <span style="display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                ${renderBadge(step.kind.replaceAll("_", " "), "neutral")}
+                ${renderBadge(step.status.replaceAll("_", " "), stepStatusTone(step.status))}
+              </span>
+              <span class="muted">${formatRelativeTimestamp(step.createdAt)}</span>
+            </div>
+            <div class="list-sub">${resolveStepSummary(step, data)}</div>
+            ${primary && primary !== step.summary
+              ? html`<div class="agent-kv-sub" style="margin-top: 6px;">${primary}</div>`
+              : nothing}
+            ${metaParts.length > 0
+              ? html`
+                  <div class="agent-kv-sub" style="margin-top: 6px;">
+                    ${metaParts.join(" · ")}
+                  </div>
+                `
+              : nothing}
+          </div>
+        `,
+      };
+    }),
+    ...events
+      .filter((event) => !mirroredEventKinds.has(event.kind))
+      .map((event) => ({
+        key: event.eventId,
+        createdAt: event.createdAt,
+        node: html`
+          <div class="list-item">
+            <div
+              class="list-title"
+              style="display: flex; justify-content: space-between; gap: 12px; align-items: center;"
+            >
+              <span>${event.kind.replaceAll("_", " ")}</span>
+              <span class="muted">${formatRelativeTimestamp(event.createdAt)}</span>
+            </div>
+            <div class="list-sub">
+              ${event.summary?.trim() || event.actor?.trim() || event.eventId}
+            </div>
+          </div>
+        `,
+      })),
+  ]
+    .toSorted((left, right) => right.createdAt - left.createdAt)
+    .slice(0, 25);
+
+  if (items.length === 0) {
     return renderTasksEmptyState(t("tasksView.timeline.empty"));
   }
-  return html`
-    <div style="display: grid; gap: 10px;">
-      ${events
-        .toSorted((left, right) => right.createdAt - left.createdAt)
-        .slice(0, 10)
-        .map(
-          (event) => html`
-            <div class="list-item">
-              <div
-                class="list-title"
-                style="display: flex; justify-content: space-between; gap: 12px; align-items: center;"
-              >
-                <span>${event.kind.replaceAll("_", " ")}</span>
-                <span class="muted">${formatRelativeTimestamp(event.createdAt)}</span>
-              </div>
-              <div class="list-sub">
-                ${event.summary?.trim() || event.actor?.trim() || event.eventId}
-              </div>
-            </div>
-          `,
-        )}
-    </div>
-  `;
+
+  return html`<div style="display: grid; gap: 10px;">${items.map((item) => item.node)}</div>`;
 }
 
 function renderCanonicalTaskDetail(
@@ -832,6 +938,7 @@ function renderCanonicalTaskDetail(
     (approval) => approval.taskId === selectedTask.taskId,
   );
   const events = collections.events.filter((event) => event.taskId === selectedTask.taskId);
+  const steps = collections.steps.filter((step) => step.taskId === selectedTask.taskId);
   const dependencies = collections.dependencies.filter(
     (dependency) => dependency.taskId === selectedTask.taskId,
   );
@@ -997,7 +1104,7 @@ function renderCanonicalTaskDetail(
     <div class="card">
       <div class="card-title">${t("tasksView.timeline.title")}</div>
       <div class="card-sub">${t("tasksView.timeline.subtitle")}</div>
-      <div style="margin-top: 16px;">${renderEventTimeline(events)}</div>
+      <div style="margin-top: 16px;">${renderStepTimeline(steps, events)}</div>
     </div>
   `;
 }

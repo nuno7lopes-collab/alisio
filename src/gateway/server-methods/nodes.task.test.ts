@@ -21,7 +21,7 @@ vi.mock("../../infra/device-pairing.js", async (importOriginal) => {
   };
 });
 
-import { nodeHandlers } from "./nodes.js";
+import { __testing, nodeHandlers } from "./nodes.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -73,6 +73,7 @@ function createSharingAccess(
 describe("node.task handlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __testing.clearVisibleNodeListCache();
     listDevicePairingMock.mockResolvedValue({
       pending: [],
       paired: [createPairedNode("node-1")],
@@ -331,6 +332,209 @@ describe("node.task handlers", () => {
       }),
       undefined,
     );
+  });
+
+  it("degrades node.list to local ownership when sharing auth is stale", async () => {
+    const respond = vi.fn();
+    const sharedNode = {
+      nodeId: "node-1",
+      displayName: "Node One",
+      connected: true,
+      platform: "macOS",
+      commands: ["system.run"],
+    };
+    getAlisioSharingTargetAccessIndexMock.mockRejectedValueOnce(new Error("JWT expired"));
+
+    await nodeHandlers["node.list"]({
+      params: {},
+      respond: respond as never,
+      context: {
+        nodeRegistry: {
+          listConnected: vi.fn(() => [sharedNode]),
+        },
+      } as never,
+      client: null,
+      req: { type: "req", id: "req-list-stale-auth", method: "node.list" },
+      isWebchatConnect: () => false,
+    });
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ nodeId: "node-1" })],
+      }),
+      undefined,
+    );
+  });
+
+  it("reuses the same in-flight node.list snapshot across concurrent callers", async () => {
+    const pairing = deferred<Awaited<ReturnType<typeof listDevicePairingMock>>>();
+    const sharing = deferred<Record<string, ReturnType<typeof createSharingAccess>>>();
+    listDevicePairingMock.mockReturnValueOnce(pairing.promise);
+    getAlisioSharingTargetAccessIndexMock.mockReturnValueOnce(sharing.promise);
+
+    const respondA = vi.fn();
+    const respondB = vi.fn();
+    const context = {
+      nodeRegistry: {
+        listConnected: vi.fn(() => [
+          {
+            nodeId: "node-1",
+            displayName: "Node One",
+            connected: true,
+            platform: "macOS",
+          },
+        ]),
+      },
+    } as never;
+
+    const first = nodeHandlers["node.list"]({
+      params: {},
+      respond: respondA as never,
+      context,
+      client: null,
+      req: { type: "req", id: "req-list-a", method: "node.list" },
+      isWebchatConnect: () => false,
+    });
+    const second = nodeHandlers["node.list"]({
+      params: {},
+      respond: respondB as never,
+      context,
+      client: null,
+      req: { type: "req", id: "req-list-b", method: "node.list" },
+      isWebchatConnect: () => false,
+    });
+
+    expect(listDevicePairingMock).toHaveBeenCalledTimes(1);
+    pairing.resolve({
+      pending: [],
+      paired: [createPairedNode("node-1")],
+    });
+    sharing.resolve({
+      "node-1": createSharingAccess("node-1"),
+    });
+
+    await Promise.all([first, second]);
+
+    expect(listDevicePairingMock).toHaveBeenCalledTimes(1);
+    expect(getAlisioSharingTargetAccessIndexMock).toHaveBeenCalledTimes(1);
+    expect(respondA).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ nodeId: "node-1" })],
+      }),
+      undefined,
+    );
+    expect(respondB).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        nodes: [expect.objectContaining({ nodeId: "node-1" })],
+      }),
+      undefined,
+    );
+  });
+
+  it("serves the last cached node.list snapshot while refreshing an expired cache", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-16T20:00:00.000Z"));
+    try {
+      const respondCached = vi.fn();
+      const context = {
+        nodeRegistry: {
+          listConnected: vi.fn(() => [
+            {
+              nodeId: "node-1",
+              displayName: "Node One",
+              connected: true,
+              platform: "macOS",
+            },
+          ]),
+        },
+      } as never;
+
+      await nodeHandlers["node.list"]({
+        params: {},
+        respond: respondCached as never,
+        context,
+        client: null,
+        req: { type: "req", id: "req-list-cache-seed", method: "node.list" },
+        isWebchatConnect: () => false,
+      });
+
+      expect(respondCached).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({
+          nodes: [expect.objectContaining({ nodeId: "node-1" })],
+        }),
+        undefined,
+      );
+
+      vi.setSystemTime(new Date("2026-04-16T20:01:01.000Z"));
+      const pairing = deferred<Awaited<ReturnType<typeof listDevicePairingMock>>>();
+      const sharing = deferred<Record<string, ReturnType<typeof createSharingAccess>>>();
+      listDevicePairingMock.mockReturnValueOnce(pairing.promise);
+      getAlisioSharingTargetAccessIndexMock.mockReturnValueOnce(sharing.promise);
+
+      const respondStale = vi.fn();
+      const refreshContext = {
+        nodeRegistry: {
+          listConnected: vi.fn(() => [
+            {
+              nodeId: "node-2",
+              displayName: "Node Two",
+              connected: true,
+              platform: "macOS",
+            },
+          ]),
+        },
+      } as never;
+
+      await nodeHandlers["node.list"]({
+        params: {},
+        respond: respondStale as never,
+        context: refreshContext,
+        client: null,
+        req: { type: "req", id: "req-list-stale", method: "node.list" },
+        isWebchatConnect: () => false,
+      });
+
+      expect(respondStale).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({
+          nodes: [expect.objectContaining({ nodeId: "node-1" })],
+        }),
+        undefined,
+      );
+
+      pairing.resolve({
+        pending: [],
+        paired: [createPairedNode("node-2")],
+      });
+      sharing.resolve({
+        "node-2": createSharingAccess("node-2"),
+      });
+      await vi.runAllTimersAsync();
+
+      const respondFresh = vi.fn();
+      await nodeHandlers["node.list"]({
+        params: {},
+        respond: respondFresh as never,
+        context: refreshContext,
+        client: null,
+        req: { type: "req", id: "req-list-fresh", method: "node.list" },
+        isWebchatConnect: () => false,
+      });
+
+      expect(respondFresh).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({
+          nodes: [expect.objectContaining({ nodeId: "node-2" })],
+        }),
+        undefined,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("hides node.describe until exec is explicitly shared", async () => {

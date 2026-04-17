@@ -85,6 +85,32 @@ export function isNonRecoverableAuthError(error: GatewayErrorInfo | undefined): 
   return isTerminalGatewayAuthDetailCode(resolveGatewayErrorDetailCode(error));
 }
 
+function isRecoverableRequestAuthError(error: GatewayErrorInfo | undefined): boolean {
+  if (!error) {
+    return false;
+  }
+  const detailCode = resolveGatewayErrorDetailCode(error);
+  if (detailCode && isTerminalGatewayAuthDetailCode(detailCode)) {
+    return false;
+  }
+  if (
+    detailCode === ConnectErrorDetailCodes.AUTH_REQUIRED ||
+    detailCode === ConnectErrorDetailCodes.AUTH_UNAUTHORIZED ||
+    detailCode === ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH ||
+    detailCode === ConnectErrorDetailCodes.AUTH_DEVICE_TOKEN_MISMATCH
+  ) {
+    return true;
+  }
+  const normalizedMessage = error.message.trim().toLowerCase();
+  return (
+    normalizedMessage.includes("jwt expired") ||
+    normalizedMessage.includes("token expired") ||
+    normalizedMessage.includes("auth token mismatch") ||
+    normalizedMessage.includes("device token mismatch") ||
+    normalizedMessage.startsWith("unauthorized")
+  );
+}
+
 function isTrustedRetryEndpoint(url: string): boolean {
   try {
     const gatewayUrl = new URL(url, window.location.href);
@@ -121,6 +147,7 @@ export type GatewayHelloOk = {
 };
 
 type Pending = {
+  method: string;
   resolve: (value: unknown) => void;
   reject: (err: unknown) => void;
 };
@@ -635,13 +662,19 @@ export class GatewayBrowserClient {
       if (res.ok) {
         pending.resolve(res.payload);
       } else {
-        pending.reject(
-          new GatewayRequestError({
-            code: res.error?.code ?? "UNAVAILABLE",
-            message: res.error?.message ?? "request failed",
-            details: res.error?.details,
-          }),
-        );
+        const requestError = new GatewayRequestError({
+          code: res.error?.code ?? "UNAVAILABLE",
+          message: res.error?.message ?? "request failed",
+          details: res.error?.details,
+        });
+        pending.reject(requestError);
+        if (pending.method !== "connect" && isRecoverableRequestAuthError(requestError)) {
+          this.closeForRecoverableRequestError({
+            code: requestError.gatewayCode,
+            message: requestError.message,
+            details: requestError.details,
+          });
+        }
       }
       return;
     }
@@ -695,7 +728,7 @@ export class GatewayBrowserClient {
     const id = generateUUID();
     const frame = { type: "req", id, method, params };
     const p = new Promise<T>((resolve, reject) => {
-      this.pending.set(id, { resolve: (v) => resolve(v as T), reject });
+      this.pending.set(id, { method, resolve: (v) => resolve(v as T), reject });
     });
     this.ws.send(JSON.stringify(frame));
     return p;
@@ -719,5 +752,13 @@ export class GatewayBrowserClient {
   private closeWithPendingConnectError(error: GatewayErrorInfo) {
     this.pendingConnectError = error;
     this.ws?.close(CONNECT_FAILED_CLOSE_CODE, "connect failed");
+  }
+
+  private closeForRecoverableRequestError(error: GatewayErrorInfo) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    this.pendingConnectError = error;
+    this.ws.close(CONNECT_FAILED_CLOSE_CODE, "request auth refresh");
   }
 }

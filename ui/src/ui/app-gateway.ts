@@ -22,7 +22,6 @@ import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app
 import type { AlisioApp } from "./app.ts";
 import { shouldReloadHistoryForFinalEvent } from "./chat-event-reload.ts";
 import { formatConnectError } from "./connect-error.ts";
-import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   applyAlisioModelOperation,
@@ -58,11 +57,6 @@ import {
   removeExecApproval,
 } from "./controllers/exec-approval.ts";
 import { loadHealthState } from "./controllers/health.ts";
-import {
-  loadMemoryStatus,
-  requestMemoryNote,
-  requestMemoryNotesList,
-} from "./controllers/memory-runtime.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { applyRemoteComputerTaskUpdate } from "./controllers/remote-computers.ts";
@@ -80,6 +74,7 @@ import {
   loadStoredBrowserDeviceIdentity,
 } from "./device-identity.ts";
 import {
+  isNonRecoverableAuthError,
   resolveGatewayErrorDetailCode,
   type GatewayEventFrame,
   type GatewayHelloOk,
@@ -140,6 +135,7 @@ type GatewayHost = {
   bootstrapDeviceRetryConsumed?: boolean;
   alisioModelOperations: ModelsOperationMap;
   setBrowserPaneObserver?: (sessionKey: string, observer: BrowserPaneObserver | null) => void;
+  notifyBrowserPaneActivity?: (sessionKey: string) => void;
 };
 
 type SessionDefaultsSnapshot = {
@@ -159,6 +155,8 @@ type ConnectGatewayOptions = {
 };
 
 const dashboardWarmupTimers = new WeakMap<GatewayHost, number>();
+const gatewayHelloWatchdogTimers = new WeakMap<GatewayHost, number>();
+const GATEWAY_HELLO_WATCHDOG_MS = 12_000;
 
 export function resolveControlUiClientVersion(params: {
   gatewayUrl: string;
@@ -401,49 +399,69 @@ function scheduleDashboardWarmup(host: GatewayHost, client: GatewayBrowserClient
     if (host.client !== client || !host.connected) {
       return;
     }
-    // Warm the heaviest non-chat tabs right after connect so first-open tab
-    // switches feel instant instead of waiting on cold RPCs.
+    // Keep post-hello warmup cheap. Heavy state like Memory is now loaded only
+    // on demand so cold connects do not spiral into reconnect loops.
     void Promise.allSettled([
       loadAlisioProviderOverview(host as unknown as AlisioApp),
       loadChannels(host as unknown as AlisioApp, false),
       loadSkills(host as unknown as AlisioApp),
-      warmMemoryDashboard(host, client),
     ]);
-  }, 300);
+  }, 1_500);
   dashboardWarmupTimers.set(host, timer);
 }
 
-async function warmMemoryDashboard(host: GatewayHost, client: GatewayBrowserClient) {
-  await loadAgents(host as unknown as AlisioApp);
-  if (host.client !== client || !host.connected) {
+function clearGatewayHelloWatchdog(host: GatewayHost) {
+  if (
+    typeof globalThis.setTimeout !== "function" ||
+    typeof globalThis.clearTimeout !== "function"
+  ) {
     return;
   }
-  const resolvedAgentId = resolvePreferredMemoryAgentId(
-    host as unknown as {
-      memorySelectedAgentId: string | null;
-      sessionKey?: string;
-      assistantAgentId?: string | null;
-      agentsList?: { defaultId?: string | null; agents: Array<{ id: string }> } | null;
-    },
+  const timer = gatewayHelloWatchdogTimers.get(host);
+  if (timer == null) {
+    return;
+  }
+  globalThis.clearTimeout(timer);
+  gatewayHelloWatchdogTimers.delete(host);
+}
+
+function shouldKeepGatewayHelloWatchdog(host: GatewayHost, error?: { details?: unknown }): boolean {
+  if (!host.lastError) {
+    return true;
+  }
+  if (
+    host.lastError === "Reconnecting…" ||
+    host.lastError === "Resyncing live state…" ||
+    host.lastError.startsWith("Refreshing ")
+  ) {
+    return true;
+  }
+  return !isNonRecoverableAuthError(
+    error
+      ? {
+          code: "CONNECT_CLOSE",
+          message: host.lastError,
+          details: error.details,
+        }
+      : undefined,
   );
-  if (!resolvedAgentId || host.client !== client || !host.connected) {
+}
+
+function scheduleGatewayHelloWatchdog(host: GatewayHost, client: GatewayBrowserClient) {
+  if (typeof globalThis.setTimeout !== "function") {
     return;
   }
-  await loadMemoryStatus(host as unknown as AlisioApp, resolvedAgentId);
-  if (host.client !== client || !host.connected) {
-    return;
-  }
-  const notes = await requestMemoryNotesList(client, { agentId: resolvedAgentId }).catch(
-    () => null,
-  );
-  const firstNoteId = notes?.notes[0]?.id?.trim();
-  if (!firstNoteId || host.client !== client || !host.connected) {
-    return;
-  }
-  await requestMemoryNote(client, {
-    agentId: resolvedAgentId,
-    noteId: firstNoteId,
-  }).catch(() => null);
+  clearGatewayHelloWatchdog(host);
+  const timer = globalThis.setTimeout(() => {
+    gatewayHelloWatchdogTimers.delete(host);
+    if (host.client !== client || host.connected || host.hello) {
+      return;
+    }
+    host.lastError = "Refreshing Alisio connection…";
+    host.lastErrorCode = null;
+    connectGateway(host);
+  }, GATEWAY_HELLO_WATCHDOG_MS);
+  gatewayHelloWatchdogTimers.set(host, timer);
 }
 
 export function connectGateway(host: GatewayHost, options?: ConnectGatewayOptions) {
@@ -461,6 +479,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
   host.hello = null;
   host.connected = false;
   clearDashboardWarmup(host);
+  clearGatewayHelloWatchdog(host);
   if (reconnectReason === "seq-gap") {
     // A seq gap means the socket stayed on the same gateway; preserve prompts
     // that only arrived as ephemeral events and clear stale run-scoped indicators.
@@ -513,6 +532,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       if (host.client !== client) {
         return;
       }
+      clearGatewayHelloWatchdog(host);
       const includeChatHistory = !receivedHello || refreshChatHistoryOnReconnect;
       receivedHello = true;
       refreshChatHistoryOnReconnect = false;
@@ -550,9 +570,6 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       void loadAssistantIdentity(host as unknown as AlisioApp);
       void loadAgents(host as unknown as AlisioApp);
       void loadHealthState(host as unknown as AlisioApp);
-      void loadNodes(host as unknown as AlisioApp, { quiet: true });
-      void loadDevices(host as unknown as AlisioApp, { quiet: true });
-      void loadNodePairings(host as unknown as AlisioApp, { quiet: true });
       const currentTab = publicTabFor(host.tab);
       if (currentTab === "setup" || currentTab === "settings") {
         void (async () => {
@@ -590,6 +607,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
         shouldRetryWithFreshDeviceSession(host.lastErrorCode, usingAutomaticBootstrap) &&
         !host.bootstrapDeviceRetryConsumed
       ) {
+        clearGatewayHelloWatchdog(host);
         host.bootstrapDeviceRetryConsumed = true;
         host.lastError = "Refreshing secure device session…";
         void clearStoredBrowserDeviceAuth().finally(() => {
@@ -604,6 +622,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
         shouldRefreshControlUiBootstrap(host.lastErrorCode, usingAutomaticBootstrap) &&
         host.gatewayBootstrapToken?.trim()
       ) {
+        clearGatewayHelloWatchdog(host);
         host.lastError = "Refreshing Alisio connection…";
         void loadControlUiBootstrapConfig(
           host as unknown as Parameters<typeof loadControlUiBootstrapConfig>[0],
@@ -645,6 +664,9 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
         host.lastError = shutdownHost.pendingShutdownMessage ?? transientStatus ?? null;
         host.lastErrorCode = null;
       }
+      if (!shouldKeepGatewayHelloWatchdog(host, error)) {
+        clearGatewayHelloWatchdog(host);
+      }
     },
     onEvent: (evt) => {
       if (host.client !== client) {
@@ -666,6 +688,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
   host.client = client;
   previousClient?.stop();
   client.start();
+  scheduleGatewayHelloWatchdog(host, client);
 }
 
 export function handleGatewayEvent(host: GatewayHost, evt: GatewayEventFrame) {
@@ -842,6 +865,26 @@ function applyBrowserPaneObserverUpdate(host: GatewayHost, payload: unknown): vo
   host.setBrowserPaneObserver?.(observerUpdate.sessionKey, observerUpdate.observer);
 }
 
+function readBrowserPaneActivitySessionKey(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const event = payload as Record<string, unknown>;
+  if (event.stream !== "tool") {
+    return null;
+  }
+  const data =
+    event.data && typeof event.data === "object"
+      ? (event.data as Record<string, unknown>)
+      : undefined;
+  const toolName = typeof data?.name === "string" ? data.name.trim().toLowerCase() : "";
+  if (toolName !== "browser") {
+    return null;
+  }
+  const sessionKey = typeof event.sessionKey === "string" ? event.sessionKey.trim() : "";
+  return sessionKey || null;
+}
+
 function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   host.eventLogBuffer = [
     { ts: Date.now(), event: evt.event, payload: evt.payload },
@@ -853,6 +896,10 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   applyBrowserPaneObserverUpdate(host, evt.payload);
 
   if (evt.event === "agent") {
+    const browserPaneActivitySessionKey = readBrowserPaneActivitySessionKey(evt.payload);
+    if (browserPaneActivitySessionKey) {
+      host.notifyBrowserPaneActivity?.(browserPaneActivitySessionKey);
+    }
     handleAgentEvent(
       host as unknown as Parameters<typeof handleAgentEvent>[0],
       evt.payload as AgentEventPayload | undefined,

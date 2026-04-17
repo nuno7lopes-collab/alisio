@@ -158,6 +158,7 @@ export class AlisioApp extends LitElement {
   private browserPaneMarkdownBySession = new Map<string, BrowserPaneMarkdownState>();
   private browserPaneObserverBySession = new Map<string, BrowserPaneObserver>();
   private browserPaneObserverIdentityBySession = new Map<string, string>();
+  private browserPanePendingActivityBySession = new Set<string>();
   clientInstanceId = generateUUID();
   connectGeneration = 0;
   @state() settings: UiSettings = loadSettings();
@@ -1197,6 +1198,18 @@ export class AlisioApp extends LitElement {
     }
   }
 
+  notifyBrowserPaneActivity(sessionKey: string): void {
+    const normalizedSessionKey = sessionKey.trim();
+    if (!normalizedSessionKey) {
+      return;
+    }
+    const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
+    this.browserPanePendingActivityBySession.add(scopeKey);
+    if (normalizedSessionKey === this.sessionKey) {
+      this.syncBrowserPaneForSession(normalizedSessionKey);
+    }
+  }
+
   private syncBrowserPaneForSession(sessionKey: string): void {
     const normalizedSessionKey = sessionKey.trim() || "main";
     const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
@@ -1221,7 +1234,16 @@ export class AlisioApp extends LitElement {
       selectedSurface = "observer";
     }
     const hasSurface = Boolean(observer || hasMarkdown);
-    const autoOpenObserver = observerJustAppeared || (!ui.touched && Boolean(observer));
+    const hasPendingBrowserActivity = this.browserPanePendingActivityBySession.has(scopeKey);
+    const shouldOpenForBrowserActivity = hasPendingBrowserActivity && Boolean(observer);
+    if (shouldOpenForBrowserActivity) {
+      this.browserPanePendingActivityBySession.delete(scopeKey);
+      selectedSurface = "observer";
+    }
+    const autoOpenObserver =
+      observerJustAppeared ||
+      (!ui.touched && Boolean(observer)) ||
+      shouldOpenForBrowserActivity;
     this.sidebarContent = markdown.content;
     this.sidebarError = markdown.error;
     this.browserPaneObserver = observer;

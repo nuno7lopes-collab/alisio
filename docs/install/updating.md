@@ -125,4 +125,4 @@ To return to latest: `git checkout main && git pull`.
 
 - Run `alisio doctor` again and read the output carefully.
 - Check: [Troubleshooting](/gateway/troubleshooting)
-- Ask in Discord: [https://discord.gg/clawd](https://discord.gg/clawd)
+- Ask in Discord: [https://discord.gg/qkhbAGHRBT](https://discord.gg/qkhbAGHRBT)

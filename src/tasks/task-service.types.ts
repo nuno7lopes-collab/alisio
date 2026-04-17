@@ -24,6 +24,34 @@ export type TaskExecutionStatus =
 
 export type TaskExecutionTerminalOutcome = "succeeded" | "blocked";
 
+export type TaskExecutionStepKind =
+  | "execution_started"
+  | "execution_running"
+  | "execution_finished"
+  | "execution_cancelled"
+  | "approval_requested"
+  | "approval_decided"
+  | "assignment_claimed"
+  | "assignment_released"
+  | "child_task_spawned"
+  | "command_started"
+  | "command_finished"
+  | "file_read"
+  | "file_written"
+  | "search_performed"
+  | "browser_navigated"
+  | "browser_snapshot"
+  | "tool_called"
+  | "tool_result";
+
+export type TaskExecutionStepStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "info";
+
 export type TaskAssignmentStatus = "active" | "released" | "expired";
 
 export type TaskApprovalStatus = "pending" | "approved" | "rejected" | "cancelled";
@@ -118,6 +146,19 @@ export type TaskEvent = {
   approvalId?: string;
   kind: TaskEventKind;
   actor?: string;
+  summary?: string;
+  dataJson?: string;
+  createdAt: number;
+};
+
+export type TaskExecutionStep = {
+  stepId: string;
+  taskId: string;
+  executionId?: string;
+  kind: TaskExecutionStepKind;
+  status: TaskExecutionStepStatus;
+  actor?: string;
+  tool?: string;
   summary?: string;
   dataJson?: string;
   createdAt: number;

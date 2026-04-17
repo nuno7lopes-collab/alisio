@@ -5,11 +5,11 @@
 /* Chat Group Layout - default (assistant/other on left) */
 .chat-group {
   display: flex;
-  gap: 10px;
+  gap: var(--chat-avatar-gap, 10px);
   align-items: flex-start;
-  margin-bottom: 14px;
-  margin-left: 4px;
-  margin-right: 16px;
+  margin-bottom: var(--chat-group-margin-bottom, 14px);
+  margin-left: var(--chat-group-margin-inline-start, 4px);
+  margin-right: var(--chat-group-margin-inline-end, 16px);
 }
 
 /* User messages on right */
@@ -21,9 +21,9 @@
 .chat-group-messages {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--chat-group-stack-gap, 2px);
   flex: 1 1 auto;
-  max-width: min(900px, 68%);
+  max-width: min(var(--chat-group-max-width, 900px), 68%);
   align-items: flex-start;
 }
 
@@ -42,10 +42,40 @@
   justify-content: flex-end;
 }
 
+.chat-task-proposal-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.chat-task-proposal-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--hairline, rgba(255, 255, 255, 0.12));
+  background: color-mix(in srgb, var(--card-bg, rgba(255, 255, 255, 0.04)) 88%, transparent);
+}
+
+.chat-task-proposal-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chat-task-proposal-card__title {
+  font-weight: 600;
+}
+
+.chat-task-proposal-card__actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 /* Footer at bottom of message group (role + time) */
 .chat-group-footer {
   display: flex;
-  gap: 8px;
+  gap: var(--chat-group-footer-gap, 8px);
   align-items: baseline;
   margin-top: 6px;
 }
@@ -67,9 +97,9 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 4px;
-  min-width: 24px;
-  min-height: 24px;
+  padding: 3px;
+  min-width: 22px;
+  min-height: 22px;
   border-radius: var(--radius-sm, 4px);
   color: var(--muted);
   opacity: 0;
@@ -84,18 +114,18 @@
 }
 
 .chat-group:hover .chat-group-footer button {
-  opacity: 0.6;
+  opacity: 0.56;
   pointer-events: auto;
 }
 
 .chat-group-footer button:hover {
   opacity: 1 !important;
-  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  background: transparent;
 }
 
 .chat-group-footer button svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
@@ -190,8 +220,8 @@ img.chat-avatar {
   display: block;
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--card) 96%, transparent);
-  border-radius: var(--radius-lg);
-  padding: 10px 14px;
+  border-radius: var(--chat-bubble-radius, var(--radius-lg));
+  padding: var(--chat-bubble-padding, 10px 14px);
   box-shadow: none;
   transition:
     background var(--duration-fast) ease-out,
@@ -204,9 +234,9 @@ img.chat-avatar {
 
 .chat-copy-btn,
 .chat-expand-btn {
-  width: 24px;
-  min-width: 24px;
-  height: 24px;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
   padding: 0;
   background: var(--bg);
   color: var(--muted);
@@ -214,15 +244,15 @@ img.chat-avatar {
 
 .chat-copy-btn__icon {
   display: inline-flex;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   position: relative;
 }
 
 .chat-copy-btn__icon svg,
 .chat-expand-btn__icon svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .chat-copy-btn__icon-copy,
@@ -270,8 +300,8 @@ img.chat-avatar {
 
 .chat-expand-btn__icon {
   display: inline-flex;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .chat-message-collapse {
@@ -292,7 +322,11 @@ img.chat-avatar {
   position: absolute;
   inset: auto 0 0;
   height: 88px;
-  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--card) 94%, transparent) 74%);
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in srgb, var(--card) 94%, transparent) 74%
+  );
   pointer-events: none;
 }
 
@@ -353,7 +387,7 @@ img.chat-avatar {
 }
 
 .chat-bubble:hover {
-  background: var(--bg-hover);
+  background: inherit;
 }
 
 /* User bubbles have different styling */
@@ -368,7 +402,7 @@ img.chat-avatar {
 }
 
 .chat-group.user .chat-bubble:hover {
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  background: var(--accent-subtle);
 }
 
 /* Streaming animation */
@@ -408,7 +442,7 @@ img.chat-avatar {
 .msg-meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
   font-size: 11px;
   line-height: 1;
   color: var(--muted);
@@ -419,7 +453,7 @@ img.chat-avatar {
 .chat-group-footer-actions {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   margin-inline-start: auto;
   flex-wrap: wrap;
 }
@@ -437,7 +471,7 @@ img.chat-avatar {
 
 .msg-meta__model {
   background: var(--bg-hover, rgba(255, 255, 255, 0.06));
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: var(--radius-sm, 4px);
   font-family: var(--mono, monospace);
 }

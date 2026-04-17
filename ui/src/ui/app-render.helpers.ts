@@ -209,7 +209,7 @@ export function renderTab(
 
 function renderCronFilterIcon(hiddenCount: number) {
   return html`
-    <span style="position: relative; display: inline-flex; align-items: center;">
+    <span class="chat-tools-menu__item-icon-badge">
       <svg
         width="16"
         height="16"
@@ -225,21 +225,7 @@ function renderCronFilterIcon(hiddenCount: number) {
         <polyline points="12 6 12 12 16 14"></polyline>
       </svg>
       ${hiddenCount > 0
-        ? html`<span
-            style="
-              position: absolute;
-              top: -5px;
-              right: -6px;
-              background: var(--color-accent, #6366f1);
-              color: #fff;
-              border-radius: var(--radius-full);
-              font-size: 9px;
-              line-height: 1;
-              padding: 1px 3px;
-              pointer-events: none;
-            "
-            >${hiddenCount}</span
-          >`
+        ? html`<span class="chat-tools-menu__item-icon-badge-count">${hiddenCount}</span>`
         : ""}
     </span>
   `;
@@ -523,7 +509,7 @@ async function commitChatSessionRename(
     await refreshSessionOptions(state);
   } catch (err) {
     state.chatSessionRenamePending = false;
-    state.lastError = `Failed to rename chat: ${String(err)}`;
+    state.lastError = t("chat.renameConversationFailed", { error: String(err) });
     focusChatSessionRenameInput(eventTarget ?? null, targetKey);
   }
 }
@@ -1215,7 +1201,7 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
       sessionKey: state.sessionKey,
     })
   ) {
-    state.lastError = "Local models are only available for subagent sessions.";
+    state.lastError = t("chat.localModelsSubagentOnly");
     return;
   }
   const { currentOverride, defaultModel } = resolveChatModelSelectState(state);
@@ -1262,7 +1248,7 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
     }
     // Roll back so the picker reflects the actual server model.
     state.chatModelOverrides = { ...state.chatModelOverrides, [targetSessionKey]: prevOverride };
-    state.lastError = `Failed to set model: ${String(err)}`;
+    state.lastError = t("chat.setModelFailed", { error: String(err) });
   } finally {
     if (readChatModelSwitchToken(state, targetSessionKey) === requestToken) {
       writeChatModelSwitchToken(state, targetSessionKey, null);
@@ -1349,7 +1335,7 @@ export async function setDefaultChatModel(state: AppViewState, nextModel: string
     return;
   }
   if (state.configFormDirty) {
-    state.lastError = "Save or reload the config draft before changing the default model.";
+    state.lastError = t("chat.configDraftRequired");
     return;
   }
   if (resolveChatModelSelectState(state).defaultModel === trimmedModel) {
@@ -1360,7 +1346,7 @@ export async function setDefaultChatModel(state: AppViewState, nextModel: string
   try {
     const snapshot = await state.client.request<ConfigSnapshot>("config.get", {});
     if (!snapshot.hash) {
-      state.lastError = "Config hash missing; reload and retry.";
+      state.lastError = t("chat.configHashMissing");
       return;
     }
     await state.client.request("config.patch", {
@@ -1373,7 +1359,7 @@ export async function setDefaultChatModel(state: AppViewState, nextModel: string
       refreshModelPickerCatalogs(state),
     ]);
   } catch (err) {
-    state.lastError = `Failed to set default model: ${String(err)}`;
+    state.lastError = t("chat.setDefaultModelFailed", { error: String(err) });
   }
 }
 

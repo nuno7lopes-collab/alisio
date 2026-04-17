@@ -54,7 +54,7 @@ type ClawHubInstallFailure = {
 };
 
 export function formatClawHubSpecifier(params: { name: string; version?: string }): string {
-  return `clawhub:${params.name}${params.version ? `@${params.version}` : ""}`;
+  return `marketplace:${params.name}${params.version ? `@${params.version}` : ""}`;
 }
 
 function buildClawHubInstallFailure(
@@ -71,12 +71,12 @@ function mapClawHubRequestError(
   if (error instanceof ClawHubRequestError && error.status === 404) {
     if (context.stage === "package") {
       return buildClawHubInstallFailure(
-        "Package not found on ClawHub.",
+        "Package not found in Local Marketplace.",
         CLAWHUB_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
       );
     }
     return buildClawHubInstallFailure(
-      `Version not found on ClawHub: ${context.name}@${context.version ?? "unknown"}.`,
+      `Version not found in Local Marketplace: ${context.name}@${context.version ?? "unknown"}.`,
       CLAWHUB_INSTALL_ERROR_CODE.VERSION_NOT_FOUND,
     );
   }
@@ -109,7 +109,7 @@ async function resolveCompatiblePackageVersion(params: {
   const version = resolveRequestedVersion(params);
   if (!version) {
     return buildClawHubInstallFailure(
-      `ClawHub package "${params.detail.package?.name ?? "unknown"}" has no installable version.`,
+      `Marketplace package "${params.detail.package?.name ?? "unknown"}" has no installable version.`,
       CLAWHUB_INSTALL_ERROR_CODE.NO_INSTALLABLE_VERSION,
     );
   }
@@ -144,7 +144,7 @@ function validateClawHubPluginPackage(params: {
   const pkg = params.detail.package;
   if (!pkg) {
     return buildClawHubInstallFailure(
-      "Package not found on ClawHub.",
+      "Package not found in Local Marketplace.",
       CLAWHUB_INSTALL_ERROR_CODE.PACKAGE_NOT_FOUND,
     );
   }
@@ -156,13 +156,13 @@ function validateClawHubPluginPackage(params: {
   }
   if (pkg.family !== "code-plugin" && pkg.family !== "bundle-plugin") {
     return buildClawHubInstallFailure(
-      `Unsupported ClawHub package family: ${String(pkg.family)}`,
+      `Unsupported Marketplace package family: ${String(pkg.family)}`,
       CLAWHUB_INSTALL_ERROR_CODE.UNSUPPORTED_FAMILY,
     );
   }
   if (pkg.channel === "private") {
     return buildClawHubInstallFailure(
-      `"${pkg.name}" is private on ClawHub and cannot be installed anonymously.`,
+      `"${pkg.name}" is private in Local Marketplace and cannot be installed anonymously.`,
       CLAWHUB_INSTALL_ERROR_CODE.PRIVATE_PACKAGE,
     );
   }
@@ -203,7 +203,7 @@ function logClawHubPackageSummary(params: {
   }
   const verification = pkg.verification?.tier ? ` verification=${pkg.verification.tier}` : "";
   params.logger?.info?.(
-    `ClawHub ${pkg.family} ${pkg.name}@${params.version} channel=${pkg.channel}${verification}`,
+    `Marketplace ${pkg.family} ${pkg.name}@${params.version} channel=${pkg.channel}${verification}`,
   );
   const compatibilityParts = [
     params.compatibility?.pluginApiRange
@@ -218,7 +218,7 @@ function logClawHubPackageSummary(params: {
   }
   if (pkg.channel !== "official") {
     params.logger?.warn?.(
-      `ClawHub package "${pkg.name}" is ${pkg.channel}; review source and verification before enabling.`,
+      `Marketplace package "${pkg.name}" is ${pkg.channel}; review source and verification before enabling.`,
     );
   }
 }
@@ -244,7 +244,7 @@ export async function installPluginFromClawHub(params: {
   const parsed = parseClawHubPluginSpec(params.spec);
   if (!parsed?.name) {
     return buildClawHubInstallFailure(
-      `invalid ClawHub plugin spec: ${params.spec}`,
+      `invalid marketplace plugin spec: ${params.spec}`,
       CLAWHUB_INSTALL_ERROR_CODE.INVALID_SPEC,
     );
   }
@@ -301,7 +301,7 @@ export async function installPluginFromClawHub(params: {
   }
   try {
     params.logger?.info?.(
-      `Downloading ${detail.package?.family === "bundle-plugin" ? "bundle" : "plugin"} ${parsed.name}@${versionState.version} from ClawHub…`,
+      `Downloading ${detail.package?.family === "bundle-plugin" ? "bundle" : "plugin"} ${parsed.name}@${versionState.version} from Local Marketplace…`,
     );
     const installResult = await installPluginFromArchive({
       archivePath: archive.archivePath,
@@ -319,7 +319,7 @@ export async function installPluginFromClawHub(params: {
       pkg.family === "code-plugin" || pkg.family === "bundle-plugin" ? pkg.family : null;
     if (!clawhubFamily) {
       return buildClawHubInstallFailure(
-        `Unsupported ClawHub package family: ${pkg.family}`,
+        `Unsupported Marketplace package family: ${pkg.family}`,
         CLAWHUB_INSTALL_ERROR_CODE.UNSUPPORTED_FAMILY,
       );
     }

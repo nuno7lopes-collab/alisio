@@ -125,7 +125,7 @@ vi.mock("../plugins/clawhub.js", () => ({
   },
   installPluginFromClawHub: (...args: unknown[]) => installPluginFromClawHub(...args),
   formatClawHubSpecifier: ({ name, version }: { name: string; version?: string }) =>
-    `clawhub:${name}${version ? `@${version}` : ""}`,
+    `marketplace:${name}${version ? `@${version}` : ""}`,
 }));
 
 vi.mock("../infra/clawhub.js", () => ({
