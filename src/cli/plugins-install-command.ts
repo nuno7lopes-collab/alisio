@@ -430,7 +430,7 @@ export async function runPluginInstallCommand(params: {
       config: cfg,
       pluginId: result.pluginId,
       install: {
-        source: "clawhub",
+        source: "marketplace",
         spec: formatClawHubSpecifier({
           name: result.clawhub.clawhubPackage,
           version: result.clawhub.version,
@@ -439,10 +439,10 @@ export async function runPluginInstallCommand(params: {
         version: result.version,
         integrity: result.clawhub.integrity,
         resolvedAt: result.clawhub.resolvedAt,
-        clawhubUrl: result.clawhub.clawhubUrl,
-        clawhubPackage: result.clawhub.clawhubPackage,
-        clawhubFamily: result.clawhub.clawhubFamily,
-        clawhubChannel: result.clawhub.clawhubChannel,
+        marketplaceRegistryUrl: result.clawhub.clawhubUrl,
+        marketplacePackage: result.clawhub.clawhubPackage,
+        marketplaceFamily: result.clawhub.clawhubFamily,
+        marketplaceChannel: result.clawhub.clawhubChannel,
       },
     });
     return;
@@ -460,7 +460,7 @@ export async function runPluginInstallCommand(params: {
         config: cfg,
         pluginId: clawhubResult.pluginId,
         install: {
-          source: "clawhub",
+          source: "marketplace",
           spec: formatClawHubSpecifier({
             name: clawhubResult.clawhub.clawhubPackage,
             version: clawhubResult.clawhub.version,
@@ -469,10 +469,10 @@ export async function runPluginInstallCommand(params: {
           version: clawhubResult.version,
           integrity: clawhubResult.clawhub.integrity,
           resolvedAt: clawhubResult.clawhub.resolvedAt,
-          clawhubUrl: clawhubResult.clawhub.clawhubUrl,
-          clawhubPackage: clawhubResult.clawhub.clawhubPackage,
-          clawhubFamily: clawhubResult.clawhub.clawhubFamily,
-          clawhubChannel: clawhubResult.clawhub.clawhubChannel,
+          marketplaceRegistryUrl: clawhubResult.clawhub.clawhubUrl,
+          marketplacePackage: clawhubResult.clawhub.clawhubPackage,
+          marketplaceFamily: clawhubResult.clawhub.clawhubFamily,
+          marketplaceChannel: clawhubResult.clawhub.clawhubChannel,
         },
       });
       return;

@@ -196,9 +196,14 @@ export const skillsHandlers: GatewayRequestHandlers = {
     }
     const cfg = loadConfig();
     const workspaceDirRaw = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
-    if (params && typeof params === "object" && "source" in params && params.source === "clawhub") {
+    if (
+      params &&
+      typeof params === "object" &&
+      "source" in params &&
+      params.source === "marketplace"
+    ) {
       const p = params as {
-        source: "clawhub";
+        source: "marketplace";
         slug: string;
         version?: string;
         force?: boolean;
@@ -566,9 +571,14 @@ export const skillsHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (params && typeof params === "object" && "source" in params && params.source === "clawhub") {
+    if (
+      params &&
+      typeof params === "object" &&
+      "source" in params &&
+      params.source === "marketplace"
+    ) {
       const p = params as {
-        source: "clawhub";
+        source: "marketplace";
         slug?: string;
         all?: boolean;
       };
@@ -607,7 +617,7 @@ export const skillsHandlers: GatewayRequestHandlers = {
           ok: errors.length === 0,
           skillKey: p.slug ?? "*",
           config: {
-            source: "clawhub",
+            source: "marketplace",
             results,
           },
         },

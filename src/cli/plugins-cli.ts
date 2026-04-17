@@ -90,7 +90,7 @@ function resolvePluginUninstallId(params: {
   if (requestedClawHub) {
     for (const [pluginId, install] of Object.entries(params.config.plugins?.installs ?? {})) {
       const installedClawHubName =
-        install.clawhubPackage ??
+        install.marketplacePackage ??
         parseClawHubPluginSpec(install.spec ?? "")?.name ??
         parseClawHubPluginSpec(install.resolvedSpec ?? "")?.name;
       if (installedClawHubName === requestedClawHub.name) {

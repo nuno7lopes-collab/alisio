@@ -16,7 +16,7 @@ import type { AlisioConfig } from "../../config/config.js";
 import type { PluginInstallRecord } from "../../config/types.plugins.js";
 import { resolveArchiveKind } from "../../infra/archive.js";
 import { parseClawHubPluginSpec } from "../../infra/clawhub.js";
-import { installPluginFromClawHub } from "../../plugins/clawhub.js";
+import { formatClawHubSpecifier, installPluginFromClawHub } from "../../plugins/clawhub.js";
 import { installPluginFromNpmSpec, installPluginFromPath } from "../../plugins/install.js";
 import { clearPluginManifestRegistryCache } from "../../plugins/manifest-registry.js";
 import type { PluginRecord } from "../../plugins/registry.js";
@@ -204,16 +204,19 @@ async function installPluginFromPluginsCommand(params: {
       config: params.config,
       pluginId: result.pluginId,
       install: {
-        source: "clawhub",
-        spec: params.raw,
+        source: "marketplace",
+        spec: formatClawHubSpecifier({
+          name: result.clawhub.clawhubPackage,
+          version: result.clawhub.version,
+        }),
         installPath: result.targetDir,
         version: result.version,
         integrity: result.clawhub.integrity,
         resolvedAt: result.clawhub.resolvedAt,
-        clawhubUrl: result.clawhub.clawhubUrl,
-        clawhubPackage: result.clawhub.clawhubPackage,
-        clawhubFamily: result.clawhub.clawhubFamily,
-        clawhubChannel: result.clawhub.clawhubChannel,
+        marketplaceRegistryUrl: result.clawhub.clawhubUrl,
+        marketplacePackage: result.clawhub.clawhubPackage,
+        marketplaceFamily: result.clawhub.clawhubFamily,
+        marketplaceChannel: result.clawhub.clawhubChannel,
       },
     });
     return { ok: true, pluginId: result.pluginId };
@@ -231,16 +234,16 @@ async function installPluginFromPluginsCommand(params: {
         config: params.config,
         pluginId: clawhubResult.pluginId,
         install: {
-          source: "clawhub",
+          source: "marketplace",
           spec: preferredClawHubSpec,
           installPath: clawhubResult.targetDir,
           version: clawhubResult.version,
           integrity: clawhubResult.clawhub.integrity,
           resolvedAt: clawhubResult.clawhub.resolvedAt,
-          clawhubUrl: clawhubResult.clawhub.clawhubUrl,
-          clawhubPackage: clawhubResult.clawhub.clawhubPackage,
-          clawhubFamily: clawhubResult.clawhub.clawhubFamily,
-          clawhubChannel: clawhubResult.clawhub.clawhubChannel,
+          marketplaceRegistryUrl: clawhubResult.clawhub.clawhubUrl,
+          marketplacePackage: clawhubResult.clawhub.clawhubPackage,
+          marketplaceFamily: clawhubResult.clawhub.clawhubFamily,
+          marketplaceChannel: clawhubResult.clawhub.clawhubChannel,
         },
       });
       return { ok: true, pluginId: clawhubResult.pluginId };

@@ -350,16 +350,53 @@ function normalizeTaskProposalRecord(entry: unknown): TaskProposalRecord | null 
   };
 }
 
-function syncSelectedTask(state: TasksState) {
+function syncSelectedTask(state: TasksState): boolean {
   const tasks = state.tasksOverview?.canonicalTasks ?? [];
   if (tasks.length === 0) {
+    const changed = state.tasksSelectedId !== null || state.tasksDetail !== null;
     state.tasksSelectedId = null;
-    return;
+    state.tasksDetail = null;
+    return changed;
   }
   if (state.tasksSelectedId && tasks.some((task) => task.taskId === state.tasksSelectedId)) {
-    return;
+    return false;
   }
   state.tasksSelectedId = tasks[0]?.taskId ?? null;
+  return true;
+}
+
+export async function loadTaskDetail(
+  state: TasksState,
+  taskId: string,
+  opts?: { quiet?: boolean },
+): Promise<void> {
+  if (!state.client || !state.connected || !taskId.trim()) {
+    state.tasksDetail = null;
+    return;
+  }
+  if (!opts?.quiet) {
+    state.tasksDetailLoading = true;
+  }
+  try {
+    const result = await state.client.request<TasksDetailResult>("tasks.detail", { taskId });
+    const normalized = normalizeTaskDetailResult(result);
+    if (!normalized || normalized.task.taskId !== taskId) {
+      throw new Error("Invalid task detail response.");
+    }
+    state.tasksDetail = normalized;
+    state.tasksError = null;
+  } catch (error) {
+    state.tasksDetail = null;
+    if (isMissingOperatorReadScopeError(error)) {
+      state.tasksOverview = null;
+      state.tasksSelectedId = null;
+      state.tasksError = formatMissingOperatorReadScopeMessage("background tasks");
+    } else {
+      state.tasksError = taskErrorMessage("load");
+    }
+  } finally {
+    state.tasksDetailLoading = false;
+  }
 }
 
 export async function loadTasksOverview(
@@ -388,10 +425,16 @@ export async function loadTasksOverview(
     }
     state.tasksOverview = normalized;
     state.tasksError = null;
-    syncSelectedTask(state);
+    const selectionChanged = syncSelectedTask(state);
+    if (state.tasksSelectedId) {
+      await loadTaskDetail(state, state.tasksSelectedId, {
+        quiet: opts?.quiet && !selectionChanged,
+      });
+    }
   } catch (error) {
     if (isMissingOperatorReadScopeError(error)) {
       state.tasksOverview = null;
+      state.tasksDetail = null;
       state.tasksError = formatMissingOperatorReadScopeMessage("background tasks");
       state.tasksSelectedId = null;
     } else {
@@ -400,6 +443,14 @@ export async function loadTasksOverview(
   } finally {
     state.tasksLoading = false;
   }
+}
+
+export async function selectTask(state: TasksState, taskId: string): Promise<void> {
+  if (state.tasksSelectedId === taskId && state.tasksDetail?.task.taskId === taskId) {
+    return;
+  }
+  state.tasksSelectedId = taskId;
+  await loadTaskDetail(state, taskId, { quiet: true });
 }
 
 export async function cancelTask(state: TasksState, lookup: string): Promise<void> {
