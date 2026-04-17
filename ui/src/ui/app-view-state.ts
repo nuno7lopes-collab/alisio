@@ -174,6 +174,8 @@ export type AppViewState = {
   tasksBusy: boolean;
   tasksError: string | null;
   tasksOverview: import("./types.ts").TasksOverviewResult | null;
+  tasksDetailLoading: boolean;
+  tasksDetail: import("./types.ts").TasksDetailResult | null;
   tasksSelectedId: string | null;
   tasksQuery: string;
   tasksRuntimeFilter: import("./controllers/tasks.ts").TaskRuntimeFilter;

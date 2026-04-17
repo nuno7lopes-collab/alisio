@@ -9,11 +9,11 @@ import type {
   TaskEvent,
   TaskExecution,
   TaskExecutionStep,
+  TasksDetailResult,
   TaskProposalDecision,
   TaskProposalDraft,
   TaskProposalRecord,
   TaskProposalSummary,
-  TaskRecord,
   TaskRuntime,
   TasksOverviewResult,
   TaskStatus,
@@ -33,6 +33,8 @@ export type TasksState = {
   tasksBusy: boolean;
   tasksError: string | null;
   tasksOverview: TasksOverviewResult | null;
+  tasksDetailLoading: boolean;
+  tasksDetail: TasksDetailResult | null;
   tasksSelectedId: string | null;
   tasksQuery: string;
   tasksRuntimeFilter: TaskRuntimeFilter;
