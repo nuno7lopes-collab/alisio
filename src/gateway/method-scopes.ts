@@ -101,6 +101,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "cron.status",
     "cron.runs",
     "tasks.overview",
+    "tasks.detail",
     "gateway.identity.get",
     "system-presence",
     "last-heartbeat",

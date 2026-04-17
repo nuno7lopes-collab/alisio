@@ -8,24 +8,13 @@ import {
   summarizeTaskProposals,
   upsertTaskProposal,
 } from "../../tasks/task-proposals.js";
-import {
-  listTaskAuditFindings,
-  summarizeTaskAuditFindings,
-} from "../../tasks/task-registry.audit.js";
 import { cancelTaskById, updateTaskNotifyPolicyById } from "../../tasks/task-registry.js";
 import {
-  previewTaskRegistryMaintenance,
-  reconcileInspectableTasks,
   reconcileTaskLookupToken,
-  getInspectableTaskRegistrySummary,
 } from "../../tasks/task-registry.maintenance.js";
-import { summarizeTaskRecords } from "../../tasks/task-registry.summary.js";
 import { filterVisibleCanonicalTaskBundles, isVisibleCanonicalTaskBundle } from "../../tasks/canonical-task-visibility.js";
 import type {
   TaskNotifyPolicy,
-  TaskRecord,
-  TaskRuntime,
-  TaskStatus,
 } from "../../tasks/task-registry.types.js";
 import {
   bindTaskExecutionRun,
@@ -55,6 +44,7 @@ import {
   validateTasksCancelParams,
   validateTasksClaimParams,
   validateTasksCreateParams,
+  validateTasksDetailParams,
   validateTasksExecutionCancelParams,
   validateTasksExecutionEndParams,
   validateTasksExecutionStartParams,
@@ -67,63 +57,13 @@ import {
   validateTasksReleaseParams,
   validateTasksSpawnChildParams,
   validateTasksUpdateParams,
+  type TasksDetailResult,
   type TasksOverviewResult,
 } from "../protocol/index.js";
 import { loadSessionEntry } from "../session-utils.js";
 import { createGatewaySessionEntry, sendGatewaySessionMessage } from "./sessions.js";
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 import { assertValidParams } from "./validation.js";
-
-function normalizeComparableText(value: string | undefined): string {
-  return value?.trim().toLowerCase() ?? "";
-}
-
-function matchesTaskQuery(task: TaskRecord, query: string): boolean {
-  const haystack = [
-    task.taskId,
-    task.runtime,
-    task.status,
-    task.deliveryStatus,
-    task.notifyPolicy,
-    task.sourceId,
-    task.requesterSessionKey,
-    task.childSessionKey,
-    task.parentTaskId,
-    task.agentId,
-    task.runId,
-    task.label,
-    task.task,
-    task.error,
-    task.progressSummary,
-    task.terminalSummary,
-  ]
-    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-    .map((value) => normalizeComparableText(value));
-  return haystack.some((value) => value.includes(query));
-}
-
-function filterTasks(params: {
-  tasks: TaskRecord[];
-  runtime?: TaskRuntime | "all";
-  status?: TaskStatus | "all";
-  query?: string;
-}): TaskRecord[] {
-  const runtime = params.runtime && params.runtime !== "all" ? params.runtime : null;
-  const status = params.status && params.status !== "all" ? params.status : null;
-  const query = normalizeComparableText(params.query);
-  return params.tasks.filter((task) => {
-    if (runtime && task.runtime !== runtime) {
-      return false;
-    }
-    if (status && task.status !== status) {
-      return false;
-    }
-    if (query && !matchesTaskQuery(task, query)) {
-      return false;
-    }
-    return true;
-  });
-}
 
 function buildFallbackLaunchPrompt(proposal: {
   kind: "task" | "project";

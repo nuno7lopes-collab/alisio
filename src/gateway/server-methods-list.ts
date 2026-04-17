@@ -162,6 +162,7 @@ const BASE_METHODS = [
   "cron.run",
   "cron.runs",
   "tasks.overview",
+  "tasks.detail",
   "tasks.create",
   "tasks.update",
   "tasks.claim",
