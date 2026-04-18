@@ -266,4 +266,228 @@ struct MacNodeRuntimeTests {
             #expect(response.error?.message.contains("BROWSER_DISABLED") == true)
         }
     }
+
+    @Test func `handle invoke computer session pause uses injected helper services`() async throws {
+        @MainActor
+        final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unchecked Sendable {
+            var pausedSessionId: String?
+
+            func pauseComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
+                self.pausedSessionId = sessionId
+                return MacNodeComputerSessionPayload(
+                    sessionId: sessionId,
+                    state: .paused,
+                    permissions: .init(accessibility: true, screenRecording: true),
+                    health: .init(
+                        connectionState: .running,
+                        launchCount: 1,
+                        helper: .init(
+                            protocolVersion: 1,
+                            helperVersion: "test",
+                            processId: 111,
+                            activeSession: .init(sessionId: sessionId, state: .paused, updatedAt: 5),
+                            lastError: nil),
+                        lastError: nil))
+            }
+
+            func recordScreen(
+                screenIndex _: Int?,
+                durationMs _: Int?,
+                fps _: Double?,
+                includeAudio _: Bool?,
+                outPath _: String?) async throws -> (path: String, hasAudio: Bool)
+            {
+                Issue.record("recordScreen should not be called for computer tests")
+                return ("", false)
+            }
+
+            func locationAuthorizationStatus() -> CLAuthorizationStatus { .authorizedAlways }
+            func locationAccuracyAuthorization() -> CLAccuracyAuthorization { .fullAccuracy }
+            func isApplicationActive() -> Bool { true }
+            func currentLocation(
+                desiredAccuracy _: AlisioLocationAccuracy,
+                maxAgeMs _: Int?,
+                timeoutMs _: Int?) async throws -> CLLocation
+            {
+                CLLocation(latitude: 0, longitude: 0)
+            }
+        }
+
+        let services = await MainActor.run { FakeMainActorServices() }
+        let runtime = MacNodeRuntime(makeMainActorServices: { services })
+        let paramsJSON = try String(
+            data: JSONEncoder().encode(MacNodeComputerSessionParams(sessionId: "session-pause")),
+            encoding: .utf8)
+        let response = await runtime.handleInvoke(
+            BridgeInvokeRequest(
+                id: "req-computer-pause",
+                command: MacNodeComputerCommand.sessionPause.rawValue,
+                paramsJSON: paramsJSON))
+
+        #expect(response.ok == true)
+        let payloadJSON = try #require(response.payloadJSON)
+        let payload = try JSONDecoder().decode(MacNodeComputerSessionPayload.self, from: Data(payloadJSON.utf8))
+        #expect(payload.sessionId == "session-pause")
+        #expect(payload.state == .paused)
+        let pausedSessionId = await MainActor.run { services.pausedSessionId }
+        #expect(pausedSessionId == "session-pause")
+    }
+
+    @Test func `handle invoke computer act honors explicit session id`() async throws {
+        @MainActor
+        final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unchecked Sendable {
+            var startedSessionIds: [String] = []
+            var actionSessionIds: [String] = []
+            var observeSessionIds: [String] = []
+
+            func startComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
+                self.startedSessionIds.append(sessionId)
+                return MacNodeComputerSessionPayload(
+                    sessionId: sessionId,
+                    state: .running,
+                    permissions: .init(accessibility: true, screenRecording: true),
+                    health: .init(connectionState: .running, launchCount: 1, helper: nil, lastError: nil))
+            }
+
+            func performComputerActions(
+                _ sessionId: String,
+                actions: [MacNodeComputerActionPayload]) async throws -> MacNodeComputerPerformActionsPayload
+            {
+                self.actionSessionIds.append(sessionId)
+                #expect(actions.count == 1)
+                return MacNodeComputerPerformActionsPayload(
+                    ok: true,
+                    summary: "clicked",
+                    results: [
+                        .init(
+                            id: "result-1",
+                            actionId: actions.first?.id,
+                            type: "click",
+                            success: true,
+                            elapsedMs: 14,
+                            retryCount: 0,
+                            summary: "clicked",
+                            failureCategory: nil,
+                            sourceFrameId: actions.first?.frame?.frameId,
+                            resultFrameId: nil),
+                    ])
+            }
+
+            func observeComputer(_ sessionId: String) async throws -> MacNodeComputerObservePayload {
+                self.observeSessionIds.append(sessionId)
+                return MacNodeComputerObservePayload(
+                    frame: .init(
+                        id: "frame-9",
+                        dataUrl: "data:image/jpeg;base64,abc",
+                        mimeType: "image/jpeg",
+                        width: 800,
+                        height: 600,
+                        pixelWidth: 800,
+                        pixelHeight: 600,
+                        logicalWidth: 400,
+                        logicalHeight: 300,
+                        scaleFactor: 2,
+                        orientation: .landscape,
+                        displayId: "display",
+                        sourceSpace: .displayPixel,
+                        capturedAt: 9,
+                        maxAgeMs: 5_000,
+                        staleAt: 5_009,
+                        cursor: nil),
+                    context: .init(
+                        display: .init(
+                            id: "display",
+                            width: 800,
+                            height: 600,
+                            scale: 2,
+                            logicalWidth: 400,
+                            logicalHeight: 300,
+                            pixelWidth: 800,
+                            pixelHeight: 600,
+                            orientation: .landscape),
+                        activeApp: nil,
+                        activeWindow: nil,
+                        errorState: nil,
+                        capturedAt: 9))
+            }
+
+            func recordScreen(
+                screenIndex _: Int?,
+                durationMs _: Int?,
+                fps _: Double?,
+                includeAudio _: Bool?,
+                outPath _: String?) async throws -> (path: String, hasAudio: Bool)
+            {
+                Issue.record("recordScreen should not be called for computer tests")
+                return ("", false)
+            }
+
+            func locationAuthorizationStatus() -> CLAuthorizationStatus { .authorizedAlways }
+            func locationAccuracyAuthorization() -> CLAccuracyAuthorization { .fullAccuracy }
+            func isApplicationActive() -> Bool { true }
+            func currentLocation(
+                desiredAccuracy _: AlisioLocationAccuracy,
+                maxAgeMs _: Int?,
+                timeoutMs _: Int?) async throws -> CLLocation
+            {
+                CLLocation(latitude: 0, longitude: 0)
+            }
+        }
+
+        let services = await MainActor.run { FakeMainActorServices() }
+        let runtime = MacNodeRuntime(makeMainActorServices: { services })
+        let params = MacNodeComputerActParams(
+            sessionId: "session-explicit",
+            action: MacNodeComputerActionPayload(
+                id: "action-1",
+                type: "click",
+                x: 10,
+                y: 20,
+                toX: nil,
+                toY: nil,
+                deltaX: nil,
+                deltaY: nil,
+                text: nil,
+                key: nil,
+                modifiers: nil,
+                url: nil,
+                path: nil,
+                app: nil,
+                delayMs: nil,
+                coordinateSpace: .displayPixel,
+                frame: .init(
+                    frameId: "frame-source",
+                    displayId: "display",
+                    capturedAt: 5,
+                    maxAgeMs: 5_000,
+                    sourceSpace: .displayPixel,
+                    pixelWidth: 800,
+                    pixelHeight: 600,
+                    logicalWidth: 400,
+                    logicalHeight: 300,
+                    scaleFactor: 2,
+                    orientation: .landscape),
+                transform: .init(
+                    sourceSpace: .displayPixel,
+                    sourceWidth: 800,
+                    sourceHeight: 600,
+                    renderedWidth: nil,
+                    renderedHeight: nil,
+                    downscaleFactorX: nil,
+                    downscaleFactorY: nil)))
+        let paramsJSON = try String(data: JSONEncoder().encode(params), encoding: .utf8)
+        let response = await runtime.handleInvoke(
+            BridgeInvokeRequest(
+                id: "req-computer-act",
+                command: MacNodeComputerCommand.act.rawValue,
+                paramsJSON: paramsJSON))
+
+        #expect(response.ok == true)
+        let startedSessionIds = await MainActor.run { services.startedSessionIds }
+        let actionSessionIds = await MainActor.run { services.actionSessionIds }
+        let observeSessionIds = await MainActor.run { services.observeSessionIds }
+        #expect(startedSessionIds == ["session-explicit"])
+        #expect(actionSessionIds == ["session-explicit"])
+        #expect(observeSessionIds == ["session-explicit"])
+    }
 }

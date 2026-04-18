@@ -7,8 +7,9 @@ import Foundation
 @MainActor
 final class ComputerControlService {
     private let jpegCompression: CGFloat = 0.72
+    private let frameMaxAgeMs = MacNodeComputerActionEngine.defaultFrameMaxAgeMs
 
-    func observe() async throws -> MacNodeComputerObservePayload {
+    func captureFrame() async throws -> MacNodeComputerObservePayload {
         try self.ensureScreenRecording()
         let snapshot = try await self.captureSnapshot()
         let frame = try self.buildFrame(snapshot: snapshot)
@@ -16,11 +17,90 @@ final class ComputerControlService {
         return MacNodeComputerObservePayload(frame: frame, context: context)
     }
 
-    func perform(action: MacNodeComputerActionPayload) async throws -> MacNodeComputerActPayload {
+    func getContext() throws -> MacNodeComputerObservePayload.Context {
+        let snapshot = try self.captureContextSnapshot()
+        return self.buildContext(snapshot: snapshot)
+    }
+
+    func getPermissionState() -> MacNodeComputerPermissionPayload {
+        MacNodeComputerPermissionPayload(
+            accessibility: AXIsProcessTrusted(),
+            screenRecording: ScreenRecordingProbe.isAuthorized())
+    }
+
+    func performActions(_ actions: [MacNodeComputerActionPayload]) async throws -> MacNodeComputerPerformActionsPayload {
+        guard !actions.isEmpty else {
+            throw NSError(
+                domain: "ComputerControl",
+                code: 20,
+                userInfo: [NSLocalizedDescriptionKey: "INVALID_REQUEST: actions required"])
+        }
         try self.ensureAccessibility()
-        let summary = try await self.execute(action: action)
-        let observation = try await self.observe()
-        return MacNodeComputerActPayload(ok: true, summary: summary, observation: observation)
+        var lastSummary = "Completed actions"
+        var results: [MacNodeComputerActionResultPayload] = []
+        var lastActionAtMs: Int?
+        for action in actions {
+            if let lastActionAtMs {
+                let elapsedSinceLast = self.nowMs() - lastActionAtMs
+                if elapsedSinceLast < MacNodeComputerActionEngine.minimumInterActionDelayMs {
+                    try await self.sleepMs(MacNodeComputerActionEngine.minimumInterActionDelayMs - elapsedSinceLast)
+                }
+            }
+            let startedAt = self.nowMs()
+            let validation = MacNodeComputerActionEngine.validateAction(
+                action,
+                sessionFrame: nil,
+                nowMs: startedAt)
+            switch validation {
+            case let .failure(failure):
+                let elapsed = max(0, self.nowMs() - startedAt)
+                let result = self.makeFailureResult(
+                    from: failure,
+                    elapsedMs: elapsed)
+                results.append(result)
+                lastSummary = result.summary
+                return MacNodeComputerPerformActionsPayload(
+                    ok: false,
+                    summary: lastSummary,
+                    results: results)
+            case let .success(validatedAction):
+                do {
+                    lastSummary = try await self.execute(
+                        action: action,
+                        validatedAction: validatedAction)
+                    let elapsed = max(0, self.nowMs() - startedAt)
+                    results.append(MacNodeComputerActionResultPayload(
+                        id: UUID().uuidString,
+                        actionId: validatedAction.actionId,
+                        type: validatedAction.normalizedType,
+                        success: true,
+                        elapsedMs: elapsed,
+                        retryCount: 0,
+                        summary: lastSummary,
+                        failureCategory: nil,
+                        sourceFrameId: validatedAction.sourceFrame?.frameId,
+                        resultFrameId: nil))
+                    lastActionAtMs = self.nowMs()
+                } catch {
+                    let elapsed = max(0, self.nowMs() - startedAt)
+                    let result = self.makeFailureResult(
+                        action: action,
+                        validatedAction: validatedAction,
+                        error: error,
+                        elapsedMs: elapsed)
+                    results.append(result)
+                    lastSummary = result.summary
+                    return MacNodeComputerPerformActionsPayload(
+                        ok: false,
+                        summary: lastSummary,
+                        results: results)
+                }
+            }
+        }
+        return MacNodeComputerPerformActionsPayload(
+            ok: results.allSatisfy(\.success),
+            summary: lastSummary,
+            results: results)
     }
 
     private func ensureScreenRecording() throws {
@@ -50,6 +130,21 @@ final class ComputerControlService {
         var capturedAtMs: Int
     }
 
+    private struct ContextSnapshot {
+        var displayId: CGDirectDisplayID
+        var screen: NSScreen
+        var capturedAtMs: Int
+    }
+
+    private func nowMs() -> Int {
+        Int(Date().timeIntervalSince1970 * 1000)
+    }
+
+    private func sleepMs(_ delayMs: Int) async throws {
+        guard delayMs > 0 else { return }
+        try await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+    }
+
     private func captureSnapshot() async throws -> Snapshot {
         let screen = try self.resolveActiveScreen()
         let displayId = self.displayId(for: screen)
@@ -57,6 +152,14 @@ final class ComputerControlService {
         return Snapshot(
             displayId: displayId,
             image: image,
+            screen: screen,
+            capturedAtMs: Int(Date().timeIntervalSince1970 * 1000))
+    }
+
+    private func captureContextSnapshot() throws -> ContextSnapshot {
+        let screen = try self.resolveActiveScreen()
+        return ContextSnapshot(
+            displayId: self.displayId(for: screen),
             screen: screen,
             capturedAtMs: Int(Date().timeIntervalSince1970 * 1000))
     }
@@ -105,6 +208,30 @@ final class ComputerControlService {
         return CGMainDisplayID()
     }
 
+    private func resolveScreen(forDisplayId rawDisplayId: String?) throws -> NSScreen {
+        if let rawDisplayId,
+           let displayNumber = UInt32(rawDisplayId),
+           let screen = NSScreen.screens.first(where: {
+               self.displayId(for: $0) == CGDirectDisplayID(displayNumber)
+           })
+        {
+            return screen
+        }
+        return try self.resolveActiveScreen()
+    }
+
+    private func displayOrientation(
+        displayId: CGDirectDisplayID,
+        screen: NSScreen) -> MacNodeComputerOrientation
+    {
+        let rotation = Int(CGDisplayRotation(displayId).rounded())
+        let isPortraitRotation = abs(rotation) == 90 || abs(rotation) == 270
+        let logicalWidth = screen.frame.width
+        let logicalHeight = screen.frame.height
+        let isPortrait = isPortraitRotation ? logicalWidth >= logicalHeight : logicalHeight > logicalWidth
+        return isPortrait ? .portrait : .landscape
+    }
+
     private func buildFrame(snapshot: Snapshot) throws -> MacNodeComputerObservePayload.Frame {
         let bitmap = NSBitmapImageRep(cgImage: snapshot.image)
         guard let data = bitmap.representation(
@@ -119,31 +246,76 @@ final class ComputerControlService {
 
         let dataUrl = "data:image/jpeg;base64," + data.base64EncodedString()
         let cursor = self.currentCursor(for: snapshot)
+        let scaleFactor = max(1.0, snapshot.screen.backingScaleFactor)
+        let logicalWidth = snapshot.screen.frame.width
+        let logicalHeight = snapshot.screen.frame.height
+        let orientation = self.displayOrientation(
+            displayId: snapshot.displayId,
+            screen: snapshot.screen)
         return MacNodeComputerObservePayload.Frame(
+            id: UUID().uuidString,
             dataUrl: dataUrl,
             mimeType: "image/jpeg",
             width: snapshot.image.width,
             height: snapshot.image.height,
+            pixelWidth: snapshot.image.width,
+            pixelHeight: snapshot.image.height,
+            logicalWidth: logicalWidth,
+            logicalHeight: logicalHeight,
+            scaleFactor: scaleFactor,
+            orientation: orientation,
+            displayId: String(snapshot.displayId),
+            sourceSpace: .displayPixel,
             capturedAt: snapshot.capturedAtMs,
+            maxAgeMs: self.frameMaxAgeMs,
+            staleAt: snapshot.capturedAtMs + self.frameMaxAgeMs,
             cursor: cursor)
     }
 
     private func buildContext(snapshot: Snapshot) -> MacNodeComputerObservePayload.Context {
-        let scale = max(1.0, snapshot.screen.backingScaleFactor)
+        self.buildContext(
+            displayId: snapshot.displayId,
+            screen: snapshot.screen,
+            capturedAtMs: snapshot.capturedAtMs)
+    }
+
+    private func buildContext(snapshot: ContextSnapshot) -> MacNodeComputerObservePayload.Context {
+        self.buildContext(
+            displayId: snapshot.displayId,
+            screen: snapshot.screen,
+            capturedAtMs: snapshot.capturedAtMs)
+    }
+
+    private func buildContext(
+        displayId: CGDirectDisplayID,
+        screen: NSScreen,
+        capturedAtMs: Int) -> MacNodeComputerObservePayload.Context
+    {
+        let scale = max(1.0, screen.backingScaleFactor)
         let app = NSWorkspace.shared.frontmostApplication
+        let logicalWidth = screen.frame.width
+        let logicalHeight = screen.frame.height
+        let pixelWidth = logicalWidth * scale
+        let pixelHeight = logicalHeight * scale
+        let orientation = self.displayOrientation(displayId: displayId, screen: screen)
         return MacNodeComputerObservePayload.Context(
             display: .init(
-                id: String(snapshot.displayId),
-                width: snapshot.screen.frame.width * scale,
-                height: snapshot.screen.frame.height * scale,
-                scale: scale),
+                id: String(displayId),
+                width: pixelWidth,
+                height: pixelHeight,
+                scale: scale,
+                logicalWidth: logicalWidth,
+                logicalHeight: logicalHeight,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                orientation: orientation),
             activeApp: .init(
                 name: app?.localizedName,
                 bundleId: app?.bundleIdentifier,
                 processId: app?.processIdentifier),
             activeWindow: .init(title: self.activeWindowTitle(for: app)),
             errorState: nil,
-            capturedAt: snapshot.capturedAtMs)
+            capturedAt: capturedAtMs)
     }
 
     private func currentCursor(for snapshot: Snapshot) -> MacNodeComputerObservePayload.Frame.Cursor? {
@@ -183,19 +355,29 @@ final class ComputerControlService {
         return titleValue as? String
     }
 
-    private func execute(action: MacNodeComputerActionPayload) async throws -> String {
-        switch action.type {
+    private func execute(
+        action: MacNodeComputerActionPayload,
+        validatedAction: MacNodeComputerValidatedAction) async throws -> String
+    {
+        switch validatedAction.normalizedType {
+        case "move":
+            let point = try self.requireGlobalPoint(for: validatedAction)
+            self.postMouseMove(to: point)
+            return self.summarizePointAction("move", point: validatedAction.point)
         case "click":
-            try self.click(action: action, button: .left, count: 1)
-            return self.summarizePointAction("click", action: action)
+            let point = try self.requireGlobalPoint(for: validatedAction)
+            try self.click(at: point, button: .left, count: 1)
+            return self.summarizePointAction("click", point: validatedAction.point)
         case "double_click":
-            try self.click(action: action, button: .left, count: 2)
-            return self.summarizePointAction("double click", action: action)
+            let point = try self.requireGlobalPoint(for: validatedAction)
+            try self.click(at: point, button: .left, count: 2)
+            return self.summarizePointAction("double click", point: validatedAction.point)
         case "right_click":
-            try self.click(action: action, button: .right, count: 1)
-            return self.summarizePointAction("right click", action: action)
+            let point = try self.requireGlobalPoint(for: validatedAction)
+            try self.click(at: point, button: .right, count: 1)
+            return self.summarizePointAction("right click", point: validatedAction.point)
         case "drag":
-            try await self.drag(action: action)
+            try await self.drag(validatedAction: validatedAction)
             return "Dragged pointer"
         case "scroll":
             try self.scroll(action: action)
@@ -207,11 +389,10 @@ final class ComputerControlService {
             try self.pressKey(action: action)
             return "Pressed key"
         case "wait":
-            let delayMs = max(0, action.delayMs ?? 0)
-            if delayMs > 0 {
-                try await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
-            }
+            try await self.sleepMs(max(0, action.delayMs ?? 0))
             return "Waited"
+        case "screenshot":
+            return "Captured screenshot"
         case "open_url":
             let raw = action.url?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             guard let url = URL(string: raw), !raw.isEmpty else {
@@ -223,23 +404,21 @@ final class ComputerControlService {
             NSWorkspace.shared.open(url)
             return "Opened URL"
         case "reveal_path":
-            let path = try self.requirePath(action.path)
+            let path = try self.requireExistingPath(action.path)
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             return "Revealed path"
         case "open_path":
-            let path = try self.requirePath(action.path)
+            let path = try self.requireExistingPath(action.path)
             NSWorkspace.shared.open(URL(fileURLWithPath: path))
             return "Opened path"
-        case "app_focus":
-            let app = action.app?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !app.isEmpty else {
-                throw NSError(
-                    domain: "ComputerControl",
-                    code: 6,
-                    userInfo: [NSLocalizedDescriptionKey: "INVALID_REQUEST: app required"])
-            }
+        case "focus_app":
+            let app = try self.requireAppName(action.app)
             try await self.focusApplication(named: app)
             return "Focused app"
+        case "open_app":
+            let app = try self.requireAppName(action.app)
+            try await self.openApplication(named: app)
+            return "Opened app"
         default:
             throw NSError(
                 domain: "ComputerControl",
@@ -259,19 +438,58 @@ final class ComputerControlService {
         return path
     }
 
-    private func summarizePointAction(_ label: String, action: MacNodeComputerActionPayload) -> String {
-        let x = Int((action.x ?? 0).rounded())
-        let y = Int((action.y ?? 0).rounded())
+    private func requireExistingPath(_ raw: String?) throws -> String {
+        let path = try self.requirePath(raw)
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw NSError(
+                domain: "ComputerControl",
+                code: 21,
+                userInfo: [NSLocalizedDescriptionKey: "INVALID_TARGET: path not found"])
+        }
+        return path
+    }
+
+    private func requireAppName(_ raw: String?) throws -> String {
+        let app = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !app.isEmpty else {
+            throw NSError(
+                domain: "ComputerControl",
+                code: 6,
+                userInfo: [NSLocalizedDescriptionKey: "INVALID_REQUEST: app required"])
+        }
+        return app
+    }
+
+    private func summarizePointAction(_ label: String, point: CGPoint?) -> String {
+        let x = Int((point?.x ?? 0).rounded())
+        let y = Int((point?.y ?? 0).rounded())
         return "\(label.capitalized) at (\(x), \(y))"
     }
 
-    private func click(
-        action: MacNodeComputerActionPayload,
-        button: CGMouseButton,
-        count: Int)
-        throws
-    {
-        let point = try self.eventPoint(x: action.x, y: action.y)
+    private func requireGlobalPoint(for validatedAction: MacNodeComputerValidatedAction) throws -> CGPoint {
+        guard let localPoint = validatedAction.point,
+              let sourceFrame = validatedAction.sourceFrame
+        else {
+            throw NSError(
+                domain: "ComputerControl",
+                code: 22,
+                userInfo: [NSLocalizedDescriptionKey: "INVALID_TARGET: point unavailable"])
+        }
+        let display = try self.displayDescriptor(for: sourceFrame)
+        return MacNodeComputerActionEngine.resolveGlobalPoint(
+            localPixelPoint: localPoint,
+            display: display)
+    }
+
+    private func displayDescriptor(for sourceFrame: MacNodeComputerFrameReference) throws -> MacNodeComputerDisplayDescriptor {
+        let screen = try self.resolveScreen(forDisplayId: sourceFrame.displayId)
+        return MacNodeComputerDisplayDescriptor(
+            displayId: sourceFrame.displayId,
+            logicalFrame: screen.frame,
+            scaleFactor: max(1.0, screen.backingScaleFactor))
+    }
+
+    private func click(at point: CGPoint, button: CGMouseButton, count: Int) throws {
         let downType: CGEventType = button == .right ? .rightMouseDown : .leftMouseDown
         let upType: CGEventType = button == .right ? .rightMouseUp : .leftMouseUp
         self.postMouseMove(to: point)
@@ -284,21 +502,41 @@ final class ComputerControlService {
         }
     }
 
-    private func drag(action: MacNodeComputerActionPayload) async throws {
-        let start = try self.eventPoint(x: action.x, y: action.y)
-        let end = try self.eventPoint(x: action.toX, y: action.toY)
-        self.postMouseMove(to: start)
-        try self.postMouseEvent(type: .leftMouseDown, point: start, button: .left, clickState: 1)
-        let steps = 12
-        for step in 1...steps {
-            let progress = Double(step) / Double(steps)
-            let point = CGPoint(
-                x: start.x + ((end.x - start.x) * progress),
-                y: start.y + ((end.y - start.y) * progress))
-            try self.postMouseEvent(type: .leftMouseDragged, point: point, button: .left, clickState: 1)
-            try await Task.sleep(nanoseconds: 12_000_000)
+    private func drag(validatedAction: MacNodeComputerValidatedAction) async throws {
+        guard let sourceFrame = validatedAction.sourceFrame,
+              let localStart = validatedAction.point,
+              let localEnd = validatedAction.toPoint
+        else {
+            throw NSError(
+                domain: "ComputerControl",
+                code: 23,
+                userInfo: [NSLocalizedDescriptionKey: "INVALID_TARGET: drag points unavailable"])
         }
-        try self.postMouseEvent(type: .leftMouseUp, point: end, button: .left, clickState: 1)
+        let display = try self.displayDescriptor(for: sourceFrame)
+        let start = MacNodeComputerActionEngine.resolveGlobalPoint(
+            localPixelPoint: localStart,
+            display: display)
+        let end = MacNodeComputerActionEngine.resolveGlobalPoint(
+            localPixelPoint: localEnd,
+            display: display)
+        try await MacNodeComputerActionEngine.runDrag(
+            from: start,
+            to: end,
+            moveMouse: { point in
+                self.postMouseMove(to: point)
+            },
+            postMouseDown: { point in
+                try self.postMouseEvent(type: .leftMouseDown, point: point, button: .left, clickState: 1)
+            },
+            postMouseDragged: { point in
+                try self.postMouseEvent(type: .leftMouseDragged, point: point, button: .left, clickState: 1)
+            },
+            postMouseUp: { point in
+                try self.postMouseEvent(type: .leftMouseUp, point: point, button: .left, clickState: 1)
+            },
+            sleep: { delayMs in
+                try await self.sleepMs(delayMs)
+            })
     }
 
     private func scroll(action: MacNodeComputerActionPayload) throws {
@@ -348,20 +586,6 @@ final class ComputerControlService {
             domain: "ComputerControl",
             code: 10,
             userInfo: [NSLocalizedDescriptionKey: "INVALID_REQUEST: unsupported key \(key)"])
-    }
-
-    private func eventPoint(x: Double?, y: Double?) throws -> CGPoint {
-        guard let x, let y else {
-            throw NSError(
-                domain: "ComputerControl",
-                code: 11,
-                userInfo: [NSLocalizedDescriptionKey: "INVALID_REQUEST: x/y required"])
-        }
-        let screen = try self.resolveActiveScreen()
-        let scale = max(1.0, screen.backingScaleFactor)
-        return CGPoint(
-            x: screen.frame.minX + (x / scale),
-            y: screen.frame.maxY - (y / scale))
     }
 
     private func postMouseMove(to point: CGPoint) {
@@ -466,6 +690,60 @@ final class ComputerControlService {
         up.post(tap: .cghidEventTap)
     }
 
+    private func makeFailureResult(
+        from failure: MacNodeComputerActionResultPayload,
+        elapsedMs: Int) -> MacNodeComputerActionResultPayload
+    {
+        MacNodeComputerActionResultPayload(
+            id: failure.id,
+            actionId: failure.actionId,
+            type: failure.type,
+            success: false,
+            elapsedMs: max(failure.elapsedMs, elapsedMs),
+            retryCount: failure.retryCount,
+            summary: failure.summary,
+            failureCategory: failure.failureCategory,
+            sourceFrameId: failure.sourceFrameId,
+            resultFrameId: nil)
+    }
+
+    private func makeFailureResult(
+        action: MacNodeComputerActionPayload,
+        validatedAction: MacNodeComputerValidatedAction,
+        error: Error,
+        elapsedMs: Int) -> MacNodeComputerActionResultPayload
+    {
+        let category = self.failureCategory(for: error)
+        return MacNodeComputerActionResultPayload(
+            id: UUID().uuidString,
+            actionId: validatedAction.actionId,
+            type: validatedAction.normalizedType,
+            success: false,
+            elapsedMs: elapsedMs,
+            retryCount: 0,
+            summary: error.localizedDescription,
+            failureCategory: category,
+            sourceFrameId: validatedAction.sourceFrame?.frameId ?? action.frame?.frameId,
+            resultFrameId: nil)
+    }
+
+    private func failureCategory(for error: Error) -> MacNodeComputerActionFailureCategory {
+        if error is CancellationError {
+            return .cancelled
+        }
+        let message = error.localizedDescription
+        if message.hasPrefix("PERMISSION_MISSING:") {
+            return .permissionMissing
+        }
+        if message.hasPrefix("INVALID_TARGET:") || message.hasPrefix("APP_NOT_FOUND:") || message.hasPrefix("DISPLAY_UNAVAILABLE") {
+            return .invalidTarget
+        }
+        if message.hasPrefix("INVALID_REQUEST:") {
+            return .validation
+        }
+        return .executionFailed
+    }
+
     private func focusApplication(named app: String) async throws {
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.localizedName?.caseInsensitiveCompare(app) == .orderedSame
@@ -499,6 +777,37 @@ final class ComputerControlService {
                     cont.resume(throwing: NSError(
                         domain: "ComputerControl",
                         code: 19,
+                        userInfo: [NSLocalizedDescriptionKey: "APP_OPEN_FAILED: \(app)"]))
+                    return
+                }
+                cont.resume()
+            }
+        }
+    }
+
+    private func openApplication(named app: String) async throws {
+        let appURL =
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: app)
+            ?? NSWorkspace.shared.fullPath(forApplication: app).map { URL(fileURLWithPath: $0) }
+        guard let appURL else {
+            throw NSError(
+                domain: "ComputerControl",
+                code: 24,
+                userInfo: [NSLocalizedDescriptionKey: "APP_NOT_FOUND: \(app)"])
+        }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { runningApp, error in
+                if let error {
+                    cont.resume(throwing: error)
+                    return
+                }
+                guard runningApp != nil else {
+                    cont.resume(throwing: NSError(
+                        domain: "ComputerControl",
+                        code: 25,
                         userInfo: [NSLocalizedDescriptionKey: "APP_OPEN_FAILED: \(app)"]))
                     return
                 }

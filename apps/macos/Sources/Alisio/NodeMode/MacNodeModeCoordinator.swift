@@ -21,7 +21,10 @@ final class MacNodeModeCoordinator {
     func stop() {
         self.task?.cancel()
         self.task = nil
-        Task { await self.session.disconnect() }
+        Task {
+            await self.runtime.shutdown()
+            await self.session.disconnect()
+        }
     }
 
     func setPreferredGatewayStableID(_ stableID: String?) {
@@ -33,6 +36,7 @@ final class MacNodeModeCoordinator {
         var retryDelay: UInt64 = 1_000_000_000
         var lastCameraEnabled: Bool?
         var lastBrowserControlEnabled: Bool?
+        var lastComputerHelperEnabled: Bool?
         let defaults = UserDefaults.standard
 
         while !Task.isCancelled {
@@ -54,6 +58,15 @@ final class MacNodeModeCoordinator {
                 lastBrowserControlEnabled = browserControlEnabled
             } else if lastBrowserControlEnabled != browserControlEnabled {
                 lastBrowserControlEnabled = browserControlEnabled
+                await self.session.disconnect()
+                try? await Task.sleep(nanoseconds: 200_000_000)
+            }
+            let computerHelperEnabled = !MacNodeComputerHelperSettings.isDisabled(defaults: defaults)
+            if lastComputerHelperEnabled == nil {
+                lastComputerHelperEnabled = computerHelperEnabled
+            } else if lastComputerHelperEnabled != computerHelperEnabled {
+                lastComputerHelperEnabled = computerHelperEnabled
+                await self.runtime.shutdown()
                 await self.session.disconnect()
                 try? await Task.sleep(nanoseconds: 200_000_000)
             }
@@ -149,14 +162,26 @@ final class MacNodeModeCoordinator {
             AlisioCanvasA2UICommand.pushJSONL.rawValue,
             AlisioCanvasA2UICommand.reset.rawValue,
             MacNodeScreenCommand.record.rawValue,
-            MacNodeComputerCommand.observe.rawValue,
-            MacNodeComputerCommand.act.rawValue,
             AlisioSystemCommand.notify.rawValue,
             AlisioSystemCommand.which.rawValue,
             AlisioSystemCommand.run.rawValue,
             AlisioSystemCommand.execApprovalsGet.rawValue,
             AlisioSystemCommand.execApprovalsSet.rawValue,
         ]
+
+        if !MacNodeComputerHelperSettings.isDisabled() {
+            commands.append(contentsOf: [
+                MacNodeComputerCommand.observe.rawValue,
+                MacNodeComputerCommand.act.rawValue,
+                MacNodeComputerCommand.sessionStart.rawValue,
+                MacNodeComputerCommand.sessionStop.rawValue,
+                MacNodeComputerCommand.sessionPause.rawValue,
+                MacNodeComputerCommand.sessionResume.rawValue,
+                MacNodeComputerCommand.context.rawValue,
+                MacNodeComputerCommand.permissions.rawValue,
+                MacNodeComputerCommand.health.rawValue,
+            ])
+        }
 
         let capsSet = Set(caps)
         if capsSet.contains(AlisioCapability.browser.rawValue) {

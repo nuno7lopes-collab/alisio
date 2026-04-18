@@ -92,7 +92,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
             return workspaceController
         }
 
-        let controller = AlisioWorkspaceWindowController(presentation: .window)
+        let controller = AlisioWorkspaceWindowController(presentation: .window, updater: self.updater)
         controller.onVisibilityChanged = { [weak self] visible in
             self?.onWindowVisibilityChanged?(visible)
         }

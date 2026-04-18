@@ -13,7 +13,7 @@ actor MacNodeRuntime {
 
     init(
         makeMainActorServices: @escaping () async -> any MacNodeRuntimeMainActorServices = {
-            await MainActor.run { LiveMacNodeRuntimeMainActorServices() }
+            await MainActor.run { LiveMacNodeRuntimeMainActorServices.shared }
         },
         browserProxyRequest: @escaping @Sendable (String?) async throws -> String = { paramsJSON in
             try await MacNodeBrowserProxy.shared.request(paramsJSON: paramsJSON)
@@ -67,6 +67,22 @@ actor MacNodeRuntime {
                 return try await self.handleComputerObserveInvoke(req)
             case MacNodeComputerCommand.act.rawValue:
                 return try await self.handleComputerActInvoke(req)
+            case MacNodeComputerCommand.sessionStart.rawValue:
+                return try await self.handleComputerSessionInvoke(req, command: .sessionStart)
+            case MacNodeComputerCommand.sessionStop.rawValue:
+                return try await self.handleComputerSessionInvoke(req, command: .sessionStop)
+            case MacNodeComputerCommand.sessionPause.rawValue:
+                return try await self.handleComputerSessionInvoke(req, command: .sessionPause)
+            case MacNodeComputerCommand.sessionResume.rawValue:
+                return try await self.handleComputerSessionInvoke(req, command: .sessionResume)
+            case MacNodeComputerCommand.context.rawValue:
+                return try await self.handleComputerContextInvoke(req)
+            case MacNodeComputerCommand.permissions.rawValue:
+                return try await self.handleComputerPermissionsInvoke(req)
+            case MacNodeComputerCommand.health.rawValue:
+                return try await self.handleComputerHealthInvoke(req)
+            case MacNodeComputerCommand.helperKill.rawValue:
+                return try await self.handleComputerHelperKillInvoke(req)
             case MacNodeScreenCommand.record.rawValue:
                 return try await self.handleScreenRecordInvoke(req)
             case AlisioSystemCommand.run.rawValue:
@@ -323,16 +339,105 @@ actor MacNodeRuntime {
     }
 
     private func handleComputerObserveInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let sessionId = try self.resolveComputerSessionId(req.paramsJSON)
         let services = await self.mainActorServices()
-        let payload = try await services.observeComputer()
+        _ = try await services.startComputerSession(sessionId)
+        let payload = try await services.observeComputer(sessionId)
         let encoded = try Self.encodePayload(payload)
         return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
     }
 
     private func handleComputerActInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
         let params = try Self.decodeParams(MacNodeComputerActParams.self, from: req.paramsJSON)
+        let sessionId = MacNodeComputerHelperSettings.normalizedSessionId(params.sessionId ?? self.mainSessionKey)
         let services = await self.mainActorServices()
-        let payload = try await services.performComputerAction(params.action)
+        _ = try await services.startComputerSession(sessionId)
+        let actions = try await services.performComputerActions(sessionId, actions: [params.action])
+        let observation: MacNodeComputerObservePayload?
+        do {
+            observation = try await services.observeComputer(sessionId)
+        } catch {
+            if actions.ok {
+                throw error
+            }
+            observation = nil
+        }
+        let resultFrameId = observation?.frame.id
+        let payload = MacNodeComputerActPayload(
+            ok: actions.ok,
+            summary: actions.summary,
+            results: actions.results.map { result in
+                if result.resultFrameId != nil || resultFrameId == nil {
+                    return result
+                }
+                return MacNodeComputerActionResultPayload(
+                    id: result.id,
+                    actionId: result.actionId,
+                    type: result.type,
+                    success: result.success,
+                    elapsedMs: result.elapsedMs,
+                    retryCount: result.retryCount,
+                    summary: result.summary,
+                    failureCategory: result.failureCategory,
+                    sourceFrameId: result.sourceFrameId,
+                    resultFrameId: resultFrameId)
+            },
+            observation: observation)
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
+    }
+
+    private func handleComputerSessionInvoke(
+        _ req: BridgeInvokeRequest,
+        command: MacNodeComputerCommand) async throws -> BridgeInvokeResponse
+    {
+        let sessionId = try self.resolveComputerSessionId(req.paramsJSON)
+        let services = await self.mainActorServices()
+        let payload: MacNodeComputerSessionPayload
+        switch command {
+        case .sessionStart:
+            payload = try await services.startComputerSession(sessionId)
+        case .sessionStop:
+            payload = try await services.stopComputerSession(sessionId)
+        case .sessionPause:
+            payload = try await services.pauseComputerSession(sessionId)
+        case .sessionResume:
+            payload = try await services.resumeComputerSession(sessionId)
+        default:
+            return Self.errorResponse(req, code: .invalidRequest, message: "INVALID_REQUEST: unsupported computer session command")
+        }
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
+    }
+
+    private func handleComputerContextInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let sessionId = try self.resolveComputerSessionId(req.paramsJSON)
+        let services = await self.mainActorServices()
+        _ = try await services.startComputerSession(sessionId)
+        let payload = try await services.computerContext(sessionId)
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
+    }
+
+    private func handleComputerPermissionsInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let services = await self.mainActorServices()
+        let payload = try await services.computerPermissionState()
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
+    }
+
+    private func handleComputerHealthInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let params = (try? Self.decodeParams(MacNodeComputerHealthQueryParams.self, from: req.paramsJSON))
+            ?? MacNodeComputerHealthQueryParams(sessionId: nil)
+        let services = await self.mainActorServices()
+        let payload = await services.computerHealth(sessionId: params.sessionId)
+        let encoded = try Self.encodePayload(payload)
+        return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
+    }
+
+    private func handleComputerHelperKillInvoke(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {
+        let services = await self.mainActorServices()
+        let payload = await services.killComputerHelper()
         let encoded = try Self.encodePayload(payload)
         return BridgeInvokeResponse(id: req.id, ok: true, payloadJSON: encoded)
     }
@@ -378,6 +483,19 @@ actor MacNodeRuntime {
         let services = await self.makeMainActorServices()
         self.cachedMainActorServices = services
         return services
+    }
+
+    func shutdown() async {
+        if let cachedMainActorServices {
+            _ = await cachedMainActorServices.killComputerHelper()
+        }
+        self.cachedMainActorServices = nil
+    }
+
+    private func resolveComputerSessionId(_ paramsJSON: String?) throws -> String {
+        let params = (try? Self.decodeParams(MacNodeComputerSessionParams.self, from: paramsJSON))
+            ?? MacNodeComputerSessionParams(sessionId: self.mainSessionKey)
+        return MacNodeComputerHelperSettings.normalizedSessionId(params.sessionId ?? self.mainSessionKey)
     }
 
     private func handleA2UIReset(_ req: BridgeInvokeRequest) async throws -> BridgeInvokeResponse {

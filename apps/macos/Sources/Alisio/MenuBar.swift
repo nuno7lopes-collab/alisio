@@ -35,11 +35,15 @@ struct AlisioApp: App {
     init() {
         AlisioLogging.bootstrapIfNeeded()
 
-        Self.applyAttachOnlyOverrideIfNeeded()
+        if !MacNodeComputerHelperBootstrap.isHelperProcess {
+            Self.applyAttachOnlyOverrideIfNeeded()
+        }
         _state = State(initialValue: AppStateStore.shared)
     }
 
     var body: some Scene {
+        // The helper process exits from AppDelegate.applicationDidFinishLaunching.
+        // Keep the scene graph unconditional so SwiftUI's SceneBuilder stays valid.
         MenuBarExtra { MenuContent(state: self.state, updater: self.delegate.updaterController) } label: {
             CritterStatusLabel(
                 isPaused: self.state.isPaused,
@@ -88,9 +92,13 @@ struct AlisioApp: App {
         }
 
         Settings {
-            SettingsRootView(state: self.state, updater: self.delegate.updaterController)
-                .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight, alignment: .topLeading)
-                .environment(self.tailscaleService)
+            if MacNodeComputerHelperBootstrap.isHelperProcess {
+                EmptyView()
+            } else {
+                SettingsRootView(state: self.state, updater: self.delegate.updaterController)
+                    .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight, alignment: .topLeading)
+                    .environment(self.tailscaleService)
+            }
         }
         .defaultSize(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
         .windowResizability(.contentSize)
@@ -260,6 +268,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if MacNodeComputerHelperBootstrap.isHelperProcess {
+            NSApp.setActivationPolicy(.prohibited)
+            Task {
+                await MacNodeComputerHelperProcessRunner.runAndExit()
+            }
+            return
+        }
         if self.isDuplicateInstance() {
             NSApp.terminate(nil)
             return
@@ -295,6 +310,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if MacNodeComputerHelperBootstrap.isHelperProcess {
+            return
+        }
         PresenceReporter.shared.stop()
         NodePairingApprovalPrompter.shared.stop()
         DevicePairingApprovalPrompter.shared.stop()
