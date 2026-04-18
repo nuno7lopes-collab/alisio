@@ -195,7 +195,6 @@ Use this when auditing access or deciding what to back up:
   - `~/.alisio/credentials/<channel>-<accountId>-allowFrom.json` (non-default accounts)
 - **Model auth profiles**: `~/.alisio/agents/<agentId>/agent/auth-profiles.json`
 - **File-backed secrets payload (optional)**: `~/.alisio/secrets.json`
-- **Legacy OAuth import**: `~/.alisio/credentials/oauth.json`
 
 ## Security audit checklist
 
@@ -845,10 +844,9 @@ Avoid:
 Assume anything under `~/.alisio/` (or `$ALISIO_STATE_DIR/`) may contain secrets or private data:
 
 - `alisio.json`: config may include tokens (gateway, remote gateway), provider settings, and allowlists.
-- `credentials/**`: channel credentials (example: WhatsApp creds), pairing allowlists, legacy OAuth imports.
+- `credentials/**`: channel credentials (example: WhatsApp creds) and pairing allowlists.
 - `agents/<agentId>/agent/auth-profiles.json`: API keys, token profiles, OAuth tokens, and optional `keyRef`/`tokenRef`.
 - `secrets.json` (optional): file-backed secret payload used by `file` SecretRef providers (`secrets.providers`).
-- `agents/<agentId>/agent/auth.json`: legacy compatibility file. Static `api_key` entries are scrubbed when discovered.
 - `agents/<agentId>/sessions/**`: session transcripts (`*.jsonl`) + routing metadata (`sessions.json`) that can contain private messages and tool output.
 - bundled plugin packages: installed plugins (plus their `node_modules/`).
 - `sandboxes/**`: tool sandbox workspaces; can accumulate copies of files you read/write inside the sandbox.

@@ -1,13 +1,8 @@
 import type { ApiKeyCredential } from "../../../agents/auth-profiles/types.js";
 import type { AlisioConfig } from "../../../config/config.js";
 import type { SecretInput } from "../../../config/types.secrets.js";
-import { resolveManifestDeprecatedProviderAuthChoice } from "../../../plugins/provider-auth-choices.js";
 import type { RuntimeEnv } from "../../../runtime.js";
 import { resolveDefaultSecretProviderAlias } from "../../../secrets/ref-contract.js";
-import {
-  formatDeprecatedNonInteractiveAuthChoiceError,
-  isDeprecatedAuthChoice,
-} from "../../auth-choice-legacy.js";
 import { normalizeSecretInputModeInput } from "../../auth-choice.apply-helpers.js";
 import { normalizeApiKeyTokenProviderAuthChoice } from "../../auth-choice.apply.api-providers.js";
 import {
@@ -116,16 +111,6 @@ export async function applyNonInteractiveAuthChoice(params: {
       ...(params.metadata ? { metadata: params.metadata } : {}),
     };
   };
-  if (isDeprecatedAuthChoice(authChoice, { config: nextConfig, env: process.env })) {
-    runtime.error(
-      formatDeprecatedNonInteractiveAuthChoiceError(authChoice, {
-        config: nextConfig,
-        env: process.env,
-      })!,
-    );
-    runtime.exit(1);
-    return null;
-  }
 
   if (authChoice === "setup-token") {
     runtime.error(
@@ -154,18 +139,6 @@ export async function applyNonInteractiveAuthChoice(params: {
   });
   if (pluginProviderChoice !== undefined) {
     return pluginProviderChoice;
-  }
-
-  const deprecatedChoice = resolveManifestDeprecatedProviderAuthChoice(authChoice as string, {
-    config: nextConfig,
-    env: process.env,
-  });
-  if (deprecatedChoice) {
-    runtime.error(
-      `"${authChoice as string}" is no longer supported. Use --auth-choice ${deprecatedChoice.choiceId} instead.`,
-    );
-    runtime.exit(1);
-    return null;
   }
 
   if (authChoice === "custom-api-key") {
@@ -240,8 +213,18 @@ export async function applyNonInteractiveAuthChoice(params: {
     }
   }
 
+  if (authChoice === "oauth") {
+    runtime.error(
+      [
+        'Auth choice "oauth" was removed.',
+        'Use "--auth-choice token" with --token and --token-provider anthropic, or rerun interactive setup.',
+      ].join("\n"),
+    );
+    runtime.exit(1);
+    return null;
+  }
+
   if (
-    authChoice === "oauth" ||
     authChoice === "chutes" ||
     authChoice === "minimax-global-oauth" ||
     authChoice === "minimax-cn-oauth"

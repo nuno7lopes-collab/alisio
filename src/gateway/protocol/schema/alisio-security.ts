@@ -13,6 +13,13 @@ const ExecAskSchema = Type.Union([
   Type.Literal("always"),
 ]);
 
+const ExecTargetSchema = Type.Union([
+  Type.Literal("auto"),
+  Type.Literal("sandbox"),
+  Type.Literal("gateway"),
+  Type.Literal("node"),
+]);
+
 export const AlisioSecurityAccessModeSchema = Type.Union([
   Type.Literal("recommended"),
   Type.Literal("full-access"),
@@ -26,6 +33,7 @@ export const AlisioSecurityAccessProfileSchema = Type.Union([
 
 export const AlisioSecurityConfigDefaultsSchema = Type.Object(
   {
+    host: ExecTargetSchema,
     security: ExecSecuritySchema,
     ask: ExecAskSchema,
   },

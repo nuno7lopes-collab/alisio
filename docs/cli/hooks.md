@@ -186,79 +186,18 @@ alisio hooks disable command-logger
 
 - Restart the gateway so hooks reload
 
-## Install Hook Packs
+## Install or Update Hook Packs
+
+Hook pack lifecycle now lives under `alisio plugins`:
 
 ```bash
-alisio plugins install <package>        # Local Marketplace first, then npm
-alisio plugins install <package> --pin  # pin version
-alisio plugins install <path>           # local path
-```
-
-Install hook packs through the unified plugins installer.
-
-`alisio hooks install` still works as a compatibility alias, but it prints a
-deprecation warning and forwards to `alisio plugins install`.
-
-Npm specs are **registry-only** (package name + optional **exact version** or
-**dist-tag**). Git/URL/file specs and semver ranges are rejected. Dependency
-installs run with `--ignore-scripts` for safety.
-
-Bare specs and `@latest` stay on the stable track. If npm resolves either of
-those to a prerelease, Alisio stops and asks you to opt in explicitly with a
-prerelease tag such as `@beta`/`@rc` or an exact prerelease version.
-
-**What it does:**
-
-- Copies the hook pack into `~/.alisio/hooks/<id>`
-- Enables the installed hooks in `hooks.internal.entries.*`
-- Records the install under `hooks.internal.installs`
-
-**Options:**
-
-- `-l, --link`: Link a local directory instead of copying (adds it to `hooks.internal.load.extraDirs`)
-- `--pin`: Record npm installs as exact resolved `name@version` in `hooks.internal.installs`
-
-**Supported archives:** `.zip`, `.tgz`, `.tar.gz`, `.tar`
-
-**Examples:**
-
-```bash
-# Local directory
-alisio plugins install ./my-hook-pack
-
-# Local archive
-alisio plugins install ./my-hook-pack.zip
-
-# NPM package
-alisio plugins install @alisio/my-hook-pack
-
-# Link a local directory without copying
-alisio plugins install -l ./my-hook-pack
-```
-
-Linked hook packs are treated as managed hooks from an operator-configured
-directory, not as workspace hooks.
-
-## Update Hook Packs
-
-```bash
+alisio plugins install <package-or-path>
 alisio plugins update <id>
 alisio plugins update --all
 ```
 
-Update tracked npm-based hook packs through the unified plugins updater.
-
-`alisio hooks update` still works as a compatibility alias, but it prints a
-deprecation warning and forwards to `alisio plugins update`.
-
-**Options:**
-
-- `--all`: Update all tracked hook packs
-- `--dry-run`: Show what would change without writing
-
-When a stored integrity hash exists and the fetched artifact hash changes,
-Alisio prints a warning and asks for confirmation before proceeding. Use
-global `--yes` to bypass prompts in CI/non-interactive runs.
+Use [Plugins CLI](/cli/plugins) for install/update flows, pinning, linking, and
+tracked package updates.
 
 ## Bundled Hooks
 

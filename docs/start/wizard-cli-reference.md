@@ -214,7 +214,6 @@ Model behavior:
 
 Credential and profile paths:
 
-- OAuth credentials: `~/.alisio/credentials/oauth.json`
 - Auth profiles (API keys + OAuth): `~/.alisio/agents/<agentId>/agent/auth-profiles.json`
 
 Credential storage mode:
@@ -240,8 +239,9 @@ Credential storage mode:
 - Existing plaintext setups continue to work unchanged.
 
 <Note>
-Headless and server tip: complete OAuth on a machine with a browser, then copy
-`~/.alisio/credentials/oauth.json` (or `$ALISIO_STATE_DIR/credentials/oauth.json`)
+Headless and server tip: complete OAuth on a machine with a browser, then copy that agent's
+`~/.alisio/agents/<agentId>/agent/auth-profiles.json`
+(or `$ALISIO_STATE_DIR/agents/<agentId>/agent/auth-profiles.json`)
 to the gateway host.
 </Note>
 

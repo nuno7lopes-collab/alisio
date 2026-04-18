@@ -7,14 +7,10 @@ import {
   type ProviderRuntimeModel,
 } from "alisio/plugin-sdk/plugin-entry";
 import {
-  CLAUDE_CLI_PROFILE_ID,
   applyAuthProfileConfig,
   buildTokenProfileId,
   ensureApiKeyFromOptionEnvOrPrompt,
-  listProfilesForProvider,
   normalizeApiKeyInput,
-  suggestOAuthProfileIdForLegacyDefault,
-  type AuthProfileStore,
   type ProviderAuthResult,
   normalizeSecretInput,
   normalizeSecretInputModeInput,
@@ -116,41 +112,6 @@ function resolveAnthropicForwardCompatModel(
 function matchesAnthropicModernModel(modelId: string): boolean {
   const lower = modelId.trim().toLowerCase();
   return ANTHROPIC_MODERN_MODEL_PREFIXES.some((prefix) => lower.startsWith(prefix));
-}
-
-function buildAnthropicAuthDoctorHint(params: {
-  config?: ProviderAuthContext["config"];
-  store: AuthProfileStore;
-  profileId?: string;
-}): string {
-  const legacyProfileId = params.profileId ?? "anthropic:default";
-  const suggested = suggestOAuthProfileIdForLegacyDefault({
-    cfg: params.config,
-    store: params.store,
-    provider: PROVIDER_ID,
-    legacyProfileId,
-  });
-  if (!suggested || suggested === legacyProfileId) {
-    return "";
-  }
-
-  const storeOauthProfiles = listProfilesForProvider(params.store, PROVIDER_ID)
-    .filter((id) => params.store.profiles[id]?.type === "oauth")
-    .join(", ");
-
-  const cfgMode = params.config?.auth?.profiles?.[legacyProfileId]?.mode;
-  const cfgProvider = params.config?.auth?.profiles?.[legacyProfileId]?.provider;
-
-  return [
-    "Doctor hint (for GitHub issue):",
-    `- provider: ${PROVIDER_ID}`,
-    `- config: ${legacyProfileId}${
-      cfgProvider || cfgMode ? ` (provider=${cfgProvider ?? "?"}, mode=${cfgMode ?? "?"})` : ""
-    }`,
-    `- auth store oauth profiles: ${storeOauthProfiles || "(none)"}`,
-    `- suggested profile: ${suggested}`,
-    `Fix: run "${formatCliCommand("alisio doctor --yes")}"`,
-  ].join("\n");
 }
 
 async function runAnthropicSetupToken(ctx: ProviderAuthContext): Promise<ProviderAuthResult> {
@@ -355,13 +316,6 @@ export default definePluginEntry({
       label: "Anthropic",
       docsPath: "/providers/models",
       envVars: ["ANTHROPIC_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
-      deprecatedProfileIds: [CLAUDE_CLI_PROFILE_ID],
-      oauthProfileIdRepairs: [
-        {
-          legacyProfileId: "anthropic:default",
-          promptLabel: "Anthropic",
-        },
-      ],
       auth: [
         {
           id: "cli",
@@ -455,12 +409,6 @@ export default definePluginEntry({
       fetchUsageSnapshot: async (ctx) =>
         await fetchClaudeUsage(ctx.token, ctx.timeoutMs, ctx.fetchFn),
       isCacheTtlEligible: () => true,
-      buildAuthDoctorHint: (ctx) =>
-        buildAnthropicAuthDoctorHint({
-          config: ctx.config,
-          store: ctx.store,
-          profileId: ctx.profileId,
-        }),
     });
     api.registerMediaUnderstandingProvider(anthropicMediaUnderstandingProvider);
   },

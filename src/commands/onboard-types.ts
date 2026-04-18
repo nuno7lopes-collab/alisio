@@ -4,8 +4,6 @@ import type { GatewayDaemonRuntime } from "./daemon-runtime.js";
 
 export type OnboardMode = "local" | "remote";
 export type BuiltInAuthChoice =
-  // Legacy alias for `setup-token` (kept for backwards CLI compatibility).
-  | "oauth"
   | "setup-token"
   | "token"
   | "chutes"
@@ -89,8 +87,6 @@ export type GatewayBind = "loopback" | "lan" | "auto" | "custom" | "tailnet";
 export type TailscaleMode = "off" | "serve" | "funnel";
 export type NodeManagerChoice = "npm" | "pnpm" | "bun";
 export type ChannelChoice = ChannelId;
-// Legacy alias (pre-rename).
-export type ProviderChoice = ChannelChoice;
 export type { SecretInputMode } from "../plugins/provider-auth-types.js";
 
 export type OnboardOptions = {
@@ -161,8 +157,6 @@ export type OnboardOptions = {
   installDaemon?: boolean;
   daemonRuntime?: GatewayDaemonRuntime;
   skipChannels?: boolean;
-  /** @deprecated Legacy alias for `skipChannels`. */
-  skipProviders?: boolean;
   skipSkills?: boolean;
   skipSearch?: boolean;
   skipHealth?: boolean;

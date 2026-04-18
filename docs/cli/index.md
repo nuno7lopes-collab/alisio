@@ -56,7 +56,6 @@ This page describes the current CLI behavior. If commands change, update this do
 - [`security`](/cli/security)
 - [`secrets`](/cli/secrets)
 - [`skills`](/cli/skills)
-- [`daemon`](/cli/daemon) (legacy alias for gateway service commands)
 - [`voicecall`](/cli/voicecall) (plugin; if installed)
 
 ## Global flags
@@ -182,13 +181,6 @@ alisio [--dev] [--profile <name>] <command>
     stop
     restart
     run
-  daemon
-    status
-    install
-    uninstall
-    start
-    stop
-    restart
   logs
   system
     event
@@ -268,8 +260,6 @@ alisio [--dev] [--profile <name>] <command>
     check
     enable
     disable
-    install
-    update
   webhooks
     gmail setup|run
   pairing
@@ -402,7 +392,7 @@ Options:
 - `--tailscale <off|serve|funnel>`
 - `--tailscale-reset-on-exit`
 - `--install-daemon`
-- `--no-install-daemon` (alias: `--skip-daemon`)
+- `--no-install-daemon`
 - `--daemon-runtime <node|bun>`
 - `--skip-channels`
 - `--skip-skills`
@@ -434,7 +424,7 @@ Subcommands:
 - `config set --dry-run`: validate assignments without writing `alisio.json` (exec SecretRef checks are skipped by default).
 - `config set --allow-exec --dry-run`: opt in to exec SecretRef dry-run checks (may execute provider commands).
 - `config set --dry-run --json`: emit machine-readable dry-run output (checks + completeness signal, operations, refs checked/skipped, errors).
-- `config set --strict-json`: require JSON5 parsing for path/value input. `--json` remains a legacy alias for strict parsing outside dry-run output mode.
+- `config set --strict-json`: require JSON5 parsing for path/value input.
 - `config unset <path>`: remove a value.
 - `config file`: print the active config file path.
 - `config schema`: print the generated JSON schema for `alisio.json`.
@@ -828,7 +818,6 @@ Options:
 - `--force` (kill existing listener on port)
 - `--verbose`
 - `--cli-backend-logs`
-- `--claude-cli-logs` (deprecated alias)
 - `--ws-log <auto|full|compact>`
 - `--compact` (alias for `--ws-log compact`)
 - `--raw-stream`
@@ -930,8 +919,6 @@ Anthropic Claude CLI migration:
 ```bash
 alisio models auth login --provider anthropic --method cli --set-default
 ```
-
-Note: `--auth-choice anthropic-cli` is a deprecated legacy alias. Use `models auth login` instead.
 
 ### `models` (root)
 

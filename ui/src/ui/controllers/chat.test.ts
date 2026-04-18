@@ -176,6 +176,7 @@ describe("browser pane controller helpers", () => {
         height: 900,
         capturedAt: 10,
       },
+      stepCounter: 0,
       timeline: [],
       startedAt: 1,
       updatedAt: 10,
@@ -251,6 +252,7 @@ describe("browser pane controller helpers", () => {
         height: 900,
         capturedAt: 10,
       },
+      stepCounter: 0,
       timeline: [],
       startedAt: 1,
       updatedAt: 10,
@@ -974,6 +976,101 @@ describe("handleSessionMessageEvent", () => {
     });
   });
 
+  it("matches canonical user transcript updates after metadata stripping and whitespace normalization", () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "chamo me Nuno Lopes,\nsou o teu criador  e quero tratar te por agora por alisio",
+        },
+      ],
+      timestamp: 20,
+      idempotencyKey: "run-creator-1",
+    };
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [previousMessage, optimisticUserTurn],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "msg-creator-1",
+        messageSeq: 4,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: 'Sender (untrusted metadata):\n```json\n{\n  "label": "alisio-control-ui",\n  "id": "alisio-control-ui"\n}\n```\n\n[Fri 2026-04-17 18:52 GMT+1] chamo me Nuno Lopes, sou o teu criador e quero tratar te por agora por alisio',
+            },
+          ],
+          timestamp: 21,
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(2);
+    expect(state.chatMessages[0]).toEqual(previousMessage);
+    expect(state.chatMessages[1]).toMatchObject({
+      role: "user",
+      timestamp: 21,
+      messageId: "msg-creator-1",
+      __alisio: {
+        id: "msg-creator-1",
+        seq: 4,
+      },
+    });
+  });
+
+  it("matches canonical user transcript updates even with leading system event lines", () => {
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "ola" }],
+      timestamp: 20,
+      idempotencyKey: "run-ola-1",
+    };
+    const state = createState({
+      sessionKey: "main",
+      chatMessages: [optimisticUserTurn],
+    });
+
+    expect(
+      handleSessionMessageEvent(state, {
+        sessionKey: "main",
+        messageId: "msg-ola-1",
+        messageSeq: 5,
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: 'System: [2026-04-17 18:37:38 GMT+1] Node: Nuno’s MacBook Air (192.168.1.221)\n\nSender (untrusted metadata):\n```json\n{\n  "label": "alisio-control-ui",\n  "id": "alisio-control-ui"\n}\n```\n\n[Fri 2026-04-17 18:38 GMT+1] ola',
+            },
+          ],
+          timestamp: 21,
+        },
+      }),
+    ).toBe(true);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      role: "user",
+      timestamp: 21,
+      messageId: "msg-ola-1",
+      __alisio: {
+        id: "msg-ola-1",
+        seq: 5,
+      },
+    });
+  });
+
   it("ignores canonical assistant transcript updates because chat events already cover them", () => {
     const state = createState({
       sessionKey: "main",
@@ -1196,6 +1293,61 @@ describe("loadChatHistory", () => {
     expect(state.chatFinalizing).toBe(true);
   });
 
+  it("colapsa bolhas locais duplicadas quando um transcript reescrito volta a carregar o histórico", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const duplicatedUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "ola" }],
+      timestamp: 20,
+      idempotencyKey: "run-ola-1",
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        previousMessage,
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: 'System: [2026-04-17 18:37:38 GMT+1] Node: Nuno’s MacBook Air (192.168.1.221)\n\nSender (untrusted metadata):\n```json\n{\n  "label": "alisio-control-ui",\n  "id": "alisio-control-ui"\n}\n```\n\n[Fri 2026-04-17 18:38 GMT+1] ola',
+            },
+          ],
+          timestamp: 21,
+          messageId: "msg-ola-1",
+        },
+      ],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, duplicatedUserTurn, { ...duplicatedUserTurn }],
+      chatRunId: "run-1",
+      chatFinalizing: true,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: true });
+
+    expect(state.chatMessages).toEqual([
+      previousMessage,
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: 'System: [2026-04-17 18:37:38 GMT+1] Node: Nuno’s MacBook Air (192.168.1.221)\n\nSender (untrusted metadata):\n```json\n{\n  "label": "alisio-control-ui",\n  "id": "alisio-control-ui"\n}\n```\n\n[Fri 2026-04-17 18:38 GMT+1] ola',
+          },
+        ],
+        timestamp: 21,
+        messageId: "msg-ola-1",
+      },
+    ]);
+  });
+
   it("keeps an optimistic user turn visible when a finalizing history reload omits it", async () => {
     const previousMessage = {
       role: "assistant",
@@ -1243,6 +1395,69 @@ describe("loadChatHistory", () => {
     ]);
   });
 
+  it("keeps a recent unmatched user turn visible across a non-ephemeral history reload", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10_000,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "olá 👋" }],
+      timestamp: 10_200,
+      idempotencyKey: "run-hello",
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [previousMessage],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, optimisticUserTurn],
+      chatFinalizing: false,
+      chatRunId: null,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: false });
+
+    expect(state.chatMessages).toEqual([previousMessage, optimisticUserTurn]);
+  });
+
+  it("keeps unmatched user turns with stable ids even after a long finalizing delay", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10_000,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [{ type: "text", text: "abre o browser embutido" }],
+      timestamp: 10_200,
+      idempotencyKey: "run-browser-open",
+    };
+    const localAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Vou abrir o browser." }],
+      timestamp: 130_000,
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [previousMessage, localAssistantReply],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, optimisticUserTurn, localAssistantReply],
+      chatFinalizing: false,
+      chatRunId: null,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: false });
+
+    expect(state.chatMessages).toEqual([previousMessage, optimisticUserTurn, localAssistantReply]);
+  });
+
   it("replaces optimistic turns with canonical history entries once they arrive", async () => {
     const previousMessage = {
       role: "assistant",
@@ -1267,6 +1482,64 @@ describe("loadChatHistory", () => {
     const canonicalAssistantReply = {
       role: "assistant",
       content: [{ type: "text", text: "Sim — posso abrir o browser." }],
+      timestamp: 31,
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [previousMessage, canonicalUserTurn, canonicalAssistantReply],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatMessages: [previousMessage, optimisticUserTurn, localAssistantReply],
+      chatFinalizing: true,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: false });
+
+    expect(state.chatMessages).toEqual([
+      previousMessage,
+      canonicalUserTurn,
+      canonicalAssistantReply,
+    ]);
+  });
+
+  it("replaces optimistic turns with canonical history even when transcript text was normalized", async () => {
+    const previousMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Olá." }],
+      timestamp: 10,
+    };
+    const optimisticUserTurn = {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: "chamo me Nuno Lopes,\nsou o teu criador  e quero tratar te por agora por alisio",
+        },
+      ],
+      timestamp: 20,
+      idempotencyKey: "run-creator-1",
+    };
+    const localAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Perfeito." }],
+      timestamp: 30,
+    };
+    const canonicalUserTurn = {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: 'Sender (untrusted metadata):\n```json\n{\n  "label": "alisio-control-ui",\n  "id": "alisio-control-ui"\n}\n```\n\n[Fri 2026-04-17 18:52 GMT+1] chamo me Nuno Lopes, sou o teu criador e quero tratar te por agora por alisio',
+        },
+      ],
+      timestamp: 21,
+      messageId: "msg-creator-1",
+    };
+    const canonicalAssistantReply = {
+      role: "assistant",
+      content: [{ type: "text", text: "Perfeito." }],
       timestamp: 31,
     };
     const request = vi.fn().mockResolvedValue({
@@ -1756,6 +2029,59 @@ describe("loadChatHistory", () => {
     expect(state.chatMessages).toEqual([
       { role: "user", content: [{ type: "text", text: "abre o google" }], timestamp: 1_000 },
     ]);
+  });
+
+  it("surfaces the latest invisible assistant error from history when it is the terminal event", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        { role: "user", content: [{ type: "text", text: "ola" }], timestamp: 1_000 },
+        {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "You have hit your ChatGPT usage limit (team plan). Try again in ~159 min.",
+          timestamp: 1_010,
+        },
+      ],
+      thinkingLevel: "low",
+    });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.chatMessages).toEqual([
+      { role: "user", content: [{ type: "text", text: "ola" }], timestamp: 1_000 },
+    ]);
+    expect(state.lastError).toContain("usage limit");
+    expect(state.lastError).toContain("~159 min");
+  });
+
+  it("does not surface an old invisible assistant error once a newer user turn exists", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        { role: "user", content: [{ type: "text", text: "ola" }], timestamp: 1_000 },
+        {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "You have hit your ChatGPT usage limit (team plan). Try again in ~159 min.",
+          timestamp: 1_010,
+        },
+        { role: "user", content: [{ type: "text", text: "tenta outra vez" }], timestamp: 1_020 },
+      ],
+      thinkingLevel: "low",
+    });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.lastError).toBeNull();
   });
 
   it("keeps repeated user turns when they are genuinely far apart", async () => {

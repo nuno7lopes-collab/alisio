@@ -75,8 +75,6 @@ export type PluginManifestProviderAuthChoice = {
   /** Optional user-facing choice label/hint for grouped onboarding UI. */
   choiceLabel?: string;
   choiceHint?: string;
-  /** Legacy choice ids that should point users at this replacement choice. */
-  deprecatedChoiceIds?: string[];
   /** Optional grouping metadata for auth-choice pickers. */
   groupId?: string;
   groupLabel?: string;
@@ -165,7 +163,6 @@ function normalizeProviderAuthChoices(
     }
     const choiceLabel = typeof entry.choiceLabel === "string" ? entry.choiceLabel.trim() : "";
     const choiceHint = typeof entry.choiceHint === "string" ? entry.choiceHint.trim() : "";
-    const deprecatedChoiceIds = normalizeStringList(entry.deprecatedChoiceIds);
     const groupId = typeof entry.groupId === "string" ? entry.groupId.trim() : "";
     const groupLabel = typeof entry.groupLabel === "string" ? entry.groupLabel.trim() : "";
     const groupHint = typeof entry.groupHint === "string" ? entry.groupHint.trim() : "";
@@ -184,7 +181,6 @@ function normalizeProviderAuthChoices(
       choiceId,
       ...(choiceLabel ? { choiceLabel } : {}),
       ...(choiceHint ? { choiceHint } : {}),
-      ...(deprecatedChoiceIds.length > 0 ? { deprecatedChoiceIds } : {}),
       ...(groupId ? { groupId } : {}),
       ...(groupLabel ? { groupLabel } : {}),
       ...(groupHint ? { groupHint } : {}),

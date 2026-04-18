@@ -1,10 +1,13 @@
 export type ExecSecurity = "deny" | "allowlist" | "full";
 export type ExecAsk = "off" | "on-miss" | "always";
+export type ExecTarget = "auto" | "sandbox" | "gateway" | "node";
+export type ConfiguredFsScope = "workspace-only" | "unrestricted" | "mixed";
 
 export type SecurityAccessMode = "recommended" | "full-access" | "custom";
 export type SecurityAccessProfile = Exclude<SecurityAccessMode, "custom">;
 
 export type ConfigExecDefaults = {
+  host: ExecTarget;
   security: ExecSecurity;
   ask: ExecAsk;
 };
@@ -57,11 +60,13 @@ export const DEFAULT_EXEC_ASK_FALLBACK: ExecSecurity = "deny";
 export const DEFAULT_EXEC_AUTO_ALLOW_SKILLS = false;
 
 export const FULL_ACCESS_CONFIG_DEFAULTS: ConfigExecDefaults = {
+  host: "gateway",
   security: "full",
   ask: "off",
 };
 
 export const RECOMMENDED_CONFIG_DEFAULTS: ConfigExecDefaults = {
+  host: "auto",
   security: DEFAULT_GATEWAY_EXEC_SECURITY,
   ask: DEFAULT_GATEWAY_EXEC_ASK,
 };
@@ -154,6 +159,13 @@ function normalizeConfiguredSecurity(value: unknown): ExecSecurity {
     : RECOMMENDED_CONFIG_DEFAULTS.security;
 }
 
+function normalizeConfiguredHost(value: unknown): ExecTarget {
+  if (value === "auto" || value === "sandbox" || value === "gateway" || value === "node") {
+    return value;
+  }
+  return RECOMMENDED_CONFIG_DEFAULTS.host;
+}
+
 function normalizeConfiguredAsk(value: unknown): ExecAsk {
   return typeof value === "string"
     ? normalizeExecApprovalsAsk(value)
@@ -178,7 +190,9 @@ export function countConfiguredExecScopedOverrides(
 ): number {
   return resolveConfigAgentEntries(configForm).reduce((count, entry) => {
     const exec = resolveAgentExecConfig(entry);
-    return exec && (hasOwn(exec, "security") || hasOwn(exec, "ask")) ? count + 1 : count;
+    return exec && (hasOwn(exec, "host") || hasOwn(exec, "security") || hasOwn(exec, "ask"))
+      ? count + 1
+      : count;
   }, 0);
 }
 
@@ -204,9 +218,40 @@ export function resolveConfiguredExecDefaults(
   const tools = isRecord(configForm?.tools) ? configForm.tools : null;
   const exec = isRecord(tools?.exec) ? tools.exec : null;
   return {
+    host: normalizeConfiguredHost(exec?.host),
     security: normalizeConfiguredSecurity(exec?.security),
     ask: normalizeConfiguredAsk(exec?.ask),
   };
+}
+
+export function resolveConfiguredFsWorkspaceOnly(
+  configForm: Record<string, unknown> | null,
+): boolean {
+  const tools = isRecord(configForm?.tools) ? configForm.tools : null;
+  const fs = isRecord(tools?.fs) ? tools.fs : null;
+  return fs?.workspaceOnly === true;
+}
+
+function resolveAgentFsConfig(entry: Record<string, unknown>): Record<string, unknown> | null {
+  const tools = isRecord(entry.tools) ? entry.tools : null;
+  return isRecord(tools?.fs) ? tools.fs : null;
+}
+
+export function resolveConfiguredFsScope(
+  configForm: Record<string, unknown> | null,
+): ConfiguredFsScope {
+  const globalWorkspaceOnly = resolveConfiguredFsWorkspaceOnly(configForm);
+  const effectiveScopes = new Set<boolean>([globalWorkspaceOnly]);
+  for (const entry of resolveConfigAgentEntries(configForm)) {
+    const agentFs = resolveAgentFsConfig(entry);
+    const agentWorkspaceOnly =
+      agentFs?.workspaceOnly === undefined ? globalWorkspaceOnly : agentFs.workspaceOnly === true;
+    effectiveScopes.add(agentWorkspaceOnly);
+    if (effectiveScopes.size > 1) {
+      return "mixed";
+    }
+  }
+  return globalWorkspaceOnly ? "workspace-only" : "unrestricted";
 }
 
 export function resolveSecurityAccessDiagnostics(params: {
@@ -225,6 +270,7 @@ export function resolveSecurityAccessDiagnostics(params: {
   if (
     !hasConfigOverrides &&
     !hasApprovalOverrides &&
+    configDefaults.host === RECOMMENDED_CONFIG_DEFAULTS.host &&
     configDefaults.security === RECOMMENDED_CONFIG_DEFAULTS.security &&
     configDefaults.ask === RECOMMENDED_CONFIG_DEFAULTS.ask &&
     policyMode === "recommended"
@@ -233,6 +279,7 @@ export function resolveSecurityAccessDiagnostics(params: {
   } else if (
     !hasConfigOverrides &&
     !hasApprovalOverrides &&
+    configDefaults.host === FULL_ACCESS_CONFIG_DEFAULTS.host &&
     configDefaults.security === FULL_ACCESS_CONFIG_DEFAULTS.security &&
     configDefaults.ask === FULL_ACCESS_CONFIG_DEFAULTS.ask &&
     policyMode === "full-access"
@@ -289,14 +336,15 @@ export function buildSecurityAccessModeConfigPatch(
     if (!exec) {
       continue;
     }
+    const hasHostOverride = hasOwn(exec, "host");
     const hasSecurityOverride = hasOwn(exec, "security");
     const hasAskOverride = hasOwn(exec, "ask");
-    if (!hasSecurityOverride && !hasAskOverride) {
+    if (!hasHostOverride && !hasSecurityOverride && !hasAskOverride) {
       continue;
     }
 
     const remainingExecKeys = Object.keys(exec).filter(
-      (key) => key !== "security" && key !== "ask",
+      (key) => key !== "host" && key !== "security" && key !== "ask",
     );
     const remainingToolKeys = Object.keys(tools ?? {}).filter((key) => key !== "exec");
     if (remainingExecKeys.length === 0) {
@@ -309,6 +357,9 @@ export function buildSecurityAccessModeConfigPatch(
     }
 
     const execPatch: Record<string, unknown> = {};
+    if (hasHostOverride) {
+      execPatch.host = null;
+    }
     if (hasSecurityOverride) {
       execPatch.security = null;
     }
@@ -335,6 +386,7 @@ export function applySecurityAccessModeToConfigFormObject(
     ? next.tools
     : ((next.tools = {}), next.tools as Record<string, unknown>);
   const exec = isRecord(tools.exec) ? tools.exec : {};
+  exec.host = configPatch.host;
   exec.security = configPatch.security;
   exec.ask = configPatch.ask;
   tools.exec = exec;
@@ -353,6 +405,7 @@ export function applySecurityAccessModeToConfigFormObject(
     if (!entryExec) {
       continue;
     }
+    delete entryExec.host;
     delete entryExec.security;
     delete entryExec.ask;
     if (Object.keys(entryExec).length === 0 && entryTools) {
@@ -418,6 +471,7 @@ export function matchesSecurityAccessModeTargets(params: {
   return (
     countConfiguredExecScopedOverrides(params.config) === 0 &&
     countExecApprovalScopedOverrides(params.execApprovals) === 0 &&
+    configDefaults.host === configPatch.host &&
     configDefaults.security === configPatch.security &&
     configDefaults.ask === configPatch.ask &&
     resolvedApprovals.security === approvalDefaults.security &&

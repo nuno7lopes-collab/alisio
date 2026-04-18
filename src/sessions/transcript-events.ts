@@ -3,6 +3,7 @@ export type SessionTranscriptUpdate = {
   sessionKey?: string;
   message?: unknown;
   messageId?: string;
+  phase?: "message" | "transcript";
 };
 
 type SessionTranscriptListener = (update: SessionTranscriptUpdate) => void;
@@ -19,19 +20,22 @@ export function onSessionTranscriptUpdate(listener: SessionTranscriptListener): 
 export function emitSessionTranscriptUpdate(update: string | SessionTranscriptUpdate): void {
   const normalized =
     typeof update === "string"
-      ? { sessionFile: update }
+      ? { sessionFile: update, phase: "transcript" as const }
       : {
           sessionFile: update.sessionFile,
           sessionKey: update.sessionKey,
           message: update.message,
           messageId: update.messageId,
+          phase: update.phase,
         };
   const trimmed = normalized.sessionFile.trim();
   if (!trimmed) {
     return;
   }
+  const phase = normalized.phase ?? (normalized.message !== undefined ? "message" : "transcript");
   const nextUpdate: SessionTranscriptUpdate = {
     sessionFile: trimmed,
+    phase,
     ...(typeof normalized.sessionKey === "string" && normalized.sessionKey.trim()
       ? { sessionKey: normalized.sessionKey.trim() }
       : {}),

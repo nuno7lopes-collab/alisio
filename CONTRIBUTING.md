@@ -14,7 +14,7 @@ Welcome to the lobster tank! 🦞
 - **Peter Steinberger** - Benevolent Dictator
   - GitHub: [@steipete](https://github.com/steipete) · X: [@steipete](https://x.com/steipete)
 
-- **Shadow** - Discord subsystem, Discord admin, Clawhub, all community moderation
+- **Shadow** - Discord subsystem, Discord admin, marketplace, all community moderation
   - GitHub: [@thewilloftheshadow](https://github.com/thewilloftheshadow) · X: [@4shadowed](https://x.com/4shadowed)
 
 - **Vignesh** - Memory (QMD), formal modeling, TUI, IRC, and Lobster
@@ -156,7 +156,7 @@ We are currently prioritizing:
 
 - **Stability**: Fixing edge cases in channel connections (WhatsApp/Telegram).
 - **UX**: Improving the onboarding wizard and error messages.
-- **Skills**: For skill contributions, head to [ClawHub](https://clawhub.ai/) — the community hub for Alisio skills.
+- **Skills**: For skill contributions, start with the [Local Marketplace docs](https://docs.alisio.ai/tools/marketplace) for the current Alisio marketplace flow.
 - **Performance**: Optimizing token usage and compaction logic.
 
 Check the [GitHub Issues](https://github.com/alisio/alisio/issues) for "good first issue" labels!
@@ -189,7 +189,7 @@ We take security reports seriously. Report vulnerabilities directly to the repos
 - **macOS desktop app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/macos)
 - **iOS app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/ios)
 - **Android app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/android)
-- **ClawHub** — [alisio/clawhub](https://github.com/alisio/clawhub)
+- **Marketplace service backend** — [alisio/clawhub](https://github.com/alisio/clawhub)
 - **Trust and threat model** — [alisio/trust](https://github.com/alisio/trust)
 
 For issues that don't fit a specific repo, or if you're unsure, email **security@alisio.ai** and we'll route it.

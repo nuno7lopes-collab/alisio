@@ -377,8 +377,6 @@ Behavior notes:
   <Accordion title="Logout behavior">
     `alisio channels logout --channel whatsapp [--account <id>]` clears WhatsApp auth state for that account.
 
-    In legacy auth directories, `oauth.json` is preserved while Baileys auth files are removed.
-
   </Accordion>
 </AccordionGroup>
 

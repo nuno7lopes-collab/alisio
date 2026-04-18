@@ -374,12 +374,12 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         title: "Painel",
         surfacePicker: "Superfície do painel",
         close: "Fechar painel",
-        observerTitle: "Browser observado",
+        observerTitle: "Browser sandbox",
         viewRawText: "Ver texto em bruto",
         noContent: "Sem conteúdo disponível",
         unavailable: "Sem painel disponível",
         surfaces: {
-          observer: "Browser",
+          observer: "Browser sandbox",
           computer: "Computer",
           markdown: "Saída da ferramenta",
         },
@@ -393,6 +393,10 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
           noTimeline: "Ainda sem actividade de computer",
           targetApp: "App alvo",
           display: "Ecrã",
+          currentStep: "Step actual",
+          lastStep: "Último step",
+          none: "Nenhum",
+          stepLabel: "Step {step}",
           pause: "Pausar",
           resume: "Retomar",
           stop: "Parar",
@@ -414,6 +418,13 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
             "awaiting-approval": "À espera de aprovação",
             error: "Erro",
             stopped: "Parada",
+          },
+          stepPhase: {
+            observe: "Observação",
+            "observe-before-action": "Observação pré-acção",
+            "awaiting-approval": "Aprovação",
+            action: "Acção",
+            "observe-after-action": "Observação pós-acção",
           },
         },
       },
@@ -2145,6 +2156,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         pending: "aprovações pendentes",
         target: "alvo seleccionado",
         prompt: "prompt por omissão",
+        files: "alcance read/write/edit",
       },
       queue: {
         title: "Aprovações em tempo real",
@@ -2204,7 +2216,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
       access: {
         title: "Presets de segurança",
         subtitle:
-          "Escolhe o caminho guardado mais seguro ou o caminho total no host para o exec do dia-a-dia.",
+          "Escolhe o caminho guardado mais seguro ou o caminho directo de exec no host do gateway para o dia-a-dia.",
         loadTitle: "Carregar estado de segurança",
         loadBody: "Carrega a config e as aprovações exec para trocares de modo em segurança.",
         active: "Activo",
@@ -2226,16 +2238,22 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         },
         fullAccess: {
           label: "Total",
-          title: "Caminho do host",
-          badge: "Host",
+          title: "Exec no host do gateway",
+          badge: "Gateway",
           description:
-            "Usa `security=full` e desliga o prompt exec por omissão. As permissões do sistema operativo e outros guardrails de runtime continuam a aplicar-se.",
+            "Define `tools.exec.host=gateway`, `security=full` e `ask=off` para o exec. As permissões do sistema operativo e outros guardrails de runtime continuam a aplicar-se.",
           points: {
-            host: "Os comandos mantêm o caminho directo ao host, a menos que outra ferramenta acrescente as suas próprias verificações.",
+            host: "O exec corre no host do gateway em vez de seguir o routing de sandbox de `host=auto`.",
             prompts:
-              "Os prompts ficam desligados por omissão, por isso as execuções continuam sem revisão humana.",
-            scope: "Usa isto só com operadores de confiança ou em ambientes muito controlados.",
+              "Os prompts ficam desligados por omissão, por isso as execuções de exec continuam sem revisão humana.",
+            scope:
+              "Isto só muda os defaults de exec. Os limites de read/write/edit continuam a seguir a tool policy, `tools.fs.workspaceOnly` e quaisquer overrides fs por agente; o `apply_patch` mantém ainda o seu guardrail próprio em `tools.exec.applyPatch.workspaceOnly`.",
           },
+        },
+        files: {
+          mixed: "misto",
+          workspaceOnly: "só workspace",
+          unrestricted: "não limitado",
         },
         custom: {
           label: "Personalizado",

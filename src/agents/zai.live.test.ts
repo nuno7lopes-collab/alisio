@@ -6,7 +6,7 @@ import {
   isLiveTestEnabled,
 } from "./live-test-helpers.js";
 
-const ZAI_KEY = process.env.ZAI_API_KEY ?? process.env.Z_AI_API_KEY ?? "";
+const ZAI_KEY = process.env.ZAI_API_KEY ?? "";
 const LIVE = isLiveTestEnabled(["ZAI_LIVE_TEST"]);
 
 const describeLive = LIVE && ZAI_KEY ? describe : describe.skip;

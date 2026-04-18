@@ -4,11 +4,15 @@ import path from "node:path";
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  createAuthTestLifecycle,
+  readAuthProfilesForAgent,
+  setupAuthTestEnv,
+} from "../../test/helpers/auth-wizard.js";
+import {
   createConfigWithFallbacks,
   createLegacyProviderConfig,
   EXPECTED_FALLBACKS,
 } from "../../test/helpers/plugins/onboard-config.js";
-import { SYNTHETIC_DEFAULT_MODEL_ID } from "../agents/synthetic-models.js";
 import type { AlisioConfig } from "../config/config.js";
 import {
   resolveAgentModelFallbackValues,
@@ -33,6 +37,7 @@ import {
   applySyntheticConfig,
   applySyntheticProviderConfig,
   SYNTHETIC_DEFAULT_MODEL_REF,
+  SYNTHETIC_MODEL_CATALOG,
 } from "../plugin-sdk/synthetic.js";
 import {
   applyXaiConfig,
@@ -44,11 +49,6 @@ import { ZAI_CODING_CN_BASE_URL, ZAI_GLOBAL_BASE_URL } from "../plugin-sdk/zai.j
 import { applyZaiConfig, applyZaiProviderConfig } from "../plugin-sdk/zai.js";
 import { applyAuthProfileConfig } from "../plugins/provider-auth-helpers.js";
 import { setMinimaxApiKey, writeOAuthCredentials } from "../plugins/provider-auth-storage.js";
-import {
-  createAuthTestLifecycle,
-  readAuthProfilesForAgent,
-  setupAuthTestEnv,
-} from "./test-wizard-helpers.js";
 
 function expectPrimaryModelPreserved(cfg: AlisioConfig): void {
   expect(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)).toBe(
@@ -69,6 +69,8 @@ function expectAllowlistContains(cfg: AlisioConfig, modelRef: string): void {
 function expectAliasPreserved(cfg: AlisioConfig, modelRef: string, alias: string): void {
   expect(cfg.agents?.defaults?.models?.[modelRef]?.alias).toBe(alias);
 }
+
+const SYNTHETIC_DEFAULT_MODEL_ID = SYNTHETIC_MODEL_CATALOG[0]?.id;
 
 describe("writeOAuthCredentials", () => {
   const lifecycle = createAuthTestLifecycle([
@@ -526,6 +528,7 @@ describe("applySyntheticConfig", () => {
     expect(cfg.models?.providers?.synthetic?.api).toBe("anthropic-messages");
     expect(cfg.models?.providers?.synthetic?.apiKey).toBe("old-key");
     const ids = cfg.models?.providers?.synthetic?.models.map((m) => m.id);
+    expect(SYNTHETIC_DEFAULT_MODEL_ID).toBeDefined();
     expect(ids).toContain("old-model");
     expect(ids).toContain(SYNTHETIC_DEFAULT_MODEL_ID);
   });

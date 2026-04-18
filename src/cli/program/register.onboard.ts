@@ -31,11 +31,6 @@ function resolveInstallDaemonFlag(
     return undefined;
   }
 
-  // Commander doesn't support option conflicts natively; keep original behavior.
-  // If --skip-daemon is explicitly passed, it wins.
-  if (getOptionValueSource.call(command, "skipDaemon") === "cli") {
-    return false;
-  }
   if (getOptionValueSource.call(command, "installDaemon") === "cli") {
     return Boolean(opts.installDaemon);
   }
@@ -43,7 +38,6 @@ function resolveInstallDaemonFlag(
 }
 
 const AUTH_CHOICE_HELP = formatAuthChoiceChoicesForCli({
-  includeLegacyAliases: true,
   includeSkip: true,
 });
 
@@ -130,7 +124,6 @@ export function registerOnboardCommand(program: Command) {
     .option("--tailscale-reset-on-exit", "Reset tailscale serve/funnel on exit")
     .option("--install-daemon", "Install gateway service")
     .option("--no-install-daemon", "Skip gateway service install")
-    .option("--skip-daemon", "Skip gateway service install")
     .option("--daemon-runtime <runtime>", "Daemon runtime: node|bun")
     .option("--skip-channels", "Skip channel setup")
     .option("--skip-skills", "Skip skills setup")

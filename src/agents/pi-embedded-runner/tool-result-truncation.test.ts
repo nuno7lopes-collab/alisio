@@ -310,7 +310,7 @@ describe("truncateOversizedToolResultsInSession", () => {
       expect(result.truncatedCount).toBe(1);
       expect(acquireSessionWriteLockMock).toHaveBeenCalledWith({ sessionFile });
       expect(acquireSessionWriteLockReleaseMock).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith({ sessionFile });
+      expect(listener).toHaveBeenCalledWith({ sessionFile, phase: "transcript" });
 
       const branch = sessionManager.getBranch();
       const rewrittenToolResult = branch.find(

@@ -21,7 +21,7 @@ type AuthSyncFixture = {
   stateDir: string;
   agentDir: string;
   configPath: string;
-  authPath: string;
+  legacyAuthPath: string;
 };
 
 async function withAuthSyncFixture(run: (fixture: AuthSyncFixture) => Promise<void>) {
@@ -30,7 +30,7 @@ async function withAuthSyncFixture(run: (fixture: AuthSyncFixture) => Promise<vo
     const stateDir = path.join(root, "state");
     const agentDir = path.join(stateDir, "agents", "main", "agent");
     const configPath = path.join(stateDir, "alisio.json");
-    const authPath = path.join(agentDir, "auth.json");
+    const legacyAuthPath = path.join(agentDir, "auth.json");
 
     await fs.mkdir(agentDir, { recursive: true });
     await fs.writeFile(configPath, "{}\n", "utf8");
@@ -46,7 +46,7 @@ async function withAuthSyncFixture(run: (fixture: AuthSyncFixture) => Promise<vo
       async () => {
         clearRuntimeConfigSnapshot();
         clearConfigCache();
-        await run({ root, stateDir, agentDir, configPath, authPath });
+        await run({ root, stateDir, agentDir, configPath, legacyAuthPath });
       },
     );
   } finally {
@@ -81,9 +81,9 @@ async function runModelsListAndGetProvider(providerPrefix: string) {
   return provider;
 }
 
-describe("models list auth-profile sync", () => {
+describe("models list auth-profiles", () => {
   it("marks models available when auth exists only in auth-profiles.json", async () => {
-    await withAuthSyncFixture(async ({ agentDir, authPath }) => {
+    await withAuthSyncFixture(async ({ agentDir, legacyAuthPath }) => {
       saveAuthProfileStore(
         {
           version: 1,
@@ -98,16 +98,16 @@ describe("models list auth-profile sync", () => {
         agentDir,
       );
 
-      expect(await pathExists(authPath)).toBe(false);
+      expect(await pathExists(legacyAuthPath)).toBe(false);
 
       const openrouter = await runModelsListAndGetProvider("openrouter/");
       expect(openrouter?.available).toBe(true);
-      expect(await pathExists(authPath)).toBe(false);
+      expect(await pathExists(legacyAuthPath)).toBe(false);
     });
   });
 
   it("does not persist blank auth-profile credentials", async () => {
-    await withAuthSyncFixture(async ({ agentDir, authPath }) => {
+    await withAuthSyncFixture(async ({ agentDir, legacyAuthPath }) => {
       saveAuthProfileStore(
         {
           version: 1,
@@ -123,16 +123,7 @@ describe("models list auth-profile sync", () => {
       );
 
       await runModelsListAndGetProvider("openrouter/");
-      if (await pathExists(authPath)) {
-        const parsed = JSON.parse(await fs.readFile(authPath, "utf8")) as Record<
-          string,
-          { type?: string; key?: string }
-        >;
-        const openrouterKey = parsed.openrouter?.key;
-        if (openrouterKey !== undefined) {
-          expect(openrouterKey.trim().length).toBeGreaterThan(0);
-        }
-      }
+      expect(await pathExists(legacyAuthPath)).toBe(false);
     });
   });
 });

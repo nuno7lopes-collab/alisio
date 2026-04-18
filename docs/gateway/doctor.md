@@ -181,7 +181,7 @@ Doctor can migrate older on-disk layouts into the current structure:
 - Agent dir:
   - from `~/.alisio/agent/` to `~/.alisio/agents/<agentId>/agent/`
 - WhatsApp auth state (Baileys):
-  - from legacy `~/.alisio/credentials/*.json` (except `oauth.json`)
+  - from legacy root-level `~/.alisio/credentials/*.json`
   - to `~/.alisio/credentials/whatsapp/<accountId>/...` (default account id: `default`)
 
 These migrations are best-effort and idempotent; doctor will emit warnings when

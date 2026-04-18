@@ -306,7 +306,10 @@ describe("compactEmbeddedPiSessionDirect hooks", () => {
       });
 
       expect(listener).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith({ sessionFile: "/tmp/session.jsonl" });
+      expect(listener).toHaveBeenCalledWith({
+        sessionFile: "/tmp/session.jsonl",
+        phase: "transcript",
+      });
     } finally {
       cleanup();
     }
@@ -672,7 +675,10 @@ describe("compactEmbeddedPiSession hooks (ownsCompaction engine)", () => {
 
       expect(result.ok).toBe(true);
       expect(listener).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith({ sessionFile: TEST_SESSION_FILE });
+      expect(listener).toHaveBeenCalledWith({
+        sessionFile: TEST_SESSION_FILE,
+        phase: "transcript",
+      });
       expect(sync).toHaveBeenCalledWith({
         reason: "post-compaction",
         sessionFiles: [TEST_SESSION_FILE],

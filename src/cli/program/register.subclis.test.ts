@@ -93,7 +93,16 @@ describe("registerSubCliCommands", () => {
     const names = program.commands.map((cmd) => cmd.name());
     expect(names).toContain("acp");
     expect(names).toContain("gateway");
+    expect(names).not.toContain("daemon");
     expect(registerAcpCli).not.toHaveBeenCalled();
+  });
+
+  it("does not re-register the removed daemon alias when requested directly", () => {
+    const program = createRegisteredProgram(["node", "alisio", "daemon"]);
+
+    const names = program.commands.map((cmd) => cmd.name());
+    expect(names).toContain("gateway");
+    expect(names).not.toContain("daemon");
   });
 
   it("returns null for plugin registration when the config snapshot is invalid", async () => {

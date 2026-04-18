@@ -598,6 +598,45 @@ describe("connectGateway", () => {
     expect(host.notifyBrowserPaneActivity).toHaveBeenCalledWith("main", "observer");
   });
 
+  it("clears stale browser observer state when the browser tool reports sandbox unavailability", () => {
+    const { host, client } = connectHostGateway();
+
+    client.emitEvent({
+      event: "agent",
+      payload: {
+        sessionKey: "main",
+        observer: {
+          kind: "novnc",
+          url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+          label: "Observed browser",
+        },
+      },
+    });
+
+    client.emitEvent({
+      event: "agent",
+      payload: {
+        runId: "engine-run-browser-2",
+        seq: 2,
+        stream: "tool",
+        ts: 2,
+        sessionKey: "main",
+        data: {
+          toolCallId: "tool-browser-2",
+          name: "browser",
+          phase: "result",
+          isError: true,
+          result: {
+            text: 'Sandbox browser is unavailable. Enable agents.defaults.sandbox.browser.enabled or use target="host" if allowed.',
+          },
+        },
+      },
+    });
+
+    expect(host.setBrowserPaneObserver).toHaveBeenLastCalledWith("main", null);
+    expect(host.notifyBrowserPaneActivity).not.toHaveBeenCalledWith("main", "observer");
+  });
+
   it("applies computer session updates and marks computer pane activity", () => {
     const { host, client } = connectHostGateway();
 
@@ -641,6 +680,7 @@ describe("connectGateway", () => {
                   height: 900,
                   capturedAt: 10,
                 },
+                stepCounter: 0,
                 timeline: [],
                 startedAt: 1,
                 updatedAt: 10,
@@ -678,6 +718,29 @@ describe("connectGateway", () => {
     });
 
     expect(host.setBrowserPaneObserver).toHaveBeenCalledWith("main", null);
+  });
+
+  it("ressincroniza o histórico activo quando o transcript é reescrito", async () => {
+    const { host, client } = connectHostGateway();
+    client.emitHello();
+    loadChatHistoryMock.mockClear();
+    host.chatRunId = "run-1";
+    host.chatFinalizing = true;
+
+    client.emitEvent({
+      event: "sessions.changed",
+      payload: {
+        sessionKey: "main",
+        phase: "transcript",
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(loadChatHistoryMock).toHaveBeenCalledWith(host, {
+        silent: true,
+        preserveEphemeral: true,
+      });
+    });
   });
 
   it("forces a canonical history reload after attachment-backed runs finish", async () => {

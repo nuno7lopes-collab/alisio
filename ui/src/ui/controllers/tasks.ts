@@ -48,7 +48,16 @@ type TrackedTaskDetailRequest = {
   token: symbol;
 };
 
+type TrackedTaskOverviewRequest = {
+  token: symbol;
+};
+
 const taskDetailRequests = new WeakMap<TasksState, TrackedTaskDetailRequest>();
+const taskOverviewRequests = new WeakMap<TasksState, TrackedTaskOverviewRequest>();
+const scheduledTasksOverviewRefresh = new WeakMap<
+  TasksState,
+  ReturnType<typeof globalThis.setTimeout>
+>();
 
 function taskErrorMessage(
   kind: "load" | "cancel" | "save" | "approve" | "reject" | "launch",
@@ -408,6 +417,30 @@ function finishTaskDetailRequest(state: TasksState, request: TrackedTaskDetailRe
   }
 }
 
+function beginTaskOverviewRequest(state: TasksState): TrackedTaskOverviewRequest | null {
+  if (!state.client || !state.connected) {
+    return null;
+  }
+  const request = {
+    token: Symbol("tasks-overview-request"),
+  } satisfies TrackedTaskOverviewRequest;
+  taskOverviewRequests.set(state, request);
+  return request;
+}
+
+function isTaskOverviewRequestCurrent(
+  state: TasksState,
+  request: TrackedTaskOverviewRequest,
+): boolean {
+  return taskOverviewRequests.get(state)?.token === request.token;
+}
+
+function finishTaskOverviewRequest(state: TasksState, request: TrackedTaskOverviewRequest): void {
+  if (taskOverviewRequests.get(state)?.token === request.token) {
+    taskOverviewRequests.delete(state);
+  }
+}
+
 function shouldRefreshTaskDetail(
   state: TasksState,
   task: Task,
@@ -495,6 +528,10 @@ export async function loadTasksOverview(
   if (!state.client || !state.connected) {
     return;
   }
+  const trackedRequest = beginTaskOverviewRequest(state);
+  if (!trackedRequest) {
+    return;
+  }
   if (!opts?.quiet) {
     state.tasksLoading = true;
   }
@@ -510,6 +547,9 @@ export async function loadTasksOverview(
     if (!normalized) {
       throw new Error("Invalid tasks overview response.");
     }
+    if (!isTaskOverviewRequestCurrent(state, trackedRequest)) {
+      return;
+    }
     state.tasksOverview = normalized;
     state.tasksError = null;
     const selectionChanged = syncSelectedTask(state);
@@ -523,6 +563,9 @@ export async function loadTasksOverview(
       });
     }
   } catch (error) {
+    if (!isTaskOverviewRequestCurrent(state, trackedRequest)) {
+      return;
+    }
     if (isMissingOperatorReadScopeError(error)) {
       state.tasksOverview = null;
       state.tasksDetail = null;
@@ -533,8 +576,27 @@ export async function loadTasksOverview(
       state.tasksError = taskErrorMessage("load");
     }
   } finally {
-    state.tasksLoading = false;
+    finishTaskOverviewRequest(state, trackedRequest);
+    if (!taskOverviewRequests.has(state)) {
+      state.tasksLoading = false;
+    }
   }
+}
+
+export function scheduleTasksOverviewRefresh(
+  state: TasksState,
+  opts?: { delayMs?: number; quiet?: boolean },
+): void {
+  const existing = scheduledTasksOverviewRefresh.get(state);
+  if (existing != null) {
+    globalThis.clearTimeout(existing);
+  }
+  const delayMs = Math.max(0, opts?.delayMs ?? 180);
+  const timer = globalThis.setTimeout(() => {
+    scheduledTasksOverviewRefresh.delete(state);
+    void loadTasksOverview(state, { quiet: opts?.quiet ?? true });
+  }, delayMs);
+  scheduledTasksOverviewRefresh.set(state, timer);
 }
 
 export async function selectTask(state: TasksState, taskId: string): Promise<void> {

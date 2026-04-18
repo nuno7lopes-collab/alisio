@@ -5194,31 +5194,32 @@ td.data-table-key-col {
   --chat-footer-button-hover-color: var(--text-strong);
   --chat-footer-action-bg: transparent;
   --chat-footer-action-color: var(--muted);
-  --chat-tool-stack-gap: 4px;
-  --chat-tool-card-margin-top: 1px;
-  --chat-tool-card-max-width: 456px;
+  --chat-tool-stack-gap: 8px;
+  --chat-tool-card-margin-top: 0;
+  --chat-tool-card-max-width: 480px;
   --chat-tool-card-radius: 8px;
   --chat-tool-card-border: color-mix(in srgb, var(--border) 58%, transparent);
   --chat-tool-card-bg: color-mix(in srgb, var(--card) 76%, var(--bg) 24%);
-  --chat-tool-card-collapsed-max-width: 236px;
+  --chat-tool-card-collapsed-width: 272px;
+  --chat-tool-card-collapsed-max-width: 272px;
   --chat-tool-card-collapsed-border: color-mix(in srgb, var(--border) 48%, transparent);
   --chat-tool-card-collapsed-bg: color-mix(in srgb, var(--card) 68%, var(--bg) 32%);
-  --chat-tool-card-summary-gap: 6px;
-  --chat-tool-card-summary-min-height: 24px;
-  --chat-tool-card-summary-padding: 4px 6px;
-  --chat-tool-card-summary-left-gap: 4px;
-  --chat-tool-card-summary-collapsed-min-height: 20px;
-  --chat-tool-card-summary-collapsed-padding: 3px 5px;
-  --chat-tool-card-title-size: 10px;
+  --chat-tool-card-summary-gap: 8px;
+  --chat-tool-card-summary-min-height: 28px;
+  --chat-tool-card-summary-padding: 5px 8px;
+  --chat-tool-card-summary-left-gap: 6px;
+  --chat-tool-card-summary-collapsed-min-height: 24px;
+  --chat-tool-card-summary-collapsed-padding: 4px 7px;
+  --chat-tool-card-title-size: 10.5px;
   --chat-tool-card-title-color: color-mix(in srgb, var(--text-strong) 80%, transparent);
-  --chat-tool-card-detail-size: 9px;
+  --chat-tool-card-detail-size: 9.5px;
   --chat-tool-card-detail-color: color-mix(in srgb, var(--muted) 76%, var(--text) 24%);
-  --chat-tool-card-state-min-height: 16px;
-  --chat-tool-card-state-padding-inline: 5px;
-  --chat-tool-card-state-font-size: 8.5px;
-  --chat-tool-card-state-collapsed-size: 14px;
-  --chat-tool-card-body-gap: 6px;
-  --chat-tool-card-body-padding: 0 8px 8px;
+  --chat-tool-card-state-min-height: 18px;
+  --chat-tool-card-state-padding-inline: 6px;
+  --chat-tool-card-state-font-size: 9px;
+  --chat-tool-card-state-collapsed-size: 16px;
+  --chat-tool-card-body-gap: 8px;
+  --chat-tool-card-body-padding: 8px 9px 9px;
   --chat-tool-card-section-label-color: color-mix(in srgb, var(--muted) 80%, transparent);
   --chat-tool-card-section-content-border: color-mix(in srgb, var(--border-strong) 58%, transparent);
   --chat-tool-card-section-content-bg: color-mix(in srgb, var(--bg) 82%, transparent);
@@ -5226,6 +5227,7 @@ td.data-table-key-col {
   --chat-tool-card-action-size: var(--chat-footer-icon-size);
   --chat-tool-card-action-border: transparent;
   --chat-tool-card-action-bg: transparent;
+  --chat-tool-inline-gap: 10px;
   --chat-compose-inline: 18px;
   --chat-compose-bottom: 14px;
   --chat-compose-radius: 28px;
@@ -5519,7 +5521,10 @@ td.data-table-key-col {
 }
 
 .alisio-chat .chat-tool-msg-body--flat {
-  padding-top: 2px;
+  display: grid;
+  gap: var(--chat-tool-inline-gap);
+  align-content: start;
+  padding-top: 0;
 }
 
 .alisio-chat .chat-group-footer {
@@ -5592,6 +5597,14 @@ td.data-table-key-col {
 
 .alisio-chat .chat-tool-msg-body {
   padding: 6px 7px 8px;
+}
+
+.alisio-chat .chat-bubble > .chat-tool-stack {
+  margin-top: var(--chat-tool-inline-gap);
+}
+
+.alisio-chat .chat-tool-msg-body--flat > .chat-tool-stack {
+  margin-top: 0;
 }
 
 .alisio-chat .chat-json-content {

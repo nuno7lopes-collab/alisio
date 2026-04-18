@@ -134,8 +134,6 @@ Use this when debugging auth or deciding what to back up:
   - `~/.alisio/credentials/<channel>-<accountId>-allowFrom.json` (non-default accounts)
 - **Model auth profiles**: `~/.alisio/agents/<agentId>/agent/auth-profiles.json`
 - **File-backed secrets payload (optional)**: `~/.alisio/secrets.json`
-- **Legacy OAuth import**: `~/.alisio/credentials/oauth.json`
-  More detail: [Security](/gateway/security#credential-storage-map).
 
 ## Updating (without wrecking your setup)
 
@@ -160,5 +158,5 @@ user service (no lingering needed). See [Gateway runbook](/gateway) for the syst
 - [Gateway runbook](/gateway) (flags, supervision, ports)
 - [Gateway configuration](/gateway/configuration) (config schema + examples)
 - [Discord](/channels/discord) and [Telegram](/channels/telegram) (reply tags + replyToMode settings)
-- [Alisio assistant setup](/start/alisio)
+- [Getting Started](/start/getting-started)
 - [macOS app](/platforms/macos) (gateway lifecycle)

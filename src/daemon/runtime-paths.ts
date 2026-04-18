@@ -27,6 +27,16 @@ function isNodeExecPath(execPath: string, platform: NodeJS.Platform): boolean {
   return base === "node" || base === "node.exe";
 }
 
+function isBundledMacAppNodePath(execPath: string, platform: NodeJS.Platform): boolean {
+  if (platform !== "darwin") {
+    return false;
+  }
+  const normalized = normalizeForCompare(execPath, platform).toLowerCase();
+  return (
+    normalized.includes(".app/contents/resources/") && normalized.endsWith("/tools/node/bin/node")
+  );
+}
+
 function normalizeForCompare(input: string, platform: NodeJS.Platform): string {
   const pathModule = getPathModule(platform);
   const normalized = pathModule.normalize(input).replaceAll("\\", "/");
@@ -169,6 +179,14 @@ export async function resolvePreferredNodePath(params: {
   const platform = params.platform ?? process.platform;
   const currentExecPath = params.execPath ?? process.execPath;
   if (currentExecPath && isNodeExecPath(currentExecPath, platform)) {
+    if (isBundledMacAppNodePath(currentExecPath, platform)) {
+      const systemNode = await resolveSystemNodeInfo(params);
+      if (systemNode?.supported) {
+        return systemNode.path;
+      }
+      return currentExecPath;
+    }
+
     const execFileImpl = params.execFile ?? execFileAsync;
     const version = await resolveNodeVersion(currentExecPath, execFileImpl);
     if (isSupportedNodeVersion(version)) {

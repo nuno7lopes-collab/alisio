@@ -1,5 +1,6 @@
 import { resolveSendableOutboundReplyParts } from "alisio/plugin-sdk/reply-payload";
 import { listAgentIds } from "../agents/agent-scope.js";
+import { resolveSessionKeyForRequest } from "../agents/command/session.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import type { CliDeps } from "../cli/deps.js";
 import { withProgress } from "../cli/progress.js";
@@ -13,7 +14,6 @@ import {
   normalizeMessageChannel,
 } from "../utils/message-channel.js";
 import { agentCommand } from "./agent.js";
-import { resolveSessionKeyForRequest } from "./agent/session.js";
 
 type AgentGatewayResult = {
   payloads?: Array<{

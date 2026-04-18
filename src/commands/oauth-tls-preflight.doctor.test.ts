@@ -7,7 +7,8 @@ vi.mock("../terminal/note.js", () => ({
   note,
 }));
 
-import { noteOpenAIOAuthTlsPrerequisites } from "./oauth-tls-preflight.js";
+const { noteOpenAIOAuthTlsPrerequisites } =
+  await import("../plugins/provider-openai-codex-oauth-tls.js");
 
 function buildOpenAICodexOAuthConfig(): AlisioConfig {
   return {

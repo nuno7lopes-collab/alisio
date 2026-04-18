@@ -7,7 +7,6 @@ nodes.
 
 - Docs:
   - `docs/gateway/protocol.md`
-  - `docs/gateway/bridge-protocol.md`
   - `docs/concepts/architecture.md`
 - Definition files:
   - `src/gateway/protocol/schema.ts`

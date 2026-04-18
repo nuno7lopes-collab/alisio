@@ -13,7 +13,13 @@ import {
 } from "./model-auth.js";
 
 vi.mock("../plugins/provider-runtime.js", () => ({
-  buildProviderMissingAuthMessageWithPlugin: () => undefined,
+  buildProviderMissingAuthMessageWithPlugin: (params: {
+    provider: string;
+    context?: { listProfileIds?: (providerId: string) => string[] };
+  }) =>
+    params.provider === "openai" && params.context?.listProfileIds?.("openai-codex")?.length
+      ? 'No API key found for provider "openai". Use openai-codex/gpt-5.4.'
+      : undefined,
   formatProviderAuthProfileApiKeyWithPlugin: async () => undefined,
   refreshProviderOAuthCredentialWithPlugin: async () => null,
   resolveProviderSyntheticAuthWithPlugin: () => undefined,
@@ -186,7 +192,6 @@ describe("getApiKeyForModel", () => {
     await withEnvAsync(
       {
         ZAI_API_KEY: undefined,
-        Z_AI_API_KEY: undefined,
       },
       async () => {
         let error: unknown = null;
@@ -200,23 +205,6 @@ describe("getApiKeyForModel", () => {
         }
 
         expect(String(error)).toContain('No API key found for provider "zai".');
-      },
-    );
-  });
-
-  it("accepts legacy Z_AI_API_KEY for zai", async () => {
-    await withEnvAsync(
-      {
-        ZAI_API_KEY: undefined,
-        Z_AI_API_KEY: "zai-test-key", // pragma: allowlist secret
-      },
-      async () => {
-        const resolved = await resolveApiKeyForProvider({
-          provider: "zai",
-          store: { version: 1, profiles: {} },
-        });
-        expect(resolved.apiKey).toBe("zai-test-key");
-        expect(resolved.source).toContain("Z_AI_API_KEY");
       },
     );
   });
@@ -242,7 +230,6 @@ describe("getApiKeyForModel", () => {
     await withEnvAsync(
       {
         ZAI_API_KEY: undefined,
-        Z_AI_API_KEY: undefined,
       },
       async () => {
         await expect(

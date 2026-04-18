@@ -10,7 +10,7 @@ Report vulnerabilities directly to the repository where the issue lives:
 - **macOS desktop app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/macos)
 - **iOS app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/ios)
 - **Android app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/android)
-- **ClawHub** — [alisio/clawhub](https://github.com/alisio/clawhub)
+- **Marketplace service backend** — [alisio/clawhub](https://github.com/alisio/clawhub)
 - **Trust and threat model** — [alisio/trust](https://github.com/alisio/trust)
 
 For issues that don't fit a specific repo, or if you're unsure, email **[security@alisio.ai](mailto:security@alisio.ai)** and we'll route it.

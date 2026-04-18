@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAuthProfileOrder } from "./order.js";
+import { resolveAuthProfileEligibility, resolveAuthProfileOrder } from "./order.js";
 import type { AuthProfileStore } from "./types.js";
 
 describe("resolveAuthProfileOrder", () => {
@@ -21,5 +21,39 @@ describe("resolveAuthProfileOrder", () => {
     });
 
     expect(order).toEqual(["volcengine:default"]);
+  });
+
+  it("rejects token credentials when config mode expects oauth", () => {
+    const store: AuthProfileStore = {
+      version: 1,
+      profiles: {
+        "anthropic:default": {
+          type: "token",
+          provider: "anthropic",
+          token: "tok-test",
+        },
+      },
+    };
+
+    const eligibility = resolveAuthProfileEligibility({
+      cfg: {
+        auth: {
+          profiles: {
+            "anthropic:default": {
+              provider: "anthropic",
+              mode: "oauth",
+            },
+          },
+        },
+      },
+      store,
+      provider: "anthropic",
+      profileId: "anthropic:default",
+    });
+
+    expect(eligibility).toEqual({
+      eligible: false,
+      reasonCode: "mode_mismatch",
+    });
   });
 });

@@ -187,4 +187,91 @@ describe("app-tool-stream fallback lifecycle handling", () => {
       },
     });
   });
+
+  it("isolates tool stream entries by run when toolCallId collides", () => {
+    const host = createHost();
+
+    handleAgentEvent(host, {
+      runId: "run-a",
+      seq: 1,
+      stream: "tool",
+      ts: 1,
+      sessionKey: "main",
+      data: {
+        phase: "start",
+        name: "read",
+        toolCallId: "shared-tool-call-id",
+        args: { path: "/tmp/path-a.txt" },
+      },
+    });
+    handleAgentEvent(host, {
+      runId: "run-b",
+      seq: 2,
+      stream: "tool",
+      ts: 2,
+      sessionKey: "main",
+      data: {
+        phase: "start",
+        name: "read",
+        toolCallId: "shared-tool-call-id",
+        args: { path: "/tmp/path-b.txt" },
+      },
+    });
+    handleAgentEvent(host, {
+      runId: "run-a",
+      seq: 3,
+      stream: "tool",
+      ts: 3,
+      sessionKey: "main",
+      data: {
+        phase: "result",
+        name: "read",
+        toolCallId: "shared-tool-call-id",
+        result: { content: [{ type: "text", text: "done-a" }] },
+      },
+    });
+    handleAgentEvent(host, {
+      runId: "run-b",
+      seq: 4,
+      stream: "tool",
+      ts: 4,
+      sessionKey: "main",
+      data: {
+        phase: "result",
+        name: "read",
+        toolCallId: "shared-tool-call-id",
+        result: { content: [{ type: "text", text: "done-b" }] },
+      },
+    });
+
+    expect(host.chatToolMessages).toHaveLength(2);
+    expect(host.chatToolMessages[0]).toMatchObject({
+      runId: "run-a",
+      toolCallId: "shared-tool-call-id",
+      content: [
+        {
+          type: "toolcall",
+          arguments: { path: "/tmp/path-a.txt" },
+        },
+        {
+          type: "toolresult",
+          text: "done-a",
+        },
+      ],
+    });
+    expect(host.chatToolMessages[1]).toMatchObject({
+      runId: "run-b",
+      toolCallId: "shared-tool-call-id",
+      content: [
+        {
+          type: "toolcall",
+          arguments: { path: "/tmp/path-b.txt" },
+        },
+        {
+          type: "toolresult",
+          text: "done-b",
+        },
+      ],
+    });
+  });
 });

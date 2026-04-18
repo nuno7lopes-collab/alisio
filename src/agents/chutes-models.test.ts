@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   buildChutesModelDefinition,
   CHUTES_MODEL_CATALOG,
-  discoverChutesModels,
   clearChutesModelCache,
-} from "./chutes-models.js";
+  discoverChutesModels,
+} from "../../extensions/chutes/api.js";
 
 async function withLiveChutesDiscovery<T>(
   fetchMock: ReturnType<typeof vi.fn>,

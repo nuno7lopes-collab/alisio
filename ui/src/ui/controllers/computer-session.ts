@@ -9,6 +9,9 @@ import type {
   ComputerPermissionState,
   ComputerSessionState,
   ComputerSessionStatus,
+  ComputerSessionStep,
+  ComputerStepPhase,
+  ComputerStepStatus,
   ComputerTimelineEntry,
 } from "../types.ts";
 
@@ -85,6 +88,32 @@ function readActionType(value: unknown): ComputerActionType | null {
     case "reveal_path":
     case "open_path":
     case "app_focus":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function readStepPhase(value: unknown): ComputerStepPhase | null {
+  switch (value) {
+    case "observe":
+    case "observe-before-action":
+    case "awaiting-approval":
+    case "action":
+    case "observe-after-action":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function readStepStatus(value: unknown): ComputerStepStatus | null {
+  switch (value) {
+    case "running":
+    case "awaiting-approval":
+    case "completed":
+    case "error":
+    case "cancelled":
       return value;
     default:
       return null;
@@ -200,6 +229,10 @@ function readTimelineEntry(value: unknown): ComputerTimelineEntry | null {
   }
   const status = readSessionStatus(value.status) ?? undefined;
   const actionType = readActionType(value.actionType) ?? undefined;
+  const stepSequence = readNumber(value.stepSequence) ?? undefined;
+  const toolCallId = readString(value.toolCallId) ?? undefined;
+  const stepId = readString(value.stepId) ?? undefined;
+  const stepPhase = readStepPhase(value.stepPhase) ?? undefined;
   return {
     id,
     at,
@@ -207,6 +240,51 @@ function readTimelineEntry(value: unknown): ComputerTimelineEntry | null {
     summary,
     ...(status ? { status } : {}),
     ...(actionType ? { actionType } : {}),
+    ...(stepId ? { stepId } : {}),
+    ...(stepSequence !== undefined ? { stepSequence } : {}),
+    ...(toolCallId ? { toolCallId } : {}),
+    ...(stepPhase ? { stepPhase } : {}),
+  };
+}
+
+function readSessionStep(value: unknown): ComputerSessionStep | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const id = readString(value.id);
+  const sequence = readNumber(value.sequence);
+  const toolCallId = readString(value.toolCallId);
+  const kind = value.kind === "observe" || value.kind === "action" ? value.kind : null;
+  const phase = readStepPhase(value.phase);
+  const status = readStepStatus(value.status);
+  const summary = readString(value.summary);
+  const startedAt = readNumber(value.startedAt);
+  const updatedAt = readNumber(value.updatedAt);
+  const actionType = readActionType(value.actionType) ?? undefined;
+  if (
+    !id ||
+    sequence === null ||
+    !toolCallId ||
+    !kind ||
+    !phase ||
+    !status ||
+    !summary ||
+    startedAt === null ||
+    updatedAt === null
+  ) {
+    return null;
+  }
+  return {
+    id,
+    sequence,
+    toolCallId,
+    kind,
+    phase,
+    status,
+    summary,
+    ...(actionType ? { actionType } : {}),
+    startedAt,
+    updatedAt,
   };
 }
 
@@ -232,6 +310,11 @@ function readApprovalRequest(value: unknown): ComputerApprovalRequest | null {
     sensitive,
     ...(readString(value.appName) ? { appName: readString(value.appName)! } : {}),
     ...(readString(value.appBundleId) ? { appBundleId: readString(value.appBundleId)! } : {}),
+    ...(readString(value.stepId) ? { stepId: readString(value.stepId)! } : {}),
+    ...(readNumber(value.stepSequence) !== null
+      ? { stepSequence: readNumber(value.stepSequence)! }
+      : {}),
+    ...(readString(value.toolCallId) ? { toolCallId: readString(value.toolCallId)! } : {}),
   };
 }
 
@@ -254,6 +337,9 @@ export function readComputerSessionState(value: unknown): ComputerSessionState |
     : null;
   const startedAt = readNumber(value.startedAt);
   const updatedAt = readNumber(value.updatedAt);
+  const stepCounter = readNumber(value.stepCounter) ?? 0;
+  const activeStep = readSessionStep(value.activeStep);
+  const lastCompletedStep = readSessionStep(value.lastCompletedStep);
   if (
     !sessionKey ||
     !backend ||
@@ -282,6 +368,9 @@ export function readComputerSessionState(value: unknown): ComputerSessionState |
       ? { context: readObservationContext(value.context)! }
       : {}),
     ...(readFrame(value.frame) ? { frame: readFrame(value.frame)! } : {}),
+    stepCounter,
+    ...(activeStep ? { activeStep } : {}),
+    ...(lastCompletedStep ? { lastCompletedStep } : {}),
     timeline,
     ...(readApprovalRequest(value.awaitingApproval)
       ? { awaitingApproval: readApprovalRequest(value.awaitingApproval)! }

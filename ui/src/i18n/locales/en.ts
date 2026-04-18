@@ -112,12 +112,12 @@ export const en: TranslationMap = {
         title: "Pane",
         surfacePicker: "Pane surface",
         close: "Close pane",
-        observerTitle: "Browser observer",
+        observerTitle: "Sandbox browser",
         viewRawText: "View raw text",
         noContent: "No content available",
         unavailable: "No pane surface available",
         surfaces: {
-          observer: "Browser",
+          observer: "Sandbox Browser",
           computer: "Computer",
           markdown: "Tool output",
         },
@@ -131,6 +131,10 @@ export const en: TranslationMap = {
           noTimeline: "No computer activity yet",
           targetApp: "Target app",
           display: "Display",
+          currentStep: "Current step",
+          lastStep: "Last step",
+          none: "None",
+          stepLabel: "Step {step}",
           pause: "Pause",
           resume: "Resume",
           stop: "Stop",
@@ -152,6 +156,13 @@ export const en: TranslationMap = {
             "awaiting-approval": "Awaiting approval",
             error: "Error",
             stopped: "Stopped",
+          },
+          stepPhase: {
+            observe: "Observe",
+            "observe-before-action": "Observe before action",
+            "awaiting-approval": "Approval",
+            action: "Action",
+            "observe-after-action": "Observe after action",
           },
         },
       },
@@ -1858,6 +1869,7 @@ export const en: TranslationMap = {
         pending: "pending approvals",
         target: "selected target",
         prompt: "default prompt",
+        files: "read/write/edit",
       },
       queue: {
         title: "Live approvals",
@@ -1916,7 +1928,8 @@ export const en: TranslationMap = {
       },
       access: {
         title: "Security presets",
-        subtitle: "Pick the safer guarded path or the full host path for day-to-day exec work.",
+        subtitle:
+          "Pick the safer guarded path or the direct gateway-host exec path for day-to-day exec work.",
         loadTitle: "Load security state",
         loadBody: "Load config and exec approvals to switch access modes safely.",
         active: "Active",
@@ -1937,15 +1950,21 @@ export const en: TranslationMap = {
         },
         fullAccess: {
           label: "Full",
-          title: "Host path",
-          badge: "Host",
+          title: "Gateway host exec",
+          badge: "Gateway",
           description:
-            "Use `security=full` and disable exec prompts by default. Operating-system permissions and other runtime guardrails still apply.",
+            "Set `tools.exec.host=gateway`, `security=full`, and `ask=off` for exec. Operating-system permissions and other runtime guardrails still apply.",
           points: {
-            host: "Commands keep the direct host path unless another tool adds its own checks.",
-            prompts: "Prompting is off by default, so runs continue without human review.",
-            scope: "Use this only for trusted operators or tightly controlled environments.",
+            host: "Exec runs on the gateway host instead of following `host=auto` sandbox routing.",
+            prompts: "Prompting is off by default, so exec runs continue without human review.",
+            scope:
+              "This changes exec defaults only. Read/write/edit boundaries still follow tool policy, `tools.fs.workspaceOnly`, and any agent-level fs overrides; `apply_patch` also keeps its own `tools.exec.applyPatch.workspaceOnly` guardrail.",
           },
+        },
+        files: {
+          mixed: "mixed",
+          workspaceOnly: "workspace-only",
+          unrestricted: "unrestricted",
         },
         custom: {
           label: "Custom",

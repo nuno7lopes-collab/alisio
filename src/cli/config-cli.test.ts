@@ -531,15 +531,6 @@ describe("config cli", () => {
       expect(mockReadConfigFileSnapshot).not.toHaveBeenCalled();
     });
 
-    it("keeps --json as a strict parsing alias", async () => {
-      await expect(
-        runConfigCommand(["config", "set", "gateway.auth.mode", "{bad", "--json"]),
-      ).rejects.toThrow("__exit__:1");
-
-      expect(mockWriteConfigFile).not.toHaveBeenCalled();
-      expect(mockReadConfigFileSnapshot).not.toHaveBeenCalled();
-    });
-
     it("rejects JSON5-only object syntax when strict parsing is enabled", async () => {
       await expect(
         runConfigCommand(["config", "set", "gateway.auth", "{mode:'token'}", "--strict-json"]),
@@ -566,7 +557,7 @@ describe("config cli", () => {
       expect(written.gateway?.auth).toEqual({ mode: "token" });
     });
 
-    it("shows --strict-json and keeps --json as a legacy alias in help", async () => {
+    it("shows --strict-json in help", async () => {
       const program = new Command();
       registerConfigCli(program);
 
@@ -576,7 +567,8 @@ describe("config cli", () => {
 
       expect(helpText).toContain("--strict-json");
       expect(helpText).toContain("--json");
-      expect(helpText).toContain("Legacy alias for --strict-json");
+      expect(helpText).toContain("Output dry-run validation result as JSON");
+      expect(helpText).not.toContain("Legacy alias for --strict-json");
       expect(helpText).toContain("Value (JSON/JSON5 or raw string)");
       expect(helpText).toContain("Strict JSON parsing (error instead of");
       expect(helpText).toContain("--ref-provider");

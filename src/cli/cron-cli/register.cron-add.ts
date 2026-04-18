@@ -1,4 +1,4 @@
-import type { Command } from "commander";
+import { Option, type Command } from "commander";
 import type { CronJob } from "../../cron/types.js";
 import { sanitizeAgentId } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
@@ -90,8 +90,12 @@ export function registerCronAddCommand(cron: Command) {
       .option("--timeout-seconds <n>", "Timeout seconds for agent jobs")
       .option("--light-context", "Use lightweight bootstrap context for agent jobs", false)
       .option("--announce", "Announce summary to a chat (subagent-style)", false)
-      .option("--deliver", "Deprecated (use --announce). Announces a summary to a chat.")
-      .option("--no-deliver", "Disable announce delivery and skip main-session summary")
+      .addOption(
+        new Option(
+          "--no-deliver",
+          "Disable announce delivery and skip main-session summary",
+        ).default(null),
+      )
       .option("--channel <channel>", `Delivery channel (${getCronChannelOptions()})`, "last")
       .option(
         "--to <dest>",
@@ -122,7 +126,7 @@ export function registerCronAddCommand(cron: Command) {
               ? sanitizeAgentId(opts.agent.trim())
               : undefined;
 
-          const hasAnnounce = Boolean(opts.announce) || opts.deliver === true;
+          const hasAnnounce = Boolean(opts.announce);
           const hasNoDeliver = opts.deliver === false;
           const deliveryFlagCount = [hasAnnounce, hasNoDeliver].filter(Boolean).length;
           if (deliveryFlagCount > 1) {
@@ -184,7 +188,7 @@ export function registerCronAddCommand(cron: Command) {
             throw new Error("Isolated/current/custom-session jobs require --message (agentTurn).");
           }
           if (
-            (opts.announce || typeof opts.deliver === "boolean") &&
+            (hasAnnounce || hasNoDeliver) &&
             (!isIsolatedLikeSessionTarget || payload.kind !== "agentTurn")
           ) {
             throw new Error("--announce/--no-deliver require a non-main agentTurn session target.");

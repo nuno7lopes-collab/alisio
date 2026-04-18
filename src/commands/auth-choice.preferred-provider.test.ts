@@ -1,33 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolveManifestProviderAuthChoice = vi.hoisted(() => vi.fn());
-const resolveManifestDeprecatedProviderAuthChoice = vi.hoisted(() => vi.fn());
-const resolveManifestProviderAuthChoices = vi.hoisted(() => vi.fn(() => []));
 const resolveProviderPluginChoice = vi.hoisted(() => vi.fn());
 const resolvePluginProviders = vi.hoisted(() => vi.fn(() => []));
 
 vi.mock("../plugins/provider-auth-choices.js", () => ({
   resolveManifestProviderAuthChoice,
-  resolveManifestDeprecatedProviderAuthChoice,
-  resolveManifestProviderAuthChoices,
 }));
 
-vi.mock("../plugins/provider-wizard.js", () => ({
+vi.mock("../plugins/provider-auth-choice.runtime.js", () => ({
   resolveProviderPluginChoice,
-}));
-
-vi.mock("../plugins/providers.runtime.js", () => ({
   resolvePluginProviders,
 }));
 
-import { resolvePreferredProviderForAuthChoice } from "./auth-choice.preferred-provider.js";
+import { resolvePreferredProviderForAuthChoice } from "../plugins/provider-auth-choice-preference.js";
 
 describe("resolvePreferredProviderForAuthChoice", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resolveManifestProviderAuthChoice.mockReturnValue(undefined);
-    resolveManifestDeprecatedProviderAuthChoice.mockReturnValue(undefined);
-    resolveManifestProviderAuthChoices.mockReturnValue([]);
     resolvePluginProviders.mockReturnValue([]);
     resolveProviderPluginChoice.mockReturnValue(null);
   });
@@ -47,44 +38,28 @@ describe("resolvePreferredProviderForAuthChoice", () => {
     expect(resolvePluginProviders).not.toHaveBeenCalled();
   });
 
-  it("normalizes legacy auth choices before plugin lookup", async () => {
-    resolveManifestDeprecatedProviderAuthChoice.mockReturnValue({
-      choiceId: "anthropic-cli",
-      choiceLabel: "Anthropic Claude CLI",
-    });
-    resolveManifestProviderAuthChoice.mockReturnValue({
-      pluginId: "anthropic",
-      providerId: "anthropic",
-      methodId: "cli",
-      choiceId: "anthropic-cli",
-      choiceLabel: "Anthropic Claude CLI",
-    });
-
-    await expect(resolvePreferredProviderForAuthChoice({ choice: "claude-cli" })).resolves.toBe(
-      "anthropic",
-    );
-    expect(resolveProviderPluginChoice).not.toHaveBeenCalled();
-    expect(resolvePluginProviders).not.toHaveBeenCalled();
-  });
-
-  it("passes explicit env through legacy auth normalization", async () => {
+  it("falls back to runtime plugin lookup when manifest metadata is absent", async () => {
     const env = { ALISIO_AUTH_CHOICE_TEST: "1" } as NodeJS.ProcessEnv;
-    resolveManifestDeprecatedProviderAuthChoice.mockReturnValue({
-      choiceId: "anthropic-cli",
-      choiceLabel: "Anthropic Claude CLI",
-    });
-    resolveManifestProviderAuthChoice.mockReturnValue({
-      pluginId: "anthropic",
-      providerId: "anthropic",
-      methodId: "cli",
-      choiceId: "anthropic-cli",
-      choiceLabel: "Anthropic Claude CLI",
-    });
+    const providers = [{ id: "demo-provider" }];
+    resolvePluginProviders.mockReturnValue(providers as never);
+    resolveProviderPluginChoice.mockReturnValue({
+      provider: { id: "demo-provider" },
+    } as never);
 
     await expect(
-      resolvePreferredProviderForAuthChoice({ choice: "claude-cli", env }),
-    ).resolves.toBe("anthropic");
-    expect(resolveManifestDeprecatedProviderAuthChoice).toHaveBeenCalledWith("claude-cli", { env });
+      resolvePreferredProviderForAuthChoice({ choice: "demo-provider-api-key", env }),
+    ).resolves.toBe("demo-provider");
+    expect(resolvePluginProviders).toHaveBeenCalledWith({
+      config: undefined,
+      workspaceDir: undefined,
+      env,
+      bundledProviderAllowlistCompat: true,
+      bundledProviderVitestCompat: true,
+    });
+    expect(resolveProviderPluginChoice).toHaveBeenCalledWith({
+      providers,
+      choice: "demo-provider-api-key",
+    });
   });
 
   it("uses manifest metadata for plugin-owned choices", async () => {
@@ -100,5 +75,11 @@ describe("resolvePreferredProviderForAuthChoice", () => {
       "chutes",
     );
     expect(resolvePluginProviders).not.toHaveBeenCalled();
+  });
+
+  it("maps custom-api-key to the custom provider when no plugin choice matches", async () => {
+    await expect(resolvePreferredProviderForAuthChoice({ choice: "custom-api-key" })).resolves.toBe(
+      "custom",
+    );
   });
 });

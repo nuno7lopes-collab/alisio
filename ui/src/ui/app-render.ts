@@ -147,6 +147,7 @@ import {
   loadTasksOverview,
   resolveTaskProposal,
   saveTaskProposal,
+  scheduleTasksOverviewRefresh,
   selectTask,
 } from "./controllers/tasks.ts";
 import { icons } from "./icons.ts";
@@ -528,151 +529,158 @@ export function renderApp(state: AppViewState) {
       <kbd class="topbar-search__kbd">⌘K</kbd>
     </button>
   `;
-  const setupView = renderSetup({
-    connected: state.connected,
-    lastError: state.lastError,
-    startupLoading: state.alisioStartupLoading,
-    startupError: state.alisioStartupError,
-    startupBootstrap: state.alisioStartupBootstrap,
-    bootstrap: state.alisioBootstrap,
-    requestedStep: state.setupStep,
-    accountLoading: state.alisioAccountLoading,
-    accountError: state.alisioAccountError,
-    accountNotice: state.alisioAccountNotice,
-    account: state.alisioAccount,
-    authEmail: state.alisioAuthEmail,
-    authPendingEmail: state.alisioAuthPendingEmail,
-    authCode: state.alisioAuthCode,
-    authStage: state.alisioAuthStage,
-    passwordResetRequired: state.alisioPasswordResetRequired,
-    termsAccepted: state.alisioTermsAccepted,
-    marketingOptIn: state.alisioMarketingOptIn,
-    birthdate: state.alisioBirthdate,
-    onAuthEmailChange: (value) => {
-      state.alisioAccountError = null;
-      state.alisioAccountNotice = null;
-      state.alisioAuthEmail = value;
-    },
-    onAuthCodeChange: (value) => {
-      state.alisioAccountError = null;
-      state.alisioAccountNotice = null;
-      state.alisioAuthCode = value;
-    },
-    onAuthStageChange: (value) => {
-      state.alisioAccountError = null;
-      state.alisioAccountNotice = null;
-      state.alisioAuthStage = value;
-      if (value === "entry") {
-        state.alisioAuthCode = "";
-        state.alisioAuthPendingEmail = state.alisioAuthEmail;
-      }
-    },
-    onTermsAcceptedChange: (value) => {
-      state.alisioTermsAccepted = value;
-      if (state.alisioAccount) {
+  const renderSetupView = () =>
+    renderSetup({
+      connected: state.connected,
+      lastError: state.lastError,
+      startupLoading: state.alisioStartupLoading,
+      startupError: state.alisioStartupError,
+      startupBootstrap: state.alisioStartupBootstrap,
+      bootstrap: state.alisioBootstrap,
+      requestedStep: state.setupStep,
+      accountLoading: state.alisioAccountLoading,
+      accountError: state.alisioAccountError,
+      accountNotice: state.alisioAccountNotice,
+      account: state.alisioAccount,
+      authEmail: state.alisioAuthEmail,
+      authPendingEmail: state.alisioAuthPendingEmail,
+      authCode: state.alisioAuthCode,
+      authStage: state.alisioAuthStage,
+      passwordResetRequired: state.alisioPasswordResetRequired,
+      termsAccepted: state.alisioTermsAccepted,
+      marketingOptIn: state.alisioMarketingOptIn,
+      birthdate: state.alisioBirthdate,
+      onAuthEmailChange: (value) => {
+        state.alisioAccountError = null;
+        state.alisioAccountNotice = null;
+        state.alisioAuthEmail = value;
+      },
+      onAuthCodeChange: (value) => {
+        state.alisioAccountError = null;
+        state.alisioAccountNotice = null;
+        state.alisioAuthCode = value;
+      },
+      onAuthStageChange: (value) => {
+        state.alisioAccountError = null;
+        state.alisioAccountNotice = null;
+        state.alisioAuthStage = value;
+        if (value === "entry") {
+          state.alisioAuthCode = "";
+          state.alisioAuthPendingEmail = state.alisioAuthEmail;
+        }
+      },
+      onTermsAcceptedChange: (value) => {
+        state.alisioTermsAccepted = value;
+        if (state.alisioAccount) {
+          state.alisioAccount = {
+            ...state.alisioAccount,
+            profile: {
+              ...state.alisioAccount.profile,
+              termsAcceptedAt: value ? new Date().toISOString() : undefined,
+            },
+          };
+        }
+      },
+      onMarketingOptInChange: (value) => {
+        state.alisioMarketingOptIn = value;
+        if (state.alisioAccount) {
+          state.alisioAccount = {
+            ...state.alisioAccount,
+            profile: {
+              ...state.alisioAccount.profile,
+              marketingOptIn: value,
+            },
+          };
+        }
+      },
+      onBirthdateChange: (value) => {
+        state.alisioBirthdate = value;
+        if (state.alisioAccount) {
+          state.alisioAccount = {
+            ...state.alisioAccount,
+            profile: {
+              ...state.alisioAccount.profile,
+              birthdate: value || undefined,
+            },
+          };
+        }
+      },
+      onConnect: () => state.connect(),
+      onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
+      onOpenSettingsAi: () => {
+        state.setTab("models" as import("./navigation.ts").Tab);
+      },
+      onAccountFieldChange: (field, value) => {
+        state.alisioAccountError = null;
+        state.alisioAccountNotice = null;
+        if (!state.alisioAccount) {
+          return;
+        }
         state.alisioAccount = {
           ...state.alisioAccount,
           profile: {
             ...state.alisioAccount.profile,
-            termsAcceptedAt: value ? new Date().toISOString() : undefined,
+            [field]: value,
           },
         };
-      }
-    },
-    onMarketingOptInChange: (value) => {
-      state.alisioMarketingOptIn = value;
-      if (state.alisioAccount) {
-        state.alisioAccount = {
-          ...state.alisioAccount,
-          profile: {
-            ...state.alisioAccount.profile,
-            marketingOptIn: value,
-          },
-        };
-      }
-    },
-    onBirthdateChange: (value) => {
-      state.alisioBirthdate = value;
-      if (state.alisioAccount) {
-        state.alisioAccount = {
-          ...state.alisioAccount,
-          profile: {
-            ...state.alisioAccount.profile,
-            birthdate: value || undefined,
-          },
-        };
-      }
-    },
-    onConnect: () => state.connect(),
-    onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
-    onOpenSettingsAi: () => {
-      state.setTab("models" as import("./navigation.ts").Tab);
-    },
-    onAccountFieldChange: (field, value) => {
-      state.alisioAccountError = null;
-      state.alisioAccountNotice = null;
-      if (!state.alisioAccount) {
-        return;
-      }
-      state.alisioAccount = {
-        ...state.alisioAccount,
-        profile: {
-          ...state.alisioAccount.profile,
-          [field]: value,
-        },
-      };
-    },
-    onBeginEmailAuth: () => {
-      void beginAlisioAccountEmailAuth(state);
-    },
-    onVerifyEmailAuth: () => {
-      void verifyAlisioAccountEmailAuth(state);
-    },
-    onSignInWithPassword: (email, password) => {
-      void signInAlisioAccountWithPassword(state, { email, password });
-    },
-    onSignUpWithPassword: (email, password) => {
-      void signUpAlisioAccountWithPassword(state, { email, password });
-    },
-    onRequestRecoveryEmail: () => {
-      void requestAlisioRecoveryEmail(state);
-    },
-    onSaveAccount: () => {
-      const profile = state.alisioAccount?.profile;
-      if (!profile) {
-        return;
-      }
-      void saveAlisioAccount(state, {
-        username: profile.username,
-        displayName: profile.displayName,
-        email: profile.email,
-        agentName: profile.agentName,
-        avatarLabel: profile.avatarLabel,
-        avatarUrl: profile.avatarUrl,
-        termsAcceptedAt: state.alisioTermsAccepted
-          ? (profile.termsAcceptedAt ?? new Date().toISOString())
-          : "",
-        marketingOptIn: state.alisioMarketingOptIn,
-        birthdate: state.alisioBirthdate,
-      });
-    },
-    onUpdatePassword: (password) => {
-      void updateAlisioAccountPassword(state, { password });
-    },
-  });
+      },
+      onBeginEmailAuth: () => {
+        void beginAlisioAccountEmailAuth(state);
+      },
+      onVerifyEmailAuth: () => {
+        void verifyAlisioAccountEmailAuth(state);
+      },
+      onSignInWithPassword: (email, password) => {
+        void signInAlisioAccountWithPassword(state, { email, password });
+      },
+      onSignUpWithPassword: (email, password) => {
+        void signUpAlisioAccountWithPassword(state, { email, password });
+      },
+      onRequestRecoveryEmail: () => {
+        void requestAlisioRecoveryEmail(state);
+      },
+      onSaveAccount: () => {
+        const profile = state.alisioAccount?.profile;
+        if (!profile) {
+          return;
+        }
+        void saveAlisioAccount(state, {
+          username: profile.username,
+          displayName: profile.displayName,
+          email: profile.email,
+          agentName: profile.agentName,
+          avatarLabel: profile.avatarLabel,
+          avatarUrl: profile.avatarUrl,
+          termsAcceptedAt: state.alisioTermsAccepted
+            ? (profile.termsAcceptedAt ?? new Date().toISOString())
+            : "",
+          marketingOptIn: state.alisioMarketingOptIn,
+          birthdate: state.alisioBirthdate,
+        });
+      },
+      onUpdatePassword: (password) => {
+        void updateAlisioAccountPassword(state, { password });
+      },
+    });
 
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const activeTab = publicTabFor(state.tab);
-  const chatSecurityDiagnostics =
-    state.securityAccessDiagnostics ??
-    resolveSecurityAccessDiagnostics({
-      configForm: state.configForm ?? state.configSnapshot?.config ?? null,
-      execApprovalsForm: state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? null,
-    });
-  const managementModelCatalog =
-    state.modelManagementCatalog.length > 0 ? state.modelManagementCatalog : state.chatModelCatalog;
-  const modelsPageModelOptions = buildChatModelOptions(managementModelCatalog);
   const isChat = activeTab === "chat";
+  const chatSecurityDiagnostics = isChat
+    ? (state.securityAccessDiagnostics ??
+      resolveSecurityAccessDiagnostics({
+        configForm: state.configForm ?? state.configSnapshot?.config ?? null,
+        execApprovalsForm: state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? null,
+      }))
+    : null;
+  const managementModelCatalog =
+    activeTab === "models"
+      ? state.modelManagementCatalog.length > 0
+        ? state.modelManagementCatalog
+        : state.chatModelCatalog
+      : [];
+  const modelsPageModelOptions =
+    activeTab === "models" ? buildChatModelOptions(managementModelCatalog) : [];
   const tabsWithLocalTransportError = new Set(["chat", "channels", "organization", "capabilities"]);
   const showGlobalErrorCallout = Boolean(
     state.lastError && !tabsWithLocalTransportError.has(activeTab),
@@ -725,12 +733,15 @@ export function renderApp(state: AppViewState) {
   const chatRuntimeSetupHint =
     (state as AppViewState & { chatRuntimeSetupHint?: ChatRuntimeSetupHint | null })
       .chatRuntimeSetupHint ?? null;
-  const resolvedMemoryAgentId = resolvePreferredMemoryAgentId({
-    agentsList: state.agentsList,
-    memorySelectedAgentId: state.memorySelectedAgentId,
-    sessionKey: state.sessionKey,
-    assistantAgentId: state.assistantAgentId,
-  });
+  const resolvedMemoryAgentId =
+    activeTab === "memory"
+      ? resolvePreferredMemoryAgentId({
+          agentsList: state.agentsList,
+          memorySelectedAgentId: state.memorySelectedAgentId,
+          sessionKey: state.sessionKey,
+          assistantAgentId: state.assistantAgentId,
+        })
+      : null;
   const refreshMemory = () => {
     void (async () => {
       await loadAgents(state, { force: true });
@@ -771,7 +782,7 @@ export function renderApp(state: AppViewState) {
             <span class="setup-frame__meta-pill">${connectionLabel}</span>
           </div>
         </header>
-        <main class="setup-frame__body">${setupView}</main>
+        <main class="setup-frame__body">${renderSetupView()}</main>
       </section>
     `;
   }
@@ -1455,15 +1466,15 @@ export function renderApp(state: AppViewState) {
               },
               onQueryChange: (value) => {
                 state.tasksQuery = value;
-                void loadTasksOverview(state, { quiet: true });
+                scheduleTasksOverviewRefresh(state, { quiet: true });
               },
               onRuntimeFilterChange: (value) => {
                 state.tasksRuntimeFilter = value;
-                void loadTasksOverview(state, { quiet: true });
+                scheduleTasksOverviewRefresh(state, { quiet: true });
               },
               onStatusFilterChange: (value) => {
                 state.tasksStatusFilter = value;
-                void loadTasksOverview(state, { quiet: true });
+                scheduleTasksOverviewRefresh(state, { quiet: true });
               },
               onSelectTask: (taskId) => {
                 void selectTask(state, taskId);

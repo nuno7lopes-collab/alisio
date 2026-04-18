@@ -7,7 +7,6 @@ vi.mock("./manifest-registry.js", () => ({
 }));
 
 import {
-  resolveManifestDeprecatedProviderAuthChoice,
   resolveManifestProviderAuthChoice,
   resolveManifestProviderAuthChoices,
   resolveManifestProviderOnboardAuthFlags,
@@ -33,14 +32,10 @@ function setManifestPlugins(plugins: Array<Record<string, unknown>>) {
 function expectResolvedProviderAuthChoices(params: {
   expectedFlattened: Array<Record<string, unknown>>;
   resolvedProviderIds?: Record<string, string | undefined>;
-  deprecatedChoiceIds?: Record<string, string | undefined>;
 }) {
   expect(resolveManifestProviderAuthChoices()).toEqual(params.expectedFlattened);
   Object.entries(params.resolvedProviderIds ?? {}).forEach(([choiceId, providerId]) => {
     expect(resolveManifestProviderAuthChoice(choiceId)?.providerId).toBe(providerId);
-  });
-  Object.entries(params.deprecatedChoiceIds ?? {}).forEach(([choiceId, expectedChoiceId]) => {
-    expect(resolveManifestDeprecatedProviderAuthChoice(choiceId)?.choiceId).toBe(expectedChoiceId);
   });
 }
 
@@ -84,77 +79,40 @@ describe("provider auth choice manifest helpers", () => {
     });
   });
 
-  it.each([
-    {
-      name: "deduplicates flag metadata by option key + flag",
-      plugins: [
-        createManifestPlugin("moonshot", [
-          createProviderAuthChoice({
-            provider: "moonshot",
-            method: "api-key",
-            choiceId: "moonshot-api-key",
-            choiceLabel: "Kimi API key (.ai)",
-            optionKey: "moonshotApiKey",
-            cliFlag: "--moonshot-api-key",
-            cliOption: "--moonshot-api-key <key>",
-            cliDescription: "Moonshot API key",
-          }),
-          createProviderAuthChoice({
-            provider: "moonshot",
-            method: "api-key-cn",
-            choiceId: "moonshot-api-key-cn",
-            choiceLabel: "Kimi API key (.cn)",
-            optionKey: "moonshotApiKey",
-            cliFlag: "--moonshot-api-key",
-            cliOption: "--moonshot-api-key <key>",
-            cliDescription: "Moonshot API key",
-          }),
-        ]),
-      ],
-      run: () =>
-        expect(resolveManifestProviderOnboardAuthFlags()).toEqual([
-          {
-            optionKey: "moonshotApiKey",
-            authChoice: "moonshot-api-key",
-            cliFlag: "--moonshot-api-key",
-            cliOption: "--moonshot-api-key <key>",
-            description: "Moonshot API key",
-          },
-        ]),
-    },
-    {
-      name: "resolves deprecated auth-choice aliases through manifest metadata",
-      plugins: [
-        createManifestPlugin("minimax", [
-          createProviderAuthChoice({
-            provider: "minimax",
-            method: "api-global",
-            choiceId: "minimax-global-api",
-            deprecatedChoiceIds: ["minimax", "minimax-api"],
-          }),
-        ]),
-      ],
-      run: () =>
-        expectResolvedProviderAuthChoices({
-          expectedFlattened: [
-            {
-              pluginId: "minimax",
-              providerId: "minimax",
-              methodId: "api-global",
-              choiceId: "minimax-global-api",
-              choiceLabel: "minimax-global-api",
-              deprecatedChoiceIds: ["minimax", "minimax-api"],
-            },
-          ],
-          deprecatedChoiceIds: {
-            minimax: "minimax-global-api",
-            "minimax-api": "minimax-global-api",
-            openai: undefined,
-          },
+  it("deduplicates flag metadata by option key + flag", () => {
+    setManifestPlugins([
+      createManifestPlugin("moonshot", [
+        createProviderAuthChoice({
+          provider: "moonshot",
+          method: "api-key",
+          choiceId: "moonshot-api-key",
+          choiceLabel: "Kimi API key (.ai)",
+          optionKey: "moonshotApiKey",
+          cliFlag: "--moonshot-api-key",
+          cliOption: "--moonshot-api-key <key>",
+          cliDescription: "Moonshot API key",
         }),
-    },
-  ])("$name", ({ plugins, run }) => {
-    setManifestPlugins(plugins);
-    run();
+        createProviderAuthChoice({
+          provider: "moonshot",
+          method: "api-key-cn",
+          choiceId: "moonshot-api-key-cn",
+          choiceLabel: "Kimi API key (.cn)",
+          optionKey: "moonshotApiKey",
+          cliFlag: "--moonshot-api-key",
+          cliOption: "--moonshot-api-key <key>",
+          cliDescription: "Moonshot API key",
+        }),
+      ]),
+    ]);
+
+    expect(resolveManifestProviderOnboardAuthFlags()).toEqual([
+      {
+        optionKey: "moonshotApiKey",
+        authChoice: "moonshot-api-key",
+        cliFlag: "--moonshot-api-key",
+        cliOption: "--moonshot-api-key <key>",
+        description: "Moonshot API key",
+      },
+    ]);
   });
 });

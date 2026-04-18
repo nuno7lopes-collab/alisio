@@ -498,7 +498,7 @@ describe("rewriteTranscriptEntriesInSessionFile", () => {
         sessionFile,
       });
       expect(acquireSessionWriteLockReleaseMock).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith({ sessionFile });
+      expect(listener).toHaveBeenCalledWith({ sessionFile, phase: "transcript" });
 
       const rewrittenToolResult = getBranchMessages(sessionManager)[1] as Extract<
         AgentMessage,
@@ -540,7 +540,7 @@ describe("restoreTranscriptLeafInSessionFile", () => {
         sessionFile,
       });
       expect(acquireSessionWriteLockReleaseMock).toHaveBeenCalledTimes(1);
-      expect(listener).toHaveBeenCalledWith({ sessionFile });
+      expect(listener).toHaveBeenCalledWith({ sessionFile, phase: "transcript" });
       expect(getBranchMessages(sessionManager).map((message) => message.role)).toEqual([
         "user",
         "assistant",

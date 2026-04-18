@@ -15,6 +15,7 @@ import {
 const SILENT_REPLY_PATTERN = /^\s*NO_REPLY\s*$/;
 const PENDING_CHAT_SEND_STALE_MS = 15_000;
 const USER_TURN_BURST_DEDUPE_WINDOW_MS = 30_000;
+const RECENT_LOCAL_USER_TURN_PRESERVE_MS = 60_000;
 
 function isSilentReplyStream(text: string): boolean {
   return SILENT_REPLY_PATTERN.test(text);
@@ -215,6 +216,7 @@ function extractComparableMessageText(message: unknown): string {
     .map((line) => line.trim())
     .filter((line) => !/^attachments?:\s/i.test(line))
     .join("\n")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -509,6 +511,34 @@ function isInvisibleAssistantRetryError(message: unknown): boolean {
   return stopReason === "error" && errorMessage.length > 0;
 }
 
+function resolveInvisibleAssistantRetryErrorMessage(message: unknown): string | null {
+  if (!isInvisibleAssistantRetryError(message)) {
+    return null;
+  }
+  const entry = message as Record<string, unknown>;
+  const errorMessage = typeof entry.errorMessage === "string" ? entry.errorMessage.trim() : "";
+  return errorMessage || null;
+}
+
+function resolveLatestHistoryErrorMessage(messages: unknown[]): string | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    const role = normalizeComparableRole(message);
+    if (role === "user") {
+      return null;
+    }
+    if (role !== "assistant") {
+      continue;
+    }
+    const invisibleError = resolveInvisibleAssistantRetryErrorMessage(message);
+    if (invisibleError) {
+      return invisibleError;
+    }
+    return null;
+  }
+  return null;
+}
+
 function areSemanticallyEquivalentMessages(left: unknown, right: unknown): boolean {
   const leftRole = normalizeComparableRole(left);
   const rightRole = normalizeComparableRole(right);
@@ -733,6 +763,38 @@ function mergeLocalPendingMessagesIntoHistory(
   }
 
   return dedupeAdjacentChatMessages(merged);
+}
+
+function extractRecentUnmatchedLocalUserMessages(
+  localMessages: unknown[],
+  historyMessages: unknown[],
+): unknown[] {
+  if (localMessages.length === 0) {
+    return [];
+  }
+  const referenceTail = localMessages.slice(-24);
+  const referenceTimestamp = Math.max(
+    0,
+    ...referenceTail.map((message) => getMessageTimestamp(message) ?? 0),
+    ...historyMessages.slice(-24).map((message) => getMessageTimestamp(message) ?? 0),
+  );
+
+  return localMessages.filter((message) => {
+    if (normalizeComparableRole(message) !== "user") {
+      return false;
+    }
+    if (findEquivalentMessageIndex(historyMessages, message) >= 0) {
+      return false;
+    }
+    if (resolveComparableStableId(message)) {
+      return true;
+    }
+    const timestamp = getMessageTimestamp(message);
+    if (timestamp == null) {
+      return false;
+    }
+    return referenceTimestamp - timestamp <= RECENT_LOCAL_USER_TURN_PRESERVE_MS;
+  });
 }
 
 function appendChatMessageIfDistinct(state: ChatState, message: unknown): void {
@@ -1057,6 +1119,7 @@ export async function loadChatHistory(
       return;
     }
     const messages = Array.isArray(res.messages) ? res.messages : [];
+    const latestHistoryErrorMessage = resolveLatestHistoryErrorMessage(messages);
     const historyMessages = dedupeAdjacentChatMessages(
       collapseInvisibleRetryHistoryArtifacts(
         messages.filter((message) => !isAssistantSilentReply(message)),
@@ -1065,10 +1128,23 @@ export async function loadChatHistory(
     const shouldMergeLocalPendingMessages = Boolean(
       opts?.preserveEphemeral || state.chatRunId || state.chatFinalizing,
     );
+    const recentUnmatchedUserTurns = shouldMergeLocalPendingMessages
+      ? []
+      : extractRecentUnmatchedLocalUserMessages(state.chatMessages, historyMessages);
     state.chatMessages = shouldMergeLocalPendingMessages
       ? mergeLocalPendingMessagesIntoHistory(state.chatMessages, historyMessages)
-      : historyMessages;
+      : recentUnmatchedUserTurns.length > 0
+        ? dedupeAdjacentChatMessages(
+            mergeUnmatchedMessageSlices(historyMessages, recentUnmatchedUserTurns),
+          )
+        : historyMessages;
     state.chatThinkingLevel = res.thinkingLevel ?? null;
+    state.chatRuntimeSetupHint = latestHistoryErrorMessage
+      ? resolveChatRuntimeSetupHint(latestHistoryErrorMessage)
+      : null;
+    state.lastError = latestHistoryErrorMessage
+      ? (state.chatRuntimeSetupHint?.message ?? formatConnectError(latestHistoryErrorMessage))
+      : null;
     rememberChatHistorySnapshot(state, {
       sessionKey: requestState.sessionKey,
       messages: state.chatMessages,

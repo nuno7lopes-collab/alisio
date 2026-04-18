@@ -42,7 +42,6 @@ Local trust:
 ## Devices + transports
 
 - [Devices overview](/nodes)
-- [Bridge protocol (legacy nodes)](/gateway/bridge-protocol)
 - [Device runbook: iOS](/platforms/ios)
 - [Device runbook: Android](/platforms/android)
 

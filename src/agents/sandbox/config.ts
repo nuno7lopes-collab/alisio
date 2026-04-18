@@ -149,7 +149,9 @@ export function resolveSandboxBrowserConfig(params: {
     noVncPort:
       agentBrowser?.noVncPort ?? globalBrowser?.noVncPort ?? DEFAULT_SANDBOX_BROWSER_NOVNC_PORT,
     headless: agentBrowser?.headless ?? globalBrowser?.headless ?? false,
-    enableNoVnc: agentBrowser?.enableNoVnc ?? globalBrowser?.enableNoVnc ?? true,
+    // Visible interaction now defaults to the native Computer lane on desktop.
+    // Keep noVNC opt-in for isolated sandbox debugging only.
+    enableNoVnc: agentBrowser?.enableNoVnc ?? globalBrowser?.enableNoVnc ?? false,
     allowHostControl: agentBrowser?.allowHostControl ?? globalBrowser?.allowHostControl ?? false,
     autoStart: agentBrowser?.autoStart ?? globalBrowser?.autoStart ?? true,
     autoStartTimeoutMs:

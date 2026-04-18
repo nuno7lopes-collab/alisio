@@ -9,6 +9,13 @@ import {
   listChannelSetupPlugins,
 } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
+import type {
+  ChannelSetupStatus,
+  ChannelSetupConfiguredResult,
+  ChannelSetupResult,
+  ChannelOnboardingPostWriteHook,
+  SetupChannelsOptions,
+} from "../channels/plugins/setup-wizard-types.js";
 import {
   listProductChatChannels,
   shouldExposeChannelInProductSurface,
@@ -23,13 +30,6 @@ import {
   loadChannelSetupPluginRegistrySnapshotForChannel,
 } from "../commands/channel-setup/plugin-install.js";
 import { resolveChannelSetupWizardAdapterForPlugin } from "../commands/channel-setup/registry.js";
-import type {
-  ChannelSetupStatus,
-  ChannelSetupConfiguredResult,
-  ChannelSetupResult,
-  ChannelOnboardingPostWriteHook,
-  SetupChannelsOptions,
-} from "../commands/channel-setup/types.js";
 import type { ChannelChoice } from "../commands/onboard-types.js";
 import { isChannelConfigured } from "../config/channel-configured.js";
 import type { AlisioConfig } from "../config/config.js";

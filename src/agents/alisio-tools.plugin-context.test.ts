@@ -108,9 +108,11 @@ describe("createAlisioTools plugin context", () => {
   });
 
   it("forwards browser session wiring to plugin tool context", () => {
+    const resolveSandboxBrowserBridgeUrl = vi.fn(async () => "http://127.0.0.1:9999");
     createAlisioTools({
       config: {} as never,
       sandboxBrowserBridgeUrl: "http://127.0.0.1:9999",
+      resolveSandboxBrowserBridgeUrl,
       allowHostBrowserControl: true,
       preferSandbox: true,
     });
@@ -120,6 +122,7 @@ describe("createAlisioTools plugin context", () => {
         context: expect.objectContaining({
           browser: {
             sandboxBridgeUrl: "http://127.0.0.1:9999",
+            resolveSandboxBridgeUrl: resolveSandboxBrowserBridgeUrl,
             allowHostControl: true,
             preferSandbox: true,
           },

@@ -16,6 +16,7 @@ export default definePluginEntry({
     api.registerTool(((ctx: AlisioPluginToolContext) =>
       createBrowserTool({
         sandboxBridgeUrl: ctx.browser?.sandboxBridgeUrl,
+        resolveSandboxBridgeUrl: ctx.browser?.resolveSandboxBridgeUrl,
         allowHostControl: ctx.browser?.allowHostControl,
         preferSandbox: ctx.browser?.preferSandbox,
         agentSessionKey: ctx.sessionKey,

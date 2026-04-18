@@ -20,11 +20,15 @@ import {
   logPluginApprovalResolved,
   rememberPluginApprovalResolved,
 } from "./approval-audit.js";
+import {
+  APPROVAL_NOT_FOUND_DETAILS,
+  getPendingApprovalSnapshotOrRespond,
+  parseApprovalDecision,
+  parseApprovalId,
+  resolvePendingApprovalIdOrRespond,
+  waitForApprovalDecision,
+} from "./approval.handlers.shared.js";
 import type { GatewayRequestHandlers } from "./types.js";
-
-const APPROVAL_NOT_FOUND_DETAILS = {
-  reason: ErrorCodes.APPROVAL_NOT_FOUND,
-} as const;
 
 export function createPluginApprovalHandlers(
   manager: ExecApprovalManager<PluginApprovalRequestPayload>,
@@ -177,33 +181,11 @@ export function createPluginApprovalHandlers(
     },
 
     "plugin.approval.waitDecision": async ({ params, respond }) => {
-      const p = params as { id?: string };
-      const id = typeof p.id === "string" ? p.id.trim() : "";
+      const id = parseApprovalId(params as { id?: string }, respond);
       if (!id) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "id is required"));
         return;
       }
-      const decisionPromise = manager.awaitDecision(id);
-      if (!decisionPromise) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "approval expired or not found"),
-        );
-        return;
-      }
-      const snapshot = manager.getSnapshot(id);
-      const decision = await decisionPromise;
-      respond(
-        true,
-        {
-          id,
-          decision,
-          createdAtMs: snapshot?.createdAtMs,
-          expiresAtMs: snapshot?.expiresAtMs,
-        },
-        undefined,
-      );
+      await waitForApprovalDecision(manager, id, respond);
     },
 
     "plugin.approval.resolve": async ({ params, respond, client, context }) => {
@@ -221,32 +203,18 @@ export function createPluginApprovalHandlers(
         return;
       }
       const p = params as { id: string; decision: string };
-      const decision = p.decision as ExecApprovalDecision;
-      if (decision !== "allow-once" && decision !== "allow-always" && decision !== "deny") {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid decision"));
+      const decision = parseApprovalDecision(p.decision, respond);
+      if (!decision) {
         return;
       }
-      const resolvedId = manager.lookupPendingId(p.id);
-      if (resolvedId.kind === "none" || resolvedId.kind === "ambiguous") {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "unknown or expired approval id", {
-            details: APPROVAL_NOT_FOUND_DETAILS,
-          }),
-        );
+      const approvalId = resolvePendingApprovalIdOrRespond(manager, p.id, respond);
+      if (!approvalId) {
         return;
       }
-      const approvalId = resolvedId.id;
-      const snapshot = manager.getSnapshot(approvalId);
-      if (!snapshot || snapshot.resolvedAtMs !== undefined) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "unknown or expired approval id", {
-            details: APPROVAL_NOT_FOUND_DETAILS,
-          }),
-        );
+      const snapshot = getPendingApprovalSnapshotOrRespond(manager, approvalId, respond, {
+        requireUnresolved: true,
+      });
+      if (!snapshot) {
         return;
       }
       const resolvedBy = client?.connect?.client?.displayName ?? client?.connect?.client?.id;

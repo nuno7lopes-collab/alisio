@@ -296,7 +296,7 @@ describe("chat view", () => {
           securityDiagnostics: {
             mode: "custom",
             effectivePromptAsk: "on-miss",
-            configDefaults: { security: "allowlist", ask: "on-miss" },
+            configDefaults: { host: "gateway", security: "allowlist", ask: "on-miss" },
             approvalDefaults: {
               security: "allowlist",
               ask: "on-miss",
@@ -682,7 +682,7 @@ describe("chat view", () => {
       container.querySelectorAll<HTMLButtonElement>(".browser-pane__switch button"),
     );
     expect(switchButtons.map((button) => button.textContent?.trim())).toEqual([
-      "Browser",
+      "Sandbox Browser",
       "Tool output",
     ]);
 
@@ -745,8 +745,25 @@ describe("chat view", () => {
                 summary: "open Finder awaiting approval",
                 status: "awaiting-approval",
                 actionType: "app_focus",
+                stepSequence: 3,
+                stepId: "step-3",
+                toolCallId: "tool-computer-1",
+                stepPhase: "awaiting-approval",
               },
             ],
+            stepCounter: 3,
+            activeStep: {
+              id: "step-3",
+              sequence: 3,
+              toolCallId: "tool-computer-1",
+              kind: "action",
+              phase: "awaiting-approval",
+              status: "awaiting-approval",
+              summary: "focus app Finder",
+              actionType: "app_focus",
+              startedAt: 9,
+              updatedAt: 10,
+            },
             awaitingApproval: {
               id: "approval-1",
               createdAt: 10,
@@ -756,6 +773,9 @@ describe("chat view", () => {
               sensitive: true,
               appName: "Finder",
               appBundleId: "com.apple.finder",
+              stepId: "step-3",
+              stepSequence: 3,
+              toolCallId: "tool-computer-1",
             },
             startedAt: 1,
             updatedAt: 10,
@@ -786,7 +806,7 @@ describe("chat view", () => {
     expect(onRequestComputerPermission).toHaveBeenCalledWith("accessibility");
   });
 
-  it("auto-opens the observer pane when a live observer appears after the pane was previously touched", async () => {
+  it("does not auto-open the observer pane when a live observer appears after the pane was previously touched", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
     document.body.append(app);
@@ -803,9 +823,7 @@ describe("chat view", () => {
     });
     await app.updateComplete;
 
-    expect(app.sidebarOpen).toBe(true);
-    expect(app.browserPaneSurfaceKind).toBe("observer");
-    expect(app.querySelector("iframe.browser-pane__iframe")).not.toBeNull();
+    expect(app.sidebarOpen).toBe(false);
   });
 
   it("does not reopen the pane on repeated observer updates that only rotate the token", async () => {
@@ -832,7 +850,7 @@ describe("chat view", () => {
     expect(app.sidebarOpen).toBe(false);
   });
 
-  it("reopens the observer pane when browser activity arrives after the user closed it", async () => {
+  it("does not reopen the observer pane when browser activity arrives after the user closed it", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
     document.body.append(app);
@@ -851,9 +869,7 @@ describe("chat view", () => {
     app.notifyBrowserPaneActivity("main");
     await app.updateComplete;
 
-    expect(app.sidebarOpen).toBe(true);
-    expect(app.browserPaneSurfaceKind).toBe("observer");
-    expect(app.querySelector("iframe.browser-pane__iframe")).not.toBeNull();
+    expect(app.sidebarOpen).toBe(false);
   });
 
   it("reopens the computer pane when computer activity arrives after the user closed it", async () => {
@@ -886,6 +902,7 @@ describe("chat view", () => {
         height: 900,
         capturedAt: 10,
       },
+      stepCounter: 0,
       timeline: [],
       startedAt: 1,
       updatedAt: 10,
@@ -902,6 +919,117 @@ describe("chat view", () => {
     expect(app.sidebarOpen).toBe(true);
     expect(app.browserPaneSurfaceKind).toBe("computer");
     expect(app.querySelector(".computer-pane__frame-image")).not.toBeNull();
+  });
+
+  it("prefers the computer pane and hides the sandbox observer in the native mac shell", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+
+    app.nativeShellState = {
+      platform: "macos",
+      launchAtLogin: false,
+      permissions: {
+        notifications: true,
+        appleScript: true,
+        accessibility: true,
+        screenRecording: true,
+        microphone: true,
+        speechRecognition: true,
+        camera: true,
+        location: true,
+      },
+      voiceWake: {
+        supported: false,
+        enabled: false,
+        talkEnabled: false,
+        triggers: [],
+      },
+      logsPath: null,
+    };
+    app.setBrowserPaneObserver("main", {
+      kind: "novnc",
+      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+      label: "Observed browser",
+    });
+    app.setComputerSession("main", {
+      sessionKey: "main",
+      backend: "local-mac",
+      status: "observing",
+      mode: "control-approved-apps",
+      approvedApps: [],
+      permissions: {
+        accessibility: true,
+        screenRecording: true,
+      },
+      context: {
+        display: {
+          width: 1440,
+          height: 900,
+          scale: 2,
+        },
+        capturedAt: 10,
+      },
+      frame: {
+        dataUrl: "data:image/jpeg;base64,abc",
+        mimeType: "image/jpeg",
+        width: 1440,
+        height: 900,
+        capturedAt: 10,
+      },
+      stepCounter: 0,
+      timeline: [],
+      startedAt: 1,
+      updatedAt: 10,
+    });
+    await app.updateComplete;
+
+    expect(app.browserPaneSurfaceKind).toBe("computer");
+    expect(app.browserPaneObserver).toBeNull();
+    expect(app.querySelector(".browser-pane__iframe")).toBeNull();
+  });
+
+  it("hides the sandbox observer surface in the native mac shell even when the pane is open", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          sidebarOpen: true,
+          browserPaneSurfaceKind: "observer",
+          browserPaneObserver: {
+            kind: "novnc",
+            url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
+            label: "Observed browser",
+          },
+          nativeShellState: {
+            platform: "macos",
+            launchAtLogin: false,
+            permissions: {
+              notifications: true,
+              appleScript: true,
+              accessibility: true,
+              screenRecording: true,
+              microphone: true,
+              speechRecognition: true,
+              camera: true,
+              location: true,
+            },
+            voiceWake: {
+              supported: false,
+              enabled: false,
+              talkEnabled: false,
+              triggers: [],
+            },
+            logsPath: null,
+          },
+          onCloseSidebar: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".browser-pane__iframe")).toBeNull();
+    expect(container.querySelector(".chat-split-container--open")).toBeNull();
   });
 
   it("does not open an empty split when the session has no observer and no markdown", () => {
@@ -1019,6 +1147,109 @@ describe("chat view", () => {
     expect(button).not.toBeUndefined();
     button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
+  });
+
+  it("keeps committed assistant stream segments and tool cards in a single assistant group", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          streamSegments: [
+            { text: "Vou confirmar primeiro onde fica a configuração.", ts: 1_000 },
+            { text: "Agora vou resumir o que encontrei.", ts: 1_200 },
+          ],
+          toolMessages: [
+            {
+              role: "assistant",
+              runId: "run-1",
+              toolCallId: "tool-read",
+              toolPhase: "result",
+              content: [
+                {
+                  type: "toolcall",
+                  name: "Read",
+                  arguments: { path: "/tmp/demo.txt" },
+                },
+                {
+                  type: "toolresult",
+                  name: "Read",
+                  text: "done",
+                },
+              ],
+              timestamp: 1_100,
+              __alisio: { kind: "tool-stream", phase: "result", isError: false },
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelectorAll(".chat-group.assistant")).toHaveLength(1);
+    expect(container.querySelectorAll(".chat-group.tool")).toHaveLength(0);
+    expect(container.textContent).toContain("Vou confirmar primeiro onde fica a configuração.");
+    expect(container.textContent).toContain("Agora vou resumir o que encontrei.");
+    expect(container.textContent).toContain("/tmp/demo.txt");
+  });
+
+  it("renders repeated toolCallIds from different runs as separate tool cards", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          toolMessages: [
+            {
+              role: "assistant",
+              runId: "run-a",
+              toolCallId: "shared-tool-call-id",
+              toolPhase: "result",
+              content: [
+                {
+                  type: "toolcall",
+                  name: "Read",
+                  arguments: { path: "/tmp/a.txt" },
+                },
+                {
+                  type: "toolresult",
+                  name: "Read",
+                  text: "done-a",
+                },
+              ],
+              timestamp: 1_000,
+              __alisio: { kind: "tool-stream", phase: "result", isError: false },
+            },
+            {
+              role: "assistant",
+              runId: "run-b",
+              toolCallId: "shared-tool-call-id",
+              toolPhase: "result",
+              content: [
+                {
+                  type: "toolcall",
+                  name: "Read",
+                  arguments: { path: "/tmp/b.txt" },
+                },
+                {
+                  type: "toolresult",
+                  name: "Read",
+                  text: "done-b",
+                },
+              ],
+              timestamp: 1_100,
+              __alisio: { kind: "tool-stream", phase: "result", isError: false },
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    const cards = Array.from(container.querySelectorAll(".chat-tool-card"));
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.textContent).toContain("/tmp/a.txt");
+    expect(cards[0]?.textContent).toContain("done-a");
+    expect(cards[1]?.textContent).toContain("/tmp/b.txt");
+    expect(cards[1]?.textContent).toContain("done-b");
   });
 
   it("hides the context notice when only cumulative inputTokens exceed the limit", () => {
@@ -2509,6 +2740,35 @@ describe("chat view", () => {
     );
     expect(titleButton?.textContent).toContain("Plano de marketing para maio");
     expect(titleButton?.textContent).not.toContain("dashboard:");
+  });
+
+  it("keeps the generic new chat title when the server only has a synthetic session-id fallback", () => {
+    const { state } = createChatHeaderState({ omitSessionFromList: true });
+    state.sessionKey = "agent:main:dashboard:new-chat";
+    state.settings.sessionKey = state.sessionKey;
+    state.sessionsResult = {
+      ts: 0,
+      path: "",
+      count: 1,
+      defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+      sessions: [
+        {
+          key: state.sessionKey,
+          kind: "direct",
+          updatedAt: null,
+          sessionId: "79bbe587-a9fa-4dd8-9b01-0d3e2a6f51d9",
+          derivedTitle: "79bbe587 (2026-04-17)",
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    const titleButton = container.querySelector<HTMLElement>(
+      '[data-chat-session-dropdown-trigger="true"]',
+    );
+    expect(titleButton?.textContent).toContain("New chat");
+    expect(titleButton?.textContent).not.toContain("79bbe587");
   });
 
   it("creates a real new chat from the desktop toolbar and switches the active conversation", async () => {

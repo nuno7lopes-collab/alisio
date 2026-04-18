@@ -23,11 +23,15 @@ import {
   logExecApprovalResolved,
   rememberExecApprovalResolved,
 } from "./approval-audit.js";
+import {
+  APPROVAL_NOT_FOUND_DETAILS,
+  getPendingApprovalSnapshotOrRespond,
+  parseApprovalDecision,
+  parseApprovalId,
+  resolvePendingApprovalIdOrRespond,
+  waitForApprovalDecision,
+} from "./approval.handlers.shared.js";
 import type { GatewayRequestHandlers } from "./types.js";
-
-const APPROVAL_NOT_FOUND_DETAILS = {
-  reason: ErrorCodes.APPROVAL_NOT_FOUND,
-} as const;
 
 export function createExecApprovalHandlers(
   manager: ExecApprovalManager,
@@ -170,9 +174,7 @@ export function createExecApprovalHandlers(
       record.requestedByClientId = client?.connect?.client?.id ?? null;
       // Use register() to synchronously add to pending map before sending any response.
       // This ensures the approval ID is valid immediately after the "accepted" response.
-      let decisionPromise: Promise<
-        import("../../infra/exec-approvals.js").ExecApprovalDecision | null
-      >;
+      let decisionPromise: Promise<ExecApprovalDecision | null>;
       try {
         decisionPromise = manager.register(record, timeoutMs);
       } catch (err) {
@@ -260,35 +262,11 @@ export function createExecApprovalHandlers(
       );
     },
     "exec.approval.waitDecision": async ({ params, respond }) => {
-      const p = params as { id?: string };
-      const id = typeof p.id === "string" ? p.id.trim() : "";
+      const id = parseApprovalId(params as { id?: string }, respond);
       if (!id) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "id is required"));
         return;
       }
-      const decisionPromise = manager.awaitDecision(id);
-      if (!decisionPromise) {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "approval expired or not found"),
-        );
-        return;
-      }
-      // Capture snapshot before await (entry may be deleted after grace period)
-      const snapshot = manager.getSnapshot(id);
-      const decision = await decisionPromise;
-      // Return decision (can be null on timeout) - let clients handle via askFallback
-      respond(
-        true,
-        {
-          id,
-          decision,
-          createdAtMs: snapshot?.createdAtMs,
-          expiresAtMs: snapshot?.expiresAtMs,
-        },
-        undefined,
-      );
+      await waitForApprovalDecision(manager, id, respond);
     },
     "exec.approval.resolve": async ({ params, respond, client, context }) => {
       if (!validateExecApprovalResolveParams(params)) {
@@ -305,37 +283,31 @@ export function createExecApprovalHandlers(
         return;
       }
       const p = params as { id: string; decision: string };
-      const decision = p.decision as ExecApprovalDecision;
-      if (decision !== "allow-once" && decision !== "allow-always" && decision !== "deny") {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid decision"));
+      const decision = parseApprovalDecision(p.decision, respond);
+      if (!decision) {
         return;
       }
-      const resolvedId = manager.lookupPendingId(p.id);
-      if (resolvedId.kind === "none") {
-        respond(
-          false,
-          undefined,
-          errorShape(ErrorCodes.INVALID_REQUEST, "unknown or expired approval id", {
-            details: APPROVAL_NOT_FOUND_DETAILS,
-          }),
-        );
+      const approvalId = resolvePendingApprovalIdOrRespond(manager, p.id, respond, {
+        onAmbiguous: (ids, reply) => {
+          const candidates = ids.slice(0, 3).join(", ");
+          const remainder = ids.length > 3 ? ` (+${ids.length - 3} more)` : "";
+          reply(
+            false,
+            undefined,
+            errorShape(
+              ErrorCodes.INVALID_REQUEST,
+              `ambiguous approval id prefix; matches: ${candidates}${remainder}. Use the full id.`,
+            ),
+          );
+        },
+      });
+      if (!approvalId) {
         return;
       }
-      if (resolvedId.kind === "ambiguous") {
-        const candidates = resolvedId.ids.slice(0, 3).join(", ");
-        const remainder = resolvedId.ids.length > 3 ? ` (+${resolvedId.ids.length - 3} more)` : "";
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.INVALID_REQUEST,
-            `ambiguous approval id prefix; matches: ${candidates}${remainder}. Use the full id.`,
-          ),
-        );
+      const snapshot = getPendingApprovalSnapshotOrRespond(manager, approvalId, respond);
+      if (!snapshot) {
         return;
       }
-      const approvalId = resolvedId.id;
-      const snapshot = manager.getSnapshot(approvalId);
       const resolvedBy = client?.connect?.client?.displayName ?? client?.connect?.client?.id;
       const resolvedAtMs = Date.now();
       const ok = manager.resolve(approvalId, decision, resolvedBy ?? null);

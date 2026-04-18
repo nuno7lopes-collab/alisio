@@ -1725,6 +1725,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         pending: "aprobaciones pendientes",
         target: "objetivo seleccionado",
         prompt: "prompt predeterminado",
+        files: "alcance read/write/edit",
       },
       queue: {
         title: "Aprobaciones en tiempo real",
@@ -1752,7 +1753,8 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       },
       access: {
         title: "Modo de acceso predeterminado",
-        subtitle: "Define el comportamiento base de exec para este runtime.",
+        subtitle:
+          "Elige la ruta protegida o el exec directo en el host del gateway para el trabajo diario.",
         loadTitle: "Cargar estado de seguridad",
         loadBody: "Carga la config y las aprobaciones exec para cambiar de modo con seguridad.",
         active: "Activo",
@@ -1766,10 +1768,15 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         },
         fullAccess: {
           label: "Acceso total",
-          title: "Acceso total al ordenador",
-          badge: "Riesgo alto",
+          title: "Exec en el host del gateway",
+          badge: "Gateway",
           description:
-            "Exec pasa a ejecutarse con acceso total y sin prompt por defecto. Úsalo solo cuando confíes plenamente en esta sesión y en las herramientas activas.",
+            "Configura `tools.exec.host=gateway`, `security=full` y `ask=off` para exec. Los permisos del sistema operativo y otros guardrails del runtime siguen aplicándose.",
+        },
+        files: {
+          mixed: "mixto",
+          workspaceOnly: "solo workspace",
+          unrestricted: "sin límite",
         },
         custom: {
           label: "Personalizado",

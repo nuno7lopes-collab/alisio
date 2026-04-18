@@ -197,7 +197,6 @@ describe("resolveProviderAuths key normalization", () => {
   let suiteCase = 0;
   const EMPTY_PROVIDER_ENV = {
     ZAI_API_KEY: undefined,
-    Z_AI_API_KEY: undefined,
     MINIMAX_API_KEY: undefined,
     MINIMAX_CODE_PLAN_KEY: undefined,
     XIAOMI_API_KEY: undefined,
@@ -307,12 +306,6 @@ describe("resolveProviderAuths key normalization", () => {
     );
   }
 
-  async function writeLegacyPiAuth(home: string, raw: string) {
-    const legacyDir = path.join(home, ".pi", "agent");
-    await fs.mkdir(legacyDir, { recursive: true });
-    await fs.writeFile(path.join(legacyDir, "auth.json"), raw, "utf8");
-  }
-
   function createTestModelDefinition(): ModelDefinitionConfig {
     return {
       id: "test-model",
@@ -387,27 +380,6 @@ describe("resolveProviderAuths key normalization", () => {
     });
   }, 300_000);
 
-  it("accepts z-ai env alias and normalizes embedded CR/LF", async () => {
-    await expectResolvedAuthsFromSuiteHome({
-      providers: ["zai"],
-      env: {
-        Z_AI_API_KEY: "zai-\r\nkey",
-      },
-      expected: [{ provider: "zai", token: "zai-key" }],
-    });
-  });
-
-  it("prefers ZAI_API_KEY over the z-ai alias when both are set", async () => {
-    await expectResolvedAuthsFromSuiteHome({
-      providers: ["zai"],
-      env: {
-        ZAI_API_KEY: "direct-zai-key",
-        Z_AI_API_KEY: "alias-zai-key",
-      },
-      expected: [{ provider: "zai", token: "direct-zai-key" }],
-    });
-  });
-
   it("prefers MINIMAX_CODE_PLAN_KEY over MINIMAX_API_KEY", async () => {
     await expectResolvedAuthsFromSuiteHome({
       providers: ["minimax"],
@@ -441,21 +413,6 @@ describe("resolveProviderAuths key normalization", () => {
       auth: [{ provider: "anthropic", token: "token-1", accountId: "acc-1" }],
     });
     expect(auths).toEqual([{ provider: "anthropic", token: "token-1", accountId: "acc-1" }]);
-  });
-
-  it("falls back to legacy .pi auth file for zai keys even after os.homedir() is primed", async () => {
-    // Prime os.homedir() to simulate long-lived workers that may have touched it before HOME changes.
-    os.homedir();
-    await expectResolvedAuthsFromSuiteHome({
-      providers: ["zai"],
-      setup: async (home) => {
-        await writeLegacyPiAuth(
-          home,
-          `${JSON.stringify({ "z-ai": { access: "legacy-zai-key" } }, null, 2)}\n`,
-        );
-      },
-      expected: [{ provider: "zai", token: "legacy-zai-key" }],
-    });
   });
 
   it.each([
@@ -544,16 +501,6 @@ describe("resolveProviderAuths key normalization", () => {
         });
       },
       expected: [{ provider: "zai", token: "profile-zai-key" }],
-    });
-  });
-
-  it("ignores invalid legacy z-ai auth files", async () => {
-    await expectResolvedAuthsFromSuiteHome({
-      providers: ["zai"],
-      setup: async (home) => {
-        await writeLegacyPiAuth(home, "{not-json");
-      },
-      expected: [],
     });
   });
 

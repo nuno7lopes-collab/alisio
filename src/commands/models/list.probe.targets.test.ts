@@ -84,9 +84,7 @@ async function withClearedAnthropicEnv<T>(fn: () => Promise<T>): Promise<T> {
 
 async function withClearedZaiEnv<T>(fn: () => Promise<T>): Promise<T> {
   const previousZai = process.env.ZAI_API_KEY;
-  const previousLegacyZai = process.env.Z_AI_API_KEY;
   delete process.env.ZAI_API_KEY;
-  delete process.env.Z_AI_API_KEY;
   try {
     return await fn();
   } finally {
@@ -94,11 +92,6 @@ async function withClearedZaiEnv<T>(fn: () => Promise<T>): Promise<T> {
       delete process.env.ZAI_API_KEY;
     } else {
       process.env.ZAI_API_KEY = previousZai;
-    }
-    if (previousLegacyZai === undefined) {
-      delete process.env.Z_AI_API_KEY;
-    } else {
-      process.env.Z_AI_API_KEY = previousLegacyZai;
     }
   }
 }

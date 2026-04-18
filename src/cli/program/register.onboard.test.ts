@@ -10,11 +10,11 @@ const runtime = {
 };
 
 vi.mock("../../commands/auth-choice-options.static.js", () => ({
-  formatStaticAuthChoiceChoicesForCli: () => "token|oauth",
+  formatStaticAuthChoiceChoicesForCli: () => "custom-api-key|skip",
 }));
 
 vi.mock("../../commands/auth-choice-options.js", () => ({
-  formatAuthChoiceChoicesForCli: () => "token|oauth|openai-api-key",
+  formatAuthChoiceChoicesForCli: () => "custom-api-key|skip|openai-api-key",
 }));
 
 vi.mock("../../commands/onboard-core-auth-flags.js", () => ({
@@ -90,7 +90,7 @@ describe("registerOnboardCommand", () => {
     );
   });
 
-  it("sets installDaemon from explicit install flags and prioritizes --skip-daemon", async () => {
+  it("sets installDaemon from explicit install flags", async () => {
     await runCli(["onboard", "--install-daemon"]);
     expect(setupWizardCommandMock).toHaveBeenNthCalledWith(
       1,
@@ -103,15 +103,6 @@ describe("registerOnboardCommand", () => {
     await runCli(["onboard", "--no-install-daemon"]);
     expect(setupWizardCommandMock).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({
-        installDaemon: false,
-      }),
-      runtime,
-    );
-
-    await runCli(["onboard", "--install-daemon", "--skip-daemon"]);
-    expect(setupWizardCommandMock).toHaveBeenNthCalledWith(
-      3,
       expect.objectContaining({
         installDaemon: false,
       }),

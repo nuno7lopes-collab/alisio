@@ -6,11 +6,15 @@ import {
   applySecurityAccessModeToConfigFormObject,
   applySecurityAccessModeToExecApprovalsFile,
   type ConfigExecDefaults,
+  type ConfiguredFsScope,
+  type ExecTarget,
   FULL_ACCESS_CONFIG_DEFAULTS,
   type SecurityAccessDiagnostics,
   type SecurityAccessMode,
   RECOMMENDED_CONFIG_DEFAULTS,
   resolveConfiguredExecDefaults,
+  resolveConfiguredFsScope,
+  resolveConfiguredFsWorkspaceOnly,
   resolveSecurityAccessDiagnostics,
   resolveSecurityAccessMode,
 } from "../../../../src/shared/security-policy.ts";
@@ -36,11 +40,15 @@ import { loadExecApprovals } from "./exec-approvals.ts";
 
 export {
   type ConfigExecDefaults,
+  type ConfiguredFsScope,
+  type ExecTarget,
   FULL_ACCESS_CONFIG_DEFAULTS,
   type SecurityAccessDiagnostics,
   type SecurityAccessMode,
   RECOMMENDED_CONFIG_DEFAULTS,
   resolveConfiguredExecDefaults,
+  resolveConfiguredFsScope,
+  resolveConfiguredFsWorkspaceOnly,
   resolveSecurityAccessDiagnostics,
   resolveSecurityAccessMode,
 };

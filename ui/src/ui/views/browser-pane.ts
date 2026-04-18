@@ -20,6 +20,7 @@ const chatText = (key: string) => t(`alisio.chat.${key}`);
 
 export type BrowserPaneProps = {
   observer?: BrowserPaneObserver | null;
+  hideObserver?: boolean;
   computer?: ComputerSessionState | null;
   computerLoading?: boolean;
   computerError?: string | null;
@@ -51,6 +52,14 @@ function formatComputerStatus(status: ComputerSessionState["status"]): string {
 
 function formatComputerMode(mode: ComputerSessionState["mode"]): string {
   return chatText(`browserPane.computer.modes.${mode}`);
+}
+
+function formatComputerStepLabel(sequence: number): string {
+  return chatText("browserPane.computer.stepLabel").replace("{step}", `${sequence}`);
+}
+
+function formatComputerStepPhase(phase: NonNullable<ComputerTimelineEntry["stepPhase"]>): string {
+  return chatText(`browserPane.computer.stepPhase.${phase}`);
 }
 
 function formatTimelineTimestamp(timestamp: number): string {
@@ -87,9 +96,26 @@ function renderComputerPermissionCallout(
 }
 
 function renderComputerTimelineEntry(entry: ComputerTimelineEntry) {
+  const stepLabel =
+    entry.stepSequence !== undefined ? formatComputerStepLabel(entry.stepSequence) : null;
+  const phaseLabel = entry.stepPhase ? formatComputerStepPhase(entry.stepPhase) : null;
   return html`
     <div class="computer-pane__timeline-entry computer-pane__timeline-entry--${entry.kind}">
-      <div class="computer-pane__timeline-summary">${entry.summary}</div>
+      <div class="computer-pane__timeline-copy">
+        <div class="computer-pane__timeline-summary">${entry.summary}</div>
+        ${stepLabel || phaseLabel
+          ? html`
+              <div class="computer-pane__timeline-tags">
+                ${stepLabel
+                  ? html`<span class="computer-pane__tag computer-pane__tag--step"
+                      >${stepLabel}</span
+                    >`
+                  : null}
+                ${phaseLabel ? html`<span class="computer-pane__tag">${phaseLabel}</span>` : null}
+              </div>
+            `
+          : null}
+      </div>
       <div class="computer-pane__timeline-meta">
         <span>${formatTimelineTimestamp(entry.at)}</span>
         ${entry.status ? html`<span>${formatComputerStatus(entry.status)}</span>` : null}
@@ -104,6 +130,8 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
   const cursor = frame?.cursor ?? null;
   const awaitingApproval = session.awaitingApproval ?? null;
   const timeline = session.timeline.slice(-12).toReversed();
+  const activeStep = session.activeStep ?? null;
+  const lastCompletedStep = session.lastCompletedStep ?? null;
   const canPause = session.status !== "paused" && session.status !== "stopped";
   const canResume = session.status === "paused";
   const missingAccessibility = !session.permissions.accessibility;
@@ -129,6 +157,19 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
                 >`
               : null}
           </div>
+          ${activeStep
+            ? html`
+                <div class="computer-pane__step-summary">
+                  <span class="computer-pane__tag computer-pane__tag--step"
+                    >${formatComputerStepLabel(activeStep.sequence)}</span
+                  >
+                  <span class="computer-pane__tag"
+                    >${formatComputerStepPhase(activeStep.phase)}</span
+                  >
+                  <span class="computer-pane__step-text">${activeStep.summary}</span>
+                </div>
+              `
+            : null}
         </div>
         <div class="computer-pane__actions">
           <button
@@ -245,6 +286,26 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
               : chatText("browserPane.computer.unknown")}
           </span>
         </div>
+        <div>
+          <span class="computer-pane__meta-label"
+            >${chatText("browserPane.computer.currentStep")}</span
+          >
+          <span>
+            ${activeStep
+              ? `${formatComputerStepLabel(activeStep.sequence)} · ${formatComputerStepPhase(activeStep.phase)}`
+              : chatText("browserPane.computer.none")}
+          </span>
+        </div>
+        <div>
+          <span class="computer-pane__meta-label"
+            >${chatText("browserPane.computer.lastStep")}</span
+          >
+          <span>
+            ${lastCompletedStep
+              ? `${formatComputerStepLabel(lastCompletedStep.sequence)} · ${formatComputerStepPhase(lastCompletedStep.phase)}`
+              : chatText("browserPane.computer.none")}
+          </span>
+        </div>
       </div>
 
       <div class="computer-pane__timeline">
@@ -262,14 +323,15 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
 }
 
 export function renderBrowserPane(props: BrowserPaneProps) {
+  const visibleObserver = props.hideObserver ? null : (props.observer ?? null);
   const available = getBrowserPaneAvailableSurfaces({
-    observer: props.observer ?? null,
+    observer: visibleObserver,
     computer: props.computer ?? null,
     markdown: props.markdown ?? null,
   });
   const surface = resolveBrowserPaneSurface({
     preferredSurface: props.selectedSurface ?? "observer",
-    observer: props.observer ?? null,
+    observer: visibleObserver,
     computer: props.computer ?? null,
     markdown: props.markdown ?? null,
   });

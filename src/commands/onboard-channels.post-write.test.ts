@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createExitThrowingRuntime, createWizardPrompter } from "../../test/helpers/auth-wizard.js";
+import type { ChannelSetupWizardAdapter } from "../channels/plugins/setup-wizard-types.js";
 import type { AlisioConfig } from "../config/config.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { getChannelSetupWizardAdapter } from "./channel-setup/registry.js";
-import type { ChannelSetupWizardAdapter } from "./channel-setup/types.js";
 import {
   createChannelOnboardingPostWriteHookCollector,
   runCollectedChannelOnboardingPostWriteHooks,
   setupChannels,
 } from "./onboard-channels.js";
-import { createExitThrowingRuntime, createWizardPrompter } from "./test-wizard-helpers.js";
 
 function setMinimalTelegramOnboardingRegistryForTests(): void {
   setActivePluginRegistry(

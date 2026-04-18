@@ -289,44 +289,98 @@ export function createComputerTool(options?: {
       }
 
       if (action === "observe") {
+        computerSessionManager.startStep({
+          sessionKey,
+          toolCallId: _toolCallId,
+          kind: "observe",
+          phase: "observe",
+          summary: "capture current frame",
+        });
         const observing = computerSessionManager.setStatus(
           sessionKey,
           "observing",
           "capturing current frame",
         );
         await emitUpdate("Capturing current frame…", observing);
-        const observation = await environment.observe(signal);
-        const state = computerSessionManager.recordObservation(sessionKey, observation);
-        return await buildComputerToolResult({
-          label: `Observed ${observation.context.activeApp?.name ?? "desktop"} (${observation.frame.width}x${observation.frame.height})`,
-          state,
-          observation,
-          imageSanitization,
-        });
-      }
-
-      let latestObservation: ComputerObservation | null = null;
-      const current = computerSessionManager.getSession(sessionKey);
-      if (!current?.context || !current.frame) {
-        latestObservation = await environment.observe(signal);
-        const observed = computerSessionManager.recordObservation(
-          sessionKey,
-          latestObservation,
-          "captured frame before action",
-        );
-        await emitUpdate("Captured frame before action.", observed);
-      } else {
-        latestObservation = {
-          frame: current.frame,
-          context: current.context,
-        };
+        try {
+          const observation = await environment.observe(signal);
+          computerSessionManager.recordObservation(
+            sessionKey,
+            observation,
+            "captured current frame",
+            {
+              phase: "observe",
+              stepSummary: "captured current frame",
+            },
+          );
+          const state = computerSessionManager.completeStep(
+            sessionKey,
+            "observe current frame",
+            "observe",
+          );
+          return await buildComputerToolResult({
+            label: `Observed ${observation.context.activeApp?.name ?? "desktop"} (${observation.frame.width}x${observation.frame.height})`,
+            state,
+            observation,
+            imageSanitization,
+          });
+        } catch (error) {
+          const failed = computerSessionManager.recordError(
+            sessionKey,
+            error instanceof Error ? error.message : String(error),
+          );
+          await emitUpdate("Computer observe failed.", failed);
+          throw error;
+        }
       }
 
       const nativeAction = resolveActionFromParams(params);
+      const currentSession = computerSessionManager.getSession(sessionKey);
+      if (currentSession?.status === "stopped") {
+        throw new Error("session stopped");
+      }
+      if (currentSession?.mode === "observe-only" && nativeAction.type !== "wait") {
+        throw new Error("observe-only mode blocks control actions");
+      }
+      computerSessionManager.startStep({
+        sessionKey,
+        toolCallId: _toolCallId,
+        kind: "action",
+        phase: "observe-before-action",
+        summary: `prepare ${nativeAction.type}`,
+        actionType: nativeAction.type,
+      });
+      const observingBeforeAction = computerSessionManager.setStatus(
+        sessionKey,
+        "observing",
+        `capturing current frame before ${nativeAction.type}`,
+      );
+      await emitUpdate("Capturing fresh frame before action…", observingBeforeAction);
+      let latestObservation: ComputerObservation;
+      try {
+        latestObservation = await environment.observe(signal);
+      } catch (error) {
+        const failed = computerSessionManager.recordError(
+          sessionKey,
+          error instanceof Error ? error.message : String(error),
+        );
+        await emitUpdate("Computer pre-action observe failed.", failed);
+        throw error;
+      }
+      const observedBeforeAction = computerSessionManager.recordObservation(
+        sessionKey,
+        latestObservation,
+        `captured fresh frame before ${nativeAction.type}`,
+        {
+          phase: "observe-before-action",
+          stepSummary: `captured fresh frame before ${nativeAction.type}`,
+        },
+      );
+      await emitUpdate("Captured fresh frame before action.", observedBeforeAction);
       const approvalCheck = computerSessionManager.shouldRequireApproval({
         sessionKey,
         action: nativeAction,
-        context: latestObservation?.context ?? undefined,
+        context: latestObservation.context,
         targetAppIdentity: nativeAction.app?.trim() || undefined,
       });
       if (approvalCheck.required) {
@@ -334,13 +388,18 @@ export function createComputerTool(options?: {
           approvalCheck.reason === "observe-only mode blocks control actions" ||
           approvalCheck.reason === "session stopped"
         ) {
+          computerSessionManager.cancelStep(
+            sessionKey,
+            approvalCheck.reason,
+            "observe-before-action",
+          );
           throw new Error(approvalCheck.reason);
         }
         const pendingPromise = computerSessionManager.requestApproval({
           sessionKey,
           action: nativeAction,
           reason: approvalCheck.reason ?? "explicit approval required",
-          context: latestObservation?.context ?? undefined,
+          context: latestObservation.context,
           appIdentity: approvalCheck.appIdentity,
         });
         const pendingState = computerSessionManager.getSession(sessionKey);
@@ -374,15 +433,34 @@ export function createComputerTool(options?: {
         await emitUpdate("Computer action failed.", failed);
         throw error;
       }
-      const observation = actionResult.observation ?? (await environment.observe(signal));
-      const observed = computerSessionManager.recordObservation(
+      let observation: ComputerObservation;
+      try {
+        observation = actionResult.observation ?? (await environment.observe(signal));
+      } catch (error) {
+        const failed = computerSessionManager.recordError(
+          sessionKey,
+          error instanceof Error ? error.message : String(error),
+        );
+        await emitUpdate("Computer post-action observe failed.", failed);
+        throw error;
+      }
+      computerSessionManager.recordObservation(
         sessionKey,
         observation,
         `captured frame after ${nativeAction.type}`,
+        {
+          phase: "observe-after-action",
+          stepSummary: `captured frame after ${nativeAction.type}`,
+        },
+      );
+      const completed = computerSessionManager.completeStep(
+        sessionKey,
+        actionResult.summary,
+        "observe-after-action",
       );
       return await buildComputerToolResult({
         label: actionResult.summary,
-        state: observed,
+        state: completed,
         observation,
         imageSanitization,
       });

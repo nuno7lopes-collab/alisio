@@ -98,6 +98,61 @@ function makeGraph() {
   };
 }
 
+function makeDenseGraph() {
+  return {
+    ...makeGraph(),
+    nodes: [
+      {
+        ...makeGraph().nodes[0],
+        id: "hub",
+        pageId: "hub",
+        entityId: "hub",
+        title: "Hub",
+        slug: "hub",
+        degree: 12,
+        outgoing: 6,
+        incoming: 6,
+      },
+      {
+        ...makeGraph().nodes[1],
+        id: "leaf",
+        pageId: "leaf",
+        entityId: "leaf",
+        title: "Leaf",
+        slug: "leaf",
+        degree: 1,
+        sourcePath: "memory/leaf.md",
+      },
+    ],
+    edges: [
+      {
+        ...makeGraph().edges[0],
+        id: "edge-hub-leaf",
+        fromId: "hub",
+        toId: "leaf",
+        fromPageId: "hub",
+        toPageId: "leaf",
+        reason: {
+          ...makeGraph().edges[0].reason,
+          sourcePageId: "hub",
+          targetPageId: "leaf",
+          sourceTitle: "Hub",
+          targetTitle: "Leaf",
+          sourcePath: "memory/hub.md",
+          targetPath: "memory/leaf.md",
+        },
+      },
+    ],
+    focus: {
+      nodeId: "hub",
+      pageId: "hub",
+      entityId: "hub",
+      title: "Hub",
+      sourcePath: "memory/hub.md",
+    },
+  };
+}
+
 async function flushGraphView() {
   for (let index = 0; index < 6; index += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, 0));
@@ -253,11 +308,34 @@ describe("memory-graph-view", () => {
     expect(svg?.getAttribute("viewBox")).toBe("-480 -320 960 640");
 
     const circle = element.querySelector(
-      ".alisio-memory-graph__node circle:not(.alisio-memory-graph__node-halo):not(.alisio-memory-graph__node-dot)",
+      ".alisio-memory-graph__node .alisio-memory-graph__node-body",
     );
     expect(circle?.getAttribute("fill")).toMatch(/rgb|rgba|#/);
     expect(circle?.getAttribute("stroke")).toMatch(/rgb|rgba|#/);
     expect(circle?.namespaceURI).toBe("http://www.w3.org/2000/svg");
+    expect(element.querySelector(".alisio-memory-graph__cluster")).toBeNull();
+  });
+
+  it("mantém os nós como uma única bola e limita o tamanho máximo", async () => {
+    const element = document.createElement("alisio-memory-graph-view") as HTMLElement & {
+      graph: ReturnType<typeof makeDenseGraph>;
+    };
+    element.graph = makeDenseGraph();
+    document.body.appendChild(element);
+
+    await flushGraphView();
+
+    const nodeBodies = Array.from(
+      element.querySelectorAll<SVGCircleElement>(
+        ".alisio-memory-graph__node .alisio-memory-graph__node-body",
+      ),
+    );
+    expect(nodeBodies).toHaveLength(2);
+    const radii = nodeBodies.map((node) => Number(node.getAttribute("r")));
+    expect(element.querySelector(".alisio-memory-graph__node-halo")).toBeNull();
+    expect(element.querySelector(".alisio-memory-graph__node-dot")).toBeNull();
+    expect(Math.max(...radii)).toBeGreaterThan(Math.min(...radii));
+    expect(Math.max(...radii)).toBeLessThanOrEqual(20);
   });
 
   it("só aplica atalhos de teclado quando o stage está focado", async () => {

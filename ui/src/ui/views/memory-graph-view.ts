@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, svg } from "lit";
 import { property } from "lit/decorators.js";
+import { ref } from "lit/directives/ref.js";
 import {
   buildMemoryGraphViewModel,
   createMemoryGraphFilterState,
@@ -61,16 +62,6 @@ type GraphContextMenuState = {
 type GraphGroupSummary = {
   label: string;
   detail: string;
-};
-
-type GraphClusterOverlay = {
-  id: string;
-  label: string;
-  color: string;
-  count: number;
-  x: number;
-  y: number;
-  radius: number;
 };
 
 type DragState =
@@ -259,61 +250,6 @@ function describeGraphGroup(groupId: string, text: MemoryGraphViewText): GraphGr
   };
 }
 
-function buildGraphClusterOverlays(params: {
-  view: MemoryGraphViewModel;
-  layout: MemoryGraphLayout;
-  nodeGroups: Record<string, string | null | undefined>;
-  text: MemoryGraphViewText;
-}): GraphClusterOverlay[] {
-  const groups = new Map<string, Array<{ x: number; y: number }>>();
-  for (const node of params.view.nodes) {
-    const groupId = params.nodeGroups[node.id];
-    const position = params.layout[node.id];
-    if (!groupId || !position) {
-      continue;
-    }
-    const entries = groups.get(groupId) ?? [];
-    entries.push(position);
-    groups.set(groupId, entries);
-  }
-  if (groups.size <= 1) {
-    return [];
-  }
-  return Array.from(groups.entries())
-    .map(([groupId, points]) => {
-      const centroid = points.reduce(
-        (acc, point) => {
-          acc.x += point.x;
-          acc.y += point.y;
-          return acc;
-        },
-        { x: 0, y: 0 },
-      );
-      centroid.x /= points.length;
-      centroid.y /= points.length;
-      const radius = clamp(
-        points.reduce(
-          (maxRadius, point) =>
-            Math.max(maxRadius, Math.hypot(point.x - centroid.x, point.y - centroid.y)),
-          0,
-        ) + 84,
-        96,
-        312,
-      );
-      const summary = describeGraphGroup(groupId, params.text);
-      return {
-        id: groupId,
-        label: summary.label,
-        color: resolveGraphColor(groupId),
-        count: points.length,
-        x: centroid.x,
-        y: centroid.y,
-        radius,
-      } satisfies GraphClusterOverlay;
-    })
-    .toSorted((left, right) => right.radius - left.radius);
-}
-
 function isEditableTarget(target: EventTarget | null) {
   return (
     target instanceof HTMLElement &&
@@ -321,6 +257,414 @@ function isEditableTarget(target: EventTarget | null) {
       Boolean(target.closest("[contenteditable='true']")))
   );
 }
+
+const EMPTY_MEMORY_GRAPH_VIEW_MODEL: MemoryGraphViewModel = {
+  focusNode: null,
+  nodes: [],
+  edges: [],
+  selectedEdge: null,
+  highlightedNodeIds: new Set<string>(),
+  highlightedEdgeIds: new Set<string>(),
+};
+
+const MEMORY_GRAPH_STYLE = html`
+  <style>
+    .alisio-memory-graph {
+      position: relative;
+      min-width: 0;
+    }
+    .alisio-memory-graph__card {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+      border-radius: 22px;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--surface-elevated) 88%, transparent),
+        color-mix(in srgb, var(--surface-panel) 96%, transparent)
+      );
+      box-shadow: 0 12px 32px var(--alisio-memory-graph-card-shadow);
+    }
+    .alisio-memory-graph.is-compact .alisio-memory-graph__card {
+      padding: 14px 16px;
+      border-radius: 18px;
+      box-shadow: none;
+    }
+    .alisio-memory-graph__lede {
+      margin: 0;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+    .alisio-memory-graph__scope,
+    .alisio-memory-graph__toolbar,
+    .alisio-memory-graph__chips,
+    .alisio-memory-graph__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .alisio-memory-graph__toolbar {
+      gap: 10px;
+    }
+    .alisio-memory-graph__meta {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .alisio-memory-graph__stage {
+      position: relative;
+      min-width: 0;
+      outline: none;
+    }
+    .alisio-memory-graph__stage.is-interacting .alisio-memory-graph__canvas,
+    .alisio-memory-graph__stage:focus-within .alisio-memory-graph__canvas {
+      border-color: color-mix(in srgb, var(--accent-primary) 24%, var(--border-subtle));
+      box-shadow:
+        0 18px 44px var(--alisio-memory-graph-stage-shadow),
+        inset 0 1px 0 color-mix(in srgb, var(--surface-elevated) 64%, transparent);
+    }
+    .alisio-memory-graph__topbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: 16px;
+      z-index: 2;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      pointer-events: none;
+    }
+    .alisio-memory-graph__topbar > * {
+      pointer-events: auto;
+    }
+    .alisio-memory-graph__scope,
+    .alisio-memory-graph__toolbar,
+    .alisio-memory-graph__topbar-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 18px;
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+      background: color-mix(in srgb, var(--surface-panel) 82%, transparent);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 18px 36px var(--alisio-memory-graph-topbar-shadow);
+    }
+    .alisio-memory-graph__topbar-meta {
+      justify-content: center;
+      flex: 1 1 280px;
+    }
+    .alisio-memory-graph__pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 10px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
+      background: color-mix(in srgb, var(--surface-panel) 88%, transparent);
+      backdrop-filter: blur(14px);
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .alisio-memory-graph__meta-block {
+      display: grid;
+      gap: 4px;
+    }
+    .alisio-memory-graph__meta-block span {
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .alisio-memory-graph__legend {
+      display: grid;
+      gap: 8px;
+    }
+    .alisio-memory-graph__legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .alisio-memory-graph__legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex: 0 0 auto;
+    }
+    .alisio-memory-graph__legend-copy {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+    }
+    .alisio-memory-graph__legend-copy em {
+      color: var(--text-muted);
+      font-style: normal;
+    }
+    .alisio-memory-graph__slider {
+      display: grid;
+      gap: 8px;
+    }
+    .alisio-memory-graph__slider span {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .alisio-memory-graph__slider em {
+      color: var(--text-muted);
+      font-style: normal;
+    }
+    .alisio-memory-graph__settings {
+      position: absolute;
+      top: 70px;
+      right: 16px;
+      z-index: 3;
+      display: grid;
+      gap: 10px;
+      width: min(340px, calc(100% - 32px));
+      max-height: calc(100% - 86px);
+      overflow: auto;
+      padding-right: 2px;
+      backdrop-filter: blur(18px);
+    }
+    .alisio-memory-graph__settings .alisio-memory-graph__slider input[type="range"] {
+      width: 100%;
+    }
+    .alisio-memory-graph__canvas {
+      position: relative;
+      height: min(76vh, 900px);
+      min-height: 640px;
+      color: var(--alisio-memory-graph-text-muted);
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
+      border-radius: 24px;
+      overflow: hidden;
+      background:
+        radial-gradient(
+          circle at 18% 12%,
+          color-mix(in srgb, var(--accent-primary) 14%, transparent),
+          transparent 34%
+        ),
+        radial-gradient(
+          circle at 84% 0%,
+          color-mix(in srgb, var(--accent) 10%, transparent),
+          transparent 30%
+        ),
+        linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--surface-elevated) 96%, transparent),
+          color-mix(in srgb, var(--surface-panel) 98%, transparent)
+        );
+    }
+    .alisio-memory-graph.is-compact .alisio-memory-graph__canvas {
+      height: min(56vh, 560px);
+      min-height: 420px;
+      border-radius: 20px;
+    }
+    .alisio-memory-graph__canvas svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    .alisio-memory-graph__canvas::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, var(--alisio-memory-graph-overlay-top), transparent 20%),
+        linear-gradient(0deg, var(--alisio-memory-graph-overlay-bottom), transparent 18%);
+    }
+    .alisio-memory-graph__canvas svg:active {
+      cursor: grabbing;
+    }
+    .alisio-memory-graph__grid {
+      opacity: 0.82;
+    }
+    .alisio-memory-graph__grid line {
+      stroke: var(--alisio-memory-graph-grid-line);
+      stroke-width: 1;
+    }
+    .alisio-memory-graph__node-label {
+      pointer-events: none;
+    }
+    .alisio-memory-graph__edge-hit {
+      stroke: transparent;
+      stroke-width: 18;
+      cursor: pointer;
+    }
+    .alisio-memory-graph__edge-glow {
+      stroke-linecap: round;
+      opacity: 0.94;
+    }
+    .alisio-memory-graph__edge {
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+      transition:
+        opacity 120ms ease,
+        stroke-width 120ms ease;
+    }
+    .alisio-memory-graph__edge.is-attachment {
+      stroke-dasharray: 5 5;
+    }
+    .alisio-memory-graph__edge.is-dimmed {
+      opacity: 1;
+    }
+    .alisio-memory-graph__node {
+      cursor: pointer;
+      filter: drop-shadow(0 10px 18px var(--alisio-memory-graph-node-shadow));
+      transition:
+        opacity 120ms ease,
+        filter 120ms ease;
+    }
+    .alisio-memory-graph__node.is-dimmed {
+      opacity: 0.34;
+    }
+    .alisio-memory-graph__node-body {
+      transition:
+        fill 120ms ease,
+        stroke 120ms ease,
+        transform 120ms ease;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    .alisio-memory-graph__node.is-highlighted .alisio-memory-graph__node-body,
+    .alisio-memory-graph__node.is-focus .alisio-memory-graph__node-body {
+      transform: scale(1.03);
+    }
+    .alisio-memory-graph__label-chip {
+      stroke-width: 1;
+      transition:
+        fill 120ms ease,
+        stroke 120ms ease,
+        opacity 120ms ease;
+    }
+    .alisio-memory-graph__label {
+      font-size: 13px;
+      font-weight: 600;
+      pointer-events: none;
+      transition: opacity 120ms ease;
+    }
+    .alisio-memory-graph__hud {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      z-index: 2;
+      display: flex;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+    .alisio-memory-graph__selection-card {
+      width: min(420px, 100%);
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
+      background: color-mix(in srgb, var(--surface-panel) 86%, transparent);
+      box-shadow: 0 20px 44px var(--alisio-memory-graph-panel-shadow);
+      backdrop-filter: blur(20px);
+      pointer-events: auto;
+    }
+    .alisio-memory-graph__selection-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .alisio-memory-graph__selection-kicker,
+    .alisio-memory-graph__selection-relation {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+    .alisio-memory-graph__selection-kicker {
+      background: color-mix(in srgb, var(--surface-elevated) 86%, transparent);
+      color: var(--text-muted);
+    }
+    .alisio-memory-graph__selection-relation {
+      background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
+      color: var(--text);
+    }
+    .alisio-memory-graph__selection-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .alisio-memory-graph__selection-grid span {
+      display: grid;
+      gap: 4px;
+      min-width: 0;
+    }
+    .alisio-memory-graph__selection-grid strong {
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .alisio-memory-graph__selection-grid em {
+      color: var(--text);
+      font-style: normal;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .alisio-memory-graph__context-menu {
+      position: fixed;
+      z-index: 50;
+      display: grid;
+      gap: 8px;
+      min-width: 180px;
+      padding: 12px;
+      border-radius: 16px;
+      border: 1px solid color-mix(in srgb, var(--border-subtle) 84%, transparent);
+      background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
+      box-shadow: 0 20px 40px var(--alisio-memory-graph-panel-shadow);
+      backdrop-filter: blur(18px);
+    }
+    .alisio-memory-graph__context-menu .btn {
+      justify-content: flex-start;
+      width: 100%;
+    }
+    @media (max-width: 980px) {
+      .alisio-memory-graph__canvas {
+        min-height: 440px;
+      }
+      .alisio-memory-graph__topbar {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+      }
+      .alisio-memory-graph__settings {
+        top: 64px;
+        right: 12px;
+        width: min(340px, calc(100% - 24px));
+        max-height: calc(100% - 76px);
+      }
+      .alisio-memory-graph__hud {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+      }
+      .alisio-memory-graph__selection-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+`;
 
 export class AlisioMemoryGraphView extends LitElement {
   createRenderRoot() {
@@ -378,6 +722,17 @@ export class AlisioMemoryGraphView extends LitElement {
   private settingsOpen = false;
   private pendingViewportFit = true;
   private interactionActive = false;
+  private canvasElement: HTMLElement | null = null;
+  private canvasResizeObserver: ResizeObserver | null = null;
+  private cachedView: MemoryGraphViewModel = EMPTY_MEMORY_GRAPH_VIEW_MODEL;
+  private cachedViewGraph: MemoryGraphState | null = null;
+  private cachedViewScope: "global" | "local" | null = null;
+  private cachedViewSearchQuery = "";
+  private cachedViewTagsKey = "";
+  private cachedViewHoveredNodeId: string | null = null;
+  private cachedViewSelectedEdgeId: string | null = null;
+  private cachedNodeGroups: Record<string, string> = {};
+  private cachedNodeGroupsSignature = "";
   private readonly svgIds = {
     arrow: `alisio-memory-graph-arrow-${Math.random().toString(36).slice(2, 9)}`,
   };
@@ -388,7 +743,7 @@ export class AlisioMemoryGraphView extends LitElement {
     window.addEventListener("mouseup", this.handleGlobalMouseUp);
     window.addEventListener("mousedown", this.handleGlobalMouseDown);
     window.addEventListener("keydown", this.handleGlobalKeyDown);
-    window.addEventListener("resize", this.handleViewportResize);
+    window.addEventListener("resize", this.handleWindowResize);
   }
 
   disconnectedCallback() {
@@ -396,7 +751,10 @@ export class AlisioMemoryGraphView extends LitElement {
     window.removeEventListener("mouseup", this.handleGlobalMouseUp);
     window.removeEventListener("mousedown", this.handleGlobalMouseDown);
     window.removeEventListener("keydown", this.handleGlobalKeyDown);
-    window.removeEventListener("resize", this.handleViewportResize);
+    window.removeEventListener("resize", this.handleWindowResize);
+    this.canvasResizeObserver?.disconnect();
+    this.canvasResizeObserver = null;
+    this.canvasElement = null;
     if (this.simulationFrame !== null) {
       window.cancelAnimationFrame(this.simulationFrame);
       this.simulationFrame = null;
@@ -405,9 +763,7 @@ export class AlisioMemoryGraphView extends LitElement {
   }
 
   protected updated() {
-    if (this.syncCanvasMetrics() && this.pendingViewportFit) {
-      this.fitGraphToViewport();
-    } else if (this.pendingViewportFit && this.canvasWidth > 0 && this.canvasHeight > 0) {
+    if (this.pendingViewportFit && this.canvasWidth > 0 && this.canvasHeight > 0) {
       this.fitGraphToViewport();
     }
   }
@@ -468,6 +824,106 @@ export class AlisioMemoryGraphView extends LitElement {
     this.requestUpdate();
   }
 
+  private bindCanvasElement = (element?: Element | null) => {
+    const nextElement = element instanceof HTMLElement ? element : null;
+    if (this.canvasElement === nextElement) {
+      return;
+    }
+    this.canvasResizeObserver?.disconnect();
+    this.canvasElement = nextElement;
+    if (!this.canvasElement || typeof ResizeObserver === "undefined") {
+      if (this.canvasElement) {
+        this.measureCanvasElement(this.canvasElement);
+      }
+      return;
+    }
+    this.canvasResizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      this.updateCanvasMetrics(entry.contentRect.width, entry.contentRect.height);
+    });
+    this.canvasResizeObserver.observe(this.canvasElement);
+    this.measureCanvasElement(this.canvasElement);
+  };
+
+  private handleWindowResize = () => {
+    if (this.canvasElement) {
+      this.measureCanvasElement(this.canvasElement);
+    }
+  };
+
+  private measureCanvasElement(element: HTMLElement) {
+    const rect = element.getBoundingClientRect();
+    this.updateCanvasMetrics(rect.width, rect.height);
+  }
+
+  private updateCanvasMetrics(width: number, height: number) {
+    const nextWidth = Math.round(width);
+    const nextHeight = Math.round(height);
+    if (
+      nextWidth <= 0 ||
+      nextHeight <= 0 ||
+      (nextWidth === this.canvasWidth && nextHeight === this.canvasHeight)
+    ) {
+      return;
+    }
+    this.canvasWidth = nextWidth;
+    this.canvasHeight = nextHeight;
+    if (this.pendingViewportFit) {
+      this.fitGraphToViewport();
+      return;
+    }
+    this.requestUpdate();
+  }
+
+  private getViewModel() {
+    const filters = this.activeFilters;
+    const searchQuery = filters.searchQuery.trim();
+    const tagsKey = [...filters.tags].toSorted().join("\u0000");
+    if (
+      this.cachedViewGraph === this.graph &&
+      this.cachedViewScope === this.activeScope &&
+      this.cachedViewSearchQuery === searchQuery &&
+      this.cachedViewTagsKey === tagsKey &&
+      this.cachedViewHoveredNodeId === filters.hoveredNodeId &&
+      this.cachedViewSelectedEdgeId === filters.selectedEdgeId
+    ) {
+      return this.cachedView;
+    }
+    this.cachedView = buildMemoryGraphViewModel(this.graph, filters);
+    this.cachedViewGraph = this.graph;
+    this.cachedViewScope = this.activeScope;
+    this.cachedViewSearchQuery = searchQuery;
+    this.cachedViewTagsKey = tagsKey;
+    this.cachedViewHoveredNodeId = filters.hoveredNodeId;
+    this.cachedViewSelectedEdgeId = filters.selectedEdgeId;
+    return this.cachedView;
+  }
+
+  private buildLayoutSignature(view: MemoryGraphViewModel, filters: MemoryGraphFilterState) {
+    return [
+      this.activeScope,
+      view.focusNode?.id ?? "",
+      filters.searchQuery.trim(),
+      [...filters.tags].toSorted().join("\u0000"),
+      this.groupMode,
+      view.nodes.map((node) => node.id).join("\u0000"),
+      view.edges.map((edge) => edge.id).join("\u0000"),
+    ].join("::");
+  }
+
+  private getNodeGroups(view: MemoryGraphViewModel) {
+    const signature = `${this.layoutSignature}::${this.groupMode}`;
+    if (signature === this.cachedNodeGroupsSignature) {
+      return this.cachedNodeGroups;
+    }
+    this.cachedNodeGroups = buildNodeGroups(view, this.groupMode);
+    this.cachedNodeGroupsSignature = signature;
+    return this.cachedNodeGroups;
+  }
+
   private viewportViewBox() {
     const width = Math.max(this.canvasWidth, 960);
     const height = Math.max(this.canvasHeight, this.compact ? 420 : 640);
@@ -478,37 +934,6 @@ export class AlisioMemoryGraphView extends LitElement {
       minY: -height / 2,
     };
   }
-
-  private syncCanvasMetrics() {
-    const canvas = this.querySelector(".alisio-memory-graph__canvas");
-    if (!(canvas instanceof HTMLElement)) {
-      return false;
-    }
-    const rect = canvas.getBoundingClientRect();
-    const nextWidth = Math.round(rect.width);
-    const nextHeight = Math.round(rect.height);
-    if (
-      nextWidth <= 0 ||
-      nextHeight <= 0 ||
-      (nextWidth === this.canvasWidth && nextHeight === this.canvasHeight)
-    ) {
-      return false;
-    }
-    this.canvasWidth = nextWidth;
-    this.canvasHeight = nextHeight;
-    return true;
-  }
-
-  private handleViewportResize = () => {
-    if (!this.syncCanvasMetrics()) {
-      return;
-    }
-    if (this.pendingViewportFit) {
-      this.fitGraphToViewport();
-      return;
-    }
-    this.requestUpdate();
-  };
 
   private setInteractionActive(active: boolean) {
     if (this.interactionActive === active) {
@@ -650,7 +1075,7 @@ export class AlisioMemoryGraphView extends LitElement {
         this.lastSimulationTs = null;
         return;
       }
-      const view = buildMemoryGraphViewModel(this.graph, this.activeFilters);
+      const view = this.getViewModel();
       if (view.nodes.length === 0) {
         this.layout = {};
         this.simulationState = null;
@@ -663,7 +1088,7 @@ export class AlisioMemoryGraphView extends LitElement {
         nodes: view.nodes,
         edges: view.edges,
         focusNodeId: view.focusNode?.id ?? null,
-        nodeGroups: buildNodeGroups(view, this.groupMode),
+        nodeGroups: this.getNodeGroups(view),
         draggedNodeId: this.dragState?.kind === "node" ? this.dragState.nodeId : null,
         dtMs: this.lastSimulationTs == null ? 16.6667 : timestamp - this.lastSimulationTs,
         localScope: this.activeScope === "local",
@@ -685,12 +1110,13 @@ export class AlisioMemoryGraphView extends LitElement {
   }
 
   private resetSimulation(view: MemoryGraphViewModel) {
+    const nodeGroups = this.getNodeGroups(view);
     const nextLayout = buildMemoryGraphLayout({
       nodes: view.nodes,
       edges: view.edges,
       focusNodeId: view.focusNode?.id ?? null,
       previousLayout: this.simulationState?.positions ?? this.layout,
-      nodeGroups: buildNodeGroups(view, this.groupMode),
+      nodeGroups,
     });
     this.simulationState = createMemoryGraphSimulation({
       layout: nextLayout,
@@ -705,18 +1131,11 @@ export class AlisioMemoryGraphView extends LitElement {
 
   private ensureLayout() {
     const filters = this.activeFilters;
-    const view = buildMemoryGraphViewModel(this.graph, filters);
-    const signature = JSON.stringify({
-      scope: this.activeScope,
-      focus: view.focusNode?.id ?? null,
-      searchQuery: filters.searchQuery.trim(),
-      tags: [...filters.tags].toSorted(),
-      groupMode: this.groupMode,
-      nodes: view.nodes.map((node) => node.id),
-      edges: view.edges.map((edge) => edge.id),
-    });
+    const view = this.getViewModel();
+    const signature = this.buildLayoutSignature(view, filters);
     if (signature !== this.layoutSignature) {
       this.layoutSignature = signature;
+      this.cachedNodeGroupsSignature = "";
       this.resetSimulation(view);
     } else if (!this.simulationState && view.nodes.length > 0) {
       this.resetSimulation(view);
@@ -1114,9 +1533,10 @@ export class AlisioMemoryGraphView extends LitElement {
     if (!this.settingsOpen) {
       return nothing;
     }
+    const nodeGroups = this.getNodeGroups(view);
     return html`
       <aside class="alisio-memory-graph__settings">
-        ${this.renderFiltersCard(view, text)} ${this.renderGroupsCard(view, text)}
+        ${this.renderFiltersCard(view, text)} ${this.renderGroupsCard(view, text, nodeGroups)}
       </aside>
     `;
   }
@@ -1174,8 +1594,11 @@ export class AlisioMemoryGraphView extends LitElement {
     `;
   }
 
-  private renderGroupsCard(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
-    const assignments = buildNodeGroups(view, this.groupMode);
+  private renderGroupsCard(
+    view: MemoryGraphViewModel,
+    text: MemoryGraphViewText,
+    assignments: Record<string, string | null | undefined>,
+  ) {
     const groupIds = Array.from(
       new Set(
         view.nodes
@@ -1420,6 +1843,16 @@ export class AlisioMemoryGraphView extends LitElement {
     return params.dimmed ? withAlpha(stroke, 0.4) : stroke;
   }
 
+  private resolveNodeRadius(node: MemoryGraphViewModel["nodes"][number], focused: boolean) {
+    const minRadius = node.kind === "attachment" ? 6 : 8;
+    const maxRadius = node.kind === "attachment" ? 11 : 17;
+    const growthPerConnection = node.kind === "attachment" ? 0.7 : 1.1;
+    const grownRadius = minRadius + Math.max(0, node.degree - 1) * growthPerConnection;
+    const baseRadius = clamp(grownRadius, minRadius, maxRadius);
+    const focusedRadius = focused ? Math.min(baseRadius + 2, maxRadius + 2) : baseRadius;
+    return focusedRadius * this.nodeScale;
+  }
+
   private resolveEdgeColor(params: {
     palette: GraphThemePalette;
     highlighted: boolean;
@@ -1434,16 +1867,13 @@ export class AlisioMemoryGraphView extends LitElement {
     return params.dimmed ? withAlpha(base, 0.14) : withAlpha(base, params.highlighted ? 0.9 : 0.28);
   }
 
-  private renderCanvas(view: MemoryGraphViewModel, text: MemoryGraphViewText) {
+  private renderCanvas(
+    view: MemoryGraphViewModel,
+    text: MemoryGraphViewText,
+    nodeGroups: Record<string, string | null | undefined>,
+  ) {
     const palette = this.resolveThemePalette();
     const focusNode = view.focusNode;
-    const nodeGroups = buildNodeGroups(view, this.groupMode);
-    const clusterOverlays = buildGraphClusterOverlays({
-      view,
-      layout: this.layout,
-      nodeGroups,
-      text,
-    });
     const viewport = this.viewportViewBox();
     const gridWidth = Math.max(viewport.width, 960);
     const gridHeight = Math.max(viewport.height, 640);
@@ -1457,7 +1887,11 @@ export class AlisioMemoryGraphView extends LitElement {
       (_, index) => -Math.ceil(gridHeight / 2) - gridStep + index * gridStep,
     );
     return html`
-      <section class="alisio-memory-graph__canvas" @wheel=${this.handleWheel}>
+      <section
+        class="alisio-memory-graph__canvas"
+        ${ref(this.bindCanvasElement)}
+        @wheel=${this.handleWheel}
+      >
         ${svg`
           <svg
             viewBox=${`${viewport.minX} ${viewport.minY} ${viewport.width} ${viewport.height}`}
@@ -1491,41 +1925,6 @@ export class AlisioMemoryGraphView extends LitElement {
             </g>
             <g class="alisio-memory-graph__camera" transform=${`translate(${this.panX} ${this.panY})`}>
               <g class="alisio-memory-graph__scene" transform=${`scale(${this.zoom})`}>
-                ${clusterOverlays.map((group) => {
-                  const clusterLabel = `${shortenGraphLabel(group.label, 24)} · ${String(group.count)}`;
-                  const labelWidth = clamp(clusterLabel.length * 7.1 + 34, 104, 248);
-                  return svg`
-                    <g
-                      class="alisio-memory-graph__cluster"
-                      transform=${`translate(${group.x} ${group.y})`}
-                    >
-                      <circle
-                        class="alisio-memory-graph__cluster-surface"
-                        r=${group.radius}
-                        fill=${withAlpha(group.color, 0.08)}
-                        stroke=${withAlpha(group.color, 0.2)}
-                      ></circle>
-                      <rect
-                        class="alisio-memory-graph__cluster-label"
-                        x=${-labelWidth / 2}
-                        y=${-group.radius + 18}
-                        width=${labelWidth}
-                        height="24"
-                        rx="12"
-                        fill=${withAlpha(group.color, 0.18)}
-                        stroke=${withAlpha(group.color, 0.24)}
-                      ></rect>
-                      <text
-                        class="alisio-memory-graph__cluster-copy"
-                        y=${-group.radius + 34}
-                        text-anchor="middle"
-                        fill=${withAlpha(palette.text, 0.84)}
-                      >
-                        ${clusterLabel}
-                      </text>
-                    </g>
-                  `;
-                })}
                 ${view.edges.map((edge) => {
                   const source = this.layout[edge.fromId];
                   const target = this.layout[edge.toId];
@@ -1607,11 +2006,7 @@ export class AlisioMemoryGraphView extends LitElement {
                   const dimmed =
                     view.highlightedNodeIds.size > 0 && !highlighted && node.id !== focusNode?.id;
                   const focused = node.id === focusNode?.id;
-                  const baseRadius =
-                    node.kind === "attachment"
-                      ? 11 + Math.min(node.degree * 1.5, 6)
-                      : 14 + Math.min(node.degree * 2, 12);
-                  const radius = (focused ? Math.max(baseRadius, 28) : baseRadius) * this.nodeScale;
+                  const radius = this.resolveNodeRadius(node, focused);
                   const label = shortenGraphLabel(node.title, focused ? 28 : 22);
                   const showLabel =
                     focused ||
@@ -1629,9 +2024,6 @@ export class AlisioMemoryGraphView extends LitElement {
                     dimmed,
                   });
                   const labelColor = dimmed ? withAlpha(palette.textMuted, 0.4) : palette.text;
-                  const halo = dimmed
-                    ? withAlpha(tone, 0.06)
-                    : withAlpha(tone, focused ? 0.22 : highlighted ? 0.16 : 0.09);
                   const labelWidth = clamp(label.length * 7.6 + 24, 72, 212);
                   const labelFill = dimmed
                     ? withAlpha(fill, 0.18)
@@ -1655,20 +2047,11 @@ export class AlisioMemoryGraphView extends LitElement {
                         this.handleNodeContextMenu(event, node.id)}
                     >
                       <circle
-                        class="alisio-memory-graph__node-halo"
-                        r=${radius + 8}
-                        fill=${halo}
-                      ></circle>
-                      <circle
+                        class="alisio-memory-graph__node-body"
                         r=${radius}
                         fill=${fill}
                         stroke=${stroke}
                         stroke-width=${focused ? "3" : "2"}
-                      ></circle>
-                      <circle
-                        class="alisio-memory-graph__node-dot"
-                        r=${Math.max(2.8, Math.min(radius * 0.22, 5.4))}
-                        fill=${dimmed ? withAlpha(stroke, 0.44) : withAlpha(stroke, 0.92)}
                       ></circle>
                       ${
                         shouldRenderLabel
@@ -1711,423 +2094,28 @@ export class AlisioMemoryGraphView extends LitElement {
     `;
   }
 
+  private renderPaletteStyle(palette: GraphThemePalette) {
+    return [
+      `--alisio-memory-graph-card-shadow:${withAlpha(palette.text, 0.08)}`,
+      `--alisio-memory-graph-stage-shadow:${withAlpha(palette.text, 0.1)}`,
+      `--alisio-memory-graph-topbar-shadow:${withAlpha(palette.text, 0.08)}`,
+      `--alisio-memory-graph-text-muted:${palette.textMuted}`,
+      `--alisio-memory-graph-overlay-top:${palette.overlayTop}`,
+      `--alisio-memory-graph-overlay-bottom:${palette.overlayBottom}`,
+      `--alisio-memory-graph-grid-line:${palette.gridLine}`,
+      `--alisio-memory-graph-node-shadow:${withAlpha(palette.text, 0.12)}`,
+      `--alisio-memory-graph-panel-shadow:${palette.shadow}`,
+    ].join(";");
+  }
+
   render() {
     const text = this.resolvedText;
     const view = this.ensureLayout();
     const palette = this.resolveThemePalette();
+    const nodeGroups = this.getNodeGroups(view);
 
     return html`
-      <style>
-        .alisio-memory-graph {
-          position: relative;
-          min-width: 0;
-        }
-        .alisio-memory-graph__card {
-          display: grid;
-          gap: 12px;
-          padding: 18px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
-          border-radius: 22px;
-          background: linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--surface-elevated) 88%, transparent),
-            color-mix(in srgb, var(--surface-panel) 96%, transparent)
-          );
-          box-shadow: 0 12px 32px ${withAlpha(palette.text, 0.08)};
-        }
-        .alisio-memory-graph.is-compact .alisio-memory-graph__card {
-          padding: 14px 16px;
-          border-radius: 18px;
-          box-shadow: none;
-        }
-        .alisio-memory-graph__lede {
-          margin: 0;
-          color: var(--text-muted);
-          line-height: 1.65;
-        }
-        .alisio-memory-graph__scope,
-        .alisio-memory-graph__toolbar,
-        .alisio-memory-graph__chips,
-        .alisio-memory-graph__meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .alisio-memory-graph__toolbar {
-          gap: 10px;
-        }
-        .alisio-memory-graph__meta {
-          color: var(--text-muted);
-          font-size: 13px;
-        }
-        .alisio-memory-graph__stage {
-          position: relative;
-          min-width: 0;
-          outline: none;
-        }
-        .alisio-memory-graph__stage.is-interacting .alisio-memory-graph__canvas,
-        .alisio-memory-graph__stage:focus-within .alisio-memory-graph__canvas {
-          border-color: color-mix(in srgb, var(--accent-primary) 24%, var(--border-subtle));
-          box-shadow:
-            0 18px 44px ${withAlpha(palette.text, 0.1)},
-            inset 0 1px 0 color-mix(in srgb, var(--surface-elevated) 64%, transparent);
-        }
-        .alisio-memory-graph__topbar {
-          position: absolute;
-          top: 16px;
-          left: 16px;
-          right: 16px;
-          z-index: 2;
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-          pointer-events: none;
-        }
-        .alisio-memory-graph__topbar > * {
-          pointer-events: auto;
-        }
-        .alisio-memory-graph__scope,
-        .alisio-memory-graph__toolbar,
-        .alisio-memory-graph__topbar-meta {
-          display: flex;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 8px;
-          padding: 8px;
-          border-radius: 18px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 82%, transparent);
-          backdrop-filter: blur(18px);
-          box-shadow: 0 18px 36px ${withAlpha(palette.text, 0.08)};
-        }
-        .alisio-memory-graph__topbar-meta {
-          justify-content: center;
-          flex: 1 1 280px;
-        }
-        .alisio-memory-graph__pill {
-          display: inline-flex;
-          align-items: center;
-          min-height: 30px;
-          padding: 0 10px;
-          border-radius: 999px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 88%, transparent);
-          backdrop-filter: blur(14px);
-          color: var(--text-muted);
-          font-size: 0.78rem;
-          font-weight: 600;
-        }
-        .alisio-memory-graph__meta-block {
-          display: grid;
-          gap: 4px;
-        }
-        .alisio-memory-graph__meta-block span {
-          color: var(--text-muted);
-          font-size: 13px;
-          line-height: 1.55;
-        }
-        .alisio-memory-graph__legend {
-          display: grid;
-          gap: 8px;
-        }
-        .alisio-memory-graph__legend-item {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .alisio-memory-graph__legend-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 999px;
-          flex: 0 0 auto;
-        }
-        .alisio-memory-graph__legend-copy {
-          min-width: 0;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          width: 100%;
-        }
-        .alisio-memory-graph__legend-copy em {
-          color: var(--text-muted);
-          font-style: normal;
-        }
-        .alisio-memory-graph__slider {
-          display: grid;
-          gap: 8px;
-        }
-        .alisio-memory-graph__slider span {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-          font-size: 13px;
-        }
-        .alisio-memory-graph__slider em {
-          color: var(--text-muted);
-          font-style: normal;
-        }
-        .alisio-memory-graph__settings {
-          position: absolute;
-          top: 70px;
-          right: 16px;
-          z-index: 3;
-          display: grid;
-          gap: 10px;
-          width: min(340px, calc(100% - 32px));
-          max-height: calc(100% - 86px);
-          overflow: auto;
-          padding-right: 2px;
-          backdrop-filter: blur(18px);
-        }
-        .alisio-memory-graph__settings .alisio-memory-graph__slider input[type="range"] {
-          width: 100%;
-        }
-        .alisio-memory-graph__canvas {
-          position: relative;
-          height: min(76vh, 900px);
-          min-height: 640px;
-          color: ${palette.textMuted};
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
-          border-radius: 24px;
-          overflow: hidden;
-          background:
-            radial-gradient(
-              circle at 18% 12%,
-              color-mix(in srgb, var(--accent-primary) 14%, transparent),
-              transparent 34%
-            ),
-            radial-gradient(
-              circle at 84% 0%,
-              color-mix(in srgb, var(--accent) 10%, transparent),
-              transparent 30%
-            ),
-            linear-gradient(
-              180deg,
-              color-mix(in srgb, var(--surface-elevated) 96%, transparent),
-              color-mix(in srgb, var(--surface-panel) 98%, transparent)
-            );
-        }
-        .alisio-memory-graph.is-compact .alisio-memory-graph__canvas {
-          height: min(56vh, 560px);
-          min-height: 420px;
-          border-radius: 20px;
-        }
-        .alisio-memory-graph__canvas svg {
-          width: 100%;
-          height: 100%;
-          display: block;
-          cursor: grab;
-        }
-        .alisio-memory-graph__canvas::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          background:
-            linear-gradient(180deg, ${palette.overlayTop}, transparent 20%),
-            linear-gradient(0deg, ${palette.overlayBottom}, transparent 18%);
-        }
-        .alisio-memory-graph__canvas svg:active {
-          cursor: grabbing;
-        }
-        .alisio-memory-graph__grid {
-          opacity: 0.82;
-        }
-        .alisio-memory-graph__grid line {
-          stroke: ${palette.gridLine};
-          stroke-width: 1;
-        }
-        .alisio-memory-graph__cluster,
-        .alisio-memory-graph__cluster-copy,
-        .alisio-memory-graph__cluster-label,
-        .alisio-memory-graph__cluster-surface,
-        .alisio-memory-graph__node-halo,
-        .alisio-memory-graph__node-dot,
-        .alisio-memory-graph__node-label {
-          pointer-events: none;
-        }
-        .alisio-memory-graph__cluster-surface,
-        .alisio-memory-graph__cluster-label {
-          stroke-width: 1.25;
-        }
-        .alisio-memory-graph__cluster-copy {
-          font-size: 12px;
-          font-weight: 600;
-          letter-spacing: 0.01em;
-        }
-        .alisio-memory-graph__edge-hit {
-          stroke: transparent;
-          stroke-width: 18;
-          cursor: pointer;
-        }
-        .alisio-memory-graph__edge-glow {
-          stroke-linecap: round;
-          opacity: 0.94;
-        }
-        .alisio-memory-graph__edge {
-          stroke-linecap: round;
-          vector-effect: non-scaling-stroke;
-          transition:
-            opacity 120ms ease,
-            stroke-width 120ms ease;
-        }
-        .alisio-memory-graph__edge.is-attachment {
-          stroke-dasharray: 5 5;
-        }
-        .alisio-memory-graph__edge.is-dimmed {
-          opacity: 1;
-        }
-        .alisio-memory-graph__node {
-          cursor: pointer;
-          filter: drop-shadow(0 10px 18px ${withAlpha(palette.text, 0.12)});
-          transition:
-            opacity 120ms ease,
-            filter 120ms ease;
-        }
-        .alisio-memory-graph__node.is-dimmed {
-          opacity: 0.34;
-        }
-        .alisio-memory-graph__node circle {
-          transition:
-            fill 120ms ease,
-            stroke 120ms ease,
-            transform 120ms ease;
-          transform-box: fill-box;
-          transform-origin: center;
-        }
-        .alisio-memory-graph__node.is-highlighted circle:not(.alisio-memory-graph__node-halo),
-        .alisio-memory-graph__node.is-focus circle:not(.alisio-memory-graph__node-halo) {
-          transform: scale(1.03);
-        }
-        .alisio-memory-graph__label-chip {
-          stroke-width: 1;
-          transition:
-            fill 120ms ease,
-            stroke 120ms ease,
-            opacity 120ms ease;
-        }
-        .alisio-memory-graph__label {
-          font-size: 13px;
-          font-weight: 600;
-          pointer-events: none;
-          transition: opacity 120ms ease;
-        }
-        .alisio-memory-graph__hud {
-          position: absolute;
-          left: 16px;
-          right: 16px;
-          bottom: 16px;
-          z-index: 2;
-          display: flex;
-          justify-content: flex-end;
-          pointer-events: none;
-        }
-        .alisio-memory-graph__selection-card {
-          width: min(420px, 100%);
-          padding: 12px 14px;
-          border-radius: 18px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 78%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 86%, transparent);
-          box-shadow: 0 20px 44px ${palette.shadow};
-          backdrop-filter: blur(20px);
-          pointer-events: auto;
-        }
-        .alisio-memory-graph__selection-head {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 10px;
-          margin-bottom: 10px;
-        }
-        .alisio-memory-graph__selection-kicker,
-        .alisio-memory-graph__selection-relation {
-          display: inline-flex;
-          align-items: center;
-          min-height: 26px;
-          padding: 0 10px;
-          border-radius: 999px;
-          font-size: 0.76rem;
-          font-weight: 700;
-        }
-        .alisio-memory-graph__selection-kicker {
-          background: color-mix(in srgb, var(--surface-elevated) 86%, transparent);
-          color: var(--text-muted);
-        }
-        .alisio-memory-graph__selection-relation {
-          background: color-mix(in srgb, var(--accent-primary) 16%, transparent);
-          color: var(--text);
-        }
-        .alisio-memory-graph__selection-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-        }
-        .alisio-memory-graph__selection-grid span {
-          display: grid;
-          gap: 4px;
-          min-width: 0;
-        }
-        .alisio-memory-graph__selection-grid strong {
-          color: var(--text-muted);
-          font-size: 0.74rem;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-        .alisio-memory-graph__selection-grid em {
-          color: var(--text);
-          font-style: normal;
-          font-weight: 600;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .alisio-memory-graph__context-menu {
-          position: fixed;
-          z-index: 50;
-          display: grid;
-          gap: 8px;
-          min-width: 180px;
-          padding: 12px;
-          border-radius: 16px;
-          border: 1px solid color-mix(in srgb, var(--border-subtle) 84%, transparent);
-          background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
-          box-shadow: 0 20px 40px ${palette.shadow};
-          backdrop-filter: blur(18px);
-        }
-        .alisio-memory-graph__context-menu .btn {
-          justify-content: flex-start;
-          width: 100%;
-        }
-        @media (max-width: 980px) {
-          .alisio-memory-graph__canvas {
-            min-height: 440px;
-          }
-          .alisio-memory-graph__topbar {
-            top: 12px;
-            left: 12px;
-            right: 12px;
-          }
-          .alisio-memory-graph__settings {
-            top: 64px;
-            right: 12px;
-            width: min(340px, calc(100% - 24px));
-            max-height: calc(100% - 76px);
-          }
-          .alisio-memory-graph__hud {
-            left: 12px;
-            right: 12px;
-            bottom: 12px;
-          }
-          .alisio-memory-graph__selection-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-      </style>
+      ${MEMORY_GRAPH_STYLE}
       ${this.loading
         ? html`
             <section class="alisio-memory-runtime">
@@ -2149,7 +2137,10 @@ export class AlisioMemoryGraphView extends LitElement {
                   ${text.graphEmpty}
                 </div>`
               : html`
-                  <div class="alisio-memory-graph ${this.compact ? "is-compact" : ""}">
+                  <div
+                    class="alisio-memory-graph ${this.compact ? "is-compact" : ""}"
+                    style=${this.renderPaletteStyle(palette)}
+                  >
                     <section
                       class="alisio-memory-graph__stage ${this.interactionActive
                         ? "is-interacting"
@@ -2162,7 +2153,7 @@ export class AlisioMemoryGraphView extends LitElement {
                       @focusout=${this.handleStageFocusOut}
                     >
                       ${this.renderTopbar(view, text)} ${this.renderSettingsPanel(view, text)}
-                      ${this.renderCanvas(view, text)}
+                      ${this.renderCanvas(view, text, nodeGroups)}
                     </section>
                   </div>
                   ${this.renderContextMenu(text)}

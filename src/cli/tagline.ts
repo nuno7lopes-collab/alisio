@@ -7,7 +7,7 @@ const HOLIDAY_TAGLINES = {
   lunarNewYear:
     "Lunar New Year: May your builds be lucky, your branches prosperous, and your merge conflicts chased away with fireworks.",
   christmas:
-    "Christmas: Ho ho ho—Santa's little claw-sistant is here to ship joy, roll back chaos, and stash the keys safely.",
+    "Christmas: Ho ho ho—Santa's little shell-side assistant is here to ship joy, roll back chaos, and stash the keys safely.",
   eid: "Eid al-Fitr: Celebration mode: queues cleared, tasks completed, and good vibes committed to main with clean history.",
   diwali:
     "Diwali: Let the logs sparkle and the bugs flee—today we light up the terminal and ship with pride.",
@@ -24,7 +24,7 @@ const HOLIDAY_TAGLINES = {
 } as const;
 
 const TAGLINES: string[] = [
-  "Your terminal just grew claws—type something and let the bot pinch the busywork.",
+  "Your terminal just gained a lobster copilot—type something and let the bot handle the busywork.",
   "Welcome to the command line: where dreams compile and confidence segfaults.",
   'I run on caffeine, JSON5, and the audacity of "it worked on my machine."',
   "Gateway online—please keep hands, feet, and appendages inside the shell at all times.",
@@ -41,7 +41,7 @@ const TAGLINES: string[] = [
   "Hot reload for config, cold sweat for deploys.",
   "I'm the assistant your terminal demanded, not the one your sleep schedule requested.",
   "I keep secrets like a vault... unless you print them in debug logs again.",
-  "Automation with claws: minimal fuss, maximal pinch.",
+  "Automation with shell discipline: minimal fuss, maximal throughput.",
   "I'm basically a Swiss Army knife, but with more opinions and fewer sharp edges.",
   "If you're lost, run doctor; if you're brave, run prod; if you're wise, run tests.",
   "Your task has been queued; your dignity has been deprecated.",
@@ -60,7 +60,7 @@ const TAGLINES: string[] = [
   "Your config is valid, your assumptions are not.",
   "I don't just autocomplete—I auto-commit (emotionally), then ask you to review (logically).",
   'Less clicking, more shipping, fewer "where did that file go" moments.',
-  "Claws out, commit in—let's ship something mildly responsible.",
+  "Commit in, diff clean—let's ship something mildly responsible.",
   "I'll butter your workflow like a lobster roll: messy, delicious, effective.",
   "Shell yeah—I'm here to pinch the toil and leave you the glory.",
   "If it's repetitive, I'll automate it; if it's hard, I'll bring jokes and a rollback plan.",

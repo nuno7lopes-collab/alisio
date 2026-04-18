@@ -38,6 +38,16 @@ type CapabilitySkillSection = {
   skills: SkillStatusEntry[];
 };
 
+const capabilityStatusCountsCache = new WeakMap<
+  SkillStatusEntry[],
+  ReturnType<typeof buildSkillStatusCounts>
+>();
+const capabilitySectionsCache = new WeakMap<SkillStatusEntry[], CapabilitySkillSection[]>();
+const capabilityFilteredSkillsCache = new WeakMap<
+  SkillStatusEntry[],
+  Map<string, SkillStatusEntry[]>
+>();
+
 export type CapabilitiesProps = {
   connected: boolean;
   connectionError?: string | null;
@@ -140,6 +150,58 @@ function buildSkillSections(skills: SkillStatusEntry[]): CapabilitySkillSection[
   return sections;
 }
 
+function getCapabilityStatusCounts(skills: SkillStatusEntry[]) {
+  const cached = capabilityStatusCountsCache.get(skills);
+  if (cached) {
+    return cached;
+  }
+  const counts = buildSkillStatusCounts(skills);
+  capabilityStatusCountsCache.set(skills, counts);
+  return counts;
+}
+
+function getFilteredSkills(
+  skills: SkillStatusEntry[],
+  statusFilter: SkillsStatusFilter,
+  filter: string,
+) {
+  let byFilter = capabilityFilteredSkillsCache.get(skills);
+  if (!byFilter) {
+    byFilter = new Map();
+    capabilityFilteredSkillsCache.set(skills, byFilter);
+  }
+  const search = filter.trim().toLowerCase();
+  const cacheKey = `${statusFilter}::${search}`;
+  const cached = byFilter.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const filteredByStatus =
+    statusFilter === "all"
+      ? skills
+      : skills.filter((skill) => skillMatchesStatus(skill, statusFilter));
+  const filteredSkills = search
+    ? filteredByStatus.filter((skill) =>
+        [skill.name, skill.description, skill.source, skill.skillKey]
+          .join(" ")
+          .toLowerCase()
+          .includes(search),
+      )
+    : filteredByStatus;
+  byFilter.set(cacheKey, filteredSkills);
+  return filteredSkills;
+}
+
+function getCapabilitySkillSections(skills: SkillStatusEntry[]) {
+  const cached = capabilitySectionsCache.get(skills);
+  if (cached) {
+    return cached;
+  }
+  const sections = buildSkillSections(skills);
+  capabilitySectionsCache.set(skills, sections);
+  return sections;
+}
+
 function renderCapabilitiesFiltersSkeleton() {
   return html`
     <div class="capabilities-filter-skeleton" aria-hidden="true">
@@ -209,26 +271,13 @@ export function renderCapabilities(props: CapabilitiesProps) {
   const showNotConnectedHint = !props.connected && !props.report && errorMessages.length === 0;
   const suppressEmptyState = !props.report && errorMessages.length > 0;
   const skills = mergeSkillStatusEntries(props.report);
-  const statusCounts = buildSkillStatusCounts(skills);
-
-  const filteredByStatus =
-    props.statusFilter === "all"
-      ? skills
-      : skills.filter((skill) => skillMatchesStatus(skill, props.statusFilter));
-  const search = props.filter.trim().toLowerCase();
-  const filteredSkills = search
-    ? filteredByStatus.filter((skill) =>
-        [skill.name, skill.description, skill.source, skill.skillKey]
-          .join(" ")
-          .toLowerCase()
-          .includes(search),
-      )
-    : filteredByStatus;
+  const statusCounts = getCapabilityStatusCounts(skills);
+  const filteredSkills = getFilteredSkills(skills, props.statusFilter, props.filter);
   const detailSkill =
     props.detailKey != null
       ? (skills.find((skill) => skill.skillKey === props.detailKey) ?? null)
       : null;
-  const skillSections = buildSkillSections(filteredSkills);
+  const skillSections = getCapabilitySkillSections(filteredSkills);
 
   return html`
     <section class="alisio-page" style="display: grid; gap: 16px;">

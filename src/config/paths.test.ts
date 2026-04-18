@@ -9,7 +9,6 @@ import {
   resolveConfigPath,
   resolveGatewayPort,
   resolveOAuthDir,
-  resolveOAuthPath,
   resolveStateDir,
 } from "./paths.js";
 
@@ -17,7 +16,7 @@ function envWith(overrides: Record<string, string | undefined>): NodeJS.ProcessE
   return { ...overrides };
 }
 
-describe("oauth paths", () => {
+describe("credentials paths", () => {
   it("prefers ALISIO_OAUTH_DIR over ALISIO_STATE_DIR", () => {
     const env = {
       ALISIO_OAUTH_DIR: "/custom/oauth",
@@ -25,20 +24,14 @@ describe("oauth paths", () => {
     } as NodeJS.ProcessEnv;
 
     expect(resolveOAuthDir(env, "/custom/state")).toBe(path.resolve("/custom/oauth"));
-    expect(resolveOAuthPath(env, "/custom/state")).toBe(
-      path.join(path.resolve("/custom/oauth"), "oauth.json"),
-    );
   });
 
-  it("derives oauth path from ALISIO_STATE_DIR when unset", () => {
+  it("derives the credentials dir from ALISIO_STATE_DIR when unset", () => {
     const env = {
       ALISIO_STATE_DIR: "/custom/state",
     } as NodeJS.ProcessEnv;
 
     expect(resolveOAuthDir(env, "/custom/state")).toBe(path.join("/custom/state", "credentials"));
-    expect(resolveOAuthPath(env, "/custom/state")).toBe(
-      path.join("/custom/state", "credentials", "oauth.json"),
-    );
   });
 });
 

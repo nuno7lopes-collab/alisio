@@ -125,6 +125,7 @@ export type AlisioPluginToolContext = {
   sessionId?: string;
   browser?: {
     sandboxBridgeUrl?: string;
+    resolveSandboxBridgeUrl?: () => Promise<string | undefined>;
     allowHostControl?: boolean;
     preferSandbox?: boolean;
   };
@@ -787,21 +788,6 @@ export type ProviderPluginWizard = {
   modelPicker?: ProviderPluginWizardModelPicker;
 };
 
-export type ProviderOAuthProfileIdRepair = {
-  /**
-   * Legacy OAuth profile id to migrate away from.
-   *
-   * When omitted, Alisio falls back to `<provider>:default`.
-   */
-  legacyProfileId?: string;
-  /**
-   * Optional custom doctor prompt label.
-   *
-   * Defaults to the provider label when omitted.
-   */
-  promptLabel?: string;
-};
-
 export type ProviderModelSelectedContext = {
   config: AlisioConfig;
   model: string;
@@ -1109,22 +1095,6 @@ export type ProviderPlugin = {
    * bearer token (for example Gemini CLI's `{ token, projectId }` payload).
    */
   formatApiKey?: (cred: AuthProfileCredential) => string;
-  /**
-   * Legacy auth-profile ids that should be retired by `alisio doctor`.
-   *
-   * Use this when a provider plugin replaces an older core-managed profile id
-   * and wants cleanup/migration messaging to live with the provider instead of
-   * in hardcoded doctor tables.
-   */
-  deprecatedProfileIds?: string[];
-  /**
-   * Legacy OAuth profile-id migrations that `alisio doctor` should offer.
-   *
-   * Use this when a provider moved from a legacy default OAuth profile id to a
-   * newer identity-based id and wants doctor to own the config rewrite without
-   * another core-specific migration branch.
-   */
-  oauthProfileIdRepairs?: ProviderOAuthProfileIdRepair[];
   /**
    * Provider-owned OAuth refresh.
    *

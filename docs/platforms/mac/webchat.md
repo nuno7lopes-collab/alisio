@@ -24,7 +24,7 @@ agent (with a session switcher for other sessions).
   dist/Alisio.app/Contents/MacOS/Alisio --webchat
   ```
 
-- Logs: `./scripts/clawlog.sh` (subsystem `ai.alisio`, category `WebChatSwiftUI`).
+- Logs: `./scripts/alisio-log.sh` (subsystem `ai.alisio`, category `WebChatSwiftUI`).
 
 ## How it is wired
 

@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import { resolveOAuthPath } from "../../config/paths.js";
 import { withFileLock } from "../../infra/file-lock.js";
 import { loadJsonFile, saveJsonFile } from "../../infra/json-file.js";
 import {
@@ -9,16 +8,17 @@ import {
   log,
 } from "./constants.js";
 import { syncExternalCliCredentials } from "./external-cli-sync.js";
-import { ensureAuthStoreFile, resolveAuthStorePath, resolveLegacyAuthStorePath } from "./paths.js";
+import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
 import type {
+  ApiKeyCredential,
   AuthProfileCredential,
   AuthProfileStore,
-  OAuthCredentials,
+  OAuthCredential,
   ProfileUsageStats,
+  TokenCredential,
 } from "./types.js";
 
-type LegacyAuthStore = Record<string, AuthProfileCredential>;
-type CredentialRejectReason = "non_object" | "invalid_type" | "missing_provider";
+type CredentialRejectReason = "non_object" | "invalid_shape" | "invalid_type" | "missing_provider";
 type RejectedCredentialEntry = { key: string; reason: CredentialRejectReason };
 type LoadAuthProfileStoreOptions = {
   allowKeychainPrompt?: boolean;
@@ -26,6 +26,16 @@ type LoadAuthProfileStoreOptions = {
 };
 
 const AUTH_PROFILE_TYPES = new Set<AuthProfileCredential["type"]>(["api_key", "oauth", "token"]);
+const API_KEY_FIELDS = ["key", "keyRef", "email", "displayName", "metadata"] as const;
+const TOKEN_FIELDS = ["token", "tokenRef", "expires", "email", "displayName"] as const;
+const OAUTH_OPTIONAL_FIELDS = [
+  "clientId",
+  "email",
+  "displayName",
+  "enterpriseUrl",
+  "projectId",
+  "accountId",
+] as const;
 
 const runtimeAuthStoreSnapshots = new Map<string, AuthProfileStore>();
 const loadedAuthStoreCache = new Map<
@@ -166,49 +176,68 @@ export async function updateAuthProfileStoreWithLock(params: {
   }
 }
 
-/**
- * Normalise a raw auth-profiles.json credential entry.
- *
- * The official format uses `type` and (for api_key credentials) `key`.
- * A common mistake — caused by the similarity with the `alisio.json`
- * `auth.profiles` section which uses `mode` — is to write `mode` instead of
- * `type` and `apiKey` instead of `key`.  Accept both spellings so users don't
- * silently lose their credentials.
- */
-function normalizeRawCredentialEntry(raw: Record<string, unknown>): Partial<AuthProfileCredential> {
-  const entry = { ...raw } as Record<string, unknown>;
-  // mode → type alias (alisio.json uses "mode"; auth-profiles.json uses "type")
-  if (!("type" in entry) && typeof entry["mode"] === "string") {
-    entry["type"] = entry["mode"];
-  }
-  // apiKey → key alias for ApiKeyCredential
-  if (!("key" in entry) && typeof entry["apiKey"] === "string") {
-    entry["key"] = entry["apiKey"];
-  }
-  return entry as Partial<AuthProfileCredential>;
+function pickCredentialFields<T extends object>(
+  raw: Record<string, unknown>,
+  fields: readonly string[],
+): Partial<T> {
+  const entries = fields.flatMap((field) =>
+    raw[field] !== undefined ? [[field, raw[field]]] : [],
+  );
+  return Object.fromEntries(entries) as Partial<T>;
 }
 
 function parseCredentialEntry(
   raw: unknown,
-  fallbackProvider?: string,
 ): { ok: true; credential: AuthProfileCredential } | { ok: false; reason: CredentialRejectReason } {
   if (!raw || typeof raw !== "object") {
     return { ok: false, reason: "non_object" };
   }
-  const typed = normalizeRawCredentialEntry(raw as Record<string, unknown>);
-  if (!AUTH_PROFILE_TYPES.has(typed.type as AuthProfileCredential["type"])) {
+  const record = raw as Record<string, unknown>;
+  const type = record["type"];
+  if (!AUTH_PROFILE_TYPES.has(type as AuthProfileCredential["type"])) {
     return { ok: false, reason: "invalid_type" };
   }
-  const provider = typed.provider ?? fallbackProvider;
+  const provider = record["provider"];
   if (typeof provider !== "string" || provider.trim().length === 0) {
     return { ok: false, reason: "missing_provider" };
+  }
+  const normalizedProvider = provider.trim();
+  if (type === "api_key") {
+    return {
+      ok: true,
+      credential: {
+        type,
+        provider: normalizedProvider,
+        ...pickCredentialFields<ApiKeyCredential>(record, API_KEY_FIELDS),
+      },
+    };
+  }
+  if (type === "token") {
+    return {
+      ok: true,
+      credential: {
+        type,
+        provider: normalizedProvider,
+        ...pickCredentialFields<TokenCredential>(record, TOKEN_FIELDS),
+      },
+    };
+  }
+  const access = typeof record["access"] === "string" ? record["access"].trim() : "";
+  const refresh = typeof record["refresh"] === "string" ? record["refresh"].trim() : "";
+  const expires = record["expires"];
+  if (!access || !refresh || typeof expires !== "number" || !Number.isFinite(expires)) {
+    return { ok: false, reason: "invalid_shape" };
   }
   return {
     ok: true,
     credential: {
-      ...typed,
-      provider,
-    } as AuthProfileCredential,
+      type: "oauth",
+      provider: normalizedProvider,
+      access,
+      refresh,
+      expires,
+      ...pickCredentialFields<OAuthCredential>(record, OAUTH_OPTIONAL_FIELDS),
+    },
   };
 }
 
@@ -229,28 +258,6 @@ function warnRejectedCredentialEntries(source: string, rejected: RejectedCredent
     reasons,
     keys: rejected.slice(0, 10).map((entry) => entry.key),
   });
-}
-
-function coerceLegacyStore(raw: unknown): LegacyAuthStore | null {
-  if (!raw || typeof raw !== "object") {
-    return null;
-  }
-  const record = raw as Record<string, unknown>;
-  if ("profiles" in record) {
-    return null;
-  }
-  const entries: LegacyAuthStore = {};
-  const rejected: RejectedCredentialEntry[] = [];
-  for (const [key, value] of Object.entries(record)) {
-    const parsed = parseCredentialEntry(value, key);
-    if (!parsed.ok) {
-      rejected.push({ key, reason: parsed.reason });
-      continue;
-    }
-    entries[key] = parsed.credential;
-  }
-  warnRejectedCredentialEntries("auth.json", rejected);
-  return Object.keys(entries).length > 0 ? entries : null;
 }
 
 function coerceAuthStore(raw: unknown): AuthProfileStore | null {
@@ -344,68 +351,6 @@ function mergeAuthProfileStores(
   };
 }
 
-function mergeOAuthFileIntoStore(store: AuthProfileStore): boolean {
-  const oauthPath = resolveOAuthPath();
-  const oauthRaw = loadJsonFile(oauthPath);
-  if (!oauthRaw || typeof oauthRaw !== "object") {
-    return false;
-  }
-  const oauthEntries = oauthRaw as Record<string, OAuthCredentials>;
-  let mutated = false;
-  for (const [provider, creds] of Object.entries(oauthEntries)) {
-    if (!creds || typeof creds !== "object") {
-      continue;
-    }
-    const profileId = `${provider}:default`;
-    if (store.profiles[profileId]) {
-      continue;
-    }
-    store.profiles[profileId] = {
-      type: "oauth",
-      provider,
-      ...creds,
-    };
-    mutated = true;
-  }
-  return mutated;
-}
-
-function applyLegacyStore(store: AuthProfileStore, legacy: LegacyAuthStore): void {
-  for (const [provider, cred] of Object.entries(legacy)) {
-    const profileId = `${provider}:default`;
-    if (cred.type === "api_key") {
-      store.profiles[profileId] = {
-        type: "api_key",
-        provider: String(cred.provider ?? provider),
-        key: cred.key,
-        ...(cred.email ? { email: cred.email } : {}),
-      };
-      continue;
-    }
-    if (cred.type === "token") {
-      store.profiles[profileId] = {
-        type: "token",
-        provider: String(cred.provider ?? provider),
-        token: cred.token,
-        ...(typeof cred.expires === "number" ? { expires: cred.expires } : {}),
-        ...(cred.email ? { email: cred.email } : {}),
-      };
-      continue;
-    }
-    store.profiles[profileId] = {
-      type: "oauth",
-      provider: String(cred.provider ?? provider),
-      access: cred.access,
-      refresh: cred.refresh,
-      expires: cred.expires,
-      ...(cred.enterpriseUrl ? { enterpriseUrl: cred.enterpriseUrl } : {}),
-      ...(cred.projectId ? { projectId: cred.projectId } : {}),
-      ...(cred.accountId ? { accountId: cred.accountId } : {}),
-      ...(cred.email ? { email: cred.email } : {}),
-    };
-  }
-}
-
 function loadCoercedStore(authPath: string): AuthProfileStore | null {
   const raw = loadJsonFile(authPath);
   return coerceAuthStore(raw);
@@ -447,17 +392,6 @@ export function loadAuthProfileStore(): AuthProfileStore {
       saveJsonFile(authPath, asStore);
     }
     return asStore;
-  }
-  const legacyRaw = loadJsonFile(resolveLegacyAuthStorePath());
-  const legacy = coerceLegacyStore(legacyRaw);
-  if (legacy) {
-    const store: AuthProfileStore = {
-      version: AUTH_STORE_VERSION,
-      profiles: {},
-    };
-    applyLegacyStore(store, legacy);
-    syncExternalCliCredentialsTimed(store);
-    return store;
   }
 
   const store: AuthProfileStore = { version: AUTH_STORE_VERSION, profiles: {} };
@@ -508,43 +442,19 @@ function loadAuthProfileStoreForAgent(
     }
   }
 
-  const legacyRaw = loadJsonFile(resolveLegacyAuthStorePath(agentDir));
-  const legacy = coerceLegacyStore(legacyRaw);
   const store: AuthProfileStore = {
     version: AUTH_STORE_VERSION,
     profiles: {},
   };
-  if (legacy) {
-    applyLegacyStore(store, legacy);
-  }
-
-  const mergedOAuth = mergeOAuthFileIntoStore(store);
   // Keep external CLI credentials visible in runtime even during read-only loads.
   const syncedCli = syncExternalCliCredentialsTimed(store, {
     log: !readOnly,
     allowKeychainPrompt: options?.allowKeychainPrompt,
   });
   const forceReadOnly = process.env.ALISIO_AUTH_STORE_READONLY === "1";
-  const shouldWrite = !readOnly && !forceReadOnly && (legacy !== null || mergedOAuth || syncedCli);
+  const shouldWrite = !readOnly && !forceReadOnly && syncedCli;
   if (shouldWrite) {
     saveJsonFile(authPath, store);
-  }
-
-  // PR #368: legacy auth.json could get re-migrated from other agent dirs,
-  // overwriting fresh OAuth creds with stale tokens (fixes #363). Delete only
-  // after we've successfully written auth-profiles.json.
-  if (shouldWrite && legacy !== null) {
-    const legacyPath = resolveLegacyAuthStorePath(agentDir);
-    try {
-      fs.unlinkSync(legacyPath);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") {
-        log.warn("failed to delete legacy auth.json after migration", {
-          err,
-          legacyPath,
-        });
-      }
-    }
   }
 
   if (!readOnly) {

@@ -30,12 +30,12 @@ vi.mock("../infra/outbound/targets.js", async () => {
   };
 });
 
-let deliverAgentCommandResult: typeof import("./agent/delivery.js").deliverAgentCommandResult;
+let deliverAgentCommandResult: typeof import("../agents/command/delivery.js").deliverAgentCommandResult;
 
 describe("deliverAgentCommandResult", () => {
   beforeAll(async () => {
     vi.resetModules();
-    ({ deliverAgentCommandResult } = await import("./agent/delivery.js"));
+    ({ deliverAgentCommandResult } = await import("../agents/command/delivery.js"));
   });
 
   function createRuntime(): RuntimeEnv {

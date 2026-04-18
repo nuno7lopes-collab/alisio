@@ -12,6 +12,7 @@ import {
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
 import {
   resolveConfiguredExecDefaults,
+  resolveConfiguredFsScope,
   resolveSecurityAccessDiagnostics,
   type SecurityAccessDiagnostics,
   type SecurityAccessMode,
@@ -157,6 +158,16 @@ function promptModeLabel(ask: ExecAsk) {
 
 function renderSecurityMetaItem(label: string, value: string | number) {
   return html`<span class="pill alisio-security-meta-item">${label}: ${value}</span>`;
+}
+
+function renderFilesystemScopeLabel(scope: "workspace-only" | "unrestricted" | "mixed") {
+  if (scope === "workspace-only") {
+    return t("alisio.security.access.files.workspaceOnly");
+  }
+  if (scope === "mixed") {
+    return t("alisio.security.access.files.mixed");
+  }
+  return t("alisio.security.access.files.unrestricted");
 }
 
 function renderApprovalMeta(
@@ -556,6 +567,7 @@ export function renderSecurity(props: SecurityProps) {
       execApprovalsForm: props.execApprovalsSnapshot?.file ?? null,
     });
   const gatewayDefaults = resolveConfiguredExecDefaults(props.configSnapshot?.config ?? null);
+  const filesystemScope = resolveConfiguredFsScope(props.configSnapshot?.config ?? null);
   const promptAsk = supportsRuntimeAccessModeTarget(props.execApprovalsTarget)
     ? diagnostics.effectivePromptAsk
     : resolveSecurityPromptAsk(
@@ -608,6 +620,10 @@ export function renderSecurity(props: SecurityProps) {
                 ${renderSecurityMetaItem(
                   t("alisio.security.stats.prompt"),
                   promptModeLabel(promptAsk),
+                )}
+                ${renderSecurityMetaItem(
+                  t("alisio.security.stats.files"),
+                  renderFilesystemScopeLabel(filesystemScope),
                 )}
               `}
         </div>

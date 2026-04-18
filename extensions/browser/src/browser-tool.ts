@@ -325,18 +325,22 @@ function applyProxyPaths(result: unknown, mapping: Map<string, string>) {
   applyBrowserProxyPaths(result, mapping);
 }
 
-function resolveBrowserBaseUrl(params: {
+async function resolveBrowserBaseUrl(params: {
   target?: "sandbox" | "host";
   sandboxBridgeUrl?: string;
+  resolveSandboxBridgeUrl?: () => Promise<string | undefined>;
   allowHostControl?: boolean;
   preferSandbox?: boolean;
-}): string | undefined {
+}): Promise<string | undefined> {
   const cfg = loadConfig();
   const resolved = resolveBrowserConfig(cfg.browser, cfg);
-  const normalizedSandbox = params.sandboxBridgeUrl?.trim() ?? "";
+  let normalizedSandbox = params.sandboxBridgeUrl?.trim() ?? "";
   const target = params.target ?? (params.preferSandbox || normalizedSandbox ? "sandbox" : "host");
 
   if (target === "sandbox") {
+    if (!normalizedSandbox && params.resolveSandboxBridgeUrl) {
+      normalizedSandbox = (await params.resolveSandboxBridgeUrl())?.trim() ?? "";
+    }
     if (!normalizedSandbox) {
       throw new Error(
         'Sandbox browser is unavailable. Enable agents.defaults.sandbox.browser.enabled or use target="host" if allowed.',
@@ -405,6 +409,7 @@ function shouldForceSandboxForAgentSession(opts: {
 
 export function createBrowserTool(opts?: {
   sandboxBridgeUrl?: string;
+  resolveSandboxBridgeUrl?: () => Promise<string | undefined>;
   allowHostControl?: boolean;
   preferSandbox?: boolean;
   agentSessionKey?: string;
@@ -461,12 +466,7 @@ export function createBrowserTool(opts?: {
         }
       }
 
-      if (
-        target === "host" &&
-        forceSandboxForSession &&
-        !requestedNode &&
-        !isUserBrowserProfile
-      ) {
+      if (target === "host" && forceSandboxForSession && !requestedNode && !isUserBrowserProfile) {
         // Sandbox-first sessions must never fall back to the host browser just
         // because a stale tool call or old transcript still says target="host".
         // Coerce those calls into the sandbox and fail explicitly if the live
@@ -474,8 +474,7 @@ export function createBrowserTool(opts?: {
         target = "sandbox";
       }
 
-      const preferredTarget =
-        target ?? (forceSandboxForSession ? "sandbox" : undefined);
+      const preferredTarget = target ?? (forceSandboxForSession ? "sandbox" : undefined);
 
       const nodeTarget = await resolveBrowserNodeTarget({
         requestedNode: requestedNode ?? undefined,
@@ -486,9 +485,10 @@ export function createBrowserTool(opts?: {
       const resolvedTarget = preferredTarget === "node" ? undefined : preferredTarget;
       const baseUrl = nodeTarget
         ? undefined
-        : resolveBrowserBaseUrl({
+        : await resolveBrowserBaseUrl({
             target: resolvedTarget,
             sandboxBridgeUrl: opts?.sandboxBridgeUrl,
+            resolveSandboxBridgeUrl: opts?.resolveSandboxBridgeUrl,
             allowHostControl: opts?.allowHostControl,
             preferSandbox: forceSandboxForSession,
           });

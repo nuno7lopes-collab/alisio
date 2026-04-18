@@ -270,6 +270,58 @@ describe("session.message websocket events", () => {
     }
   });
 
+  test("broadcasts transcript-only rewrites through sessions.changed without a session.message event", async () => {
+    const storePath = await createSessionStoreFile();
+    const transcriptPath = path.join(path.dirname(storePath), "sess-main.jsonl");
+    await writeSessionStore({
+      entries: {
+        main: {
+          sessionId: "sess-main",
+          sessionFile: transcriptPath,
+          updatedAt: Date.now(),
+        },
+      },
+      storePath,
+    });
+    await fs.writeFile(
+      transcriptPath,
+      [JSON.stringify({ type: "session", version: 1, id: "sess-main" })].join("\n"),
+      "utf-8",
+    );
+
+    const harness = await createGatewaySuiteHarness();
+    try {
+      await withOperatorSessionSubscriber(harness, async (ws) => {
+        const changedEventPromise = onceMessage(
+          ws,
+          (message) =>
+            message.type === "event" &&
+            message.event === "sessions.changed" &&
+            (message.payload as { phase?: string; sessionKey?: string } | undefined)?.phase ===
+              "transcript" &&
+            (message.payload as { sessionKey?: string } | undefined)?.sessionKey ===
+              "agent:main:main",
+        );
+
+        emitSessionTranscriptUpdate({
+          sessionFile: transcriptPath,
+          sessionKey: "agent:main:main",
+        });
+
+        const changedEvent = await changedEventPromise;
+        expect(changedEvent.payload).toMatchObject({
+          sessionKey: "agent:main:main",
+          phase: "transcript",
+        });
+        await expectNoMessageWithin({
+          watch: () => waitForSessionMessageEvent(ws, "agent:main:main"),
+        });
+      });
+    } finally {
+      await harness.close();
+    }
+  });
+
   test("delivers the same conversation transcript stream to multiple clients in append order", async () => {
     const storePath = await createSessionStoreFile();
     await writeSessionStore({

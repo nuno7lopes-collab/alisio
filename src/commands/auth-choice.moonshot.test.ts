@@ -1,7 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
-import type { WizardPrompter } from "../wizard/prompts.js";
-import { applyAuthChoice } from "./auth-choice.js";
 import {
   createAuthTestLifecycle,
   createExitThrowingRuntime,
@@ -9,7 +6,10 @@ import {
   readAuthProfilesForAgent,
   requireAlisioAgentDir,
   setupAuthTestEnv,
-} from "./test-wizard-helpers.js";
+} from "../../test/helpers/auth-wizard.js";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
+import type { WizardPrompter } from "../wizard/prompts.js";
+import { applyAuthChoice } from "./auth-choice.js";
 
 function createPrompter(overrides: Partial<WizardPrompter>): WizardPrompter {
   return createWizardPrompter(overrides, { defaultSelect: "" });

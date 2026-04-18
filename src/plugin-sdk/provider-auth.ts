@@ -14,7 +14,6 @@ export {
   upsertAuthProfileWithLock,
 } from "../agents/auth-profiles/profiles.js";
 export { readClaudeCliCredentialsCached } from "../agents/cli-credentials.js";
-export { suggestOAuthProfileIdForLegacyDefault } from "../agents/auth-profiles/repair.js";
 export {
   MINIMAX_OAUTH_MARKER,
   isNonSecretApiKeyMarker,

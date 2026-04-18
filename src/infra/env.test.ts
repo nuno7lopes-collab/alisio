@@ -16,50 +16,11 @@ type EnvModule = typeof import("./env.js");
 let isTruthyEnvValue: EnvModule["isTruthyEnvValue"];
 let runtimeEnvKey: EnvModule["runtimeEnvKey"];
 let logAcceptedEnvOption: EnvModule["logAcceptedEnvOption"];
-let normalizeEnv: EnvModule["normalizeEnv"];
-let normalizeZaiEnv: EnvModule["normalizeZaiEnv"];
 let readEnv: EnvModule["readEnv"];
 
 beforeEach(async () => {
   vi.resetModules();
-  ({
-    isTruthyEnvValue,
-    runtimeEnvKey,
-    logAcceptedEnvOption,
-    normalizeEnv,
-    normalizeZaiEnv,
-    readEnv,
-  } = await import("./env.js"));
-});
-
-describe("normalizeZaiEnv", () => {
-  it("copies Z_AI_API_KEY to ZAI_API_KEY when missing", () => {
-    withEnv({ ZAI_API_KEY: "", Z_AI_API_KEY: "zai-legacy" }, () => {
-      normalizeZaiEnv();
-      expect(process.env.ZAI_API_KEY).toBe("zai-legacy");
-    });
-  });
-
-  it("does not override existing ZAI_API_KEY", () => {
-    withEnv({ ZAI_API_KEY: "zai-current", Z_AI_API_KEY: "zai-legacy" }, () => {
-      normalizeZaiEnv();
-      expect(process.env.ZAI_API_KEY).toBe("zai-current");
-    });
-  });
-
-  it("ignores blank legacy Z_AI_API_KEY values", () => {
-    withEnv({ ZAI_API_KEY: "", Z_AI_API_KEY: "   " }, () => {
-      normalizeZaiEnv();
-      expect(process.env.ZAI_API_KEY).toBe("");
-    });
-  });
-
-  it("does not copy when legacy Z_AI_API_KEY is unset", () => {
-    withEnv({ ZAI_API_KEY: "", Z_AI_API_KEY: undefined }, () => {
-      normalizeZaiEnv();
-      expect(process.env.ZAI_API_KEY).toBe("");
-    });
-  });
+  ({ isTruthyEnvValue, runtimeEnvKey, logAcceptedEnvOption, readEnv } = await import("./env.js"));
 });
 
 describe("isTruthyEnvValue", () => {
@@ -151,14 +112,5 @@ describe("readEnv", () => {
         fallback: compatKey,
       }),
     ).toBe("/legacy");
-  });
-});
-
-describe("normalizeEnv", () => {
-  it("normalizes the legacy ZAI env alias", () => {
-    withEnv({ ZAI_API_KEY: "", Z_AI_API_KEY: "zai-legacy" }, () => {
-      normalizeEnv();
-      expect(process.env.ZAI_API_KEY).toBe("zai-legacy");
-    });
   });
 });

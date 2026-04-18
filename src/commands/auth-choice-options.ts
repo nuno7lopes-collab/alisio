@@ -44,7 +44,6 @@ function resolveProviderChoiceOptions(params?: {
 
 export function formatAuthChoiceChoicesForCli(params?: {
   includeSkip?: boolean;
-  includeLegacyAliases?: boolean;
   config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;

@@ -1,11 +1,28 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearRuntimeAuthProfileStoreSnapshots, ensureAuthProfileStore } from "./auth-profiles.js";
 import { AUTH_STORE_VERSION, log } from "./auth-profiles/constants.js";
 
 describe("ensureAuthProfileStore", () => {
+  let previousDisableExternalCliSync: string | undefined;
+
+  beforeEach(() => {
+    clearRuntimeAuthProfileStoreSnapshots();
+    previousDisableExternalCliSync = process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC;
+    process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC = "1";
+  });
+
+  afterEach(() => {
+    clearRuntimeAuthProfileStoreSnapshots();
+    if (previousDisableExternalCliSync === undefined) {
+      delete process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC;
+    } else {
+      process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC = previousDisableExternalCliSync;
+    }
+  });
+
   function withTempAgentDir<T>(prefix: string, run: (agentDir: string) => T): T {
     const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
     try {
@@ -15,7 +32,7 @@ describe("ensureAuthProfileStore", () => {
     }
   }
 
-  it("migrates legacy auth.json and deletes it (PR #368)", () => {
+  it("ignores legacy auth.json instead of migrating it", () => {
     const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-auth-profiles-"));
     try {
       const legacyPath = path.join(agentDir, "auth.json");
@@ -38,19 +55,11 @@ describe("ensureAuthProfileStore", () => {
       );
 
       const store = ensureAuthProfileStore(agentDir);
-      expect(store.profiles["anthropic:default"]).toMatchObject({
-        type: "oauth",
-        provider: "anthropic",
-      });
+      expect(store.profiles).toEqual({});
 
       const migratedPath = path.join(agentDir, "auth-profiles.json");
-      expect(fs.existsSync(migratedPath)).toBe(true);
-      expect(fs.existsSync(legacyPath)).toBe(false);
-
-      // idempotent
-      const store2 = ensureAuthProfileStore(agentDir);
-      expect(store2.profiles["anthropic:default"]).toBeDefined();
-      expect(fs.existsSync(legacyPath)).toBe(false);
+      expect(fs.existsSync(migratedPath)).toBe(false);
+      expect(fs.existsSync(legacyPath)).toBe(true);
     } finally {
       fs.rmSync(agentDir, { recursive: true, force: true });
     }
@@ -134,19 +143,16 @@ describe("ensureAuthProfileStore", () => {
 
   it.each([
     {
-      name: "mode/apiKey aliases map to type/key",
+      name: "mode/apiKey aliases are rejected",
       profile: {
         provider: "anthropic",
         mode: "api_key",
         apiKey: "sk-ant-alias", // pragma: allowlist secret
       },
-      expected: {
-        type: "api_key",
-        key: "sk-ant-alias",
-      },
+      expected: undefined,
     },
     {
-      name: "canonical type overrides conflicting mode alias",
+      name: "canonical type ignores extra mode alias",
       profile: {
         provider: "anthropic",
         type: "api_key",
@@ -159,7 +165,7 @@ describe("ensureAuthProfileStore", () => {
       },
     },
     {
-      name: "canonical key overrides conflicting apiKey alias",
+      name: "canonical key ignores extra apiKey alias",
       profile: {
         provider: "anthropic",
         type: "api_key",
@@ -184,7 +190,7 @@ describe("ensureAuthProfileStore", () => {
       },
     },
   ] as const)(
-    "normalizes auth-profiles credential aliases with canonical-field precedence: $name",
+    "loads only canonical auth-profiles credential fields: $name",
     ({ name, profile, expected }) => {
       withTempAgentDir("alisio-auth-alias-", (agentDir) => {
         const storeData = {
@@ -200,39 +206,18 @@ describe("ensureAuthProfileStore", () => {
         );
 
         const store = ensureAuthProfileStore(agentDir);
-        expect(store.profiles["anthropic:work"], name).toMatchObject(expected);
+        if (expected) {
+          expect(store.profiles["anthropic:work"], name).toMatchObject(expected);
+          expect(store.profiles["anthropic:work"]).not.toHaveProperty("mode");
+          expect(store.profiles["anthropic:work"]).not.toHaveProperty("apiKey");
+          return;
+        }
+        expect(store.profiles["anthropic:work"], name).toBeUndefined();
       });
     },
   );
 
-  it("normalizes mode/apiKey aliases while migrating legacy auth.json", () => {
-    withTempAgentDir("alisio-auth-legacy-alias-", (agentDir) => {
-      fs.writeFileSync(
-        path.join(agentDir, "auth.json"),
-        `${JSON.stringify(
-          {
-            anthropic: {
-              provider: "anthropic",
-              mode: "api_key",
-              apiKey: "sk-ant-legacy", // pragma: allowlist secret
-            },
-          },
-          null,
-          2,
-        )}\n`,
-        "utf8",
-      );
-
-      const store = ensureAuthProfileStore(agentDir);
-      expect(store.profiles["anthropic:default"]).toMatchObject({
-        type: "api_key",
-        provider: "anthropic",
-        key: "sk-ant-legacy",
-      });
-    });
-  });
-
-  it("merges legacy oauth.json into auth-profiles.json", () => {
+  it("ignores legacy oauth.json instead of merging it into auth-profiles", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-oauth-migrate-"));
     const previousStateDir = process.env.ALISIO_STATE_DIR;
     const previousAgentDir = process.env.ALISIO_AGENT_DIR;
@@ -265,24 +250,8 @@ describe("ensureAuthProfileStore", () => {
       clearRuntimeAuthProfileStoreSnapshots();
 
       const store = ensureAuthProfileStore(agentDir);
-      expect(store.profiles["openai-codex:default"]).toMatchObject({
-        type: "oauth",
-        provider: "openai-codex",
-        access: "access-token",
-        refresh: "refresh-token",
-      });
-
-      const persisted = JSON.parse(
-        fs.readFileSync(path.join(agentDir, "auth-profiles.json"), "utf8"),
-      ) as {
-        profiles: Record<string, unknown>;
-      };
-      expect(persisted.profiles["openai-codex:default"]).toMatchObject({
-        type: "oauth",
-        provider: "openai-codex",
-        access: "access-token",
-        refresh: "refresh-token",
-      });
+      expect(store.profiles).toEqual({});
+      expect(fs.existsSync(path.join(agentDir, "auth-profiles.json"))).toBe(false);
     } finally {
       clearRuntimeAuthProfileStoreSnapshots();
       if (previousStateDir === undefined) {

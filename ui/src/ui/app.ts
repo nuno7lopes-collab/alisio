@@ -19,7 +19,7 @@ import {
   type PendingAlisioConnectorChatResume,
   type AlisioConnectorOAuthSignal,
 } from "./alisio-connector-oauth.ts";
-import { requestNativePermission } from "./alisio-host.ts";
+import { hasAlisioHostBridge, requestNativePermission } from "./alisio-host.ts";
 import {
   refreshAfterAlisioOpenAiOAuth,
   subscribeAlisioOpenAiOAuthSignals,
@@ -755,7 +755,13 @@ export class AlisioApp extends LitElement {
     if (this.connected && this.pendingAccountEmailLinkAuth) {
       void this.completePendingAccountEmailLinkAuth();
     }
-    if (changed.has("sessionKey") || changed.has("sessionsResult") || changed.has("settings")) {
+    if (
+      changed.has("sessionKey") ||
+      changed.has("sessionsResult") ||
+      changed.has("settings") ||
+      changed.has("nativeShellState") ||
+      changed.has("nativeShellError")
+    ) {
       this.syncBrowserPaneForSession(this.sessionKey);
     }
     if (
@@ -1185,6 +1191,17 @@ export class AlisioApp extends LitElement {
     return this.computerSessionBySession.get(this.getBrowserPaneScopeKey(sessionKey)) ?? null;
   }
 
+  private shouldPreferComputerWorkspace(): boolean {
+    return this.nativeShellState?.platform === "macos" || hasAlisioHostBridge();
+  }
+
+  private resolveVisibleBrowserPaneObserver(sessionKey: string): BrowserPaneObserver | null {
+    if (this.shouldPreferComputerWorkspace()) {
+      return null;
+    }
+    return this.resolveSessionBrowserPaneObserver(sessionKey);
+  }
+
   setComputerSession(sessionKey: string, session: ComputerSessionState | null): void {
     const normalizedSessionKey = sessionKey.trim();
     if (!normalizedSessionKey) {
@@ -1242,7 +1259,7 @@ export class AlisioApp extends LitElement {
       return null;
     }
     return {
-      observer: this.resolveSessionBrowserPaneObserver(normalizedSessionKey),
+      observer: this.resolveVisibleBrowserPaneObserver(normalizedSessionKey),
       computer: this.getComputerSession(normalizedSessionKey),
       markdown: this.getBrowserPaneMarkdownState(normalizedSessionKey),
       selectedSurface: this.getBrowserPaneUiState(normalizedSessionKey).selectedSurface,
@@ -1286,7 +1303,8 @@ export class AlisioApp extends LitElement {
     const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
     const ui = this.getBrowserPaneUiState(normalizedSessionKey);
     const markdown = this.getBrowserPaneMarkdownState(normalizedSessionKey);
-    const observer = this.resolveSessionBrowserPaneObserver(normalizedSessionKey);
+    const prefersComputerWorkspace = this.shouldPreferComputerWorkspace();
+    const observer = this.resolveVisibleBrowserPaneObserver(normalizedSessionKey);
     const computerSession = this.getComputerSession(normalizedSessionKey);
     const observerIdentity = getBrowserPaneObserverIdentity(observer);
     const previousObserverIdentity =
@@ -1308,7 +1326,9 @@ export class AlisioApp extends LitElement {
     }
     const hasMarkdown = Boolean(markdown.content || markdown.error);
     let selectedSurface = ui.selectedSurface;
-    if (observerJustAppeared) {
+    if (prefersComputerWorkspace && computerSession) {
+      selectedSurface = "computer";
+    } else if (observerJustAppeared && !ui.touched) {
       selectedSurface = "observer";
     } else if (computerJustAppeared) {
       selectedSurface = "computer";
@@ -1324,17 +1344,26 @@ export class AlisioApp extends LitElement {
     const hasSurface = Boolean(observer || computerSession || hasMarkdown);
     const pendingActivitySurface = this.browserPanePendingActivityBySession.get(scopeKey) ?? null;
     const shouldOpenForPaneActivity =
-      (pendingActivitySurface === "observer" && Boolean(observer)) ||
+      (pendingActivitySurface === "observer" &&
+        !prefersComputerWorkspace &&
+        Boolean(observer) &&
+        !ui.touched) ||
       (pendingActivitySurface === "computer" && Boolean(computerSession)) ||
       (pendingActivitySurface === "markdown" && hasMarkdown);
-    if (shouldOpenForPaneActivity && pendingActivitySurface) {
+    if (
+      pendingActivitySurface &&
+      (shouldOpenForPaneActivity ||
+        (pendingActivitySurface === "observer" && (ui.touched || prefersComputerWorkspace)))
+    ) {
       this.browserPanePendingActivityBySession.delete(scopeKey);
+    }
+    if (shouldOpenForPaneActivity && pendingActivitySurface) {
       selectedSurface = pendingActivitySurface;
     }
     const autoOpenObserver =
-      observerJustAppeared ||
+      (!prefersComputerWorkspace && observerJustAppeared && !ui.touched) ||
       computerJustAppeared ||
-      (!ui.touched && Boolean(observer || computerSession)) ||
+      (!ui.touched && Boolean(computerSession || (!prefersComputerWorkspace && observer))) ||
       shouldOpenForPaneActivity;
     this.sidebarContent = markdown.content;
     this.sidebarError = markdown.error;

@@ -249,7 +249,6 @@ describe("buildAuthChoiceOptions", () => {
     ]);
     const options = getOptions(true);
     const cliChoices = formatAuthChoiceChoicesForCli({
-      includeLegacyAliases: false,
       includeSkip: true,
     }).split("|");
 
@@ -262,7 +261,7 @@ describe("buildAuthChoiceOptions", () => {
     expect(cliChoices).not.toContain("vllm");
   });
 
-  it("can include legacy aliases in cli help choices", () => {
+  it("keeps removed compatibility aliases out of cli help choices", () => {
     resolveManifestProviderAuthChoices.mockReturnValue([
       {
         pluginId: "anthropic",
@@ -270,7 +269,6 @@ describe("buildAuthChoiceOptions", () => {
         methodId: "cli",
         choiceId: "anthropic-cli",
         choiceLabel: "Anthropic Claude CLI",
-        deprecatedChoiceIds: ["claude-cli"],
       },
       {
         pluginId: "openai",
@@ -278,19 +276,19 @@ describe("buildAuthChoiceOptions", () => {
         methodId: "oauth",
         choiceId: "openai-codex",
         choiceLabel: "OpenAI Codex (ChatGPT OAuth)",
-        deprecatedChoiceIds: ["codex-cli"],
       },
     ]);
 
     const cliChoices = formatAuthChoiceChoicesForCli({
-      includeLegacyAliases: true,
       includeSkip: true,
     }).split("|");
 
-    expect(cliChoices).toContain("setup-token");
-    expect(cliChoices).toContain("oauth");
-    expect(cliChoices).toContain("claude-cli");
-    expect(cliChoices).toContain("codex-cli");
+    expect(cliChoices).toContain("anthropic-cli");
+    expect(cliChoices).toContain("openai-codex");
+    expect(cliChoices).not.toContain("setup-token");
+    expect(cliChoices).not.toContain("oauth");
+    expect(cliChoices).not.toContain("claude-cli");
+    expect(cliChoices).not.toContain("codex-cli");
   });
 
   it("keeps static cli help choices off the plugin-backed catalog", () => {
@@ -313,15 +311,14 @@ describe("buildAuthChoiceOptions", () => {
       },
     ]);
 
-    const cliChoices = formatStaticAuthChoiceChoicesForCli({
-      includeLegacyAliases: false,
-      includeSkip: true,
-    }).split("|");
+    const cliChoices = formatStaticAuthChoiceChoicesForCli({ includeSkip: true }).split("|");
 
     expect(cliChoices).not.toContain("vllm");
     expect(cliChoices).not.toContain("openai-api-key");
     expect(cliChoices).not.toContain("chutes");
     expect(cliChoices).not.toContain("litellm-api-key");
+    expect(cliChoices).not.toContain("oauth");
+    expect(cliChoices).not.toContain("setup-token");
     expect(cliChoices).toContain("custom-api-key");
     expect(cliChoices).toContain("skip");
   });

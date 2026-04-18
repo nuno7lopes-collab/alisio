@@ -8,11 +8,7 @@ import {
   resolveHooksGmailModel,
 } from "../agents/model-selection.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import {
-  maybeRemoveDeprecatedCliAuthProfiles,
-  maybeRepairLegacyOAuthProfileIds,
-  noteAuthProfileHealth,
-} from "../commands/doctor-auth.js";
+import { noteAuthProfileHealth } from "../commands/doctor-auth.js";
 import { noteBootstrapFileSize } from "../commands/doctor-bootstrap-size.js";
 import { noteChromeMcpBrowserReadiness } from "../commands/doctor-browser.js";
 import { doctorShellCompletion } from "../commands/doctor-completion.js";
@@ -40,7 +36,6 @@ import {
 } from "../commands/doctor-state-migrations.js";
 import { noteWorkspaceStatus } from "../commands/doctor-workspace-status.js";
 import { MEMORY_SYSTEM_PROMPT, shouldSuggestMemorySystem } from "../commands/doctor-workspace.js";
-import { noteOpenAIOAuthTlsPrerequisites } from "../commands/oauth-tls-preflight.js";
 import { applyWizardMetadata, randomToken } from "../commands/onboard-helpers.js";
 import { ensureSystemdUserLingerInteractive } from "../commands/systemd-linger.js";
 import type { AlisioConfig } from "../config/config.js";
@@ -52,6 +47,7 @@ import { hasAmbiguousGatewayAuthModeConfig } from "../gateway/auth-mode-policy.j
 import { resolveGatewayAuth } from "../gateway/auth.js";
 import { buildGatewayConnectionDetails } from "../gateway/call.js";
 import { runStartupMatrixMigration } from "../gateway/server-startup-matrix-migration.js";
+import { noteOpenAIOAuthTlsPrerequisites } from "../plugins/provider-openai-codex-oauth-tls.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { note } from "../terminal/note.js";
 import { shortenHomePath } from "../utils.js";
@@ -136,8 +132,6 @@ async function runGatewayConfigHealth(ctx: DoctorHealthFlowContext): Promise<voi
 }
 
 async function runAuthProfileHealth(ctx: DoctorHealthFlowContext): Promise<void> {
-  ctx.cfg = await maybeRepairLegacyOAuthProfileIds(ctx.cfg, ctx.prompter);
-  ctx.cfg = await maybeRemoveDeprecatedCliAuthProfiles(ctx.cfg, ctx.prompter);
   await noteAuthProfileHealth({
     cfg: ctx.cfg,
     prompter: ctx.prompter,

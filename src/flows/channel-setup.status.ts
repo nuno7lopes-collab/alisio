@@ -2,6 +2,11 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { listChannelPluginCatalogEntries } from "../channels/plugins/catalog.js";
 import { listChannelSetupPlugins } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
+import type {
+  ChannelSetupWizardAdapter,
+  ChannelSetupStatus,
+  SetupChannelsOptions,
+} from "../channels/plugins/setup-wizard-types.js";
 import {
   listProductChatChannels,
   shouldExposeChannelInProductSurface,
@@ -10,11 +15,6 @@ import { formatChannelPrimerLine, formatChannelSelectionLine } from "../channels
 import { formatCliCommand } from "../cli/command-format.js";
 import { resolveChannelSetupEntries } from "../commands/channel-setup/discovery.js";
 import { resolveChannelSetupWizardAdapterForPlugin } from "../commands/channel-setup/registry.js";
-import type {
-  ChannelSetupWizardAdapter,
-  ChannelSetupStatus,
-  SetupChannelsOptions,
-} from "../commands/channel-setup/types.js";
 import type { ChannelChoice } from "../commands/onboard-types.js";
 import { isChannelConfigured } from "../config/channel-configured.js";
 import type { AlisioConfig } from "../config/config.js";
@@ -79,7 +79,7 @@ export async function collectChannelStatus(params: {
       resolveChannelSetupWizardAdapterForPlugin(
         installedPlugins.find((plugin) => plugin.id === channel),
       ));
-  const statusEntries = await Promise.all(
+  const statusEntries: ChannelSetupStatus[] = await Promise.all(
     installedPlugins.flatMap((plugin) => {
       const adapter = resolveAdapter(plugin.id);
       if (!adapter) {
@@ -134,7 +134,7 @@ export async function collectChannelStatus(params: {
     selectionHint: "plugin · install",
     quickstartScore: 0,
   }));
-  const combinedStatuses = [
+  const combinedStatuses: ChannelSetupStatus[] = [
     ...statusEntries,
     ...fallbackStatuses,
     ...discoveredPluginStatuses,

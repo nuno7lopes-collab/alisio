@@ -318,6 +318,23 @@ describe("browser config", () => {
     expect(getBrowserProfileCapabilities(work).usesChromeMcp).toBe(false);
   });
 
+  it("treats attachOnly loopback profiles as remote CDP for Playwright-backed navigation", () => {
+    const resolved = resolveBrowserConfig({
+      profiles: {
+        sandbox: { cdpPort: 40718, attachOnly: true, color: "#0066CC" },
+      },
+    });
+
+    const sandbox = resolveProfile(resolved, "sandbox")!;
+    expect(getBrowserProfileCapabilities(sandbox)).toMatchObject({
+      mode: "remote-cdp",
+      isRemote: true,
+      usesPersistentPlaywright: true,
+      supportsJsonTabEndpoints: false,
+      supportsManagedTabLimit: false,
+    });
+  });
+
   describe("default profile preference", () => {
     it("defaults to alisio profile when defaultProfile is not configured", () => {
       const resolved = resolveBrowserConfig({

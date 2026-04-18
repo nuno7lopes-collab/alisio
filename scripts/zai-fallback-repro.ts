@@ -24,7 +24,7 @@ function pickAnthropicEnv(): { type: "oauth" | "api"; value: string } | null {
 }
 
 function pickZaiKey(): string | null {
-  return process.env.ZAI_API_KEY?.trim() ?? process.env.Z_AI_API_KEY?.trim() ?? null;
+  return process.env.ZAI_API_KEY?.trim() ?? null;
 }
 
 async function runCommand(
@@ -72,7 +72,7 @@ async function main() {
     process.exit(1);
   }
   if (!zaiKey) {
-    console.error("Missing ZAI_API_KEY or Z_AI_API_KEY.");
+    console.error("Missing ZAI_API_KEY.");
     process.exit(1);
   }
 
@@ -105,7 +105,6 @@ async function main() {
     ALISIO_CONFIG_PATH: configPath,
     ALISIO_STATE_DIR: stateDir,
     ZAI_API_KEY: zaiKey,
-    Z_AI_API_KEY: "",
   };
 
   const envValidAnthropic: NodeJS.ProcessEnv = {

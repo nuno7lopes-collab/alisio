@@ -49,6 +49,30 @@ function withLoopbackBrowserAuthImpl(
     return { ...init, headers };
   }
 
+  // Sandbox browser bridges run on ephemeral loopback ports with per-bridge
+  // auth. Prefer that scoped auth before the gateway-wide browser control auth
+  // or we will send the wrong bearer token to a healthy sandbox bridge.
+  try {
+    const parsed = new URL(url);
+    const port =
+      parsed.port && Number.parseInt(parsed.port, 10) > 0
+        ? Number.parseInt(parsed.port, 10)
+        : parsed.protocol === "https:"
+          ? 443
+          : 80;
+    const bridgeAuth = deps.getBridgeAuthForPort(port);
+    if (bridgeAuth?.token) {
+      headers.set("Authorization", `Bearer ${bridgeAuth.token}`);
+      return { ...init, headers };
+    }
+    if (bridgeAuth?.password) {
+      headers.set("x-alisio-password", bridgeAuth.password);
+      return { ...init, headers };
+    }
+  } catch {
+    // ignore
+  }
+
   try {
     const cfg = deps.loadConfig();
     const auth = deps.resolveBrowserControlAuth(cfg);
@@ -62,26 +86,6 @@ function withLoopbackBrowserAuthImpl(
     }
   } catch {
     // ignore config/auth lookup failures and continue without auth headers
-  }
-
-  // Sandbox bridge servers can run with per-process ephemeral auth on dynamic ports.
-  // Fall back to the in-memory registry if config auth is not available.
-  try {
-    const parsed = new URL(url);
-    const port =
-      parsed.port && Number.parseInt(parsed.port, 10) > 0
-        ? Number.parseInt(parsed.port, 10)
-        : parsed.protocol === "https:"
-          ? 443
-          : 80;
-    const bridgeAuth = deps.getBridgeAuthForPort(port);
-    if (bridgeAuth?.token) {
-      headers.set("Authorization", `Bearer ${bridgeAuth.token}`);
-    } else if (bridgeAuth?.password) {
-      headers.set("x-alisio-password", bridgeAuth.password);
-    }
-  } catch {
-    // ignore
   }
 
   return { ...init, headers };

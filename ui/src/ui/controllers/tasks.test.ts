@@ -13,6 +13,7 @@ import {
   loadTaskDetail,
   loadTasksOverview,
   resolveTaskProposal,
+  scheduleTasksOverviewRefresh,
   selectTask,
   type TasksState,
 } from "./tasks.ts";
@@ -377,6 +378,64 @@ describe("tasks controller", () => {
       limit: 50,
       offset: 0,
     });
+  });
+
+  it("ignores stale tasks overview responses when a newer filter request wins the race", async () => {
+    let resolveFirst!: (value: TasksOverviewResult) => void;
+    let resolveSecond!: (value: TasksOverviewResult) => void;
+    const firstOverview = new Promise<TasksOverviewResult>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondOverview = new Promise<TasksOverviewResult>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const request = vi.fn((method: string, params: Record<string, unknown>) => {
+      if (method === "tasks.overview") {
+        return params.query === "second" ? secondOverview : firstOverview;
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    const state = createState(request);
+
+    state.tasksQuery = "first";
+    const firstLoad = loadTasksOverview(state, { quiet: true });
+    state.tasksQuery = "second";
+    const secondLoad = loadTasksOverview(state, { quiet: true });
+
+    resolveSecond(createOverview({ total: 2 }));
+    await secondLoad;
+    resolveFirst(createOverview({ total: 1 }));
+    await firstLoad;
+
+    expect(state.tasksOverview?.total).toBe(2);
+    expect(state.tasksError).toBeNull();
+  });
+
+  it("debounces scheduled overview refreshes triggered by tasks filters", async () => {
+    vi.useFakeTimers();
+    try {
+      const request = vi.fn().mockResolvedValue(createOverview());
+      const state = createState(request);
+
+      scheduleTasksOverviewRefresh(state, { delayMs: 180, quiet: true });
+      scheduleTasksOverviewRefresh(state, { delayMs: 180, quiet: true });
+      scheduleTasksOverviewRefresh(state, { delayMs: 180, quiet: true });
+
+      await vi.advanceTimersByTimeAsync(179);
+      expect(request).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(request).toHaveBeenCalledTimes(1);
+      expect(request).toHaveBeenCalledWith("tasks.overview", {
+        runtime: "all",
+        status: "all",
+        query: undefined,
+        limit: 50,
+        offset: 0,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("upserts then resolves a missing proposal before refreshing the overview", async () => {

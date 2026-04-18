@@ -4,7 +4,6 @@ import type {
   ProviderRuntimeModel,
 } from "alisio/plugin-sdk/plugin-entry";
 import {
-  CODEX_CLI_PROFILE_ID,
   ensureAuthProfileStore,
   listProfilesForProvider,
   type OAuthCredential,
@@ -275,19 +274,11 @@ async function runOpenAICodexOAuth(ctx: ProviderAuthContext) {
   });
 }
 
-function buildOpenAICodexAuthDoctorHint(ctx: { profileId?: string }) {
-  if (ctx.profileId !== CODEX_CLI_PROFILE_ID) {
-    return undefined;
-  }
-  return "Deprecated profile. Run `alisio models auth login --provider openai-codex` or `alisio configure`.";
-}
-
 export function buildOpenAICodexProviderPlugin(): ProviderPlugin {
   return {
     id: PROVIDER_ID,
     label: "OpenAI Codex",
     docsPath: "/providers/models",
-    deprecatedProfileIds: [CODEX_CLI_PROFILE_ID],
     auth: [
       {
         id: "oauth",
@@ -324,7 +315,6 @@ export function buildOpenAICodexProviderPlugin(): ProviderPlugin {
       },
     },
     resolveDynamicModel: (ctx) => resolveCodexForwardCompatModel(ctx),
-    buildAuthDoctorHint: (ctx) => buildOpenAICodexAuthDoctorHint(ctx),
     capabilities: {
       providerFamily: "openai",
     },

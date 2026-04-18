@@ -6,6 +6,7 @@ export type ConfigSchemaAnalysis = {
 };
 
 const META_KEYS = new Set(["title", "description", "default", "nullable"]);
+const configSchemaAnalysisCache = new WeakMap<object, ConfigSchemaAnalysis>();
 
 function isAnySchema(schema: JsonSchema): boolean {
   const keys = Object.keys(schema ?? {}).filter((key) => !META_KEYS.has(key));
@@ -28,7 +29,13 @@ export function analyzeConfigSchema(raw: unknown): ConfigSchemaAnalysis {
   if (!raw || typeof raw !== "object") {
     return { schema: null, unsupportedPaths: ["<root>"] };
   }
-  return normalizeSchemaNode(raw as JsonSchema, []);
+  const cached = configSchemaAnalysisCache.get(raw);
+  if (cached) {
+    return cached;
+  }
+  const analysis = normalizeSchemaNode(raw as JsonSchema, []);
+  configSchemaAnalysisCache.set(raw, analysis);
+  return analysis;
 }
 
 function normalizeSchemaNode(

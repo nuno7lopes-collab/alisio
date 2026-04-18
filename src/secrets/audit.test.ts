@@ -9,7 +9,6 @@ type AuditFixture = {
   stateDir: string;
   configPath: string;
   authStorePath: string;
-  authJsonPath: string;
   modelsPath: string;
   envPath: string;
   env: NodeJS.ProcessEnv;
@@ -102,7 +101,6 @@ async function createAuditFixture(): Promise<AuditFixture> {
   const stateDir = path.join(rootDir, ".alisio");
   const configPath = path.join(stateDir, "alisio.json");
   const authStorePath = path.join(stateDir, "agents", "main", "agent", "auth-profiles.json");
-  const authJsonPath = path.join(stateDir, "agents", "main", "agent", "auth.json");
   const modelsPath = path.join(stateDir, "agents", "main", "agent", "models.json");
   const envPath = path.join(stateDir, ".env");
 
@@ -114,7 +112,6 @@ async function createAuditFixture(): Promise<AuditFixture> {
     stateDir,
     configPath,
     authStorePath,
-    authJsonPath,
     modelsPath,
     envPath,
     env: {
@@ -224,28 +221,11 @@ describe("secrets audit", () => {
     expect(hasFinding(report, (entry) => entry.code === "PLAINTEXT_FOUND")).toBe(true);
   });
 
-  it("does not mutate legacy auth.json during audit", async () => {
-    await fs.rm(fixture.authStorePath, { force: true });
-    await writeJsonFile(fixture.authJsonPath, {
-      openai: {
-        type: "api_key",
-        key: "sk-legacy-auth-json",
-      },
-    });
-
-    const report = await runSecretsAudit({ env: fixture.env });
-    expect(hasFinding(report, (entry) => entry.code === "LEGACY_RESIDUE")).toBe(true);
-    await expect(fs.stat(fixture.authJsonPath)).resolves.toBeTruthy();
-    await expect(fs.stat(fixture.authStorePath)).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
   it("reports malformed sidecar JSON as findings instead of crashing", async () => {
     await fs.writeFile(fixture.authStorePath, "{invalid-json", "utf8");
-    await fs.writeFile(fixture.authJsonPath, "{invalid-json", "utf8");
 
     const report = await runSecretsAudit({ env: fixture.env });
     expect(hasFinding(report, (entry) => entry.file === fixture.authStorePath)).toBe(true);
-    expect(hasFinding(report, (entry) => entry.file === fixture.authJsonPath)).toBe(true);
     expect(hasFinding(report, (entry) => entry.code === "REF_UNRESOLVED")).toBe(true);
   });
 

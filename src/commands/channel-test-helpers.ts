@@ -1,11 +1,11 @@
 import { listBundledChannelPlugins } from "../channels/plugins/bundled.js";
+import type { ChannelSetupWizardAdapter } from "../channels/plugins/setup-wizard-types.js";
 import type { ChannelPlugin } from "../channels/plugins/types.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import type { PluginRuntime } from "../plugins/runtime/index.js";
 import { loadBundledPluginTestApiSync } from "../test-utils/bundled-plugin-public-surface.js";
 import { createTestRegistry } from "../test-utils/channel-plugins.js";
 import { getChannelSetupWizardAdapter } from "./channel-setup/registry.js";
-import type { ChannelSetupWizardAdapter } from "./channel-setup/types.js";
 import type { ChannelChoice } from "./onboard-types.js";
 
 const { googlechatPlugin } = loadBundledPluginTestApiSync<{

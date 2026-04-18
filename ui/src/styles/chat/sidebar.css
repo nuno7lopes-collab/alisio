@@ -214,6 +214,19 @@
   font-weight: 500;
 }
 
+.computer-pane__step-summary {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.computer-pane__step-text {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .computer-pane__actions,
 .computer-pane__callout-actions {
   display: flex;
@@ -315,10 +328,44 @@
   background: color-mix(in srgb, var(--panel-secondary) 70%, transparent);
 }
 
+.computer-pane__timeline-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
 .computer-pane__timeline-summary {
   color: var(--text);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.computer-pane__timeline-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.computer-pane__tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.computer-pane__tag--step {
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 
 .computer-pane__timeline-meta {

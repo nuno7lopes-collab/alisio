@@ -1,6 +1,12 @@
+import { Command } from "commander";
 import { describe, expect, it } from "vitest";
 import type { HookStatusReport } from "../hooks/hooks-status.js";
-import { formatHookInfo, formatHooksCheck, formatHooksList } from "./hooks-cli.js";
+import {
+  formatHookInfo,
+  formatHooksCheck,
+  formatHooksList,
+  registerHooksCli,
+} from "./hooks-cli.js";
 import { createEmptyInstallChecks } from "./requirements-test-fixtures.js";
 
 const report: HookStatusReport = {
@@ -84,5 +90,22 @@ describe("hooks cli formatting", () => {
     const output = formatHookInfo(pluginReport, "plugin-hook", {});
     expect(output).toContain("voice-call");
     expect(output).toContain("Managed by plugin");
+  });
+});
+
+describe("hooks cli command registration", () => {
+  function registerHooksCommand(): Command {
+    const program = new Command();
+    registerHooksCli(program);
+    const hooks = program.commands.find((cmd) => cmd.name() === "hooks");
+    expect(hooks).toBeDefined();
+    return hooks!;
+  }
+
+  it("does not register deprecated install and update aliases", () => {
+    const hooks = registerHooksCommand();
+
+    expect(hooks.commands.map((cmd) => cmd.name())).not.toContain("install");
+    expect(hooks.commands.map((cmd) => cmd.name())).not.toContain("update");
   });
 });

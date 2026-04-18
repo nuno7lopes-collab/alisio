@@ -48,10 +48,7 @@ export function resolveAuthProfileEligibility(params: {
       return { eligible: false, reasonCode: "provider_mismatch" };
     }
     if (profileConfig.mode !== cred.type) {
-      const oauthCompatible = profileConfig.mode === "oauth" && cred.type === "token";
-      if (!oauthCompatible) {
-        return { eligible: false, reasonCode: "mode_mismatch" };
-      }
+      return { eligible: false, reasonCode: "mode_mismatch" };
     }
   }
   const credentialEligibility = evaluateStoredCredentialEligibility({

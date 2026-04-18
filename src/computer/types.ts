@@ -27,6 +27,22 @@ export type ComputerActionType =
   | "open_path"
   | "app_focus";
 
+export type ComputerStepKind = "observe" | "action";
+
+export type ComputerStepPhase =
+  | "observe"
+  | "observe-before-action"
+  | "awaiting-approval"
+  | "action"
+  | "observe-after-action";
+
+export type ComputerStepStatus =
+  | "running"
+  | "awaiting-approval"
+  | "completed"
+  | "error"
+  | "cancelled";
+
 export type ComputerTargetPoint = {
   x: number;
   y: number;
@@ -107,6 +123,23 @@ export type ComputerTimelineEntry = {
   summary: string;
   status?: ComputerSessionStatus;
   actionType?: ComputerActionType;
+  stepId?: string;
+  stepSequence?: number;
+  toolCallId?: string;
+  stepPhase?: ComputerStepPhase;
+};
+
+export type ComputerSessionStep = {
+  id: string;
+  sequence: number;
+  toolCallId: string;
+  kind: ComputerStepKind;
+  phase: ComputerStepPhase;
+  status: ComputerStepStatus;
+  summary: string;
+  actionType?: ComputerActionType;
+  startedAt: number;
+  updatedAt: number;
 };
 
 export type ComputerApprovalRequest = {
@@ -118,6 +151,9 @@ export type ComputerApprovalRequest = {
   sensitive: boolean;
   appName?: string;
   appBundleId?: string;
+  stepId?: string;
+  stepSequence?: number;
+  toolCallId?: string;
 };
 
 export type ComputerPermissionState = {
@@ -135,6 +171,9 @@ export type ComputerSessionState = {
   permissions: ComputerPermissionState;
   context?: ComputerObservationContext | null;
   frame?: ComputerFrame | null;
+  stepCounter: number;
+  activeStep?: ComputerSessionStep | null;
+  lastCompletedStep?: ComputerSessionStep | null;
   timeline: ComputerTimelineEntry[];
   awaitingApproval?: ComputerApprovalRequest | null;
   lastError?: string | null;

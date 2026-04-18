@@ -124,6 +124,10 @@ function formatSessionIdPrefix(sessionId: string, updatedAt?: number | null): st
   return prefix;
 }
 
+function isDashboardSessionKey(key: string): boolean {
+  return (parseAgentSessionKey(key)?.rest ?? "").startsWith("dashboard:");
+}
+
 function truncateTitle(text: string, maxLen: number): string {
   if (text.length <= maxLen) {
     return text;
@@ -173,6 +177,32 @@ export function deriveSessionTitle(
   return undefined;
 }
 
+function isSyntheticDashboardSessionTitle(params: {
+  key: string;
+  entry?: SessionEntry;
+  derivedTitle?: string;
+  firstUserMessage?: string | null;
+}): boolean {
+  const derivedTitle = params.derivedTitle?.trim();
+  if (!derivedTitle || !params.entry?.sessionId || !isDashboardSessionKey(params.key)) {
+    return false;
+  }
+  if (
+    params.entry.label?.trim() ||
+    params.entry.displayName?.trim() ||
+    params.entry.subject?.trim()
+  ) {
+    return false;
+  }
+  const normalizedFirstUserMessage = sanitizeDerivedSessionTitleSource(
+    params.firstUserMessage ?? "",
+  );
+  if (normalizedFirstUserMessage) {
+    return false;
+  }
+  return derivedTitle === formatSessionIdPrefix(params.entry.sessionId, params.entry.updatedAt);
+}
+
 function resolveSessionRuntimeMs(
   run: { startedAt?: number; endedAt?: number; accumulatedRuntimeMs?: number } | null,
   now: number,
@@ -216,7 +246,7 @@ function resolveLiveSandboxBrowserObserver(params: {
   if (liveObserverUrl) {
     return liveObserverUrl;
   }
-  return params.entry?.systemPromptReport?.sandbox?.browserObserverUrl?.trim() || undefined;
+  return undefined;
 }
 
 function resolveSessionObserver(params: {
@@ -1303,6 +1333,16 @@ export function buildGatewaySessionRow(params: {
     );
     if (params.includeDerivedTitles) {
       derivedTitle = deriveSessionTitle(entry, fields.firstUserMessage);
+      if (
+        isSyntheticDashboardSessionTitle({
+          key,
+          entry,
+          derivedTitle,
+          firstUserMessage: fields.firstUserMessage,
+        })
+      ) {
+        derivedTitle = undefined;
+      }
     }
     if (params.includeLastMessage && fields.lastMessagePreview) {
       lastMessagePreview = fields.lastMessagePreview;

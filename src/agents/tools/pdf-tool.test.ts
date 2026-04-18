@@ -119,7 +119,6 @@ function resetAuthEnv() {
   vi.stubEnv("GOOGLE_API_KEY", "");
   vi.stubEnv("MINIMAX_API_KEY", "");
   vi.stubEnv("ZAI_API_KEY", "");
-  vi.stubEnv("Z_AI_API_KEY", "");
   vi.stubEnv("COPILOT_GITHUB_TOKEN", "");
   vi.stubEnv("GH_TOKEN", "");
   vi.stubEnv("GITHUB_TOKEN", "");

@@ -130,7 +130,7 @@ Notes:
 - Canonical supported surface: [SecretRef Credential Surface](/reference/secretref-credential-surface).
 - It performs preflight resolution before apply.
 - If preflight/apply includes exec refs, keep `--allow-exec` set for both steps.
-- Generated plans default to scrub options (`scrubEnv`, `scrubAuthProfilesForProviderTargets`, `scrubLegacyAuthJson` all enabled).
+- Generated plans default to scrub options (`scrubEnv` and `scrubAuthProfilesForProviderTargets` enabled).
 - Apply path is one-way for scrubbed plaintext values.
 - Without `--apply`, CLI still prompts `Apply this plan now?` after preflight.
 - With `--apply` (and no `--yes`), CLI prompts an extra irreversible confirmation.
@@ -168,7 +168,6 @@ What `apply` may update:
 
 - `alisio.json` (SecretRef targets + provider upserts/deletes)
 - `auth-profiles.json` (provider-target scrubbing)
-- legacy `auth.json` residues
 - `~/.alisio/.env` known secret keys whose values were migrated
 
 ## Why no rollback backups

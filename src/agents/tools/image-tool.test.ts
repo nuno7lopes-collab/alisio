@@ -480,7 +480,6 @@ describe("image tool implicit imageModel config", () => {
     "ANTHROPIC_OAUTH_TOKEN",
     "MINIMAX_API_KEY",
     "ZAI_API_KEY",
-    "Z_AI_API_KEY",
     // Avoid implicit Copilot provider discovery hitting the network in tests.
     "COPILOT_GITHUB_TOKEN",
     "GH_TOKEN",

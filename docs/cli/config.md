@@ -61,7 +61,7 @@ alisio config set agents.list[1].tools.exec.node "node-id-or-name"
 ## Values
 
 Values are parsed as JSON5 when possible; otherwise they are treated as strings.
-Use `--strict-json` to require JSON5 parsing. `--json` remains supported as a legacy alias.
+Use `--strict-json` to require JSON5 parsing.
 
 ```bash
 alisio config set agents.defaults.heartbeat.every "0m"
@@ -114,7 +114,7 @@ alisio config set --batch-file ./config-set.batch.json --dry-run
 ```
 
 Batch parsing always uses the batch payload (`--batch-json`/`--batch-file`) as the source of truth.
-`--strict-json` / `--json` do not change batch parsing behavior.
+`--strict-json` does not change batch parsing behavior.
 
 JSON path/value mode remains supported for both SecretRefs and providers:
 
@@ -203,7 +203,7 @@ alisio config set channels.discord.token \
 Dry-run behavior:
 
 - Builder mode: runs SecretRef resolvability checks for changed refs/providers.
-- JSON mode (`--strict-json`, `--json`, or batch mode): runs schema validation plus SecretRef resolvability checks.
+- JSON mode (`--strict-json` or batch mode): runs schema validation plus SecretRef resolvability checks.
 - Exec SecretRef checks are skipped by default during dry-run to avoid command side effects.
 - Use `--allow-exec` with `--dry-run` to opt in to exec SecretRef checks (this may execute provider commands).
 - `--allow-exec` is dry-run only and errors if used without `--dry-run`.

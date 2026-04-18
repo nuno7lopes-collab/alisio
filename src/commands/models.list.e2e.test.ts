@@ -291,7 +291,7 @@ describe("models list/status", () => {
     ({ loadModelRegistry, toModelRow } = await import("./models/list.registry.js"));
   });
 
-  it("models list runs model discovery without auth.json sync", async () => {
+  it("models list runs model discovery from auth profiles only", async () => {
     setDefaultZaiRegistry();
     const runtime = makeRuntime();
 

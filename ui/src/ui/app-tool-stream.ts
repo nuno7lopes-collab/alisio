@@ -42,6 +42,10 @@ type ToolStreamHost = {
   toolStreamSyncTimer: number | null;
 };
 
+function buildToolStreamEntryKey(runId: string, toolCallId: string): string {
+  return `${runId}\u0001${toolCallId}`;
+}
+
 function toTrimmedString(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -448,6 +452,7 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
   if (!toolCallId) {
     return;
   }
+  const entryKey = buildToolStreamEntryKey(payload.runId, toolCallId);
   const name = typeof data.name === "string" ? data.name : "tool";
   const phase = typeof data.phase === "string" ? data.phase : "";
   const args = phase === "start" ? data.args : undefined;
@@ -467,7 +472,7 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
         : undefined;
 
   const now = Date.now();
-  let entry = host.toolStreamById.get(toolCallId);
+  let entry = host.toolStreamById.get(entryKey);
   if (!entry) {
     // Commit any in-progress streaming text as a segment so it renders
     // above the tool card instead of below it.
@@ -491,8 +496,8 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
       updatedAt: now,
       message: {},
     };
-    host.toolStreamById.set(toolCallId, entry);
-    host.toolStreamOrder.push(toolCallId);
+    host.toolStreamById.set(entryKey, entry);
+    host.toolStreamOrder.push(entryKey);
   } else {
     entry.name = name;
     if (args !== undefined) {

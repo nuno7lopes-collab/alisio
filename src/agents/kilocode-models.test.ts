@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { discoverKilocodeModels, KILOCODE_MODELS_URL } from "./kilocode-models.js";
+import { discoverKilocodeModels, KILOCODE_MODELS_URL } from "../plugin-sdk/kilocode.js";
 
 // discoverKilocodeModels checks for VITEST env and returns static catalog,
 // so we need to temporarily unset it to test the fetch path.

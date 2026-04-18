@@ -17,7 +17,6 @@ import { AUTH_STORE_LOCK_OPTIONS, log } from "./constants.js";
 import { resolveTokenExpiryState } from "./credential-state.js";
 import { formatAuthDoctorHint } from "./doctor.js";
 import { ensureAuthStoreFile, resolveAuthStorePath } from "./paths.js";
-import { suggestOAuthProfileIdForLegacyDefault } from "./repair.js";
 import { ensureAuthProfileStore, saveAuthProfileStore } from "./store.js";
 import type { AuthProfileStore, OAuthCredential } from "./types.js";
 
@@ -49,32 +48,17 @@ const isOAuthProvider = (provider: string): provider is OAuthProvider =>
 const resolveOAuthProvider = (provider: string): OAuthProvider | null =>
   isOAuthProvider(provider) ? provider : null;
 
-/** Bearer-token auth modes that are interchangeable (oauth tokens and raw tokens). */
-const BEARER_AUTH_MODES = new Set(["oauth", "token"]);
-
-const isCompatibleModeType = (mode: string | undefined, type: string | undefined): boolean => {
-  if (!mode || !type) {
-    return false;
-  }
-  if (mode === type) {
-    return true;
-  }
-  // Both token and oauth represent bearer-token auth paths — allow bidirectional compat.
-  return BEARER_AUTH_MODES.has(mode) && BEARER_AUTH_MODES.has(type);
-};
-
 function isProfileConfigCompatible(params: {
   cfg?: AlisioConfig;
   profileId: string;
   provider: string;
   mode: "api_key" | "token" | "oauth";
-  allowOAuthTokenCompatibility?: boolean;
 }): boolean {
   const profileConfig = params.cfg?.auth?.profiles?.[params.profileId];
   if (profileConfig && profileConfig.provider !== params.provider) {
     return false;
   }
-  if (profileConfig && !isCompatibleModeType(profileConfig.mode, params.mode)) {
+  if (profileConfig && profileConfig.mode !== params.mode) {
     return false;
   }
   return true;
@@ -223,47 +207,6 @@ async function refreshOAuthTokenWithLock(params: {
   });
 }
 
-async function tryResolveOAuthProfile(
-  params: ResolveApiKeyForProfileParams,
-): Promise<{ apiKey: string; provider: string; email?: string } | null> {
-  const { cfg, store, profileId } = params;
-  const cred = store.profiles[profileId];
-  if (!cred || cred.type !== "oauth") {
-    return null;
-  }
-  if (
-    !isProfileConfigCompatible({
-      cfg,
-      profileId,
-      provider: cred.provider,
-      mode: cred.type,
-    })
-  ) {
-    return null;
-  }
-
-  if (Date.now() < cred.expires) {
-    return await buildOAuthProfileResult({
-      provider: cred.provider,
-      credentials: cred,
-      email: cred.email,
-    });
-  }
-
-  const refreshed = await refreshOAuthTokenWithLock({
-    profileId,
-    agentDir: params.agentDir,
-  });
-  if (!refreshed) {
-    return null;
-  }
-  return buildApiKeyProfileResult({
-    apiKey: refreshed.apiKey,
-    provider: cred.provider,
-    email: cred.email,
-  });
-}
-
 async function resolveProfileSecretString(params: {
   profileId: string;
   provider: string;
@@ -329,8 +272,6 @@ export async function resolveApiKeyForProfile(
       profileId,
       provider: cred.provider,
       mode: cred.type,
-      // Compatibility: treat "oauth" config as compatible with stored token profiles.
-      allowOAuthTokenCompatibility: true,
     })
   ) {
     return null;
@@ -417,27 +358,6 @@ export async function resolveApiKeyForProfile(
         credentials: refreshed,
         email: refreshed.email ?? cred.email,
       });
-    }
-    const fallbackProfileId = suggestOAuthProfileIdForLegacyDefault({
-      cfg,
-      store: refreshedStore,
-      provider: cred.provider,
-      legacyProfileId: profileId,
-    });
-    if (fallbackProfileId && fallbackProfileId !== profileId) {
-      try {
-        const fallbackResolved = await tryResolveOAuthProfile({
-          cfg,
-          store: refreshedStore,
-          profileId: fallbackProfileId,
-          agentDir: params.agentDir,
-        });
-        if (fallbackResolved) {
-          return fallbackResolved;
-        }
-      } catch {
-        // keep original error
-      }
     }
 
     // Fallback: if this is a secondary agent, try using the main agent's credentials

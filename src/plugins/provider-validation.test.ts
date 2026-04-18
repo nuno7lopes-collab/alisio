@@ -89,7 +89,6 @@ describe("normalizeRegisteredProvider", () => {
         id: " demo ",
         label: " Demo Provider ",
         aliases: [" alias-one ", "alias-one", ""],
-        deprecatedProfileIds: [" demo:legacy ", "demo:legacy", ""],
         envVars: [" DEMO_API_KEY ", "DEMO_API_KEY"],
         auth: [
           {
@@ -129,7 +128,6 @@ describe("normalizeRegisteredProvider", () => {
         id: "demo",
         label: "Demo Provider",
         aliases: ["alias-one"],
-        deprecatedProfileIds: ["demo:legacy"],
         envVars: ["DEMO_API_KEY"],
         auth: [
           {

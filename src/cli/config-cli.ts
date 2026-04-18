@@ -703,7 +703,7 @@ function buildSingleSetOperations(params: {
 }): ConfigSetOperation[] {
   const pathProvided = typeof params.path === "string" && params.path.trim().length > 0;
   const parsedPath = pathProvided ? parseRequiredPath(params.path as string) : null;
-  const strictJson = Boolean(params.opts.strictJson || params.opts.json);
+  const strictJson = Boolean(params.opts.strictJson);
   const modeResolution = resolveConfigSetMode({
     hasBatchMode: false,
     hasRefBuilderOptions: hasRefBuilderOptions(params.opts),
@@ -957,7 +957,7 @@ export async function runConfigSet(opts: {
       hasBatchMode: isBatchMode,
       hasRefBuilderOptions: hasRefBuilderOptions(opts.cliOptions),
       hasProviderBuilderOptions: hasProviderBuilderOptions(opts.cliOptions),
-      strictJson: Boolean(opts.cliOptions.strictJson || opts.cliOptions.json),
+      strictJson: Boolean(opts.cliOptions.strictJson),
     });
     if (!modeResolution.ok) {
       throw modeError(modeResolution.error);
@@ -1292,7 +1292,7 @@ export function registerConfigCli(program: Command) {
     .argument("[path]", "Config path (dot or bracket notation)")
     .argument("[value]", "Value (JSON/JSON5 or raw string)")
     .option("--strict-json", "Strict JSON parsing (error instead of raw string fallback)", false)
-    .option("--json", "Legacy alias for --strict-json", false)
+    .option("--json", "Output dry-run validation result as JSON", false)
     .option(
       "--dry-run",
       "Validate changes without writing alisio.json (checks run in builder/json/batch modes; exec SecretRefs are skipped unless --allow-exec is set)",

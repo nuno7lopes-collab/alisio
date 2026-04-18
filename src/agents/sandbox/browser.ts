@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { getRuntimeConfig, type AlisioConfig } from "../../config/config.js";
 import { deriveDefaultBrowserCdpPortRange } from "../../config/port-defaults.js";
 import {
   DEFAULT_BROWSER_EVALUATE_ENABLED,
@@ -11,10 +12,13 @@ import {
   type ResolvedBrowserConfig,
 } from "../../plugin-sdk/browser-runtime.js";
 import { defaultRuntime } from "../../runtime.js";
+import { resolveUserPath } from "../../utils.js";
+import { resolveSessionAgentId } from "../agent-scope.js";
 import { hasActiveEmbeddedRunForSandboxScope } from "../pi-embedded-runner/runs.js";
+import { DEFAULT_AGENT_WORKSPACE_DIR } from "../workspace.js";
 import { BROWSER_BRIDGES } from "./browser-bridges.js";
 import { computeSandboxBrowserConfigHash } from "./config-hash.js";
-import { resolveSandboxBrowserDockerCreateConfig } from "./config.js";
+import { resolveSandboxBrowserDockerCreateConfig, resolveSandboxConfigForAgent } from "./config.js";
 import {
   DEFAULT_SANDBOX_BROWSER_IMAGE,
   SANDBOX_BROWSER_REGISTRY_PATH,
@@ -37,8 +41,17 @@ import {
   NOVNC_PASSWORD_ENV_KEY,
   issueNoVncObserverToken,
 } from "./novnc-auth.js";
-import { readBrowserRegistry, updateBrowserRegistry } from "./registry.js";
-import { resolveSandboxAgentId, slugifySessionKey } from "./shared.js";
+import {
+  readBrowserRegistry,
+  removeBrowserRegistryEntry,
+  updateBrowserRegistry,
+} from "./registry.js";
+import {
+  resolveSandboxAgentId,
+  resolveSandboxScopeKey,
+  resolveSandboxWorkspaceDir,
+  slugifySessionKey,
+} from "./shared.js";
 import { isToolAllowed } from "./tool-policy.js";
 import type { SandboxBrowserContext, SandboxConfig } from "./types.js";
 import { validateNetworkMode } from "./validate-sandbox-security.js";
@@ -51,13 +64,24 @@ const SANDBOX_BROWSER_BRIDGE_BOOTSTRAP_TIMEOUT_MS = 12_000;
 
 let sandboxBrowserBridgeBootstrapPromise: Promise<void> | null = null;
 let sandboxBrowserBridgeLastBootstrapAtMs = 0;
+const sandboxBrowserBridgeHydrationByScope = new Map<string, Promise<string | undefined>>();
 
 type SandboxBrowserRegistrySnapshotEntry = {
   containerName: string;
   sessionKey: string;
+  createdAtMs: number;
+  image: string;
+  configHash?: string;
   cdpPort: number;
   noVncPort?: number;
   noVncPassword?: string;
+};
+
+type EnsureLiveSandboxBrowserBridgeOptions = {
+  cfg?: AlisioConfig;
+  sessionKey?: string;
+  workspaceDir?: string;
+  evaluateEnabled?: boolean;
 };
 
 async function waitForSandboxCdp(params: { cdpPort: number; timeoutMs: number }): Promise<boolean> {
@@ -132,6 +156,13 @@ export function getLiveSandboxBrowserObserverUrl(scopeKey: string): string | und
   if (!registryEntry?.noVncPort) {
     return undefined;
   }
+  const expectedHash = resolveExpectedSandboxBrowserConfigHash(scopeKey);
+  if (
+    expectedHash &&
+    (!registryEntry.configHash?.trim() || registryEntry.configHash.trim() !== expectedHash)
+  ) {
+    return undefined;
+  }
   return buildNoVncObserverTargetUrl({
     port: registryEntry.noVncPort,
     password: registryEntry.noVncPassword,
@@ -168,6 +199,9 @@ function readBrowserRegistrySync() {
           if (
             typeof entry.containerName !== "string" ||
             typeof entry.sessionKey !== "string" ||
+            typeof entry.createdAtMs !== "number" ||
+            !Number.isFinite(entry.createdAtMs) ||
+            typeof entry.image !== "string" ||
             cdpPort === null
           ) {
             return null;
@@ -175,6 +209,12 @@ function readBrowserRegistrySync() {
           return {
             containerName: entry.containerName,
             sessionKey: entry.sessionKey,
+            createdAtMs: entry.createdAtMs,
+            image: entry.image,
+            configHash:
+              typeof entry.configHash === "string" && entry.configHash.trim()
+                ? entry.configHash.trim()
+                : undefined,
             cdpPort,
             noVncPort:
               typeof entry.noVncPort === "number" && Number.isFinite(entry.noVncPort)
@@ -193,63 +233,256 @@ function readBrowserRegistrySync() {
   };
 }
 
+function resolveSandboxScopeKind(scopeKey: string): SandboxConfig["scope"] {
+  const trimmed = scopeKey.trim();
+  if (trimmed === "shared") {
+    return "shared";
+  }
+  return trimmed.startsWith("agent:") ? "agent" : "session";
+}
+
+function resolveExpectedSandboxBrowserConfigHash(
+  scopeKey: string,
+  cfg: AlisioConfig = getRuntimeConfig(),
+  workspaceDir?: string,
+): string | null {
+  try {
+    const trimmedScopeKey = scopeKey.trim();
+    if (!trimmedScopeKey) {
+      return null;
+    }
+    const agentId = resolveSessionAgentId({
+      sessionKey: trimmedScopeKey,
+      config: cfg,
+    });
+    const sandboxCfg = resolveSandboxConfigForAgent(cfg, agentId);
+    if (!sandboxCfg.browser.enabled || !isToolAllowed(sandboxCfg.tools, "browser")) {
+      return null;
+    }
+    const resolvedScopeKey = resolveSandboxScopeKey(sandboxCfg.scope, trimmedScopeKey);
+    const browserImage = sandboxCfg.browser.image ?? DEFAULT_SANDBOX_BROWSER_IMAGE;
+    const cdpSourceRange = sandboxCfg.browser.cdpSourceRange?.trim() || undefined;
+    const browserDockerCfg = resolveSandboxBrowserDockerCreateConfig({
+      docker: sandboxCfg.docker,
+      browser: { ...sandboxCfg.browser, image: browserImage },
+    });
+    const agentWorkspaceDir = resolveUserPath(workspaceDir?.trim() || DEFAULT_AGENT_WORKSPACE_DIR);
+    const workspaceRoot = resolveUserPath(sandboxCfg.workspaceRoot);
+    const sandboxWorkspaceDir =
+      sandboxCfg.scope === "shared"
+        ? workspaceRoot
+        : resolveSandboxWorkspaceDir(workspaceRoot, resolvedScopeKey);
+    const effectiveWorkspaceDir =
+      sandboxCfg.workspaceAccess === "rw" ? agentWorkspaceDir : sandboxWorkspaceDir;
+    return computeSandboxBrowserConfigHash({
+      docker: browserDockerCfg,
+      browser: {
+        cdpPort: sandboxCfg.browser.cdpPort,
+        vncPort: sandboxCfg.browser.vncPort,
+        noVncPort: sandboxCfg.browser.noVncPort,
+        headless: sandboxCfg.browser.headless,
+        enableNoVnc: sandboxCfg.browser.enableNoVnc,
+        cdpSourceRange,
+      },
+      securityEpoch: SANDBOX_BROWSER_SECURITY_HASH_EPOCH,
+      workspaceAccess: sandboxCfg.workspaceAccess,
+      workspaceDir: effectiveWorkspaceDir,
+      agentWorkspaceDir,
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function ensureSandboxBrowserBridgeFromRuntimeOptions(
+  scopeKey: string,
+  opts: EnsureLiveSandboxBrowserBridgeOptions,
+): Promise<string | undefined> {
+  const cfg = opts.cfg;
+  const sessionKey = opts.sessionKey?.trim();
+  if (!cfg || !sessionKey) {
+    return undefined;
+  }
+  const agentId = resolveSessionAgentId({ sessionKey, config: cfg });
+  const sandboxCfg = resolveSandboxConfigForAgent(cfg, agentId);
+  if (!sandboxCfg.browser.enabled || !isToolAllowed(sandboxCfg.tools, "browser")) {
+    return undefined;
+  }
+  const resolvedScopeKey = resolveSandboxScopeKey(sandboxCfg.scope, sessionKey);
+  if (resolvedScopeKey !== scopeKey.trim()) {
+    return undefined;
+  }
+  const agentWorkspaceDir = resolveUserPath(
+    opts.workspaceDir?.trim() || DEFAULT_AGENT_WORKSPACE_DIR,
+  );
+  const workspaceRoot = resolveUserPath(sandboxCfg.workspaceRoot);
+  const sandboxWorkspaceDir =
+    sandboxCfg.scope === "shared"
+      ? workspaceRoot
+      : resolveSandboxWorkspaceDir(workspaceRoot, resolvedScopeKey);
+  const effectiveWorkspaceDir =
+    sandboxCfg.workspaceAccess === "rw" ? agentWorkspaceDir : sandboxWorkspaceDir;
+  const browser = await ensureSandboxBrowser({
+    scopeKey: resolvedScopeKey,
+    workspaceDir: effectiveWorkspaceDir,
+    agentWorkspaceDir,
+    cfg: sandboxCfg,
+    evaluateEnabled: opts.evaluateEnabled,
+  });
+  return browser?.bridgeUrl?.trim() || undefined;
+}
+
 async function bootstrapSandboxBrowserBridges(): Promise<void> {
   const registry = await readBrowserRegistry();
   await Promise.all(
     registry.entries.map(async (entry) => {
-      if (BROWSER_BRIDGES.has(entry.sessionKey)) {
-        return;
-      }
-      const state = await dockerContainerState(entry.containerName);
-      if (!state.exists) {
-        return;
-      }
-      const noVncPassword =
-        entry.noVncPassword?.trim() ||
-        (entry.noVncPort
-          ? ((await readDockerContainerEnvVar(entry.containerName, NOVNC_PASSWORD_ENV_KEY)) ??
-            undefined)
-          : undefined);
-      const authToken = crypto.randomBytes(24).toString("hex");
-      const bridge = await startBrowserBridgeServer({
-        resolved: buildSandboxBrowserResolvedConfig({
-          controlPort: 0,
-          cdpPort: entry.cdpPort,
-          headless: !entry.noVncPort,
-          evaluateEnabled: DEFAULT_BROWSER_EVALUATE_ENABLED,
-        }),
-        authToken,
-        onEnsureAttachTarget: async () => {
-          const current = await dockerContainerState(entry.containerName);
-          if (current.exists && !current.running) {
-            await execDocker(["start", entry.containerName]);
-          }
-          const ok = await waitForSandboxCdp({
-            cdpPort: entry.cdpPort,
-            timeoutMs: SANDBOX_BROWSER_BRIDGE_BOOTSTRAP_TIMEOUT_MS,
-          });
-          if (!ok) {
-            throw new Error(
-              `Sandbox browser CDP did not become reachable on 127.0.0.1:${entry.cdpPort} within ${SANDBOX_BROWSER_BRIDGE_BOOTSTRAP_TIMEOUT_MS}ms.`,
-            );
-          }
-        },
-        resolveSandboxNoVncToken: consumeNoVncObserverToken,
-      });
-      BROWSER_BRIDGES.set(entry.sessionKey, {
-        bridge,
-        containerName: entry.containerName,
-        authToken,
-        noVncPort: entry.noVncPort,
-        noVncPassword,
-      });
-      await updateBrowserRegistry({
-        ...entry,
-        lastUsedAtMs: Date.now(),
-        noVncPassword,
-      });
+      await ensureSandboxBrowserBridgeHydratedFromRegistryEntry(entry);
     }),
   );
+}
+
+async function ensureSandboxBrowserBridgeHydratedFromRegistryEntry(
+  entry: SandboxBrowserRegistrySnapshotEntry,
+): Promise<string | undefined> {
+  const existing = BROWSER_BRIDGES.get(entry.sessionKey);
+  const existingBaseUrl = existing?.bridge.baseUrl?.trim();
+  if (existingBaseUrl) {
+    return existingBaseUrl;
+  }
+
+  const state = await dockerContainerState(entry.containerName);
+  if (!state.exists) {
+    await removeBrowserRegistryEntry(entry.containerName).catch(() => undefined);
+    return undefined;
+  }
+
+  const expectedHash = resolveExpectedSandboxBrowserConfigHash(entry.sessionKey);
+  if (expectedHash) {
+    const currentHash =
+      (await readDockerContainerLabel(entry.containerName, "alisio.configHash"))?.trim() ||
+      entry.configHash?.trim() ||
+      "";
+    if (currentHash !== expectedHash) {
+      const activeRunForScope = hasActiveEmbeddedRunForSandboxScope({
+        scope: resolveSandboxScopeKind(entry.sessionKey),
+        scopeKey: entry.sessionKey,
+      });
+      if (!state.running || !activeRunForScope) {
+        await execDocker(["rm", "-f", entry.containerName], { allowFailure: true });
+        await removeBrowserRegistryEntry(entry.containerName).catch(() => undefined);
+      }
+      defaultRuntime.log(
+        `Skipping stale sandbox browser bridge hydration for ${entry.containerName}: config mismatch.`,
+      );
+      return undefined;
+    }
+  }
+
+  const noVncPassword =
+    entry.noVncPassword?.trim() ||
+    (entry.noVncPort
+      ? ((await readDockerContainerEnvVar(entry.containerName, NOVNC_PASSWORD_ENV_KEY)) ??
+        undefined)
+      : undefined);
+  const authToken = crypto.randomBytes(24).toString("hex");
+  const bridge = await startBrowserBridgeServer({
+    resolved: buildSandboxBrowserResolvedConfig({
+      controlPort: 0,
+      cdpPort: entry.cdpPort,
+      headless: !entry.noVncPort,
+      evaluateEnabled: DEFAULT_BROWSER_EVALUATE_ENABLED,
+    }),
+    authToken,
+    onEnsureAttachTarget: async () => {
+      const current = await dockerContainerState(entry.containerName);
+      if (current.exists && !current.running) {
+        await execDocker(["start", entry.containerName]);
+      }
+      const ok = await waitForSandboxCdp({
+        cdpPort: entry.cdpPort,
+        timeoutMs: SANDBOX_BROWSER_BRIDGE_BOOTSTRAP_TIMEOUT_MS,
+      });
+      if (!ok) {
+        throw new Error(
+          `Sandbox browser CDP did not become reachable on 127.0.0.1:${entry.cdpPort} within ${SANDBOX_BROWSER_BRIDGE_BOOTSTRAP_TIMEOUT_MS}ms.`,
+        );
+      }
+    },
+    resolveSandboxNoVncToken: consumeNoVncObserverToken,
+  });
+  BROWSER_BRIDGES.set(entry.sessionKey, {
+    bridge,
+    containerName: entry.containerName,
+    authToken,
+    noVncPort: entry.noVncPort,
+    noVncPassword,
+  });
+  await updateBrowserRegistry({
+    ...entry,
+    lastUsedAtMs: Date.now(),
+    noVncPassword,
+  });
+  return bridge.baseUrl?.trim() || undefined;
+}
+
+export async function ensureLiveSandboxBrowserBridgeUrl(
+  scopeKey: string,
+  opts?: EnsureLiveSandboxBrowserBridgeOptions,
+): Promise<string | undefined> {
+  const normalizedScopeKey = scopeKey.trim();
+  if (!normalizedScopeKey) {
+    return undefined;
+  }
+
+  const existingBaseUrl = BROWSER_BRIDGES.get(normalizedScopeKey)?.bridge.baseUrl?.trim();
+  if (existingBaseUrl) {
+    return existingBaseUrl;
+  }
+
+  const inFlight = sandboxBrowserBridgeHydrationByScope.get(normalizedScopeKey);
+  if (inFlight) {
+    return await inFlight;
+  }
+
+  const hydrationPromise = (async () => {
+    try {
+      const ensuredFromRuntime = await ensureSandboxBrowserBridgeFromRuntimeOptions(
+        normalizedScopeKey,
+        opts ?? {},
+      );
+      if (ensuredFromRuntime) {
+        return ensuredFromRuntime;
+      }
+      const registry = await readBrowserRegistry();
+      const entry = registry.entries.find(
+        (candidate) => candidate.sessionKey === normalizedScopeKey,
+      );
+      if (!entry) {
+        return undefined;
+      }
+      return await ensureSandboxBrowserBridgeHydratedFromRegistryEntry(entry);
+    } catch (error) {
+      defaultRuntime.log(
+        `Failed to hydrate sandbox browser bridge for ${normalizedScopeKey}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return undefined;
+    } finally {
+      sandboxBrowserBridgeHydrationByScope.delete(normalizedScopeKey);
+    }
+  })();
+  sandboxBrowserBridgeHydrationByScope.set(normalizedScopeKey, hydrationPromise);
+  const hydratedBaseUrl = await hydrationPromise;
+  if (hydratedBaseUrl) {
+    return hydratedBaseUrl;
+  }
+
+  scheduleSandboxBrowserBridgeBootstrap();
+  if (sandboxBrowserBridgeBootstrapPromise) {
+    await sandboxBrowserBridgeBootstrapPromise.catch(() => undefined);
+  }
+  return BROWSER_BRIDGES.get(normalizedScopeKey)?.bridge.baseUrl?.trim() || undefined;
 }
 
 function scheduleSandboxBrowserBridgeBootstrap() {
@@ -344,6 +577,7 @@ export async function ensureSandboxBrowser(params: {
   let running = state.running;
   let currentHash: string | null = null;
   let hashMismatch = false;
+  let recreateSkippedBecauseRemovalFailed = false;
   const noVncEnabled = isNoVncEnabled(params.cfg.browser);
   let noVncPassword: string | undefined;
 
@@ -384,8 +618,15 @@ export async function ensureSandboxBrowser(params: {
         );
       } else {
         await execDocker(["rm", "-f", containerName], { allowFailure: true });
-        hasContainer = false;
-        running = false;
+        const postRemoveState = await dockerContainerState(containerName);
+        hasContainer = postRemoveState.exists;
+        running = postRemoveState.running;
+        recreateSkippedBecauseRemovalFailed = hasContainer;
+        if (hasContainer) {
+          defaultRuntime.log(
+            `Sandbox browser recreate requested for ${containerName}, but the existing container still remains after rm -f. Reusing the current container instead of attempting a conflicting recreate.`,
+          );
+        }
       }
     }
   }
@@ -553,7 +794,10 @@ export async function ensureSandboxBrowser(params: {
     createdAtMs: now,
     lastUsedAtMs: now,
     image: browserImage,
-    configHash: hashMismatch && running ? (currentHash ?? undefined) : expectedHash,
+    configHash:
+      hashMismatch && (running || recreateSkippedBecauseRemovalFailed)
+        ? (currentHash ?? undefined)
+        : expectedHash,
     cdpPort: mappedCdp,
     noVncPort: mappedNoVnc ?? undefined,
     noVncPassword,
@@ -579,4 +823,5 @@ export async function ensureSandboxBrowser(params: {
 
 export const __testing = {
   bootstrapSandboxBrowserBridges,
+  ensureLiveSandboxBrowserBridgeUrl,
 };

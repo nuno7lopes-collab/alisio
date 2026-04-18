@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createWizardPrompter } from "../../test/helpers/auth-wizard.js";
 import type { AlisioConfig } from "../config/config.js";
 import type { GatewayBonjourBeacon } from "../infra/bonjour-discovery.js";
 import { captureEnv } from "../test-utils/env.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-import { createWizardPrompter } from "./test-wizard-helpers.js";
 
 const discoverGatewayBeacons = vi.hoisted(() => vi.fn<() => Promise<GatewayBonjourBeacon[]>>());
 const resolveWideAreaDiscoveryDomain = vi.hoisted(() => vi.fn(() => undefined));
@@ -307,9 +307,7 @@ describe("promptRemoteGatewayConfig", () => {
 
     expect(next.gateway?.remote?.url).toBe("ws://127.0.0.1:19001");
     expect(prompter.note).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "ssh -N -L 19001:127.0.0.1:19000 <user>@gateway.example -p 2222",
-      ),
+      expect.stringContaining("ssh -N -L 19001:127.0.0.1:19000 <user>@gateway.example -p 2222"),
       "SSH tunnel",
     );
   });

@@ -446,7 +446,7 @@ Findings include:
 - plaintext sensitive provider header residues in generated `models.json` entries
 - unresolved refs
 - precedence shadowing (`auth-profiles.json` taking priority over `alisio.json` refs)
-- legacy residues (`auth.json`, OAuth reminders)
+- legacy residues and reminders
 
 Exec note:
 
@@ -482,7 +482,6 @@ Helpful modes:
 `configure` apply defaults:
 
 - scrub matching static credentials from `auth-profiles.json` for targeted providers
-- scrub legacy static `api_key` entries from `auth.json`
 - scrub matching known secret lines from `<config-dir>/.env`
 
 ### `secrets apply`

@@ -13,6 +13,7 @@ import type { RequestFrame } from "./protocol/index.js";
 import { createGatewayBroadcaster } from "./server-broadcast.js";
 import { createChatRunRegistry } from "./server-chat.js";
 import { handleNodeInvokeResult } from "./server-methods/nodes.handlers.invoke-result.js";
+import { handleNodeTaskResult } from "./server-methods/nodes.handlers.task-result.js";
 import type { GatewayClient as GatewayMethodClient } from "./server-methods/types.js";
 import type { GatewayRequestContext, RespondFn } from "./server-methods/types.js";
 import { createNodeSubscriptionManager } from "./server-node-subscriptions.js";
@@ -400,6 +401,52 @@ describe("late-arriving invoke results", () => {
       const payload = rawPayload as { ok?: boolean; ignored?: boolean } | undefined;
 
       // Late-arriving results return success instead of error to reduce log noise.
+      expect(ok).toBe(true);
+      expect(error).toBeUndefined();
+      expect(payload?.ok).toBe(true);
+      expect(payload?.ignored).toBe(true);
+    }
+  });
+});
+
+describe("late-arriving task results", () => {
+  test("returns success for unknown task ids for both success and error payloads", async () => {
+    const nodeId = "node-123";
+    const cases = [
+      {
+        taskId: "unknown-task-id-12345",
+        ok: true,
+        payloadJSON: JSON.stringify({ result: "late" }),
+      },
+      {
+        taskId: "another-unknown-task-id",
+        ok: false,
+        error: { code: "FAILED", message: "test error" },
+      },
+    ] as const;
+
+    for (const params of cases) {
+      const respond = vi.fn<RespondFn>();
+      const context = {
+        nodeRegistry: { handleTaskResult: () => false },
+        logGateway: { debug: vi.fn() },
+      } as unknown as GatewayRequestContext;
+      const client = {
+        connect: { device: { id: nodeId } },
+      } as unknown as GatewayMethodClient;
+
+      await handleNodeTaskResult({
+        req: { method: "node.task.result" } as unknown as RequestFrame,
+        params: { ...params, nodeId } as unknown as Record<string, unknown>,
+        client,
+        isWebchatConnect: () => false,
+        respond,
+        context,
+      });
+
+      const [ok, rawPayload, error] = respond.mock.lastCall ?? [];
+      const payload = rawPayload as { ok?: boolean; ignored?: boolean } | undefined;
+
       expect(ok).toBe(true);
       expect(error).toBeUndefined();
       expect(payload?.ok).toBe(true);

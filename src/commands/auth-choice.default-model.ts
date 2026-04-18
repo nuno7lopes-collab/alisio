@@ -1,6 +1,6 @@
 import type { AlisioConfig } from "../config/config.js";
+import { ensureModelAllowlistEntry } from "../plugins/provider-model-allowlist.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
-import { ensureModelAllowlistEntry } from "./model-allowlist.js";
 
 export async function applyDefaultModelChoice(params: {
   config: AlisioConfig;

@@ -565,7 +565,10 @@ export type {
   ComputerObservationContext,
   ComputerPermissionState,
   ComputerSessionState,
+  ComputerSessionStep,
   ComputerSessionStatus,
+  ComputerStepPhase,
+  ComputerStepStatus,
   ComputerStructuredAction,
   ComputerTimelineEntry,
 } from "../../../src/computer/types.js";

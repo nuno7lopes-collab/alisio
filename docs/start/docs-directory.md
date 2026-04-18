@@ -23,7 +23,6 @@ For a complete map of the docs, see [Docs hubs](/start/hubs).
 - [Updating and rollback](/install/updating)
 - [Pairing (DM and devices)](/channels/pairing)
 - [Nix mode](/install/nix)
-- [Alisio assistant setup](/start/alisio)
 - [Skills](/tools/skills)
 - [Skills config](/tools/skills-config)
 - [Workspace templates](/reference/templates/AGENTS)

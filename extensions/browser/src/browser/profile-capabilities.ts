@@ -30,6 +30,24 @@ export function getBrowserProfileCapabilities(
     };
   }
 
+  // Attach-only profiles without a local user-data-dir are not owned by the
+  // local runtime even when their CDP endpoint is exposed on loopback (for
+  // example sandbox bridges that proxy a remote browser). Treat them as remote
+  // CDP so strict SSRF mode can use the Playwright-backed redirect inspection
+  // path instead of the legacy /json/new path that fails closed.
+  if (profile.attachOnly && !profile.userDataDir) {
+    return {
+      mode: "remote-cdp",
+      isRemote: true,
+      usesChromeMcp: false,
+      usesPersistentPlaywright: true,
+      supportsPerTabWs: false,
+      supportsJsonTabEndpoints: false,
+      supportsReset: false,
+      supportsManagedTabLimit: false,
+    };
+  }
+
   if (!profile.cdpIsLoopback) {
     return {
       mode: "remote-cdp",

@@ -12,7 +12,6 @@ import { normalizeProviderId } from "../agents/model-selection.js";
 import { loadConfig, type AlisioConfig } from "../config/config.js";
 import { resolveProviderUsageAuthWithPlugin } from "../plugins/provider-runtime.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
-import { resolveLegacyPiAgentAccessToken } from "./provider-usage.shared.js";
 import type { UsageProviderId } from "./provider-usage.types.js";
 
 export type ProviderAuth = {
@@ -230,13 +229,12 @@ async function resolveProviderUsageAuthFallback(params: {
       const apiKey = resolveProviderApiKeyFromConfigAndStore({
         state: params.state,
         providerIds: ["zai", "z-ai"],
-        envDirect: [params.state.env.ZAI_API_KEY, params.state.env.Z_AI_API_KEY],
+        envDirect: [params.state.env.ZAI_API_KEY],
       });
       if (apiKey) {
         return { provider: "zai", token: apiKey };
       }
-      const legacyToken = resolveLegacyPiAgentAccessToken(params.state.env, ["z-ai", "zai"]);
-      return legacyToken ? { provider: "zai", token: legacyToken } : null;
+      return null;
     }
     case "minimax": {
       const apiKey = resolveProviderApiKeyFromConfigAndStore({

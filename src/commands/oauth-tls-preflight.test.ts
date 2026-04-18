@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   formatOpenAIOAuthTlsPreflightFix,
   runOpenAIOAuthTlsPreflight,
-} from "./oauth-tls-preflight.js";
+} from "../plugins/provider-openai-codex-oauth-tls.js";
 
 describe("runOpenAIOAuthTlsPreflight", () => {
   beforeEach(() => {

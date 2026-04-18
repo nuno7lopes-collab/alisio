@@ -14,24 +14,6 @@ export function listAuthProfileStorePaths(config: AlisioConfig, stateDir: string
   return listAuthProfileStorePathsFromAuthStorePaths(config, stateDir);
 }
 
-export function listLegacyAuthJsonPaths(stateDir: string): string[] {
-  const out: string[] = [];
-  const agentsRoot = path.join(resolveUserPath(stateDir), "agents");
-  if (!fs.existsSync(agentsRoot)) {
-    return out;
-  }
-  for (const entry of fs.readdirSync(agentsRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-    const candidate = path.join(agentsRoot, entry.name, "agent", "auth.json");
-    if (fs.existsSync(candidate)) {
-      out.push(candidate);
-    }
-  }
-  return out;
-}
-
 function resolveActiveAgentDir(stateDir: string, env: NodeJS.ProcessEnv = process.env): string {
   const override = env.ALISIO_AGENT_DIR?.trim() || env.PI_CODING_AGENT_DIR?.trim();
   if (override) {

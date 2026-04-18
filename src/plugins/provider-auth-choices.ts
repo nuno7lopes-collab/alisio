@@ -9,7 +9,6 @@ export type ProviderAuthChoiceMetadata = {
   choiceId: string;
   choiceLabel: string;
   choiceHint?: string;
-  deprecatedChoiceIds?: string[];
   groupId?: string;
   groupLabel?: string;
   groupHint?: string;
@@ -47,7 +46,6 @@ export function resolveManifestProviderAuthChoices(params?: {
       choiceId: choice.choiceId,
       choiceLabel: choice.choiceLabel ?? choice.choiceId,
       ...(choice.choiceHint ? { choiceHint: choice.choiceHint } : {}),
-      ...(choice.deprecatedChoiceIds ? { deprecatedChoiceIds: choice.deprecatedChoiceIds } : {}),
       ...(choice.groupId ? { groupId: choice.groupId } : {}),
       ...(choice.groupLabel ? { groupLabel: choice.groupLabel } : {}),
       ...(choice.groupHint ? { groupHint: choice.groupHint } : {}),
@@ -94,23 +92,6 @@ export function resolveManifestProviderApiKeyChoice(params: {
     }
     return normalizeProviderIdForAuth(choice.providerId) === normalizedProviderId;
   });
-}
-
-export function resolveManifestDeprecatedProviderAuthChoice(
-  choiceId: string,
-  params?: {
-    config?: AlisioConfig;
-    workspaceDir?: string;
-    env?: NodeJS.ProcessEnv;
-  },
-): ProviderAuthChoiceMetadata | undefined {
-  const normalized = choiceId.trim();
-  if (!normalized) {
-    return undefined;
-  }
-  return resolveManifestProviderAuthChoices(params).find((choice) =>
-    choice.deprecatedChoiceIds?.includes(normalized),
-  );
 }
 
 export function resolveManifestProviderOnboardAuthFlags(params?: {

@@ -22,6 +22,11 @@ async function loadFreshAuthProfilesModuleForTest() {
     await import("./auth-profiles.js"));
 }
 
+function resetSyncExternalCliCredentialsMock() {
+  mocks.syncExternalCliCredentials.mockReset();
+  mocks.syncExternalCliCredentials.mockImplementation((_: AuthProfileStore) => false);
+}
+
 function withAgentDirEnv(prefix: string, run: (agentDir: string) => void | Promise<void>) {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const previousAgentDir = process.env.ALISIO_AGENT_DIR;
@@ -70,13 +75,14 @@ function writeAuthStore(agentDir: string, key: string) {
 
 describe("auth profile store cache", () => {
   beforeEach(async () => {
+    resetSyncExternalCliCredentialsMock();
     await loadFreshAuthProfilesModuleForTest();
   });
 
   afterEach(() => {
     vi.useRealTimers();
     clearRuntimeAuthProfileStoreSnapshots();
-    vi.clearAllMocks();
+    resetSyncExternalCliCredentialsMock();
   });
 
   it("reuses the synced auth store while auth-profiles.json is unchanged", async () => {

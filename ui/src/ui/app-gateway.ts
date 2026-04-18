@@ -876,12 +876,60 @@ function applyBrowserPaneObserverUpdate(host: GatewayHost, payload: unknown): vo
   host.setBrowserPaneObserver?.(observerUpdate.sessionKey, observerUpdate.observer);
 }
 
+function readBrowserToolUnavailableObserverResetSessionKey(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const event = payload as Record<string, unknown>;
+  if (event.stream !== "tool") {
+    return null;
+  }
+  const data =
+    event.data && typeof event.data === "object"
+      ? (event.data as Record<string, unknown>)
+      : undefined;
+  const toolName = typeof data?.name === "string" ? data.name.trim().toLowerCase() : "";
+  if (toolName !== "browser" || data?.phase !== "result" || data?.isError !== true) {
+    return null;
+  }
+  const result = data.result;
+  const text =
+    result && typeof result === "object" && typeof (result as { text?: unknown }).text === "string"
+      ? (result as { text: string }).text.trim().toLowerCase()
+      : "";
+  if (!text) {
+    return null;
+  }
+  const indicatesUnavailableBrowser =
+    text.includes("sandbox browser is unavailable") ||
+    text.includes("could not connect to the server") ||
+    text.includes("can't reach the alisio browser control service");
+  if (!indicatesUnavailableBrowser) {
+    return null;
+  }
+  const sessionKey = typeof event.sessionKey === "string" ? event.sessionKey.trim() : "";
+  return sessionKey || null;
+}
+
 function applyComputerSessionUpdate(host: GatewayHost, payload: unknown): void {
   const sessionUpdate = readComputerSessionEvent(payload);
   if (!sessionUpdate) {
     return;
   }
   host.setComputerSession?.(sessionUpdate.sessionKey, sessionUpdate.session);
+}
+
+function readTranscriptHistoryResyncSessionKey(host: GatewayHost, payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const event = payload as Record<string, unknown>;
+  const sessionKey = typeof event.sessionKey === "string" ? event.sessionKey.trim() : "";
+  if (!sessionKey || sessionKey !== host.sessionKey) {
+    return null;
+  }
+  const phase = typeof event.phase === "string" ? event.phase.trim().toLowerCase() : "";
+  return phase === "transcript" ? sessionKey : null;
 }
 
 function readBrowserPaneActivitySessionKey(payload: unknown): string | null {
@@ -898,6 +946,9 @@ function readBrowserPaneActivitySessionKey(payload: unknown): string | null {
       : undefined;
   const toolName = typeof data?.name === "string" ? data.name.trim().toLowerCase() : "";
   if (toolName !== "browser") {
+    return null;
+  }
+  if (readBrowserToolUnavailableObserverResetSessionKey(payload)) {
     return null;
   }
   const sessionKey = typeof event.sessionKey === "string" ? event.sessionKey.trim() : "";
@@ -933,6 +984,12 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     host.eventLog = host.eventLogBuffer;
   }
   applyBrowserPaneObserverUpdate(host, evt.payload);
+  const browserObserverResetSessionKey = readBrowserToolUnavailableObserverResetSessionKey(
+    evt.payload,
+  );
+  if (browserObserverResetSessionKey) {
+    host.setBrowserPaneObserver?.(browserObserverResetSessionKey, null);
+  }
   applyComputerSessionUpdate(host, evt.payload);
 
   if (evt.event === "agent") {
@@ -990,6 +1047,16 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   }
 
   if (evt.event === "sessions.changed") {
+    const transcriptHistoryResyncSessionKey = readTranscriptHistoryResyncSessionKey(
+      host,
+      evt.payload,
+    );
+    if (transcriptHistoryResyncSessionKey) {
+      void loadChatHistory(host as unknown as AlisioApp, {
+        silent: true,
+        preserveEphemeral: Boolean(host.chatRunId || host.chatFinalizing),
+      });
+    }
     void Promise.allSettled([
       loadSessions(host as unknown as AlisioApp),
       loadTasksOverview(host as unknown as AlisioApp, { quiet: true }),

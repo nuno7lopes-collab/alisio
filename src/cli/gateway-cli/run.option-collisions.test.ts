@@ -184,13 +184,10 @@ describe("gateway run option collisions", () => {
     );
   });
 
-  it.each([
-    ["--cli-backend-logs", "generic flag"],
-    ["--claude-cli-logs", "deprecated alias"],
-  ])("enables CLI backend log filtering via %s (%s)", async (flag) => {
+  it("enables CLI backend log filtering via --cli-backend-logs", async () => {
     delete process.env.ALISIO_CLI_BACKEND_LOG_OUTPUT;
 
-    await runGatewayCli(["gateway", "run", flag, "--allow-unconfigured"]);
+    await runGatewayCli(["gateway", "run", "--cli-backend-logs", "--allow-unconfigured"]);
 
     expect(setConsoleSubsystemFilter).toHaveBeenCalledWith(["agent/cli-backend"]);
     expect(process.env.ALISIO_CLI_BACKEND_LOG_OUTPUT).toBe("1");

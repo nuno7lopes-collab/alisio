@@ -4,12 +4,6 @@ import { assertSupportedRuntime } from "../infra/runtime-guard.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { resolveUserPath } from "../utils.js";
-import {
-  formatDeprecatedNonInteractiveAuthChoiceError,
-  isDeprecatedAuthChoice,
-  normalizeLegacyOnboardAuthChoice,
-  resolveDeprecatedAuthChoiceReplacement,
-} from "./auth-choice-legacy.js";
 import { DEFAULT_WORKSPACE, handleReset } from "./onboard-helpers.js";
 import { runInteractiveSetup } from "./onboard-interactive.js";
 import { runNonInteractiveSetup } from "./onboard-non-interactive.js";
@@ -22,29 +16,8 @@ export async function setupWizardCommand(
   runtime: RuntimeEnv = defaultRuntime,
 ) {
   assertSupportedRuntime(runtime);
-  const originalAuthChoice = opts.authChoice;
-  const normalizedAuthChoice = normalizeLegacyOnboardAuthChoice(originalAuthChoice, {
-    env: process.env,
-  });
-  if (opts.nonInteractive && isDeprecatedAuthChoice(originalAuthChoice, { env: process.env })) {
-    runtime.error(
-      formatDeprecatedNonInteractiveAuthChoiceError(originalAuthChoice, {
-        env: process.env,
-      })!,
-    );
-    runtime.exit(1);
-    return;
-  }
-  if (isDeprecatedAuthChoice(originalAuthChoice, { env: process.env })) {
-    runtime.log(
-      resolveDeprecatedAuthChoiceReplacement(originalAuthChoice, { env: process.env })!.message,
-    );
-  }
   const flow = opts.flow === "manual" ? ("advanced" as const) : opts.flow;
-  const normalizedOpts =
-    normalizedAuthChoice === opts.authChoice && flow === opts.flow
-      ? opts
-      : { ...opts, authChoice: normalizedAuthChoice, flow };
+  const normalizedOpts = flow === opts.flow ? opts : { ...opts, flow };
   if (
     normalizedOpts.secretInputMode &&
     normalizedOpts.secretInputMode !== "plaintext" && // pragma: allowlist secret

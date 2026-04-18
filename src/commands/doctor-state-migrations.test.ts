@@ -218,12 +218,12 @@ describe("doctor legacy state migrations", () => {
 
   it("auto-migrates legacy agent dir on startup", async () => {
     const { root, cfg } = await makeRootWithEmptyCfg();
-    writeLegacyAgentFiles(root, { "auth.json": "{}" });
+    writeLegacyAgentFiles(root, { "settings.json": "{}" });
 
     const { result, log } = await runAutoMigrateLegacyStateWithLog({ root, cfg });
 
     const targetAgentDir = path.join(root, "agents", "main", "agent");
-    expect(fs.existsSync(path.join(targetAgentDir, "auth.json"))).toBe(true);
+    expect(fs.existsSync(path.join(targetAgentDir, "settings.json"))).toBe(true);
     expect(result.migrated).toBe(true);
     expect(log.info).toHaveBeenCalled();
   });
@@ -255,7 +255,7 @@ describe("doctor legacy state migrations", () => {
     expect(fs.existsSync(path.join(targetDir, "sessions.json"))).toBe(true);
   });
 
-  it("migrates legacy WhatsApp auth files without touching oauth.json", async () => {
+  it("migrates legacy WhatsApp auth files into the account-scoped directory", async () => {
     const { root, cfg } = await makeRootWithEmptyCfg();
     const oauthDir = ensureCredentialsDir(root);
     fs.writeFileSync(path.join(oauthDir, "oauth.json"), "{}", "utf-8");
@@ -267,7 +267,6 @@ describe("doctor legacy state migrations", () => {
     const target = path.join(oauthDir, "whatsapp", "default");
     expect(fs.existsSync(path.join(target, "creds.json"))).toBe(true);
     expect(fs.existsSync(path.join(target, "session-abc.json"))).toBe(true);
-    expect(fs.existsSync(path.join(oauthDir, "oauth.json"))).toBe(true);
     expect(fs.existsSync(path.join(oauthDir, "creds.json"))).toBe(false);
   });
 

@@ -29,7 +29,6 @@ import { assertExpectedResolvedSecretValue } from "./secret-value.js";
 import { isNonEmptyString, isRecord, writeTextFileAtomic } from "./shared.js";
 import {
   listAuthProfileStorePaths,
-  listLegacyAuthJsonPaths,
   parseEnvAssignmentValue,
   readJsonObjectIfExists,
 } from "./storage-scan.js";
@@ -51,7 +50,6 @@ type ProjectedState = {
   configPath: string;
   configWriteOptions: ConfigWriteOptions;
   authStoreByPath: Map<string, Record<string, unknown>>;
-  authJsonByPath: Map<string, Record<string, unknown>>;
   envRawByPath: Map<string, string>;
   changedFiles: Set<string>;
   warnings: string[];
@@ -243,12 +241,6 @@ async function projectPlanState(params: {
     enabled: options.scrubAuthProfilesForProviderTargets,
   });
 
-  const authJsonByPath = scrubLegacyAuthJsonStores({
-    stateDir,
-    changedFiles,
-    enabled: options.scrubLegacyAuthJson,
-  });
-
   const envRawByPath = scrubEnvFiles({
     env: params.env,
     scrubbedValues: targetMutations.scrubbedValues,
@@ -270,7 +262,6 @@ async function projectPlanState(params: {
     configPath,
     configWriteOptions: writeOptions,
     authStoreByPath,
-    authJsonByPath,
     envRawByPath,
     changedFiles,
     warnings,
@@ -587,40 +578,6 @@ function applyAuthProfileTargetMutation(params: {
   return changed;
 }
 
-function scrubLegacyAuthJsonStores(params: {
-  stateDir: string;
-  changedFiles: Set<string>;
-  enabled: boolean;
-}): Map<string, Record<string, unknown>> {
-  const authJsonByPath = new Map<string, Record<string, unknown>>();
-  if (!params.enabled) {
-    return authJsonByPath;
-  }
-  for (const authJsonPath of listLegacyAuthJsonPaths(params.stateDir)) {
-    const parsedResult = readJsonObjectIfExists(authJsonPath);
-    const parsed = parsedResult.value;
-    if (!parsed) {
-      continue;
-    }
-    let mutated = false;
-    const nextParsed = structuredClone(parsed);
-    for (const [providerId, value] of Object.entries(nextParsed)) {
-      if (!isRecord(value)) {
-        continue;
-      }
-      if (value.type === "api_key" && isNonEmptyString(value.key)) {
-        delete nextParsed[providerId];
-        mutated = true;
-      }
-    }
-    if (mutated) {
-      authJsonByPath.set(authJsonPath, nextParsed);
-      params.changedFiles.add(authJsonPath);
-    }
-  }
-  return authJsonByPath;
-}
-
 function scrubEnvFiles(params: {
   env: NodeJS.ProcessEnv;
   scrubbedValues: Set<string>;
@@ -807,10 +764,6 @@ export async function runSecretsApply(params: {
   capture(projected.configPath);
   const writes: ApplyWrite[] = [];
   for (const [pathname, value] of projected.authStoreByPath.entries()) {
-    capture(pathname);
-    writes.push(toJsonWrite(pathname, value));
-  }
-  for (const [pathname, value] of projected.authJsonByPath.entries()) {
     capture(pathname);
     writes.push(toJsonWrite(pathname, value));
   }

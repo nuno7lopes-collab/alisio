@@ -16,6 +16,7 @@ import {
   RECOMMENDED_CONFIG_DEFAULTS,
   applyGatewayAccessMode,
   resolveConfiguredExecDefaults,
+  resolveConfiguredFsScope,
   resolveSecurityAccessDiagnostics,
   resolveSecurityAccessMode,
 } from "../controllers/security-access.ts";
@@ -35,12 +36,39 @@ describe("resolveConfiguredExecDefaults", () => {
       resolveConfiguredExecDefaults({
         tools: {
           exec: {
+            host: "gateway",
             security: "full",
             ask: "off",
           },
         },
       }),
     ).toEqual(FULL_ACCESS_CONFIG_DEFAULTS);
+  });
+});
+
+describe("resolveConfiguredFsScope", () => {
+  it("reports mixed scope when agent overrides widen access beyond the global default", () => {
+    expect(
+      resolveConfiguredFsScope({
+        tools: {
+          fs: {
+            workspaceOnly: true,
+          },
+        },
+        agents: {
+          list: [
+            {
+              id: "main",
+              tools: {
+                fs: {
+                  workspaceOnly: false,
+                },
+              },
+            },
+          ],
+        },
+      }),
+    ).toBe("mixed");
   });
 });
 
@@ -57,6 +85,7 @@ describe("resolveSecurityAccessMode", () => {
         configForm: {
           tools: {
             exec: {
+              host: "gateway",
               security: "full",
               ask: "off",
             },
@@ -73,6 +102,31 @@ describe("resolveSecurityAccessMode", () => {
         },
       }),
     ).toBe("full-access");
+  });
+
+  it("marks exec full-without-host as custom so the preset stays truthful", () => {
+    expect(
+      resolveSecurityAccessMode({
+        configForm: {
+          tools: {
+            exec: {
+              host: "auto",
+              security: "full",
+              ask: "off",
+            },
+          },
+        },
+        execApprovalsForm: {
+          version: 1,
+          defaults: {
+            security: "full",
+            ask: "off",
+            askFallback: "full",
+          },
+          agents: {},
+        },
+      }),
+    ).toBe("custom");
   });
 
   it("marks mixed settings as custom", () => {
@@ -437,6 +491,72 @@ describe("renderSecurity", () => {
 
     expect(container.textContent).toContain("Safe");
     expect(container.textContent).not.toContain("Custom");
+  });
+
+  it("shows file scope separately from exec access mode", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        configSnapshot: {
+          config: {
+            tools: {
+              exec: {
+                host: "gateway",
+                security: "full",
+                ask: "off",
+              },
+              fs: {
+                workspaceOnly: true,
+              },
+            },
+          },
+        },
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("read/write/edit");
+    expect(container.textContent).toContain("workspace-only");
+  });
+
+  it("shows mixed file scope when agent overrides change the effective boundary", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        configSnapshot: {
+          config: {
+            tools: {
+              exec: {
+                host: "gateway",
+                security: "full",
+                ask: "off",
+              },
+              fs: {
+                workspaceOnly: true,
+              },
+            },
+            agents: {
+              list: [
+                {
+                  id: "main",
+                  tools: {
+                    fs: {
+                      workspaceOnly: false,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("read/write/edit");
+    expect(container.textContent).toContain("mixed");
   });
 
   it("renders loading skeletons while the security snapshot is still loading", () => {
@@ -848,6 +968,7 @@ describe("applyGatewayAccessMode", () => {
               mode: "recommended",
               effectivePromptAsk: "on-miss",
               configDefaults: {
+                host: "auto",
                 security: "allowlist",
                 ask: "on-miss",
               },
@@ -895,6 +1016,7 @@ describe("applyGatewayAccessMode", () => {
     const initialConfig = {
       tools: {
         exec: {
+          host: "auto",
           security: "allowlist",
           ask: "on-miss",
         },
@@ -905,6 +1027,7 @@ describe("applyGatewayAccessMode", () => {
             id: "main",
             tools: {
               exec: {
+                host: "gateway",
                 ask: "always",
               },
             },
@@ -915,6 +1038,7 @@ describe("applyGatewayAccessMode", () => {
     const cleanedConfig = {
       tools: {
         exec: {
+          host: "auto",
           security: "allowlist",
           ask: "on-miss",
         },
@@ -951,6 +1075,7 @@ describe("applyGatewayAccessMode", () => {
                 mode: "recommended",
                 effectivePromptAsk: "on-miss",
                 configDefaults: {
+                  host: "auto",
                   security: "allowlist",
                   ask: "on-miss",
                 },

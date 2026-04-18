@@ -290,6 +290,7 @@ describe("validateAlisioSecurityPolicySnapshot", () => {
           mode: "recommended",
           effectivePromptAsk: "on-miss",
           configDefaults: {
+            host: "auto",
             security: "allowlist",
             ask: "on-miss",
           },
@@ -330,6 +331,7 @@ describe("validateAlisioSecurityPolicyApplyProfileResult", () => {
             mode: "full-access",
             effectivePromptAsk: "off",
             configDefaults: {
+              host: "gateway",
               security: "full",
               ask: "off",
             },

@@ -14,7 +14,12 @@ import {
   schemaType,
   type JsonSchema,
 } from "./config-form.shared.ts";
-import { analyzeConfigSchema, renderConfigForm, SECTION_META } from "./config-form.ts";
+import {
+  analyzeConfigSchema,
+  renderConfigForm,
+  SECTION_META,
+  type ConfigSchemaAnalysis,
+} from "./config-form.ts";
 
 export type ConfigProps = {
   raw: string;
@@ -347,6 +352,19 @@ type SectionCategory = {
   sections: Array<{ key: string; label: string }>;
 };
 
+type ConfigDiffEntry = Array<{ path: string; from: unknown; to: unknown }>;
+
+type ScopedConfigAnalysis = {
+  schema: JsonSchema | null;
+  unsupportedPaths: string[];
+};
+
+type ConfigNavigationState = {
+  visibleCategories: SectionCategory[];
+  otherCategory: SectionCategory | null;
+  sectionTabs: Array<{ key: string; label: string }>;
+};
+
 const SECTION_CATEGORIES: SectionCategory[] = [
   {
     id: "core",
@@ -425,9 +443,38 @@ const SECTION_CATEGORIES: SectionCategory[] = [
 
 // Flat lookup: all categorised keys
 const CATEGORISED_KEYS = new Set(SECTION_CATEGORIES.flatMap((c) => c.sections.map((s) => s.key)));
+const VIRTUAL_SECTIONS = new Set(["__appearance__"]);
+const EMPTY_CONFIG_NAVIGATION_STATE: ConfigNavigationState = {
+  visibleCategories: [],
+  otherCategory: null,
+  sectionTabs: [],
+};
+const scopedConfigAnalysisCache = new WeakMap<
+  ConfigSchemaAnalysis,
+  Map<string, ScopedConfigAnalysis>
+>();
+const configNavigationCache = new WeakMap<JsonSchema, Map<string, ConfigNavigationState>>();
+const configDiffCache = new WeakMap<
+  Record<string, unknown>,
+  WeakMap<Record<string, unknown>, ConfigDiffEntry>
+>();
 
 function getSectionIcon(key: string) {
   return sidebarIcons[key as keyof typeof sidebarIcons] ?? sidebarIcons.default;
+}
+
+function serializeConfigSectionScope(entries?: ReadonlySet<string> | null): string {
+  if (!entries || entries.size === 0) {
+    return "";
+  }
+  return [...entries].toSorted().join("\u0000");
+}
+
+function buildConfigScopeCacheKey(params: {
+  include?: ReadonlySet<string> | null;
+  exclude?: ReadonlySet<string> | null;
+}): string {
+  return `include:${serializeConfigSectionScope(params.include)}|exclude:${serializeConfigSectionScope(params.exclude)}`;
 }
 
 function scopeSchemaSections(
@@ -476,6 +523,75 @@ function scopeUnsupportedPaths(
   });
 }
 
+function getScopedConfigAnalysis(
+  rawAnalysis: ConfigSchemaAnalysis,
+  params: { include?: ReadonlySet<string> | null; exclude?: ReadonlySet<string> | null },
+): ScopedConfigAnalysis {
+  const include = params.include;
+  const exclude = params.exclude;
+  if ((!include || include.size === 0) && (!exclude || exclude.size === 0)) {
+    return rawAnalysis;
+  }
+  const scopeKey = buildConfigScopeCacheKey(params);
+  let scopedByKey = scopedConfigAnalysisCache.get(rawAnalysis);
+  if (!scopedByKey) {
+    scopedByKey = new Map();
+    scopedConfigAnalysisCache.set(rawAnalysis, scopedByKey);
+  }
+  const cached = scopedByKey.get(scopeKey);
+  if (cached) {
+    return cached;
+  }
+  const scoped = {
+    schema: scopeSchemaSections(rawAnalysis.schema, { include, exclude }),
+    unsupportedPaths: scopeUnsupportedPaths(rawAnalysis.unsupportedPaths, { include, exclude }),
+  };
+  scopedByKey.set(scopeKey, scoped);
+  return scoped;
+}
+
+function getConfigNavigationState(
+  schema: JsonSchema | null,
+  includeVirtualSections: boolean,
+): ConfigNavigationState {
+  if (!schema || schemaType(schema) !== "object") {
+    return EMPTY_CONFIG_NAVIGATION_STATE;
+  }
+  const cacheKey = includeVirtualSections ? "virtual:1" : "virtual:0";
+  let cachedByMode = configNavigationCache.get(schema);
+  if (!cachedByMode) {
+    cachedByMode = new Map();
+    configNavigationCache.set(schema, cachedByMode);
+  }
+  const cached = cachedByMode.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+  const schemaProps = schema.properties ?? {};
+  const visibleCategories = SECTION_CATEGORIES.map((category) => ({
+    ...category,
+    sections: category.sections.filter(
+      (section) =>
+        (includeVirtualSections && VIRTUAL_SECTIONS.has(section.key)) || section.key in schemaProps,
+    ),
+  })).filter((category) => category.sections.length > 0);
+  const extraSections = Object.keys(schemaProps)
+    .filter((key) => !CATEGORISED_KEYS.has(key))
+    .map((key) => ({ key, label: key.charAt(0).toUpperCase() + key.slice(1) }));
+  const otherCategory: SectionCategory | null =
+    extraSections.length > 0 ? { id: "other", label: "Other", sections: extraSections } : null;
+  const sectionTabs = [...visibleCategories, ...(otherCategory ? [otherCategory] : [])].flatMap(
+    (category) => category.sections.map((section) => ({ key: section.key, label: section.label })),
+  );
+  const navigation = {
+    visibleCategories,
+    otherCategory,
+    sectionTabs,
+  };
+  cachedByMode.set(cacheKey, navigation);
+  return navigation;
+}
+
 function resolveSectionMeta(
   key: string,
   schema?: JsonSchema,
@@ -496,7 +612,7 @@ function resolveSectionMeta(
 function computeDiff(
   original: Record<string, unknown> | null,
   current: Record<string, unknown> | null,
-): Array<{ path: string; from: unknown; to: unknown }> {
+): ConfigDiffEntry {
   if (!original || !current) {
     return [];
   }
@@ -532,6 +648,27 @@ function computeDiff(
 
   compare(original, current, "");
   return changes;
+}
+
+function getComputedConfigDiff(
+  original: Record<string, unknown> | null,
+  current: Record<string, unknown> | null,
+): ConfigDiffEntry {
+  if (!original || !current) {
+    return [];
+  }
+  let currentCache = configDiffCache.get(original);
+  if (!currentCache) {
+    currentCache = new WeakMap();
+    configDiffCache.set(original, currentCache);
+  }
+  const cached = currentCache.get(current);
+  if (cached) {
+    return cached;
+  }
+  const diff = computeDiff(original, current);
+  currentCache.set(current, diff);
+  return diff;
 }
 
 function truncateValue(value: unknown, maxLen = 40): string {
@@ -644,33 +781,12 @@ export function renderConfig(props: ConfigProps) {
   const include = props.includeSections?.length ? new Set(props.includeSections) : null;
   const exclude = props.excludeSections?.length ? new Set(props.excludeSections) : null;
   const rawAnalysis = analyzeConfigSchema(props.schema);
-  const analysis = {
-    schema: scopeSchemaSections(rawAnalysis.schema, { include, exclude }),
-    unsupportedPaths: scopeUnsupportedPaths(rawAnalysis.unsupportedPaths, { include, exclude }),
-  };
+  const analysis = getScopedConfigAnalysis(rawAnalysis, { include, exclude });
   const formUnsafe = analysis.schema ? analysis.unsupportedPaths.length > 0 : false;
   const formMode = showModeToggle ? props.formMode : "form";
   const envSensitiveVisible = cvs.envRevealed;
   const requestUpdate = props.onRequestUpdate ?? (() => props.onRawChange(props.raw));
-
-  // Build categorised nav from schema - only include sections that exist in the schema
-  const schemaProps = analysis.schema?.properties ?? {};
-
-  const VIRTUAL_SECTIONS = new Set(["__appearance__"]);
-  const visibleCategories = SECTION_CATEGORIES.map((cat) => ({
-    ...cat,
-    sections: cat.sections.filter(
-      (s) => (includeVirtualSections && VIRTUAL_SECTIONS.has(s.key)) || s.key in schemaProps,
-    ),
-  })).filter((cat) => cat.sections.length > 0);
-
-  // Catch any schema keys not in our categories
-  const extraSections = Object.keys(schemaProps)
-    .filter((k) => !CATEGORISED_KEYS.has(k))
-    .map((k) => ({ key: k, label: k.charAt(0).toUpperCase() + k.slice(1) }));
-
-  const otherCategory: SectionCategory | null =
-    extraSections.length > 0 ? { id: "other", label: "Other", sections: extraSections } : null;
+  const navigation = getConfigNavigationState(analysis.schema, includeVirtualSections);
 
   const isVirtualSection =
     includeVirtualSections &&
@@ -692,13 +808,12 @@ export function renderConfig(props: ConfigProps) {
 
   const topTabs = [
     { key: null as string | null, label: props.navRootLabel ?? "Settings" },
-    ...[...visibleCategories, ...(otherCategory ? [otherCategory] : [])].flatMap((cat) =>
-      cat.sections.map((s) => ({ key: s.key, label: s.label })),
-    ),
+    ...navigation.sectionTabs,
   ];
 
   // Compute diff for showing changes (works for both form and raw modes)
-  const diff = formMode === "form" ? computeDiff(props.originalValue, props.formValue) : [];
+  const diff =
+    formMode === "form" ? getComputedConfigDiff(props.originalValue, props.formValue) : [];
   const hasRawChanges = formMode === "raw" && props.raw !== props.originalRaw;
   const hasChanges = formMode === "form" ? diff.length > 0 : hasRawChanges;
 

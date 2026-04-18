@@ -1251,10 +1251,8 @@ for usage/billing and raise limits as needed.
     | Path                                                            | Purpose                                                            |
     | --------------------------------------------------------------- | ------------------------------------------------------------------ |
     | `$ALISIO_STATE_DIR/alisio.json`                             | Main config (JSON5)                                                |
-    | `$ALISIO_STATE_DIR/credentials/oauth.json`                    | Legacy OAuth import (copied into auth profiles on first use)       |
     | `$ALISIO_STATE_DIR/agents/<agentId>/agent/auth-profiles.json` | Auth profiles (OAuth, API keys, and optional `keyRef`/`tokenRef`)  |
     | `$ALISIO_STATE_DIR/secrets.json`                              | Optional file-backed secret payload for `file` SecretRef providers |
-    | `$ALISIO_STATE_DIR/agents/<agentId>/agent/auth.json`          | Legacy compatibility file (static `api_key` entries scrubbed)      |
     | `$ALISIO_STATE_DIR/credentials/`                              | Provider state (e.g. `whatsapp/<accountId>/creds.json`)            |
     | `$ALISIO_STATE_DIR/agents/`                                   | Per-agent state (agentDir + sessions)                              |
     | `$ALISIO_STATE_DIR/agents/<agentId>/sessions/`                | Conversation history & state (per agent)                           |
@@ -2803,7 +2801,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
 <AccordionGroup>
   <Accordion title="My skill generated an image/PDF, but nothing was sent">
-    Outbound attachments from the agent must include a `MEDIA:<path-or-url>` line (on its own line). See [Alisio assistant setup](/start/alisio) and [Agent send](/tools/agent-send).
+    Outbound attachments from the agent must include a `MEDIA:<path-or-url>` line (on its own line). See [Getting Started](/start/getting-started) and [Agent send](/tools/agent-send).
 
     CLI sending:
 

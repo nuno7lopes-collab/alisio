@@ -164,9 +164,7 @@ export function resolveConfigPath(
     return path.join(stateDir, CONFIG_FILENAME);
   }
   const stateOverride = readEnv("ALISIO_STATE_DIR", { env, fallback: runtimeEnvKey("STATE_DIR") });
-  const candidates = [
-    path.join(stateDir, CONFIG_FILENAME),
-  ];
+  const candidates = [path.join(stateDir, CONFIG_FILENAME)];
   const existing = candidates.find((candidate) => {
     try {
       return fs.existsSync(candidate);
@@ -231,10 +229,8 @@ export function resolveGatewayLockDir(tmpdir: () => string = os.tmpdir): string 
   return path.join(base, suffix);
 }
 
-const OAUTH_FILENAME = "oauth.json";
-
 /**
- * OAuth credentials storage directory.
+ * Credentials storage directory.
  *
  * Precedence:
  * - `ALISIO_OAUTH_DIR` (explicit override)
@@ -249,13 +245,6 @@ export function resolveOAuthDir(
     return resolveUserPath(override, env, envHomedir(env));
   }
   return path.join(stateDir, "credentials");
-}
-
-export function resolveOAuthPath(
-  env: NodeJS.ProcessEnv = process.env,
-  stateDir: string = resolveStateDir(env, envHomedir(env)),
-): string {
-  return path.join(resolveOAuthDir(env, stateDir), OAUTH_FILENAME);
 }
 
 function parseGatewayPortEnvValue(raw: string | undefined): number | null {

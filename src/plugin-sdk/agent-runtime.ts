@@ -33,8 +33,6 @@ export {
   setAuthProfileOrder,
   upsertAuthProfile,
   upsertAuthProfileWithLock,
-  repairOAuthProfileIdMismatch,
-  suggestOAuthProfileIdForLegacyDefault,
   clearRuntimeAuthProfileStoreSnapshots,
   ensureAuthProfileStore,
   loadAuthProfileStoreForSecretsRuntime,

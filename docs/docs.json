@@ -884,11 +884,7 @@
               },
               {
                 "group": "Guides",
-                "pages": [
-                  "start/alisio",
-                  "start/wizard-cli-reference",
-                  "start/wizard-cli-automation"
-                ]
+                "pages": ["start/wizard-cli-reference", "start/wizard-cli-automation"]
               }
             ]
           },
@@ -1297,7 +1293,6 @@
                     "group": "Protocols and APIs",
                     "pages": [
                       "gateway/protocol",
-                      "gateway/bridge-protocol",
                       "gateway/openai-http-api",
                       "gateway/openresponses-http-api",
                       "gateway/tools-invoke-http-api",
@@ -1367,7 +1362,6 @@
                     "group": "Gateway and service",
                     "pages": [
                       "cli/backup",
-                      "cli/daemon",
                       "cli/doctor",
                       "cli/gateway",
                       "cli/health",
@@ -1554,10 +1548,6 @@
                   "zh-CN/start/wizard",
                   "zh-CN/start/onboarding"
                 ]
-              },
-              {
-                "group": "指南",
-                "pages": ["zh-CN/start/alisio"]
               }
             ]
           },
@@ -1707,14 +1697,12 @@
                 "group": "内置工具",
                 "pages": [
                   "zh-CN/tools/apply-patch",
-                  "zh-CN/brave-search",
                   "zh-CN/tools/elevated",
                   "zh-CN/tools/exec",
                   "zh-CN/tools/exec-approvals",
                   "zh-CN/tools/firecrawl",
                   "zh-CN/tools/llm-task",
                   "zh-CN/tools/lobster",
-                  "zh-CN/perplexity",
                   "zh-CN/tools/reactions",
                   "zh-CN/tools/thinking",
                   "zh-CN/tools/web"
@@ -1781,8 +1769,7 @@
                   "zh-CN/nodes/camera",
                   "zh-CN/nodes/talk",
                   "zh-CN/nodes/voicewake",
-                  "zh-CN/nodes/location-command",
-                  "zh-CN/tts"
+                  "zh-CN/nodes/location-command"
                 ]
               }
             ]
@@ -1903,7 +1890,6 @@
                     "group": "协议与 API",
                     "pages": [
                       "zh-CN/gateway/protocol",
-                      "zh-CN/gateway/bridge-protocol",
                       "zh-CN/gateway/openai-http-api",
                       "zh-CN/gateway/openresponses-http-api",
                       "zh-CN/gateway/tools-invoke-http-api",

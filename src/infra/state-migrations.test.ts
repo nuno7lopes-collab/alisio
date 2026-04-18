@@ -106,7 +106,7 @@ describe("state migrations", () => {
       `- Sessions: ${path.join(stateDir, "sessions")} → ${path.join(stateDir, "agents", "worker-1", "sessions")}`,
       `- Sessions: canonicalize legacy keys in ${path.join(stateDir, "agents", "worker-1", "sessions", "sessions.json")}`,
       `- Agent dir: ${path.join(stateDir, "agent")} → ${path.join(stateDir, "agents", "worker-1", "agent")}`,
-      `- WhatsApp auth: ${path.join(stateDir, "credentials")} → ${path.join(stateDir, "credentials", "whatsapp", "default")} (keep oauth.json)`,
+      `- WhatsApp auth: ${path.join(stateDir, "credentials")} → ${path.join(stateDir, "credentials", "whatsapp", "default")}`,
       `- Telegram pairing allowFrom: ${resolveChannelAllowFromPath("telegram", env)} → ${resolveChannelAllowFromPath("telegram", env, "alpha")}`,
       `- Telegram pairing allowFrom: ${resolveChannelAllowFromPath("telegram", env)} → ${resolveChannelAllowFromPath("telegram", env, "beta")}`,
     ]);

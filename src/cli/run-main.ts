@@ -4,7 +4,6 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import type { AlisioConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
-import { normalizeEnv } from "../infra/env.js";
 import { formatUncaughtError } from "../infra/errors.js";
 import { isMainModule } from "../infra/is-main.js";
 import { ensureAlisioCliOnPath } from "../infra/path-env.js";
@@ -152,7 +151,6 @@ export async function runCli(argv: string[] = process.argv) {
     const { loadCliDotEnv } = await import("./dotenv.js");
     loadCliDotEnv({ quiet: true });
   }
-  normalizeEnv();
   if (shouldEnsureCliPath(normalizedArgv)) {
     ensureAlisioCliOnPath();
   }

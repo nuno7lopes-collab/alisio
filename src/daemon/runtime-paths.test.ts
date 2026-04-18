@@ -32,6 +32,8 @@ function mockNodePathPresent(...nodePaths: string[]) {
 describe("resolvePreferredNodePath", () => {
   const darwinNode = "/opt/homebrew/bin/node";
   const fnmNode = "/Users/test/.fnm/node-versions/v24.11.1/installation/bin/node";
+  const bundledMacNode =
+    "/Users/test/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node";
 
   it("prefers execPath (version manager node) over system node", async () => {
     mockNodePathPresent(darwinNode);
@@ -88,6 +90,43 @@ describe("resolvePreferredNodePath", () => {
     expect(execFile).toHaveBeenCalledWith(darwinNode, ["-p", "process.versions.node"], {
       encoding: "utf8",
     });
+  });
+
+  it("prefers a supported system node over the bundled macOS app node", async () => {
+    mockNodePathPresent(darwinNode);
+
+    const execFile = vi.fn().mockResolvedValue({ stdout: "22.14.0\n", stderr: "" });
+
+    const result = await resolvePreferredNodePath({
+      env: {},
+      runtime: "node",
+      platform: "darwin",
+      execFile,
+      execPath: bundledMacNode,
+    });
+
+    expect(result).toBe(darwinNode);
+    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(execFile).toHaveBeenCalledWith(darwinNode, ["-p", "process.versions.node"], {
+      encoding: "utf8",
+    });
+  });
+
+  it("keeps the bundled macOS app node when no supported system node exists", async () => {
+    fsMocks.access.mockRejectedValue(new Error("missing"));
+
+    const execFile = vi.fn();
+
+    const result = await resolvePreferredNodePath({
+      env: {},
+      runtime: "node",
+      platform: "darwin",
+      execFile,
+      execPath: bundledMacNode,
+    });
+
+    expect(result).toBe(bundledMacNode);
+    expect(execFile).not.toHaveBeenCalled();
   });
 
   it("uses system node when it meets the minimum version", async () => {

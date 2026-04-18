@@ -451,7 +451,7 @@ describe("cron cli", () => {
       "cron",
       "edit",
       "job-1",
-      "--deliver",
+      "--announce",
       "--channel",
       "telegram",
       "--to",
@@ -522,7 +522,7 @@ describe("cron cli", () => {
     const patch = await runCronEditAndGetPatch([
       "--message",
       "Updated message",
-      "--deliver",
+      "--announce",
       "--channel",
       "telegram",
       "--to",

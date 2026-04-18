@@ -11,7 +11,6 @@
       "provider": "openai-codex",
       "method": "oauth",
       "choiceId": "openai-codex",
-      "deprecatedChoiceIds": ["codex-cli"],
       "choiceLabel": "OpenAI Codex (ChatGPT OAuth)",
       "choiceHint": "Browser sign-in",
       "groupId": "openai",

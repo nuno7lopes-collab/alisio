@@ -528,7 +528,7 @@ export async function runSetupWizard(
   nextConfig = gateway.nextConfig;
   const settings = gateway.settings;
 
-  if (opts.skipChannels ?? opts.skipProviders) {
+  if (opts.skipChannels) {
     await prompter.note("Skipping channel setup.", "Channels");
   } else {
     const { listProductChannelPlugins } = await import("../channels/product-surface.js");

@@ -70,21 +70,6 @@ describe("openai codex provider", () => {
     });
   });
 
-  it("returns deprecated-profile doctor guidance for legacy Codex CLI ids", () => {
-    const provider = buildOpenAICodexProviderPlugin();
-
-    expect(
-      provider.buildAuthDoctorHint?.({
-        provider: "openai-codex",
-        profileId: "openai-codex:codex-cli",
-        config: undefined,
-        store: { version: 1, profiles: {} },
-      }),
-    ).toBe(
-      "Deprecated profile. Run `alisio models auth login --provider openai-codex` or `alisio configure`.",
-    );
-  });
-
   it("forces model selection after ChatGPT OAuth setup", () => {
     const provider = buildOpenAICodexProviderPlugin();
 

@@ -59,6 +59,7 @@ let alisioToolsDeps: AlisioToolsDeps = defaultAlisioToolsDeps;
 export function createAlisioTools(
   options?: {
     sandboxBrowserBridgeUrl?: string;
+    resolveSandboxBrowserBridgeUrl?: () => Promise<string | undefined>;
     allowHostBrowserControl?: boolean;
     preferSandbox?: boolean;
     agentSessionKey?: string;
@@ -299,6 +300,7 @@ export function createAlisioTools(
       sessionId: options?.sessionId,
       browser: {
         sandboxBridgeUrl: options?.sandboxBrowserBridgeUrl,
+        resolveSandboxBridgeUrl: options?.resolveSandboxBrowserBridgeUrl,
         allowHostControl: options?.allowHostBrowserControl,
         preferSandbox: options?.preferSandbox,
       },

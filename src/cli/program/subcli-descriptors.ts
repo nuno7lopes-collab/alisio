@@ -11,7 +11,6 @@ export const SUB_CLI_DESCRIPTORS = [
     description: "Run, inspect, and query the WebSocket Gateway",
     hasSubcommands: true,
   },
-  { name: "daemon", description: "Gateway service (legacy alias)", hasSubcommands: true },
   { name: "logs", description: "Tail gateway file logs via RPC", hasSubcommands: false },
   {
     name: "system",

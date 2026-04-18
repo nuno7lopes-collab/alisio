@@ -255,6 +255,20 @@ const vs = createChatEphemeralState();
 let activeEphemeralSessionKey: string | null = null;
 let sttTicker: ReturnType<typeof setInterval> | null = null;
 let sttTickerRequestUpdate: (() => void) | null = null;
+type BuildChatItemsCacheEntry = {
+  historyRef: unknown[];
+  toolsRef: unknown[];
+  streamSegmentsRef: Array<{ text: string; ts: number }>;
+  stream: string | null;
+  streamStartedAt: number | null;
+  showToolCalls: boolean;
+  canAbort: boolean;
+  finalizing: boolean;
+  searchOpen: boolean;
+  searchQuery: string;
+  result: Array<ChatItem | MessageGroup>;
+};
+const buildChatItemsCache = new Map<string, BuildChatItemsCacheEntry>();
 
 function stopSttTicker() {
   if (sttTicker !== null) {
@@ -291,6 +305,7 @@ export function resetChatViewState() {
   }
   clearSttComposerState();
   activeEphemeralSessionKey = null;
+  buildChatItemsCache.clear();
   Object.assign(vs, createChatEphemeralState());
 }
 
@@ -1353,6 +1368,8 @@ export function renderChat(props: ChatProps) {
   let fileInputEl: HTMLInputElement | null = null;
 
   const splitRatio = props.splitRatio ?? 0.6;
+  const visibleBrowserPaneObserver =
+    props.nativeShellState?.platform === "macos" ? null : (props.browserPaneObserver ?? null);
   const browserPaneMarkdown = {
     content: props.sidebarContent ?? null,
     error: props.sidebarError ?? null,
@@ -1360,7 +1377,7 @@ export function renderChat(props: ChatProps) {
   const sidebarOpen = Boolean(
     props.sidebarOpen &&
     props.onCloseSidebar &&
-    (props.browserPaneObserver ||
+    (visibleBrowserPaneObserver ||
       props.computerSession ||
       browserPaneMarkdown.content ||
       browserPaneMarkdown.error),
@@ -1742,7 +1759,8 @@ export function renderChat(props: ChatProps) {
               ></resizable-divider>
               <div class="chat-sidebar">
                 ${renderBrowserPane({
-                  observer: props.browserPaneObserver ?? null,
+                  observer: visibleBrowserPaneObserver,
+                  hideObserver: props.nativeShellState?.platform === "macos",
                   computer: props.computerSession ?? null,
                   computerLoading: props.computerSessionLoading ?? false,
                   computerError: props.computerSessionError ?? null,
@@ -2020,6 +2038,10 @@ function resolveRunActivity(
   } satisfies ChatRunActivity;
 }
 
+function isAssistantClusterRole(role: string): boolean {
+  return role === "assistant" || role === "tool";
+}
+
 function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
   const result: Array<ChatItem | MessageGroup> = [];
   let currentGroup: MessageGroup | null = null;
@@ -2039,11 +2061,12 @@ function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
     const senderLabel = role.toLowerCase() === "user" ? (normalized.senderLabel ?? null) : null;
     const timestamp = normalized.timestamp || Date.now();
 
-    if (
-      !currentGroup ||
-      currentGroup.role !== role ||
-      (role.toLowerCase() === "user" && currentGroup.senderLabel !== senderLabel)
-    ) {
+    const sameVisualCluster =
+      currentGroup &&
+      (currentGroup.role === role ||
+        (isAssistantClusterRole(currentGroup.role) && isAssistantClusterRole(role)));
+
+    if (!currentGroup || !sameVisualCluster) {
       if (currentGroup) {
         result.push(currentGroup);
       }
@@ -2057,7 +2080,24 @@ function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
         isStreaming: false,
       };
     } else {
+      if (currentGroup.role === "tool" && role === "assistant") {
+        currentGroup.role = "assistant";
+      }
+      if (role.toLowerCase() === "user" && currentGroup.senderLabel !== senderLabel) {
+        result.push(currentGroup);
+        currentGroup = {
+          kind: "group",
+          key: `group:${role}:${item.key}`,
+          role,
+          senderLabel,
+          messages: [{ message: item.message, key: item.key }],
+          timestamp,
+          isStreaming: false,
+        };
+        continue;
+      }
       currentGroup.messages.push({ message: item.message, key: item.key });
+      currentGroup.timestamp = timestamp;
     }
   }
 
@@ -2071,6 +2111,24 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
   const items: ChatItem[] = [];
   const history = Array.isArray(props.messages) ? props.messages : [];
   const tools = Array.isArray(props.toolMessages) ? props.toolMessages : [];
+  const segments = props.streamSegments ?? [];
+  const activeSearchQuery = vs.searchOpen ? vs.searchQuery.trim() : "";
+  const cached = buildChatItemsCache.get(props.sessionKey);
+  if (
+    cached &&
+    cached.historyRef === history &&
+    cached.toolsRef === tools &&
+    cached.streamSegmentsRef === segments &&
+    cached.stream === props.stream &&
+    cached.streamStartedAt === props.streamStartedAt &&
+    cached.showToolCalls === props.showToolCalls &&
+    cached.canAbort === Boolean(props.canAbort) &&
+    cached.finalizing === Boolean(props.finalizing) &&
+    cached.searchOpen === vs.searchOpen &&
+    cached.searchQuery === activeSearchQuery
+  ) {
+    return cached.result;
+  }
   const runActivity = resolveRunActivity(props);
   const historyStart = Math.max(0, history.length - CHAT_HISTORY_RENDER_LIMIT);
   if (historyStart > 0) {
@@ -2110,7 +2168,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
     }
 
     // Apply search filter if active
-    if (vs.searchOpen && vs.searchQuery.trim() && !messageMatchesSearchQuery(msg, vs.searchQuery)) {
+    if (activeSearchQuery && !messageMatchesSearchQuery(msg, activeSearchQuery)) {
       continue;
     }
 
@@ -2120,19 +2178,20 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
       message: msg,
     });
   }
-  // Interleave stream segments and tool cards in order. Each segment
-  // contains text that was streaming before the corresponding tool started.
-  // This ensures correct visual ordering: text → tool → text → tool → ...
-  const segments = props.streamSegments ?? [];
+  // Interleave committed stream segments and tool cards in order. Segments are
+  // rendered as regular assistant messages so they stay visually anchored to
+  // the surrounding tool cards and final assistant text.
   const maxLen = Math.max(segments.length, tools.length);
   for (let i = 0; i < maxLen; i++) {
     if (i < segments.length && segments[i].text.trim().length > 0) {
       items.push({
-        kind: "stream" as const,
+        kind: "message",
         key: `stream-seg:${props.sessionKey}:${i}`,
-        text: segments[i].text,
-        startedAt: segments[i].ts,
-        activity: null,
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: segments[i].text }],
+          timestamp: segments[i].ts,
+        },
       });
     }
     if (i < tools.length && props.showToolCalls) {
@@ -2165,7 +2224,21 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
     });
   }
 
-  return groupMessages(items);
+  const result = groupMessages(items);
+  buildChatItemsCache.set(props.sessionKey, {
+    historyRef: history,
+    toolsRef: tools,
+    streamSegmentsRef: segments,
+    stream: props.stream,
+    streamStartedAt: props.streamStartedAt,
+    showToolCalls: props.showToolCalls,
+    canAbort: Boolean(props.canAbort),
+    finalizing: Boolean(props.finalizing),
+    searchOpen: vs.searchOpen,
+    searchQuery: activeSearchQuery,
+    result,
+  });
+  return result;
 }
 
 function resolveTranscriptMessageMeta(message: unknown): Record<string, unknown> | null {
@@ -2182,7 +2255,8 @@ function messageKey(message: unknown, index: number): string {
   const m = message as Record<string, unknown>;
   const toolCallId = typeof m.toolCallId === "string" ? m.toolCallId : "";
   if (toolCallId) {
-    return `tool:${toolCallId}`;
+    const runId = typeof m.runId === "string" ? m.runId : "";
+    return runId ? `tool:${runId}:${toolCallId}` : `tool:${toolCallId}`;
   }
   const idempotencyKey = typeof m.idempotencyKey === "string" ? m.idempotencyKey : "";
   if (idempotencyKey) {

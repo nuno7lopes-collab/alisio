@@ -1,8 +1,8 @@
 import { listChannelSetupPlugins } from "../../channels/plugins/setup-registry.js";
+import type { ChannelSetupWizardAdapter } from "../../channels/plugins/setup-wizard-types.js";
 import { buildChannelSetupWizardAdapterFromSetupWizard } from "../../channels/plugins/setup-wizard.js";
 import type { ChannelPlugin } from "../../channels/plugins/types.js";
 import type { ChannelChoice } from "../onboard-types.js";
-import type { ChannelSetupWizardAdapter } from "./types.js";
 
 const setupWizardAdapters = new WeakMap<object, ChannelSetupWizardAdapter>();
 

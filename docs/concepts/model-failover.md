@@ -21,7 +21,6 @@ Alisio uses **auth profiles** for both API keys and OAuth tokens.
 
 - Secrets live in `~/.alisio/agents/<agentId>/agent/auth-profiles.json` (legacy: `~/.alisio/agent/auth-profiles.json`).
 - Config `auth.profiles` / `auth.order` are **metadata + routing only** (no secrets).
-- Legacy import-only OAuth file: `~/.alisio/credentials/oauth.json` (imported into `auth-profiles.json` on first use).
 
 More detail: [/concepts/oauth](/concepts/oauth)
 

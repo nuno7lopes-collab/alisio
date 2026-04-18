@@ -101,6 +101,7 @@ describe("alisioSecurityPolicyHandlers", () => {
       config: {
         tools: {
           exec: {
+            host: "auto",
             security: "allowlist",
             ask: "on-miss",
           },
@@ -194,6 +195,7 @@ describe("alisioSecurityPolicyHandlers", () => {
         config: {
           tools: {
             exec: {
+              host: "gateway",
               security: "full",
               ask: "off",
             },
@@ -206,6 +208,7 @@ describe("alisioSecurityPolicyHandlers", () => {
         config: {
           tools: {
             exec: {
+              host: "auto",
               security: "allowlist",
               ask: "on-miss",
             },
@@ -270,6 +273,20 @@ describe("alisioSecurityPolicyHandlers", () => {
         }),
       }),
     );
+    const configPatchCall = mocks.configPatchHandler.mock.calls[0]?.[0];
+    const rawPatch =
+      configPatchCall && typeof configPatchCall === "object"
+        ? (configPatchCall as { params?: { raw?: string } }).params?.raw
+        : undefined;
+    expect(JSON.parse(String(rawPatch))).toEqual({
+      tools: {
+        exec: {
+          host: "auto",
+          security: "allowlist",
+          ask: "on-miss",
+        },
+      },
+    });
     expect(mocks.execApprovalsSetHandler.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.configPatchHandler.mock.invocationCallOrder[0],
     );

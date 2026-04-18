@@ -43,12 +43,7 @@ To reduce that, Alisio treats `auth-profiles.json` as a **token sink**:
 Secrets are stored **per-agent**:
 
 - Auth profiles (OAuth + API keys + optional value-level refs): `~/.alisio/agents/<agentId>/agent/auth-profiles.json`
-- Legacy compatibility file: `~/.alisio/agents/<agentId>/agent/auth.json`
-  (static `api_key` entries are scrubbed when discovered)
-
-Legacy import-only file (still supported, but not the main store):
-
-- `~/.alisio/credentials/oauth.json` (imported into `auth-profiles.json` on first use)
+- Channel/provider credentials state: `~/.alisio/credentials/` (for example `whatsapp/<accountId>/creds.json`)
 
 All of the above also respect `$ALISIO_STATE_DIR` (state dir override). Full reference: [/gateway/configuration](/gateway/configuration-reference#auth-storage)
 

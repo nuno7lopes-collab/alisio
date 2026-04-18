@@ -57,6 +57,6 @@ vi.mock("./doctor-workspace-status.js", () => ({
   noteWorkspaceStatus: vi.fn(),
 }));
 
-vi.mock("./oauth-tls-preflight.js", () => ({
+vi.mock("../plugins/provider-openai-codex-oauth-tls.js", () => ({
   noteOpenAIOAuthTlsPrerequisites: vi.fn().mockResolvedValue(undefined),
 }));

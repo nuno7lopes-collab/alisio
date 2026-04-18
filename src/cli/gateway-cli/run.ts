@@ -50,7 +50,6 @@ type GatewayRunOpts = {
   force?: boolean;
   verbose?: boolean;
   cliBackendLogs?: boolean;
-  claudeCliLogs?: boolean;
   wsLog?: unknown;
   compact?: boolean;
   rawStream?: boolean;
@@ -81,7 +80,6 @@ const GATEWAY_RUN_BOOLEAN_KEYS = [
   "force",
   "verbose",
   "cliBackendLogs",
-  "claudeCliLogs",
   "compact",
   "rawStream",
 ] as const;
@@ -181,8 +179,7 @@ function isHealthyGatewayLockError(err: unknown): boolean {
 }
 
 async function runGatewayCommand(opts: GatewayRunOpts) {
-  const isDevProfile =
-    process.env.ALISIO_PROFILE?.trim().toLowerCase() === "dev";
+  const isDevProfile = process.env.ALISIO_PROFILE?.trim().toLowerCase() === "dev";
   const devMode = Boolean(opts.dev) || isDevProfile;
   if (opts.reset && !devMode) {
     defaultRuntime.error("Use --reset with --dev.");
@@ -192,7 +189,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 
   setConsoleTimestampPrefix(true);
   setVerbose(Boolean(opts.verbose));
-  if (opts.cliBackendLogs || opts.claudeCliLogs) {
+  if (opts.cliBackendLogs) {
     setConsoleSubsystemFilter(["agent/cli-backend"]);
     process.env.ALISIO_CLI_BACKEND_LOG_OUTPUT = "1";
     process.env.ALISIO_CLI_BACKEND_LOG_OUTPUT = "1";
@@ -561,7 +558,6 @@ export function addGatewayRunCommand(cmd: Command): Command {
       "Only show CLI backend logs in the console (includes stdout/stderr)",
       false,
     )
-    .option("--claude-cli-logs", "Deprecated alias for --cli-backend-logs", false)
     .option("--ws-log <style>", 'WebSocket log style ("auto"|"full"|"compact")', "auto")
     .option("--compact", 'Alias for "--ws-log compact"', false)
     .option("--raw-stream", "Log raw model stream events to jsonl", false)

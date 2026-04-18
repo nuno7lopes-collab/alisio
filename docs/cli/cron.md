@@ -17,7 +17,7 @@ Related:
 Tip: run `alisio cron --help` for the full command surface.
 
 Note: isolated `cron add` jobs default to `--announce` delivery. Use `--no-deliver` to keep
-output internal. `--deliver` remains as a deprecated alias for `--announce`.
+output internal.
 
 Note: one-shot (`--at`) jobs delete after success by default. Use `--keep-after-run` to keep them.
 

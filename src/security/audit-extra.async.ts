@@ -94,8 +94,9 @@ async function readPluginManifestExtensions(pluginPath: string): Promise<string[
     return [];
   }
 
-  const parsed = JSON.parse(raw) as Partial<Record<typeof MANIFEST_KEY, { extensions?: unknown }>>
-    | null;
+  const parsed = JSON.parse(raw) as Partial<
+    Record<typeof MANIFEST_KEY, { extensions?: unknown }>
+  > | null;
   for (const manifestKey of [MANIFEST_KEY, ...LEGACY_MANIFEST_KEYS]) {
     const extensions = parsed?.[manifestKey]?.extensions;
     if (!Array.isArray(extensions)) {
@@ -825,7 +826,7 @@ export async function collectPluginsTrustFindings(params: {
         title: "Hook install records drift from installed package versions",
         detail: `Detected hook install metadata drift:\n${hookVersionDrift.map((entry) => `- ${entry}`).join("\n")}`,
         remediation:
-          "Run `alisio hooks update --all` (or reinstall affected hooks) to refresh install metadata.",
+          "Run `alisio plugins update --all` (or reinstall affected hooks) to refresh install metadata.",
       });
     }
   }

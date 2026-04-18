@@ -420,6 +420,24 @@ describe("browser tool snapshot maxChars", () => {
     expect(browserClientMocks.browserStatus).not.toHaveBeenCalled();
   });
 
+  it("waits for a lazy sandbox bridge resolver before failing sandbox-first sessions", async () => {
+    const resolveSandboxBridgeUrl = vi.fn(async () => "http://127.0.0.1:9999");
+    const tool = createBrowserTool({
+      allowHostControl: true,
+      preferSandbox: true,
+      resolveSandboxBridgeUrl,
+    });
+
+    await tool.execute?.("call-1", {
+      action: "status",
+    });
+
+    expect(resolveSandboxBridgeUrl).toHaveBeenCalledTimes(1);
+    expect(browserClientMocks.browserStatus).toHaveBeenCalledWith("http://127.0.0.1:9999", {
+      profile: undefined,
+    });
+  });
+
   it("does not auto-route sandbox-first sessions into node browser proxy fallback", async () => {
     mockSingleBrowserProxyNode();
     const tool = createBrowserTool({

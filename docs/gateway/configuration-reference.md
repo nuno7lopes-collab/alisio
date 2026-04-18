@@ -3009,8 +3009,7 @@ Notes:
 
 - Per-agent profiles are stored at `<agentDir>/auth-profiles.json`.
 - `auth-profiles.json` supports value-level refs (`keyRef` for `api_key`, `tokenRef` for `token`).
-- Static runtime credentials come from in-memory resolved snapshots; legacy static `auth.json` entries are scrubbed when discovered.
-- Legacy OAuth imports from `~/.alisio/credentials/oauth.json`.
+- Static runtime credentials come from in-memory resolved snapshots built from auth profiles and env-backed provider auth.
 - See [OAuth](/concepts/oauth).
 - Secrets runtime behavior and `audit/configure/apply` tooling: [Secrets Management](/gateway/secrets).
 

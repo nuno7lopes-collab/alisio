@@ -1,6 +1,10 @@
 import { completeSimple, type Model } from "@mariozechner/pi-ai";
 import { describe, expect, it } from "vitest";
-import { BYTEPLUS_CODING_BASE_URL, BYTEPLUS_DEFAULT_COST } from "./byteplus-models.js";
+import {
+  buildBytePlusModelDefinition,
+  BYTEPLUS_CODING_BASE_URL,
+  BYTEPLUS_CODING_MODEL_CATALOG,
+} from "../plugin-sdk/byteplus.js";
 import {
   createSingleUserPromptMessage,
   extractNonEmptyAssistantText,
@@ -24,17 +28,21 @@ function isBytePlusSubscriptionError(message: string): boolean {
 
 describeLive("byteplus coding plan live", () => {
   it("returns assistant text", async () => {
+    const codingCatalogEntry =
+      BYTEPLUS_CODING_MODEL_CATALOG.find((entry) => entry.id === BYTEPLUS_CODING_MODEL) ??
+      BYTEPLUS_CODING_MODEL_CATALOG[0];
+    if (!codingCatalogEntry) {
+      throw new Error("BytePlus coding catalog is empty");
+    }
+
+    const definition = buildBytePlusModelDefinition(codingCatalogEntry);
     const model: Model<"openai-completions"> = {
+      ...definition,
       id: BYTEPLUS_CODING_MODEL,
       name: `BytePlus Coding ${BYTEPLUS_CODING_MODEL}`,
       api: "openai-completions",
       provider: "byteplus-plan",
       baseUrl: BYTEPLUS_CODING_BASE_URL,
-      reasoning: false,
-      input: ["text"],
-      cost: BYTEPLUS_DEFAULT_COST,
-      contextWindow: 256000,
-      maxTokens: 4096,
     };
 
     const res = await completeSimple(

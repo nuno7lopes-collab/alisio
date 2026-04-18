@@ -57,11 +57,12 @@ For a high-level overview, see [Onboarding (CLI)](/start/wizard).
     - Pick a default model from detected options (or enter provider/model manually). For best quality and lower prompt-injection risk, choose the strongest latest-generation model available in your provider stack.
     - Onboarding runs a model check and warns if the configured model is unknown or missing auth.
     - API key storage mode defaults to plaintext auth-profile values. Use `--secret-input-mode ref` to store env-backed refs instead (for example `keyRef: { source: "env", provider: "default", id: "OPENAI_API_KEY" }`).
-    - OAuth credentials live in `~/.alisio/credentials/oauth.json`; auth profiles live in `~/.alisio/agents/<agentId>/agent/auth-profiles.json` (API keys + OAuth).
+    - Auth profiles live in `~/.alisio/agents/<agentId>/agent/auth-profiles.json` and store both API keys and OAuth tokens.
     - More detail: [/concepts/oauth](/concepts/oauth)
     <Note>
-    Headless/server tip: complete OAuth on a machine with a browser, then copy
-    `~/.alisio/credentials/oauth.json` (or `$ALISIO_STATE_DIR/credentials/oauth.json`) to the
+    Headless/server tip: complete OAuth on a machine with a browser, then copy that agent's
+    `~/.alisio/agents/<agentId>/agent/auth-profiles.json`
+    (or `$ALISIO_STATE_DIR/agents/<agentId>/agent/auth-profiles.json`) to the
     gateway host.
     </Note>
   </Step>

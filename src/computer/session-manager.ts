@@ -8,6 +8,10 @@ import type {
   ComputerPermissionState,
   ComputerSessionState,
   ComputerSessionStatus,
+  ComputerSessionStep,
+  ComputerStepKind,
+  ComputerStepPhase,
+  ComputerStepStatus,
   ComputerStructuredAction,
   ComputerTimelineEntry,
 } from "./types.js";
@@ -34,6 +38,8 @@ type InternalComputerSessionState = ComputerSessionState & {
   pendingApproval?: InternalApprovalState;
 };
 
+type StepLink = Pick<ComputerSessionStep, "id" | "sequence" | "toolCallId" | "phase">;
+
 function cloneTimelineEntry(entry: ComputerTimelineEntry): ComputerTimelineEntry {
   return { ...entry };
 }
@@ -52,6 +58,13 @@ function cloneObservationContext(
   };
 }
 
+function cloneStep(step: ComputerSessionStep | null | undefined): ComputerSessionStep | null {
+  if (!step) {
+    return null;
+  }
+  return { ...step };
+}
+
 function cloneState(state: InternalComputerSessionState): ComputerSessionState {
   return {
     sessionKey: state.sessionKey,
@@ -63,6 +76,9 @@ function cloneState(state: InternalComputerSessionState): ComputerSessionState {
     permissions: { ...state.permissions },
     context: cloneObservationContext(state.context),
     frame: state.frame ? { ...state.frame } : null,
+    stepCounter: state.stepCounter,
+    activeStep: cloneStep(state.activeStep),
+    lastCompletedStep: cloneStep(state.lastCompletedStep),
     timeline: state.timeline.map(cloneTimelineEntry),
     awaitingApproval: state.awaitingApproval ? { ...state.awaitingApproval } : null,
     lastError: state.lastError ?? null,
@@ -89,6 +105,30 @@ function createTimelineEntry(
   };
 }
 
+function createSessionStep(params: {
+  sequence: number;
+  toolCallId: string;
+  kind: ComputerStepKind;
+  phase: ComputerStepPhase;
+  status: ComputerStepStatus;
+  summary: string;
+  actionType?: ComputerStructuredAction["type"];
+}): ComputerSessionStep {
+  const ts = nowStateTimestamp();
+  return {
+    id: randomUUID(),
+    sequence: params.sequence,
+    toolCallId: params.toolCallId,
+    kind: params.kind,
+    phase: params.phase,
+    status: params.status,
+    summary: params.summary,
+    actionType: params.actionType,
+    startedAt: ts,
+    updatedAt: ts,
+  };
+}
+
 function createInitialState(params: EnsureSessionParams): InternalComputerSessionState {
   const ts = nowStateTimestamp();
   return {
@@ -104,6 +144,9 @@ function createInitialState(params: EnsureSessionParams): InternalComputerSessio
     },
     context: null,
     frame: null,
+    stepCounter: 0,
+    activeStep: null,
+    lastCompletedStep: null,
     timeline: [],
     awaitingApproval: null,
     lastError: null,
@@ -232,9 +275,40 @@ export class ComputerSessionManager {
     if (summary) {
       state.timeline = this.nextTimeline(
         state.timeline,
-        createTimelineEntry("status", summary, { status }),
+        createTimelineEntry("status", summary, {
+          status,
+          ...this.stepLink(state.activeStep),
+        }),
       );
     }
+    return cloneState(state);
+  }
+
+  startStep(params: {
+    sessionKey: string;
+    toolCallId: string;
+    kind: ComputerStepKind;
+    phase: ComputerStepPhase;
+    summary: string;
+    actionType?: ComputerStructuredAction["type"];
+  }): ComputerSessionState {
+    const state = this.requireSession(params.sessionKey);
+    if (state.activeStep) {
+      throw new Error(
+        `computer session already has an active step (${state.activeStep.sequence}:${state.activeStep.phase})`,
+      );
+    }
+    state.stepCounter += 1;
+    state.activeStep = createSessionStep({
+      sequence: state.stepCounter,
+      toolCallId: params.toolCallId,
+      kind: params.kind,
+      phase: params.phase,
+      status: params.phase === "awaiting-approval" ? "awaiting-approval" : "running",
+      summary: params.summary,
+      actionType: params.actionType,
+    });
+    state.updatedAt = nowStateTimestamp();
     return cloneState(state);
   }
 
@@ -242,8 +316,17 @@ export class ComputerSessionManager {
     sessionKey: string,
     observation: ComputerObservation,
     summary = "frame captured",
+    options?: {
+      phase?: ComputerStepPhase;
+      stepSummary?: string;
+    },
   ): ComputerSessionState {
     const state = this.requireSession(sessionKey);
+    this.maybeAdvanceActiveStep(state, {
+      phase: options?.phase,
+      summary: options?.stepSummary,
+      status: "running",
+    });
     state.frame = { ...observation.frame };
     state.context = cloneObservationContext(observation.context);
     state.lastError = null;
@@ -253,7 +336,10 @@ export class ComputerSessionManager {
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.nextTimeline(
       state.timeline,
-      createTimelineEntry("observation", summary, { status: state.status }),
+      createTimelineEntry("observation", summary, {
+        status: state.status,
+        ...this.stepLink(state.activeStep),
+      }),
     );
     return cloneState(state);
   }
@@ -264,6 +350,11 @@ export class ComputerSessionManager {
     summary = summarizeAction(action),
   ): ComputerSessionState {
     const state = this.requireSession(sessionKey);
+    this.maybeAdvanceActiveStep(state, {
+      phase: "action",
+      summary,
+      status: "running",
+    });
     state.status = "running";
     state.lastError = null;
     state.updatedAt = nowStateTimestamp();
@@ -272,6 +363,7 @@ export class ComputerSessionManager {
       createTimelineEntry("action", summary, {
         status: "running",
         actionType: action.type,
+        ...this.stepLink(state.activeStep),
       }),
     );
     return cloneState(state);
@@ -293,11 +385,63 @@ export class ComputerSessionManager {
       state.pendingApproval.resolve("deny");
       state.pendingApproval = undefined;
     }
+    if (state.activeStep) {
+      state.activeStep.status = "error";
+      state.activeStep.summary = error;
+      state.activeStep.updatedAt = nowStateTimestamp();
+      state.lastCompletedStep = cloneStep(state.activeStep);
+      state.activeStep = null;
+    }
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.nextTimeline(
       state.timeline,
-      createTimelineEntry("error", error, { status: "error" }),
+      createTimelineEntry("error", error, {
+        status: "error",
+        ...this.stepLink(state.lastCompletedStep),
+      }),
     );
+    return cloneState(state);
+  }
+
+  completeStep(
+    sessionKey: string,
+    summary?: string,
+    phase?: ComputerStepPhase,
+  ): ComputerSessionState {
+    const state = this.requireSession(sessionKey);
+    const step = state.activeStep;
+    if (!step) {
+      return cloneState(state);
+    }
+    if (phase) {
+      step.phase = phase;
+    }
+    if (summary) {
+      step.summary = summary;
+    }
+    step.status = "completed";
+    step.updatedAt = nowStateTimestamp();
+    state.lastCompletedStep = cloneStep(step);
+    state.activeStep = null;
+    state.updatedAt = step.updatedAt;
+    return cloneState(state);
+  }
+
+  cancelStep(sessionKey: string, summary: string, phase?: ComputerStepPhase): ComputerSessionState {
+    const state = this.requireSession(sessionKey);
+    const step = state.activeStep;
+    if (!step) {
+      return cloneState(state);
+    }
+    if (phase) {
+      step.phase = phase;
+    }
+    step.summary = summary;
+    step.status = "cancelled";
+    step.updatedAt = nowStateTimestamp();
+    state.lastCompletedStep = cloneStep(step);
+    state.activeStep = null;
+    state.updatedAt = step.updatedAt;
     return cloneState(state);
   }
 
@@ -307,7 +451,10 @@ export class ComputerSessionManager {
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.nextTimeline(
       state.timeline,
-      createTimelineEntry("status", "session paused", { status: "paused" }),
+      createTimelineEntry("status", "session paused", {
+        status: "paused",
+        ...this.stepLink(state.activeStep),
+      }),
     );
     return cloneState(state);
   }
@@ -318,7 +465,10 @@ export class ComputerSessionManager {
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.nextTimeline(
       state.timeline,
-      createTimelineEntry("status", "session resumed", { status: "idle" }),
+      createTimelineEntry("status", "session resumed", {
+        status: "idle",
+        ...this.stepLink(state.activeStep),
+      }),
     );
     return cloneState(state);
   }
@@ -332,9 +482,19 @@ export class ComputerSessionManager {
       state.pendingApproval.resolve("deny");
       state.pendingApproval = undefined;
     }
+    if (state.activeStep) {
+      state.activeStep.status = "cancelled";
+      state.activeStep.summary = "session stopped";
+      state.activeStep.updatedAt = nowStateTimestamp();
+      state.lastCompletedStep = cloneStep(state.activeStep);
+      state.activeStep = null;
+    }
     state.timeline = this.nextTimeline(
       state.timeline,
-      createTimelineEntry("status", "session stopped", { status: "stopped" }),
+      createTimelineEntry("status", "session stopped", {
+        status: "stopped",
+        ...this.stepLink(state.lastCompletedStep),
+      }),
     );
     return cloneState(state);
   }
@@ -356,7 +516,15 @@ export class ComputerSessionManager {
       sensitive: isSensitiveAction(params.action),
       appName: params.context?.activeApp?.name ?? undefined,
       appBundleId: params.context?.activeApp?.bundleId ?? undefined,
+      stepId: state.activeStep?.id,
+      stepSequence: state.activeStep?.sequence,
+      toolCallId: state.activeStep?.toolCallId,
     };
+    this.maybeAdvanceActiveStep(state, {
+      phase: "awaiting-approval",
+      summary: request.actionSummary,
+      status: "awaiting-approval",
+    });
     state.awaitingApproval = request;
     state.status = "awaiting-approval";
     state.updatedAt = nowStateTimestamp();
@@ -365,6 +533,7 @@ export class ComputerSessionManager {
       createTimelineEntry("approval", `${request.actionSummary} awaiting approval`, {
         status: "awaiting-approval",
         actionType: request.actionType,
+        ...this.stepLink(state.activeStep),
       }),
     );
     return await new Promise<ApprovalDecision>((resolve) => {
@@ -380,6 +549,18 @@ export class ComputerSessionManager {
           state.awaitingApproval = null;
           state.pendingApproval = undefined;
           state.status = decision === "deny" ? "paused" : "running";
+          if (state.activeStep) {
+            state.activeStep.updatedAt = nowStateTimestamp();
+            if (decision === "deny") {
+              state.activeStep.status = "cancelled";
+              state.activeStep.summary = `${request.actionSummary} denied`;
+              state.lastCompletedStep = cloneStep(state.activeStep);
+              state.activeStep = null;
+            } else {
+              state.activeStep.status = "running";
+              state.activeStep.phase = "action";
+            }
+          }
           state.updatedAt = nowStateTimestamp();
           state.timeline = this.nextTimeline(
             state.timeline,
@@ -389,6 +570,7 @@ export class ComputerSessionManager {
               {
                 status: state.status,
                 actionType: request.actionType,
+                ...this.stepLink(state.activeStep ?? state.lastCompletedStep),
               },
             ),
           );
@@ -490,6 +672,42 @@ export class ComputerSessionManager {
       return merged;
     }
     return merged.slice(merged.length - COMPUTER_TIMELINE_LIMIT);
+  }
+
+  private maybeAdvanceActiveStep(
+    state: InternalComputerSessionState,
+    params: {
+      phase?: ComputerStepPhase;
+      status?: ComputerStepStatus;
+      summary?: string;
+    },
+  ) {
+    const step = state.activeStep;
+    if (!step) {
+      return;
+    }
+    if (params.phase) {
+      step.phase = params.phase;
+    }
+    if (params.status) {
+      step.status = params.status;
+    }
+    if (params.summary) {
+      step.summary = params.summary;
+    }
+    step.updatedAt = nowStateTimestamp();
+  }
+
+  private stepLink(step: StepLink | null | undefined): Partial<ComputerTimelineEntry> {
+    if (!step) {
+      return {};
+    }
+    return {
+      stepId: step.id,
+      stepSequence: step.sequence,
+      toolCallId: step.toolCallId,
+      stepPhase: step.phase,
+    };
   }
 }
 

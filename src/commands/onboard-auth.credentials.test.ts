@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  createAuthTestLifecycle,
+  readAuthProfilesForAgent,
+  setupAuthTestEnv,
+} from "../../test/helpers/auth-wizard.js";
+import {
   setByteplusApiKey,
   setCloudflareAiGatewayConfig,
   setMoonshotApiKey,
@@ -7,11 +12,6 @@ import {
   setOpenaiApiKey,
   setVolcengineApiKey,
 } from "../plugins/provider-auth-storage.js";
-import {
-  createAuthTestLifecycle,
-  readAuthProfilesForAgent,
-  setupAuthTestEnv,
-} from "./test-wizard-helpers.js";
 
 describe("onboard auth credentials secret refs", () => {
   const lifecycle = createAuthTestLifecycle([

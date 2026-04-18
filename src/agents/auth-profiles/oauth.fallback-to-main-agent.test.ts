@@ -45,11 +45,7 @@ async function loadFreshOAuthModuleForTest() {
 }
 
 describe("resolveApiKeyForProfile fallback to main agent", () => {
-  const envSnapshot = captureEnv([
-    "ALISIO_STATE_DIR",
-    "ALISIO_AGENT_DIR",
-    "PI_CODING_AGENT_DIR",
-  ]);
+  const envSnapshot = captureEnv(["ALISIO_STATE_DIR", "ALISIO_AGENT_DIR", "PI_CODING_AGENT_DIR"]);
   let tmpDir: string;
   let mainAgentDir: string;
   let secondaryAgentDir: string;
@@ -267,13 +263,13 @@ describe("resolveApiKeyForProfile fallback to main agent", () => {
     expect(result?.apiKey).toBe("main-fresh-token");
   });
 
-  it("accepts mode=token + type=oauth for legacy compatibility", async () => {
+  it("rejects mode=token + type=oauth mismatches", async () => {
     const result = await resolveOauthProfileForConfiguredMode("token");
 
-    expect(result?.apiKey).toBe("oauth-token");
+    expect(result).toBeNull();
   });
 
-  it("accepts mode=oauth + type=token (regression)", async () => {
+  it("rejects mode=oauth + type=token mismatches", async () => {
     const profileId = "anthropic:default";
     const store: AuthProfileStore = {
       version: 1,
@@ -302,7 +298,7 @@ describe("resolveApiKeyForProfile fallback to main agent", () => {
       profileId,
     });
 
-    expect(result?.apiKey).toBe("static-token");
+    expect(result).toBeNull();
   });
 
   it("rejects true mode/type mismatches", async () => {

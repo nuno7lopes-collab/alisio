@@ -268,6 +268,15 @@ describe("sandbox browser binds config", () => {
     expect(resolved.network).toBe(DEFAULT_SANDBOX_BROWSER_NETWORK);
   });
 
+  it("defaults sandbox browser noVNC observer off", () => {
+    const resolved = resolveSandboxBrowserConfig({
+      scope: "agent",
+      globalBrowser: {},
+      agentBrowser: {},
+    });
+    expect(resolved.enableNoVnc).toBe(false);
+  });
+
   it("prefers agent browser network over global browser network", () => {
     const resolved = resolveSandboxBrowserConfig({
       scope: "agent",

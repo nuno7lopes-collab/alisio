@@ -21,7 +21,7 @@ import {
   normalizeModelCompat,
 } from "alisio/plugin-sdk/provider-model-shared";
 import { createZaiToolStreamWrapper } from "alisio/plugin-sdk/provider-stream";
-import { fetchZaiUsage, resolveLegacyPiAgentAccessToken } from "alisio/plugin-sdk/provider-usage";
+import { fetchZaiUsage } from "alisio/plugin-sdk/provider-usage";
 import { detectZaiEndpoint, type ZaiEndpointId } from "./detect.js";
 import { zaiMediaUnderstandingProvider } from "./media-understanding-provider.js";
 import { applyZaiConfig, applyZaiProviderConfig, ZAI_DEFAULT_MODEL_REF } from "./onboard.js";
@@ -238,7 +238,7 @@ export default definePluginEntry({
       label: "Z.AI",
       aliases: ["z-ai", "z.ai"],
       docsPath: "/providers/models",
-      envVars: ["ZAI_API_KEY", "Z_AI_API_KEY"],
+      envVars: ["ZAI_API_KEY"],
       auth: [
         buildZaiApiKeyMethod({
           id: "api-key",
@@ -299,13 +299,12 @@ export default definePluginEntry({
       resolveUsageAuth: async (ctx) => {
         const apiKey = ctx.resolveApiKeyFromConfigAndStore({
           providerIds: [PROVIDER_ID, "z-ai"],
-          envDirect: [ctx.env.ZAI_API_KEY, ctx.env.Z_AI_API_KEY],
+          envDirect: [ctx.env.ZAI_API_KEY],
         });
         if (apiKey) {
           return { token: apiKey };
         }
-        const legacyToken = resolveLegacyPiAgentAccessToken(ctx.env, ["z-ai", "zai"]);
-        return legacyToken ? { token: legacyToken } : null;
+        return null;
       },
       fetchUsageSnapshot: async (ctx) => await fetchZaiUsage(ctx.token, ctx.timeoutMs, ctx.fetchFn),
       isCacheTtlEligible: () => true,

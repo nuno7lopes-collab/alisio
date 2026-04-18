@@ -17,7 +17,10 @@ describe("transcript events", () => {
     emitSessionTranscriptUpdate("  /tmp/session.jsonl  ");
 
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener).toHaveBeenCalledWith({ sessionFile: "/tmp/session.jsonl" });
+    expect(listener).toHaveBeenCalledWith({
+      sessionFile: "/tmp/session.jsonl",
+      phase: "transcript",
+    });
   });
 
   it("includes optional session metadata when provided", () => {
@@ -34,6 +37,7 @@ describe("transcript events", () => {
       sessionFile: "/tmp/session.jsonl",
       sessionKey: "agent:main:main",
       message: { role: "assistant", content: "hi" },
+      phase: "message",
     });
   });
 

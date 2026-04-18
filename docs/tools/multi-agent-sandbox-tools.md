@@ -70,7 +70,7 @@ If you want to share creds, copy `auth-profiles.json` into the other agent's `ag
 
 **Result:**
 
-- `main` agent: Runs on host, full tool access
+- `main` agent: Runs on host with the full tool profile; filesystem scope still follows `tools.fs.workspaceOnly`, any agent-level fs overrides, and `tools.exec.applyPatch.workspaceOnly`
 - `family` agent: Runs in Docker (one container per agent), only `read` tool
 
 ---

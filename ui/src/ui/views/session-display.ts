@@ -29,6 +29,8 @@ export type SessionDisplayRow = {
   label?: string | null;
   displayName?: string | null;
   derivedTitle?: string | null;
+  lastMessagePreview?: string | null;
+  sessionId?: string | null;
 };
 
 function capitalize(value: string): string {
@@ -42,6 +44,33 @@ function channelLabel(channel: string): string {
 
 function isPrimarySessionAgent(agentId: string, options: AgentDisplayOptions): boolean {
   return agentId.trim().toLowerCase() === resolvePrimaryAssistantAgentId(options).toLowerCase();
+}
+
+function isDashboardSessionKey(key: string): boolean {
+  return (parseAgentSessionKey(key)?.rest ?? "").startsWith("dashboard:");
+}
+
+function isSyntheticDashboardSessionCandidate(
+  key: string,
+  row: SessionDisplayRow | undefined,
+  value: string,
+): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || !isDashboardSessionKey(key) || row?.label?.trim()) {
+    return false;
+  }
+  const sessionIdPrefix = row?.sessionId?.trim().slice(0, 8);
+  if (sessionIdPrefix) {
+    const normalizedValue = trimmed.toLowerCase();
+    const normalizedPrefix = sessionIdPrefix.toLowerCase();
+    if (
+      normalizedValue === normalizedPrefix ||
+      new RegExp(`^${normalizedPrefix} \\(\\d{4}-\\d{2}-\\d{2}\\)$`, "i").test(normalizedValue)
+    ) {
+      return true;
+    }
+  }
+  return /^[a-f0-9]{8}(?: \(\d{4}-\d{2}-\d{2}\))?$/i.test(trimmed);
 }
 
 export function parseSessionKey(key: string, options: AgentDisplayOptions = {}): SessionKeyInfo {
@@ -134,10 +163,18 @@ export function resolveSessionDisplayName(
   if (label && label !== key) {
     return applyTypedPrefix(label);
   }
-  if (displayName && displayName !== key) {
+  if (
+    displayName &&
+    displayName !== key &&
+    !isSyntheticDashboardSessionCandidate(key, row, displayName)
+  ) {
     return applyTypedPrefix(displayName);
   }
-  if (derivedTitle && derivedTitle !== key) {
+  if (
+    derivedTitle &&
+    derivedTitle !== key &&
+    !isSyntheticDashboardSessionCandidate(key, row, derivedTitle)
+  ) {
     return applyTypedPrefix(derivedTitle);
   }
   return fallbackName;

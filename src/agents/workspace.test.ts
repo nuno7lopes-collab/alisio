@@ -41,7 +41,6 @@ describe("resolveDefaultAgentWorkspaceDir", () => {
 });
 
 const WORKSPACE_STATE_PATH_SEGMENTS = [".alisio", "workspace-state.json"] as const;
-const LEGACY_WORKSPACE_STATE_PATH_SEGMENTS = [".alisio", "workspace-state.json"] as const;
 
 async function readWorkspaceState(dir: string): Promise<{
   version: number;
@@ -163,11 +162,11 @@ describe("ensureAgentWorkspace", () => {
     await expectCompletedWithoutBootstrap(tempDir);
   });
 
-  it("migrates legacy onboardingCompletedAt markers to setupCompletedAt", async () => {
+  it("ignores removed onboardingCompletedAt markers and seeds bootstrap flow instead", async () => {
     const tempDir = await makeTempWorkspace("alisio-workspace-");
     await fs.mkdir(path.join(tempDir, ".alisio"), { recursive: true });
     await fs.writeFile(
-      path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS),
+      path.join(tempDir, ...WORKSPACE_STATE_PATH_SEGMENTS),
       JSON.stringify({
         version: 1,
         onboardingCompletedAt: "2026-03-15T02:30:00.000Z",
@@ -176,30 +175,11 @@ describe("ensureAgentWorkspace", () => {
 
     await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
 
-    const state = await readWorkspaceState(tempDir);
-    expect(state.setupCompletedAt).toBe("2026-03-15T02:30:00.000Z");
-    const persisted = await fs.readFile(
-      path.join(tempDir, ...WORKSPACE_STATE_PATH_SEGMENTS),
-      "utf-8",
-    );
-    expect(persisted).toContain('"setupCompletedAt": "2026-03-15T02:30:00.000Z"');
-    if (
-      path.join(...WORKSPACE_STATE_PATH_SEGMENTS) !== path.join(...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)
-    ) {
-      await expect(
-        fs.access(path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)),
-      ).rejects.toMatchObject({
-        code: "ENOENT",
-      });
-      await expect(fs.access(path.join(tempDir, ".alisio"))).rejects.toMatchObject({
-        code: "ENOENT",
-      });
-    } else {
-      await expect(
-        fs.access(path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)),
-      ).resolves.toBeUndefined();
-      await expect(fs.access(path.join(tempDir, ".alisio"))).resolves.toBeUndefined();
-    }
+    await expectBootstrapSeeded(tempDir);
+    await expect(
+      fs.access(path.join(tempDir, ...WORKSPACE_STATE_PATH_SEGMENTS)),
+    ).resolves.toBeUndefined();
+    await expect(fs.access(path.join(tempDir, ".alisio"))).resolves.toBeUndefined();
   });
 });
 
@@ -279,10 +259,7 @@ describe("filterBootstrapFilesForSession", () => {
   });
 
   it("returns all files for direct sessions", () => {
-    const result = filterBootstrapFilesForSession(
-      mockFiles,
-      "agent:default:discord:direct:user-1",
-    );
+    const result = filterBootstrapFilesForSession(mockFiles, "agent:default:discord:direct:user-1");
     expect(result).toHaveLength(mockFiles.length);
   });
 
@@ -292,7 +269,10 @@ describe("filterBootstrapFilesForSession", () => {
   });
 
   it("omits MEMORY.md for shared channel sessions", () => {
-    const result = filterBootstrapFilesForSession(mockFiles, "agent:default:discord:channel:chan-1");
+    const result = filterBootstrapFilesForSession(
+      mockFiles,
+      "agent:default:discord:channel:chan-1",
+    );
     expect(result).toHaveLength(mockFiles.length - 1);
     expect(getMemoryEntries(result)).toHaveLength(0);
   });

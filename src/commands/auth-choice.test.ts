@@ -1,5 +1,14 @@
 import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  authProfilePathForAgent,
+  createAuthTestLifecycle,
+  createExitThrowingRuntime,
+  createWizardPrompter,
+  readAuthProfilesForAgent,
+  requireAlisioAgentDir,
+  setupAuthTestEnv,
+} from "../../test/helpers/auth-wizard.js";
 import { resolveAgentDir } from "../agents/agent-scope.js";
 import type { AlisioConfig } from "../config/config.js";
 import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
@@ -13,15 +22,6 @@ import type { ProviderAuthMethod, ProviderPlugin } from "../plugins/types.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { applyAuthChoice, resolvePreferredProviderForAuthChoice } from "./auth-choice.js";
 import type { AuthChoice } from "./onboard-types.js";
-import {
-  authProfilePathForAgent,
-  createAuthTestLifecycle,
-  createExitThrowingRuntime,
-  createWizardPrompter,
-  readAuthProfilesForAgent,
-  requireAlisioAgentDir,
-  setupAuthTestEnv,
-} from "./test-wizard-helpers.js";
 
 type DetectZaiEndpoint = typeof import("../plugins/provider-zai-endpoint.js").detectZaiEndpoint;
 

@@ -1,10 +1,5 @@
-import { normalizeLegacyOnboardAuthChoice } from "../commands/auth-choice-legacy.js";
 import type { AlisioConfig } from "../config/config.js";
 import { resolveManifestProviderAuthChoice } from "./provider-auth-choices.js";
-
-function normalizeLegacyAuthChoice(choice: string, env?: NodeJS.ProcessEnv): string {
-  return normalizeLegacyOnboardAuthChoice(choice, { env }) ?? choice;
-}
 
 export async function resolvePreferredProviderForAuthChoice(params: {
   choice: string;
@@ -12,8 +7,7 @@ export async function resolvePreferredProviderForAuthChoice(params: {
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): Promise<string | undefined> {
-  const choice = normalizeLegacyAuthChoice(params.choice, params.env) ?? params.choice;
-  const manifestResolved = resolveManifestProviderAuthChoice(choice, params);
+  const manifestResolved = resolveManifestProviderAuthChoice(params.choice, params);
   if (manifestResolved) {
     return manifestResolved.providerId;
   }
@@ -29,13 +23,13 @@ export async function resolvePreferredProviderForAuthChoice(params: {
   });
   const pluginResolved = resolveProviderPluginChoice({
     providers,
-    choice,
+    choice: params.choice,
   });
   if (pluginResolved) {
     return pluginResolved.provider.id;
   }
 
-  if (choice === "custom-api-key") {
+  if (params.choice === "custom-api-key") {
     return "custom";
   }
   return undefined;

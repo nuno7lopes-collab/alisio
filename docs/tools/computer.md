@@ -17,16 +17,23 @@ This is separate from the managed [Browser](/tools/browser):
 
 - `browser` remains the isolated sandbox/browser-control lane.
 - `computer` targets the real local macOS GUI.
-- The right-hand pane can switch between **Browser**, **Computer**, and
+- The right-hand pane can switch between **Sandbox Browser**, **Computer**, and
   **Tool output** surfaces.
+
+On the desktop app, visible local interaction should happen through `computer`.
+The sandbox browser observer is now a legacy, opt-in lane for isolated browser
+debugging rather than the main product path.
 
 ## What it does
 
 - Captures the current desktop frame plus cursor and frontmost app/window context.
 - Executes native actions such as click, double click, drag, scroll, type,
   keypress, wait, open URL, reveal path, open path, and app focus.
-- Tracks session state, timeline, approvals, and permission status in the
-  Computer pane.
+- Forces a fresh screenshot before each control action, then captures the
+  resulting post-action frame for a deterministic screenshot -> action ->
+  screenshot loop.
+- Tracks session state, timeline, approvals, step ids, and permission status in
+  the Computer pane.
 
 ## Availability
 
@@ -62,9 +69,10 @@ Local computer use is split into a few layers:
 - A native macOS executor validates permissions, captures frames, and performs
   structured actions.
 - A Gateway-side computer session manager owns timeline, approval state, status,
-  and session-level policy.
+  step lifecycle, and session-level policy.
 - The agent-facing `computer` tool uses screenshots plus structured actions
-  rather than a live remote-control stream.
+  rather than a live remote-control stream, and links each tool call to an
+  explicit computer step with approval/action/observation phases.
 - The UI renders the Computer surface natively in the existing right-hand pane.
 
 This design keeps the managed browser lane intact while adding a separate local

@@ -825,7 +825,7 @@ export async function detectLegacyStateMigrations(params: {
     preview.push(`- Agent dir: ${legacyAgentDir} → ${targetAgentDir}`);
   }
   if (hasLegacyWhatsAppAuth) {
-    preview.push(`- WhatsApp auth: ${oauthDir} → ${targetWhatsAppAuthDir} (keep oauth.json)`);
+    preview.push(`- WhatsApp auth: ${oauthDir} → ${targetWhatsAppAuthDir}`);
   }
   if (hasLegacyTelegramAllowFrom) {
     preview.push(...telegramPairingAllowFromPlans.map(buildFileCopyPreview));
@@ -1051,9 +1051,6 @@ async function migrateLegacyWhatsAppAuth(
   const entries = safeReadDir(detected.whatsappAuth.legacyDir);
   for (const entry of entries) {
     if (!entry.isFile()) {
-      continue;
-    }
-    if (entry.name === "oauth.json") {
       continue;
     }
     if (!isLegacyWhatsAppAuthFile(entry.name)) {

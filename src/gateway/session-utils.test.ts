@@ -298,67 +298,67 @@ describe("gateway session utils", () => {
     expect(withoutObserver.sessions[0]?.observer).toBeNull();
   });
 
-  test("listSessionsFromStore falls back to the persisted sandbox observer when no run is active", () => {
-    const cfg = {
-      session: { mainKey: "main" },
-      agents: {
-        list: [{ id: "main", default: true }],
-        defaults: {
-          sandbox: {
-            mode: "all",
-            browser: {
-              enabled: true,
-              allowHostControl: false,
+  test("listSessionsFromStore ignores persisted sandbox observer urls when no live bridge exists", async () => {
+    await withStateDirEnv("alisio-session-utils-persisted-", async ({ stateDir }) => {
+      const cfg = {
+        session: { mainKey: "agent:ops:main" },
+        agents: {
+          list: [{ id: "ops", default: true }],
+          defaults: {
+            sandbox: {
+              mode: "all",
+              browser: {
+                enabled: true,
+                allowHostControl: false,
+              },
             },
           },
         },
-      },
-      tools: {
-        sandbox: {
-          tools: {
-            alsoAllow: ["browser"],
-          },
-        },
-      },
-    } as AlisioConfig;
-    const store: Record<string, SessionEntry> = {
-      "agent:main:main": {
-        sessionId: "sess-main",
-        updatedAt: 123,
-        systemPromptReport: {
-          source: "run",
-          generatedAt: 123,
+        tools: {
           sandbox: {
-            mode: "all",
-            sandboxed: true,
-            browserContractVersion: 1,
-            browserTargetDefault: "sandbox",
-            hostBrowserAllowed: false,
-            browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=persisted",
+            tools: {
+              alsoAllow: ["browser"],
+            },
           },
-          systemPrompt: {
-            chars: 10,
-            projectContextChars: 0,
-            nonProjectContextChars: 10,
-          },
-          injectedWorkspaceFiles: [],
-          skills: { promptChars: 0, entries: [] },
-          tools: { listChars: 0, schemaChars: 0, entries: [] },
         },
-      } as SessionEntry,
-    };
+      } as AlisioConfig;
+      const store: Record<string, SessionEntry> = {
+        "agent:ops:main": {
+          sessionId: "sess-ops",
+          updatedAt: 123,
+          systemPromptReport: {
+            source: "run",
+            generatedAt: 123,
+            sandbox: {
+              mode: "all",
+              sandboxed: true,
+              browserContractVersion: 1,
+              browserTargetDefault: "sandbox",
+              hostBrowserAllowed: false,
+              browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=persisted",
+            },
+            systemPrompt: {
+              chars: 10,
+              projectContextChars: 0,
+              nonProjectContextChars: 10,
+            },
+            injectedWorkspaceFiles: [],
+            skills: { promptChars: 0, entries: [] },
+            tools: { listChars: 0, schemaChars: 0, entries: [] },
+          },
+        } as SessionEntry,
+      };
 
-    const result = listSessionsFromStore({
-      cfg,
-      storePath: path.join(os.tmpdir(), "alisio-session-utils-persisted.json"),
-      store,
-      opts: {},
-    });
+      const result = await withEnv({ ALISIO_STATE_DIR: stateDir }, async () =>
+        listSessionsFromStore({
+          cfg,
+          storePath: path.join(os.tmpdir(), "alisio-session-utils-persisted.json"),
+          store,
+          opts: {},
+        }),
+      );
 
-    expect(result.sessions[0]?.observer).toEqual({
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=persisted",
-      label: "Browser observer",
+      expect(result.sessions[0]?.observer).toBeNull();
     });
   });
 
@@ -1080,6 +1080,27 @@ describe("deriveSessionTitle", () => {
       subject: "Actual Subject",
     } as SessionEntry;
     expect(deriveSessionTitle(entry)).toBe("Actual Subject");
+  });
+
+  test("hides synthetic session-id fallback titles for fresh dashboard chats", () => {
+    const result = listSessionsFromStore({
+      cfg: {
+        session: { mainKey: "main" },
+        agents: { list: [{ id: "main", default: true }] },
+      } as AlisioConfig,
+      storePath: "/tmp/sessions.json",
+      store: {
+        "agent:main:dashboard:new-chat": {
+          sessionId: "79bbe587-a9fa-4dd8-9b01-0d3e2a6f51d9",
+          updatedAt: new Date("2026-04-17T18:43:33Z").getTime(),
+        } as SessionEntry,
+      },
+      opts: { includeDerivedTitles: true },
+    });
+
+    expect(result.sessions).toHaveLength(1);
+    expect(result.sessions[0]?.key).toBe("agent:main:dashboard:new-chat");
+    expect(result.sessions[0]?.derivedTitle).toBeUndefined();
   });
 });
 

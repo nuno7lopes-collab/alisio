@@ -17,7 +17,9 @@ const mocks = vi.hoisted(() => ({
     token: "loopback-token",
     password: undefined,
   })),
-  getBridgeAuthForPort: vi.fn(() => null),
+  getBridgeAuthForPort: vi.fn<(port: number) => { token?: string; password?: string } | undefined>(
+    () => undefined,
+  ),
   startBrowserControlServiceFromConfig: vi.fn(async () => ({ ok: true })),
   dispatch: vi.fn(async (): Promise<BrowserDispatchResponse> => okDispatchResponse()),
 }));
@@ -107,7 +109,7 @@ describe("fetchBrowserJson loopback auth", () => {
       token: "loopback-token",
       password: undefined,
     });
-    mocks.getBridgeAuthForPort.mockReset().mockReturnValue(null);
+    mocks.getBridgeAuthForPort.mockReset().mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -124,6 +126,21 @@ describe("fetchBrowserJson loopback auth", () => {
     const init = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(init?.headers);
     expect(headers.get("authorization")).toBe("Bearer loopback-token");
+  });
+
+  it("prefers per-bridge auth over the gateway token for sandbox bridge URLs", async () => {
+    const fetchMock = stubJsonFetchOk();
+    mocks.getBridgeAuthForPort.mockReturnValue({
+      token: "sandbox-bridge-token",
+      password: undefined,
+    });
+
+    await fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:55052/");
+
+    const init = fetchMock.mock.calls[0]?.[1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("authorization")).toBe("Bearer sandbox-bridge-token");
+    expect(mocks.getBridgeAuthForPort).toHaveBeenCalledWith(55052);
   });
 
   it("does not inject auth for non-loopback absolute URLs", async () => {

@@ -91,12 +91,6 @@ export function readEnv(
   return undefined;
 }
 
-export function normalizeZaiEnv(): void {
-  if (!process.env.ZAI_API_KEY?.trim() && process.env.Z_AI_API_KEY?.trim()) {
-    process.env.ZAI_API_KEY = process.env.Z_AI_API_KEY;
-  }
-}
-
 export function isTruthyEnvValue(value?: string): boolean {
   if (typeof value !== "string") {
     return false;
@@ -110,8 +104,4 @@ export function isTruthyEnvValue(value?: string): boolean {
     default:
       return false;
   }
-}
-
-export function normalizeEnv(): void {
-  normalizeZaiEnv();
 }

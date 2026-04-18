@@ -17,8 +17,6 @@ import { getTerminalTableWidth, renderTable } from "../terminal/table.js";
 import { theme } from "../terminal/theme.js";
 import { shortenHomePath } from "../utils.js";
 import { formatCliCommand } from "./command-format.js";
-import { runPluginInstallCommand } from "./plugins-install-command.js";
-import { runPluginUpdateCommand } from "./plugins-update-command.js";
 
 export type HooksListOptions = {
   json?: boolean;
@@ -32,11 +30,6 @@ export type HookInfoOptions = {
 
 export type HooksCheckOptions = {
   json?: boolean;
-};
-
-export type HooksUpdateOptions = {
-  all?: boolean;
-  dryRun?: boolean;
 };
 
 function mergeHookEntries(pluginEntries: HookEntry[], workspaceEntries: HookEntry[]): HookEntry[] {
@@ -516,32 +509,6 @@ export function registerHooksCli(program: Command): void {
         await disableHook(name);
       }),
     );
-
-  hooks
-    .command("install")
-    .description("Deprecated: install a hook pack via `alisio plugins install`")
-    .argument("<path-or-spec>", "Path to a hook pack or npm package spec")
-    .option("-l, --link", "Link a local path instead of copying", false)
-    .option("--pin", "Record npm installs as exact resolved <name>@<version>", false)
-    .action(async (raw: string, opts: { link?: boolean; pin?: boolean }) => {
-      defaultRuntime.log(
-        theme.warn("`alisio hooks install` is deprecated; use `alisio plugins install`."),
-      );
-      await runPluginInstallCommand({ raw, opts });
-    });
-
-  hooks
-    .command("update")
-    .description("Deprecated: update hook packs via `alisio plugins update`")
-    .argument("[id]", "Hook pack id (omit with --all)")
-    .option("--all", "Update all tracked hooks", false)
-    .option("--dry-run", "Show what would change without writing", false)
-    .action(async (id: string | undefined, opts: HooksUpdateOptions) => {
-      defaultRuntime.log(
-        theme.warn("`alisio hooks update` is deprecated; use `alisio plugins update`."),
-      );
-      await runPluginUpdateCommand({ id, opts });
-    });
 
   hooks.action(async () =>
     runHooksCliAction(async () => {

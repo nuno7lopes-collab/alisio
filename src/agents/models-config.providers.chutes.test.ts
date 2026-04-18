@@ -3,7 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { CHUTES_BASE_URL } from "./chutes-models.js";
+import { CHUTES_BASE_URL } from "../plugin-sdk/chutes.js";
 import { resolveOAuthApiKeyMarker } from "./model-auth-markers.js";
 import { resolveImplicitProvidersForTest } from "./models-config.e2e-harness.js";
 import { resolveImplicitProviders } from "./models-config.providers.implicit.js";

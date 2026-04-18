@@ -8,6 +8,7 @@ import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
 import { resolveAgentConfig, resolveSessionAgentId } from "./agent-scope.js";
+import { createAlisioTools } from "./alisio-tools.js";
 import { createApplyPatchTool } from "./apply-patch.js";
 import {
   createExecTool,
@@ -18,7 +19,6 @@ import {
 import { listChannelAgentTools } from "./channel-tools.js";
 import { resolveImageSanitizationLimits } from "./image-sanitization.js";
 import type { ModelAuthMode } from "./model-auth.js";
-import { createAlisioTools } from "./alisio-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import {
@@ -45,7 +45,10 @@ import {
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
-import { getLiveSandboxBrowserBridgeUrl } from "./sandbox/browser.js";
+import {
+  ensureLiveSandboxBrowserBridgeUrl,
+  getLiveSandboxBrowserBridgeUrl,
+} from "./sandbox/browser.js";
 import { resolveSandboxConfigForAgent } from "./sandbox/config.js";
 import { resolveSandboxRuntimeStatus } from "./sandbox/runtime-status.js";
 import { resolveSandboxScopeKey } from "./sandbox/shared.js";
@@ -72,22 +75,46 @@ const TOOL_DENY_BY_MESSAGE_PROVIDER: Readonly<Record<string, readonly string[]>>
   voice: ["tts"],
 };
 const MEMORY_FLUSH_ALLOWED_TOOL_NAMES = new Set(["read", "write"]);
+const SANDBOX_BROWSER_BRIDGE_RESOLVE_TIMEOUT_MS = 5_000;
+const SANDBOX_BROWSER_BRIDGE_RESOLVE_INTERVAL_MS = 100;
 
-function resolveBrowserToolRuntimeContext(params: {
-  cfg?: AlisioConfig;
-  sessionKey?: string;
-  sandbox?: SandboxContext | null;
-}): {
+type BrowserToolRuntimeContext = {
   sandboxBridgeUrl?: string;
   allowHostControl: boolean;
   preferSandbox: boolean;
-} {
+};
+
+type BrowserToolRuntimeResolution = BrowserToolRuntimeContext & {
+  sandboxScopeKey?: string;
+};
+
+function resolveBrowserToolRuntimeResolution(params: {
+  cfg?: AlisioConfig;
+  sessionKey?: string;
+  sandbox?: SandboxContext | null;
+}): BrowserToolRuntimeResolution {
   const directSandboxBridgeUrl = params.sandbox?.browser?.bridgeUrl?.trim() || undefined;
   if (params.sandbox) {
+    const cfg = params.cfg;
+    const sandboxSessionKey = params.sandbox.sessionKey?.trim();
+    const sandboxScopeKey =
+      cfg && sandboxSessionKey
+        ? resolveSandboxScopeKey(
+            resolveSandboxConfigForAgent(
+              cfg,
+              resolveSessionAgentId({
+                sessionKey: sandboxSessionKey,
+                config: cfg,
+              }),
+            ).scope,
+            sandboxSessionKey,
+          )
+        : undefined;
     return {
       sandboxBridgeUrl: directSandboxBridgeUrl,
       allowHostControl: params.sandbox.browserAllowHostControl,
       preferSandbox: true,
+      sandboxScopeKey,
     };
   }
 
@@ -120,6 +147,7 @@ function resolveBrowserToolRuntimeContext(params: {
       sandboxBridgeUrl: directSandboxBridgeUrl ?? liveSandboxBridgeUrl,
       allowHostControl: sandboxCfg.browser.allowHostControl,
       preferSandbox: true,
+      sandboxScopeKey: liveScopeKey,
     };
   }
 
@@ -130,6 +158,7 @@ function resolveBrowserToolRuntimeContext(params: {
       sandboxBridgeUrl: directSandboxBridgeUrl,
       allowHostControl: forceSandboxFirst ? sandboxCfg.browser.allowHostControl : true,
       preferSandbox: forceSandboxFirst,
+      sandboxScopeKey: forceSandboxFirst ? liveScopeKey : undefined,
     };
   }
 
@@ -144,7 +173,50 @@ function resolveBrowserToolRuntimeContext(params: {
     sandboxBridgeUrl: directSandboxBridgeUrl ?? runtimeSandboxBridgeUrl,
     allowHostControl: sandboxBrowserEnabled ? sandboxCfg.browser.allowHostControl : true,
     preferSandbox: sandboxBrowserEnabled,
+    sandboxScopeKey: scopeKey,
   };
+}
+
+function resolveBrowserToolRuntimeContext(params: {
+  cfg?: AlisioConfig;
+  sessionKey?: string;
+  sandbox?: SandboxContext | null;
+}): BrowserToolRuntimeContext {
+  const resolution = resolveBrowserToolRuntimeResolution(params);
+  return {
+    sandboxBridgeUrl: resolution.sandboxBridgeUrl,
+    allowHostControl: resolution.allowHostControl,
+    preferSandbox: resolution.preferSandbox,
+  };
+}
+
+async function resolveLazySandboxBrowserBridgeUrl(params: {
+  cfg?: AlisioConfig;
+  sessionKey?: string;
+  sandbox?: SandboxContext | null;
+}): Promise<string | undefined> {
+  const resolution = resolveBrowserToolRuntimeResolution(params);
+  if (resolution.sandboxBridgeUrl?.trim()) {
+    return resolution.sandboxBridgeUrl.trim();
+  }
+  if (!resolution.preferSandbox || !resolution.sandboxScopeKey) {
+    return undefined;
+  }
+
+  const deadline = Date.now() + SANDBOX_BROWSER_BRIDGE_RESOLVE_TIMEOUT_MS;
+  while (Date.now() <= deadline) {
+    const nextBridgeUrl = (
+      await ensureLiveSandboxBrowserBridgeUrl(resolution.sandboxScopeKey, {
+        cfg: params.cfg,
+        sessionKey: params.sessionKey,
+      })
+    )?.trim();
+    if (nextBridgeUrl) {
+      return nextBridgeUrl;
+    }
+    await new Promise((resolve) => setTimeout(resolve, SANDBOX_BROWSER_BRIDGE_RESOLVE_INTERVAL_MS));
+  }
+  return getLiveSandboxBrowserBridgeUrl(resolution.sandboxScopeKey)?.trim() || undefined;
 }
 
 function normalizeMessageProvider(messageProvider?: string): string | undefined {
@@ -583,6 +655,12 @@ export function createAlisioCodingTools(options?: {
         sessionKey: options?.sessionKey,
         sandbox,
       }),
+      resolveSandboxBrowserBridgeUrl: () =>
+        resolveLazySandboxBrowserBridgeUrl({
+          cfg: options?.config,
+          sessionKey: options?.sessionKey,
+          sandbox,
+        }),
       agentSessionKey: options?.sessionKey,
       agentChannel: resolveGatewayMessageChannel(options?.messageProvider),
       agentAccountId: options?.agentAccountId,
