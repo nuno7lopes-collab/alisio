@@ -4,6 +4,7 @@ import Observation
 import OSLog
 import SwiftUI
 
+import AlisioIPC
 import AlisioSupport
 @MainActor
 @Observable
@@ -26,6 +27,7 @@ final class MacDesktopComputerStore {
     private(set) var errorText: String?
     private(set) var isBusy = false
     private(set) var lastUpdatedAt: Date?
+    private(set) var permissionRestartHint: String?
 
     @ObservationIgnored
     private let services: any MacNodeRuntimeMainActorServices
@@ -50,6 +52,22 @@ final class MacDesktopComputerStore {
 
     var needsPermissionGuidance: Bool {
         !self.permissions.accessibility || !self.permissions.screenRecording
+    }
+
+    var needsObservationPermission: Bool {
+        !self.permissions.screenRecording
+    }
+
+    var needsControlPermission: Bool {
+        !self.permissions.accessibility
+    }
+
+    var canStartSession: Bool {
+        self.permissions.screenRecording
+    }
+
+    var shouldAutoPresentPane: Bool {
+        self.sessionState != .stopped || self.frameImage != nil || self.observation != nil || self.errorText != nil
     }
 
     var statusLabel: String {
@@ -96,13 +114,27 @@ final class MacDesktopComputerStore {
         }
     }
 
-    func requestPermissions() {
+    func requestObservationPermission() {
+        self.requestPermissions([.screenRecording])
+    }
+
+    func requestControlPermission() {
+        self.requestPermissions([.accessibility])
+    }
+
+    private func requestPermissions(_ capabilities: [Capability]) {
         Task {
-            let granted = await PermissionManager.ensure([.accessibility, .screenRecording], interactive: true)
+            let previousPermissions = self.permissions
+            _ = await PermissionManager.ensure(capabilities, interactive: true)
+            let refreshedPermissions = await self.refreshPermissionState(fallback: previousPermissions)
             await MainActor.run {
-                self.permissions = MacNodeComputerPermissionPayload(
-                    accessibility: granted[.accessibility] ?? false,
-                    screenRecording: granted[.screenRecording] ?? false)
+                self.permissions = refreshedPermissions
+                self.permissionRestartHint = Self.resolvePermissionRestartHint(
+                    requestedCapabilities: capabilities,
+                    permissions: refreshedPermissions)
+                if refreshedPermissions.accessibility || refreshedPermissions.screenRecording {
+                    self.errorText = nil
+                }
             }
             await self.bootstrap()
         }
@@ -127,56 +159,29 @@ final class MacDesktopComputerStore {
     }
 
     func start() {
+        guard self.canStartSession else {
+            self.errorText = "Screen Recording permission required"
+            self.permissionRestartHint = Self.resolvePermissionRestartHint(
+                requestedCapabilities: [.screenRecording],
+                permissions: self.permissions)
+            return
+        }
         self.transition { services, sessionKey in
             try await services.startComputerSession(sessionKey)
         }
     }
 
     private func bootstrap() async {
-        self.runtime = await self.services.computerHealth(sessionId: self.sessionKey)
-        do {
-            let permissionState = try await self.services.computerPermissionState()
-            self.permissions = permissionState
-        } catch {
-            self.logger.error("computer permissions fetch failed \(error.localizedDescription, privacy: .public)")
-        }
-
-        do {
-            let session = try await self.services.startComputerSession(self.sessionKey)
-            self.applySession(session)
-            await self.refreshObservation()
-        } catch {
-            self.handle(error: error)
+        await self.refreshRuntimeAndPermissions()
+        if self.sessionState != .stopped {
+            await self.refreshObservationFrame()
         }
     }
 
     private func refreshObservation() async {
-        self.runtime = await self.services.computerHealth(sessionId: self.sessionKey)
-        do {
-            let permissionState = try await self.services.computerPermissionState()
-            self.permissions = permissionState
-        } catch {
-            self.logger.error("computer permissions refresh failed \(error.localizedDescription, privacy: .public)")
-        }
-
+        await self.refreshRuntimeAndPermissions()
         guard self.sessionState != .stopped else { return }
-
-        do {
-            let payload = try await self.services.observeComputer(self.sessionKey)
-            self.observation = payload
-            self.frameImage = Self.decodeImage(from: payload.frame.dataUrl)
-            self.lastUpdatedAt = Date()
-            self.errorText = nil
-            if let helperSession = self.runtime.helper?.activeSession,
-               helperSession.sessionId == self.sessionKey
-            {
-                self.sessionState = helperSession.state
-            } else {
-                self.sessionState = .running
-            }
-        } catch {
-            self.handle(error: error)
-        }
+        await self.refreshObservationFrame()
     }
 
     private func transition(
@@ -217,6 +222,9 @@ final class MacDesktopComputerStore {
         self.permissions = session.permissions
         self.runtime = session.health
         self.errorText = session.health.lastError?.message
+        if session.permissions.accessibility && session.permissions.screenRecording {
+            self.permissionRestartHint = nil
+        }
     }
 
     private func handle(error: Error) {
@@ -227,6 +235,85 @@ final class MacDesktopComputerStore {
         } else if self.runtime.connectionState == .invalidated || self.runtime.connectionState == .disabled {
             self.sessionState = .stopped
         }
+    }
+
+    private func refreshRuntimeAndPermissions() async {
+        self.runtime = await self.services.computerHealth(sessionId: self.sessionKey)
+        self.permissions = await self.refreshPermissionState(fallback: self.permissions)
+        self.syncSessionStateFromRuntime()
+        if self.permissions.accessibility && self.permissions.screenRecording {
+            self.permissionRestartHint = nil
+        }
+    }
+
+    private func refreshObservationFrame() async {
+        do {
+            let payload = try await self.services.observeComputer(self.sessionKey)
+            self.observation = payload
+            self.frameImage = Self.decodeImage(from: payload.frame.dataUrl)
+            self.lastUpdatedAt = Date()
+            self.errorText = nil
+            self.permissionRestartHint = nil
+            if let helperSession = self.runtime.helper?.activeSession,
+               helperSession.sessionId == self.sessionKey
+            {
+                self.sessionState = helperSession.state
+            } else {
+                self.sessionState = .running
+            }
+        } catch {
+            self.handle(error: error)
+        }
+    }
+
+    private func refreshPermissionState(
+        fallback: MacNodeComputerPermissionPayload) async -> MacNodeComputerPermissionPayload
+    {
+        do {
+            return try await self.services.computerPermissionState()
+        } catch {
+            self.logger.error("computer permissions refresh failed \(error.localizedDescription, privacy: .public)")
+            return fallback
+        }
+    }
+
+    private func syncSessionStateFromRuntime() {
+        if let helperSession = self.runtime.helper?.activeSession,
+           helperSession.sessionId == self.sessionKey
+        {
+            self.sessionState = helperSession.state
+            return
+        }
+
+        if self.runtime.connectionState == .invalidated || self.runtime.connectionState == .disabled {
+            self.sessionState = .stopped
+            self.observation = nil
+            self.frameImage = nil
+            return
+        }
+
+        self.sessionState = .stopped
+        self.observation = nil
+        self.frameImage = nil
+    }
+
+    private static func resolvePermissionRestartHint(
+        requestedCapabilities: [Capability],
+        permissions: MacNodeComputerPermissionPayload) -> String?
+    {
+        let missingObservation = requestedCapabilities.contains(.screenRecording) && !permissions.screenRecording
+        let missingControl = requestedCapabilities.contains(.accessibility) && !permissions.accessibility
+        guard missingObservation || missingControl else {
+            return nil
+        }
+
+        if missingObservation && missingControl {
+            return "If you just enabled Screen Recording or Accessibility in System Settings, restart Alisio before checking again."
+        }
+        if missingObservation {
+            return "If you just enabled Screen Recording in System Settings, restart Alisio before checking again."
+        }
+        return "If you just enabled Accessibility in System Settings, restart Alisio before checking again."
     }
 
     private func runtimeWith(

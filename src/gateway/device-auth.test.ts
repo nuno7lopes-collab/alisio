@@ -35,32 +35,32 @@ describe("device-auth payload vectors", () => {
           signedAtMs: 1_700_000_000_000,
           token: "tok-123",
           nonce: "nonce-abc",
-          platform: "  IOS  ",
-          deviceFamily: "  iPhone  ",
+          platform: "  WINDOWS  ",
+          deviceFamily: "  Laptop  ",
         }),
       expected:
-        "v3|dev-1|alisio-macos|ui|operator|operator.admin,operator.read|1700000000000|tok-123|nonce-abc|ios|iphone",
+        "v3|dev-1|alisio-macos|ui|operator|operator.admin,operator.read|1700000000000|tok-123|nonce-abc|windows|laptop",
     },
     {
       name: "keeps empty metadata slots in v3 payloads",
       build: () =>
         buildDeviceAuthPayloadV3({
           deviceId: "dev-2",
-          clientId: "alisio-ios",
+          clientId: "alisio-macos",
           clientMode: "ui",
           role: "operator",
           scopes: ["operator.read"],
           signedAtMs: 1_700_000_000_001,
           nonce: "nonce-def",
         }),
-      expected: "v3|dev-2|alisio-ios|ui|operator|operator.read|1700000000001||nonce-def||",
+      expected: "v3|dev-2|alisio-macos|ui|operator|operator.read|1700000000001||nonce-def||",
     },
   ])("$name", ({ build, expected }) => {
     expect(build()).toBe(expected);
   });
 
   it.each([
-    { input: "  İOS  ", expected: "İos" },
+    { input: "  WINDOWS  ", expected: "windows" },
     { input: "  MAC  ", expected: "mac" },
     { input: undefined, expected: "" },
   ])("normalizes metadata %j", ({ input, expected }) => {

@@ -59,8 +59,12 @@ export type AlisioAuthStage = "entry" | "email-link";
 import type { ProductChannelSurfaceMode } from "../../../src/channels/product-surface.shared.js";
 import type {
   ComputerApprovalMode,
+  ComputerCapabilityDescriptor,
+  ComputerCapabilityKind,
+  ComputerSessionBlockingState,
   ComputerPermissionState,
   ComputerSessionState,
+  ComputerSessionTarget,
 } from "../../../src/computer/types.js";
 import type { CronJobBase } from "../../../src/cron/types-shared.js";
 import type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
@@ -76,6 +80,12 @@ import type {
   SessionsPatchResultBase,
 } from "../../../src/shared/session-types.js";
 export type { ConfigUiHint, ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
+export type {
+  ComputerCapabilityDescriptor,
+  ComputerCapabilityKind,
+  ComputerSessionBlockingState,
+  ComputerSessionTarget,
+} from "../../../src/computer/types.js";
 
 export type ChannelsStatusSnapshot = {
   ts: number;
@@ -515,18 +525,8 @@ export type GatewaySessionRow = {
   relationship?: ConversationRelationship;
   label?: string;
   displayName?: string;
-  observer?: {
-    kind: "novnc";
-    url: string;
-    label?: string;
-  } | null;
   derivedTitle?: string;
   lastMessagePreview?: string;
-  browserObserver?: {
-    kind: "novnc";
-    url: string;
-    label?: string;
-  } | null;
   surface?: string;
   subject?: string;
   room?: string;
@@ -564,6 +564,13 @@ export type {
   ComputerFrame,
   ComputerObservationContext,
   ComputerPermissionState,
+  ComputerReplayAction,
+  ComputerReplayFrame,
+  ComputerSessionBufferState,
+  ComputerSessionExport,
+  ComputerSessionExportFrame,
+  ComputerSessionLogEvent,
+  ComputerReplayStep,
   ComputerSessionState,
   ComputerSessionStep,
   ComputerSessionStatus,
@@ -579,7 +586,7 @@ export type ComputerSessionUpdateResult = {
 };
 
 export type ComputerSessionPatch = {
-  command?: "pause" | "resume" | "stop";
+  command?: "start" | "pause" | "resume" | "stop";
   mode?: ComputerApprovalMode;
   permissions?: Partial<ComputerPermissionState>;
 };

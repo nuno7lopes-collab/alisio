@@ -28,19 +28,10 @@ import {
   buildSandboxCreateArgs,
   dockerContainerState,
   execDocker,
-  readDockerContainerEnvVar,
   readDockerContainerLabel,
   readDockerPort,
+  readDockerContainerEnvVar,
 } from "./docker.js";
-import {
-  buildNoVncObserverTargetUrl,
-  buildNoVncObserverTokenUrl,
-  consumeNoVncObserverToken,
-  generateNoVncPassword,
-  isNoVncEnabled,
-  NOVNC_PASSWORD_ENV_KEY,
-  issueNoVncObserverToken,
-} from "./novnc-auth.js";
 import {
   readBrowserRegistry,
   removeBrowserRegistryEntry,
@@ -73,8 +64,6 @@ type SandboxBrowserRegistrySnapshotEntry = {
   image: string;
   configHash?: string;
   cdpPort: number;
-  noVncPort?: number;
-  noVncPassword?: string;
 };
 
 type EnsureLiveSandboxBrowserBridgeOptions = {
@@ -142,33 +131,6 @@ function buildSandboxBrowserResolvedConfig(params: {
   };
 }
 
-export function getLiveSandboxBrowserObserverUrl(scopeKey: string): string | undefined {
-  scheduleSandboxBrowserBridgeBootstrap();
-  const existing = BROWSER_BRIDGES.get(scopeKey);
-  if (existing?.noVncPort) {
-    const token = issueNoVncObserverToken({
-      noVncPort: existing.noVncPort,
-      password: existing.noVncPassword,
-    });
-    return buildNoVncObserverTokenUrl(existing.bridge.baseUrl, token);
-  }
-  const registryEntry = getSandboxBrowserRegistrySnapshot(scopeKey);
-  if (!registryEntry?.noVncPort) {
-    return undefined;
-  }
-  const expectedHash = resolveExpectedSandboxBrowserConfigHash(scopeKey);
-  if (
-    expectedHash &&
-    (!registryEntry.configHash?.trim() || registryEntry.configHash.trim() !== expectedHash)
-  ) {
-    return undefined;
-  }
-  return buildNoVncObserverTargetUrl({
-    port: registryEntry.noVncPort,
-    password: registryEntry.noVncPassword,
-  });
-}
-
 export function getLiveSandboxBrowserBridgeUrl(scopeKey: string): string | undefined {
   scheduleSandboxBrowserBridgeBootstrap();
   return BROWSER_BRIDGES.get(scopeKey)?.bridge.baseUrl?.trim() || undefined;
@@ -216,14 +178,6 @@ function readBrowserRegistrySync() {
                 ? entry.configHash.trim()
                 : undefined,
             cdpPort,
-            noVncPort:
-              typeof entry.noVncPort === "number" && Number.isFinite(entry.noVncPort)
-                ? entry.noVncPort
-                : undefined,
-            noVncPassword:
-              typeof entry.noVncPassword === "string" && entry.noVncPassword.trim()
-                ? entry.noVncPassword.trim()
-                : undefined,
           };
         })
         .filter((entry): entry is SandboxBrowserRegistrySnapshotEntry => entry !== null)
@@ -278,10 +232,7 @@ function resolveExpectedSandboxBrowserConfigHash(
       docker: browserDockerCfg,
       browser: {
         cdpPort: sandboxCfg.browser.cdpPort,
-        vncPort: sandboxCfg.browser.vncPort,
-        noVncPort: sandboxCfg.browser.noVncPort,
         headless: sandboxCfg.browser.headless,
-        enableNoVnc: sandboxCfg.browser.enableNoVnc,
         cdpSourceRange,
       },
       securityEpoch: SANDBOX_BROWSER_SECURITY_HASH_EPOCH,
@@ -378,18 +329,15 @@ async function ensureSandboxBrowserBridgeHydratedFromRegistryEntry(
     }
   }
 
-  const noVncPassword =
-    entry.noVncPassword?.trim() ||
-    (entry.noVncPort
-      ? ((await readDockerContainerEnvVar(entry.containerName, NOVNC_PASSWORD_ENV_KEY)) ??
-        undefined)
-      : undefined);
+  const headless =
+    ((await readDockerContainerEnvVar(entry.containerName, "ALISIO_BROWSER_HEADLESS")) ?? "") ===
+    "1";
   const authToken = crypto.randomBytes(24).toString("hex");
   const bridge = await startBrowserBridgeServer({
     resolved: buildSandboxBrowserResolvedConfig({
       controlPort: 0,
       cdpPort: entry.cdpPort,
-      headless: !entry.noVncPort,
+      headless,
       evaluateEnabled: DEFAULT_BROWSER_EVALUATE_ENABLED,
     }),
     authToken,
@@ -408,19 +356,15 @@ async function ensureSandboxBrowserBridgeHydratedFromRegistryEntry(
         );
       }
     },
-    resolveSandboxNoVncToken: consumeNoVncObserverToken,
   });
   BROWSER_BRIDGES.set(entry.sessionKey, {
     bridge,
     containerName: entry.containerName,
     authToken,
-    noVncPort: entry.noVncPort,
-    noVncPassword,
   });
   await updateBrowserRegistry({
     ...entry,
     lastUsedAtMs: Date.now(),
-    noVncPassword,
   });
   return bridge.baseUrl?.trim() || undefined;
 }
@@ -560,10 +504,7 @@ export async function ensureSandboxBrowser(params: {
     docker: browserDockerCfg,
     browser: {
       cdpPort: params.cfg.browser.cdpPort,
-      vncPort: params.cfg.browser.vncPort,
-      noVncPort: params.cfg.browser.noVncPort,
       headless: params.cfg.browser.headless,
-      enableNoVnc: params.cfg.browser.enableNoVnc,
       cdpSourceRange,
     },
     securityEpoch: SANDBOX_BROWSER_SECURITY_HASH_EPOCH,
@@ -578,14 +519,7 @@ export async function ensureSandboxBrowser(params: {
   let currentHash: string | null = null;
   let hashMismatch = false;
   let recreateSkippedBecauseRemovalFailed = false;
-  const noVncEnabled = isNoVncEnabled(params.cfg.browser);
-  let noVncPassword: string | undefined;
-
   if (hasContainer) {
-    if (noVncEnabled) {
-      noVncPassword =
-        (await readDockerContainerEnvVar(containerName, NOVNC_PASSWORD_ENV_KEY)) ?? undefined;
-    }
     const registry = await readBrowserRegistry();
     const registryEntry = registry.entries.find((entry) => entry.containerName === containerName);
     currentHash = await readDockerContainerLabel(containerName, "alisio.configHash");
@@ -632,9 +566,6 @@ export async function ensureSandboxBrowser(params: {
   }
 
   if (!hasContainer) {
-    if (noVncEnabled) {
-      noVncPassword = generateNoVncPassword();
-    }
     await ensureDockerNetwork(browserDockerCfg.network, {
       allowContainerNamespaceJoin: browserDockerCfg.dangerouslyAllowContainerNamespaceJoin === true,
     });
@@ -664,24 +595,15 @@ export async function ensureSandboxBrowser(params: {
       }
     }
     args.push("-p", `127.0.0.1::${params.cfg.browser.cdpPort}`);
-    if (noVncEnabled) {
-      args.push("-p", `127.0.0.1::${params.cfg.browser.noVncPort}`);
-    }
     args.push("-e", `ALISIO_BROWSER_HEADLESS=${params.cfg.browser.headless ? "1" : "0"}`);
-    args.push("-e", `ALISIO_BROWSER_ENABLE_NOVNC=${params.cfg.browser.enableNoVnc ? "1" : "0"}`);
     args.push("-e", `ALISIO_BROWSER_CDP_PORT=${params.cfg.browser.cdpPort}`);
     if (cdpSourceRange) {
       args.push("-e", `${CDP_SOURCE_RANGE_ENV_KEY}=${cdpSourceRange}`);
     }
-    args.push("-e", `ALISIO_BROWSER_VNC_PORT=${params.cfg.browser.vncPort}`);
-    args.push("-e", `ALISIO_BROWSER_NOVNC_PORT=${params.cfg.browser.noVncPort}`);
     // Chromium's setuid/namespace sandbox cannot work inside Docker containers
     // (PID namespace creation requires privileges Docker does not grant by default).
     // The container itself provides isolation, so --no-sandbox is safe here.
     args.push("-e", "ALISIO_BROWSER_NO_SANDBOX=1");
-    if (noVncEnabled && noVncPassword) {
-      args.push("-e", `${NOVNC_PASSWORD_ENV_KEY}=${noVncPassword}`);
-    }
     args.push(browserImage);
     await execDocker(args);
     await execDocker(["start", containerName]);
@@ -692,14 +614,6 @@ export async function ensureSandboxBrowser(params: {
   const mappedCdp = await readDockerPort(containerName, params.cfg.browser.cdpPort);
   if (!mappedCdp) {
     throw new Error(`Failed to resolve CDP port mapping for ${containerName}.`);
-  }
-
-  const mappedNoVnc = noVncEnabled
-    ? await readDockerPort(containerName, params.cfg.browser.noVncPort)
-    : null;
-  if (noVncEnabled && !noVncPassword) {
-    noVncPassword =
-      (await readDockerContainerEnvVar(containerName, NOVNC_PASSWORD_ENV_KEY)) ?? undefined;
   }
 
   const existing = BROWSER_BRIDGES.get(params.scopeKey);
@@ -774,7 +688,6 @@ export async function ensureSandboxBrowser(params: {
       authToken: desiredAuthToken,
       authPassword: desiredAuthPassword,
       onEnsureAttachTarget,
-      resolveSandboxNoVncToken: consumeNoVncObserverToken,
     });
   };
 
@@ -784,8 +697,6 @@ export async function ensureSandboxBrowser(params: {
     containerName,
     authToken: desiredAuthToken,
     authPassword: desiredAuthPassword,
-    noVncPort: mappedNoVnc ?? undefined,
-    noVncPassword,
   });
 
   await updateBrowserRegistry({
@@ -799,24 +710,10 @@ export async function ensureSandboxBrowser(params: {
         ? (currentHash ?? undefined)
         : expectedHash,
     cdpPort: mappedCdp,
-    noVncPort: mappedNoVnc ?? undefined,
-    noVncPassword,
   });
-
-  const noVncUrl =
-    mappedNoVnc && noVncEnabled
-      ? (() => {
-          const token = issueNoVncObserverToken({
-            noVncPort: mappedNoVnc,
-            password: noVncPassword,
-          });
-          return buildNoVncObserverTokenUrl(resolvedBridge.baseUrl, token);
-        })()
-      : undefined;
 
   return {
     bridgeUrl: resolvedBridge.baseUrl,
-    noVncUrl,
     containerName,
   };
 }

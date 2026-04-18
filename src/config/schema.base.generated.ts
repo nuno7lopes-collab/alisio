@@ -3287,20 +3287,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                       cdpSourceRange: {
                         type: "string",
                       },
-                      vncPort: {
-                        type: "integer",
-                        exclusiveMinimum: 0,
-                        maximum: 9007199254740991,
-                      },
-                      noVncPort: {
-                        type: "integer",
-                        exclusiveMinimum: 0,
-                        maximum: 9007199254740991,
-                      },
                       headless: {
-                        type: "boolean",
-                      },
-                      enableNoVnc: {
                         type: "boolean",
                       },
                       allowHostControl: {
@@ -4532,20 +4519,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                         cdpSourceRange: {
                           type: "string",
                         },
-                        vncPort: {
-                          type: "integer",
-                          exclusiveMinimum: 0,
-                          maximum: 9007199254740991,
-                        },
-                        noVncPort: {
-                          type: "integer",
-                          exclusiveMinimum: 0,
-                          maximum: 9007199254740991,
-                        },
                         headless: {
-                          type: "boolean",
-                        },
-                        enableNoVnc: {
                           type: "boolean",
                         },
                         allowHostControl: {
@@ -10801,32 +10775,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
             },
             additionalProperties: false,
           },
-          push: {
-            type: "object",
-            properties: {
-              apns: {
-                type: "object",
-                properties: {
-                  relay: {
-                    type: "object",
-                    properties: {
-                      baseUrl: {
-                        type: "string",
-                      },
-                      timeoutMs: {
-                        type: "integer",
-                        exclusiveMinimum: 0,
-                        maximum: 9007199254740991,
-                      },
-                    },
-                    additionalProperties: false,
-                  },
-                },
-                additionalProperties: false,
-              },
-            },
-            additionalProperties: false,
-          },
           nodes: {
             type: "object",
             properties: {
@@ -13206,32 +13154,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: "Disables Control UI device identity checks and relies on token/password only. Use only for short-lived debugging on trusted networks, then turn it off immediately.",
       tags: ["security", "access", "network", "advanced"],
     },
-    "gateway.push": {
-      label: "Gateway Push Delivery",
-      help: "Push-delivery settings used by the gateway when it needs to wake or notify paired devices. Configure relay-backed APNs here for official iOS builds; direct APNs auth remains env-based for local/manual builds.",
-      tags: ["network"],
-    },
-    "gateway.push.apns": {
-      label: "Gateway APNs Delivery",
-      help: "APNs delivery settings for iOS devices paired to this gateway. Use relay settings for official/TestFlight builds that register through the external push relay.",
-      tags: ["network"],
-    },
-    "gateway.push.apns.relay": {
-      label: "Gateway APNs Relay",
-      help: "External relay settings for relay-backed APNs sends. The gateway uses this relay for push.test, wake nudges, and reconnect wakes after a paired official iOS build publishes a relay-backed registration.",
-      tags: ["network"],
-    },
-    "gateway.push.apns.relay.baseUrl": {
-      label: "Gateway APNs Relay Base URL",
-      help: "Base HTTPS URL for the external APNs relay service used by official/TestFlight iOS builds. Keep this aligned with the relay URL baked into the iOS build so registration and send traffic hit the same deployment.",
-      placeholder: "https://relay.example.com",
-      tags: ["network", "advanced", "url-secret"],
-    },
-    "gateway.push.apns.relay.timeoutMs": {
-      label: "Gateway APNs Relay Timeout (ms)",
-      help: "Timeout in milliseconds for relay send requests from the gateway to the APNs relay (default: 10000). Increase for slower relays or networks, or lower to fail wake attempts faster.",
-      tags: ["network", "performance"],
-    },
     "gateway.http.endpoints.chatCompletions.enabled": {
       label: "OpenAI Chat Completions Endpoint",
       help: "Enable the OpenAI-compatible `POST /v1/chat/completions` endpoint (default: false).",
@@ -15321,7 +15243,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "talk.silenceTimeoutMs": {
       label: "Talk Silence Timeout (ms)",
-      help: "Milliseconds of user silence before Talk mode finalizes and sends the current transcript. Leave unset to keep the platform default pause window (700 ms on macOS and Android, 900 ms on iOS).",
+      help: "Milliseconds of user silence before Talk mode finalizes and sends the current transcript. Leave unset to keep the platform default pause window (700 ms on macOS).",
       tags: ["performance", "media"],
     },
     "messages.messagePrefix": {

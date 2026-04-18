@@ -4,8 +4,11 @@ import { t } from "../../i18n/index.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { AlisioSharingState } from "../types.ts";
 import { generateUUID } from "../uuid.ts";
-import type { DevicePairingList } from "./devices.ts";
-import type { RuntimeNodePairingList } from "./node-pairing.ts";
+import {
+  computerNodeSupportsExec,
+  isComputerNodeConnected,
+  type ComputersCatalogState,
+} from "./computers.ts";
 
 type SharingTarget = AlisioSharingState["devices"]["owned"][number];
 type SharingAccess = SharingTarget["execAccess"];
@@ -84,18 +87,11 @@ export type RemoteComputersState = {
   remoteComputerTasks: Record<string, RemoteComputerTaskRecord[]>;
 };
 
-type RemoteComputerCatalogState = {
-  sharing: AlisioSharingState | null;
-  nodes: NodeListNode[];
-  devicesList: DevicePairingList | null;
-  nodePairingsList: RuntimeNodePairingList | null;
-};
-
 type RemoteComputerCatalogCache = {
   sharing: AlisioSharingState | null;
   nodes: NodeListNode[];
-  devicesList: DevicePairingList | null;
-  nodePairingsList: RuntimeNodePairingList | null;
+  devicesList: ComputersCatalogState["devicesList"];
+  nodePairingsList: ComputersCatalogState["nodePairingsList"];
   result: RemoteComputerRecord[];
 };
 
@@ -144,25 +140,6 @@ function normalizeString(value: unknown): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
-}
-
-type ExecCapabilityRecord = {
-  commands?: string[];
-  caps?: string[];
-  capabilities?: Array<{ id?: string | null }>;
-};
-
-function supportsExec(node: ExecCapabilityRecord | null | undefined) {
-  const commands = Array.isArray(node?.commands) ? node.commands : [];
-  if (commands.includes("system.run")) {
-    return true;
-  }
-  const caps = Array.isArray(node?.caps) ? node.caps : [];
-  if (caps.some((capability) => capability.trim() === "exec.shell.v1")) {
-    return true;
-  }
-  const capabilities = Array.isArray(node?.capabilities) ? node.capabilities : [];
-  return capabilities.some((capability) => capability.id?.trim() === "exec.shell.v1");
 }
 
 function resolveTargetPhase(params: {
@@ -392,8 +369,8 @@ export function resolveRemoteComputerRecords(
     }
     const node = nodeById.get(targetId) ?? null;
     const pairedNode = pairedNodeById.get(targetId) ?? null;
-    const connected = node?.connected === true || target.connected;
-    const execReady = supportsExec(node) || supportsExec(pairedNode);
+    const connected = isComputerNodeConnected(node) || target.connected;
+    const execReady = computerNodeSupportsExec(node) || computerNodeSupportsExec(pairedNode);
     const computerId = normalizeString(target.computerId) ?? targetId;
     const sameAccount = viewerOwnerKey !== null && target.ownerKey === viewerOwnerKey;
     const candidate = {

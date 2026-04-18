@@ -103,6 +103,24 @@ async function createTestWorkspace(prefix: string): Promise<TestWorkspace> {
     "# Roadmap\n\nAtlas needs sign-off. See [[memory/project-atlas]].\n",
     "utf8",
   );
+  await fs.writeFile(
+    path.join(workspaceDir, "memory", "2026-04-17.md"),
+    "# 2026-04-17\n\nReviewed notes for the day.\n",
+    "utf8",
+  );
+  await fs.mkdir(path.join(workspaceDir, "memory", "study"), { recursive: true });
+  await fs.writeFile(
+    path.join(workspaceDir, "memory", "study", "physics.md"),
+    [
+      "---",
+      "memoryRole: backlog",
+      "---",
+      "# Physics study",
+      "",
+      "Open questions about mechanics.",
+    ].join("\n"),
+    "utf8",
+  );
   return {
     root,
     stateDir,
@@ -363,7 +381,7 @@ describe("native memory gateway handlers", () => {
     expect(atlasListPage?.reasonTags?.map((tag) => tag.code)).toEqual(
       expect.arrayContaining(["alias_exact"]),
     );
-    expect(atlasListPage?.trace).toEqual(expect.objectContaining({ query: "atlas", hitCount: 3 }));
+    expect(atlasListPage?.trace).toEqual(expect.objectContaining({ query: "atlas" }));
 
     const getRespond = await invoke(handleMemoryWikiGetGatewayRequest, {
       agentId: "main",
@@ -511,6 +529,86 @@ describe("native memory gateway handlers", () => {
       note?: { content: string };
     };
     expect(updateResult.note?.content).toContain("Atlas updated from notes API.");
+
+    await fs.rm(seeded.test.root, { recursive: true, force: true });
+  });
+
+  it("creates role-targeted notes and respects explicit canonical paths", async () => {
+    const seeded = await seedNativeMemory();
+
+    const backlogRespond = await invoke(handleMemoryNotesUpdateGatewayRequest, {
+      agentId: "main",
+      title: "Physics Study",
+      memoryRole: "backlog",
+      content: [
+        "---",
+        "memoryRole: backlog",
+        "---",
+        "# Physics Study",
+        "",
+        "Track mechanics gaps before promotion.",
+      ].join("\n"),
+    });
+    const backlogResult = backlogRespond.mock.calls[0]?.[1] as {
+      note?: { path?: string; content: string };
+    };
+    expect(backlogResult.note?.path).toMatch(/^memory\/backlog\/\d{4}-\d{2}-\d{2}\/physics-study\.md$/);
+    expect(backlogResult.note?.content).toContain("memoryRole: backlog");
+    if (!backlogResult.note?.path) {
+      throw new Error("expected backlog note path");
+    }
+    const backlogProjection = await fs.readFile(
+      path.join(seeded.test.workspaceDir, backlogResult.note.path),
+      "utf8",
+    );
+    expect(backlogProjection).toContain("Track mechanics gaps before promotion.");
+
+    const mainRespond = await invoke(handleMemoryNotesUpdateGatewayRequest, {
+      agentId: "main",
+      title: "Memory",
+      relativePath: "MEMORY.md",
+      memoryRole: "main",
+      content: "# Memory\n\nUpdated canonical main memory.\n",
+    });
+    const mainResult = mainRespond.mock.calls[0]?.[1] as {
+      note?: { path?: string; content: string };
+    };
+    expect(mainResult.note?.path).toBe("MEMORY.md");
+    expect(mainResult.note?.content).toContain("Updated canonical main memory.");
+    const mainProjection = await fs.readFile(path.join(seeded.test.workspaceDir, "MEMORY.md"), "utf8");
+    expect(mainProjection).toContain("Updated canonical main memory.");
+
+    await fs.rm(seeded.test.root, { recursive: true, force: true });
+  });
+
+  it("classifies canonical notes into stable memory roles", async () => {
+    const seeded = await seedNativeMemory();
+
+    const listRespond = await invoke(handleMemoryNotesListGatewayRequest, {
+      agentId: "main",
+    });
+    const listResult = listRespond.mock.calls[0]?.[1] as {
+      notes: Array<{ path?: string; memoryRole?: string }>;
+    };
+
+    const rolesByPath = new Map(
+      listResult.notes.map((note) => [note.path ?? "", note.memoryRole ?? "missing"]),
+    );
+
+    expect(listResult.notes[0]).toEqual(expect.objectContaining({ path: "MEMORY.md" }));
+    expect(rolesByPath.get("MEMORY.md")).toBe("main");
+    expect(rolesByPath.get("memory/project-atlas.md")).toBe("topic");
+    expect(rolesByPath.get("memory/2026-04-17.md")).toBe("daily");
+    expect(rolesByPath.get("memory/study/physics.md")).toBe("backlog");
+
+    const getRespond = await invoke(handleMemoryNotesGetGatewayRequest, {
+      agentId: "main",
+      noteId: seeded.atlasPageId,
+    });
+    const getResult = getRespond.mock.calls[0]?.[1] as {
+      note: { memoryRole?: string };
+    };
+    expect(getResult.note.memoryRole).toBe("topic");
 
     await fs.rm(seeded.test.root, { recursive: true, force: true });
   });

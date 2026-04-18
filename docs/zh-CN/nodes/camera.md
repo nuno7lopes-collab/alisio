@@ -18,7 +18,6 @@ x-i18n:
 Alisio 支持用于智能体工作流的**相机捕获**：
 
 - **iOS 节点**（通过 Gateway 网关配对）：通过 `node.invoke` 捕获**照片**（`jpg`）或**短视频片段**（`mp4`，可选音频）。
-- **Android 节点**（通过 Gateway 网关配对）：通过 `node.invoke` 捕获**照片**（`jpg`）或**短视频片段**（`mp4`，可选音频）。
 - **macOS 应用**（通过 Gateway 网关的节点）：通过 `node.invoke` 捕获**照片**（`jpg`）或**短视频片段**（`mp4`，可选音频）。
 
 所有相机访问都受**用户控制的设置**限制。
@@ -86,17 +85,14 @@ alisio nodes camera clip --node <id> --no-audio
 - `nodes camera snap` 默认拍摄**两个**方向以给智能体提供两个视角。
 - 输出文件是临时的（在操作系统临时目录中），除非你构建自己的包装器。
 
-## Android 节点
 
 ### 用户设置（默认开启）
 
-- Android 设置页 → **相机** → **允许相机**（`camera.enabled`）
   - 默认：**开启**（缺少键时视为启用）。
   - 关闭时：`camera.*` 命令返回 `CAMERA_DISABLED`。
 
 ### 权限
 
-- Android 需要运行时权限：
   - `CAMERA` 用于 `camera.snap` 和 `camera.clip`。
   - `RECORD_AUDIO` 用于 `includeAudio=true` 时的 `camera.clip`。
 
@@ -104,7 +100,6 @@ alisio nodes camera clip --node <id> --no-audio
 
 ### 前台要求
 
-与 `canvas.*` 类似，Android 节点仅允许在**前台**执行 `camera.*` 命令。后台调用返回 `NODE_BACKGROUND_UNAVAILABLE`。
 
 ### 载荷保护
 

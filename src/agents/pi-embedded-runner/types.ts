@@ -98,7 +98,6 @@ export type EmbeddedSandboxInfo = {
   workspaceAccess?: "none" | "ro" | "rw";
   agentWorkspaceMount?: string;
   browserBridgeUrl?: string;
-  browserNoVncUrl?: string;
   hostBrowserAllowed?: boolean;
   elevated?: {
     allowed: boolean;

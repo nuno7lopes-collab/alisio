@@ -7,9 +7,7 @@ import type { SandboxConfig } from "./types.js";
 let BROWSER_BRIDGES: Map<string, unknown>;
 let ensureSandboxBrowser: typeof import("./browser.js").ensureSandboxBrowser;
 let getLiveSandboxBrowserBridgeUrl: typeof import("./browser.js").getLiveSandboxBrowserBridgeUrl;
-let getLiveSandboxBrowserObserverUrl: typeof import("./browser.js").getLiveSandboxBrowserObserverUrl;
 let browserTesting: typeof import("./browser.js").__testing;
-let resetNoVncObserverTokensForTests: typeof import("./novnc-auth.js").resetNoVncObserverTokensForTests;
 
 const dockerMocks = vi.hoisted(() => ({
   dockerContainerState: vi.fn(),
@@ -71,13 +69,11 @@ async function loadFreshBrowserModulesForTest() {
   ({
     ensureSandboxBrowser,
     getLiveSandboxBrowserBridgeUrl,
-    getLiveSandboxBrowserObserverUrl,
     __testing: browserTesting,
   } = await import("./browser.js"));
-  ({ resetNoVncObserverTokensForTests } = await import("./novnc-auth.js"));
 }
 
-function buildConfig(enableNoVnc: boolean): SandboxConfig {
+function buildConfig(): SandboxConfig {
   return {
     mode: "all",
     backend: "docker",
@@ -106,10 +102,7 @@ function buildConfig(enableNoVnc: boolean): SandboxConfig {
       containerPrefix: "alisio-sbx-browser-",
       network: "alisio-sandbox-browser",
       cdpPort: 9222,
-      vncPort: 5900,
-      noVncPort: 6080,
       headless: false,
-      enableNoVnc,
       allowHostControl: false,
       autoStart: true,
       autoStartTimeoutMs: 12_000,
@@ -125,8 +118,8 @@ function buildConfig(enableNoVnc: boolean): SandboxConfig {
   };
 }
 
-function buildRuntimeConfig(enableNoVnc: boolean): AlisioConfig {
-  const sandbox = buildConfig(enableNoVnc);
+function buildRuntimeConfig(): AlisioConfig {
+  const sandbox = buildConfig();
   return {
     agents: {
       defaults: {
@@ -157,7 +150,6 @@ describe("ensureSandboxBrowser create args", () => {
   beforeEach(async () => {
     await loadFreshBrowserModulesForTest();
     BROWSER_BRIDGES.clear();
-    resetNoVncObserverTokensForTests();
     dockerMocks.dockerContainerState.mockClear();
     dockerMocks.execDocker.mockClear();
     dockerMocks.readDockerContainerEnvVar.mockClear();
@@ -183,9 +175,6 @@ describe("ensureSandboxBrowser create args", () => {
       if (port === 9222) {
         return 49100;
       }
-      if (port === 6080) {
-        return 49101;
-      }
       return null;
     });
     registryMocks.readBrowserRegistry.mockResolvedValue({ entries: [] });
@@ -204,46 +193,28 @@ describe("ensureSandboxBrowser create args", () => {
     bridgeMocks.stopBrowserBridgeServer.mockResolvedValue(undefined);
   });
 
-  it("publishes noVNC on loopback and injects noVNC password env", async () => {
+  it("publishes only loopback CDP and returns bridge metadata only", async () => {
     const result = await ensureSandboxBrowser({
       scopeKey: "session:test",
       workspaceDir: "/tmp/workspace",
       agentWorkspaceDir: "/tmp/workspace",
-      cfg: buildConfig(true),
+      cfg: buildConfig(),
     });
 
     const createArgs = findDockerArgsCall(dockerMocks.execDocker.mock.calls, "create");
 
     expect(createArgs).toBeDefined();
-    expect(createArgs).toContain("127.0.0.1::6080");
     const envEntries = collectDockerFlagValues(createArgs ?? [], "-e");
     expect(envEntries).toContain("ALISIO_BROWSER_NO_SANDBOX=1");
-    const passwordEntry = envEntries.find((entry) =>
-      entry.startsWith("ALISIO_BROWSER_NOVNC_PASSWORD="),
-    );
-    expect(passwordEntry).toMatch(/^ALISIO_BROWSER_NOVNC_PASSWORD=[A-Za-z0-9]{8}$/);
-    expect(result?.noVncUrl).toMatch(/^http:\/\/127\.0\.0\.1:19000\/sandbox\/novnc\?token=/);
-    expect(result?.noVncUrl).not.toContain("password=");
-  });
-
-  it("does not inject noVNC password env when noVNC is disabled", async () => {
-    const result = await ensureSandboxBrowser({
-      scopeKey: "session:test",
-      workspaceDir: "/tmp/workspace",
-      agentWorkspaceDir: "/tmp/workspace",
-      cfg: buildConfig(false),
+    expect(envEntries.some((entry) => /^ALISIO_BROWSER_.*PASSWORD=/.test(entry))).toBe(false);
+    expect(result).toStrictEqual({
+      bridgeUrl: "http://127.0.0.1:19000",
+      containerName: expect.any(String),
     });
-
-    const createArgs = findDockerArgsCall(dockerMocks.execDocker.mock.calls, "create");
-    const envEntries = collectDockerFlagValues(createArgs ?? [], "-e");
-    expect(envEntries.some((entry) => entry.startsWith("ALISIO_BROWSER_NOVNC_PASSWORD="))).toBe(
-      false,
-    );
-    expect(result?.noVncUrl).toBeUndefined();
   });
 
   it("mounts the main workspace read-only when workspaceAccess is none", async () => {
-    const cfg = buildConfig(false);
+    const cfg = buildConfig();
     cfg.workspaceAccess = "none";
 
     await ensureSandboxBrowser({
@@ -260,7 +231,7 @@ describe("ensureSandboxBrowser create args", () => {
   });
 
   it("keeps the main workspace writable when workspaceAccess is rw", async () => {
-    const cfg = buildConfig(false);
+    const cfg = buildConfig();
     cfg.workspaceAccess = "rw";
 
     await ensureSandboxBrowser({
@@ -278,7 +249,7 @@ describe("ensureSandboxBrowser create args", () => {
   });
 
   it("recreates hot browser containers immediately when no active run uses the sandbox scope", async () => {
-    const cfg = buildConfig(true);
+    const cfg = buildConfig();
     const containerName = `alisio-sbx-browser-${slugifySessionKey("session:test")}`.slice(0, 63);
 
     dockerMocks.dockerContainerState.mockResolvedValue({ exists: true, running: true });
@@ -293,7 +264,6 @@ describe("ensureSandboxBrowser create args", () => {
           image: cfg.browser.image,
           configHash: "stale-hash",
           cdpPort: 49100,
-          noVncPort: 49101,
         },
       ],
     });
@@ -311,7 +281,7 @@ describe("ensureSandboxBrowser create args", () => {
   });
 
   it("reuses the current browser container when rm -f fails to remove a stale runtime", async () => {
-    const cfg = buildConfig(true);
+    const cfg = buildConfig();
     const containerName = `alisio-sbx-browser-${slugifySessionKey("session:test")}`.slice(0, 63);
 
     dockerMocks.dockerContainerState
@@ -328,7 +298,6 @@ describe("ensureSandboxBrowser create args", () => {
           image: cfg.browser.image,
           configHash: "stale-hash",
           cdpPort: 49100,
-          noVncPort: 49101,
         },
       ],
     });
@@ -354,7 +323,7 @@ describe("ensureSandboxBrowser create args", () => {
   });
 
   it("keeps hot browser containers running when an active run still uses the sandbox scope", async () => {
-    const cfg = buildConfig(true);
+    const cfg = buildConfig();
     const containerName = `alisio-sbx-browser-${slugifySessionKey("session:test")}`.slice(0, 63);
 
     embeddedRunMocks.hasActiveEmbeddedRunForSandboxScope.mockReturnValue(true);
@@ -370,7 +339,6 @@ describe("ensureSandboxBrowser create args", () => {
           image: cfg.browser.image,
           configHash: "stale-hash",
           cdpPort: 49100,
-          noVncPort: 49101,
         },
       ],
     });
@@ -397,8 +365,6 @@ describe("ensureSandboxBrowser create args", () => {
           lastUsedAtMs: Date.now(),
           image: "alisio-sandbox-browser:bookworm-slim",
           cdpPort: 49100,
-          noVncPort: 49101,
-          noVncPassword: "Abc12345",
         },
       ],
     });
@@ -407,9 +373,6 @@ describe("ensureSandboxBrowser create args", () => {
     await browserTesting.bootstrapSandboxBrowserBridges();
 
     expect(getLiveSandboxBrowserBridgeUrl("session:test")).toBe("http://127.0.0.1:19000");
-    expect(getLiveSandboxBrowserObserverUrl("session:test")).toMatch(
-      /^http:\/\/127\.0\.0\.1:19000\/sandbox\/novnc\?token=/,
-    );
     expect(bridgeMocks.startBrowserBridgeServer).toHaveBeenCalledTimes(1);
   });
 
@@ -423,8 +386,6 @@ describe("ensureSandboxBrowser create args", () => {
           lastUsedAtMs: Date.now(),
           image: "alisio-sandbox-browser:bookworm-slim",
           cdpPort: 49100,
-          noVncPort: 49101,
-          noVncPassword: "Abc12345",
         },
       ],
     });
@@ -451,8 +412,6 @@ describe("ensureSandboxBrowser create args", () => {
           image: "alisio-sandbox-browser:bookworm-slim",
           configHash: "stale-hash",
           cdpPort: 49100,
-          noVncPort: 49101,
-          noVncPassword: "Abc12345",
         },
       ],
     });
@@ -462,7 +421,7 @@ describe("ensureSandboxBrowser create args", () => {
     dockerMocks.readDockerContainerLabel.mockResolvedValue("stale-hash");
 
     const ensured = await browserTesting.ensureLiveSandboxBrowserBridgeUrl("session:test", {
-      cfg: buildRuntimeConfig(true),
+      cfg: buildRuntimeConfig(),
       sessionKey: "session:test",
     });
 

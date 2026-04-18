@@ -2,15 +2,74 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { getMemorySearchManager } from "alisio/plugin-sdk/memory-core-engine-runtime";
 import {
-  resolveCanonicalMemoryDailyNoteTarget,
+  resolveCanonicalMemoryBacklogNoteTarget,
   type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
-import { appendFileWithinRoot } from "../infra/fs-safe.js";
+import { writeFileWithinRoot } from "../infra/fs-safe.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("memory/daily-memory");
 
-export function buildSessionMemoryDailyEntry(params: {
+function humanizeSlug(value: string): string {
+  return value
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function toYamlQuoted(value: string): string {
+  return JSON.stringify(value);
+}
+
+function summarizeSessionContent(value: string | null | undefined): string {
+  const normalized = value?.replace(/\s+/g, " ").trim() ?? "";
+  if (!normalized) {
+    return "Session snapshot pending promotion.";
+  }
+  return normalized.length <= 140 ? normalized : `${normalized.slice(0, 139).trimEnd()}…`;
+}
+
+function resolveUniqueBacklogRelativePath(
+  existing: Set<string>,
+  relativePath: string,
+): string {
+  if (!existing.has(relativePath)) {
+    return relativePath;
+  }
+  const ext = path.posix.extname(relativePath) || ".md";
+  const stem = relativePath.slice(0, -ext.length);
+  for (let index = 2; index < 10_000; index += 1) {
+    const candidate = `${stem}-${index}${ext}`;
+    if (!existing.has(candidate)) {
+      return candidate;
+    }
+  }
+  return `${stem}-${Date.now().toString(36)}${ext}`;
+}
+
+async function listExistingBacklogRelativePaths(params: {
+  workspaceDir: string;
+  relativeDir: string;
+}): Promise<Set<string>> {
+  const absoluteDir = path.join(params.workspaceDir, params.relativeDir);
+  try {
+    const entries = await fs.readdir(absoluteDir, { withFileTypes: true });
+    return new Set(
+      entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => path.posix.join(params.relativeDir, entry.name).replace(/\\/g, "/")),
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return new Set();
+    }
+    throw error;
+  }
+}
+
+export function buildSessionMemoryBacklogNote(params: {
+  cfg?: AlisioConfig;
   nowMs: number;
   slug?: string | null;
   action: "new" | "reset";
@@ -18,34 +77,61 @@ export function buildSessionMemoryDailyEntry(params: {
   sessionId: string;
   source: string;
   sessionContent?: string | null;
-}): string {
+}): {
+  title: string;
+  relativePath: string;
+  content: string;
+} {
   const now = new Date(params.nowMs);
-  const timeStr = now.toISOString().split("T")[1]?.split(".")[0] ?? "00:00:00";
-  const normalizedSlug = params.slug?.trim();
-  const fallbackSlug = timeStr.replace(/:/g, "").slice(0, 4);
-  const headingSuffix =
-    normalizedSlug && normalizedSlug !== fallbackSlug ? ` - ${normalizedSlug}` : "";
+  const isoTimestamp = now.toISOString();
+  const timeStr = isoTimestamp.split("T")[1]?.split(".")[0] ?? "00:00:00";
+  const target = resolveCanonicalMemoryBacklogNoteTarget({
+    cfg: params.cfg,
+    nowMs: params.nowMs,
+    slug: params.slug,
+    title: params.slug,
+  });
+  const titleSuffix = humanizeSlug(target.slug) || `${timeStr} UTC`;
+  const title = `Session ${params.action} - ${titleSuffix}`;
+  const summary = summarizeSessionContent(params.sessionContent);
+  const sessionContent = params.sessionContent?.trim();
   const lines = [
-    `## ${timeStr} UTC${headingSuffix}`,
+    "---",
+    `summary: ${toYamlQuoted(summary)}`,
+    "memoryRole: backlog",
+    "backlogStatus: pending",
+    `capturedAt: ${toYamlQuoted(isoTimestamp)}`,
+    `sessionAction: ${toYamlQuoted(params.action)}`,
+    `sessionKey: ${toYamlQuoted(params.sessionKey)}`,
+    `sessionId: ${toYamlQuoted(params.sessionId)}`,
+    `source: ${toYamlQuoted(params.source)}`,
+    "tags:",
+    "  - backlog",
+    "  - session-memory",
+    "---",
+    `# ${title}`,
     "",
+    "## Context",
+    "",
+    `- **Captured At**: ${isoTimestamp}`,
     `- **Action**: /${params.action}`,
     `- **Session Key**: ${params.sessionKey}`,
     `- **Session ID**: ${params.sessionId}`,
     `- **Source**: ${params.source}`,
     "",
+    "## Conversation Summary",
+    "",
   ];
-  const sessionContent = params.sessionContent?.trim();
   if (sessionContent) {
-    lines.push("### Conversation Summary", "", sessionContent, "");
+    lines.push(sessionContent, "");
+  } else {
+    lines.push("No transcript summary was available for this session snapshot.", "");
   }
-  return lines.join("\n").trim();
-}
-
-export function resolveCanonicalDailyMemoryRelativePath(params: {
-  cfg?: AlisioConfig;
-  nowMs?: number;
-}): string {
-  return resolveCanonicalMemoryDailyNoteTarget(params).relativePath;
+  return {
+    title,
+    relativePath: target.relativePath,
+    content: `${lines.join("\n").trim()}\n`,
+  };
 }
 
 export async function readWorkspaceMemoryFileText(params: {
@@ -62,36 +148,28 @@ export async function readWorkspaceMemoryFileText(params: {
   }
 }
 
-export async function appendCanonicalDailyMemoryEntry(params: {
-  cfg?: AlisioConfig;
-  agentId: string;
+export async function writeCanonicalBacklogMemoryNote(params: {
   workspaceDir: string;
-  entry: string;
-  nowMs?: number;
+  note: ReturnType<typeof buildSessionMemoryBacklogNote>;
 }): Promise<{ relativePath: string; absolutePath: string }> {
-  const entry = params.entry.trim();
-  const relativePath = resolveCanonicalDailyMemoryRelativePath({
-    cfg: params.cfg,
-    nowMs: params.nowMs,
-  });
-  const absolutePath = path.join(params.workspaceDir, relativePath);
-  if (!entry) {
-    return { relativePath, absolutePath };
-  }
-
-  const existing = await readWorkspaceMemoryFileText({
+  const relativeDir =
+    path.posix.dirname(params.note.relativePath).replace(/\\/g, "/") || "memory/backlog";
+  const existing = await listExistingBacklogRelativePaths({
     workspaceDir: params.workspaceDir,
-    relativePath,
+    relativeDir,
   });
-  const payload = existing && existing.trim().length > 0 ? `\n\n${entry}\n` : `${entry}\n`;
-  await appendFileWithinRoot({
+  const relativePath = resolveUniqueBacklogRelativePath(existing, params.note.relativePath);
+  await writeFileWithinRoot({
     rootDir: params.workspaceDir,
     relativePath,
-    data: payload,
+    data: params.note.content,
     encoding: "utf8",
     mkdir: true,
   });
-  return { relativePath, absolutePath };
+  return {
+    relativePath,
+    absolutePath: path.join(params.workspaceDir, relativePath),
+  };
 }
 
 export async function syncDailyMemoryThroughCanonicalPipeline(params: {

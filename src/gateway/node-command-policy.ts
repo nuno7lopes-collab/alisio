@@ -22,14 +22,22 @@ const CAMERA_COMMANDS = ["camera.list"];
 const CAMERA_DANGEROUS_COMMANDS = ["camera.snap", "camera.clip"];
 
 const SCREEN_DANGEROUS_COMMANDS = ["screen.record"];
-const COMPUTER_COMMANDS = ["computer.observe", "computer.act"];
+const COMPUTER_COMMANDS = [
+  "computer.observe",
+  "computer.act",
+  "computer.session.start",
+  "computer.session.stop",
+  "computer.session.pause",
+  "computer.session.resume",
+  "computer.context",
+  "computer.permissions",
+  "computer.health",
+];
 
 const LOCATION_COMMANDS = ["location.get"];
 const NOTIFICATION_COMMANDS = ["notifications.list"];
-const ANDROID_NOTIFICATION_COMMANDS = [...NOTIFICATION_COMMANDS, "notifications.actions"];
 
 const DEVICE_COMMANDS = ["device.info", "device.status"];
-const ANDROID_DEVICE_COMMANDS = [...DEVICE_COMMANDS, "device.permissions", "device.health"];
 
 const CONTACTS_COMMANDS = ["contacts.search"];
 const CONTACTS_DANGEROUS_COMMANDS = ["contacts.add"];
@@ -37,19 +45,12 @@ const CONTACTS_DANGEROUS_COMMANDS = ["contacts.add"];
 const CALENDAR_COMMANDS = ["calendar.events"];
 const CALENDAR_DANGEROUS_COMMANDS = ["calendar.add"];
 
-const CALL_LOG_COMMANDS = ["callLog.search"];
-
 const REMINDERS_COMMANDS = ["reminders.list"];
 const REMINDERS_DANGEROUS_COMMANDS = ["reminders.add"];
 
 const PHOTOS_COMMANDS = ["photos.latest"];
 
 const MOTION_COMMANDS = ["motion.activity", "motion.pedometer"];
-
-const SMS_DANGEROUS_COMMANDS = ["sms.send", "sms.search"];
-
-// iOS nodes don't implement system.run/which, but they do support notifications.
-const IOS_SYSTEM_COMMANDS = [NODE_SYSTEM_NOTIFY_COMMAND];
 
 const SYSTEM_COMMANDS = [
   ...NODE_SYSTEM_RUN_COMMANDS,
@@ -71,37 +72,10 @@ export const DEFAULT_DANGEROUS_NODE_COMMANDS = [
   ...CONTACTS_DANGEROUS_COMMANDS,
   ...CALENDAR_DANGEROUS_COMMANDS,
   ...REMINDERS_DANGEROUS_COMMANDS,
-  ...SMS_DANGEROUS_COMMANDS,
   "computer.act",
 ];
 
 const PLATFORM_DEFAULTS: Record<string, string[]> = {
-  ios: [
-    ...CANVAS_COMMANDS,
-    ...CAMERA_COMMANDS,
-    ...LOCATION_COMMANDS,
-    ...DEVICE_COMMANDS,
-    ...CONTACTS_COMMANDS,
-    ...CALENDAR_COMMANDS,
-    ...REMINDERS_COMMANDS,
-    ...PHOTOS_COMMANDS,
-    ...MOTION_COMMANDS,
-    ...IOS_SYSTEM_COMMANDS,
-  ],
-  android: [
-    ...CANVAS_COMMANDS,
-    ...CAMERA_COMMANDS,
-    ...LOCATION_COMMANDS,
-    ...ANDROID_NOTIFICATION_COMMANDS,
-    NODE_SYSTEM_NOTIFY_COMMAND,
-    ...ANDROID_DEVICE_COMMANDS,
-    ...CONTACTS_COMMANDS,
-    ...CALENDAR_COMMANDS,
-    ...CALL_LOG_COMMANDS,
-    ...REMINDERS_COMMANDS,
-    ...PHOTOS_COMMANDS,
-    ...MOTION_COMMANDS,
-  ],
   macos: [
     ...CANVAS_COMMANDS,
     ...CAMERA_COMMANDS,
@@ -121,14 +95,12 @@ const PLATFORM_DEFAULTS: Record<string, string[]> = {
   unknown: [...UNKNOWN_PLATFORM_COMMANDS],
 };
 
-type PlatformId = "ios" | "android" | "macos" | "windows" | "linux" | "unknown";
+type PlatformId = "macos" | "windows" | "linux" | "unknown";
 
 const PLATFORM_PREFIX_RULES: ReadonlyArray<{
   id: Exclude<PlatformId, "unknown">;
   prefixes: readonly string[];
 }> = [
-  { id: "ios", prefixes: ["ios"] },
-  { id: "android", prefixes: ["android"] },
   { id: "macos", prefixes: ["mac", "darwin"] },
   { id: "windows", prefixes: ["win"] },
   { id: "linux", prefixes: ["linux"] },
@@ -138,8 +110,6 @@ const DEVICE_FAMILY_TOKEN_RULES: ReadonlyArray<{
   id: Exclude<PlatformId, "unknown">;
   tokens: readonly string[];
 }> = [
-  { id: "ios", tokens: ["iphone", "ipad", "ios"] },
-  { id: "android", tokens: ["android"] },
   { id: "macos", tokens: ["mac"] },
   { id: "windows", tokens: ["windows"] },
   { id: "linux", tokens: ["linux"] },

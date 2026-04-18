@@ -7,8 +7,8 @@ import {
   resolveTargetIdFromQuery,
   withPlaywrightRouteContext,
 } from "./agent.shared.js";
+import { DEFAULT_TRACE_DIR } from "../paths.js";
 import { resolveWritableOutputPathOrRespond } from "./output-paths.js";
-import { DEFAULT_TRACE_DIR } from "./path-output.js";
 import type { BrowserRouteRegistrar } from "./types.js";
 import { toBoolean, toStringOrEmpty } from "./utils.js";
 

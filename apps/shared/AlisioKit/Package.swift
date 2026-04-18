@@ -5,7 +5,6 @@ import PackageDescription
 let package = Package(
     name: "AlisioKit",
     platforms: [
-        .iOS(.v18),
         .macOS(.v15),
     ],
     products: [
@@ -43,8 +42,7 @@ let package = Package(
                 "AlisioKit",
                 .product(
                     name: "Textual",
-                    package: "textual",
-                    condition: .when(platforms: [.macOS, .iOS])),
+                    package: "textual"),
             ],
             path: "Sources/AlisioChatUI",
             swiftSettings: [

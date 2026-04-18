@@ -99,6 +99,7 @@ import {
   type AlisioSharingCloudPrincipal,
   type AlisioSharingCloudRuntimeTarget,
 } from "./alisio-sharing-cloud.js";
+import { validateAlisioStripeApiKey } from "./alisio-stripe-client.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import { resolveCurrentComputerFallbackLabel, resolveCurrentComputerId } from "./local-computer.js";
@@ -117,11 +118,13 @@ export type AlisioAuthorizationHealth =
 export type AlisioConnectorBeginMode = "oauth" | "setup";
 export type AlisioConnectorBeginReason =
   | "ready_for_oauth"
+  | "ready_for_setup"
   | "missing_client_config"
   | "missing_token_encryption"
   | "review_required"
   | "unavailable";
 export type AlisioOAuthProvider = "google" | "github" | "notion" | "vercel";
+export type AlisioConnectorCredentialProvider = AlisioOAuthProvider | "stripe";
 export type AlisioPreferredLanguage = "en" | "pt-PT" | "es";
 export type AlisioAccountSessionState = "signed_out" | "signed_in";
 export type AlisioStartupState = "signed_out" | "needs_profile" | "needs_ai" | "ready";
@@ -526,7 +529,7 @@ export type AlisioStoredState = {
   oauthCredentials: Record<
     string,
     {
-      provider: AlisioOAuthProvider;
+      provider: AlisioConnectorCredentialProvider;
       accessToken?: string;
       refreshToken?: string;
       accessTokenEncrypted?: {
@@ -649,6 +652,7 @@ const CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV = "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KE
 const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "Alisio Connector Token Encryption";
 const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE;
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
+const STRIPE_CONNECTOR_ID = "stripe";
 const withLock = createAsyncLock();
 
 function resolveDurableRuntimeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -847,6 +851,19 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/analytics.readonly", "openid", "email"],
+  },
+  {
+    id: STRIPE_CONNECTOR_ID,
+    title: "Stripe",
+    providerLabel: "Stripe",
+    category: "productivity",
+    connectLabel: "Connect with Stripe",
+    summary: "Read customers, payments, charges, and balance data from Stripe.",
+    detail:
+      "Uses a server-side Stripe secret or restricted API key stored securely on this gateway.",
+    availability: "ready",
+    setupUrl: "https://docs.stripe.com/keys",
+    scopes: ["balance.read", "customers.read", "charges.read", "payment_intents.read"],
   },
   {
     id: "notion",
@@ -1159,7 +1176,7 @@ function readStoredRefreshToken(
 }
 
 function buildStoredOAuthCredential(params: {
-  provider: AlisioOAuthProvider;
+  provider: AlisioConnectorCredentialProvider;
   accessToken: string;
   refreshToken?: string;
   tokenType?: string;
@@ -6919,6 +6936,10 @@ function resolveConnectorOAuthProvider(connectorId: string): AlisioOAuthProvider
   return null;
 }
 
+function connectorUsesManualTokenSetup(connectorId: string): boolean {
+  return connectorId === STRIPE_CONNECTOR_ID;
+}
+
 function providerLabel(provider: AlisioOAuthProvider) {
   switch (provider) {
     case "google":
@@ -7118,6 +7139,9 @@ function resolveDefaultConnectorAuthorizationHealth(
   if (connector.availability === "unavailable") {
     return "unavailable";
   }
+  if (connectorUsesManualTokenSetup(connector.id)) {
+    return resolveConnectorTokenEncryptionKey(env) ? "healthy" : "config_missing";
+  }
   const provider = resolveConnectorOAuthProvider(connector.id);
   if (!provider || !providerSupportsRealCallback(provider)) {
     return "config_missing";
@@ -7293,6 +7317,31 @@ export async function beginAlisioConnectorSetup(
     }
 
     if (!provider) {
+      if (connectorUsesManualTokenSetup(connector.id)) {
+        if (!resolveConnectorTokenEncryptionKey(env)) {
+          return {
+            connectorId: connector.id,
+            availability: connector.availability,
+            mode: "setup",
+            statusReason: "missing_token_encryption",
+            setupUrl: connector.setupUrl,
+            providerLabel: connector.providerLabel,
+            requiredEnvVars: [CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV],
+            setupHint:
+              "Paste a Stripe secret or restricted API key with read access to balance, customers, charges, and payment intents.",
+          };
+        }
+        return {
+          connectorId: connector.id,
+          availability: connector.availability,
+          mode: "setup",
+          statusReason: "ready_for_setup",
+          setupUrl: connector.setupUrl,
+          providerLabel: connector.providerLabel,
+          setupHint:
+            "Paste a Stripe secret or restricted API key. Publishable keys are not supported.",
+        };
+      }
       return {
         connectorId: connector.id,
         availability: connector.availability,
@@ -7672,7 +7721,7 @@ async function refreshStoredConnectorCredential(params: {
       state: "connected",
       health: "healthy",
       scopes: parseGrantedScopes(
-        next.provider,
+        "google",
         next.scope,
         resolveRequestedOAuthScopes(params.connector),
       ),
@@ -7918,8 +7967,10 @@ export async function completeAlisioConnectorAuthorization(
   input: {
     connectorId: string;
     account?: AlisioConnectedAccount;
+    apiKey?: string;
   },
   env?: NodeJS.ProcessEnv,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioConnectorAuthorization | null> {
   return withLock(async () => {
     const connector = CONNECTOR_CATALOG.find((entry) => entry.id === input.connectorId.trim());
@@ -7941,6 +7992,34 @@ export async function completeAlisioConnectorAuthorization(
     });
     if (!gate.ok) {
       throw new AlisioAccountValidationError(gate.message);
+    }
+    if (connector.id === STRIPE_CONNECTOR_ID) {
+      const apiKey = input.apiKey?.trim();
+      if (!apiKey) {
+        throw new AlisioAccountValidationError("Enter a Stripe secret or restricted API key.");
+      }
+      const validation = await validateAlisioStripeApiKey({ apiKey }, fetchImpl);
+      if (!validation.ok) {
+        throw new AlisioAccountValidationError(validation.message);
+      }
+      const connectedAt = new Date().toISOString();
+      const authorization: AlisioConnectorAuthorization = {
+        connectorId: connector.id,
+        state: "connected",
+        health: "healthy",
+        connectedAt,
+        scopes: connector.scopes,
+        connectedAccount: input.account ?? validation.connectedAccount,
+      };
+      state.authorizations[connector.id] = authorization;
+      state.oauthCredentials[connector.id] = buildStoredOAuthCredential({
+        provider: "stripe",
+        accessToken: apiKey,
+        createdAt: connectedAt,
+        env: env ?? process.env,
+      });
+      await persistState(state, env);
+      return authorization;
     }
     const connectedAccount =
       input.account ??

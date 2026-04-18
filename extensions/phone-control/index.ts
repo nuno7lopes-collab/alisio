@@ -253,7 +253,7 @@ function formatHelp(): string {
     "",
     "Notes:",
     "- This only toggles what the gateway is allowed to invoke on phone nodes.",
-    "- iOS will still ask for permissions (camera, photos, contacts, etc.) on first use.",
+    "- The paired device may still ask for permissions (camera, photos, contacts, etc.) on first use.",
   ].join("\n");
 }
 

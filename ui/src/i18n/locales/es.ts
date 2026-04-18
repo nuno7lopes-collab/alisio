@@ -116,12 +116,11 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         title: "Panel",
         surfacePicker: "Superficie del panel",
         close: "Cerrar panel",
-        observerTitle: "Navegador observado",
         viewRawText: "Ver texto sin formato",
         noContent: "No hay contenido disponible",
         unavailable: "No hay panel disponible",
         surfaces: {
-          observer: "Browser",
+          computer: "Computer",
           markdown: "Salida de la herramienta",
         },
       },

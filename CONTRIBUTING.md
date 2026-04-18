@@ -23,16 +23,15 @@ Welcome to the lobster tank! 🦞
 - **Jos** - Telegram, API, Nix mode
   - GitHub: [@joshp123](https://github.com/joshp123) · X: [@jjpcodes](https://x.com/jjpcodes)
 
-- **Ayaan Zaidi** - Telegram subsystem, Android app
   - GitHub: [@obviyus](https://github.com/obviyus) · X: [@obviyus](https://x.com/obviyus)
 
 - **Tyler Yust** - Agents/subagents, cron, BlueBubbles, macOS app
   - GitHub: [@tyler6204](https://github.com/tyler6204) · X: [@tyleryust](https://x.com/tyleryust)
 
-- **Mariano Belinky** - iOS app, Security
+- **Mariano Belinky** - Security
   - GitHub: [@mbelinky](https://github.com/mbelinky) · X: [@belimad](https://x.com/belimad)
 
-- **Nimrod Gutman** - iOS app, macOS app and crustacean features
+- **Nimrod Gutman** - macOS app and crustacean features
   - GitHub: [@ngutman](https://github.com/ngutman) · X: [@theguti](https://x.com/theguti)
 
 - **Vincent Koc** - Agents, Telemetry, Hooks, Security
@@ -187,8 +186,6 @@ We take security reports seriously. Report vulnerabilities directly to the repos
 
 - **Core CLI and gateway** — [alisio/alisio](https://github.com/alisio/alisio)
 - **macOS desktop app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/macos)
-- **iOS app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/ios)
-- **Android app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/android)
 - **Marketplace service backend** — [alisio/clawhub](https://github.com/alisio/clawhub)
 - **Trust and threat model** — [alisio/trust](https://github.com/alisio/trust)
 

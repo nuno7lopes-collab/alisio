@@ -42,8 +42,6 @@ Local trust:
 ## Devices + transports
 
 - [Devices overview](/nodes)
-- [Device runbook: iOS](/platforms/ios)
-- [Device runbook: Android](/platforms/android)
 
 ## Security
 

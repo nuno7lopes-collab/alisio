@@ -154,13 +154,13 @@ function createProps(overrides: Partial<TasksViewProps> = {}): TasksViewProps {
 
 function createPreview(overrides: Partial<BrowserPanePreviewState> = {}): BrowserPanePreviewState {
   return {
+    browser: null,
     computer: null,
-    observer: null,
-    markdown: {
+    toolOutput: {
       content: "Resumo live da task",
       error: null,
     },
-    selectedSurface: "markdown",
+    selectedSurface: "tool_output",
     ...overrides,
   };
 }

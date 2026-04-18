@@ -339,6 +339,48 @@ describe("memory-runtime controller", () => {
     expect(request).toHaveBeenCalledWith("memory.wiki.list", { agentId: "main" });
   });
 
+  it("normalizes memory roles even when the gateway falls back to wiki pages", async () => {
+    const { request } = createState();
+
+    request.mockImplementation((method: string) => {
+      if (method === "memory.notes.list") {
+        return Promise.reject(
+          new GatewayRequestError({
+            code: "INVALID_REQUEST",
+            message: "unknown method: memory.notes.list",
+          }),
+        );
+      }
+      if (method === "memory.wiki.list") {
+        return Promise.resolve({
+          agentId: "main",
+          pages: [
+            { id: "main", title: "Memory", path: "MEMORY.md" },
+            { id: "daily", title: "2026-04-17", path: "memory/2026-04-17.md" },
+            {
+              id: "backlog",
+              title: "Physics study",
+              path: "memory/study/physics.md",
+              collections: ["Backlog"],
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    const result = await requestMemoryNotesList(
+      { request } as unknown as Parameters<typeof requestMemoryNotesList>[0],
+      { agentId: "main" },
+    );
+
+    expect(result.notes.map((note) => [note.id, note.memoryRole])).toEqual([
+      ["main", "main"],
+      ["daily", "daily"],
+      ["backlog", "backlog"],
+    ]);
+  });
+
   it("retries transient sqlite lock errors before failing a memory request", async () => {
     const { request } = createState();
 

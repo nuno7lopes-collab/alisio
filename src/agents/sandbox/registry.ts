@@ -29,8 +29,6 @@ export type SandboxBrowserRegistryEntry = {
   image: string;
   configHash?: string;
   cdpPort: number;
-  noVncPort?: number;
-  noVncPassword?: string;
 };
 
 type SandboxBrowserRegistry = {

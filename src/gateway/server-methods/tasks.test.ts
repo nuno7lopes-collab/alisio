@@ -165,7 +165,6 @@ function createOptions(
       nodeSubscribe: vi.fn(),
       nodeUnsubscribe: vi.fn(),
       nodeUnsubscribeAll: vi.fn(),
-      hasConnectedMobileNode: vi.fn(),
       nodeRegistry: {} as GatewayRequestHandlerOptions["context"]["nodeRegistry"],
       agentRunSeq: new Map(),
       chatAbortControllers: new Map(),

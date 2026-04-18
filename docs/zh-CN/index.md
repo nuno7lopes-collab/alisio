@@ -59,7 +59,6 @@ flowchart LR
   B --> D["CLI"]
   B --> E["Web Control UI"]
   B --> F["macOS app"]
-  B --> G["iOS and Android nodes"]
 ```
 
 Gateway 网关是会话、路由和渠道连接的唯一事实来源。
@@ -83,7 +82,6 @@ Gateway 网关是会话、路由和渠道连接的唯一事实来源。
     浏览器仪表板，用于聊天、配置、会话和节点管理。
   </Card>
   <Card title="移动节点" icon="smartphone">
-    配对 iOS 和 Android 节点，支持 Canvas。
   </Card>
 </Columns>
 
@@ -158,7 +156,6 @@ Gateway 网关启动后，打开浏览器控制界面。
     WhatsApp、Telegram、Discord 等渠道的具体设置。
   </Card>
   <Card title="节点" href="/nodes" icon="smartphone">
-    iOS 和 Android 节点的配对与 Canvas 功能。
   </Card>
   <Card title="帮助" href="/help" icon="life-buoy">
     常见修复方法和故障排除入口。

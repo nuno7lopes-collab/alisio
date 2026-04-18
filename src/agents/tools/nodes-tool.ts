@@ -27,17 +27,13 @@ const NODES_TOOL_ACTIONS = [
   "screen_record",
   "location_get",
   "notifications_list",
-  "notifications_action",
   "device_status",
   "device_info",
-  "device_permissions",
-  "device_health",
   "invoke",
 ] as const;
 
 const NOTIFY_PRIORITIES = ["passive", "active", "timeSensitive"] as const;
 const NOTIFY_DELIVERIES = ["system", "overlay", "auto"] as const;
-const NOTIFICATIONS_ACTIONS = ["open", "dismiss", "reply"] as const;
 const CAMERA_FACING = ["front", "back", "both"] as const;
 const LOCATION_ACCURACY = ["coarse", "balanced", "precise"] as const;
 type GatewayCallOptions = ReturnType<typeof readGatewayCallOptions>;
@@ -117,10 +113,6 @@ const NodesToolSchema = Type.Object({
   maxAgeMs: Type.Optional(Type.Number()),
   locationTimeoutMs: Type.Optional(Type.Number()),
   desiredAccuracy: optionalStringEnum(LOCATION_ACCURACY),
-  // notifications_action
-  notificationAction: optionalStringEnum(NOTIFICATIONS_ACTIONS),
-  notificationKey: Type.Optional(Type.String()),
-  notificationReplyText: Type.Optional(Type.String()),
   // invoke
   invokeCommand: Type.Optional(Type.String()),
   invokeParamsJson: Type.Optional(Type.String()),
@@ -234,20 +226,9 @@ export function createNodesTool(options?: {
           case "camera_list":
           case "notifications_list":
           case "device_status":
-          case "device_info":
-          case "device_permissions":
-          case "device_health": {
+          case "device_info": {
             return await executeNodeCommandAction({
               action: action as NodeCommandAction,
-              input: params,
-              gatewayOpts,
-              allowMediaInvokeCommands: options?.allowMediaInvokeCommands,
-              mediaInvokeActions: MEDIA_INVOKE_ACTIONS,
-            });
-          }
-          case "notifications_action": {
-            return await executeNodeCommandAction({
-              action,
               input: params,
               gatewayOpts,
               allowMediaInvokeCommands: options?.allowMediaInvokeCommands,

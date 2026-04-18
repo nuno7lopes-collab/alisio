@@ -124,7 +124,7 @@ For a high-level overview, see [Onboarding (CLI)](/start/wizard).
     - Installs optional dependencies (some use Homebrew on macOS).
   </Step>
   <Step title="Finish">
-    - Summary + next steps, including iOS/Android/macOS apps for extra features.
+    - Summary + next steps, including iOS/macOS apps for extra features.
   </Step>
 </Steps>
 

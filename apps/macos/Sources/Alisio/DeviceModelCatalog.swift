@@ -51,13 +51,6 @@ enum DeviceModelCatalog {
         guard !modelIdentifier.isEmpty else { return nil }
 
         let lower = modelIdentifier.lowercased()
-        if lower.hasPrefix("ipad") { return "ipad" }
-        if lower.hasPrefix("iphone") { return "iphone" }
-        if lower.hasPrefix("ipod") { return "iphone" }
-        if lower.hasPrefix("watch") { return "applewatch" }
-        if lower.hasPrefix("appletv") { return "appletv" }
-        if lower.hasPrefix("audio") || lower.hasPrefix("homepod") { return "speaker" }
-
         if lower.hasPrefix("macbook") || lower.hasPrefix("macbookpro") || lower.hasPrefix("macbookair") {
             return "laptopcomputer"
         }
@@ -80,14 +73,8 @@ enum DeviceModelCatalog {
         let family = familyRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         if family.isEmpty { return nil }
         switch family.lowercased() {
-        case "ipad":
-            return "ipad"
-        case "iphone":
-            return "iphone"
         case "mac":
             return "laptopcomputer"
-        case "android":
-            return "android"
         case "linux":
             return "cpu"
         default:
@@ -97,9 +84,6 @@ enum DeviceModelCatalog {
 
     private static func loadModelIdentifierToName() -> [String: String] {
         var combined: [String: String] = [:]
-        combined.merge(
-            self.loadMapping(resourceName: "ios-device-identifiers"),
-            uniquingKeysWith: { current, _ in current })
         combined.merge(
             self.loadMapping(resourceName: "mac-device-identifiers"),
             uniquingKeysWith: { current, _ in current })
@@ -136,13 +120,6 @@ enum DeviceModelCatalog {
     }
 
     private static func bundleIfContainsDeviceModels(_ bundle: Bundle) -> Bundle? {
-        if bundle.url(
-            forResource: "ios-device-identifiers",
-            withExtension: "json",
-            subdirectory: self.resourceSubdirectory) != nil
-        {
-            return bundle
-        }
         if bundle.url(
             forResource: "mac-device-identifiers",
             withExtension: "json",

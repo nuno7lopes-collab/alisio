@@ -2730,8 +2730,10 @@ async function materializeMarkdownProjections(params: {
 }): Promise<number> {
   const rows = params.db
     .prepare(
-      `SELECT page_id, kind, markdown_body
+      `SELECT projections.page_id, projections.kind, projections.markdown_body
        FROM projections
+       JOIN pages ON pages.page_id = projections.page_id
+       WHERE pages.tombstoned = 0
        ORDER BY kind ASC`,
     )
     .all() as Array<{

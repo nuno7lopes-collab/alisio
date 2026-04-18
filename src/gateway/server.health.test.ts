@@ -231,8 +231,8 @@ describe("gateway server health/presence", () => {
         id: GATEWAY_CLIENT_NAMES.FINGERPRINT,
         version: "9.9.9",
         platform: "test",
-        deviceFamily: "iPad",
-        modelIdentifier: "iPad16,6",
+        deviceFamily: "MacBook",
+        modelIdentifier: "Mac16,6",
         mode: GATEWAY_CLIENT_MODES.UI,
         instanceId: "abc",
       },
@@ -265,8 +265,8 @@ describe("gateway server health/presence", () => {
     expect(clientEntry?.host).toBe(GATEWAY_CLIENT_NAMES.FINGERPRINT);
     expect(clientEntry?.version).toBe("9.9.9");
     expect(clientEntry?.mode).toBe("ui");
-    expect(clientEntry?.deviceFamily).toBe("iPad");
-    expect(clientEntry?.modelIdentifier).toBe("iPad16,6");
+    expect(clientEntry?.deviceFamily).toBe("MacBook");
+    expect(clientEntry?.modelIdentifier).toBe("Mac16,6");
 
     ws.close();
   });

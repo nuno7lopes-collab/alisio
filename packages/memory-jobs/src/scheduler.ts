@@ -7,6 +7,7 @@ import {
 } from "./gaia.js";
 import { runConsolidateSlice } from "./jobs/consolidate.js";
 import { runDedupSlice } from "./jobs/dedup.js";
+import { runBacklogPromoteSlice } from "./jobs/backlog-promote.js";
 import { runHealthSlice, buildHealthJobId } from "./jobs/health.js";
 import { runLongTermSlice } from "./jobs/long-term.js";
 import { openSqliteDatabase } from "./sqlite.js";
@@ -116,7 +117,13 @@ export class MemorySleepScheduler {
     let status: SleepRunResult["status"] = "completed";
     let healthDashboard: HealthDashboard | undefined;
 
-    const jobOrder: MemoryJobKind[] = ["consolidate", "dedup", "long-term", "health"];
+    const jobOrder: MemoryJobKind[] = [
+      "consolidate",
+      "dedup",
+      "backlog-promote",
+      "long-term",
+      "health",
+    ];
     const pendingJobs = new Set(jobOrder);
 
     while (pendingJobs.size > 0 && this.options.clock.now() < runDeadlineMs) {
@@ -146,7 +153,7 @@ export class MemorySleepScheduler {
                 clock: this.options.clock,
                 shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
               })
-            : kind === "dedup"
+              : kind === "dedup"
               ? await runDedupSlice({
                   store: this.store,
                   gaia: this.gaia,
@@ -159,6 +166,18 @@ export class MemorySleepScheduler {
                   autoMergeConfirmed: this.options.autoMergeConfirmed,
                   shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
                 })
+              : kind === "backlog-promote"
+                ? await runBacklogPromoteSlice({
+                    store: this.store,
+                    gaia: this.gaia,
+                    profileId: this.options.profileId,
+                    workspaceScope: this.options.workspaceScope,
+                    workspaceDir: this.options.workspaceDir,
+                    sliceDeadlineMs,
+                    token,
+                    clock: this.options.clock,
+                    shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
+                  })
               : kind === "long-term"
                 ? await runLongTermSlice({
                     store: this.store,

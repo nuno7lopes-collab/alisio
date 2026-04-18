@@ -44,6 +44,7 @@ import {
   beginAlisioAiConnect,
   beginAlisioConnector,
   changeAlisioAccountEmail,
+  completeAlisioConnector,
   disconnectAlisioAiProfile,
   installAlisioModel,
   loadAlisioConnectors,
@@ -101,6 +102,7 @@ import {
   revokeDeviceToken,
   rotateDeviceToken,
 } from "./controllers/devices.ts";
+import { resolveComputersViewState } from "./controllers/computers.ts";
 import {
   changeExecApprovalsTarget,
   loadSelectedExecApprovals,
@@ -340,6 +342,9 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
 }
 
 function shouldReserveConnectorPopup(state: AppViewState, connectorId: string) {
+  if (connectorId === "stripe") {
+    return false;
+  }
   const authorization = state.alisioConnectorAuthorizations.find(
     (entry) => entry.connectorId === connectorId,
   );
@@ -378,6 +383,7 @@ function beginConnectorFlow(
 ) {
   state.alisioConnectorsError = null;
   state.alisioConnectorSetupGuide = null;
+  state.alisioConnectorSetupError = null;
   rememberAlisioConnectorOAuthReturnTo(window.location.href);
   const existingPendingResume = readPendingAlisioConnectorChatResume();
   if (opts?.resumeChatIntent) {
@@ -413,8 +419,13 @@ function beginConnectorFlow(
       }
       if (result.mode !== "oauth") {
         closeReservedExternalPopup(popup);
-        state.alisioConnectorSetupGuide = null;
-        state.alisioConnectorsError = connectorSetupErrorMessage(result);
+        state.setTab("authentications" as import("./navigation.ts").Tab);
+        state.alisioConnectorDialogId = connectorId;
+        state.alisioConnectorDialogMode = "install";
+        state.alisioConnectorSetupGuide = result;
+        if (result.statusReason !== "ready_for_setup") {
+          state.alisioConnectorsError = result.setupHint ?? connectorSetupErrorMessage(result);
+        }
         return;
       }
       const targetUrl = result.setupUrl;
@@ -423,6 +434,9 @@ function beginConnectorFlow(
         state.alisioConnectorsError = t("alisio.authentications.errors.missingUrl");
         return;
       }
+      state.alisioConnectorDialogId = null;
+      state.alisioConnectorDialogMode = null;
+      state.alisioConnectorSetupGuide = null;
       scheduleConnectorAuthorizationRefresh(state, connectorId);
       void openExternalTarget(targetUrl, {
         popup,
@@ -440,6 +454,58 @@ function beginConnectorFlow(
       state.alisioConnectorsError =
         error instanceof Error ? error.message : t("alisio.authentications.errors.startFailed");
     });
+}
+
+async function retryPendingConnectorChatResumeAfterConnect(
+  state: AppViewState,
+  connectorId: string,
+): Promise<boolean> {
+  const pending = state.pendingConnectorChatResume ?? readPendingAlisioConnectorChatResume();
+  if (!pending || pending.connectorId !== connectorId) {
+    return false;
+  }
+  const authorization = state.alisioConnectorAuthorizations.find(
+    (entry) => entry.connectorId === connectorId,
+  );
+  if (authorization?.state !== "connected") {
+    state.pendingConnectorChatResume = pending;
+    return false;
+  }
+
+  state.pendingConnectorChatResume = null;
+  clearPendingAlisioConnectorChatResume();
+  if (pending.sessionKey.trim() && pending.sessionKey !== state.sessionKey) {
+    state.sessionKey = pending.sessionKey;
+    state.applySettings({
+      ...state.settings,
+      sessionKey: pending.sessionKey,
+      lastActiveSessionKey: pending.sessionKey,
+    });
+  }
+  await state.handleSendChat(pending.message, {
+    restoreDraft: false,
+    attachments: pending.attachments,
+  });
+  return true;
+}
+
+async function completeManualConnectorFlow(
+  state: AppViewState,
+  connectorId: string,
+  apiKey: string,
+): Promise<void> {
+  const authorization = await completeAlisioConnector(state, connectorId, apiKey);
+  if (!authorization) {
+    state.alisioConnectorDialogId = connectorId;
+    state.alisioConnectorDialogMode = "install";
+    return;
+  }
+  state.alisioConnectorDialogId = null;
+  state.alisioConnectorDialogMode = null;
+  const resumed = await retryPendingConnectorChatResumeAfterConnect(state, connectorId);
+  if (!resumed) {
+    state.setTab("authentications" as import("./navigation.ts").Tab);
+  }
 }
 
 function resolveConnectorChatPrompt(state: AppViewState, connectorId: string): string {
@@ -1007,6 +1073,9 @@ export function renderApp(state: AppViewState) {
               overview: state.alisioProviders,
               connectorCatalog: state.alisioConnectorCatalog,
               connectorAuthorizations: state.alisioConnectorAuthorizations,
+              connectorSetupGuide: state.alisioConnectorSetupGuide,
+              connectorSetupSubmitting: state.alisioConnectorSetupSubmitting,
+              connectorSetupError: state.alisioConnectorSetupError,
               search: state.alisioConnectorsSearch,
               dialogConnectorId: state.alisioConnectorDialogId,
               dialogMode: state.alisioConnectorDialogMode,
@@ -1014,23 +1083,32 @@ export function renderApp(state: AppViewState) {
                 state.alisioConnectorsSearch = value;
               },
               onOpenConnectorDetails: (connectorId) => {
+                state.alisioConnectorSetupGuide = null;
+                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = connectorId;
                 state.alisioConnectorDialogMode = "details";
               },
               onOpenConnectorInstall: (connectorId) => {
+                state.alisioConnectorSetupGuide = null;
+                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = connectorId;
                 state.alisioConnectorDialogMode = "install";
               },
               onCloseConnectorDialog: () => {
+                state.alisioConnectorSetupGuide = null;
+                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = null;
                 state.alisioConnectorDialogMode = null;
               },
               onBeginConnector: (connectorId) => {
-                state.alisioConnectorDialogId = null;
-                state.alisioConnectorDialogMode = null;
                 beginConnectorFlow(state, connectorId);
               },
+              onCompleteManualConnector: (connectorId, apiKey) => {
+                void completeManualConnectorFlow(state, connectorId, apiKey);
+              },
               onRevokeConnector: (connectorId) => {
+                state.alisioConnectorSetupGuide = null;
+                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = null;
                 state.alisioConnectorDialogMode = null;
                 void revokeAlisioConnector(state, connectorId);
@@ -1210,26 +1288,7 @@ export function renderApp(state: AppViewState) {
           ? renderConnections({
               assistantName: state.assistantName,
               assistantAgentId: state.assistantAgentId,
-              account: state.alisioAccount,
-              nodesLoading: state.nodesLoading,
-              nodesLoaded: state.nodesLoaded,
-              nodes: state.nodes,
-              nodesError: state.nodesError,
-              devicesLoading: state.devicesLoading,
-              devicesError: state.devicesError,
-              devicesList: state.devicesList,
-              currentDeviceId: state.currentDeviceId,
-              sharingLoading: state.alisioSharingLoading,
-              sharingError: state.alisioSharingError,
-              sharing: state.alisioSharing,
-              sessionKey: state.sessionKey,
-              nodePairingsLoading: state.nodePairingsLoading,
-              nodePairingsError: state.nodePairingsError,
-              nodePairingsList: state.nodePairingsList,
-              remoteComputerDrafts: state.remoteComputerDrafts,
-              remoteComputerBusy: state.remoteComputerBusy,
-              remoteComputerErrors: state.remoteComputerErrors,
-              remoteComputerTasks: state.remoteComputerTasks,
+              computers: resolveComputersViewState(state),
               configForm: state.configForm,
               configLoading: state.configLoading,
               configSaving: state.configSaving,
@@ -1254,12 +1313,6 @@ export function renderApp(state: AppViewState) {
                   refreshes.push(loadConfig(state));
                 }
                 void Promise.allSettled(refreshes);
-              },
-              onDevicesRefresh: () => {
-                void loadDevices(state);
-              },
-              onSharingRefresh: () => {
-                void loadAlisioSharing(state);
               },
               onNodePairingsRefresh: () => {
                 void Promise.allSettled([loadNodes(state), loadNodePairings(state)]);
@@ -1688,21 +1741,30 @@ export function renderApp(state: AppViewState) {
                   sidebarContent: state.sidebarContent,
                   sidebarError: state.sidebarError,
                   browserPaneSurfaceKind: state.browserPaneSurfaceKind,
-                  browserPaneObserver: state.browserPaneObserver,
                   computerSessionLoading: state.computerSessionLoading,
                   computerSessionError: state.computerSessionError,
                   computerSession: state.computerSession,
+                  selectedComputerReplayStepId: state.selectedComputerReplayStepId,
+                  computerStepDetailsOpen: state.computerStepDetailsOpen,
                   splitRatio: state.splitRatio,
                   onOpenSidebar: (content: string) => state.handleOpenSidebar(content),
                   onCloseSidebar: () => state.handleCloseSidebar(),
                   onSelectBrowserPaneSurface: (surface) =>
                     state.handleSelectBrowserPaneSurface(surface),
+                  onSelectComputerReplayStep: (stepId) =>
+                    state.handleSelectComputerReplayStep(stepId),
+                  onToggleComputerStepDetails: (open) =>
+                    state.handleToggleComputerStepDetails(open),
                   onComputerSessionCommand: (command) =>
                     state.handleComputerSessionCommand(command),
                   onComputerSessionApproval: (decision) =>
                     state.handleComputerSessionApproval(decision),
                   onRequestComputerPermission: (permission) =>
                     state.handleRequestComputerPermission(permission),
+                  onOpenComputerSession: (sessionKey) => {
+                    switchChatSession(state, sessionKey);
+                    state.setTab("chat" as import("./navigation.ts").Tab);
+                  },
                   onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                   assistantName: state.assistantName,
                   assistantAvatar: state.assistantAvatar,

@@ -57,7 +57,7 @@ struct ChatMarkdownPreprocessorTests {
         ```json
         {
           "message_id": "123",
-          "sender": "alisio-ios"
+          "sender": "alisio-macos"
         }
         ```
 

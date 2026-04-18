@@ -197,6 +197,12 @@ const CONNECTOR_BRANDING: Record<string, BrandDefinition> = {
     lightModeSurface: "rgba(17, 17, 17, 0.08)",
     lightModeBorder: "rgba(17, 17, 17, 0.14)",
   }),
+  stripe: defineBrand({
+    asset: "stripe.svg",
+    accent: "#635BFF",
+    surface: "rgba(99, 91, 255, 0.16)",
+    border: "rgba(99, 91, 255, 0.28)",
+  }),
   slack: defineBrand({
     asset: "slack.png",
     accent: "#4A154B",
@@ -225,6 +231,7 @@ const PROVIDER_BRANDING: Record<string, BrandDefinition> = {
   meta: CONNECTOR_BRANDING.facebook,
   github: CONNECTOR_BRANDING.github,
   notion: CONNECTOR_BRANDING.notion,
+  stripe: CONNECTOR_BRANDING.stripe,
   vercel: CONNECTOR_BRANDING.vercel,
   linkedin: CONNECTOR_BRANDING.linkedin,
   pinterest: CONNECTOR_BRANDING.pinterest,

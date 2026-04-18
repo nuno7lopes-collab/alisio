@@ -9,7 +9,7 @@ import { createPathResolutionEnv, withEnvAsync } from "../test-utils/env.js";
 import {
   collectInstalledSkillsCodeSafetyFindings,
   collectPluginsCodeSafetyFindings,
-} from "./audit-extra.js";
+} from "./audit-extra.async.js";
 import type { SecurityAuditOptions, SecurityAuditReport } from "./audit.js";
 import { runSecurityAudit } from "./audit.js";
 import * as skillScanner from "./skill-scanner.js";
@@ -1217,7 +1217,7 @@ description: test skill
               }
               if (args[0] === "inspect" && args.at(-1) === "alisio-sbx-browser-exposed") {
                 return {
-                  stdout: Buffer.from("hash123\t2026-02-21-novnc-auth-default\n"),
+                  stdout: Buffer.from("hash123\t2026-02-21-browser-legacy\n"),
                   stderr: Buffer.alloc(0),
                   code: 0,
                 };

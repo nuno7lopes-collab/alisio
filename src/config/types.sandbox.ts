@@ -70,10 +70,7 @@ export type SandboxBrowserSettings = {
   cdpPort?: number;
   /** Optional CIDR allowlist for CDP ingress at the container edge (for example: 172.21.0.1/32). */
   cdpSourceRange?: string;
-  vncPort?: number;
-  noVncPort?: number;
   headless?: boolean;
-  enableNoVnc?: boolean;
   /**
    * Allow sandboxed sessions to target the host browser control server.
    * Default: false.

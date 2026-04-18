@@ -224,4 +224,45 @@ describe("tool cards", () => {
     button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
   });
+
+  it("renders Stripe as its own provider in auth callouts", () => {
+    const onBeginConnector = vi.fn();
+    const message = {
+      role: "assistant",
+      toolCallId: "call_stripe_auth",
+      toolPhase: "result",
+      content: [
+        {
+          type: "toolcall",
+          name: "stripe",
+          arguments: { action: "account" },
+        },
+        {
+          type: "toolresult",
+          name: "stripe",
+          text: "Stripe is not connected in Alisio. Connect Stripe in Apps first.",
+          details: {
+            ok: false,
+            status: "auth_required",
+            connectorId: "stripe",
+            message: "Stripe is not connected in Alisio. Connect Stripe in Apps first.",
+            reconnectRequired: false,
+          },
+        },
+      ],
+      timestamp: Date.now(),
+      __alisio: { kind: "tool-stream", phase: "result", isError: false },
+    };
+
+    const cards = extractToolCards(message);
+    const container = document.createElement("div");
+    render(
+      renderToolCardStack(cards, () => undefined, onBeginConnector),
+      container,
+    );
+
+    expect(container.textContent).toContain("Connect Stripe");
+    container.querySelector("button")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onBeginConnector).toHaveBeenCalledWith("stripe");
+  });
 });

@@ -28,8 +28,6 @@ const NODE_ROLE_METHODS = new Set([
   "node.event",
   "node.pending.drain",
   "node.canvas.capability.refresh",
-  "node.pending.pull",
-  "node.pending.ack",
   "skills.bins",
 ]);
 
@@ -110,6 +108,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "devices.list",
     "chat.history",
     "computer.session.get",
+    "computer.session.export",
     "config.get",
     "config.schema.lookup",
     "talk.config",
@@ -188,7 +187,6 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "sessions.send",
     "sessions.steer",
     "sessions.abort",
-    "push.test",
     "node.pending.enqueue",
   ],
   [ADMIN_SCOPE]: [

@@ -73,9 +73,6 @@ struct NodeMenuEntryFormatter {
         }
         if let family = entry.deviceFamily?.lowercased() {
             if family.contains("mac") { return "macOS" }
-            if family.contains("iphone") { return "iOS" }
-            if family.contains("ipad") { return "iPadOS" }
-            if family.contains("android") { return "Android" }
         }
         return nil
     }
@@ -132,22 +129,11 @@ struct NodeMenuEntryFormatter {
             if family.contains("mac") {
                 return self.safeSystemSymbol("laptopcomputer", fallback: "laptopcomputer")
             }
-            if family.contains("iphone") { return self.safeSystemSymbol("iphone", fallback: "iphone") }
-            if family.contains("ipad") { return self.safeSystemSymbol("ipad", fallback: "ipad") }
         }
         if let platform = entry.platform?.lowercased() {
             if platform.contains("mac") { return self.safeSystemSymbol("laptopcomputer", fallback: "laptopcomputer") }
-            if platform.contains("ios") { return self.safeSystemSymbol("iphone", fallback: "iphone") }
-            if platform.contains("android") { return self.safeSystemSymbol("cpu", fallback: "cpu") }
         }
         return "cpu"
-    }
-
-    static func isAndroid(_ entry: NodeInfo) -> Bool {
-        let family = entry.deviceFamily?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if family == "android" { return true }
-        let platform = entry.platform?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return platform?.contains("android") == true
     }
 
     private static func safeSystemSymbol(_ preferred: String, fallback: String) -> String {
@@ -227,31 +213,9 @@ struct NodeMenuRowView: View {
 
     @ViewBuilder
     private var leadingIcon: some View {
-        if NodeMenuEntryFormatter.isAndroid(self.entry) {
-            AndroidMark()
-                .foregroundStyle(self.palette.secondary)
-        } else {
-            Image(systemName: NodeMenuEntryFormatter.leadingSymbol(self.entry))
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(self.palette.secondary)
-        }
-    }
-}
-
-struct AndroidMark: View {
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            let headHeight = h * 0.68
-            let headWidth = w * 0.92
-            let headX = (w - headWidth) * 0.5
-            let headY = (h - headHeight) * 0.5
-            let corner = min(w, h) * 0.18
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .frame(width: headWidth, height: headHeight)
-                .position(x: headX + headWidth * 0.5, y: headY + headHeight * 0.5)
-        }
+        Image(systemName: NodeMenuEntryFormatter.leadingSymbol(self.entry))
+            .font(.system(size: 18, weight: .regular))
+            .foregroundStyle(self.palette.secondary)
     }
 }
 

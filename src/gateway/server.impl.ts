@@ -112,7 +112,6 @@ import { createExecApprovalHandlers } from "./server-methods/exec-approval.js";
 import { safeParseJson } from "./server-methods/nodes.helpers.js";
 import { createPluginApprovalHandlers } from "./server-methods/plugin-approval.js";
 import { createSecretsHandlers } from "./server-methods/secrets.js";
-import { hasConnectedMobileNode } from "./server-mobile-nodes.js";
 import { loadGatewayModelCatalog } from "./server-model-catalog.js";
 import { createNodeSubscriptionManager } from "./server-node-subscriptions.js";
 import {
@@ -872,7 +871,6 @@ export async function startGatewayServer(
   const broadcastVoiceWakeChanged = (triggers: string[]) => {
     broadcast("voicewake.changed", { triggers }, { dropIfSlow: true });
   };
-  const hasMobileNodeConnected = () => hasConnectedMobileNode(nodeRegistry);
   applyGatewayLaneConcurrency(cfgAtStart);
 
   let cronState = buildGatewayCronService({
@@ -1015,7 +1013,6 @@ export async function startGatewayServer(
                       subagentControlScope: sessionRow.subagentControlScope,
                       label: sessionRow.label,
                       displayName: sessionRow.displayName,
-                      observer: sessionRow.observer,
                       deliveryContext: sessionRow.deliveryContext,
                       parentSessionKey: sessionRow.parentSessionKey,
                       childSessions: sessionRow.childSessions,
@@ -1086,7 +1083,6 @@ export async function startGatewayServer(
                 subagentControlScope: sessionRow.subagentControlScope,
                 label: sessionRow.label,
                 displayName: sessionRow.displayName,
-                observer: sessionRow.observer,
                 deliveryContext: sessionRow.deliveryContext,
                 parentSessionKey: sessionRow.parentSessionKey,
                 childSessions: sessionRow.childSessions,
@@ -1188,7 +1184,6 @@ export async function startGatewayServer(
                     subagentControlScope: sessionRow.subagentControlScope,
                     label: event.label ?? sessionRow.label,
                     displayName: event.displayName ?? sessionRow.displayName,
-                    observer: sessionRow.observer,
                     deliveryContext: sessionRow.deliveryContext,
                     parentSessionKey: event.parentSessionKey ?? sessionRow.parentSessionKey,
                     childSessions: sessionRow.childSessions,
@@ -1329,7 +1324,6 @@ export async function startGatewayServer(
       nodeSubscribe,
       nodeUnsubscribe,
       nodeUnsubscribeAll,
-      hasConnectedMobileNode: hasMobileNodeConnected,
       hasExecApprovalClients: (excludeConnId?: string) => {
         for (const gatewayClient of clients) {
           if (excludeConnId && gatewayClient.connId === excludeConnId) {

@@ -1,25 +1,19 @@
 import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import type { AlisioAccountState, AlisioSharingState } from "../types.ts";
+import type { ComputersCatalogState } from "./computers.ts";
+import { computerNodeSupportsExec, isComputerNodeConnected } from "./computers.ts";
 import {
   groupPairedDevicesByComputer,
   type DevicePairingList,
   type PairedComputer,
 } from "./devices.ts";
-import type { RuntimeNodePairingList } from "./node-pairing.ts";
 import { resolveRemoteComputerRecords, type RemoteComputerRecord } from "./remote-computers.ts";
 
 type SharingIncomingRequest = NonNullable<AlisioSharingState["incomingRequests"]>[number];
 type SharingOutgoingRequest = NonNullable<AlisioSharingState["outgoingRequests"]>[number];
 type AccountDevice = NonNullable<AlisioAccountState["devices"]>[number];
 
-export type ConnectionsModelInput = {
-  account?: AlisioAccountState | null;
-  sharing?: AlisioSharingState | null;
-  devicesList: DevicePairingList | null;
-  currentDeviceId: string | null;
-  nodes: NodeListNode[];
-  nodePairingsList?: RuntimeNodePairingList | null;
-};
+export type ConnectionsModelInput = ComputersCatalogState;
 
 export type ConnectionComputerModel = {
   computerId: string;
@@ -58,7 +52,7 @@ type ConnectionsModelCache = {
   devicesList: DevicePairingList | null;
   currentDeviceId: string | null;
   nodes: NodeListNode[];
-  nodePairingsList?: RuntimeNodePairingList | null;
+  nodePairingsList: ComputersCatalogState["nodePairingsList"];
   result: ConnectionsModel;
 };
 
@@ -68,19 +62,6 @@ function normalizeId(value: string | null | undefined) {
 }
 
 let lastConnectionsModelCache: ConnectionsModelCache | null = null;
-
-function nodeSupportsExec(node: Pick<NodeListNode, "commands" | "caps" | "capabilities">) {
-  const commands = Array.isArray(node.commands) ? node.commands : [];
-  if (commands.includes("system.run")) {
-    return true;
-  }
-  const caps = Array.isArray(node.caps) ? node.caps : [];
-  if (caps.some((capability) => capability.trim() === "exec.shell.v1")) {
-    return true;
-  }
-  const capabilities = Array.isArray(node.capabilities) ? node.capabilities : [];
-  return capabilities.some((capability) => capability.id?.trim() === "exec.shell.v1");
-}
 
 function resolveCurrentFallbackComputer(
   account: AlisioAccountState | null | undefined,
@@ -162,7 +143,7 @@ function buildComputerModel(params: {
     local?.isCurrentComputer === true ||
     fallback?.current === true ||
     remote?.connected === true ||
-    runtimeNodes.some((node) => node.connected);
+    runtimeNodes.some((node) => isComputerNodeConnected(node));
   return {
     computerId: params.computerId,
     label,
@@ -175,7 +156,7 @@ function buildComputerModel(params: {
     connected,
     execReady:
       remote?.supportsExec === true ||
-      runtimeNodes.some((node) => node.connected && nodeSupportsExec(node)),
+      runtimeNodes.some((node) => isComputerNodeConnected(node) && computerNodeSupportsExec(node)),
     sameAccount: remote?.sameAccount ?? true,
     external: remote?.sameAccount === false,
   } satisfies ConnectionComputerModel;
@@ -291,8 +272,9 @@ export function resolveConnectionsModel(input: ConnectionsModelInput): Connectio
     accountComputersCount: accountComputerIds.size,
     externalComputersCount: new Set(externalComputers.map((computer) => computer.computerId)).size,
     onlineComputersCount: onlineComputerIds.size,
-    execReadyNodesCount: input.nodes.filter((node) => node.connected && nodeSupportsExec(node))
-      .length,
+    execReadyNodesCount: input.nodes.filter(
+      (node) => isComputerNodeConnected(node) && computerNodeSupportsExec(node),
+    ).length,
     hasAdvancedSharing:
       (input.sharing?.devices.available?.length ?? 0) > 0 ||
       (input.sharing?.devices.sharedWithMe?.length ?? 0) > 0 ||

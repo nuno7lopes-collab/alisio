@@ -25,9 +25,17 @@ export const MemoryWikiSyncSurfaceSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const MemoryWikiRoleSchema = Type.Union([
+  Type.Literal("main"),
+  Type.Literal("topic"),
+  Type.Literal("daily"),
+  Type.Literal("backlog"),
+]);
+
 export const MemoryWikiTaxonomySchema = Type.Object(
   {
     summary: Type.Optional(Type.String()),
+    memoryRole: Type.Optional(MemoryWikiRoleSchema),
     tags: Type.Optional(Type.Array(NonEmptyString)),
     categories: Type.Optional(Type.Array(NonEmptyString)),
     collections: Type.Optional(Type.Array(NonEmptyString)),
@@ -214,6 +222,8 @@ export const MemoryWikiUpdateParamsSchema = Type.Object(
   {
     agentId: NonEmptyString,
     pageId: Type.Optional(Type.String()),
+    relativePath: Type.Optional(Type.String()),
+    memoryRole: Type.Optional(MemoryWikiRoleSchema),
     title: NonEmptyString,
     content: Type.String(),
   },

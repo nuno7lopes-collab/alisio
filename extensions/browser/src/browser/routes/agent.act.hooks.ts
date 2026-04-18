@@ -7,7 +7,7 @@ import {
   resolveTargetIdFromBody,
   withRouteTabContext,
 } from "./agent.shared.js";
-import { DEFAULT_UPLOAD_DIR, resolveExistingPathsWithinRoot } from "./path-output.js";
+import { DEFAULT_UPLOAD_DIR, resolveExistingPathsWithinRoot } from "../paths.js";
 import type { BrowserRouteRegistrar } from "./types.js";
 import { jsonError, toBoolean, toNumber, toStringArray, toStringOrEmpty } from "./utils.js";
 

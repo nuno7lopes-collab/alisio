@@ -10,7 +10,7 @@ title: "Remote Access"
 This repo supports “remote over SSH” by keeping a single Gateway (the master) running on a dedicated host (desktop/server) and connecting clients to it.
 
 - For **operators (you / the macOS app)**: SSH tunneling is the universal fallback.
-- For **nodes (iOS/Android and future devices)**: connect to the Gateway **WebSocket** (LAN/tailnet or SSH tunnel as needed).
+- For **nodes**: connect to the Gateway **WebSocket** (LAN/tailnet or SSH tunnel as needed).
 
 ## The core idea
 

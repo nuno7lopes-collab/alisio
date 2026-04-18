@@ -714,6 +714,84 @@ describe("canonical memory store", () => {
     }
   });
 
+  it("removes materialized markdown files once the page is tombstoned", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-tombstone-materialize-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      const pageId = "page-tombstoned-projection";
+      await memoryWriteEvent({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+        events: [
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PAGE_CREATED",
+            payload: {
+              pageId,
+              title: "Ephemeral",
+              slug: "ephemeral",
+              aliases: ["ephemeral"],
+              tags: ["backlog"],
+              createdAtMs: 1,
+              updatedAtMs: 1,
+            },
+          },
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PROJECTION_SET",
+            payload: {
+              pageId,
+              kind: "md-path:memory/ephemeral.md",
+              markdownBody: "# Ephemeral\n\nThis should disappear.\n",
+            },
+          },
+        ],
+      });
+
+      await fs.readFile(path.join(test.workspaceDir, "memory", "ephemeral.md"), "utf8");
+      await fs.readFile(path.join(test.stateDir, "workspace", "memory", "ephemeral.md"), "utf8");
+
+      await memoryWriteEvent({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+        events: [
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PAGE_TOMBSTONED",
+            payload: {
+              pageId,
+              tombstoned: true,
+              updatedAtMs: 2,
+            },
+          },
+        ],
+      });
+
+      await expect(
+        fs.readFile(path.join(test.workspaceDir, "memory", "ephemeral.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        fs.readFile(path.join(test.stateDir, "workspace", "memory", "ephemeral.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
+
   it("migrates stored compatibility projection kinds back to the canonical prefix", async () => {
     const test = await createTestWorkspace("alisio-canonical-memory-projection-migrate-");
     vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);

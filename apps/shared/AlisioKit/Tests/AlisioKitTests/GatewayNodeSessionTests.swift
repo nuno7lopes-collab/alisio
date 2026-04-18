@@ -208,9 +208,9 @@ struct GatewayNodeSessionTests {
             caps: [],
             commands: [],
             permissions: [:],
-            clientId: "alisio-ios-test",
+            clientId: "alisio-macos-test",
             clientMode: "ui",
-            clientDisplayName: "iOS Test",
+            clientDisplayName: "macOS Test",
             includeDeviceIdentity: true)
 
         try await gateway.connect(
@@ -312,9 +312,9 @@ struct GatewayNodeSessionTests {
             caps: [],
             commands: [],
             permissions: [:],
-            clientId: "alisio-ios-test",
+            clientId: "alisio-macos-test",
             clientMode: "ui",
-            clientDisplayName: "iOS Test",
+            clientDisplayName: "macOS Test",
             includeDeviceIdentity: false)
 
         let stream = await gateway.subscribeServerEvents(bufferingNewest: 32)

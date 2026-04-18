@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStorageMock } from "../../test-helpers/storage.ts";
 import { GatewayRequestError } from "../gateway.ts";
-import type { SessionsListResult } from "../types.ts";
-import { readBrowserPaneObserverEvent, resolveBrowserPaneSessionObserver } from "./browser-pane.ts";
 import {
   abortChatRun,
   clearChatHistorySnapshot,
@@ -63,118 +61,60 @@ function createOtherRunNoReplyFinalPayload(): ChatEventPayload {
   };
 }
 
-function createSessionsResult(
-  session: Partial<SessionsListResult["sessions"][number]>,
-): SessionsListResult {
-  return {
-    ts: 0,
-    path: "",
-    count: 1,
-    defaults: {
-      modelProvider: null,
-      model: null,
-      contextTokens: null,
-    },
-    sessions: [
-      {
-        key: "main",
-        kind: "direct",
-        updatedAt: null,
-        ...session,
-      },
-    ],
-  };
-}
-
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe("browser pane controller helpers", () => {
-  it("clears a cached live observer when the session row explicitly removes it", () => {
-    const liveObserver = {
-      kind: "novnc" as const,
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Live browser",
-    };
-
-    expect(
-      resolveBrowserPaneSessionObserver({
-        sessionKey: "main",
-        liveObserver,
-        sessions: createSessionsResult({
-          observer: null,
-        }),
-      }),
-    ).toBeNull();
-    expect(
-      resolveBrowserPaneSessionObserver({
-        sessionKey: "main",
-        liveObserver,
-        sessions: createSessionsResult({}),
-      }),
-    ).toEqual(liveObserver);
-  });
-
-  it("parses observer event updates and explicit removals", () => {
+  it("parses computer session updates from tool events", () => {
     vi.stubGlobal("localStorage", createStorageMock());
 
-    expect(
-      readBrowserPaneObserverEvent({
-        sessionKey: "main",
-        observer: {
-          kind: "novnc",
-          url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-          label: "Observed browser",
-        },
-      }),
-    ).toEqual({
-      sessionKey: "main",
-      observer: {
-        kind: "novnc",
-        url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-        label: "Observed browser",
-      },
-    });
-    expect(
-      readBrowserPaneObserverEvent({
-        session: {
-          key: "main",
-          observer: null,
-        },
-      }),
-    ).toEqual({
-      sessionKey: "main",
-      observer: null,
-    });
-  });
-
-  it("parses computer session updates from tool events", () => {
     const session = {
       sessionKey: "main",
       backend: "local-mac" as const,
       status: "observing" as const,
-      mode: "control-approved-apps" as const,
+      mode: "approved_apps_only" as const,
       approvedApps: [],
       permissions: {
         accessibility: true,
         screenRecording: false,
+      },
+      replay: {
+        frames: [],
+        steps: [],
+        actionCount: 0,
+        safetyEventsCount: 0,
       },
       context: {
         display: {
           width: 1440,
           height: 900,
           scale: 2,
+          logicalWidth: 1440,
+          logicalHeight: 900,
+          pixelWidth: 2880,
+          pixelHeight: 1800,
+          orientation: "landscape",
         },
         capturedAt: 10,
       },
       frame: {
+        id: "frame-1",
         dataUrl: "data:image/jpeg;base64,abc",
         mimeType: "image/jpeg",
         width: 1440,
         height: 900,
+        pixelWidth: 2880,
+        pixelHeight: 1800,
+        logicalWidth: 1440,
+        logicalHeight: 900,
+        scaleFactor: 2,
+        orientation: "landscape",
+        sourceSpace: "display-pixel" as const,
         capturedAt: 10,
+        maxAgeMs: 1000,
+        staleAt: 1010,
       },
       stepCounter: 0,
       timeline: [],
@@ -197,7 +137,90 @@ describe("browser pane controller helpers", () => {
       }),
     ).toEqual({
       sessionKey: "main",
-      session,
+      session: {
+        ...session,
+        eventLog: [],
+        buffers: {
+          eventLimit: 160,
+          replayFrameLimit: 24,
+          replayStepLimit: 24,
+          timelineLimit: 80,
+          eventLogTruncated: false,
+          replayFramesTruncated: false,
+          replayStepsTruncated: false,
+          timelineTruncated: false,
+        },
+        target: {
+          id: "local-mac:local:host",
+          label: "Local Mac",
+          kind: "local-mac-host",
+          nodeId: "local",
+          globalInput: true,
+          allowsConcurrentObserve: true,
+        },
+        capabilities: [
+          {
+            kind: "observe_only",
+            available: true,
+            exposure: "exposed",
+            reason: "Read-only screen capture is supported on the local Mac.",
+          },
+          {
+            kind: "foreground_control",
+            available: true,
+            exposure: "exposed",
+            reason:
+              "Control uses real macOS Accessibility input and may move focus, cursor, or global input.",
+          },
+          {
+            kind: "background_safe_control",
+            available: false,
+            exposure: "hidden",
+            reason:
+              "Local macOS control is not background-safe because it still depends on real foreground input.",
+          },
+          {
+            kind: "future_virtualized_control",
+            available: false,
+            exposure: "hidden",
+            reason: "No virtualized desktop target exists in the current local-mac runtime.",
+          },
+        ],
+        policy: {
+          allow: {
+            actions: [],
+            apps: [],
+            hosts: [],
+            paths: [],
+            surfaces: [],
+          },
+          deny: {
+            actions: [],
+            apps: [],
+            hosts: [],
+            paths: [],
+            surfaces: [],
+          },
+          sensitive: {
+            actions: [],
+            apps: [],
+            hosts: [],
+            paths: [],
+            surfaces: [],
+          },
+          commandLikeActions: [],
+        },
+        safety: {
+          level: "normal",
+          recentEvents: [],
+        },
+        replay: {
+          frames: [],
+          steps: [],
+          actionCount: 0,
+          safetyEventsCount: 0,
+        },
+      },
     });
     expect(readComputerSessionState({ status: "observing" })).toBeNull();
   });
@@ -231,26 +254,49 @@ describe("browser pane controller helpers", () => {
       sessionKey: "main",
       backend: "local-mac" as const,
       status: "observing" as const,
-      mode: "control-approved-apps" as const,
+      mode: "approved_apps_only" as const,
       approvedApps: [],
       permissions: {
         accessibility: true,
         screenRecording: true,
       },
+      replay: {
+        frames: [],
+        steps: [],
+        actionCount: 0,
+        safetyEventsCount: 0,
+      },
       context: {
         display: {
+          id: "display-1",
           width: 1440,
           height: 900,
           scale: 2,
+          logicalWidth: 1440,
+          logicalHeight: 900,
+          pixelWidth: 2880,
+          pixelHeight: 1800,
+          orientation: "landscape",
         },
         capturedAt: 10,
       },
       frame: {
+        id: "frame-2",
         dataUrl: "data:image/jpeg;base64,abc",
         mimeType: "image/jpeg",
         width: 1440,
         height: 900,
+        pixelWidth: 2880,
+        pixelHeight: 1800,
+        logicalWidth: 1440,
+        logicalHeight: 900,
+        scaleFactor: 2,
+        orientation: "landscape",
+        displayId: "display-1",
+        sourceSpace: "display-pixel",
         capturedAt: 10,
+        maxAgeMs: 1000,
+        staleAt: 1010,
       },
       stepCounter: 0,
       timeline: [],

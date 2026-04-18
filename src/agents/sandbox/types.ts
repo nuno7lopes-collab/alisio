@@ -36,10 +36,7 @@ export type SandboxBrowserConfig = {
   network: string;
   cdpPort: number;
   cdpSourceRange?: string;
-  vncPort: number;
-  noVncPort: number;
   headless: boolean;
-  enableNoVnc: boolean;
   allowHostControl: boolean;
   autoStart: boolean;
   autoStartTimeoutMs: number;
@@ -82,7 +79,6 @@ export type SandboxConfig = {
 
 export type SandboxBrowserContext = {
   bridgeUrl: string;
-  noVncUrl?: string;
   containerName: string;
 };
 

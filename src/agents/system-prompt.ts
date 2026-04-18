@@ -523,9 +523,6 @@ export function buildAgentSystemPrompt(params: {
               }`
             : "",
           params.sandboxInfo.browserBridgeUrl ? "Sandbox browser: enabled." : "",
-          params.sandboxInfo.browserNoVncUrl
-            ? "Sandbox browser observer: visible in the app UI."
-            : "",
           params.sandboxInfo.browserBridgeUrl
             ? 'When the user asks to open, search, click, type, scroll, or browse, use the sandbox browser by default and do it immediately. Omit `target` in normal use. Do not ask whether to use sandbox or host unless the user explicitly asks for the host browser or an existing logged-in host profile.'
             : "",

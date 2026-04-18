@@ -79,7 +79,7 @@ export const SUB_CLI_DESCRIPTORS = [
   },
   {
     name: "qr",
-    description: "Generate iOS pairing QR/setup code",
+    description: "Generate node pairing QR/setup code",
     hasSubcommands: false,
   },
   {

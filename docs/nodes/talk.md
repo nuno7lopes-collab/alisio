@@ -1,7 +1,7 @@
 ---
 summary: "Talk mode: continuous speech conversations with ElevenLabs TTS"
 read_when:
-  - Implementing Talk mode on macOS/iOS/Android
+  - Implementing Talk mode on macOS
   - Changing voice/TTS/interrupt behavior
 title: "Talk Mode"
 ---
@@ -65,11 +65,11 @@ Supported keys:
 Defaults:
 
 - `interruptOnSpeech`: true
-- `silenceTimeoutMs`: when unset, Talk keeps the platform default pause window before sending the transcript (`700 ms on macOS and Android, 900 ms on iOS`)
+- `silenceTimeoutMs`: when unset, Talk keeps the platform default pause window before sending the transcript (`700 ms on macOS`)
 - `voiceId`: falls back to `ELEVENLABS_VOICE_ID` / `SAG_VOICE_ID` (or first ElevenLabs voice when API key is available)
 - `modelId`: defaults to `eleven_v3` when unset
 - `apiKey`: falls back to `ELEVENLABS_API_KEY` (or gateway shell profile if available)
-- `outputFormat`: defaults to `pcm_44100` on macOS/iOS and `pcm_24000` on Android (set `mp3_*` to force MP3 streaming)
+- `outputFormat`: defaults to `pcm_44100` on macOS (set `mp3_*` to force MP3 streaming)
 
 ## macOS UI
 
@@ -86,7 +86,6 @@ Defaults:
 
 - Requires Speech + Microphone permissions.
 - Uses `chat.send` against session key `main`.
-- TTS uses ElevenLabs streaming API with `ELEVENLABS_API_KEY` and incremental playback on macOS/iOS/Android for lower latency.
+- TTS uses ElevenLabs streaming API with `ELEVENLABS_API_KEY` and incremental playback on macOS for lower latency.
 - `stability` for `eleven_v3` is validated to `0.0`, `0.5`, or `1.0`; other models accept `0..1`.
 - `latency_tier` is validated to `0..4` when set.
-- Android supports `pcm_16000`, `pcm_22050`, `pcm_24000`, and `pcm_44100` output formats for low-latency AudioTrack streaming.

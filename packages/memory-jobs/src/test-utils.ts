@@ -43,8 +43,10 @@ async function materializeProjectionFiles(seed: TestStatusSeed): Promise<void> {
     ensureLedgerTables(db);
     const rows = db
       .prepare(
-        `SELECT kind, markdown_body
+        `SELECT projections.kind, projections.markdown_body
          FROM projections
+         JOIN pages ON pages.page_id = projections.page_id
+         WHERE pages.tombstoned = 0
          ORDER BY kind ASC`,
       )
       .all() as Array<{
@@ -52,19 +54,72 @@ async function materializeProjectionFiles(seed: TestStatusSeed): Promise<void> {
       markdown_body: string;
     }>;
     const roots = [seed.workspaceDir, path.join(seed.stateDir, "workspace")];
+    const expectedPaths = new Set<string>();
     for (const row of rows) {
       const relativePath = resolveProjectionRelativePath(row.kind);
       if (!relativePath) {
         continue;
       }
+      expectedPaths.add(relativePath);
       for (const rootDir of roots) {
         const target = path.join(rootDir, relativePath);
         await fs.mkdir(path.dirname(target), { recursive: true });
         await fs.writeFile(target, row.markdown_body, "utf8");
       }
     }
+    for (const rootDir of roots) {
+      for (const relativePath of [path.join("memory"), "MEMORY.md"]) {
+        const target = path.join(rootDir, relativePath);
+        await removeUnexpectedMarkdownFiles({
+          rootDir,
+          target,
+          expectedPaths,
+        });
+      }
+    }
   } finally {
     db.close();
+  }
+}
+
+async function removeUnexpectedMarkdownFiles(params: {
+  rootDir: string;
+  target: string;
+  expectedPaths: ReadonlySet<string>;
+}): Promise<void> {
+  let stats: Awaited<ReturnType<typeof fs.stat>> | undefined;
+  try {
+    stats = await fs.stat(params.target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+  const relativePath = path.relative(params.rootDir, params.target).replace(/\\/g, "/");
+  if (stats.isDirectory()) {
+    const entries = await fs.readdir(params.target, { withFileTypes: true });
+    await Promise.all(
+      entries.map((entry) =>
+        removeUnexpectedMarkdownFiles({
+          rootDir: params.rootDir,
+          target: path.join(params.target, entry.name),
+          expectedPaths: params.expectedPaths,
+        }),
+      ),
+    );
+    const remaining = await fs.readdir(params.target).catch(() => []);
+    if (remaining.length === 0) {
+      await fs.rmdir(params.target).catch(() => undefined);
+    }
+    return;
+  }
+  if (
+    relativePath.endsWith(".md") &&
+    !params.expectedPaths.has(relativePath) &&
+    !params.expectedPaths.has(relativePath.replace(/\\/g, "/"))
+  ) {
+    await fs.rm(params.target, { force: true }).catch(() => undefined);
   }
 }
 

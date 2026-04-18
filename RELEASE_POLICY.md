@@ -12,9 +12,6 @@ requiring that rename first.
 - `package.json` is the canonical release version source.
 - Release tags must match the version policy enforced by `scripts/alisio-npm-release-check.ts`.
 - Before a release-grade publish, mirror that version into the platform/version surfaces that ship with the release:
-  - `apps/android/app/build.gradle.kts`
-  - `apps/ios/Sources/Info.plist`
-  - `apps/ios/Tests/Info.plist`
   - `apps/macos/Sources/Alisio/Resources/Info.plist`
   - `docs/install/updating.md`
 - Do not cut or publish a release without explicit operator approval.

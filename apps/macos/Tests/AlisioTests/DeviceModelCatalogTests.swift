@@ -4,11 +4,11 @@ import AlisioSupport
 
 struct DeviceModelCatalogTests {
     @Test
-    func `symbol prefers model identifier prefixes`() {
+    func `symbol prefers mac model identifier prefixes`() {
         #expect(DeviceModelCatalog
-            .symbol(deviceFamily: "iPad", modelIdentifier: "iPad16,6", friendlyName: nil) == "ipad")
+            .symbol(deviceFamily: "Mac", modelIdentifier: "MacBookPro18,1", friendlyName: nil) == "laptopcomputer")
         #expect(DeviceModelCatalog
-            .symbol(deviceFamily: "iPhone", modelIdentifier: "iPhone17,3", friendlyName: nil) == "iphone")
+            .symbol(deviceFamily: "Mac", modelIdentifier: "MacStudio1,1", friendlyName: nil) == "macstudio")
     }
 
     @Test
@@ -29,13 +29,13 @@ struct DeviceModelCatalogTests {
 
     @Test
     func `symbol falls back to device family`() {
-        #expect(DeviceModelCatalog.symbol(deviceFamily: "Android", modelIdentifier: "", friendlyName: nil) == "android")
+        #expect(DeviceModelCatalog.symbol(deviceFamily: "Unknown", modelIdentifier: "", friendlyName: nil) == "cpu")
         #expect(DeviceModelCatalog.symbol(deviceFamily: "Linux", modelIdentifier: "", friendlyName: nil) == "cpu")
     }
 
     @Test
-    func `presentation uses bundled model mappings`() {
-        let presentation = DeviceModelCatalog.presentation(deviceFamily: "iPhone", modelIdentifier: "iPhone1,1")
-        #expect(presentation?.title == "iPhone")
+    func `presentation uses bundled mac model mappings`() {
+        let presentation = DeviceModelCatalog.presentation(deviceFamily: "Mac", modelIdentifier: "Mac14,10")
+        #expect(presentation?.title?.isEmpty == false)
     }
 }

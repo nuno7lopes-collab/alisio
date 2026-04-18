@@ -27,7 +27,7 @@ import {
   type SlashCommandDef,
 } from "../chat/slash-commands.ts";
 import { isSttSupported, startStt, stopStt } from "../chat/speech.ts";
-import type { BrowserPaneObserver, BrowserPaneSurfaceKind } from "../controllers/browser-pane.ts";
+import type { BrowserPaneSurfaceKind } from "../controllers/browser-pane.ts";
 import type { ChatRuntimeSetupHint } from "../controllers/chat.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "../controllers/exec-approval.ts";
 import type {
@@ -112,10 +112,11 @@ export type ChatProps = {
   sidebarContent?: string | null;
   sidebarError?: string | null;
   browserPaneSurfaceKind?: BrowserPaneSurfaceKind;
-  browserPaneObserver?: BrowserPaneObserver | null;
   computerSessionLoading?: boolean;
   computerSessionError?: string | null;
   computerSession?: ComputerSessionState | null;
+  selectedComputerReplayStepId?: string | null;
+  computerStepDetailsOpen?: boolean;
   splitRatio?: number;
   assistantName: string;
   assistantAvatar: string | null;
@@ -150,9 +151,12 @@ export type ChatProps = {
   onOpenSidebar?: (content: string) => void;
   onCloseSidebar?: () => void;
   onSelectBrowserPaneSurface?: (surface: BrowserPaneSurfaceKind) => void;
-  onComputerSessionCommand?: (command: "pause" | "resume" | "stop") => void;
+  onSelectComputerReplayStep?: (stepId: string | null) => void;
+  onToggleComputerStepDetails?: (open: boolean) => void;
+  onComputerSessionCommand?: (command: "start" | "pause" | "resume" | "stop") => void;
   onComputerSessionApproval?: (decision: "allow-once" | "allow-session" | "deny") => void;
   onRequestComputerPermission?: (permission: "accessibility" | "screenRecording") => void;
+  onOpenComputerSession?: (sessionKey: string) => void;
   onSplitRatioChange?: (ratio: number) => void;
   onChatScroll?: (event: Event) => void;
   composerModelSelect?: TemplateResult | typeof nothing;
@@ -1368,20 +1372,36 @@ export function renderChat(props: ChatProps) {
   let fileInputEl: HTMLInputElement | null = null;
 
   const splitRatio = props.splitRatio ?? 0.6;
-  const visibleBrowserPaneObserver =
-    props.nativeShellState?.platform === "macos" ? null : (props.browserPaneObserver ?? null);
-  const browserPaneMarkdown = {
+  const browserPaneToolOutput = {
     content: props.sidebarContent ?? null,
     error: props.sidebarError ?? null,
   };
   const sidebarOpen = Boolean(
     props.sidebarOpen &&
     props.onCloseSidebar &&
-    (visibleBrowserPaneObserver ||
-      props.computerSession ||
-      browserPaneMarkdown.content ||
-      browserPaneMarkdown.error),
+    (props.computerSession || browserPaneToolOutput.content || browserPaneToolOutput.error),
   );
+  const workspacePaneSurface: BrowserPaneSurfaceKind | null =
+    props.browserPaneSurfaceKind === "computer" && props.computerSession
+      ? "computer"
+      : props.browserPaneSurfaceKind === "tool_output" &&
+          (browserPaneToolOutput.content || browserPaneToolOutput.error)
+        ? "tool_output"
+        : props.computerSession
+          ? "computer"
+          : browserPaneToolOutput.content || browserPaneToolOutput.error
+            ? "tool_output"
+            : null;
+  const workspacePaneOpenLabel =
+    workspacePaneSurface === "computer"
+      ? chatText("workspacePane.open", {
+          surface: chatText("browserPane.surfaces.computer"),
+        })
+      : workspacePaneSurface === "tool_output"
+        ? chatText("workspacePane.open", {
+            surface: chatText("browserPane.surfaces.tool_output"),
+          })
+        : null;
 
   const handleCodeBlockCopy = (e: Event) => {
     const btn = (e.target as HTMLElement).closest(".code-block-copy");
@@ -1738,6 +1758,19 @@ export function renderChat(props: ChatProps) {
           `
         : nothing}
       ${renderSearchBar(requestUpdate)} ${renderPinnedSection(props, pinned, requestUpdate)}
+      ${!sidebarOpen && workspacePaneSurface && props.onSelectBrowserPaneSurface
+        ? html`
+            <div class="alisio-chat__workspace-toggle">
+              <button
+                class="btn btn--sm"
+                type="button"
+                @click=${() => props.onSelectBrowserPaneSurface?.(workspacePaneSurface)}
+              >
+                ${workspacePaneOpenLabel}
+              </button>
+            </div>
+          `
+        : nothing}
 
       <div
         class="chat-split-container alisio-chat__workspace ${sidebarOpen
@@ -1759,17 +1792,21 @@ export function renderChat(props: ChatProps) {
               ></resizable-divider>
               <div class="chat-sidebar">
                 ${renderBrowserPane({
-                  observer: visibleBrowserPaneObserver,
-                  hideObserver: props.nativeShellState?.platform === "macos",
+                  browser: null,
                   computer: props.computerSession ?? null,
                   computerLoading: props.computerSessionLoading ?? false,
                   computerError: props.computerSessionError ?? null,
-                  markdown: browserPaneMarkdown,
-                  selectedSurface: props.browserPaneSurfaceKind ?? "observer",
+                  toolOutput: browserPaneToolOutput,
+                  selectedSurface: props.browserPaneSurfaceKind ?? "computer",
+                  selectedComputerReplayStepId: props.selectedComputerReplayStepId ?? null,
+                  computerStepDetailsOpen: props.computerStepDetailsOpen ?? true,
                   onSelectSurface: props.onSelectBrowserPaneSurface,
+                  onSelectComputerReplayStep: props.onSelectComputerReplayStep,
+                  onToggleComputerStepDetails: props.onToggleComputerStepDetails,
                   onComputerSessionCommand: props.onComputerSessionCommand,
                   onComputerSessionApproval: props.onComputerSessionApproval,
                   onRequestComputerPermission: props.onRequestComputerPermission,
+                  onOpenComputerSession: props.onOpenComputerSession,
                   onClose: props.onCloseSidebar!,
                   onViewRawText: () => {
                     if (!props.sidebarContent || !props.onOpenSidebar) {

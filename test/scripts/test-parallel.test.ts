@@ -463,7 +463,6 @@ describe("scripts/test-parallel lane planning", () => {
       ALISIO_CI_DOCS_CHANGED: "false",
       ALISIO_CI_RUN_NODE: "true",
       ALISIO_CI_RUN_MACOS: "true",
-      ALISIO_CI_RUN_ANDROID: "true",
       ALISIO_CI_RUN_WINDOWS: "true",
       ALISIO_CI_RUN_SKILLS_PYTHON: "false",
       ALISIO_CI_HAS_CHANGED_EXTENSIONS: "false",
@@ -472,7 +471,6 @@ describe("scripts/test-parallel lane planning", () => {
     expect(outputs).toContain("run_build_artifacts=true");
     expect(outputs).toContain("run_checks_windows=true");
     expect(outputs).toContain("run_macos_node=true");
-    expect(outputs).toContain("android_matrix=");
   });
 
   it("writes install-smoke outputs in install-smoke mode", () => {

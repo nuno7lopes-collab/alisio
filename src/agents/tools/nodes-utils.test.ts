@@ -30,16 +30,16 @@ beforeEach(async () => {
 describe("resolveNodeIdFromList defaults", () => {
   it("falls back to most recently connected node when multiple non-Mac candidates exist", () => {
     const nodes: NodeListNode[] = [
-      node({ nodeId: "ios-1", platform: "ios", connectedAtMs: 1 }),
-      node({ nodeId: "android-1", platform: "android", connectedAtMs: 2 }),
+      node({ nodeId: "linux-1", platform: "linux", connectedAtMs: 1 }),
+      node({ nodeId: "windows-1", platform: "windows", connectedAtMs: 2 }),
     ];
 
-    expect(resolveNodeIdFromList(nodes, undefined, true)).toBe("android-1");
+    expect(resolveNodeIdFromList(nodes, undefined, true)).toBe("windows-1");
   });
 
   it("preserves local Mac preference when exactly one local Mac candidate exists", () => {
     const nodes: NodeListNode[] = [
-      node({ nodeId: "ios-1", platform: "ios" }),
+      node({ nodeId: "linux-1", platform: "linux" }),
       node({ nodeId: "mac-1", platform: "macos" }),
     ];
 
@@ -48,8 +48,8 @@ describe("resolveNodeIdFromList defaults", () => {
 
   it("uses stable nodeId ordering when connectedAtMs is unavailable", () => {
     const nodes: NodeListNode[] = [
-      node({ nodeId: "z-node", platform: "ios", connectedAtMs: undefined }),
-      node({ nodeId: "a-node", platform: "android", connectedAtMs: undefined }),
+      node({ nodeId: "z-node", platform: "windows", connectedAtMs: undefined }),
+      node({ nodeId: "a-node", platform: "linux", connectedAtMs: undefined }),
     ];
 
     expect(resolveNodeIdFromList(nodes, undefined, true)).toBe("a-node");
@@ -62,14 +62,16 @@ describe("listNodes", () => {
       .mockRejectedValueOnce(new Error("unknown method: node.list"))
       .mockResolvedValueOnce({
         pending: [],
-        paired: [{ nodeId: "pair-1", displayName: "Pair 1", platform: "ios", remoteIp: "1.2.3.4" }],
+        paired: [
+          { nodeId: "pair-1", displayName: "Pair 1", platform: "macos", remoteIp: "1.2.3.4" },
+        ],
       });
 
     await expect(listNodes({})).resolves.toEqual([
       {
         nodeId: "pair-1",
         displayName: "Pair 1",
-        platform: "ios",
+        platform: "macos",
         remoteIp: "1.2.3.4",
       },
     ]);

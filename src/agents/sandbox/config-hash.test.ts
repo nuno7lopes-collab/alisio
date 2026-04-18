@@ -111,10 +111,7 @@ describe("computeSandboxBrowserConfigHash", () => {
       browser: {
         cdpPort: 9222,
         cdpSourceRange: undefined,
-        vncPort: 5900,
-        noVncPort: 6080,
         headless: false,
-        enableNoVnc: true,
       },
       securityEpoch: "epoch-v1",
       workspaceAccess: "rw" as const,
@@ -142,10 +139,7 @@ describe("computeSandboxBrowserConfigHash", () => {
       browser: {
         cdpPort: 9222,
         cdpSourceRange: undefined,
-        vncPort: 5900,
-        noVncPort: 6080,
         headless: false,
-        enableNoVnc: true,
       },
       workspaceAccess: "rw" as const,
       workspaceDir: "/tmp/workspace",
@@ -167,10 +161,7 @@ describe("computeSandboxBrowserConfigHash", () => {
       docker: createDockerConfig(),
       browser: {
         cdpPort: 9222,
-        vncPort: 5900,
-        noVncPort: 6080,
         headless: false,
-        enableNoVnc: true,
       },
       securityEpoch: "epoch-v1",
       workspaceAccess: "rw" as const,

@@ -289,6 +289,51 @@ export function readPrimaryProjection(
     : undefined;
 }
 
+export function readPageByRelativePath(
+  db: DatabaseSync,
+  relativePath: string,
+): SleepPageSnapshot | undefined {
+  const row = db
+    .prepare(
+      `SELECT page_id
+       FROM projections
+       WHERE kind IN (?, ?)
+       ORDER BY updated_at_ms DESC
+       LIMIT 1`,
+    )
+    .get(`md-path:${relativePath}`, `legacy-markdown:${relativePath}`) as
+    | {
+        page_id: string;
+      }
+    | undefined;
+  return row?.page_id ? readPage(db, row.page_id) : undefined;
+}
+
+export function readProjectionByRelativePath(params: {
+  db: DatabaseSync;
+  relativePath: string;
+  workspaceDir: string;
+}): SleepProjectionSnapshot | undefined {
+  const row = params.db
+    .prepare(
+      `SELECT page_id, kind, markdown_body, updated_at_ms
+       FROM projections
+       WHERE kind IN (?, ?)
+       ORDER BY updated_at_ms DESC
+       LIMIT 1`,
+    )
+    .get(
+      `md-path:${params.relativePath}`,
+      `legacy-markdown:${params.relativePath}`,
+    ) as ProjectionRow | undefined;
+  return row
+    ? toProjectionSnapshot({
+        row,
+        workspaceDir: params.workspaceDir,
+      })
+    : undefined;
+}
+
 export function countPageProjections(db: DatabaseSync, pageId: string): number {
   const row = db
     .prepare(

@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createIosNodeListResponse } from "./program.nodes-test-helpers.js";
+import { createNodeListResponse } from "./program.nodes-test-helpers.js";
 import { callGateway, installBaseProgramMocks, runtime } from "./program.test-mocks.js";
 
 installBaseProgramMocks();
@@ -42,11 +42,11 @@ describe("cli program (nodes basics)", () => {
     return runtime.log.mock.calls.map((c) => formatRuntimeLogCallArg(c[0])).join("\n");
   }
 
-  function mockGatewayWithIosNodeListAnd(method: "node.describe" | "node.invoke", result: unknown) {
+  function mockGatewayWithNodeListAnd(method: "node.describe" | "node.invoke", result: unknown) {
     callGateway.mockImplementation(async (...args: unknown[]) => {
       const opts = (args[0] ?? {}) as { method?: string };
       if (opts.method === "node.list") {
-        return createIosNodeListResponse();
+        return createNodeListResponse();
       }
       if (opts.method === method) {
         return result;
@@ -136,21 +136,21 @@ describe("cli program (nodes basics)", () => {
     {
       label: "paired node details",
       node: {
-        nodeId: "ios-node",
-        displayName: "iOS Node",
+        nodeId: "mac-node",
+        displayName: "Mac Node",
         remoteIp: "192.168.0.88",
-        deviceFamily: "iPad",
-        modelIdentifier: "iPad16,6",
+        deviceFamily: "Mac",
+        modelIdentifier: "Mac14,10",
         caps: ["canvas", "camera"],
         paired: true,
         connected: true,
       },
       expectedOutput: [
         "Known: 1 · Paired: 1 · Connected: 1",
-        "iOS Node",
+        "Mac Node",
         "Detail",
-        "device: iPad",
-        "hw: iPad16,6",
+        "device: Mac",
+        "hw: Mac14,10",
         "Status",
         "paired",
         "Caps",
@@ -161,23 +161,21 @@ describe("cli program (nodes basics)", () => {
     {
       label: "unpaired node details",
       node: {
-        nodeId: "android-node",
-        displayName: "Peter's Tab S10 Ultra",
+        nodeId: "linux-node",
+        displayName: "Linux Worker",
         remoteIp: "192.168.0.99",
-        deviceFamily: "Android",
-        modelIdentifier: "samsung SM-X926B",
+        deviceFamily: "Linux",
+        modelIdentifier: "linux-x64",
         caps: ["canvas", "camera"],
         paired: false,
         connected: true,
       },
       expectedOutput: [
         "Known: 1 · Paired: 0 · Connected: 1",
-        "Peter's Tab",
-        "S10 Ultra",
+        "Linux Worker",
         "Detail",
-        "device: Android",
-        "hw: samsung",
-        "SM-X926B",
+        "device: Linux",
+        "hw: linux-x64",
         "Status",
         "unpaired",
         "connected",
@@ -204,16 +202,16 @@ describe("cli program (nodes basics)", () => {
   });
 
   it("runs nodes describe and calls node.describe", async () => {
-    mockGatewayWithIosNodeListAnd("node.describe", {
+    mockGatewayWithNodeListAnd("node.describe", {
       ts: Date.now(),
-      nodeId: "ios-node",
-      displayName: "iOS Node",
+      nodeId: "mac-node",
+      displayName: "Mac Node",
       caps: ["canvas", "camera"],
       commands: ["canvas.eval", "canvas.snapshot", "camera.snap"],
       connected: true,
     });
 
-    await runProgram(["nodes", "describe", "--node", "ios-node"]);
+    await runProgram(["nodes", "describe", "--node", "mac-node"]);
 
     expect(callGateway).toHaveBeenCalledWith(
       expect.objectContaining({ method: "node.list", params: {} }),
@@ -221,7 +219,7 @@ describe("cli program (nodes basics)", () => {
     expect(callGateway).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "node.describe",
-        params: { nodeId: "ios-node" },
+        params: { nodeId: "mac-node" },
       }),
     );
 
@@ -245,9 +243,9 @@ describe("cli program (nodes basics)", () => {
   });
 
   it("runs nodes invoke and calls node.invoke", async () => {
-    mockGatewayWithIosNodeListAnd("node.invoke", {
+    mockGatewayWithNodeListAnd("node.invoke", {
       ok: true,
-      nodeId: "ios-node",
+      nodeId: "mac-node",
       command: "canvas.eval",
       payload: { result: "ok" },
     });
@@ -257,7 +255,7 @@ describe("cli program (nodes basics)", () => {
         "nodes",
         "invoke",
         "--node",
-        "ios-node",
+        "mac-node",
         "--command",
         "canvas.eval",
         "--params",
@@ -272,7 +270,7 @@ describe("cli program (nodes basics)", () => {
       expect.objectContaining({
         method: "node.invoke",
         params: {
-          nodeId: "ios-node",
+          nodeId: "mac-node",
           command: "canvas.eval",
           params: { javaScript: "1+1" },
           timeoutMs: 15000,

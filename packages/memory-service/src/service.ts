@@ -725,6 +725,10 @@ function parseSessionScope(sessionKey?: string) {
   if (scope.includes(":channel:")) {
     return { agentId, chatType: "channel" as const };
   }
+  // The canonical per-agent "main" session behaves like a private direct thread.
+  if (scope === "main") {
+    return { agentId, chatType: "direct" as const };
+  }
   if (scope.includes(":direct:") || scope.includes(":dm:") || scope.includes("peer-direct")) {
     return { agentId, chatType: "direct" as const };
   }

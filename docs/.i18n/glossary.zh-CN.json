@@ -40,16 +40,12 @@
     "target": "设备概览"
   },
   {
-    "source": "Devices (iOS and Android)",
-    "target": "设备（iOS 和 Android）"
   },
   {
     "source": "Device runbook: iOS",
     "target": "设备运行手册：iOS"
   },
   {
-    "source": "Device runbook: Android",
-    "target": "设备运行手册：Android"
   },
   {
     "source": "Pairing (DM and devices)",

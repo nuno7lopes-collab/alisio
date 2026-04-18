@@ -306,7 +306,6 @@ import {
   NodeInvokeResultParamsSchema,
   NodeInvokeRequestEventSchema,
   NodeListParamsSchema,
-  NodePendingAckParamsSchema,
   NodePairApproveParamsSchema,
   NodePairListParamsSchema,
   NodePairRejectParamsSchema,
@@ -322,7 +321,6 @@ import {
   PluginApprovalRequestParamsSchema,
   PluginApprovalResolveParamsSchema,
 } from "./plugin-approvals.js";
-import { PushTestParamsSchema, PushTestResultSchema } from "./push.js";
 import {
   SecretsReloadParamsSchema,
   SecretsResolveAssignmentSchema,
@@ -545,7 +543,6 @@ export const ProtocolSchemas = {
   NodeRenameParams: NodeRenameParamsSchema,
   NodeCapabilityManifest: NodeCapabilityManifestSchema,
   NodeListParams: NodeListParamsSchema,
-  NodePendingAckParams: NodePendingAckParamsSchema,
   NodeDescribeParams: NodeDescribeParamsSchema,
   NodeInvokeParams: NodeInvokeParamsSchema,
   NodeInvokeResultParams: NodeInvokeResultParamsSchema,
@@ -559,8 +556,6 @@ export const ProtocolSchemas = {
   NodePendingEnqueueResult: NodePendingEnqueueResultSchema,
   NodeInvokeRequestEvent: NodeInvokeRequestEventSchema,
   NodeTaskRequestEvent: NodeTaskRequestEventSchema,
-  PushTestParams: PushTestParamsSchema,
-  PushTestResult: PushTestResultSchema,
   SecretsReloadParams: SecretsReloadParamsSchema,
   SecretsResolveParams: SecretsResolveParamsSchema,
   SecretsResolveAssignment: SecretsResolveAssignmentSchema,

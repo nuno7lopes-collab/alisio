@@ -902,10 +902,10 @@ function renderCanonicalTaskDetail(props: TasksViewProps, detail: TasksDetailRes
       ? props.resolveSessionBrowserPanePreview(openSessionKey)
       : null;
   const hasSessionPreview = Boolean(
-    sessionPreview?.observer ||
-    sessionPreview?.computer ||
-    sessionPreview?.markdown.content ||
-    sessionPreview?.markdown.error,
+    sessionPreview?.browser ||
+      sessionPreview?.computer ||
+      sessionPreview?.toolOutput.content ||
+      sessionPreview?.toolOutput.error,
   );
   const childExecutionMap = buildExecutionMap(childExecutions);
 
@@ -1030,10 +1030,10 @@ function renderCanonicalTaskDetail(props: TasksViewProps, detail: TasksDetailRes
             <div class="card-sub">${t("tasksView.browser.subtitle")}</div>
             <div style="margin-top: 16px;">
               ${renderBrowserPane({
-                observer: sessionPreview?.observer ?? null,
+                browser: sessionPreview?.browser ?? null,
                 computer: sessionPreview?.computer ?? null,
-                markdown: sessionPreview?.markdown ?? null,
-                selectedSurface: sessionPreview?.selectedSurface ?? "observer",
+                toolOutput: sessionPreview?.toolOutput ?? null,
+                selectedSurface: sessionPreview?.selectedSurface ?? "computer",
                 embedded: true,
               })}
             </div>

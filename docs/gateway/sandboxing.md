@@ -25,7 +25,6 @@ and process access when the model does something dumb.
   - By default, sandbox browser containers use a dedicated Docker network (`alisio-sandbox-browser`) instead of the global `bridge` network.
     Configure with `agents.defaults.sandbox.browser.network`.
   - Optional `agents.defaults.sandbox.browser.cdpSourceRange` restricts container-edge CDP ingress with a CIDR allowlist (for example `172.21.0.1/32`).
-  - noVNC observer access is now legacy and opt-in (`agents.defaults.sandbox.browser.enableNoVnc: true`). The default desktop path is the native [Computer](/tools/computer) surface.
   - `agents.defaults.sandbox.browser.allowHostControl` lets sandboxed sessions target the host browser explicitly.
   - Optional allowlists gate `target: "custom"`: `allowedControlUrls`, `allowedControlHosts`, `allowedControlPorts`.
 

@@ -1745,7 +1745,6 @@ scripts/sandbox-browser-setup.sh   # 可选的浏览器镜像
 
 ## Talk
 
-Talk 模式的默认值（macOS/iOS/Android）。
 
 ```json5
 {
@@ -1768,7 +1767,6 @@ Talk 模式的默认值（macOS/iOS/Android）。
 - `apiKey` 和 `providers.*.apiKey` 接受明文字符串或 SecretRef 对象。
 - 仅在未配置 Talk API key 时，才会回退到 `ELEVENLABS_API_KEY`。
 - `voiceAliases` 让 Talk 指令可以使用友好的名称。
-- `silenceTimeoutMs` 控制 Talk 模式在用户停止说话后等待多久才发送转录。未设置时使用平台默认暂停窗口（`macOS 和 Android 上为 700 ms，iOS 上为 900 ms`）。
 
 ---
 

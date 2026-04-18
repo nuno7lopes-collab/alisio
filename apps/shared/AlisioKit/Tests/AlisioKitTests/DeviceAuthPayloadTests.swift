@@ -14,16 +14,16 @@ struct DeviceAuthPayloadTests {
             signedAtMs: 1_700_000_000_000,
             token: "tok-123",
             nonce: "nonce-abc",
-            platform: "  IOS  ",
-            deviceFamily: "  iPhone  ")
+            platform: "  WINDOWS  ",
+            deviceFamily: "  Laptop  ")
         #expect(
             payload
-                == "v3|dev-1|alisio-macos|ui|operator|operator.admin,operator.read|1700000000000|tok-123|nonce-abc|ios|iphone")
+                == "v3|dev-1|alisio-macos|ui|operator|operator.admin,operator.read|1700000000000|tok-123|nonce-abc|windows|laptop")
     }
 
     @Test("normalizes metadata with ASCII-only lowercase")
     func normalizesMetadataWithAsciiLowercase() {
-        #expect(GatewayDeviceAuthPayload.normalizeMetadataField("  İOS  ") == "İos")
+        #expect(GatewayDeviceAuthPayload.normalizeMetadataField("  WINDOWS  ") == "windows")
         #expect(GatewayDeviceAuthPayload.normalizeMetadataField("  MAC  ") == "mac")
         #expect(GatewayDeviceAuthPayload.normalizeMetadataField(nil) == "")
     }

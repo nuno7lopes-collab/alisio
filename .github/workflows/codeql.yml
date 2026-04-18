@@ -50,15 +50,6 @@ jobs:
             needs_manual_build: false
             needs_autobuild: false
             config_file: ""
-          - language: java-kotlin
-            runs_on: blacksmith-16vcpu-ubuntu-2404
-            needs_node: false
-            needs_python: false
-            needs_java: true
-            needs_swift_tools: false
-            needs_manual_build: true
-            needs_autobuild: false
-            config_file: ""
           - language: swift
             runs_on: macos-latest
             needs_node: false
@@ -113,28 +104,11 @@ jobs:
         if: matrix.needs_autobuild
         uses: github/codeql-action/autobuild@v4
 
-      - name: Build Android for CodeQL
-        if: matrix.language == 'java-kotlin'
-        working-directory: apps/android
-        run: ./gradlew --no-daemon :app:assemblePlayDebug
-
       - name: Build Swift for CodeQL
         if: matrix.language == 'swift'
         run: |
           set -euo pipefail
           swift build --package-path apps/macos --configuration release
-          cd apps/ios
-          xcodegen generate
-          PROJECT_NAME="$(sed -n 's/^name: //p' project.yml | head -n 1)"
-          [[ -n "${PROJECT_NAME}" ]] || {
-            echo "Failed to resolve the iOS project name from apps/ios/project.yml" >&2
-            exit 1
-          }
-          xcodebuild build \
-            -project "${PROJECT_NAME}.xcodeproj" \
-            -scheme "${PROJECT_NAME}" \
-            -destination "generic/platform=iOS Simulator" \
-            CODE_SIGNING_ALLOWED=NO
 
       - name: Analyze
         uses: github/codeql-action/analyze@v4

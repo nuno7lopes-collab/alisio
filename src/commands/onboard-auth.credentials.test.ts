@@ -4,14 +4,67 @@ import {
   readAuthProfilesForAgent,
   setupAuthTestEnv,
 } from "../../test/helpers/auth-wizard.js";
+import { upsertAuthProfile } from "../agents/auth-profiles.js";
+import type { SecretInput } from "../config/types.secrets.js";
 import {
-  setByteplusApiKey,
-  setCloudflareAiGatewayConfig,
-  setMoonshotApiKey,
-  setOpencodeZenApiKey,
-  setOpenaiApiKey,
-  setVolcengineApiKey,
-} from "../plugins/provider-auth-storage.js";
+  buildApiKeyCredential,
+  type ApiKeyStorageOptions,
+} from "../plugins/provider-auth-helpers.js";
+
+function upsertProviderApiKeyProfile(params: {
+  provider: string;
+  key: SecretInput;
+  agentDir?: string;
+  options?: ApiKeyStorageOptions;
+  profileId?: string;
+  metadata?: Record<string, string>;
+}) {
+  upsertAuthProfile({
+    profileId: params.profileId ?? `${params.provider}:default`,
+    credential: buildApiKeyCredential(params.provider, params.key, params.metadata, params.options),
+    agentDir: params.agentDir,
+  });
+}
+
+function createProviderApiKeySetter(provider: string) {
+  return async (key: SecretInput, agentDir?: string, options?: ApiKeyStorageOptions) => {
+    upsertProviderApiKeyProfile({ provider, key, agentDir, options });
+  };
+}
+
+const setMoonshotApiKey = createProviderApiKeySetter("moonshot");
+const setOpenaiApiKey = createProviderApiKeySetter("openai");
+const setVolcengineApiKey = createProviderApiKeySetter("volcengine");
+const setByteplusApiKey = createProviderApiKeySetter("byteplus");
+
+async function setCloudflareAiGatewayConfig(
+  accountId: string,
+  gatewayId: string,
+  apiKey: SecretInput,
+  agentDir?: string,
+  options?: ApiKeyStorageOptions,
+) {
+  upsertProviderApiKeyProfile({
+    provider: "cloudflare-ai-gateway",
+    key: apiKey,
+    agentDir,
+    options,
+    metadata: {
+      accountId: accountId.trim(),
+      gatewayId: gatewayId.trim(),
+    },
+  });
+}
+
+async function setOpencodeZenApiKey(
+  key: SecretInput,
+  agentDir?: string,
+  options?: ApiKeyStorageOptions,
+) {
+  for (const provider of ["opencode", "opencode-go"] as const) {
+    upsertProviderApiKeyProfile({ provider, key, agentDir, options });
+  }
+}
 
 describe("onboard auth credentials secret refs", () => {
   const lifecycle = createAuthTestLifecycle([

@@ -1,6 +1,6 @@
 ---
 name: node-connect
-description: Diagnose Alisio node connection and pairing failures for Android, iOS, and macOS companion apps. Use when QR/setup code/manual connect fails, local Wi-Fi works but VPS/tailnet does not, or errors mention pairing required, unauthorized, bootstrap token invalid or expired, gateway.bind, gateway.remote.url, Tailscale, or plugins.entries.device-pair.config.publicUrl.
+description: Diagnose Alisio node connection and pairing failures for iOS and macOS companion apps. Use when QR/setup code/manual connect fails, local Wi-Fi works but VPS/tailnet does not, or errors mention pairing required, unauthorized, bootstrap token invalid or expired, gateway.bind, gateway.remote.url, Tailscale, or plugins.entries.device-pair.config.publicUrl.
 ---
 
 # Node Connect
@@ -36,7 +36,7 @@ Do not guess from `can't connect`.
 
 ## Canonical checks
 
-Prefer `alisio qr --json`. It uses the same setup-code payload Android scans.
+Prefer `alisio qr --json`. It uses the same setup-code payload the iOS app scans.
 
 ```bash
 alisio config get gateway.mode

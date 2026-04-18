@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 
-/** @typedef {{ runNode: boolean; runMacos: boolean; runAndroid: boolean; runWindows: boolean; runSkillsPython: boolean; runChangedSmoke: boolean }} ChangedScope */
+/** @typedef {{ runNode: boolean; runMacos: boolean; runWindows: boolean; runSkillsPython: boolean; runChangedSmoke: boolean }} ChangedScope */
 
 const DOCS_PATH_RE = /^(docs\/|.*\.mdx?$)/;
 const SKILLS_PYTHON_SCOPE_RE = /^(skills\/|pyproject\.toml$)/;
@@ -10,13 +10,12 @@ const INSTALL_SMOKE_WORKFLOW_SCOPE_RE = /^\.github\/workflows\/install-smoke\.ym
 const MACOS_PROTOCOL_GEN_RE =
   /^(apps\/macos\/Sources\/AlisioProtocol\/|apps\/shared\/AlisioKit\/Sources\/AlisioProtocol\/)/;
 const MACOS_NATIVE_RE = /^(apps\/macos\/|apps\/ios\/|apps\/shared\/|Swabble\/)/;
-const ANDROID_NATIVE_RE = /^(apps\/android\/|apps\/shared\/)/;
 const NODE_SCOPE_RE =
   /^(src\/|test\/|extensions\/|packages\/|scripts\/|ui\/|\.github\/|alisio\.mjs$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig.*\.json$|vitest.*\.ts$|tsdown\.config\.ts$|\.oxlintrc\.json$|\.oxfmtrc\.jsonc$)/;
 const WINDOWS_SCOPE_RE =
   /^(src\/|test\/|extensions\/|packages\/|scripts\/|ui\/|alisio\.mjs$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|tsconfig.*\.json$|vitest.*\.ts$|tsdown\.config\.ts$|\.github\/workflows\/ci\.yml$|\.github\/actions\/setup-node-env\/action\.yml$|\.github\/actions\/setup-pnpm-store-cache\/action\.yml$)/;
 const NATIVE_ONLY_RE =
-  /^(apps\/android\/|apps\/ios\/|apps\/macos\/|apps\/shared\/|Swabble\/|appcast\.xml$)/;
+  /^(apps\/ios\/|apps\/macos\/|apps\/shared\/|Swabble\/|appcast\.xml$)/;
 const CHANGED_SMOKE_SCOPE_RE =
   /^(Dockerfile$|\.npmrc$|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|scripts\/install\.sh$|scripts\/test-install-sh-docker\.sh$|scripts\/docker\/|extensions\/[^/]+\/package\.json$|\.github\/workflows\/install-smoke\.yml$|\.github\/actions\/setup-node-env\/action\.yml$)/;
 
@@ -29,7 +28,6 @@ export function detectChangedScope(changedPaths) {
     return {
       runNode: true,
       runMacos: true,
-      runAndroid: true,
       runWindows: true,
       runSkillsPython: true,
       runChangedSmoke: true,
@@ -38,7 +36,6 @@ export function detectChangedScope(changedPaths) {
 
   let runNode = false;
   let runMacos = false;
-  let runAndroid = false;
   let runWindows = false;
   let runSkillsPython = false;
   let runChangedSmoke = false;
@@ -63,7 +60,6 @@ export function detectChangedScope(changedPaths) {
 
     if (CI_WORKFLOW_SCOPE_RE.test(path)) {
       runMacos = true;
-      runAndroid = true;
       runSkillsPython = true;
     }
 
@@ -73,10 +69,6 @@ export function detectChangedScope(changedPaths) {
 
     if (!MACOS_PROTOCOL_GEN_RE.test(path) && MACOS_NATIVE_RE.test(path)) {
       runMacos = true;
-    }
-
-    if (ANDROID_NATIVE_RE.test(path)) {
-      runAndroid = true;
     }
 
     if (NODE_SCOPE_RE.test(path)) {
@@ -100,7 +92,7 @@ export function detectChangedScope(changedPaths) {
     runNode = true;
   }
 
-  return { runNode, runMacos, runAndroid, runWindows, runSkillsPython, runChangedSmoke };
+  return { runNode, runMacos, runWindows, runSkillsPython, runChangedSmoke };
 }
 
 /**
@@ -132,7 +124,6 @@ export function writeGitHubOutput(scope, outputPath = process.env.GITHUB_OUTPUT)
   }
   appendFileSync(outputPath, `run_node=${scope.runNode}\n`, "utf8");
   appendFileSync(outputPath, `run_macos=${scope.runMacos}\n`, "utf8");
-  appendFileSync(outputPath, `run_android=${scope.runAndroid}\n`, "utf8");
   appendFileSync(outputPath, `run_windows=${scope.runWindows}\n`, "utf8");
   appendFileSync(outputPath, `run_skills_python=${scope.runSkillsPython}\n`, "utf8");
   appendFileSync(outputPath, `run_changed_smoke=${scope.runChangedSmoke}\n`, "utf8");
@@ -168,7 +159,6 @@ if (isDirectRun()) {
       writeGitHubOutput({
         runNode: true,
         runMacos: true,
-        runAndroid: true,
         runWindows: true,
         runSkillsPython: true,
         runChangedSmoke: true,
@@ -180,7 +170,6 @@ if (isDirectRun()) {
     writeGitHubOutput({
       runNode: true,
       runMacos: true,
-      runAndroid: true,
       runWindows: true,
       runSkillsPython: true,
       runChangedSmoke: true,

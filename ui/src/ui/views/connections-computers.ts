@@ -1,6 +1,5 @@
 import { html, nothing } from "lit";
 import { repeat } from "lit/directives/repeat.js";
-import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
 import {
   resolveConnectionsModel,
@@ -9,10 +8,15 @@ import {
 } from "../controllers/connections-model.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
+import {
+  renderPairedComputer,
+  renderPendingDevice,
+  renderRemoteComputerCard,
+  renderRemoteComputerDetails,
+  renderRuntimeNodeCard,
+} from "./computer-cards.ts";
+import type { NodesProps } from "./connections-types.ts";
 import { renderSkeletonListItem, renderSkeletonPill } from "./loading-skeleton.ts";
-import type { NodesProps } from "./nodes.ts";
-import { renderPendingDevice, renderPairedComputer, renderRuntimeNodeCard } from "./nodes.ts";
-import { renderRemoteComputerCard, renderRemoteComputerDetails } from "./remote-computers.ts";
 
 function parseTimestamp(value: string | null | undefined) {
   if (!value) {
@@ -23,14 +27,7 @@ function parseTimestamp(value: string | null | undefined) {
 }
 
 function resolveConnectionsViewModel(props: NodesProps) {
-  return resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes as NodeListNode[],
-    nodePairingsList: props.nodePairingsList,
-  });
+  return resolveConnectionsModel(props.computers);
 }
 
 export function countAccountComputers(props: NodesProps) {
@@ -51,7 +48,7 @@ export function countOnlineComputers(props: NodesProps) {
 }
 
 function resolveAccountPrimaryLabel(props: NodesProps) {
-  const profile = props.account?.profile;
+  const profile = props.computers.account?.profile;
   if (!profile) {
     return t("alisio.connections.computers.accountUnknown");
   }
@@ -64,7 +61,7 @@ function resolveAccountPrimaryLabel(props: NodesProps) {
 }
 
 function resolveAccountSecondaryLabel(props: NodesProps) {
-  const profile = props.account?.profile;
+  const profile = props.computers.account?.profile;
   if (!profile) {
     return null;
   }
@@ -98,7 +95,7 @@ function resolveSharingRequestLabel(scopes: readonly string[]) {
 }
 
 function renderIncomingRequest(
-  request: NonNullable<NodesProps["sharing"]>["incomingRequests"][number],
+  request: NonNullable<NodesProps["computers"]["sharing"]>["incomingRequests"][number],
   props: NodesProps,
 ) {
   const title = request.requester.label;
@@ -153,7 +150,7 @@ function renderIncomingRequest(
 }
 
 function renderOutgoingRequest(
-  request: NonNullable<NodesProps["sharing"]>["outgoingRequests"][number],
+  request: NonNullable<NodesProps["computers"]["sharing"]>["outgoingRequests"][number],
 ) {
   const title = request.owner.label;
   const subtitle = [request.targetLabel, resolveSharingRequestLabel(request.scopes)].join(" · ");
@@ -183,7 +180,7 @@ function renderOutgoingRequest(
 }
 
 function renderCurrentFallbackComputer(
-  current: NonNullable<NonNullable<NodesProps["account"]>["devices"]>[number],
+  current: NonNullable<NonNullable<NodesProps["computers"]["account"]>["devices"]>[number],
 ) {
   return html`
     <div class="list-item alisio-connections-entry alisio-connections-entry--single">
@@ -207,7 +204,10 @@ function renderCurrentFallbackComputer(
 
 function renderComputerRuntimeContent(
   computer: ConnectionComputerModel,
-  pairedRuntimeNodes: Map<string, NonNullable<NodesProps["nodePairingsList"]>["paired"][number]>,
+  pairedRuntimeNodes: Map<
+    string,
+    NonNullable<NodesProps["computers"]["nodePairingsList"]>["paired"][number]
+  >,
 ) {
   if (!computer.local || computer.runtimeNodes.length === 0) {
     return nothing;
@@ -245,7 +245,10 @@ function renderComputerRemoteContent(computer: ConnectionComputerModel, props: N
 function renderComputerEntry(
   computer: ConnectionComputerModel,
   props: NodesProps,
-  pairedRuntimeNodes: Map<string, NonNullable<NodesProps["nodePairingsList"]>["paired"][number]>,
+  pairedRuntimeNodes: Map<
+    string,
+    NonNullable<NodesProps["computers"]["nodePairingsList"]>["paired"][number]
+  >,
 ) {
   if (computer.local) {
     return renderPairedComputer(computer.local, props, {
@@ -309,13 +312,13 @@ export function renderComputersPanel(
   model: ConnectionsModel = resolveConnectionsViewModel(props),
 ) {
   const initialLoading =
-    !props.devicesList &&
-    !props.devicesError &&
-    !props.sharing &&
-    !props.sharingError &&
-    props.devicesLoading;
+    !props.computers.devicesList &&
+    !props.computers.devicesError &&
+    !props.computers.sharing &&
+    !props.computers.sharingError &&
+    props.computers.devicesLoading;
   const pairedRuntimeNodes = new Map(
-    (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node] as const),
+    (props.computers.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node] as const),
   );
   const pendingCount =
     model.pendingDeviceRequests.length +
@@ -335,7 +338,7 @@ export function renderComputersPanel(
   const otherItems = model.externalComputers.map((computer) =>
     renderComputerEntry(computer, props, pairedRuntimeNodes),
   );
-  const refreshing = props.devicesLoading || Boolean(props.sharingLoading);
+  const refreshing = props.computers.devicesLoading || Boolean(props.computers.sharingLoading);
 
   return html`
     <section
@@ -354,11 +357,11 @@ export function renderComputersPanel(
           ${refreshing ? t("alisio.connections.loading") : t("common.refresh")}
         </button>
       </div>
-      ${props.devicesError
-        ? html`<div class="callout danger">${props.devicesError}</div>`
+      ${props.computers.devicesError
+        ? html`<div class="callout danger">${props.computers.devicesError}</div>`
         : nothing}
-      ${props.sharingError
-        ? html`<div class="callout danger">${props.sharingError}</div>`
+      ${props.computers.sharingError
+        ? html`<div class="callout danger">${props.computers.sharingError}</div>`
         : nothing}
       ${initialLoading
         ? html`

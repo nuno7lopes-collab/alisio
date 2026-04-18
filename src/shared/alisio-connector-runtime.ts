@@ -9,6 +9,7 @@ const RUNTIME_READY_CONNECTOR_IDS = new Set([
   "google-drive",
   "google-forms",
   "google-sheets",
+  "stripe",
   "youtube",
 ]);
 

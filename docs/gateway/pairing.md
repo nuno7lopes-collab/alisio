@@ -41,7 +41,7 @@ alisio nodes pending
 alisio nodes approve <requestId>
 alisio nodes reject <requestId>
 alisio nodes status
-alisio nodes rename --node <id|name|ip> --name "Living Room iPad"
+alisio nodes rename --node <id|name|ip> --name "Living Room Mac"
 ```
 
 `nodes status` shows paired/connected nodes and their capabilities.

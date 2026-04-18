@@ -1,6 +1,5 @@
 ---
 read_when:
-  - 将 iOS/Android 节点配对到 Gateway 网关时
   - 使用节点 canvas/camera 为智能体提供上下文时
   - 添加新的节点命令或 CLI 辅助工具时
 summary: 节点：配对、能力、权限以及 canvas/camera/screen/system 的 CLI 辅助工具
@@ -16,7 +15,6 @@ x-i18n:
 
 # 节点
 
-**节点**是一个配套设备（macOS/iOS/Android/无头），它以 `role: "node"` 连接到 Gateway 网关 **WebSocket**（与操作员相同的端口），并通过 `node.invoke` 暴露命令接口（例如 `canvas.*`、`camera.*`、`system.*`）。协议详情：[Gateway 网关协议](/gateway/protocol)。
 
 旧版传输：[Bridge 协议](/gateway/bridge-protocol)（TCP JSONL；当前节点已弃用/移除）。
 
@@ -216,7 +214,6 @@ alisio nodes camera clip --node <idOrNameOrIp> --duration 3000 --no-audio
 
 - 节点必须处于**前台**才能使用 `canvas.*` 和 `camera.*`（后台调用返回 `NODE_BACKGROUND_UNAVAILABLE`）。
 - 片段时长被限制（当前 `<= 60s`）以避免过大的 base64 负载。
-- Android 会在可能时提示 `CAMERA`/`RECORD_AUDIO` 权限；权限被拒绝会以 `*_PERMISSION_REQUIRED` 失败。
 
 ## 屏幕录制（节点）
 
@@ -230,9 +227,7 @@ alisio nodes screen record --node <idOrNameOrIp> --duration 10s --fps 10 --no-au
 注意事项：
 
 - `screen.record` 需要节点应用处于前台。
-- Android 会在录制前显示系统屏幕捕获提示。
 - 屏幕录制被限制为 `<= 60s`。
-- `--no-audio` 禁用麦克风捕获（iOS/Android 支持；macOS 使用系统捕获音频）。
 - 当有多个屏幕可用时，使用 `--screen <index>` 选择显示器。
 
 ## 位置（节点）
@@ -252,9 +247,7 @@ alisio nodes location get --node <idOrNameOrIp> --accuracy precise --max-age 150
 - "始终"需要系统权限；后台获取是尽力而为的。
 - 响应包括纬度/经度、精度（米）和时间戳。
 
-## 短信（Android 节点）
 
-当用户授予 **SMS** 权限且设备支持电话功能时，Android 节点可以暴露 `sms.send`。
 
 低级调用：
 
@@ -264,7 +257,6 @@ alisio nodes invoke --node <idOrNameOrIp> --command sms.send --params '{"to":"+1
 
 注意事项：
 
-- 在能力被广播之前，必须在 Android 设备上接受权限提示。
 - 没有电话功能的纯 Wi-Fi 设备不会广播 `sms.send`。
 
 ## 系统命令（节点主机 / mac 节点）

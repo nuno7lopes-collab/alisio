@@ -16,10 +16,6 @@ enum PlatformLabelFormatter {
         if prefix.isEmpty { return nil }
         let name: String = switch prefix {
         case "macos": "macOS"
-        case "ios": "iOS"
-        case "ipados": "iPadOS"
-        case "tvos": "tvOS"
-        case "watchos": "watchOS"
         default: prefix.prefix(1).uppercased() + prefix.dropFirst()
         }
         guard let version, !version.isEmpty else { return name }

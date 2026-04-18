@@ -34,21 +34,11 @@ describe("talk silence timeout defaults", () => {
     expect(readRepoFile("docs/nodes/talk.md")).toContain(defaultsDescription);
   });
 
-  it("matches the Apple and Android runtime constants", () => {
+  it("matches the Apple runtime constants", () => {
     const macDefaults = readRepoFile("apps/macos/Sources/Alisio/TalkDefaults.swift");
-    const iosDefaults = readRepoFile("apps/ios/Sources/Voice/TalkDefaults.swift");
-    const androidDefaults = readRepoFile(
-      "apps/android/app/src/main/java/ai/alisio/app/voice/TalkDefaults.kt",
-    );
 
     expect(macDefaults).toContain(
       `static let silenceTimeoutMs = ${TALK_SILENCE_TIMEOUT_MS_BY_PLATFORM.macos}`,
-    );
-    expect(iosDefaults).toContain(
-      `static let silenceTimeoutMs = ${TALK_SILENCE_TIMEOUT_MS_BY_PLATFORM.ios}`,
-    );
-    expect(androidDefaults).toContain(
-      `const val defaultSilenceTimeoutMs = ${TALK_SILENCE_TIMEOUT_MS_BY_PLATFORM.android}L`,
     );
   });
 });

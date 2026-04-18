@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
 import type {
   AlisioConnectorAuthorization,
+  AlisioConnectorsBeginResult,
   AlisioConnectorDefinition,
   AlisioProviderOverviewItem,
   AlisioProvidersState,
@@ -80,6 +81,9 @@ function createProps(
     overview: null,
     connectorCatalog: [],
     connectorAuthorizations: [],
+    connectorSetupGuide: null,
+    connectorSetupSubmitting: false,
+    connectorSetupError: null,
     search: "",
     dialogConnectorId: null,
     dialogMode: null,
@@ -88,6 +92,7 @@ function createProps(
     onOpenConnectorInstall: vi.fn(),
     onCloseConnectorDialog: vi.fn(),
     onBeginConnector: vi.fn(),
+    onCompleteManualConnector: vi.fn(),
     onRevokeConnector: vi.fn(),
     onTryConnectorInChat: vi.fn(),
     ...overrides,
@@ -325,6 +330,51 @@ describe("authentications view", () => {
     installButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
     expect(onBeginConnector).toHaveBeenCalledWith("github");
+  });
+
+  it("renders Stripe manual setup inside the install dialog and submits the API key", () => {
+    const container = document.createElement("div");
+    const onCompleteManualConnector = vi.fn();
+    const connectorSetupGuide: AlisioConnectorsBeginResult = {
+      connectorId: "stripe",
+      availability: "ready",
+      mode: "setup",
+      statusReason: "ready_for_setup",
+      providerLabel: "Stripe",
+      setupHint: "Paste a Stripe secret or restricted API key.",
+    };
+
+    render(
+      renderAuthentications(
+        createProps({
+          dialogConnectorId: "stripe",
+          dialogMode: "install",
+          connectorCatalog: [
+            connector({
+              id: "stripe",
+              title: "Stripe",
+              providerLabel: "Stripe",
+              category: "productivity",
+              connectLabel: "Connect with Stripe",
+              summary: "Payments and customer data.",
+            }),
+          ],
+          connectorSetupGuide,
+          onCompleteManualConnector,
+        }),
+      ),
+      container,
+    );
+
+    const input = container.querySelector<HTMLInputElement>('input[name="apiKey"]');
+    expect(input?.placeholder).toContain("sk_live");
+    expect(container.textContent).toContain("Stripe API key");
+    input!.value = "rk_live_test_readonly";
+    container
+      .querySelector<HTMLFormElement>(".alisio-auth-dialog__manual-form")
+      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    expect(onCompleteManualConnector).toHaveBeenCalledWith("stripe", "rk_live_test_readonly");
   });
 
   it("filters apps by search across both panels", () => {

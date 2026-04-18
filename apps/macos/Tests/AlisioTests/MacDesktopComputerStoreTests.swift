@@ -8,7 +8,7 @@ import AlisioSupport
 @Suite(.serialized)
 @MainActor
 struct MacDesktopComputerStoreTests {
-    @Test func `activate starts a local computer session and captures a frame`() async throws {
+    @Test func `activate tracks an existing local computer session and captures a frame`() async throws {
         let services = FakeMainActorServices(
             permissions: .init(accessibility: true, screenRecording: true),
             health: Self.makeHealth(sessionId: "main", state: .running),
@@ -28,6 +28,50 @@ struct MacDesktopComputerStoreTests {
         #expect(store.observation?.context.activeApp?.name == "Finder")
         #expect(store.observation?.context.activeWindow?.title == "Desktop")
         #expect(store.needsPermissionGuidance == false)
+        #expect(services.startCalls == 0)
+        #expect(services.observeCalls >= 1)
+    }
+
+    @Test func `activate does not auto-start a stopped session`() async throws {
+        let services = FakeMainActorServices(
+            permissions: .init(accessibility: true, screenRecording: true),
+            health: Self.makeHealth(sessionId: nil, state: nil),
+            sessionState: .running,
+            observationResult: .success(Self.makeObservation(sessionId: "main")))
+        let store = MacDesktopComputerStore(sessionKey: "main", services: services)
+
+        store.activate()
+        defer { store.deactivate(stopSession: true) }
+
+        try await self.waitUntil("initial runtime sync") {
+            store.sessionState == .stopped
+        }
+
+        #expect(store.frameImage == nil)
+        #expect(store.observation == nil)
+        #expect(services.startCalls == 0)
+        #expect(services.observeCalls == 0)
+    }
+
+    @Test func `start explicitly begins a stopped session once observation permission exists`() async throws {
+        let services = FakeMainActorServices(
+            permissions: .init(accessibility: true, screenRecording: true),
+            health: Self.makeHealth(sessionId: nil, state: nil),
+            sessionState: .running,
+            observationResult: .success(Self.makeObservation(sessionId: "main")))
+        let store = MacDesktopComputerStore(sessionKey: "main", services: services)
+
+        store.activate()
+        try await self.waitUntil("screen recording state to refresh") {
+            store.canStartSession
+        }
+        store.start()
+        defer { store.deactivate(stopSession: true) }
+
+        try await self.waitUntil("session start to capture frame") {
+            store.frameImage != nil && store.sessionState == .running
+        }
+
         #expect(services.startCalls >= 1)
         #expect(services.observeCalls >= 1)
     }
@@ -111,8 +155,8 @@ struct MacDesktopComputerStoreTests {
     }
 
     private static func makeHealth(
-        sessionId: String,
-        state: MacNodeComputerSessionLifecycleState) -> MacNodeComputerRuntimeHealthPayload
+        sessionId: String?,
+        state: MacNodeComputerSessionLifecycleState?) -> MacNodeComputerRuntimeHealthPayload
     {
         MacNodeComputerRuntimeHealthPayload(
             connectionState: .running,
@@ -121,7 +165,10 @@ struct MacDesktopComputerStoreTests {
                 protocolVersion: macNodeComputerHelperProtocolVersion,
                 helperVersion: "test",
                 processId: 42,
-                activeSession: .init(sessionId: sessionId, state: state, updatedAt: 1),
+                activeSession: {
+                    guard let sessionId, let state else { return nil }
+                    return .init(sessionId: sessionId, state: state, updatedAt: 1)
+                }(),
                 lastError: nil),
             lastError: nil)
     }

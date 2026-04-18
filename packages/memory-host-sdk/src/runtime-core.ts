@@ -3,6 +3,10 @@
 export type { AnyAgentTool } from "../../../src/agents/tools/common.js";
 import { resolveCronStyleNow as resolveCronStyleNowInternal } from "../../../src/agents/current-time.js";
 import type { AlisioConfig as CoreAlisioConfig } from "../../../src/config/config.js";
+import {
+  buildCanonicalMemoryNotePath,
+  slugifyMemoryNotePathComponent,
+} from "../../../src/shared/memory-file-paths.js";
 export { resolveCronStyleNowInternal as resolveCronStyleNow };
 export { DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR } from "../../../src/agents/pi-settings.js";
 export { resolveDefaultAgentId, resolveSessionAgentId } from "../../../src/agents/agent-scope.js";
@@ -78,6 +82,15 @@ export type CanonicalMemoryDailyNoteTarget = {
   timeLine: string;
 };
 
+export type { MemoryNoteRole } from "../../../src/shared/memory-file-paths.js";
+export {
+  buildCanonicalMemoryNotePath,
+  isDailyMemoryNoteFileName,
+  normalizeMemoryNoteRole,
+  resolveMemoryNoteRole,
+  slugifyMemoryNotePathComponent,
+} from "../../../src/shared/memory-file-paths.js";
+
 function formatDateStampInTimezone(nowMs: number, timezone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
@@ -106,8 +119,39 @@ export function resolveCanonicalMemoryDailyNoteTarget(
   return {
     nowMs,
     dateStamp,
-    relativePath: `memory/${dateStamp}.md`,
+    relativePath: buildCanonicalMemoryNotePath({
+      role: "daily",
+      dateStamp,
+    }),
     userTimezone,
     timeLine,
+  };
+}
+
+export type CanonicalMemoryBacklogNoteTarget = CanonicalMemoryDailyNoteTarget & {
+  slug: string;
+};
+
+export function resolveCanonicalMemoryBacklogNoteTarget(
+  params: {
+    cfg?: CoreAlisioConfig;
+    nowMs?: number;
+    slug?: string | null;
+    title?: string | null;
+  } = {},
+): CanonicalMemoryBacklogNoteTarget {
+  const dailyTarget = resolveCanonicalMemoryDailyNoteTarget(params);
+  const slug = slugifyMemoryNotePathComponent(
+    params.slug?.trim() || params.title?.trim() || dailyTarget.timeLine || "backlog",
+  );
+  return {
+    ...dailyTarget,
+    slug,
+    relativePath: buildCanonicalMemoryNotePath({
+      role: "backlog",
+      dateStamp: dailyTarget.dateStamp,
+      slug,
+      title: params.title,
+    }),
   };
 }

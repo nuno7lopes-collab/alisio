@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BARE_SESSION_RESET_PROMPT } from "../../auto-reply/reply/session-reset-prompt.js";
+import { buildBareSessionResetPrompt } from "../../auto-reply/reply/session-reset-prompt.js";
 import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../../shared/alisio-appearance.js";
 import { findTaskByRunId, resetTaskRegistryForTests } from "../../tasks/task-registry.js";
 import { withTempDir } from "../../test-helpers/temp-dir.js";
@@ -990,7 +990,7 @@ describe("gateway agent handler", () => {
     // Message is now dynamically built with current date — check key substrings
     expect(call?.message).toContain("Run your Session Startup sequence");
     expect(call?.message).toContain("Current time:");
-    expect(call?.message).not.toBe(BARE_SESSION_RESET_PROMPT);
+    expect(call?.message).toBe(buildBareSessionResetPrompt(mocks.loadConfigReturn as never));
     expect(call?.sessionId).toBe("reset-session-id");
   });
 

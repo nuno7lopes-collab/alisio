@@ -20,7 +20,7 @@ import Testing
         let messageContext = AlisioCanvasA2UIAction.AgentMessageContext(
             actionName: "Get Weather",
             session: .init(key: "main", surfaceId: "main"),
-            component: .init(id: "btnWeather", host: "Peter’s iPad", instanceId: "ipad16,6"),
+            component: .init(id: "btnWeather", host: "Peter’s MacBook", instanceId: "mac16,6"),
             contextJSON: "{\"city\":\"Vienna\"}")
         let msg = AlisioCanvasA2UIAction.formatAgentMessage(messageContext)
 
@@ -29,8 +29,8 @@ import Testing
         #expect(msg.contains("session=main"))
         #expect(msg.contains("surface=main"))
         #expect(msg.contains("component=btnWeather"))
-        #expect(msg.contains("host=Peter_s_iPad"))
-        #expect(msg.contains("instance=ipad16_6 ctx={\"city\":\"Vienna\"}"))
+        #expect(msg.contains("host=Peter_s_MacBook"))
+        #expect(msg.contains("instance=mac16_6 ctx={\"city\":\"Vienna\"}"))
         #expect(msg.hasSuffix(" default=update_canvas"))
     }
 

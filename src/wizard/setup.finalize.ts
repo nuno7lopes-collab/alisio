@@ -295,8 +295,7 @@ export async function finalizeSetupWizard(
     [
       "Add nodes for extra features:",
       "- macOS app (system + notifications)",
-      "- iOS app (camera/canvas)",
-      "- Android app (camera/canvas)",
+      "- desktop node host (extra local tools)",
     ].join("\n"),
     "Optional apps",
   );

@@ -134,12 +134,11 @@ export const de: TranslationMap = mergeTranslationMaps(en, {
         title: "Bereich",
         surfacePicker: "Bereichsansicht",
         close: "Bereich schließen",
-        observerTitle: "Browser-Beobachter",
         viewRawText: "Rohtext anzeigen",
         noContent: "Kein Inhalt verfügbar",
         unavailable: "Keine Bereichsansicht verfügbar",
         surfaces: {
-          observer: "Browser",
+          computer: "Computer",
           markdown: "Tool-Ausgabe",
         },
       },

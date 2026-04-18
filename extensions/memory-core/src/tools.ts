@@ -5,13 +5,20 @@ import {
   type MemorySearchResult,
 } from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import {
+  buildSessionEntry,
+  listSessionFilesForAgent,
+  type SessionFileEntry,
+} from "alisio/plugin-sdk/memory-core-host-engine-qmd";
+import {
   jsonResult,
   loadOrCreateDeviceIdentity,
   readNumberParam,
+  resolveMemoryNoteRole as resolveCanonicalMemoryNoteRole,
   readStringParam,
   resolveStateDir,
   type AnyAgentTool,
   type AlisioConfig,
+  type MemoryNoteRole as MemoryPageRole,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import { openLedger } from "../../../packages/memory-ledger/src/index.js";
 import {
@@ -76,6 +83,7 @@ type CanonicalProjectionRecord = {
   pageId: string;
   projectionKind: string;
   sourceLocator: string;
+  relativePath?: string;
   sourcePath?: string;
   displayPath?: string;
   sourceKind: "workspace-memory";
@@ -86,6 +94,8 @@ type CanonicalProjectionRecord = {
   updatedAtMs: number;
   aliases: string[];
   tags: string[];
+  memoryRole: MemoryPageRole;
+  featured: boolean;
   visibility: MemoryContextItemVisibility;
 };
 
@@ -96,6 +106,7 @@ type CanonicalRecentEventRecord = {
   title: string;
   summary: string;
   sourceLocator: string;
+  memoryRole?: MemoryPageRole;
   displayPath?: string;
   createdAtMs: number;
   visibility: "public" | "private";
@@ -120,10 +131,23 @@ type CanonicalStoreReader = {
   findProjectionByPageId(pageId: string): CanonicalProjectionRecord | null;
   isPagePrivate(pageId: string): boolean;
   listRecentEvents(limit: number): CanonicalRecentEventRecord[];
-  listPinnedAndRecent(query: string, limit: number): CanonicalProjectionRecord[];
+  listPriorityProjections(query: string, limit: number): CanonicalProjectionRecord[];
   listClaimMatches(query: string, limit: number): CanonicalClaimRecord[];
-  searchProjections(query: string, limit: number): CanonicalProjectionRecord[];
+  searchStableProjections(query: string, limit: number): CanonicalProjectionRecord[];
+  searchTemporalProjections(params: {
+    query: string;
+    limit: number;
+    analysis: RecallQueryAnalysis;
+  }): CanonicalProjectionRecord[];
   close(): void;
+};
+
+type RecallQueryAnalysis = {
+  targetDates: string[];
+  includeTemporalContext: boolean;
+  includeBacklog: boolean;
+  includeSessionTranscripts: boolean;
+  wantsPendingFollowup: boolean;
 };
 
 type GaiaDerivedGraphRelation =
@@ -258,6 +282,7 @@ export function createMemorySearchTool(options: {
         }
 
         try {
+          const analysis = analyzeRecallQuery(query);
           const service = createMemoryService({
             gaia: toolGaia,
             grants: createDisabledShareGrantStore(),
@@ -275,6 +300,7 @@ export function createMemorySearchTool(options: {
                   query,
                   maxResults,
                   reader,
+                  analysis,
                 }),
               structured: async (input) =>
                 buildStructuredItems({
@@ -287,9 +313,11 @@ export function createMemorySearchTool(options: {
                 }),
               textSearch: async () =>
                 await buildTextSearchItems({
+                  agentId,
                   query,
                   maxResults,
                   reader,
+                  analysis,
                 }),
             },
           });
@@ -791,29 +819,8 @@ function openCanonicalStoreReader(
       listRecentEvents(limit) {
         return recentEvents.slice(0, Math.max(1, limit));
       },
-      listPinnedAndRecent(query, limit) {
-        const normalizedQuery = query.trim().toLowerCase();
-        const selected: CanonicalProjectionRecord[] = [];
-        for (const record of projections.toSorted(
-          (left, right) => right.updatedAtMs - left.updatedAtMs,
-        )) {
-          const pinned = isPinnedProjection(record);
-          const lexical = computeLexicalScore(normalizedQuery, [
-            record.title,
-            record.slug,
-            record.aliases.join(" "),
-            record.tags.join(" "),
-            summarizeText(record.markdownBody, 240),
-          ]);
-          if (!pinned && lexical <= 0 && selected.length >= Math.min(3, limit)) {
-            continue;
-          }
-          selected.push(record);
-          if (selected.length >= limit) {
-            break;
-          }
-        }
-        return selected;
+      listPriorityProjections(query, limit) {
+        return listPriorityProjectionRecords(projections, query, limit);
       },
       listClaimMatches(query, limit) {
         return claims
@@ -823,21 +830,22 @@ function openCanonicalStoreReader(
           .slice(0, Math.max(1, limit))
           .map((entry) => entry.claim);
       },
-      searchProjections(query, limit) {
-        return projections
-          .map((projection) => ({
-            projection,
-            score: scoreProjectionRecord(query, projection),
-          }))
-          .filter((entry) => entry.score > 0)
-          .sort((left, right) => {
-            if (right.score !== left.score) {
-              return right.score - left.score;
-            }
-            return right.projection.updatedAtMs - left.projection.updatedAtMs;
-          })
-          .slice(0, Math.max(1, limit))
-          .map((entry) => entry.projection);
+      searchStableProjections(query, limit) {
+        return searchProjectionRecords({
+          projections,
+          query,
+          limit,
+          mode: "stable",
+        });
+      },
+      searchTemporalProjections(params) {
+        return searchProjectionRecords({
+          projections,
+          query: params.query,
+          limit: params.limit,
+          mode: "temporal",
+          analysis: params.analysis,
+        });
       },
       close() {
         db.close();
@@ -898,17 +906,18 @@ async function buildWorkingSetItems(params: {
   query: string;
   maxResults?: number;
   reader: CanonicalStoreReader | null;
+  analysis: RecallQueryAnalysis;
 }): Promise<MemoryContextItem[]> {
   const eventLimit = Math.max(
     1,
     Math.min(3, Math.floor(resolveSearchBudgetItems(params.maxResults) / 2)),
   );
-  const eventItems = (params.reader?.listRecentEvents(eventLimit) ?? []).map((event) =>
-    recentEventToContextItem(event),
-  );
-  const pinnedAndRecent =
+  const eventItems = (params.reader?.listRecentEvents(eventLimit) ?? [])
+    .filter((event) => isStableMemoryRole(event.memoryRole))
+    .map((event) => recentEventToContextItem(event));
+  const priorityPages =
     params.reader
-      ?.listPinnedAndRecent(
+      ?.listPriorityProjections(
         params.query,
         Math.max(1, resolveSearchBudgetItems(params.maxResults) - eventItems.length),
       )
@@ -917,10 +926,11 @@ async function buildWorkingSetItems(params: {
           layer: "L1",
           kind: "page",
           query: params.query,
+          analysis: params.analysis,
         }),
       ) ?? [];
 
-  return [...eventItems, ...pinnedAndRecent];
+  return [...eventItems, ...priorityPages];
 }
 
 function buildStructuredItems(params: {
@@ -982,23 +992,166 @@ function buildStructuredItems(params: {
       };
     },
   );
-  return [...claimItems, ...graphItems];
+  const stableGraphItems = graphItems.filter((item) => {
+    const role = item.locator?.pageId
+      ? params.reader?.findProjectionByPageId(item.locator.pageId)?.memoryRole
+      : null;
+    return isStableMemoryRole(role);
+  });
+  return [...claimItems, ...stableGraphItems];
 }
 
 async function buildTextSearchItems(params: {
+  agentId: string;
   query: string;
   maxResults?: number;
   reader: CanonicalStoreReader | null;
+  analysis: RecallQueryAnalysis;
 }): Promise<MemoryContextItem[]> {
-  return (
-    params.reader?.searchProjections(params.query, expandCandidateLimit(params.maxResults)) ?? []
+  const stable = (
+    params.reader?.searchStableProjections(params.query, expandCandidateLimit(params.maxResults)) ?? []
   ).map((record) =>
     projectionRecordToContextItem(record, {
       layer: "L3",
       kind: "page",
       query: params.query,
+      analysis: params.analysis,
     }),
   );
+  const temporal = params.analysis.includeTemporalContext
+    ? (
+        params.reader?.searchTemporalProjections({
+          query: params.query,
+          limit: Math.max(3, Math.ceil(expandCandidateLimit(params.maxResults) / 2)),
+          analysis: params.analysis,
+        }) ?? []
+      ).map((record) =>
+        projectionRecordToContextItem(record, {
+          layer: "L3",
+          kind: "page",
+          query: params.query,
+          analysis: params.analysis,
+        }),
+      )
+    : [];
+  const transcripts =
+    params.analysis.includeSessionTranscripts
+      ? await buildSessionTranscriptItems({
+          agentId: params.agentId,
+          query: params.query,
+          limit: Math.max(2, Math.ceil(resolveSearchBudgetItems(params.maxResults) / 2)),
+          analysis: params.analysis,
+        })
+      : [];
+  return [...stable, ...temporal, ...transcripts];
+}
+
+async function buildSessionTranscriptItems(params: {
+  agentId: string;
+  query: string;
+  limit: number;
+  analysis: RecallQueryAnalysis;
+}): Promise<MemoryContextItem[]> {
+  const files = await listSessionFilesForAgent(params.agentId);
+  const entries = await Promise.all(files.map((absPath) => buildSessionEntry(absPath)));
+  return entries
+    .filter((entry): entry is SessionFileEntry => entry !== null)
+    .map((entry) => ({
+      entry,
+      score: scoreSessionTranscriptEntry({
+        entry,
+        query: params.query,
+        analysis: params.analysis,
+      }),
+    }))
+    .filter((entry) => entry.score > 0)
+    .toSorted((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return right.entry.mtimeMs - left.entry.mtimeMs;
+    })
+    .slice(0, Math.max(1, params.limit))
+    .map(({ entry }) => sessionTranscriptEntryToContextItem(entry, params.query, params.analysis));
+}
+
+function scoreSessionTranscriptEntry(params: {
+  entry: SessionFileEntry;
+  query: string;
+  analysis: RecallQueryAnalysis;
+}): number {
+  const dateStamp = new Date(params.entry.mtimeMs).toISOString().slice(0, 10);
+  const lexical = computeLexicalScore(params.query, [params.entry.content, params.entry.path, dateStamp]);
+  const dateMatch = params.analysis.targetDates.includes(dateStamp) ? 1 : 0;
+  const temporalBoost = params.analysis.includeSessionTranscripts
+    ? computeRecencyScore(params.entry.mtimeMs) * 0.58
+    : 0;
+  const pendingBoost = params.analysis.wantsPendingFollowup ? 0.42 : 0;
+  return clampScore(Math.max(lexical, dateMatch, temporalBoost, pendingBoost));
+}
+
+function resolveSessionRelevantLineIndex(
+  entry: SessionFileEntry,
+  query: string,
+): number {
+  const normalizedTerms = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((term) => term.length >= 3);
+  if (normalizedTerms.length === 0) {
+    return 0;
+  }
+  const lines = entry.content.split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    const lowered = lines[index]?.toLowerCase() ?? "";
+    if (normalizedTerms.some((term) => lowered.includes(term))) {
+      return index;
+    }
+  }
+  return 0;
+}
+
+function sessionTranscriptEntryToContextItem(
+  entry: SessionFileEntry,
+  query: string,
+  analysis: RecallQueryAnalysis,
+): MemoryContextItem {
+  const lineIndex = resolveSessionRelevantLineIndex(entry, query);
+  const startLine = entry.lineMap[lineIndex] ?? 1;
+  const endLine = entry.lineMap[Math.min(entry.lineMap.length - 1, lineIndex + 1)] ?? startLine;
+  const dateStamp = new Date(entry.mtimeMs).toISOString().slice(0, 10);
+  const reasonCodes = [
+    analysis.targetDates.includes(dateStamp) ? "temporal_session" : "recent_session",
+    computeLexicalScore(query, [entry.content]) > 0 ? "exact_match" : undefined,
+  ].filter((code): code is string => Boolean(code));
+  return {
+    id: `session:${entry.path}`,
+    layer: "L3",
+    kind: "event",
+    title: `Session transcript ${dateStamp}`,
+    text: summarizeText(entry.content, 320),
+    reasonCodes,
+    scoreBreakdown: {
+      recency: computeRecencyScore(entry.mtimeMs),
+      confidence: 0.34,
+      lexical: computeLexicalScore(query, [entry.content, entry.path]),
+      vector: 0,
+      userFeedback: 0,
+    },
+    visibility: "private",
+    provenance: {
+      sourceLocator: `session://${entry.path}`,
+      evidenceIds: [entry.path],
+    },
+    displayPath: entry.path,
+    tokenCount: estimateTokenCount(entry.content),
+    metadata: {
+      startLine,
+      endLine,
+      source: "sessions",
+    },
+  };
 }
 
 function mapContextItemsToToolResults(items: MemoryContextItem[]): ToolSearchResult[] {
@@ -1008,7 +1161,10 @@ function mapContextItemsToToolResults(items: MemoryContextItem[]): ToolSearchRes
     endLine: resolveEndLine(item),
     score: computeMemoryItemScore(item),
     snippet: item.text,
-    source: "memory",
+    source:
+      item.metadata?.source === "sessions" || item.provenance.sourceLocator.startsWith("session://")
+        ? "sessions"
+        : "memory",
     layer: item.layer === "L1" || item.layer === "L2" || item.layer === "L3" ? item.layer : "L3",
     reasonCodes: item.reasonCodes,
     scoreBreakdown: item.scoreBreakdown,
@@ -1388,28 +1544,46 @@ function decorateGraphResult(params: {
 
 function projectionRecordToContextItem(
   record: CanonicalProjectionRecord,
-  params: { layer: "L1" | "L3"; kind: "page"; query: string },
+  params: { layer: "L1" | "L3"; kind: "page"; query: string; analysis: RecallQueryAnalysis },
 ): MemoryContextItem {
   const pinned = isPinnedProjection(record);
   const lexical = scoreProjectionRecord(params.query, record);
-  const reasonCodes = pinned
-    ? ["pinned", "recent"]
-    : lexical > 0
-      ? params.layer === "L3"
-        ? lexical >= 0.95
-          ? ["exact_match", "frequent_recall"]
-          : ["exact_match"]
-        : ["recent", "frequent_recall"]
-      : params.layer === "L3"
-        ? ["exact_match"]
-        : ["recent"];
+  const temporal = isTemporalMemoryRole(record.memoryRole);
+  const reasonCodes = [
+    record.memoryRole === "main" ? "main_memory" : undefined,
+    temporal
+      ? record.memoryRole === "backlog"
+        ? "backlog_pending"
+        : "temporal_note"
+      : undefined,
+    pinned ? "pinned" : undefined,
+    lexical > 0 || temporal ? "exact_match" : params.layer === "L1" ? "recent" : undefined,
+    !temporal && params.layer === "L1" ? "frequent_recall" : undefined,
+  ].filter((code): code is string => Boolean(code));
   const explainability = buildProjectionExplainability({
     record,
     reasonCodes,
-    confidence: pinned ? 0.8 : params.layer === "L3" ? 0.72 : 0.46,
-    lexical,
-    vector: params.layer === "L3" ? lexical * 0.8 : 0,
-    userFeedback: pinned ? 0.2 : 0,
+    confidence:
+      record.memoryRole === "main"
+        ? 0.88
+        : temporal
+          ? record.memoryRole === "backlog"
+            ? 0.38
+            : 0.44
+          : pinned
+            ? 0.8
+            : params.layer === "L3"
+              ? 0.72
+              : 0.46,
+    lexical: temporal
+      ? scoreTemporalProjectionRecord({
+          query: params.query,
+          record,
+          analysis: params.analysis,
+        })
+      : lexical,
+    vector: temporal ? 0 : params.layer === "L3" ? lexical * 0.8 : 0,
+    userFeedback: record.memoryRole === "main" ? 0.18 : pinned ? 0.2 : 0,
   });
   return {
     id: `projection:${record.projectionId}`,
@@ -1427,6 +1601,9 @@ function projectionRecordToContextItem(
     },
     ...(record.displayPath ? { displayPath: record.displayPath } : {}),
     tokenCount: estimateTokenCount(`${record.title}\n${record.markdownBody}`),
+    metadata: {
+      memoryRole: record.memoryRole,
+    },
   };
 }
 
@@ -1613,6 +1790,11 @@ function loadRecentEventRecords(
               projectionKind,
               typeof pageRow.slug === "string" ? pageRow.slug : (pageId ?? eventType.toLowerCase()),
             ),
+            memoryRole: resolveProjectionMemoryRole({
+              projectionKind,
+              slug:
+                typeof pageRow.slug === "string" ? pageRow.slug : (pageId ?? eventType.toLowerCase()),
+            }),
           }
         : {}),
       createdAtMs: row.createdAtMs,
@@ -1681,12 +1863,19 @@ function normalizeProjectionRow(
   const projectionId = buildProjectionId(pageId, projectionKind);
   const slug = typeof row.slug === "string" && row.slug.trim() ? row.slug : pageId.toLowerCase();
   const sourcePath = resolveCanonicalProjectionSourcePath(row);
+  const displayPath = resolveProjectionDisplayPath(projectionKind, slug);
+  const tags = parseJsonStringArray(row.tagsJson);
+  const memoryRole = resolveCanonicalMemoryNoteRole({
+    path: sourcePath ?? displayPath,
+    tags,
+  });
   return {
     projectionId,
     pageId,
     projectionKind,
     sourceLocator: buildProjectionLocator(status.profileId, pageId, projectionId),
-    displayPath: resolveProjectionDisplayPath(projectionKind, slug),
+    ...(sourcePath ? { relativePath: sourcePath } : {}),
+    ...(displayPath ? { displayPath } : {}),
     ...(sourcePath ? { sourcePath } : {}),
     sourceKind: "workspace-memory",
     editable: true,
@@ -1695,7 +1884,9 @@ function normalizeProjectionRow(
     markdownBody: typeof row.markdownBody === "string" ? row.markdownBody : "",
     updatedAtMs: normalizeNumber(row.updatedAtMs) ?? 0,
     aliases: parseJsonStringArray(row.aliasesJson),
-    tags: parseJsonStringArray(row.tagsJson),
+    tags,
+    memoryRole,
+    featured: tags.some((tag) => tag.toLowerCase() === "featured"),
     visibility: sourcePath && isPrivateMemoryPath(sourcePath) ? "private" : "public",
   };
 }
@@ -1806,19 +1997,165 @@ function buildClaimLocator(profileId: string, claimId: string): string {
 function resolveCanonicalProjectionSourcePath(row: Record<string, unknown>): string | undefined {
   const projectionKind =
     typeof row.projectionKind === "string" && row.projectionKind ? row.projectionKind : "";
-  if (projectionKind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return normalizeRelativePath(projectionKind.slice(LEGACY_PROJECTION_PREFIX.length));
+  const projectionPath = parseProjectionRelativePath(projectionKind);
+  if (projectionPath) {
+    return projectionPath;
   }
   const importedSourcePath =
     typeof row.sourcePath === "string" && row.sourcePath.trim() ? row.sourcePath : undefined;
   return importedSourcePath ? normalizeRelativePath(importedSourcePath) : undefined;
 }
 
-function resolveProjectionDisplayPath(projectionKind: string, slug: string): string | undefined {
-  if (projectionKind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return normalizeRelativePath(projectionKind.slice(LEGACY_PROJECTION_PREFIX.length));
+const TEMPORAL_ENGLISH_NUMBER_WORDS = new Map<string, number>([
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+]);
+
+const TEMPORAL_PORTUGUESE_NUMBER_WORDS = new Map<string, number>([
+  ["um", 1],
+  ["uma", 1],
+  ["dois", 2],
+  ["duas", 2],
+  ["tres", 3],
+  ["três", 3],
+  ["quatro", 4],
+  ["cinco", 5],
+  ["seis", 6],
+  ["sete", 7],
+  ["oito", 8],
+  ["nove", 9],
+  ["dez", 10],
+]);
+
+function parseProjectionRelativePath(projectionKind: string): string | undefined {
+  for (const prefix of ["md-path:", LEGACY_PROJECTION_PREFIX]) {
+    if (projectionKind.startsWith(prefix)) {
+      return normalizeRelativePath(projectionKind.slice(prefix.length));
+    }
   }
-  return slug.trim() ? `memory/${slug}.md` : undefined;
+  return undefined;
+}
+
+function resolveProjectionDisplayPath(projectionKind: string, slug: string): string | undefined {
+  return parseProjectionRelativePath(projectionKind) ?? (slug.trim() ? `memory/${slug}.md` : undefined);
+}
+
+function resolveProjectionMemoryRole(params: {
+  projectionKind: string;
+  slug: string;
+  tags?: readonly string[];
+}): MemoryPageRole {
+  return resolveCanonicalMemoryNoteRole({
+    path: resolveProjectionDisplayPath(params.projectionKind, params.slug),
+    tags: params.tags ?? [],
+  });
+}
+
+function isStableMemoryRole(role: MemoryPageRole | null | undefined): boolean {
+  return role === "main" || role === "topic";
+}
+
+function isTemporalMemoryRole(role: MemoryPageRole | null | undefined): boolean {
+  return role === "daily" || role === "backlog";
+}
+
+function memoryRolePriority(role: MemoryPageRole): number {
+  switch (role) {
+    case "main":
+      return 0;
+    case "topic":
+      return 1;
+    case "daily":
+      return 2;
+    case "backlog":
+      return 3;
+    default:
+      return 99;
+  }
+}
+
+function rememberDateShift(days: number, nowMs: number): string {
+  const date = new Date(nowMs);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function parseTemporalCount(raw: string): number | null {
+  const cleaned = raw.trim().toLowerCase();
+  if (!cleaned) {
+    return null;
+  }
+  const numeric = Number(cleaned);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.floor(numeric);
+  }
+  return (
+    TEMPORAL_ENGLISH_NUMBER_WORDS.get(cleaned) ??
+    TEMPORAL_PORTUGUESE_NUMBER_WORDS.get(cleaned) ??
+    null
+  );
+}
+
+function analyzeRecallQuery(query: string, nowMs = Date.now()): RecallQueryAnalysis {
+  const normalized = query.trim().toLowerCase();
+  const targetDates = new Set<string>();
+  for (const match of normalized.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/g)) {
+    if (match[1]) {
+      targetDates.add(match[1]);
+    }
+  }
+  if (/\b(today|hoje)\b/.test(normalized)) {
+    targetDates.add(rememberDateShift(0, nowMs));
+  }
+  if (/\b(yesterday|ontem)\b/.test(normalized)) {
+    targetDates.add(rememberDateShift(-1, nowMs));
+  }
+  if (/\b(day before yesterday|anteontem)\b/.test(normalized)) {
+    targetDates.add(rememberDateShift(-2, nowMs));
+  }
+  for (const match of normalized.matchAll(
+    /\b(?:(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+days?\s+ago|h[áa]\s+(\d+|um|uma|dois|duas|tres|três|quatro|cinco|seis|sete|oito|nove|dez)\s+dias)\b/g,
+  )) {
+    const rawCount = match[1] ?? match[2];
+    const days = rawCount ? parseTemporalCount(rawCount) : null;
+    if (days && days > 0) {
+      targetDates.add(rememberDateShift(-days, nowMs));
+    }
+  }
+
+  const includeTemporalContext =
+    targetDates.size > 0 ||
+    /\b(today|yesterday|day before yesterday|recent|earlier|before|previous|last|hoje|ontem|anteontem|agora|antes|anterior|passado|recente)\b/.test(
+      normalized,
+    );
+  const wantsPendingFollowup =
+    /\b(todo|pending|unfinished|follow[\s-]?up|next step|left to do|ficou por fazer|pendente|por fazer|seguimento|pr[óo]ximo passo)\b/.test(
+      normalized,
+    );
+  const asksForConversationHistory =
+    /\b(talk|discuss|said|conversation|chat|fal[aá]mos|conversa|disseste|disse|falar)\b/.test(
+      normalized,
+    );
+  const includeSessionTranscripts =
+    includeTemporalContext &&
+    (asksForConversationHistory || wantsPendingFollowup || targetDates.size > 0);
+
+  return {
+    targetDates: Array.from(targetDates),
+    includeTemporalContext,
+    includeBacklog: wantsPendingFollowup,
+    includeSessionTranscripts,
+    wantsPendingFollowup,
+  };
 }
 
 function scoreProjectionRecord(query: string, record: CanonicalProjectionRecord): number {
@@ -1840,6 +2177,101 @@ function scoreProjectionRecord(query: string, record: CanonicalProjectionRecord)
     summarizeText(record.markdownBody, 800),
   ]);
   return clampScore(lexical * 0.85 + computeRecencyScore(record.updatedAtMs) * 0.15);
+}
+
+function scoreTemporalProjectionRecord(params: {
+  query: string;
+  record: CanonicalProjectionRecord;
+  analysis: RecallQueryAnalysis;
+}): number {
+  const lexical = scoreProjectionRecord(params.query, params.record);
+  const relativePath = params.record.relativePath ?? params.record.displayPath ?? "";
+  const dateMatch = params.analysis.targetDates.some((dateStamp) => relativePath.includes(dateStamp))
+    ? 1
+    : 0;
+  const backlogBoost =
+    params.record.memoryRole === "backlog" && params.analysis.wantsPendingFollowup ? 0.78 : 0;
+  const temporalBoost = params.analysis.includeTemporalContext
+    ? computeRecencyScore(params.record.updatedAtMs) * 0.6
+    : 0;
+  return clampScore(Math.max(lexical, dateMatch, backlogBoost, temporalBoost));
+}
+
+function listPriorityProjectionRecords(
+  projections: readonly CanonicalProjectionRecord[],
+  query: string,
+  limit: number,
+): CanonicalProjectionRecord[] {
+  const stable = projections.filter((record) => isStableMemoryRole(record.memoryRole));
+  const selected = new Map<string, CanonicalProjectionRecord>();
+  const main = stable.find((record) => record.memoryRole === "main");
+  if (main) {
+    selected.set(main.pageId, main);
+  }
+  for (const record of stable
+    .filter((candidate) => candidate.pageId !== main?.pageId)
+    .map((record) => ({
+      record,
+      pinned: isPinnedProjection(record) || record.featured,
+      lexical: scoreProjectionRecord(query, record),
+    }))
+    .filter((entry) => entry.pinned || entry.lexical > 0)
+    .toSorted((left, right) => {
+      if (Number(right.pinned) !== Number(left.pinned)) {
+        return Number(right.pinned) - Number(left.pinned);
+      }
+      if (right.lexical !== left.lexical) {
+        return right.lexical - left.lexical;
+      }
+      return right.record.updatedAtMs - left.record.updatedAtMs;
+    })) {
+    selected.set(record.record.pageId, record.record);
+    if (selected.size >= Math.max(1, limit)) {
+      break;
+    }
+  }
+  return Array.from(selected.values()).slice(0, Math.max(1, limit));
+}
+
+function searchProjectionRecords(params: {
+  projections: readonly CanonicalProjectionRecord[];
+  query: string;
+  limit: number;
+  mode: "stable" | "temporal";
+  analysis?: RecallQueryAnalysis;
+}): CanonicalProjectionRecord[] {
+  const candidates = params.projections
+    .filter((projection) =>
+      params.mode === "stable"
+        ? isStableMemoryRole(projection.memoryRole)
+        : isTemporalMemoryRole(projection.memoryRole) &&
+          (projection.memoryRole !== "backlog" || params.analysis?.includeBacklog),
+    )
+    .map((projection) => ({
+      projection,
+      score:
+        params.mode === "stable"
+          ? scoreProjectionRecord(params.query, projection)
+          : scoreTemporalProjectionRecord({
+              query: params.query,
+              record: projection,
+              analysis: params.analysis ?? analyzeRecallQuery(params.query),
+            }),
+    }))
+    .filter((entry) => entry.score > 0)
+    .toSorted((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      const roleDiff =
+        memoryRolePriority(left.projection.memoryRole) -
+        memoryRolePriority(right.projection.memoryRole);
+      if (roleDiff !== 0) {
+        return roleDiff;
+      }
+      return right.projection.updatedAtMs - left.projection.updatedAtMs;
+    });
+  return candidates.slice(0, Math.max(1, params.limit)).map((entry) => entry.projection);
 }
 
 function scoreClaimRecord(query: string, claim: CanonicalClaimRecord): number {

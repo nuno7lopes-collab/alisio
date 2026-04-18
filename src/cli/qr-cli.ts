@@ -98,7 +98,7 @@ function emitQrSecretResolveDiagnostics(diagnostics: string[], opts: QrCliOption
 export function registerQrCli(program: Command) {
   program
     .command("qr")
-    .description("Generate an iOS pairing QR code and setup code")
+    .description("Generate a node pairing QR code and setup code")
     .addHelpText(
       "after",
       () => `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/qr", "docs.alisio.ai/cli/qr")}\n`,
@@ -236,7 +236,7 @@ export function registerQrCli(program: Command) {
 
         const lines: string[] = [
           theme.heading("Pairing QR"),
-          "Scan this with the Alisio iOS app (Onboarding -> Scan QR).",
+          "Scan this with a compatible Alisio node setup flow.",
           "",
         ];
 

@@ -445,71 +445,6 @@ describe("nodes notifications_list", () => {
   });
 });
 
-describe("nodes notifications_action", () => {
-  it("invokes notifications.actions dismiss", async () => {
-    setupNodeInvokeMock({
-      commands: ["notifications.actions"],
-      onInvoke: (invokeParams) => {
-        expect(invokeParams).toMatchObject({
-          nodeId: NODE_ID,
-          command: "notifications.actions",
-          params: {
-            key: "n1",
-            action: "dismiss",
-          },
-        });
-        return { payload: { ok: true, key: "n1", action: "dismiss" } };
-      },
-    });
-
-    const result = await executeNodes({
-      action: "notifications_action",
-      node: NODE_ID,
-      notificationKey: "n1",
-      notificationAction: "dismiss",
-    });
-
-    expectFirstTextContains(result, '"dismiss"');
-    expect(parseFirstTextJson(result)).toMatchObject({
-      ok: true,
-      key: "n1",
-      action: "dismiss",
-    });
-  });
-
-  it("invokes notifications.actions reply with reply text", async () => {
-    setupNodeInvokeMock({
-      commands: ["notifications.actions"],
-      onInvoke: (invokeParams) => {
-        expect(invokeParams).toMatchObject({
-          nodeId: NODE_ID,
-          command: "notifications.actions",
-          params: {
-            key: "n2",
-            action: "reply",
-            replyText: "On it",
-          },
-        });
-        return { payload: { ok: true, key: "n2", action: "reply" } };
-      },
-    });
-
-    const result = await executeNodes({
-      action: "notifications_action",
-      node: NODE_ID,
-      notificationKey: "n2",
-      notificationAction: "reply",
-      notificationReplyText: " On it ",
-    });
-
-    expect(parseFirstTextJson(result)).toMatchObject({
-      ok: true,
-      key: "n2",
-      action: "reply",
-    });
-  });
-});
-
 describe("nodes location_get", () => {
   it("invokes location.get and returns payload", async () => {
     setupNodeInvokeMock({
@@ -589,7 +524,7 @@ describe("nodes device_status and device_info", () => {
         });
         return {
           payload: {
-            systemName: "Android",
+            systemName: "iOS",
             appVersion: "1.0.0",
           },
         };
@@ -602,79 +537,6 @@ describe("nodes device_status and device_info", () => {
     });
 
     expectFirstTextContains(result, '"systemName"');
-  });
-
-  it("invokes device.permissions and returns payload", async () => {
-    setupNodeInvokeMock({
-      commands: ["device.permissions"],
-      onInvoke: (invokeParams) => {
-        expect(invokeParams).toMatchObject({
-          nodeId: NODE_ID,
-          command: "device.permissions",
-          params: {},
-        });
-        return {
-          payload: {
-            permissions: {
-              camera: { status: "granted", promptable: false },
-              sms: {
-                status: "denied",
-                promptable: true,
-                capabilities: {
-                  send: { status: "denied", promptable: true },
-                  read: { status: "granted", promptable: false },
-                },
-              },
-            },
-          },
-        };
-      },
-    });
-
-    const result = await executeNodes({
-      action: "device_permissions",
-      node: NODE_ID,
-    });
-
-    expectFirstTextContains(result, '"permissions"');
-    expect(parseFirstTextJson(result)).toMatchObject({
-      permissions: {
-        sms: {
-          status: "denied",
-          promptable: true,
-          capabilities: {
-            send: { status: "denied", promptable: true },
-            read: { status: "granted", promptable: false },
-          },
-        },
-      },
-    });
-  });
-
-  it("invokes device.health and returns payload", async () => {
-    setupNodeInvokeMock({
-      commands: ["device.health"],
-      onInvoke: (invokeParams) => {
-        expect(invokeParams).toMatchObject({
-          nodeId: NODE_ID,
-          command: "device.health",
-          params: {},
-        });
-        return {
-          payload: {
-            memory: { pressure: "normal" },
-            battery: { chargingType: "usb" },
-          },
-        };
-      },
-    });
-
-    const result = await executeNodes({
-      action: "device_health",
-      node: NODE_ID,
-    });
-
-    expectFirstTextContains(result, '"memory"');
   });
 });
 

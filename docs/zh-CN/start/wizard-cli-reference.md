@@ -98,7 +98,6 @@ x-i18n:
     - 安装可选依赖（部分依赖在 macOS 上使用 Homebrew）。
   </Step>
   <Step title="完成">
-    - 显示摘要和后续步骤，包括 iOS、Android 和 macOS 应用选项。
   </Step>
 </Steps>
 

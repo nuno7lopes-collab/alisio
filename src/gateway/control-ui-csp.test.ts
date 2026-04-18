@@ -17,9 +17,9 @@ describe("buildControlUiCspHeader", () => {
     expect(csp).toContain("font-src 'self' https://fonts.gstatic.com");
   });
 
-  it("allows loopback observer iframes", () => {
+  it("does not allow extra frame sources by default", () => {
     const csp = buildControlUiCspHeader();
-    expect(csp).toContain("frame-src 'self' http://127.0.0.1:* http://localhost:*");
+    expect(csp).not.toContain("frame-src ");
   });
 
   it("includes inline script hashes in script-src when provided", () => {

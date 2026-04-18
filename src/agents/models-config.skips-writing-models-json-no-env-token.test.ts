@@ -16,9 +16,9 @@ vi.mock("./auth-profiles/external-cli-sync.js", () => ({
   syncExternalCliCredentials: () => false,
 }));
 
-vi.mock("./models-config.providers.js", async () => {
-  const actual = await vi.importActual<typeof import("./models-config.providers.js")>(
-    "./models-config.providers.js",
+vi.mock("./models-config.providers.implicit.js", async () => {
+  const actual = await vi.importActual<typeof import("./models-config.providers.implicit.js")>(
+    "./models-config.providers.implicit.js",
   );
   const [
     { buildDeepSeekProvider: buildDeepSeekProviderFromSdk },

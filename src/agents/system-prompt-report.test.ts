@@ -114,7 +114,6 @@ describe("buildSystemPromptReport", () => {
         browserContractVersion: 1,
         browserTargetDefault: "sandbox",
         hostBrowserAllowed: false,
-        browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
       },
     });
 
@@ -124,7 +123,6 @@ describe("buildSystemPromptReport", () => {
       browserContractVersion: 1,
       browserTargetDefault: "sandbox",
       hostBrowserAllowed: false,
-      browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
     });
   });
 

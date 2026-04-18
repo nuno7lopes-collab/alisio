@@ -34,7 +34,6 @@ Alisio 使用 Bonjour（mDNS / DNS‑SD）作为**仅限局域网的便捷方式
    DNS 服务器为客户端（包括 iOS）解析。
 
 Alisio 支持任何发现域名；`alisio.internal.` 只是一个示例。
-iOS/Android 节点同时浏览 `local.` 和你配置的广域域名。
 
 ### Gateway 网关配置（推荐）
 
@@ -89,7 +88,6 @@ Gateway 网关 WS 端口（默认 `40705`）默认绑定到 loopback。对于局
 
 ## 服务类型
 
-- `_alisio-gw._tcp` — Gateway 网关传输信标（被 macOS/iOS/Android 节点使用）。
 
 ## TXT 键（非机密提示）
 

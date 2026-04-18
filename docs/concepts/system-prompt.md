@@ -81,8 +81,9 @@ occurs, Alisio can inject a warning block in Project Context; control this with
 `agents.defaults.bootstrapPromptTruncationWarning` (`off`, `once`, `always`;
 default: `once`).
 
-Sub-agent sessions only inject `AGENTS.md` and `TOOLS.md` (other bootstrap files
-are filtered out to keep the sub-agent context small).
+Sub-agent sessions use a smaller bootstrap allowlist: `AGENTS.md`, `TOOLS.md`,
+`SOUL.md`, `IDENTITY.md`, and `USER.md`. `MEMORY.md`, `HEARTBEAT.md`, and
+`BOOTSTRAP.md` stay out of sub-agent context to keep it small and focused.
 
 Internal hooks can intercept this step via `agent:bootstrap` to mutate or replace
 the injected bootstrap files (for example swapping `SOUL.md` for an alternate persona).

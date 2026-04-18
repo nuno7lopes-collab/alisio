@@ -107,9 +107,23 @@ async function runNewWithPreviousSessionEntry(params: {
   await handler(event);
 
   const memoryDir = path.join(params.tempDir, "memory");
-  const files = await fs.readdir(memoryDir);
+  const files: string[] = [];
+  const collectFiles = async (currentDir: string, relativeDir = "memory"): Promise<void> => {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const nextRelative = path.posix.join(relativeDir, entry.name);
+      const nextAbsolute = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await collectFiles(nextAbsolute, nextRelative);
+        continue;
+      }
+      files.push(nextRelative);
+    }
+  };
+  await collectFiles(memoryDir);
+  files.sort();
   const memoryContent =
-    files.length > 0 ? await fs.readFile(path.join(memoryDir, files[0]), "utf-8") : "";
+    files.length > 0 ? await fs.readFile(path.join(params.tempDir, files[0]), "utf-8") : "";
   return { files, memoryContent };
 }
 
@@ -241,7 +255,7 @@ describe("session-memory hook", () => {
     ]);
     const { files, memoryContent } = await runNewWithPreviousSession({ sessionContent });
     expect(files.length).toBe(1);
-    expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.md$/);
+    expect(files[0]).toMatch(/^memory\/backlog\/\d{4}-\d{2}-\d{2}\/.+\.md$/);
     expect(syncDailyMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
       cfg: expect.objectContaining({
         agents: expect.objectContaining({
@@ -255,6 +269,8 @@ describe("session-memory hook", () => {
     });
 
     // Read the memory file and verify content
+    expect(memoryContent).toContain("memoryRole: backlog");
+    expect(memoryContent).toContain("backlogStatus: pending");
     expect(memoryContent).toContain("user: Hello there");
     expect(memoryContent).toContain("assistant: Hi! How can I help?");
     expect(memoryContent).toContain("user: What is 2+2?");
@@ -272,7 +288,7 @@ describe("session-memory hook", () => {
     });
 
     expect(files.length).toBe(1);
-    expect(files[0]).toMatch(/^\d{4}-\d{2}-\d{2}\.md$/);
+    expect(files[0]).toMatch(/^memory\/backlog\/\d{4}-\d{2}-\d{2}\/.+\.md$/);
     expect(memoryContent).toContain("user: Please reset and keep notes");
     expect(memoryContent).toContain("assistant: Captured before reset");
   });
@@ -320,7 +336,7 @@ describe("session-memory hook", () => {
     await expect(fs.access(path.join(mainWorkspace, "memory"))).rejects.toThrow();
   });
 
-  it("appends multiple session snapshots to the same canonical daily note", async () => {
+  it("stores multiple session snapshots as separate canonical backlog notes", async () => {
     const tempDir = await createCaseWorkspace("workspace");
     const sessionsDir = path.join(tempDir, "sessions");
     await fs.mkdir(sessionsDir, { recursive: true });
@@ -357,11 +373,14 @@ describe("session-memory hook", () => {
       },
     });
 
-    expect(firstRun.files).toEqual(secondRun.files);
-    expect(secondRun.files).toHaveLength(1);
-    expect(secondRun.memoryContent).toContain("First memory item");
-    expect(secondRun.memoryContent).toContain("Second memory item");
-    expect(secondRun.memoryContent.match(/^## /gm)?.length ?? 0).toBe(2);
+    expect(firstRun.files).toHaveLength(1);
+    expect(secondRun.files).toHaveLength(2);
+    expect(secondRun.files[0]).not.toBe(secondRun.files[1]);
+    const backlogFiles = await Promise.all(
+      secondRun.files.map((relativePath) => fs.readFile(path.join(tempDir, relativePath), "utf8")),
+    );
+    expect(backlogFiles.some((content) => content.includes("First memory item"))).toBe(true);
+    expect(backlogFiles.some((content) => content.includes("Second memory item"))).toBe(true);
   });
 
   it("filters out non-message entries (tool calls, system)", async () => {

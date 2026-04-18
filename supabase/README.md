@@ -54,7 +54,6 @@
 - `package.json` is the canonical release version source.
 - Confirm every mirrored version location that participates in a release is aligned before tagging:
   - `package.json`
-  - `apps/android/app/build.gradle.kts`
   - `apps/ios/Sources/Info.plist`
   - `apps/ios/Tests/Info.plist`
   - `apps/macos/Sources/Alisio/Resources/Info.plist`

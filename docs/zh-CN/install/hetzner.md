@@ -187,7 +187,6 @@ services:
       # 要公开暴露，移除 `127.0.0.1:` 前缀并相应配置防火墙。
       - "127.0.0.1:${ALISIO_GATEWAY_PORT}:40705"
 
-      # 可选：仅当你对此 VPS 运行 iOS/Android 节点并需要 Canvas 主机时。
       # 如果你公开暴露此端口，请阅读 /gateway/security 并相应配置防火墙。
       # - "40709:40709"
     command:

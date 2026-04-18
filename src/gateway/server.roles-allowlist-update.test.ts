@@ -55,7 +55,7 @@ const connectNodeClient = async (params: {
     clientName: GATEWAY_CLIENT_NAMES.NODE_HOST,
     clientVersion: "1.0.0",
     clientDisplayName: params.displayName,
-    platform: params.platform ?? "ios",
+    platform: params.platform ?? "macos",
     deviceFamily: params.deviceFamily,
     mode: GATEWAY_CLIENT_MODES.NODE,
     instanceId: params.instanceId,
@@ -339,18 +339,18 @@ describe("gateway node command allowlist", () => {
     );
     const deviceIdentity = loadOrCreateDeviceIdentity(deviceIdentityPath);
 
-    let iosClient: GatewayClient | undefined;
+    let pinnedClient: GatewayClient | undefined;
     try {
-      iosClient = await connectNodeClientWithPairing({
+      pinnedClient = await connectNodeClientWithPairing({
         port,
         commands: ["canvas.snapshot"],
-        platform: "ios",
-        deviceFamily: "iPhone",
+        platform: "macos",
+        deviceFamily: "MacBook",
         instanceId: "node-platform-pin",
         displayName: "node-platform-pin",
         deviceIdentity,
       });
-      iosClient.stop();
+      pinnedClient.stop();
       await expect
         .poll(async () => {
           const listRes = await rpcReq<{ nodes?: Array<{ connected?: boolean }> }>(
@@ -374,22 +374,22 @@ describe("gateway node command allowlist", () => {
         }),
       ).rejects.toThrow(/pairing required/i);
     } finally {
-      iosClient?.stop();
+      pinnedClient?.stop();
     }
   });
 
-  test("filters system.run for confusable iOS metadata at connect time", async () => {
+  test("filters system.run for confusable metadata at connect time", async () => {
     const { loadOrCreateDeviceIdentity } = await import("../infra/device-identity.js");
     const cases = [
       {
-        label: "dotted-i-platform",
-        platform: "İOS",
-        deviceFamily: "iPhone",
+        label: "confusable-platform",
+        platform: "MΑCOS",
+        deviceFamily: "MacBook",
       },
       {
-        label: "greek-omicron-family",
-        platform: "ios",
-        deviceFamily: "iPhοne",
+        label: "confusable-family",
+        platform: "macos",
+        deviceFamily: "MacBοok",
       },
     ] as const;
 

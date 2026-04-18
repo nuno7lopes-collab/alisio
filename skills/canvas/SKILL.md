@@ -1,6 +1,6 @@
 # Canvas Skill
 
-Display HTML content on connected Alisio nodes (Mac app, iOS, Android).
+Display HTML content on connected Alisio nodes (Mac app, iOS).
 
 ## Overview
 
@@ -18,7 +18,7 @@ The canvas tool lets you present web content on any connected node's canvas view
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────┐
 │  Canvas Host    │────▶│   Node Bridge    │────▶│  Node App   │
 │  (HTTP Server)  │     │  (TCP Server)    │     │ (Mac/iOS/   │
-│  Port 40709     │     │  Port 40706      │     │  Android)   │
+│  Port 40709     │     │  Port 40706      │     │  iOS)       │
 └─────────────────┘     └──────────────────┘     └─────────────┘
 ```
 
@@ -126,7 +126,7 @@ tailscale status --json | jq -r '.Self.DNSName' | sed 's/\.$//'
 alisio nodes list
 ```
 
-Look for Mac/iOS/Android nodes with canvas capability.
+Look for Mac/iOS nodes with canvas capability.
 
 ### 4. Present content
 

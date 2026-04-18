@@ -62,11 +62,6 @@ export function collectConfigServiceEnvVars(cfg?: AlisioConfig): Record<string, 
   return collectConfigEnvVarsByTarget(cfg);
 }
 
-/** @deprecated Use `collectConfigRuntimeEnvVars` or `collectConfigServiceEnvVars`. */
-export function collectConfigEnvVars(cfg?: AlisioConfig): Record<string, string> {
-  return collectConfigRuntimeEnvVars(cfg);
-}
-
 export function createConfigRuntimeEnv(
   cfg: AlisioConfig,
   baseEnv: NodeJS.ProcessEnv = process.env,

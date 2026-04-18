@@ -15,12 +15,12 @@ describe("canvas capability urls", () => {
   it("normalizes canonical scoped urls into query-scoped paths", () => {
     expect(
       normalizeCanvasScopedUrl(
-        `http://127.0.0.1:40705${CANVAS_CAPABILITY_PATH_PREFIX}/tok-1/__alisio__/a2ui/?platform=ios`,
+        `http://127.0.0.1:40705${CANVAS_CAPABILITY_PATH_PREFIX}/tok-1/__alisio__/a2ui/?platform=macos`,
       ),
     ).toEqual({
       pathname: "/__alisio__/a2ui/",
       capability: "tok-1",
-      rewrittenUrl: "/__alisio__/a2ui/?platform=ios&oc_cap=tok-1",
+      rewrittenUrl: "/__alisio__/a2ui/?platform=macos&oc_cap=tok-1",
       scopedPath: true,
       malformedScopedPath: false,
     });
@@ -29,7 +29,7 @@ describe("canvas capability urls", () => {
   it("rejects legacy scoped prefixes", () => {
     expect(
       normalizeCanvasScopedUrl(
-        "http://127.0.0.1:40705/__alisio__/cap/tok-1/__alisio__/a2ui/?platform=ios",
+        "http://127.0.0.1:40705/__alisio__/cap/tok-1/__alisio__/a2ui/?platform=macos",
       ),
     ).toEqual({
       pathname: "/__alisio__/cap/tok-1/__alisio__/a2ui/",

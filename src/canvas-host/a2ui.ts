@@ -91,24 +91,15 @@ export function injectCanvasLiveReload(html: string): string {
   const snippet = `
 <script>
 (() => {
-  // Cross-platform action bridge helper.
-  // Works on:
-  // - iOS: window.webkit.messageHandlers.alisioCanvasA2UIAction.postMessage(...)
-  // - Android: window.alisioCanvasA2UIAction.postMessage(...)
+  // Native action bridge helper.
+  // Works on: window.webkit.messageHandlers.alisioCanvasA2UIAction.postMessage(...)
   const handlerNames = ${handlerNames};
   function postToNode(payload) {
     try {
-      const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
       for (const name of handlerNames) {
         const iosHandler = globalThis.webkit?.messageHandlers?.[name];
         if (iosHandler && typeof iosHandler.postMessage === "function") {
-          iosHandler.postMessage(raw);
-          return true;
-        }
-        const androidHandler = globalThis[name];
-        if (androidHandler && typeof androidHandler.postMessage === "function") {
-          // Important: call as a method on the interface object (binding matters on Android WebView).
-          androidHandler.postMessage(raw);
+          iosHandler.postMessage(payload);
           return true;
         }
       }

@@ -558,6 +558,77 @@ describe("renderMemoryHub", () => {
     expect(text).toContain("Graph");
   });
 
+  it("agrupa as notas por papel de memória e mostra a memória principal primeiro", async () => {
+    const request = vi.fn((method: string, params?: Record<string, unknown>) => {
+      if (method === "memory.notes.list") {
+        return Promise.resolve({
+          agentId: "main",
+          notes: [
+            {
+              id: "main-memory",
+              title: "Memory",
+              path: "MEMORY.md",
+              memoryRole: "main",
+              excerpt: "Core identity and goals.",
+            },
+            {
+              id: "atlas",
+              title: "Project Atlas",
+              path: "memory/project-atlas.md",
+              memoryRole: "topic",
+              excerpt: "Launch blockers and delivery plan.",
+            },
+            {
+              id: "daily",
+              title: "2026-04-17",
+              path: "memory/2026-04-17.md",
+              memoryRole: "daily",
+              excerpt: "Daily recap.",
+            },
+            {
+              id: "physics",
+              title: "Physics study",
+              path: "memory/study/physics.md",
+              memoryRole: "backlog",
+              excerpt: "Open study tasks.",
+            },
+          ],
+        });
+      }
+      if (method === "memory.notes.get" && params?.noteId === "main-memory") {
+        return Promise.resolve({
+          agentId: "main",
+          note: {
+            id: "main-memory",
+            title: "Memory",
+            path: "MEMORY.md",
+            memoryRole: "main",
+            content: "# Memory\n\nCore identity and goals.",
+            backlinks: [],
+            claims: [],
+            evidence: [],
+            attachments: [],
+          },
+        });
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    const { container } = await mountNativeHub(
+      createProps({
+        client: { request } as unknown as Parameters<typeof renderMemoryHub>[0]["client"],
+        memoryGraph: null,
+      }),
+    );
+
+    const text = cleanText(container);
+    expect(text).toContain("Main memory");
+    expect(text).toContain("Topic notes");
+    expect(text).toContain("Daily notes");
+    expect(text).toContain("Backlog");
+    expect(container.querySelector(".alisio-memory-note__title")?.textContent).toContain("Memory");
+  });
+
   it("renders the shared empty state when the selected agent has no notes yet", async () => {
     const request = vi.fn(async (method: string) => {
       if (method === "memory.notes.list") {

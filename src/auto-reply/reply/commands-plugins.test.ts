@@ -1,11 +1,28 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AlisioConfig } from "../../config/config.js";
 import { withTempHome } from "../../config/home-env.test-harness.js";
 import { handleCommands } from "./commands-core.js";
-import { createCommandWorkspaceHarness } from "./commands-filesystem.test-support.js";
 import { buildCommandTestParams } from "./commands.test-harness.js";
+
+function createCommandWorkspaceHarness(prefix: string) {
+  const tempDirs: string[] = [];
+
+  return {
+    async createWorkspace(): Promise<string> {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+      tempDirs.push(dir);
+      return dir;
+    },
+    async cleanupWorkspaces() {
+      await Promise.all(
+        tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })),
+      );
+    },
+  };
+}
 
 const workspaceHarness = createCommandWorkspaceHarness("alisio-command-plugins-");
 

@@ -9,7 +9,6 @@ const { detectChangedScope, listChangedPaths } =
     detectChangedScope: (paths: string[]) => {
       runNode: boolean;
       runMacos: boolean;
-      runAndroid: boolean;
       runWindows: boolean;
       runSkillsPython: boolean;
       runChangedSmoke: boolean;
@@ -33,7 +32,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope([])).toEqual({
       runNode: true,
       runMacos: true,
-      runAndroid: true,
       runWindows: true,
       runSkillsPython: true,
       runChangedSmoke: true,
@@ -44,7 +42,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["docs/ci.md", "README.md"])).toEqual({
       runNode: false,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -55,7 +52,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["src/plugins/runtime/index.ts"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: true,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -66,7 +62,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["apps/macos/Sources/Foo.swift"])).toEqual({
       runNode: false,
       runMacos: true,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -74,7 +69,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["apps/shared/AlisioKit/Sources/Foo.swift"])).toEqual({
       runNode: false,
       runMacos: true,
-      runAndroid: true,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -85,7 +79,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["apps/macos/Sources/AlisioProtocol/GatewayModels.swift"])).toEqual({
       runNode: false,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -96,7 +89,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["README.md"])).toEqual({
       runNode: false,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -105,7 +97,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["assets/icon.png"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -116,7 +107,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope([".github/labeler.yml"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: false,
@@ -127,7 +117,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["skills/skill-creator/scripts/test_quick_validate.py"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: true,
       runChangedSmoke: false,
@@ -138,7 +127,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["pyproject.toml"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: true,
       runChangedSmoke: false,
@@ -149,7 +137,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope([".github/workflows/ci.yml"])).toEqual({
       runNode: true,
       runMacos: true,
-      runAndroid: true,
       runWindows: true,
       runSkillsPython: true,
       runChangedSmoke: false,
@@ -160,7 +147,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope(["scripts/install.sh"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: true,
       runSkillsPython: false,
       runChangedSmoke: true,
@@ -168,7 +154,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope([bundledPluginFile("matrix", "package.json")])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: true,
       runSkillsPython: false,
       runChangedSmoke: true,
@@ -176,7 +161,6 @@ describe("detectChangedScope", () => {
     expect(detectChangedScope([".github/workflows/install-smoke.yml"])).toEqual({
       runNode: true,
       runMacos: false,
-      runAndroid: false,
       runWindows: false,
       runSkillsPython: false,
       runChangedSmoke: true,

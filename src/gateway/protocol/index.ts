@@ -629,8 +629,6 @@ import {
   NodeTaskStartParamsSchema,
   type NodeListParams,
   NodeListParamsSchema,
-  type NodePendingAckParams,
-  NodePendingAckParamsSchema,
   type NodePairApproveParams,
   NodePairApproveParamsSchema,
   type NodePairListParams,
@@ -646,9 +644,6 @@ import {
   type PollParams,
   PollParamsSchema,
   PROTOCOL_VERSION,
-  type PushTestParams,
-  PushTestParamsSchema,
-  PushTestResultSchema,
   type PresenceEntry,
   PresenceEntrySchema,
   ProtocolSchemas,
@@ -975,9 +970,6 @@ export const validateNodePairVerifyParams = ajv.compile<NodePairVerifyParams>(
 );
 export const validateNodeRenameParams = ajv.compile<NodeRenameParams>(NodeRenameParamsSchema);
 export const validateNodeListParams = ajv.compile<NodeListParams>(NodeListParamsSchema);
-export const validateNodePendingAckParams = ajv.compile<NodePendingAckParams>(
-  NodePendingAckParamsSchema,
-);
 export const validateNodeDescribeParams = ajv.compile<NodeDescribeParams>(NodeDescribeParamsSchema);
 export const validateNodeInvokeParams = ajv.compile<NodeInvokeParams>(NodeInvokeParamsSchema);
 export const validateNodeInvokeResultParams = ajv.compile<NodeInvokeResultParams>(
@@ -997,7 +989,6 @@ export const validateNodePendingDrainParams = ajv.compile<NodePendingDrainParams
 export const validateNodePendingEnqueueParams = ajv.compile<NodePendingEnqueueParams>(
   NodePendingEnqueueParamsSchema,
 );
-export const validatePushTestParams = ajv.compile<PushTestParams>(PushTestParamsSchema);
 export const validateSecretsResolveParams = ajv.compile<SecretsResolveParams>(
   SecretsResolveParamsSchema,
 );
@@ -1432,8 +1423,6 @@ export {
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
   WakeParamsSchema,
-  PushTestParamsSchema,
-  PushTestResultSchema,
   NodePairRequestParamsSchema,
   NodePairListParamsSchema,
   NodePairApproveParamsSchema,
@@ -1441,7 +1430,6 @@ export {
   NodePairVerifyParamsSchema,
   NodeCapabilityManifestSchema,
   NodeListParamsSchema,
-  NodePendingAckParamsSchema,
   NodeInvokeParamsSchema,
   NodeTaskStartParamsSchema,
   NodeTaskEventParamsSchema,

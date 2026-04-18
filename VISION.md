@@ -78,7 +78,7 @@ Core stays opinionated and small. Optional capability should usually live outsid
 Devices are not a side feature. They are part of the product model.
 
 - macOS is the primary device shell
-- iPhone and Android extend capture, voice, camera, and mobile presence
+- iPhone extends capture, voice, camera, and mobile presence
 - channels are both inboxes and delivery targets
 - connectors and channels should compose into real automations
 

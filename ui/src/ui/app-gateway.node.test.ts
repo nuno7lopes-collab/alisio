@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GATEWAY_EVENT_UPDATE_AVAILABLE } from "../../../src/gateway/events.js";
 import { ConnectErrorDetailCodes } from "../../../src/gateway/protocol/connect-error-details.js";
 import { connectGateway, resolveControlUiClientVersion } from "./app-gateway.ts";
-import type { BrowserPaneObserver, BrowserPaneSurfaceKind } from "./controllers/browser-pane.ts";
+import type { BrowserPaneSurfaceKind } from "./controllers/browser-pane.ts";
 import type { GatewayHelloOk } from "./gateway.ts";
 import { DEFAULT_THEME_SELECTION } from "./theme.ts";
 import type { ComputerSessionState } from "./types.ts";
@@ -48,7 +48,6 @@ type GatewayClientMock = {
   emitEvent: (evt: { event: string; payload?: unknown; seq?: number }) => void;
 };
 
-type BrowserPaneObserverSetter = (sessionKey: string, observer: BrowserPaneObserver | null) => void;
 type ComputerSessionSetter = (sessionKey: string, session: ComputerSessionState | null) => void;
 type BrowserPaneActivityNotifier = (sessionKey: string, surface?: BrowserPaneSurfaceKind) => void;
 
@@ -189,7 +188,6 @@ type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
   toolStreamById: Map<string, unknown>;
   toolStreamOrder: string[];
   toolStreamSyncTimer: number | null;
-  setBrowserPaneObserver: BrowserPaneObserverSetter;
   setComputerSession: ComputerSessionSetter;
   notifyBrowserPaneActivity: BrowserPaneActivityNotifier;
 };
@@ -261,7 +259,6 @@ function createHost(): GatewayTestHost {
     execApprovalError: null,
     updateAvailable: null,
     alisioModelOperations: {},
-    setBrowserPaneObserver: vi.fn<BrowserPaneObserverSetter>(),
     setComputerSession: vi.fn<ComputerSessionSetter>(),
     notifyBrowserPaneActivity: vi.fn<BrowserPaneActivityNotifier>(),
   };
@@ -553,90 +550,6 @@ describe("connectGateway", () => {
     });
   });
 
-  it("applies observer metadata updates from gateway events", () => {
-    const { host, client } = connectHostGateway();
-
-    client.emitEvent({
-      event: "agent",
-      payload: {
-        sessionKey: "main",
-        observer: {
-          kind: "novnc",
-          url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-          label: "Observed browser",
-        },
-      },
-    });
-
-    expect(host.setBrowserPaneObserver).toHaveBeenCalledWith("main", {
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Observed browser",
-    });
-  });
-
-  it("marks browser pane activity when browser tool events arrive", () => {
-    const { host, client } = connectHostGateway();
-
-    client.emitEvent({
-      event: "agent",
-      payload: {
-        runId: "engine-run-browser-1",
-        seq: 1,
-        stream: "tool",
-        ts: 1,
-        sessionKey: "main",
-        data: {
-          toolCallId: "tool-browser-1",
-          name: "browser",
-          phase: "result",
-          result: { text: "ok" },
-        },
-      },
-    });
-
-    expect(host.notifyBrowserPaneActivity).toHaveBeenCalledWith("main", "observer");
-  });
-
-  it("clears stale browser observer state when the browser tool reports sandbox unavailability", () => {
-    const { host, client } = connectHostGateway();
-
-    client.emitEvent({
-      event: "agent",
-      payload: {
-        sessionKey: "main",
-        observer: {
-          kind: "novnc",
-          url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-          label: "Observed browser",
-        },
-      },
-    });
-
-    client.emitEvent({
-      event: "agent",
-      payload: {
-        runId: "engine-run-browser-2",
-        seq: 2,
-        stream: "tool",
-        ts: 2,
-        sessionKey: "main",
-        data: {
-          toolCallId: "tool-browser-2",
-          name: "browser",
-          phase: "result",
-          isError: true,
-          result: {
-            text: 'Sandbox browser is unavailable. Enable agents.defaults.sandbox.browser.enabled or use target="host" if allowed.',
-          },
-        },
-      },
-    });
-
-    expect(host.setBrowserPaneObserver).toHaveBeenLastCalledWith("main", null);
-    expect(host.notifyBrowserPaneActivity).not.toHaveBeenCalledWith("main", "observer");
-  });
-
   it("applies computer session updates and marks computer pane activity", () => {
     const { host, client } = connectHostGateway();
 
@@ -659,7 +572,7 @@ describe("connectGateway", () => {
                 sessionKey: "main",
                 backend: "local-mac",
                 status: "observing",
-                mode: "control-approved-apps",
+                mode: "approved_apps_only",
                 approvedApps: [],
                 permissions: {
                   accessibility: true,
@@ -667,18 +580,35 @@ describe("connectGateway", () => {
                 },
                 context: {
                   display: {
+                    id: "display-1",
                     width: 1440,
                     height: 900,
                     scale: 2,
+                    logicalWidth: 1440,
+                    logicalHeight: 900,
+                    pixelWidth: 2880,
+                    pixelHeight: 1800,
+                    orientation: "landscape",
                   },
                   capturedAt: 10,
                 },
                 frame: {
+                  id: "frame-1",
                   dataUrl: "data:image/jpeg;base64,abc",
                   mimeType: "image/jpeg",
                   width: 1440,
                   height: 900,
+                  pixelWidth: 2880,
+                  pixelHeight: 1800,
+                  logicalWidth: 1440,
+                  logicalHeight: 900,
+                  scaleFactor: 2,
+                  orientation: "landscape",
+                  displayId: "display-1",
+                  sourceSpace: "display-pixel",
                   capturedAt: 10,
+                  maxAgeMs: 1000,
+                  staleAt: 1010,
                 },
                 stepCounter: 0,
                 timeline: [],
@@ -703,21 +633,6 @@ describe("connectGateway", () => {
       }),
     );
     expect(host.notifyBrowserPaneActivity).toHaveBeenCalledWith("main", "computer");
-  });
-
-  it("clears observer metadata when the gateway explicitly removes it", () => {
-    const { host, client } = connectHostGateway();
-
-    client.emitEvent({
-      event: "sessions.changed",
-      payload: {
-        sessionKey: "main",
-        reason: "patch",
-        observer: null,
-      },
-    });
-
-    expect(host.setBrowserPaneObserver).toHaveBeenCalledWith("main", null);
   });
 
   it("ressincroniza o histórico activo quando o transcript é reescrito", async () => {

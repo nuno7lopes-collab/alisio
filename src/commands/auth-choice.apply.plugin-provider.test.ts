@@ -50,8 +50,10 @@ vi.mock("../plugins/provider-auth-helpers.js", () => ({
 
 const isRemoteEnvironment = vi.hoisted(() => vi.fn(() => false));
 const openUrl = vi.hoisted(() => vi.fn(async () => {}));
-vi.mock("../plugins/setup-browser.js", () => ({
+vi.mock("../infra/remote-env.js", () => ({
   isRemoteEnvironment,
+}));
+vi.mock("../infra/browser-open.js", () => ({
   openUrl,
 }));
 

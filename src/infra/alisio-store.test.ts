@@ -1407,6 +1407,40 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("starts Stripe in manual setup mode when secure token storage is ready", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const result = await beginAlisioConnectorSetup("stripe", env);
+
+      expect(result).toMatchObject({
+        connectorId: "stripe",
+        availability: "ready",
+        mode: "setup",
+        providerLabel: "Stripe",
+        statusReason: "ready_for_setup",
+      });
+      expect(result?.setupHint).toContain("restricted API key");
+    });
+  });
+
+  it("reports Stripe secure storage requirements when token encryption is unavailable", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: "",
+      });
+      const result = await beginAlisioConnectorSetup("stripe", env);
+
+      expect(result).toMatchObject({
+        connectorId: "stripe",
+        availability: "ready",
+        mode: "setup",
+        providerLabel: "Stripe",
+        statusReason: "missing_token_encryption",
+        requiredEnvVars: ["ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY"],
+      });
+    });
+  });
+
   it("builds a real Google OAuth authorization URL when client config exists", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
@@ -2374,6 +2408,136 @@ describe("beginAlisioConnectorSetup", () => {
 
       expect(google).toBeNull();
       expect(github).toBeNull();
+    });
+  });
+
+  it("connects Stripe through manual API key setup and stores the encrypted token", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              object: "balance",
+              livemode: false,
+              available: [],
+              pending: [],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+
+      const result = await completeAlisioConnectorAuthorization(
+        {
+          connectorId: "stripe",
+          apiKey: "rk_test_stripe_readonly",
+        },
+        env,
+        fetchMock,
+      );
+
+      expect(result).toMatchObject({
+        connectorId: "stripe",
+        state: "connected",
+        health: "healthy",
+        connectedAccount: {
+          label: "Stripe test mode",
+          handle: "restricted key",
+        },
+      });
+      await expect(getAlisioConnectorAccessToken("stripe", env)).resolves.toBe(
+        "rk_test_stripe_readonly",
+      );
+      await expect(listAlisioConnectorAuthorizations(env)).resolves.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            connectorId: "stripe",
+            state: "connected",
+          }),
+        ]),
+      );
+    });
+  });
+
+  it("rejects Stripe manual completion when the key is missing required read permissions", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              object: "balance",
+              livemode: true,
+              available: [],
+              pending: [],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        );
+
+      await expect(
+        completeAlisioConnectorAuthorization(
+          {
+            connectorId: "stripe",
+            apiKey: "rk_live_missing_permissions",
+          },
+          env,
+          fetchMock,
+        ),
+      ).rejects.toThrow("Stripe key needs read access to customers, charges, and payment intents.");
     });
   });
 
@@ -3871,7 +4035,7 @@ describe("beginAlisioConnectorSetup", () => {
     expect(summary.available).toBe(summary.total - summary.unavailable);
   });
 
-  it("does not route ready accounts into an empty connectors step when OAuth config is missing", async () => {
+  it("routes ready accounts into connectors when Stripe is available through manual setup", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
       await setStoredAlisioPlan(root, "plus");
@@ -3890,8 +4054,8 @@ describe("beginAlisioConnectorSetup", () => {
 
       expect(summary.startupState).toBe("ready");
       expect(summary.connectorSummary.connected).toBe(0);
-      expect(summary.connectorSummary.ready).toBe(0);
-      expect(summary.nextStep).toBe(process.platform === "darwin" ? "permissions" : "ready");
+      expect(summary.connectorSummary.ready).toBeGreaterThanOrEqual(1);
+      expect(summary.nextStep).toBe("connectors");
     });
   });
 });

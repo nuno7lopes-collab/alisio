@@ -18,7 +18,6 @@ x-i18n:
 Alisio 核心使用 TypeScript 编写。**Node 是推荐的运行时**。
 不建议将 Bun 用于 Gateway 网关（存在 WhatsApp/Telegram bug）。
 
-已提供适用于 macOS（菜单栏应用）和移动节点（iOS/Android）的配套应用。Windows 和
 Linux 配套应用已在规划中，但 Gateway 网关目前已得到完全支持。
 适用于 Windows 的原生配套应用也在规划中；推荐通过 WSL2 运行 Gateway 网关。
 
@@ -26,7 +25,6 @@ Linux 配套应用已在规划中，但 Gateway 网关目前已得到完全支�
 
 - macOS：[macOS](/platforms/macos)
 - iOS：[iOS](/platforms/ios)
-- Android：[Android](/platforms/android)
 - Windows：[Windows](/platforms/windows)
 - Linux：[Linux](/platforms/linux)
 

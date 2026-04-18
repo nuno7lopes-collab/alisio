@@ -24,33 +24,44 @@ When you run `/new` or `/reset` to start a fresh session:
 
 1. **Finds the previous session** - Uses the pre-reset session entry to locate the correct transcript
 2. **Extracts conversation** - Reads the last N user/assistant messages from the session (default: 15, configurable)
-3. **Generates descriptive slug** - Uses LLM to create a meaningful section label based on conversation content
-4. **Appends to memory** - Writes into the canonical daily note at `<workspace>/memory/YYYY-MM-DD.md`
-5. **Triggers canonical sync** - Reingests the updated daily note through the canonical memory pipeline
+3. **Generates descriptive slug** - Uses LLM to create a meaningful backlog note slug based on conversation content
+4. **Writes to backlog** - Creates a canonical backlog note at `<workspace>/memory/backlog/YYYY-MM-DD/<slug>.md`
+5. **Triggers canonical sync** - Reingests the new backlog note through the canonical memory pipeline
 
 ## Output Format
 
-Entries are appended to the daily note with the following format:
+Each snapshot is stored as its own backlog note with the following format:
 
 ```markdown
-## 14:30:00 UTC - vendor-pitch
+---
+memoryRole: backlog
+backlogStatus: pending
+capturedAt: "2026-04-18T14:30:00.000Z"
+sessionAction: "new"
+tags:
+  - backlog
+  - session-memory
+---
+# Session new - Vendor Pitch
+
+## Context
 
 - **Action**: /new
 - **Session Key**: agent:main:main
 - **Session ID**: abc123def456
 - **Source**: telegram
 
-### Conversation Summary
+## Conversation Summary
 ```
 
-## Section Examples
+## Path Examples
 
-The LLM-generated slug is used inside the section heading:
+The LLM-generated slug is used in the backlog path:
 
-- `## 14:30:00 UTC - vendor-pitch` - Discussion about vendor evaluation
-- `## 15:10:00 UTC - api-design` - API architecture planning
-- `## 16:45:00 UTC - bug-fix` - Debugging session
-- `## 17:20:00 UTC` - Fallback when slug generation is unavailable
+- `memory/backlog/2026-04-18/vendor-pitch.md` - Discussion about vendor evaluation
+- `memory/backlog/2026-04-18/api-design.md` - API architecture planning
+- `memory/backlog/2026-04-18/bug-fix.md` - Debugging session
+- `memory/backlog/2026-04-18/1720.md` - Fallback when slug generation is unavailable
 
 ## Requirements
 
@@ -86,9 +97,9 @@ Example configuration:
 The hook automatically:
 
 - Uses your workspace directory (`~/.alisio/workspace` by default)
-- Uses your configured LLM for section label generation
-- Falls back to a time-only heading if LLM is unavailable
-- Keeps all session snapshots for the same day in the same canonical daily note
+- Uses your configured LLM for backlog note slug generation
+- Falls back to a time-based slug if LLM is unavailable
+- Keeps each session snapshot as a separate promotable backlog note
 
 ## Disabling
 

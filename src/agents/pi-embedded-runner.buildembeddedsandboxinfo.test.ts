@@ -32,7 +32,6 @@ function createSandboxContext(overrides?: Partial<SandboxContext>): SandboxConte
     browserAllowHostControl: true,
     browser: {
       bridgeUrl: "http://localhost:9222",
-      noVncUrl: "http://localhost:6080",
       containerName: "alisio-sbx-browser-test",
     },
   } satisfies SandboxContext;
@@ -54,7 +53,6 @@ describe("buildEmbeddedSandboxInfo", () => {
       workspaceAccess: "none",
       agentWorkspaceMount: undefined,
       browserBridgeUrl: "http://localhost:9222",
-      browserNoVncUrl: "http://localhost:6080",
       hostBrowserAllowed: true,
     });
   });

@@ -1,8 +1,8 @@
 ---
-summary: "Location command for nodes (location.get), permission modes, and Android foreground behavior"
+summary: "Location command for nodes (location.get) and permission modes"
 read_when:
   - Adding location node support or permissions UI
-  - Designing Android location permissions or foreground behavior
+  - Designing location permissions or foreground behavior
 title: "Location Command"
 ---
 
@@ -12,7 +12,7 @@ title: "Location Command"
 
 - `location.get` is a node command (via `node.invoke`).
 - Off by default.
-- Android app settings use a selector: Off / While Using.
+- App settings use a selector: Off / While Using.
 - Separate toggle: Precise Location.
 
 ## Why a selector (not just a switch)
@@ -20,8 +20,8 @@ title: "Location Command"
 OS permissions are multi-level. We can expose a selector in-app, but the OS still decides the actual grant.
 
 - iOS/macOS may expose **While Using** or **Always** in system prompts/Settings.
-- Android app currently supports foreground location only.
-- Precise location is a separate grant (iOS 14+ “Precise”, Android “fine” vs “coarse”).
+- iOS currently supports foreground location only.
+- Precise location is a separate grant (iOS 14+ “Precise”).
 
 Selector in UI drives our requested mode; actual grant lives in OS settings.
 
@@ -39,7 +39,7 @@ UI behavior:
 
 ## Permissions mapping (node.permissions)
 
-Optional. macOS node reports `location` via the permissions map; iOS/Android may omit it.
+Optional. macOS node reports `location` via the permissions map; iOS may omit it.
 
 ## Command: `location.get`
 
@@ -81,8 +81,8 @@ Errors (stable codes):
 
 ## Background behavior
 
-- Android app denies `location.get` while backgrounded.
-- Keep Alisio open when requesting location on Android.
+- iOS denies `location.get` while backgrounded.
+- Keep Alisio open when requesting location on iOS.
 - Other node platforms may differ.
 
 ## Model/tooling integration

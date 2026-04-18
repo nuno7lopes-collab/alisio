@@ -23,31 +23,18 @@ struct InstancesSettingsSmokeTests {
                 text: "MacBook Pro local",
                 ts: 1_700_000_000_000),
             InstanceInfo(
-                id: "android",
-                host: "pixel",
-                ip: "10.0.0.3",
-                version: "2.0.0",
-                platform: "Android 14",
-                deviceFamily: "Android",
-                modelIdentifier: nil,
-                lastInputSeconds: 120,
-                mode: "node",
-                reason: "presence",
-                text: "Android node",
-                ts: 1_700_000_100_000),
-            InstanceInfo(
                 id: "gateway",
                 host: "gateway",
                 ip: "10.0.0.4",
                 version: "3.0.0",
-                platform: "iOS 18",
+                platform: "Linux",
                 deviceFamily: nil,
                 modelIdentifier: nil,
                 lastInputSeconds: nil,
                 mode: "gateway",
                 reason: "gateway",
                 text: "Gateway",
-                ts: 1_700_000_200_000),
+                ts: 1_700_000_100_000),
         ]
 
         let view = InstancesSettings(store: store)

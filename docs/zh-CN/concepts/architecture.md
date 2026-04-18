@@ -20,7 +20,6 @@ x-i18n:
 
 - 单个长期运行的 **Gateway 网关**拥有所有消息平台（通过 Baileys 的 WhatsApp、通过 grammY 的 Telegram、Slack、Discord、Signal、iMessage、WebChat）。
 - 控制平面客户端（macOS 应用、CLI、Web 界面、自动化）通过配置的绑定主机（默认 `127.0.0.1:40705`）上的 **WebSocket** 连接到 Gateway 网关。
-- **节点**（macOS/iOS/Android/无头设备）也通过 **WebSocket** 连接，但声明 `role: node` 并带有明确的能力/命令。
 - 每台主机一个 Gateway 网关；它是唯一打开 WhatsApp 会话的位置。
 - **canvas 主机**（默认 `40709`）提供智能体可编辑的 HTML 和 A2UI。
 
@@ -39,7 +38,6 @@ x-i18n:
 - 发送请求（`health`、`status`、`send`、`agent`、`system-presence`）。
 - 订阅事件（`tick`、`agent`、`presence`、`shutdown`）。
 
-### 节点（macOS / iOS / Android / 无头设备）
 
 - 以 `role: node` 连接到**同一个 WS 服务器**。
 - 在 `connect` 中提供设备身份；配对是**基于设备**的（角色为 `node`），批准存储在设备配对存储中。

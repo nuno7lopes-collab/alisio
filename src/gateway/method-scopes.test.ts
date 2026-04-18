@@ -211,7 +211,7 @@ describe("plugin approval method registration", () => {
 describe("core gateway method classification", () => {
   it("treats node-role methods as classified even without operator scopes", () => {
     expect(isGatewayMethodClassified("node.pending.drain")).toBe(true);
-    expect(isGatewayMethodClassified("node.pending.pull")).toBe(true);
+    expect(isGatewayMethodClassified("node.pending.enqueue")).toBe(true);
   });
 
   it("classifies every exposed core gateway handler method", () => {

@@ -19,7 +19,7 @@ export type {
 
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 export { formatCliCommand } from "../cli/command-format.js";
-export { detectBinary } from "../plugins/setup-binary.js";
+export { detectBinary } from "../infra/detect-binary.js";
 export { installSignalCli } from "../plugins/signal-cli-install.js";
 export { formatDocsLink } from "../terminal/links.js";
 export { hasConfiguredSecretInput, normalizeSecretInputString } from "../config/types.secrets.js";

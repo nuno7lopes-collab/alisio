@@ -41,7 +41,6 @@ if (workflow === "ci") {
   writeOutput("docs_changed", String(manifest.scope.docsChanged));
   writeOutput("run_node", String(manifest.scope.runNode));
   writeOutput("run_macos", String(manifest.scope.runMacos));
-  writeOutput("run_android", String(manifest.scope.runAndroid));
   writeOutput("run_skills_python", String(manifest.scope.runSkillsPython));
   writeOutput("run_windows", String(manifest.scope.runWindows));
   writeOutput("has_changed_extensions", String(manifest.scope.hasChangedExtensions));
@@ -63,8 +62,6 @@ if (workflow === "ci") {
   writeOutput("run_macos_node", String(manifest.jobs.macosNode.enabled));
   writeOutput("macos_node_matrix", JSON.stringify(manifest.jobs.macosNode.matrix));
   writeOutput("run_macos_swift", String(manifest.jobs.macosSwift.enabled));
-  writeOutput("run_android_job", String(manifest.jobs.android.enabled));
-  writeOutput("android_matrix", JSON.stringify(manifest.jobs.android.matrix));
   writeOutput("required_check_names", JSON.stringify(manifest.requiredCheckNames));
 } else if (workflow === "install-smoke") {
   writeOutput("docs_only", String(manifest.scope.docsOnly));

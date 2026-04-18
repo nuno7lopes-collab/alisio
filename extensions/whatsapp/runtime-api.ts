@@ -2,7 +2,7 @@ export * from "./src/active-listener.js";
 export * from "./src/action-runtime.js";
 export * from "./src/agent-tools-login.js";
 export * from "./src/auth-store.js";
-export * from "./src/auto-reply.js";
+export * from "./src/auto-reply.impl.js";
 export * from "./src/inbound.js";
 export * from "./src/login.js";
 export * from "./src/media.js";

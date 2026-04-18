@@ -1,6 +1,5 @@
 ---
 read_when:
-  - 构建或调试节点客户端（iOS/Android/macOS 节点模式）
   - 调查配对或 bridge 认证失败
   - 审计 Gateway 网关暴露的节点接口
 summary: Bridge 协议（旧版节点）：TCP JSONL、配对、作用域 RPC

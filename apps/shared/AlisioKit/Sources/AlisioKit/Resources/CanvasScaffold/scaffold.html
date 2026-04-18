@@ -13,11 +13,7 @@
             document.documentElement.dataset.platform = platform;
             return;
           }
-          if (/android/i.test(navigator.userAgent || '')) {
-            document.documentElement.dataset.platform = 'android';
-          } else {
-            document.documentElement.dataset.platform = 'ios';
-          }
+          document.documentElement.dataset.platform = 'macos';
         } catch (_) {}
       })();
     </script>

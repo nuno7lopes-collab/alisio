@@ -26,7 +26,7 @@ title: "Features"
     Web Control UI and macOS companion app.
   </Card>
   <Card title="Mobile nodes" icon="smartphone">
-    iOS and Android nodes with pairing, voice/chat, and rich device commands.
+    iOS nodes with pairing, voice/chat, and rich device commands.
   </Card>
 </Columns>
 
@@ -63,7 +63,6 @@ title: "Features"
 - WebChat and browser Control UI
 - macOS menu bar companion app
 - iOS node with pairing, Canvas, camera, screen recording, location, and voice
-- Android node with pairing, chat, voice, Canvas, camera, and device commands
 
 **Tools and automation:**
 

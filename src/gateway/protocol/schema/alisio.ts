@@ -27,6 +27,7 @@ const ConnectorBeginModeSchema = Type.Union([Type.Literal("oauth"), Type.Literal
 
 const ConnectorBeginReasonSchema = Type.Union([
   Type.Literal("ready_for_oauth"),
+  Type.Literal("ready_for_setup"),
   Type.Literal("missing_client_config"),
   Type.Literal("missing_token_encryption"),
   Type.Literal("review_required"),
@@ -1298,6 +1299,7 @@ export const AlisioConnectorsCompleteParamsSchema = Type.Object(
   {
     connectorId: NonEmptyString,
     account: Type.Optional(AlisioConnectedAccountSchema),
+    apiKey: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

@@ -1,7 +1,6 @@
 ---
 read_when:
   - 设置私信访问控制
-  - 配对新的 iOS/Android 节点
   - 审查 Alisio 安全态势
 summary: 配对概述：批准谁可以向你发送私信 + 哪些节点可以加入
 title: 配对
@@ -53,7 +52,6 @@ alisio pairing approve telegram <CODE>
 
 将这些视为敏感信息（它们控制对你助手的访问）。
 
-## 2）节点设备配对（iOS/Android/macOS/无头节点）
 
 节点作为 `role: node` 的**设备**连接到 Gateway 网关。Gateway 网关创建一个必须被批准的设备配对请求。
 

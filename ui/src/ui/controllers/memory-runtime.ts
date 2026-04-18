@@ -1,4 +1,9 @@
 import { t } from "../../i18n/index.ts";
+import {
+  normalizeMemoryNoteRole as normalizeCanonicalMemoryNoteRole,
+  resolveMemoryNoteRole as resolveCanonicalMemoryNoteRole,
+  type MemoryNoteRole as CanonicalMemoryNoteRole,
+} from "../../../../src/shared/memory-file-paths.js";
 import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { MemoryGraphState, MemoryStatusState, MemorySyncResult } from "../types.ts";
@@ -9,8 +14,11 @@ export type MemoryReasonTag = {
   detail?: string;
 };
 
+export type MemoryNoteRole = CanonicalMemoryNoteRole;
+
 export type MemoryNoteTaxonomyFields = {
   summary?: string | null;
+  memoryRole?: MemoryNoteRole | null;
   tags?: string[] | null;
   categories?: string[] | null;
   collections?: string[] | null;
@@ -263,6 +271,92 @@ export type MemoryTraceResult = {
   raw: unknown;
 };
 
+function normalizeString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeMemoryNoteRole(value: unknown): MemoryNoteRole | null {
+  return normalizeCanonicalMemoryNoteRole(value);
+}
+
+function resolveMemoryNoteRole(
+  value: Pick<MemoryNoteTaxonomyFields, "memoryRole" | "tags" | "collections"> & {
+    path?: string | null;
+  },
+): MemoryNoteRole {
+  return resolveCanonicalMemoryNoteRole({
+    path: value.path,
+    memoryRole: value.memoryRole,
+    tags: value.tags,
+    collections: value.collections,
+  });
+}
+
+function normalizeMemoryTaxonomy<T extends MemoryNoteTaxonomyFields & { path?: string | null }>(
+  value: T,
+): T {
+  const memoryRole = resolveMemoryNoteRole(value);
+  if (value.memoryRole === memoryRole) {
+    return value;
+  }
+  return {
+    ...value,
+    memoryRole,
+  };
+}
+
+function normalizeMemoryNoteListEntry(entry: MemoryNoteListEntry): MemoryNoteListEntry {
+  return normalizeMemoryTaxonomy(entry);
+}
+
+function normalizeMemoryNote(entry: MemoryNote): MemoryNote {
+  return normalizeMemoryTaxonomy(entry);
+}
+
+function normalizeMemoryNotesListResult(result: MemoryNotesListResult): MemoryNotesListResult {
+  return {
+    ...result,
+    notes: result.notes.map((entry) => normalizeMemoryNoteListEntry(entry)),
+  };
+}
+
+function normalizeMemoryNotesGetResult(result: MemoryNotesGetResult): MemoryNotesGetResult {
+  return {
+    ...result,
+    note: normalizeMemoryNote(result.note),
+  };
+}
+
+function normalizeMemoryNotesUpdateResult(
+  result: MemoryNotesUpdateResult,
+): MemoryNotesUpdateResult {
+  return {
+    ...result,
+    ...(result.note ? { note: normalizeMemoryNote(result.note) } : {}),
+  };
+}
+
+function normalizeMemoryWikiListResult(result: MemoryWikiListResult): MemoryWikiListResult {
+  return {
+    ...result,
+    pages: result.pages.map((page) => normalizeMemoryTaxonomy(page)),
+  };
+}
+
+function normalizeMemoryWikiGetResult(result: MemoryWikiGetResult): MemoryWikiGetResult {
+  return {
+    ...result,
+    page: normalizeMemoryTaxonomy(result.page),
+  };
+}
+
+function normalizeMemoryWikiUpdateResult(result: MemoryWikiUpdateResult): MemoryWikiUpdateResult {
+  return {
+    ...result,
+    ...(result.page ? { page: normalizeMemoryTaxonomy(result.page) } : {}),
+  };
+}
+
 export type MemoryExportFormat = "zip" | "json" | "markdown";
 
 export type MemoryExportResult = {
@@ -418,19 +512,19 @@ function invalidateClientMemoryRequestCache(
 
 function toMemoryNote(page: MemoryWikiPage): MemoryNote {
   const { relatedFiles, ...rest } = page;
-  return {
+  return normalizeMemoryTaxonomy({
     ...rest,
     ...(relatedFiles ? { attachments: relatedFiles } : {}),
-  };
+  });
 }
 
 function toMemoryNotesListResult(result: MemoryWikiListResult): MemoryNotesListResult {
-  return {
+  return normalizeMemoryNotesListResult({
     agentId: result.agentId,
     notes: result.pages,
     ...(result.sync ? { sync: result.sync } : {}),
     ...(result.exportFormats ? { exportFormats: result.exportFormats } : {}),
-  };
+  });
 }
 
 export type MemoryRuntimeState = {
@@ -563,11 +657,13 @@ export async function requestMemoryNotesList(
     NOTES_LIST_CACHE_TTL_MS,
     async () => {
       try {
-        return await requestMemoryEndpoint<MemoryNotesListResult>(
-          client,
-          "memory.notes.list",
-          params,
-          "This version of Alisio does not expose native memory notes yet.",
+        return normalizeMemoryNotesListResult(
+          await requestMemoryEndpoint<MemoryNotesListResult>(
+            client,
+            "memory.notes.list",
+            params,
+            "This version of Alisio does not expose native memory notes yet.",
+          ),
         );
       } catch (err) {
         if (!isMemoryEndpointUnavailableError(err)) {
@@ -601,11 +697,13 @@ export async function requestMemoryNote(
     NOTE_CACHE_TTL_MS,
     async () => {
       try {
-        return await requestMemoryEndpoint<MemoryNotesGetResult>(
-          client,
-          "memory.notes.get",
-          params,
-          "This version of Alisio does not expose native memory note loading yet.",
+        return normalizeMemoryNotesGetResult(
+          await requestMemoryEndpoint<MemoryNotesGetResult>(
+            client,
+            "memory.notes.get",
+            params,
+            "This version of Alisio does not expose native memory note loading yet.",
+          ),
         );
       } catch (err) {
         if (!isMemoryEndpointUnavailableError(err)) {
@@ -642,6 +740,8 @@ export async function requestMemoryNoteUpdate(
   params: {
     agentId: string;
     noteId?: string;
+    relativePath?: string;
+    memoryRole?: MemoryNoteRole;
     title: string;
     content: string;
     query?: string;
@@ -655,7 +755,7 @@ export async function requestMemoryNoteUpdate(
       "This version of Alisio does not expose native memory note editing yet.",
     );
     invalidateClientMemoryRequestCache(client, { agentId: params.agentId });
-    return result;
+    return normalizeMemoryNotesUpdateResult(result);
   } catch (err) {
     if (!isMemoryEndpointUnavailableError(err)) {
       throw err;
@@ -664,6 +764,8 @@ export async function requestMemoryNoteUpdate(
       const legacy = await requestMemoryWikiUpdate(client, {
         agentId: params.agentId,
         ...(params.noteId ? { pageId: params.noteId } : {}),
+        ...(params.relativePath ? { relativePath: params.relativePath } : {}),
+        ...(params.memoryRole ? { memoryRole: params.memoryRole } : {}),
         title: params.title,
         content: params.content,
       });
@@ -728,11 +830,13 @@ export async function requestMemoryWikiList(
   client: GatewayBrowserClient,
   params: { agentId: string; query?: string },
 ) {
-  return requestMemoryEndpoint<MemoryWikiListResult>(
-    client,
-    "memory.wiki.list",
-    params,
-    "This version of Alisio does not expose the native memory wiki yet.",
+  return normalizeMemoryWikiListResult(
+    await requestMemoryEndpoint<MemoryWikiListResult>(
+      client,
+      "memory.wiki.list",
+      params,
+      "This version of Alisio does not expose the native memory wiki yet.",
+    ),
   );
 }
 
@@ -740,11 +844,13 @@ export async function requestMemoryWikiPage(
   client: GatewayBrowserClient,
   params: { agentId: string; pageId: string; query?: string },
 ) {
-  return requestMemoryEndpoint<MemoryWikiGetResult>(
-    client,
-    "memory.wiki.get",
-    params,
-    "This version of Alisio does not expose native memory page loading yet.",
+  return normalizeMemoryWikiGetResult(
+    await requestMemoryEndpoint<MemoryWikiGetResult>(
+      client,
+      "memory.wiki.get",
+      params,
+      "This version of Alisio does not expose native memory page loading yet.",
+    ),
   );
 }
 
@@ -753,15 +859,19 @@ export async function requestMemoryWikiUpdate(
   params: {
     agentId: string;
     pageId?: string;
+    relativePath?: string;
+    memoryRole?: MemoryNoteRole;
     title: string;
     content: string;
   },
 ) {
-  return requestMemoryEndpoint<MemoryWikiUpdateResult>(
-    client,
-    "memory.wiki.update",
-    params,
-    "This version of Alisio does not expose native memory editing yet.",
+  return normalizeMemoryWikiUpdateResult(
+    await requestMemoryEndpoint<MemoryWikiUpdateResult>(
+      client,
+      "memory.wiki.update",
+      params,
+      "This version of Alisio does not expose native memory editing yet.",
+    ),
   );
 }
 

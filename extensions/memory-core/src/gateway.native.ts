@@ -4,7 +4,14 @@ import type { DatabaseSync } from "node:sqlite";
 import type { GatewayRequestHandlerOptions } from "alisio/plugin-sdk/core";
 import { resolveAgentWorkspaceDir } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { hashText, requireNodeSqlite } from "alisio/plugin-sdk/memory-core-host-engine-storage";
-import { loadConfig, resolveStateDir } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import {
+  buildCanonicalMemoryNotePath,
+  loadConfig,
+  normalizeMemoryNoteRole as normalizeCanonicalMemoryNoteRole,
+  resolveMemoryNoteRole as resolveCanonicalMemoryNoteRole,
+  resolveStateDir,
+  type MemoryNoteRole as MemoryPageRole,
+} from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import { resolveMemoryBackendConfig } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import JSZip from "jszip";
 import {
@@ -75,6 +82,7 @@ type NativeWikiListPage = {
   path: string;
   excerpt: string;
   summary?: string;
+  memoryRole?: MemoryPageRole;
   updatedAt: string | null;
   backlinks: number;
   claims: number;
@@ -103,6 +111,7 @@ type NativeWikiPage = {
   path: string;
   content: string;
   summary?: string;
+  memoryRole?: MemoryPageRole;
   tags?: string[];
   categories?: string[];
   collections?: string[];
@@ -489,8 +498,26 @@ function normalizeFrontmatterBoolean(value: unknown): boolean {
   return value === true || normalizeString(value).toLowerCase() === "true";
 }
 
+function resolveMemoryPageRole(params: {
+  relativePath: string;
+  parsed: ReturnType<typeof parseFrontmatter>;
+  tags: string[];
+  collections: string[];
+}): MemoryPageRole {
+  return resolveCanonicalMemoryNoteRole({
+    path: params.relativePath,
+    memoryRole:
+      params.parsed.rest.memoryRole ??
+      params.parsed.rest.memory_role ??
+      params.parsed.rest["memory-role"],
+    tags: params.tags,
+    collections: params.collections,
+  });
+}
+
 function buildWikiTaxonomy(params: {
   parsed: ReturnType<typeof parseFrontmatter>;
+  relativePath: string;
   fallbackTags?: string[];
   fallbackSummary?: string;
 }) {
@@ -513,13 +540,35 @@ function buildWikiTaxonomy(params: {
   const featured =
     normalizeFrontmatterBoolean(rest.featured) ||
     collections.some((collection) => collection.toLowerCase() === "featured");
+  const memoryRole = resolveMemoryPageRole({
+    relativePath: params.relativePath,
+    parsed: params.parsed,
+    tags,
+    collections,
+  });
   return {
     ...(summary ? { summary } : {}),
+    memoryRole,
     ...(tags.length > 0 ? { tags } : {}),
     ...(categories.length > 0 ? { categories } : {}),
     ...(collections.length > 0 ? { collections } : {}),
     ...(featured ? { featured: true } : {}),
   };
+}
+
+function memoryPageRolePriority(role: MemoryPageRole | null | undefined) {
+  switch (role) {
+    case "main":
+      return 0;
+    case "topic":
+      return 1;
+    case "daily":
+      return 2;
+    case "backlog":
+      return 3;
+    default:
+      return 99;
+  }
 }
 
 function parseWikiReferences(markdown: string) {
@@ -1507,6 +1556,7 @@ function buildWikiPageDetail(params: {
   ].filter(Boolean);
   const taxonomy = buildWikiTaxonomy({
     parsed,
+    relativePath: identity.path,
     fallbackTags: listTags(params.db, params.pageId),
     fallbackSummary: summarizeText(body, 220),
   });
@@ -1575,9 +1625,21 @@ function slugifyTitle(title: string): string {
   return normalized || hashText(`slug:${title}`).slice(0, 16);
 }
 
-function candidatePagePath(title: string): string {
-  const slug = slugifyTitle(title).replace(/\//g, "-");
-  return slug === "memory-root" ? "MEMORY.md" : `memory/${slug}.md`;
+function candidatePagePath(params: {
+  title: string;
+  role: MemoryPageRole;
+  dateStamp?: string;
+}): string {
+  if (params.role === "main") {
+    return "MEMORY.md";
+  }
+  const slug = slugifyTitle(params.title).replace(/\//g, "-");
+  return buildCanonicalMemoryNotePath({
+    role: params.role,
+    title: params.title,
+    slug: slug === "memory-root" ? "memory" : slug,
+    dateStamp: params.dateStamp,
+  });
 }
 
 function projectionExists(db: DatabaseSync, relativePath: string): boolean {
@@ -1597,8 +1659,11 @@ function projectionExists(db: DatabaseSync, relativePath: string): boolean {
   return Boolean(row?.found);
 }
 
-function resolveAvailablePagePath(db: DatabaseSync, title: string): string {
-  const basePath = candidatePagePath(title);
+function resolveAvailablePathFromBase(
+  db: DatabaseSync,
+  basePath: string,
+  fallbackTitle: string,
+): string {
   if (!projectionExists(db, basePath)) {
     return basePath;
   }
@@ -1610,7 +1675,34 @@ function resolveAvailablePagePath(db: DatabaseSync, title: string): string {
       return candidate;
     }
   }
-  return `${stem}-${hashText(title).slice(0, 8)}${ext}`;
+  return `${stem}-${hashText(fallbackTitle).slice(0, 8)}${ext}`;
+}
+
+function resolveAvailablePagePath(params: {
+  db: DatabaseSync;
+  title: string;
+  role: MemoryPageRole;
+  dateStamp?: string;
+}): string {
+  return resolveAvailablePathFromBase(params.db, candidatePagePath(params), params.title);
+}
+
+function readPageIdentityByRelativePath(db: DatabaseSync, relativePath: string): PageIdentity | null {
+  const [canonicalKind, compatKind] = resolveMarkdownProjectionKinds(relativePath);
+  const row = db
+    .prepare(
+      `SELECT page_id
+       FROM projections
+       WHERE kind IN (?, ?)
+       ORDER BY updated_at_ms DESC
+       LIMIT 1`,
+    )
+    .get(canonicalKind, compatKind) as
+    | {
+        page_id: string;
+      }
+    | undefined;
+  return row?.page_id ? readPageIdentity(db, row.page_id) : null;
 }
 
 function buildPageEntityInput(params: {
@@ -1618,18 +1710,86 @@ function buildPageEntityInput(params: {
   pageId?: string;
   title: string;
   content: string;
+  memoryRole?: MemoryPageRole;
+  relativePath?: string;
+  dateStamp?: string;
 }): CanonicalMemoryStructuredEntityInput {
-  const existing = params.pageId ? readPageIdentity(params.db, params.pageId) : null;
+  let existing = params.pageId ? readPageIdentity(params.db, params.pageId) : null;
   if (params.pageId && !existing) {
     throw new Error(`page not found: ${params.pageId}`);
   }
   const parsed = parseFrontmatter(params.content);
   const title = normalizeString(params.title) || parsed.title || existing?.title || "Untitled";
-  const relativePath = existing?.path ?? resolveAvailablePagePath(params.db, title);
+  const requestedRelativePath = params.relativePath
+    ? normalizeDisplayPath(params.relativePath)
+    : undefined;
+  if (!existing && requestedRelativePath) {
+    existing = readPageIdentityByRelativePath(params.db, requestedRelativePath);
+  }
+  const requestedRole =
+    params.memoryRole ??
+    normalizeCanonicalMemoryNoteRole(parsed.rest.memoryRole) ??
+    normalizeCanonicalMemoryNoteRole(parsed.rest.memory_role) ??
+    normalizeCanonicalMemoryNoteRole(parsed.rest["memory-role"]) ??
+    undefined;
+  const role =
+    existing?.path != null
+      ? resolveMemoryPageRole({
+          relativePath: existing.path,
+          parsed: {
+            ...parsed,
+            rest: {
+              ...parsed.rest,
+              ...(requestedRole ? { memoryRole: requestedRole } : {}),
+            },
+          },
+          tags: parsed.tags,
+          collections: normalizeFrontmatterStringList(parsed.rest.collections),
+        })
+      : resolveCanonicalMemoryNoteRole({
+          path: requestedRelativePath,
+          memoryRole: requestedRole,
+          tags: parsed.tags,
+          collections: normalizeFrontmatterStringList(parsed.rest.collections),
+        });
+  const candidatePath =
+    requestedRelativePath ??
+    candidatePagePath({
+      title,
+      role,
+      dateStamp: params.dateStamp,
+    });
+  if (!existing && requestedRelativePath) {
+    existing = readPageIdentityByRelativePath(params.db, candidatePath);
+  }
+  if (!existing && !requestedRelativePath && (role === "main" || role === "daily")) {
+    existing = readPageIdentityByRelativePath(params.db, candidatePath);
+  }
+  const relativePath =
+    existing?.path ??
+    (requestedRelativePath
+      ? resolveAvailablePathFromBase(params.db, candidatePath, title)
+      : resolveAvailablePagePath({
+          db: params.db,
+          title,
+          role,
+          dateStamp: params.dateStamp,
+        }));
   const pageId =
     existing?.pageId ?? hashText(`page:${normalizeReferenceKey(relativePath) || relativePath}`);
   const aliases = parsed.aliases;
   const tags = parsed.tags;
+  const existingFrontmatterRole =
+    normalizeCanonicalMemoryNoteRole(parsed.rest.memoryRole) ??
+    normalizeCanonicalMemoryNoteRole(parsed.rest.memory_role) ??
+    normalizeCanonicalMemoryNoteRole(parsed.rest["memory-role"]);
+  const frontmatter =
+    requestedRole && existingFrontmatterRole !== requestedRole
+      ? {
+          ...parsed.rest,
+          memoryRole: requestedRole,
+        }
+      : parsed.rest;
   const relations = uniqueStrings(
     [
       ...parseWikiReferences(parsed.body),
@@ -1653,7 +1813,7 @@ function buildPageEntityInput(params: {
     projections: [
       {
         relativePath,
-        frontmatter: parsed.rest,
+        frontmatter,
         markdownBody: parsed.body,
       },
     ],
@@ -1837,6 +1997,7 @@ function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
           excerpt: summarizeText(body, 160),
           ...buildWikiTaxonomy({
             parsed,
+            relativePath: pagePath,
             fallbackTags: tags,
             fallbackSummary: summarizeText(body, 180),
           }),
@@ -1854,10 +2015,22 @@ function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
       if (query && right.score !== left.score) {
         return right.score - left.score;
       }
-      if (query) {
-        return left.page.title.localeCompare(right.page.title);
+      const roleDiff =
+        memoryPageRolePriority(left.page.memoryRole) -
+        memoryPageRolePriority(right.page.memoryRole);
+      if (roleDiff !== 0) {
+        return roleDiff;
       }
-      return 0;
+      const leftUpdatedAtMs = normalizeNumber(
+        left.page.updatedAt ? Date.parse(left.page.updatedAt) : null,
+      );
+      const rightUpdatedAtMs = normalizeNumber(
+        right.page.updatedAt ? Date.parse(right.page.updatedAt) : null,
+      );
+      if ((rightUpdatedAtMs ?? 0) !== (leftUpdatedAtMs ?? 0)) {
+        return (rightUpdatedAtMs ?? 0) - (leftUpdatedAtMs ?? 0);
+      }
+      return left.page.title.localeCompare(right.page.title);
     });
   const hitCount = pages.length;
   return pages.map((entry) => {
@@ -2198,6 +2371,7 @@ export async function handleMemoryNotesUpdateGatewayRequest({
   }
   const db = openCanonicalDb(context.canonicalStore);
   const noteId = normalizeString(params.noteId) || undefined;
+  const dateStamp = new Date().toISOString().slice(0, 10);
   let dbClosed = false;
   try {
     const entity = buildPageEntityInput({
@@ -2205,6 +2379,9 @@ export async function handleMemoryNotesUpdateGatewayRequest({
       pageId: noteId,
       title,
       content,
+      memoryRole: normalizeCanonicalMemoryNoteRole(params.memoryRole) ?? undefined,
+      relativePath: normalizeString(params.relativePath) || undefined,
+      dateStamp,
     });
     db.close();
     dbClosed = true;
@@ -2393,6 +2570,7 @@ export async function handleMemoryWikiUpdateGatewayRequest({
   }
   const db = openCanonicalDb(context.canonicalStore);
   const pageId = normalizeString(params.pageId) || undefined;
+  const dateStamp = new Date().toISOString().slice(0, 10);
   let dbClosed = false;
   try {
     const entity = buildPageEntityInput({
@@ -2400,6 +2578,9 @@ export async function handleMemoryWikiUpdateGatewayRequest({
       pageId,
       title,
       content,
+      memoryRole: normalizeCanonicalMemoryNoteRole(params.memoryRole) ?? undefined,
+      relativePath: normalizeString(params.relativePath) || undefined,
+      dateStamp,
     });
     db.close();
     dbClosed = true;

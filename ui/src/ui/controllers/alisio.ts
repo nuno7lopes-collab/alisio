@@ -114,6 +114,8 @@ export type AlisioState = {
   alisioConnectorCatalog: AlisioConnectorDefinition[];
   alisioConnectorAuthorizations: AlisioConnectorAuthorization[];
   alisioConnectorSetupGuide: AlisioConnectorsBeginResult | null;
+  alisioConnectorSetupSubmitting: boolean;
+  alisioConnectorSetupError: string | null;
   setupWizardLoading: boolean;
   setupWizardSubmitting: boolean;
   setupWizardSessionId: string | null;
@@ -1946,6 +1948,36 @@ export async function revokeAlisioConnector(state: AlisioState, connectorId: str
     loadAlisioConnectors(state, { force: true }),
     loadAlisioDoctorSummary(state, { force: true }),
   ]);
+}
+
+export async function completeAlisioConnector(
+  state: AlisioState,
+  connectorId: string,
+  apiKey: string,
+): Promise<AlisioConnectorAuthorization | null> {
+  if (!state.client || !state.connected || state.alisioConnectorSetupSubmitting) {
+    return null;
+  }
+  state.alisioConnectorSetupSubmitting = true;
+  state.alisioConnectorSetupError = null;
+  try {
+    const result = await state.client.request<AlisioConnectorAuthorization>("connectors.complete", {
+      connectorId,
+      apiKey,
+    });
+    state.alisioConnectorSetupGuide = null;
+    await Promise.allSettled([
+      loadAlisioProviderOverview(state, { force: true }),
+      loadAlisioConnectors(state, { force: true }),
+      loadAlisioDoctorSummary(state, { force: true }),
+    ]);
+    return result;
+  } catch (error) {
+    state.alisioConnectorSetupError = String(error);
+    return null;
+  } finally {
+    state.alisioConnectorSetupSubmitting = false;
+  }
 }
 
 export async function beginAlisioConnector(

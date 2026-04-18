@@ -4,7 +4,7 @@ import {
   expectCodexBuiltInSuppression,
   expectCodexMissingAuthHint,
   expectedAugmentedOpenaiCodexCatalogEntries,
-} from "./provider-runtime.test-support.js";
+} from "../../test/helpers/plugins/provider-catalog.js";
 import type { ProviderPlugin, ProviderRuntimeModel } from "./types.js";
 
 type ResolvePluginProviders = typeof import("./providers.runtime.js").resolvePluginProviders;

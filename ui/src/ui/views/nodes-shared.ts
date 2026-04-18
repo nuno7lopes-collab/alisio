@@ -1,3 +1,5 @@
+import { computerNodeSupportsExec, isComputerNodeConnected } from "../controllers/computers.ts";
+
 export type NodeTargetOption = {
   id: string;
   label: string;
@@ -12,7 +14,7 @@ export type ConfigAgentOption = {
 };
 
 export function isConnectedNode(node: Record<string, unknown>) {
-  return Boolean(node.connected) || Boolean(node.online);
+  return isComputerNodeConnected(node);
 }
 
 export function nodeSupportsRequiredCommands(
@@ -25,7 +27,7 @@ export function nodeSupportsRequiredCommands(
 }
 
 export function nodeSupportsExec(node: Record<string, unknown>) {
-  return nodeSupportsRequiredCommands(node, ["system.run"]);
+  return computerNodeSupportsExec(node);
 }
 
 export function countConnectedNodes(nodes: Array<Record<string, unknown>>) {

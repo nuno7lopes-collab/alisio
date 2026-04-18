@@ -2,7 +2,16 @@ import crypto from "node:crypto";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
 import { NodeMacComputerEnvironment } from "../../computer/node-mac-environment.js";
+import { normalizeComputerApprovalMode } from "../../computer/policy-engine.js";
+import {
+  ComputerSessionArbitrationError,
+  computerSessionArbiter,
+} from "../../computer/session-arbiter.js";
 import { computerSessionManager } from "../../computer/session-manager.js";
+import {
+  actionRequiresForegroundControl,
+  sessionSupportsBackgroundSafeControl,
+} from "../../computer/runtime-profile.js";
 import type {
   ComputerActionResult,
   ComputerApprovalMode,
@@ -27,6 +36,8 @@ import { resolveNode } from "./nodes-utils.js";
 
 const COMPUTER_ACTIONS = [
   "observe",
+  "screenshot",
+  "move",
   "click",
   "double_click",
   "right_click",
@@ -35,9 +46,11 @@ const COMPUTER_ACTIONS = [
   "type",
   "keypress",
   "wait",
+  "focus_app",
   "open_url",
   "reveal_path",
   "open_path",
+  "open_app",
   "app_focus",
   "session",
   "pause",
@@ -46,6 +59,10 @@ const COMPUTER_ACTIONS = [
 ] as const;
 
 const COMPUTER_APPROVAL_MODES = [
+  "observe_only",
+  "approved_apps_only",
+  "foreground_supervised",
+  "elevated_watch_mode",
   "observe-only",
   "control-approved-apps",
   "elevated-watch",
@@ -76,21 +93,25 @@ const ComputerToolSchema = Type.Object({
 });
 
 function parseApprovalMode(value: unknown): ComputerApprovalMode | undefined {
-  if (value === "observe-only" || value === "control-approved-apps" || value === "elevated-watch") {
-    return value;
-  }
-  return undefined;
+  return normalizeComputerApprovalMode(value) ?? undefined;
 }
 
 function resolveActionFromParams(params: Record<string, unknown>): ComputerStructuredAction {
   const action = readStringParam(params, "action", { required: true });
   switch (action) {
     case "observe":
+    case "screenshot":
     case "session":
     case "pause":
     case "resume":
     case "stop":
       throw new Error(`action ${action} does not map to a native computer action`);
+    case "move":
+      return {
+        type: "move",
+        x: readNumberParam(params, "x", { required: true, label: "x" }),
+        y: readNumberParam(params, "y", { required: true, label: "y" }),
+      };
     case "click":
     case "double_click":
     case "right_click":
@@ -150,14 +171,56 @@ function resolveActionFromParams(params: Record<string, unknown>): ComputerStruc
         type: "open_path",
         path: readStringParam(params, "path", { required: true }),
       };
+    case "focus_app":
+      return {
+        type: "focus_app",
+        app: readStringParam(params, "app", { required: true }),
+      };
+    case "open_app":
+      return {
+        type: "open_app",
+        app: readStringParam(params, "app", { required: true }),
+      };
     case "app_focus":
       return {
-        type: "app_focus",
+        type: "focus_app",
         app: readStringParam(params, "app", { required: true }),
       };
     default:
       throw new Error(`unknown computer action ${action}`);
   }
+}
+
+function withSourceFrameContext(
+  action: ComputerStructuredAction,
+  observation: ComputerObservation,
+): ComputerStructuredAction {
+  const frame = observation.frame;
+  return {
+    ...action,
+    id: action.id ?? crypto.randomUUID(),
+    coordinateSpace: action.coordinateSpace ?? "display-pixel",
+    frame: {
+      frameId: frame.id,
+      displayId: observation.context.display.id,
+      capturedAt: frame.capturedAt,
+      maxAgeMs: frame.maxAgeMs,
+      sourceSpace: frame.sourceSpace,
+      pixelWidth: frame.pixelWidth,
+      pixelHeight: frame.pixelHeight,
+      logicalWidth: frame.logicalWidth,
+      logicalHeight: frame.logicalHeight,
+      scaleFactor: frame.scaleFactor,
+      orientation: frame.orientation,
+    },
+    transform:
+      action.transform ??
+      ({
+        sourceSpace: frame.sourceSpace,
+        sourceWidth: frame.pixelWidth,
+        sourceHeight: frame.pixelHeight,
+      } satisfies NonNullable<ComputerStructuredAction["transform"]>),
+  };
 }
 
 function makeToolUpdate(
@@ -167,6 +230,27 @@ function makeToolUpdate(
   return textResult(label, {
     computerSession: state,
   });
+}
+
+function buildArbitrationBlockingState(
+  session: ComputerSessionState,
+  error: ComputerSessionArbitrationError,
+) {
+  return {
+    kind:
+      error.details.reasonCode === "focus_required"
+        ? ("blocked_on_focus" as const)
+        : ("blocked_on_runtime" as const),
+    reasonCode: error.details.reasonCode,
+    summary: error.details.summary,
+    at: Date.now(),
+    targetId: error.details.targetId || session.target.id,
+    ...(error.details.ownerSessionKey ? { ownerSessionKey: error.details.ownerSessionKey } : {}),
+    ...(error.details.foregroundControlRequired !== undefined
+      ? { foregroundControlRequired: error.details.foregroundControlRequired }
+      : {}),
+    ...(error.details.actionType ? { actionType: error.details.actionType } : {}),
+  };
 }
 
 async function buildComputerToolResult(params: {
@@ -259,14 +343,34 @@ export function createComputerTool(options?: {
         await callGatewayTool<{ payload: unknown }>("node.invoke", gatewayOpts, {
           nodeId: resolvedNode.nodeId,
           command,
-          params: invokeParams,
+          params: {
+            sessionId: sessionKey,
+            ...invokeParams,
+          },
           idempotencyKey: crypto.randomUUID(),
         });
 
+      const updateSession = async (
+        command?: "start" | "pause" | "resume" | "stop",
+      ): Promise<ComputerSessionState> => {
+        const response = await callGatewayTool<{ session?: ComputerSessionState }>(
+          "computer.session.update",
+          gatewayOpts,
+          {
+            sessionKey,
+            nodeId: resolvedNode.nodeId,
+            ...(command ? { command } : {}),
+            ...(mode ? { mode } : {}),
+          },
+        );
+        return response.session ?? computerSessionManager.getSession(sessionKey) ?? ensured;
+      };
+
       const environment = new NodeMacComputerEnvironment(invoke);
+      const sessionTargetId = ensured.target.id;
 
       if (action === "session") {
-        const state = mode ? computerSessionManager.setMode(sessionKey, mode) : ensured;
+        const state = await updateSession("start");
         return jsonResult({
           ok: true,
           computerSession: state,
@@ -274,57 +378,96 @@ export function createComputerTool(options?: {
       }
 
       if (action === "pause") {
-        const state = computerSessionManager.pause(sessionKey);
+        const state = await updateSession("pause");
         return jsonResult({ ok: true, computerSession: state });
       }
 
       if (action === "resume") {
-        const state = computerSessionManager.resume(sessionKey);
+        const state = await updateSession("resume");
         return jsonResult({ ok: true, computerSession: state });
       }
 
       if (action === "stop") {
-        const state = computerSessionManager.stop(sessionKey);
+        const state = await updateSession("stop");
         return jsonResult({ ok: true, computerSession: state });
       }
 
-      if (action === "observe") {
-        computerSessionManager.startStep({
-          sessionKey,
-          toolCallId: _toolCallId,
-          kind: "observe",
-          phase: "observe",
-          summary: "capture current frame",
-        });
-        const observing = computerSessionManager.setStatus(
-          sessionKey,
-          "observing",
-          "capturing current frame",
-        );
-        await emitUpdate("Capturing current frame…", observing);
+      if (action === "observe" || action === "screenshot") {
         try {
-          const observation = await environment.observe(signal);
-          computerSessionManager.recordObservation(
+          return await computerSessionArbiter.withObserveLane({
             sessionKey,
-            observation,
-            "captured current frame",
-            {
-              phase: "observe",
-              stepSummary: "captured current frame",
+            targetId: sessionTargetId,
+            signal,
+            onQueued: (queuePosition) => {
+              const blocked = computerSessionManager.setBlocking(sessionKey, {
+                kind: "blocked_on_runtime",
+                reasonCode: "runtime_busy",
+                summary: `waiting for shared capture budget on ${ensured.target.label}`,
+                at: Date.now(),
+                targetId: sessionTargetId,
+              });
+              void emitUpdate(
+                `Waiting for shared capture budget (${queuePosition})…`,
+                blocked,
+              );
             },
-          );
-          const state = computerSessionManager.completeStep(
-            sessionKey,
-            "observe current frame",
-            "observe",
-          );
-          return await buildComputerToolResult({
-            label: `Observed ${observation.context.activeApp?.name ?? "desktop"} (${observation.frame.width}x${observation.frame.height})`,
-            state,
-            observation,
-            imageSanitization,
+            onStarted: () => {
+              const state = computerSessionManager.markSessionArbitrated({
+                sessionKey,
+                summary: "shared capture lane acquired",
+              });
+              void emitUpdate("Shared capture lane acquired.", state);
+            },
+            operation: async (laneSignal) => {
+              computerSessionManager.startStep({
+                sessionKey,
+                toolCallId: _toolCallId,
+                kind: "observe",
+                phase: "observe",
+                summary: action === "screenshot" ? "capture screenshot" : "capture current frame",
+              });
+              const observing = computerSessionManager.setStatus(
+                sessionKey,
+                "observing",
+                action === "screenshot" ? "capturing screenshot" : "capturing current frame",
+              );
+              await emitUpdate(
+                action === "screenshot" ? "Capturing screenshot…" : "Capturing current frame…",
+                observing,
+              );
+              const observation = await environment.observe(laneSignal);
+              computerSessionManager.recordObservation(
+                sessionKey,
+                observation,
+                action === "screenshot" ? "captured screenshot" : "captured current frame",
+                {
+                  phase: "observe",
+                  stepSummary:
+                    action === "screenshot" ? "captured screenshot" : "captured current frame",
+                },
+              );
+              const state = computerSessionManager.completeStep(
+                sessionKey,
+                action === "screenshot" ? "captured screenshot" : "observe current frame",
+                "observe",
+              );
+              return await buildComputerToolResult({
+                label: `Observed ${observation.context.activeApp?.name ?? "desktop"} (${observation.frame.width}x${observation.frame.height})`,
+                state,
+                observation,
+                imageSanitization,
+              });
+            },
           });
         } catch (error) {
+          if (error instanceof ComputerSessionArbitrationError) {
+            const blocked = computerSessionManager.setBlocking(
+              sessionKey,
+              buildArbitrationBlockingState(ensured, error),
+            );
+            await emitUpdate("Computer observe blocked by runtime arbitration.", blocked);
+            throw error;
+          }
           const failed = computerSessionManager.recordError(
             sessionKey,
             error instanceof Error ? error.message : String(error),
@@ -339,131 +482,196 @@ export function createComputerTool(options?: {
       if (currentSession?.status === "stopped") {
         throw new Error("session stopped");
       }
-      if (currentSession?.mode === "observe-only" && nativeAction.type !== "wait") {
-        throw new Error("observe-only mode blocks control actions");
+      if (currentSession?.status === "paused") {
+        throw new Error("session paused");
       }
-      computerSessionManager.startStep({
-        sessionKey,
-        toolCallId: _toolCallId,
-        kind: "action",
-        phase: "observe-before-action",
-        summary: `prepare ${nativeAction.type}`,
-        actionType: nativeAction.type,
-      });
-      const observingBeforeAction = computerSessionManager.setStatus(
-        sessionKey,
-        "observing",
-        `capturing current frame before ${nativeAction.type}`,
-      );
-      await emitUpdate("Capturing fresh frame before action…", observingBeforeAction);
-      let latestObservation: ComputerObservation;
+      if (currentSession?.status === "awaiting-approval") {
+        throw new Error("computer session is awaiting approval");
+      }
       try {
-        latestObservation = await environment.observe(signal);
-      } catch (error) {
-        const failed = computerSessionManager.recordError(
+        const foregroundRequired =
+          actionRequiresForegroundControl(nativeAction.type) &&
+          !sessionSupportsBackgroundSafeControl(ensured.capabilities);
+        return await computerSessionArbiter.withControlLane({
           sessionKey,
-          error instanceof Error ? error.message : String(error),
-        );
-        await emitUpdate("Computer pre-action observe failed.", failed);
-        throw error;
-      }
-      const observedBeforeAction = computerSessionManager.recordObservation(
-        sessionKey,
-        latestObservation,
-        `captured fresh frame before ${nativeAction.type}`,
-        {
-          phase: "observe-before-action",
-          stepSummary: `captured fresh frame before ${nativeAction.type}`,
-        },
-      );
-      await emitUpdate("Captured fresh frame before action.", observedBeforeAction);
-      const approvalCheck = computerSessionManager.shouldRequireApproval({
-        sessionKey,
-        action: nativeAction,
-        context: latestObservation.context,
-        targetAppIdentity: nativeAction.app?.trim() || undefined,
-      });
-      if (approvalCheck.required) {
-        if (
-          approvalCheck.reason === "observe-only mode blocks control actions" ||
-          approvalCheck.reason === "session stopped"
-        ) {
-          computerSessionManager.cancelStep(
-            sessionKey,
-            approvalCheck.reason,
-            "observe-before-action",
-          );
-          throw new Error(approvalCheck.reason);
-        }
-        const pendingPromise = computerSessionManager.requestApproval({
-          sessionKey,
-          action: nativeAction,
-          reason: approvalCheck.reason ?? "explicit approval required",
-          context: latestObservation.context,
-          appIdentity: approvalCheck.appIdentity,
-        });
-        const pendingState = computerSessionManager.getSession(sessionKey);
-        if (pendingState) {
-          await emitUpdate("Awaiting computer approval…", pendingState);
-        }
-        const decision = await pendingPromise;
-        if (decision === "deny") {
-          const denied = computerSessionManager.getSession(sessionKey);
-          if (denied) {
-            await emitUpdate("Computer action denied.", denied);
-          }
-          throw new Error("computer action denied");
-        }
-        const resumed = computerSessionManager.getSession(sessionKey);
-        if (resumed) {
-          await emitUpdate("Computer action approved.", resumed);
-        }
-      }
+          targetId: sessionTargetId,
+          actionType: nativeAction.type,
+          foregroundRequired,
+          signal,
+          operation: async (laneSignal) => {
+            const arbitrated = computerSessionManager.markSessionArbitrated({
+              sessionKey,
+              summary: foregroundRequired
+                ? "foreground control required on local macOS"
+                : "control lane acquired",
+              eventCode: foregroundRequired ? "focus_required" : "session_arbitrated",
+            });
+            await emitUpdate(
+              foregroundRequired
+                ? "Foreground control required on local macOS."
+                : "Computer control lane acquired.",
+              arbitrated,
+            );
+            computerSessionManager.startStep({
+              sessionKey,
+              toolCallId: _toolCallId,
+              kind: "action",
+              phase: "observe-before-action",
+              summary: `prepare ${nativeAction.type}`,
+              actionType: nativeAction.type,
+            });
+            const observingBeforeAction = computerSessionManager.setStatus(
+              sessionKey,
+              "observing",
+              `capturing current frame before ${nativeAction.type}`,
+            );
+            await emitUpdate("Capturing fresh frame before action…", observingBeforeAction);
+            let latestObservation: ComputerObservation;
+            try {
+              latestObservation = await environment.observe(laneSignal);
+            } catch (error) {
+              const failed = computerSessionManager.recordError(
+                sessionKey,
+                error instanceof Error ? error.message : String(error),
+              );
+              await emitUpdate("Computer pre-action observe failed.", failed);
+              throw error;
+            }
+            const observedBeforeAction = computerSessionManager.recordObservation(
+              sessionKey,
+              latestObservation,
+              `captured fresh frame before ${nativeAction.type}`,
+              {
+                phase: "observe-before-action",
+                stepSummary: `captured fresh frame before ${nativeAction.type}`,
+              },
+            );
+            await emitUpdate("Captured fresh frame before action.", observedBeforeAction);
+            const actionWithContext = withSourceFrameContext(nativeAction, latestObservation);
+            computerSessionManager.recordActionRequested(sessionKey, actionWithContext);
+            const { evaluation, session: policyState } = computerSessionManager.evaluateActionPolicy({
+              sessionKey,
+              action: actionWithContext,
+              context: latestObservation.context,
+              targetAppIdentity: actionWithContext.app?.trim() || undefined,
+            });
+            if (evaluation.safetyEvents.length > 0 || evaluation.escalatedMode) {
+              await emitUpdate("Safety policy updated for the current surface.", policyState);
+            }
+            if (evaluation.decision === "deny") {
+              const denied = computerSessionManager.recordPolicyDenied(sessionKey, {
+                action: actionWithContext,
+                reason: evaluation.reason,
+                reasonCode: evaluation.reasonCode,
+                appIdentity: evaluation.appIdentity,
+              });
+              await emitUpdate("Computer action blocked by local policy.", denied);
+              throw new Error(evaluation.reason);
+            }
+            if (evaluation.decision === "require_once" || evaluation.decision === "require_session") {
+              const pendingPromise = computerSessionManager.requestApproval({
+                sessionKey,
+                action: actionWithContext,
+                reason: evaluation.reason,
+                reasonCode: evaluation.reasonCode,
+                policyDecision: evaluation.decision,
+                safetyEvents: evaluation.safetyEvents,
+                context: latestObservation.context,
+                appIdentity: evaluation.appIdentity,
+              });
+              const pendingState = computerSessionManager.getSession(sessionKey);
+              if (pendingState) {
+                await emitUpdate("Awaiting computer approval…", pendingState);
+              }
+              const decision = await pendingPromise;
+              if (decision === "deny") {
+                const denied = computerSessionManager.getSession(sessionKey);
+                if (denied) {
+                  await emitUpdate("Computer action denied.", denied);
+                }
+                throw new Error("computer action denied");
+              }
+              const resumed = computerSessionManager.getSession(sessionKey);
+              if (resumed) {
+                await emitUpdate("Computer action approved.", resumed);
+              }
+            }
 
-      const running = computerSessionManager.recordAction(sessionKey, nativeAction);
-      await emitUpdate(`Running ${nativeAction.type}…`, running);
-      let actionResult: ComputerActionResult;
-      try {
-        actionResult = await environment.act(nativeAction, signal);
+            const running = computerSessionManager.recordAction(
+              sessionKey,
+              actionWithContext,
+              undefined,
+              {
+                actionId: actionWithContext.id,
+                sourceFrameId: actionWithContext.frame?.frameId,
+              },
+            );
+            await emitUpdate(`Running ${nativeAction.type}…`, running);
+            let actionResult: ComputerActionResult;
+            try {
+              actionResult = await environment.act(actionWithContext, laneSignal);
+            } catch (error) {
+              const failed = computerSessionManager.recordError(
+                sessionKey,
+                error instanceof Error ? error.message : String(error),
+              );
+              await emitUpdate("Computer action failed.", failed);
+              throw error;
+            }
+            for (const result of actionResult.results) {
+              computerSessionManager.recordActionResult(sessionKey, result);
+            }
+            if (!actionResult.ok) {
+              const failureSummary =
+                actionResult.results.find((result) => !result.success)?.summary ?? actionResult.summary;
+              const failed = computerSessionManager.recordError(sessionKey, failureSummary);
+              await emitUpdate("Computer action failed.", failed);
+              throw new Error(failureSummary);
+            }
+            let observation: ComputerObservation;
+            try {
+              observation = actionResult.observation ?? (await environment.observe(laneSignal));
+            } catch (error) {
+              const failed = computerSessionManager.recordError(
+                sessionKey,
+                error instanceof Error ? error.message : String(error),
+              );
+              await emitUpdate("Computer post-action observe failed.", failed);
+              throw error;
+            }
+            computerSessionManager.recordObservation(
+              sessionKey,
+              observation,
+              `captured frame after ${nativeAction.type}`,
+              {
+                phase: "observe-after-action",
+                stepSummary: `captured frame after ${nativeAction.type}`,
+              },
+            );
+            const completed = computerSessionManager.completeStep(
+              sessionKey,
+              actionResult.summary,
+              "observe-after-action",
+            );
+            return await buildComputerToolResult({
+              label: actionResult.summary,
+              state: completed,
+              observation,
+              imageSanitization,
+            });
+          },
+        });
       } catch (error) {
-        const failed = computerSessionManager.recordError(
-          sessionKey,
-          error instanceof Error ? error.message : String(error),
-        );
-        await emitUpdate("Computer action failed.", failed);
+        if (error instanceof ComputerSessionArbitrationError) {
+          const blocked = computerSessionManager.setBlocking(
+            sessionKey,
+            buildArbitrationBlockingState(currentSession ?? ensured, error),
+          );
+          await emitUpdate("Computer action blocked by runtime arbitration.", blocked);
+          throw error;
+        }
         throw error;
       }
-      let observation: ComputerObservation;
-      try {
-        observation = actionResult.observation ?? (await environment.observe(signal));
-      } catch (error) {
-        const failed = computerSessionManager.recordError(
-          sessionKey,
-          error instanceof Error ? error.message : String(error),
-        );
-        await emitUpdate("Computer post-action observe failed.", failed);
-        throw error;
-      }
-      computerSessionManager.recordObservation(
-        sessionKey,
-        observation,
-        `captured frame after ${nativeAction.type}`,
-        {
-          phase: "observe-after-action",
-          stepSummary: `captured frame after ${nativeAction.type}`,
-        },
-      );
-      const completed = computerSessionManager.completeStep(
-        sessionKey,
-        actionResult.summary,
-        "observe-after-action",
-      );
-      return await buildComputerToolResult({
-        label: actionResult.summary,
-        state: completed,
-        observation,
-        imageSanitization,
-      });
     },
   };
 }

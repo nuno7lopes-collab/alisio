@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import { Command } from "commander";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { IOS_NODE, createIosNodeListResponse } from "./program.nodes-test-helpers.js";
+import { GENERIC_NODE, createNodeListResponse } from "./program.nodes-test-helpers.js";
 import { callGateway, installBaseProgramMocks, runtime } from "./program.test-mocks.js";
 
 installBaseProgramMocks();
@@ -36,12 +36,12 @@ function mockNodeGateway(command?: string, payload?: Record<string, unknown>) {
   callGateway.mockImplementation(async (...args: unknown[]) => {
     const opts = (args[0] ?? {}) as { method?: string };
     if (opts.method === "node.list") {
-      return createIosNodeListResponse();
+      return createNodeListResponse();
     }
     if (opts.method === "node.invoke" && command) {
       return {
         ok: true,
-        nodeId: IOS_NODE.nodeId,
+        nodeId: GENERIC_NODE.nodeId,
         command,
         payload,
       };
@@ -98,7 +98,7 @@ describe("cli program (nodes media)", () => {
   it("runs nodes camera snap and prints two MEDIA paths", async () => {
     mockNodeGateway("camera.snap", { format: "jpg", base64: "aGk=", width: 1, height: 1 });
 
-    await runNodesCommand(["nodes", "camera", "snap", "--node", "ios-node"]);
+    await runNodesCommand(["nodes", "camera", "snap", "--node", "mac-node"]);
 
     const invokeCalls = callGateway.mock.calls
       .map((call) => call[0] as { method?: string; params?: Record<string, unknown> })
@@ -137,13 +137,13 @@ describe("cli program (nodes media)", () => {
       hasAudio: true,
     });
 
-    await runNodesCommand(["nodes", "camera", "clip", "--node", "ios-node", "--duration", "3000"]);
+    await runNodesCommand(["nodes", "camera", "clip", "--node", "mac-node", "--duration", "3000"]);
 
     expect(callGateway).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "node.invoke",
         params: expect.objectContaining({
-          nodeId: "ios-node",
+          nodeId: "mac-node",
           command: "camera.clip",
           timeoutMs: 90000,
           idempotencyKey: "idem-test",
@@ -170,7 +170,7 @@ describe("cli program (nodes media)", () => {
       "camera",
       "snap",
       "--node",
-      "ios-node",
+      "mac-node",
       "--facing",
       "front",
       "--max-width",
@@ -187,7 +187,7 @@ describe("cli program (nodes media)", () => {
       expect.objectContaining({
         method: "node.invoke",
         params: expect.objectContaining({
-          nodeId: "ios-node",
+          nodeId: "mac-node",
           command: "camera.snap",
           timeoutMs: 20000,
           idempotencyKey: "idem-test",
@@ -218,7 +218,7 @@ describe("cli program (nodes media)", () => {
       "camera",
       "clip",
       "--node",
-      "ios-node",
+      "mac-node",
       "--duration",
       "3000",
       "--no-audio",
@@ -230,7 +230,7 @@ describe("cli program (nodes media)", () => {
       expect.objectContaining({
         method: "node.invoke",
         params: expect.objectContaining({
-          nodeId: "ios-node",
+          nodeId: "mac-node",
           command: "camera.clip",
           timeoutMs: 90000,
           idempotencyKey: "idem-test",
@@ -253,13 +253,13 @@ describe("cli program (nodes media)", () => {
       hasAudio: true,
     });
 
-    await runNodesCommand(["nodes", "camera", "clip", "--node", "ios-node", "--duration", "10s"]);
+    await runNodesCommand(["nodes", "camera", "clip", "--node", "mac-node", "--duration", "10s"]);
 
     expect(callGateway).toHaveBeenCalledWith(
       expect.objectContaining({
         method: "node.invoke",
         params: expect.objectContaining({
-          nodeId: "ios-node",
+          nodeId: "mac-node",
           command: "camera.clip",
           params: expect.objectContaining({ durationMs: 10_000 }),
         }),
@@ -270,7 +270,7 @@ describe("cli program (nodes media)", () => {
   it("runs nodes canvas snapshot and prints MEDIA path", async () => {
     mockNodeGateway("canvas.snapshot", { format: "png", base64: "aGk=" });
 
-    await runNodesCommand(["nodes", "canvas", "snapshot", "--node", "ios-node", "--format", "png"]);
+    await runNodesCommand(["nodes", "canvas", "snapshot", "--node", "mac-node", "--format", "png"]);
 
     await expectLoggedSingleMediaFile({
       expectedPathPattern: /alisio-canvas-snapshot-.*\.png$/,
@@ -279,7 +279,7 @@ describe("cli program (nodes media)", () => {
 
   it("fails nodes camera snap on invalid facing", async () => {
     await expectCameraSnapParseFailure(
-      ["nodes", "camera", "snap", "--node", "ios-node", "--facing", "nope"],
+      ["nodes", "camera", "snap", "--node", "mac-node", "--facing", "nope"],
       /invalid facing/i,
     );
   });
@@ -291,7 +291,7 @@ describe("cli program (nodes media)", () => {
         "camera",
         "snap",
         "--node",
-        "ios-node",
+        "mac-node",
         "--facing",
         "both",
         "--device-id",
@@ -325,11 +325,11 @@ describe("cli program (nodes media)", () => {
         command: "camera.snap" as const,
         payload: {
           format: "jpg",
-          url: `https://${IOS_NODE.remoteIp}/photo.jpg`,
+          url: `https://${GENERIC_NODE.remoteIp}/photo.jpg`,
           width: 640,
           height: 480,
         },
-        argv: ["nodes", "camera", "snap", "--node", "ios-node", "--facing", "front"],
+        argv: ["nodes", "camera", "snap", "--node", "mac-node", "--facing", "front"],
         expectedPathPattern: /alisio-camera-snap-front-.*\.jpg$/,
       },
       {
@@ -337,11 +337,11 @@ describe("cli program (nodes media)", () => {
         command: "camera.clip" as const,
         payload: {
           format: "mp4",
-          url: `https://${IOS_NODE.remoteIp}/clip.mp4`,
+          url: `https://${GENERIC_NODE.remoteIp}/clip.mp4`,
           durationMs: 5000,
           hasAudio: true,
         },
-        argv: ["nodes", "camera", "clip", "--node", "ios-node", "--duration", "5000"],
+        argv: ["nodes", "camera", "clip", "--node", "mac-node", "--duration", "5000"],
         expectedPathPattern: /alisio-camera-clip-front-.*\.mp4$/,
       },
     ])("$label", async ({ command, payload, argv, expectedPathPattern }) => {

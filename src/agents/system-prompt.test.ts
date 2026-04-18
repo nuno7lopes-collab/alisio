@@ -700,7 +700,6 @@ describe("buildAgentSystemPrompt", () => {
         workspaceAccess: "ro",
         agentWorkspaceMount: "/agent",
         browserBridgeUrl: "http://127.0.0.1:9222",
-        browserNoVncUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
         hostBrowserAllowed: false,
         elevated: { allowed: true, defaultLevel: "on" },
       },
@@ -717,7 +716,6 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("You are running in a sandboxed runtime");
     expect(prompt).toContain("Sub-agents stay sandboxed");
     expect(prompt).toContain("Sandbox browser: enabled.");
-    expect(prompt).toContain("Sandbox browser observer: visible in the app UI.");
     expect(prompt).toContain(
       "When the user asks to open, search, click, type, scroll, or browse, use the sandbox browser by default and do it immediately.",
     );

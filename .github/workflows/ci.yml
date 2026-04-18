@@ -28,7 +28,6 @@ jobs:
       docs_changed: ${{ steps.manifest.outputs.docs_changed }}
       run_node: ${{ steps.manifest.outputs.run_node }}
       run_macos: ${{ steps.manifest.outputs.run_macos }}
-      run_android: ${{ steps.manifest.outputs.run_android }}
       run_skills_python: ${{ steps.manifest.outputs.run_skills_python }}
       run_skills_python_job: ${{ steps.manifest.outputs.run_skills_python_job }}
       run_windows: ${{ steps.manifest.outputs.run_windows }}
@@ -50,8 +49,6 @@ jobs:
       run_macos_node: ${{ steps.manifest.outputs.run_macos_node }}
       macos_node_matrix: ${{ steps.manifest.outputs.macos_node_matrix }}
       run_macos_swift: ${{ steps.manifest.outputs.run_macos_swift }}
-      run_android_job: ${{ steps.manifest.outputs.run_android_job }}
-      android_matrix: ${{ steps.manifest.outputs.android_matrix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -124,7 +121,6 @@ jobs:
           ALISIO_CI_DOCS_CHANGED: ${{ steps.docs_scope.outputs.docs_changed }}
           ALISIO_CI_RUN_NODE: ${{ steps.changed_scope.outputs.run_node || 'false' }}
           ALISIO_CI_RUN_MACOS: ${{ steps.changed_scope.outputs.run_macos || 'false' }}
-          ALISIO_CI_RUN_ANDROID: ${{ steps.changed_scope.outputs.run_android || 'false' }}
           ALISIO_CI_RUN_WINDOWS: ${{ steps.changed_scope.outputs.run_windows || 'false' }}
           ALISIO_CI_RUN_SKILLS_PYTHON: ${{ steps.changed_scope.outputs.run_skills_python || 'false' }}
           ALISIO_CI_HAS_CHANGED_EXTENSIONS: ${{ steps.changed_extensions.outputs.has_changed_extensions || 'false' }}
@@ -957,84 +953,3 @@ jobs:
             sleep $((attempt * 20))
           done
           exit 1
-
-  android:
-    name: ${{ matrix.check_name }}
-    needs: [preflight]
-    if: needs.preflight.outputs.run_android_job == 'true'
-    runs-on: blacksmith-16vcpu-ubuntu-2404
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.preflight.outputs.android_matrix) }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          submodules: false
-
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          # Keep sdkmanager on the stable JDK path for Linux CI runners.
-          java-version: 17
-
-      - name: Setup Android SDK cmdline-tools
-        run: |
-          set -euo pipefail
-          ANDROID_SDK_ROOT="$HOME/.android-sdk"
-          CMDLINE_TOOLS_VERSION="12266719"
-          ARCHIVE="commandlinetools-linux-${CMDLINE_TOOLS_VERSION}_latest.zip"
-          URL="https://dl.google.com/android/repository/${ARCHIVE}"
-
-          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
-          curl -fsSL "$URL" -o "/tmp/${ARCHIVE}"
-          rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-          unzip -q "/tmp/${ARCHIVE}" -d "$ANDROID_SDK_ROOT/cmdline-tools"
-          mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
-
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5
-        with:
-          gradle-version: 8.11.1
-
-      - name: Install Android SDK packages
-        run: |
-          yes | sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --licenses >/dev/null
-          sdkmanager --sdk_root="${ANDROID_SDK_ROOT}" --install \
-            "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
-
-      - name: Run Android ${{ matrix.task }}
-        working-directory: apps/android
-        env:
-          TASK: ${{ matrix.task }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "$TASK" in
-            test-play)
-              ./gradlew --no-daemon :app:testPlayDebugUnitTest
-              ;;
-            test-third-party)
-              ./gradlew --no-daemon :app:testThirdPartyDebugUnitTest
-              ;;
-            build-play)
-              ./gradlew --no-daemon :app:assemblePlayDebug
-              ;;
-            build-third-party)
-              ./gradlew --no-daemon :app:assembleThirdPartyDebug
-              ;;
-            *)
-              echo "Unsupported Android task: $TASK" >&2
-              exit 1
-              ;;
-          esac

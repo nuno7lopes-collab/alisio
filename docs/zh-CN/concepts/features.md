@@ -31,7 +31,6 @@ x-i18n:
     Web 控制界面和 macOS 配套应用。
   </Card>
   <Card title="移动节点" icon="smartphone">
-    iOS 和 Android 节点，支持 Canvas。
   </Card>
 </Columns>
 
@@ -52,7 +51,6 @@ x-i18n:
 - 可选的语音消息转录钩子
 - WebChat 和 macOS 菜单栏应用
 - iOS 节点，支持配对和 Canvas 界面
-- Android 节点，支持配对、Canvas、聊天和相机
 
 <Note>
 旧版 Claude、Codex、Gemini 和 Opencode 路径已被移除。Pi 是唯一的编程智能体路径。

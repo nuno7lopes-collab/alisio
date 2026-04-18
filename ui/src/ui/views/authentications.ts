@@ -12,6 +12,7 @@ import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type {
   AlisioAccountState,
   AlisioConnectorAuthorization,
+  AlisioConnectorsBeginResult,
   AlisioConnectorDefinition,
   AlisioProviderOverviewItem,
   AlisioProvidersState,
@@ -542,17 +543,21 @@ function renderDialogFact(label: string, value: string | TemplateResult) {
 function renderDialogActions(params: {
   entry: ConnectorEntry;
   mode: ConnectorDialogMode;
+  manualSetupActive: boolean;
   planBlocksNewConnections?: boolean;
   planLimitMessage?: string | null;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
   onTryConnectorInChat: (connectorId: string) => void;
 }) {
-  const { entry, mode, planBlocksNewConnections, planLimitMessage } = params;
+  const { entry, mode, manualSetupActive, planBlocksNewConnections, planLimitMessage } = params;
   const installDisabled = planBlocksNewConnections === true;
   const installTitle = installDisabled ? (planLimitMessage ?? "") : "";
 
   if (mode === "install") {
+    if (manualSetupActive) {
+      return nothing;
+    }
     return html`
       <div class="alisio-auth-dialog__actions">
         <button
@@ -629,13 +634,70 @@ function renderDialogActions(params: {
   return nothing;
 }
 
+function renderManualSetupForm(params: {
+  entry: ConnectorEntry;
+  setupGuide: AlisioConnectorsBeginResult;
+  connectorSetupSubmitting: boolean;
+  connectorSetupError: string | null;
+  onCompleteManualConnector: (connectorId: string, apiKey: string) => void;
+}) {
+  const isManualReady =
+    params.setupGuide.connectorId === params.entry.row.definition.id &&
+    params.setupGuide.statusReason === "ready_for_setup";
+  if (!isManualReady) {
+    return nothing;
+  }
+  return html`
+    <form
+      class="alisio-auth-dialog__manual-form"
+      @submit=${(event: SubmitEvent) => {
+        event.preventDefault();
+        const form = event.currentTarget as HTMLFormElement;
+        const formData = new FormData(form);
+        const apiKey = String(formData.get("apiKey") ?? "").trim();
+        params.onCompleteManualConnector(params.entry.row.definition.id, apiKey);
+      }}
+    >
+      <label class="alisio-auth-dialog__manual-field">
+        <span class="alisio-auth-dialog__manual-label">Stripe API key</span>
+        <input
+          class="alisio-auth-dialog__manual-input"
+          type="password"
+          name="apiKey"
+          placeholder="sk_live_... or rk_live_..."
+          autocapitalize="off"
+          autocomplete="off"
+          spellcheck="false"
+          ?disabled=${params.connectorSetupSubmitting}
+          required
+        />
+      </label>
+      <div class="alisio-auth-dialog__manual-hint">
+        ${params.setupGuide.setupHint ?? params.entry.detail}
+      </div>
+      ${params.connectorSetupError
+        ? html`<div class="callout danger">${params.connectorSetupError}</div>`
+        : nothing}
+      <div class="alisio-auth-dialog__actions">
+        <button class="btn primary" type="submit" ?disabled=${params.connectorSetupSubmitting}>
+          ${params.connectorSetupSubmitting ? "Connecting Stripe..." : "Save and connect"}
+        </button>
+      </div>
+    </form>
+  `;
+}
+
 function renderConnectorDialog(params: {
   entry: ConnectorEntry;
   mode: ConnectorDialogMode;
+  setupGuide: AlisioConnectorsBeginResult | null;
+  connectorSetupSubmitting: boolean;
+  connectorSetupError: string | null;
   planBlocksNewConnections?: boolean;
   planLimitMessage?: string | null;
   onCloseConnectorDialog: () => void;
   onBeginConnector: (connectorId: string) => void;
+  onCompleteManualConnector: (connectorId: string, apiKey: string) => void;
   onRevokeConnector: (connectorId: string) => void;
   onTryConnectorInChat: (connectorId: string) => void;
 }) {
@@ -646,6 +708,10 @@ function renderConnectorDialog(params: {
         })
       : params.entry.row.definition.title;
   const dialogId = `alisio-auth-dialog-${params.entry.row.definition.id}`;
+  const manualSetupActive =
+    params.mode === "install" &&
+    params.setupGuide?.connectorId === params.entry.row.definition.id &&
+    params.setupGuide.statusReason === "ready_for_setup";
   return html`
     <div
       class="exec-approval-overlay alisio-auth-dialog__overlay"
@@ -680,6 +746,23 @@ function renderConnectorDialog(params: {
 
         <div class="alisio-auth-dialog__body">
           <div class="alisio-auth-dialog__lead">${params.entry.detail}</div>
+          ${params.setupGuide?.connectorId === params.entry.row.definition.id &&
+          params.setupGuide.setupHint &&
+          !manualSetupActive
+            ? html`<div class="callout info">${params.setupGuide.setupHint}</div>`
+            : nothing}
+          ${renderManualSetupForm({
+            entry: params.entry,
+            setupGuide: params.setupGuide ?? {
+              connectorId: "",
+              availability: "unavailable",
+              mode: "setup",
+              statusReason: "unavailable",
+            },
+            connectorSetupSubmitting: params.connectorSetupSubmitting,
+            connectorSetupError: params.connectorSetupError,
+            onCompleteManualConnector: params.onCompleteManualConnector,
+          })}
 
           <div class="alisio-auth-dialog__facts">
             ${renderDialogFact(
@@ -715,6 +798,7 @@ function renderConnectorDialog(params: {
             ${renderDialogActions({
               entry: params.entry,
               mode: params.mode,
+              manualSetupActive,
               planBlocksNewConnections: params.planBlocksNewConnections,
               planLimitMessage: params.planLimitMessage,
               onBeginConnector: params.onBeginConnector,
@@ -747,6 +831,9 @@ export function renderAuthentications(props: {
   overview: AlisioProvidersState | null;
   connectorCatalog: AlisioConnectorDefinition[];
   connectorAuthorizations: AlisioConnectorAuthorization[];
+  connectorSetupGuide: AlisioConnectorsBeginResult | null;
+  connectorSetupSubmitting: boolean;
+  connectorSetupError: string | null;
   search: string;
   dialogConnectorId: string | null;
   dialogMode: ConnectorDialogMode | null;
@@ -755,6 +842,7 @@ export function renderAuthentications(props: {
   onOpenConnectorInstall: (connectorId: string) => void;
   onCloseConnectorDialog: () => void;
   onBeginConnector: (connectorId: string) => void;
+  onCompleteManualConnector: (connectorId: string, apiKey: string) => void;
   onRevokeConnector: (connectorId: string) => void;
   onTryConnectorInChat: (connectorId: string) => void;
 }) {
@@ -851,10 +939,14 @@ export function renderAuthentications(props: {
         ? renderConnectorDialog({
             entry: dialogEntry,
             mode: props.dialogMode,
+            setupGuide: props.connectorSetupGuide,
+            connectorSetupSubmitting: props.connectorSetupSubmitting,
+            connectorSetupError: props.connectorSetupError,
             planBlocksNewConnections: connectorLimitReached,
             planLimitMessage: connectorLimitMessage,
             onCloseConnectorDialog: props.onCloseConnectorDialog,
             onBeginConnector: props.onBeginConnector,
+            onCompleteManualConnector: props.onCompleteManualConnector,
             onRevokeConnector: props.onRevokeConnector,
             onTryConnectorInChat: props.onTryConnectorInChat,
           })

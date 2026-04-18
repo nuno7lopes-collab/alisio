@@ -492,45 +492,25 @@ describe("node subscription manager", () => {
 });
 
 describe("resolveNodeCommandAllowlist", () => {
-  it("includes iOS service commands by default", () => {
+  it("includes fail-safe commands for unknown platforms", () => {
     const allow = resolveNodeCommandAllowlist(
       {},
       {
-        platform: "ios 26.0",
-        deviceFamily: "iPhone",
+        platform: "mobile 26.0",
+        deviceFamily: "Phone",
       },
     );
 
-    expect(allow.has("device.info")).toBe(true);
-    expect(allow.has("device.status")).toBe(true);
+    expect(allow.has("canvas.present")).toBe(true);
+    expect(allow.has("camera.list")).toBe(true);
+    expect(allow.has("location.get")).toBe(true);
     expect(allow.has("system.notify")).toBe(true);
-    expect(allow.has("contacts.search")).toBe(true);
-    expect(allow.has("calendar.events")).toBe(true);
-    expect(allow.has("reminders.list")).toBe(true);
-    expect(allow.has("photos.latest")).toBe(true);
-    expect(allow.has("motion.activity")).toBe(true);
+    expect(allow.has("device.info")).toBe(false);
+    expect(allow.has("system.run")).toBe(false);
 
     for (const cmd of DEFAULT_DANGEROUS_NODE_COMMANDS) {
       expect(allow.has(cmd)).toBe(false);
     }
-  });
-
-  it("includes Android notifications and device diagnostics commands by default", () => {
-    const allow = resolveNodeCommandAllowlist(
-      {},
-      {
-        platform: "android 16",
-        deviceFamily: "Android",
-      },
-    );
-
-    expect(allow.has("notifications.list")).toBe(true);
-    expect(allow.has("notifications.actions")).toBe(true);
-    expect(allow.has("device.permissions")).toBe(true);
-    expect(allow.has("device.health")).toBe(true);
-    expect(allow.has("callLog.search")).toBe(true);
-    expect(allow.has("system.notify")).toBe(true);
-    expect(allow.has("sms.search")).toBe(false);
   });
 
   it("includes macOS computer commands by default", () => {
@@ -544,10 +524,9 @@ describe("resolveNodeCommandAllowlist", () => {
 
     expect(allow.has("computer.observe")).toBe(true);
     expect(allow.has("computer.act")).toBe(true);
-  });
-
-  it("treats sms.search as dangerous by default", () => {
-    expect(DEFAULT_DANGEROUS_NODE_COMMANDS).toContain("sms.search");
+    expect(allow.has("computer.session.start")).toBe(true);
+    expect(allow.has("computer.session.pause")).toBe(true);
+    expect(allow.has("computer.health")).toBe(true);
   });
 
   it("can explicitly allow dangerous commands via allowCommands", () => {
@@ -559,7 +538,7 @@ describe("resolveNodeCommandAllowlist", () => {
           },
         },
       },
-      { platform: "ios", deviceFamily: "iPhone" },
+      { platform: "mobile", deviceFamily: "Phone" },
     );
     expect(allow.has("camera.snap")).toBe(true);
     expect(allow.has("screen.record")).toBe(true);
@@ -570,8 +549,8 @@ describe("resolveNodeCommandAllowlist", () => {
     const allow = resolveNodeCommandAllowlist(
       {},
       {
-        platform: "iPhοne",
-        deviceFamily: "iPhοne",
+        platform: "mοbile",
+        deviceFamily: "phοne",
       },
     );
 
@@ -580,18 +559,18 @@ describe("resolveNodeCommandAllowlist", () => {
     expect(allow.has("system.notify")).toBe(true);
   });
 
-  it("normalizes dotted-I platform values to iOS classification", () => {
+  it("treats dotted-I platform values as unknown/fail-safe", () => {
     const allow = resolveNodeCommandAllowlist(
       {},
       {
-        platform: "İOS",
-        deviceFamily: "iPhone",
+        platform: "İOBILE",
+        deviceFamily: "Phone",
       },
     );
 
     expect(allow.has("system.run")).toBe(false);
     expect(allow.has("system.which")).toBe(false);
-    expect(allow.has("device.info")).toBe(true);
+    expect(allow.has("device.info")).toBe(false);
   });
 });
 

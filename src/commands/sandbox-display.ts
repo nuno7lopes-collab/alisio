@@ -64,9 +64,6 @@ export function displayBrowsers(browsers: SandboxBrowserInfo[], runtime: Runtime
         rt.log(`    Status:  ${formatStatus(browser.running)}`);
         rt.log(`    Image:   ${browser.image} ${formatImageMatch(browser.imageMatch)}`);
         rt.log(`    CDP:     ${browser.cdpPort}`);
-        if (browser.noVncPort) {
-          rt.log(`    noVNC:   ${browser.noVncPort}`);
-        }
         rt.log(
           `    Age:     ${formatDurationCompact(Date.now() - browser.createdAtMs, { spaced: true }) ?? "0s"}`,
         );

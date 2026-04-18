@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { monitorWebChannel } from "./auto-reply.js";
+import { monitorWebChannel } from "./auto-reply.impl.js";
 import {
   createWebInboundDeliverySpies,
   createWebListenerFactoryCapture,

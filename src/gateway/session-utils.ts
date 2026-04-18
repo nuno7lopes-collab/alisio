@@ -16,13 +16,8 @@ import {
   resolveDefaultModelForSession,
 } from "../agents/model-selection.js";
 import { resolvePersonWorkspaceSummary } from "../agents/person-agent.js";
-import { getActiveEmbeddedRunSnapshot } from "../agents/pi-embedded-runner/runs.js";
 import { resolveResolvedAgentIdentity } from "../agents/resolved-identity.js";
-import { getLiveSandboxBrowserObserverUrl } from "../agents/sandbox/browser.js";
-import { resolveSandboxConfigForAgent } from "../agents/sandbox/config.js";
 import { resolveSandboxRuntimeStatus } from "../agents/sandbox/runtime-status.js";
-import { resolveSandboxScopeKey } from "../agents/sandbox/shared.js";
-import { isToolAllowed } from "../agents/sandbox/tool-policy.js";
 import {
   getSessionDisplaySubagentRunByChildSessionKey,
   getSubagentSessionRuntimeMs,
@@ -216,53 +211,6 @@ function resolvePositiveNumber(value: number | null | undefined): number | undef
 
 function resolveNonNegativeNumber(value: number | null | undefined): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
-function resolveLiveSandboxBrowserObserver(params: {
-  cfg: AlisioConfig;
-  key: string;
-  entry?: SessionEntry;
-}): string | undefined {
-  const activeRunObserverUrl = params.entry?.sessionId
-    ? getActiveEmbeddedRunSnapshot(params.entry.sessionId)?.browserNoVncUrl?.trim()
-    : "";
-  if (activeRunObserverUrl) {
-    return activeRunObserverUrl;
-  }
-
-  const runtime = resolveSandboxRuntimeStatus({
-    cfg: params.cfg,
-    sessionKey: params.key,
-  });
-  if (!runtime.sandboxed) {
-    return undefined;
-  }
-  const sandboxCfg = resolveSandboxConfigForAgent(params.cfg, runtime.agentId);
-  if (!sandboxCfg.browser.enabled || !isToolAllowed(sandboxCfg.tools, "browser")) {
-    return undefined;
-  }
-  const scopeKey = resolveSandboxScopeKey(sandboxCfg.scope, runtime.sessionKey || params.key);
-  const liveObserverUrl = getLiveSandboxBrowserObserverUrl(scopeKey)?.trim();
-  if (liveObserverUrl) {
-    return liveObserverUrl;
-  }
-  return undefined;
-}
-
-function resolveSessionObserver(params: {
-  cfg: AlisioConfig;
-  key: string;
-  entry?: SessionEntry;
-}): GatewaySessionRow["observer"] {
-  const browserNoVncUrl = resolveLiveSandboxBrowserObserver(params);
-  if (!browserNoVncUrl) {
-    return null;
-  }
-  return {
-    kind: "novnc",
-    url: browserNoVncUrl,
-    label: "Browser observer",
-  };
 }
 
 function resolveEstimatedSessionCostUsd(params: {
@@ -1378,11 +1326,6 @@ export function buildGatewaySessionRow(params: {
     relationship: conversationModel.relationship,
     label: entry?.label,
     displayName,
-    observer: resolveSessionObserver({
-      cfg,
-      key,
-      entry,
-    }),
     derivedTitle,
     lastMessagePreview,
     channel,

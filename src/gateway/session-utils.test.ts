@@ -2,12 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import {
-  __testing as embeddedRunTesting,
-  clearActiveEmbeddedRun,
-  setActiveEmbeddedRun,
-  updateActiveEmbeddedRunSnapshot,
-} from "../agents/pi-embedded-runner/runs.js";
+import { __testing as embeddedRunTesting } from "../agents/pi-embedded-runner/runs.js";
 import {
   addSubagentRunForTests,
   resetSubagentRegistryForTests,
@@ -34,17 +29,6 @@ import {
   resolveSessionModelRef,
   resolveSessionStoreKey,
 } from "./session-utils.js";
-
-type RunHandle = Parameters<typeof setActiveEmbeddedRun>[1];
-
-function createRunHandle(): RunHandle {
-  return {
-    queueMessage: async () => {},
-    isStreaming: () => true,
-    isCompacting: () => false,
-    abort: () => {},
-  };
-}
 
 function resolveSyncRealpath(filePath: string): string {
   return fs.realpathSync.native(filePath);
@@ -254,112 +238,6 @@ describe("gateway session utils", () => {
     const store = JSON.parse(fs.readFileSync(storePath, "utf8"));
     const found = target.storeKeys.some((k) => Boolean(store[k]));
     expect(found).toBe(true);
-  });
-
-  test("listSessionsFromStore projects live observer metadata and clears it with the run snapshot", () => {
-    const handle = createRunHandle();
-    const cfg = {
-      session: { mainKey: "main" },
-      agents: { list: [{ id: "main", default: true }] },
-    } as AlisioConfig;
-    const store: Record<string, SessionEntry> = {
-      "agent:main:main": {
-        sessionId: "sess-main",
-        updatedAt: 123,
-      } as SessionEntry,
-    };
-
-    setActiveEmbeddedRun("sess-main", handle, "agent:main:main");
-    updateActiveEmbeddedRunSnapshot("sess-main", {
-      transcriptLeafId: null,
-      browserNoVncUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-    });
-
-    const withObserver = listSessionsFromStore({
-      cfg,
-      storePath: path.join(os.tmpdir(), "alisio-session-utils-live.json"),
-      store,
-      opts: {},
-    });
-    expect(withObserver.sessions[0]?.observer).toEqual({
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Browser observer",
-    });
-
-    clearActiveEmbeddedRun("sess-main", handle, "agent:main:main");
-
-    const withoutObserver = listSessionsFromStore({
-      cfg,
-      storePath: path.join(os.tmpdir(), "alisio-session-utils-live.json"),
-      store,
-      opts: {},
-    });
-    expect(withoutObserver.sessions[0]?.observer).toBeNull();
-  });
-
-  test("listSessionsFromStore ignores persisted sandbox observer urls when no live bridge exists", async () => {
-    await withStateDirEnv("alisio-session-utils-persisted-", async ({ stateDir }) => {
-      const cfg = {
-        session: { mainKey: "agent:ops:main" },
-        agents: {
-          list: [{ id: "ops", default: true }],
-          defaults: {
-            sandbox: {
-              mode: "all",
-              browser: {
-                enabled: true,
-                allowHostControl: false,
-              },
-            },
-          },
-        },
-        tools: {
-          sandbox: {
-            tools: {
-              alsoAllow: ["browser"],
-            },
-          },
-        },
-      } as AlisioConfig;
-      const store: Record<string, SessionEntry> = {
-        "agent:ops:main": {
-          sessionId: "sess-ops",
-          updatedAt: 123,
-          systemPromptReport: {
-            source: "run",
-            generatedAt: 123,
-            sandbox: {
-              mode: "all",
-              sandboxed: true,
-              browserContractVersion: 1,
-              browserTargetDefault: "sandbox",
-              hostBrowserAllowed: false,
-              browserObserverUrl: "http://127.0.0.1:19000/sandbox/novnc?token=persisted",
-            },
-            systemPrompt: {
-              chars: 10,
-              projectContextChars: 0,
-              nonProjectContextChars: 10,
-            },
-            injectedWorkspaceFiles: [],
-            skills: { promptChars: 0, entries: [] },
-            tools: { listChars: 0, schemaChars: 0, entries: [] },
-          },
-        } as SessionEntry,
-      };
-
-      const result = await withEnv({ ALISIO_STATE_DIR: stateDir }, async () =>
-        listSessionsFromStore({
-          cfg,
-          storePath: path.join(os.tmpdir(), "alisio-session-utils-persisted.json"),
-          store,
-          opts: {},
-        }),
-      );
-
-      expect(result.sessions[0]?.observer).toBeNull();
-    });
   });
 
   test("resolveGatewaySessionStoreTarget includes all case-variant duplicate keys", () => {

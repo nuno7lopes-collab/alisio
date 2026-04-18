@@ -66,7 +66,6 @@ WhatsApp 需要真实手机号码进行验证。VoIP 和虚拟号码通常会被
 
 ### 专用号码（推荐）
 
-为 Alisio 使用**单独的手机号码**。最佳用户体验，清晰的路由，无自聊天怪异问题。理想设置：**备用/旧 Android 手机 + eSIM**。保持 Wi-Fi 和电源连接，通过二维码关联。
 
 **WhatsApp Business：** 你可以在同一设备上使用不同号码的 WhatsApp Business。非常适合将个人 WhatsApp 分开——安装 WhatsApp Business 并在那里注册 Alisio 号码。
 

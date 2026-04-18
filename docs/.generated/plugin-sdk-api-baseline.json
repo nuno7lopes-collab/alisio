@@ -3630,7 +3630,7 @@
           "exportName": "resolveGatewayPort",
           "kind": "function",
           "source": {
-            "line": 292,
+            "line": 281,
             "path": "src/config/paths.ts"
           }
         },

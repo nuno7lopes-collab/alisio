@@ -26,7 +26,7 @@ import {
 import { resolveBrowserConfig } from "../plugin-sdk/browser-runtime.js";
 import { hasBundledWebSearchCredential } from "../plugins/bundled-web-search-registry.js";
 import { inferParamBFromIdOrName } from "../shared/model-param-b.js";
-import { pickSandboxToolPolicy } from "./audit-tool-policy.js";
+import { pickSandboxToolPolicy } from "../agents/sandbox-tool-policy.js";
 
 export type SecurityAuditFinding = {
   checkId: string;
@@ -210,7 +210,7 @@ function listKnownNodeCommands(cfg: AlisioConfig): Set<string> {
     },
   };
   const out = new Set<string>();
-  for (const platform of ["ios", "android", "macos", "linux", "windows", "unknown"]) {
+  for (const platform of ["macos", "linux", "windows", "unknown"]) {
     const allow = resolveNodeCommandAllowlist(baseCfg, { platform });
     for (const cmd of allow) {
       const normalized = normalizeNodeCommand(cmd);

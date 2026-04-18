@@ -64,7 +64,7 @@ Cloudflare / bot protection
 Session import (no password)
 
 - `ordercli foodora session chrome --url https://www.foodora.at/ --profile "Default"`
-- `ordercli foodora session refresh --client-id android`
+- `ordercli foodora session refresh --client-id ios`
 
 Deliveroo (WIP, not working yet)
 

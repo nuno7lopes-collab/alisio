@@ -231,6 +231,9 @@ function resolveConnectorProviderLabel(connectorId: string): string {
   if (connectorId === "github") {
     return "GitHub";
   }
+  if (connectorId === "stripe") {
+    return "Stripe";
+  }
   if (connectorId === "notion") {
     return "Notion";
   }
@@ -443,9 +446,7 @@ function resolveToolState(entry: ToolTimelineEntry): ToolState {
       typeof outputText === "string" &&
       (/\brejected\b/i.test(outputText) || /"status"\s*:\s*"rejected"/i.test(outputText));
     return {
-      label: rejected
-        ? chatText("toolCards.states.rejected")
-        : chatText("toolCards.states.error"),
+      label: rejected ? chatText("toolCards.states.rejected") : chatText("toolCards.states.error"),
       tone: "error",
       icon: "x",
     };
@@ -584,9 +585,7 @@ function renderToolTimelineEntry(
               state.tone === "error" ? "error" : "output",
             )
           : state.tone === "active"
-            ? html`
-                <div class="chat-tool-card__pending">${chatText("toolCards.pending")}</div>
-              `
+            ? html` <div class="chat-tool-card__pending">${chatText("toolCards.pending")}</div> `
             : nothing}
         ${openText
           ? html`

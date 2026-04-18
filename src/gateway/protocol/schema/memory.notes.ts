@@ -9,6 +9,7 @@ import {
   MemoryWikiPageRevisionSchema,
   MemoryWikiReasonTagSchema,
   MemoryWikiRelatedFileSchema,
+  MemoryWikiRoleSchema,
   MemoryWikiSyncSurfaceSchema,
   MemoryWikiTaxonomySchema,
 } from "./memory.wiki.js";
@@ -121,6 +122,8 @@ export const MemoryNotesUpdateParamsSchema = Type.Object(
   {
     agentId: NonEmptyString,
     noteId: Type.Optional(Type.String()),
+    relativePath: Type.Optional(Type.String()),
+    memoryRole: Type.Optional(MemoryWikiRoleSchema),
     title: NonEmptyString,
     content: Type.String(),
   },

@@ -1633,7 +1633,7 @@ extension TestChatTransportState {
                     "content": [["type": "text", "text": """
 Conversation info (untrusted metadata):
 ```json
-{ \"sender\": \"alisio-ios\" }
+{ \"sender\": \"alisio-macos\" }
 ```
 
 Hello?

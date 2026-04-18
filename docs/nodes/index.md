@@ -1,5 +1,5 @@
 ---
-summary: "Devices: pairing, permissions, and device-local capabilities across macOS, iPhone, Android, and remote machines."
+summary: "Devices: pairing, permissions, and device-local capabilities across macOS and remote machines."
 read_when:
   - Pairing a device into Alisio
   - Explaining device-local actions and permissions
@@ -12,7 +12,7 @@ sidebarTitle: "Devices"
 
 In the product and UI, we say **Devices**.
 
-Internally, some protocols and methods still use the technical word **node**. The product meaning is the same: a paired computer or phone that gives Alisio local capabilities on that machine.
+Internally, some protocols and methods still use the technical word **node**. The product meaning is the same: a paired computer that gives Alisio local capabilities on that machine.
 
 ## What A Device Is
 
@@ -31,8 +31,6 @@ Alisio is desktop-first, but it is not desktop-only.
 Devices let the system extend from one Mac to:
 
 - another Mac
-- iPhone
-- Android
 - a remote helper machine
 
 That makes automations more useful because actions can run where the hardware, permissions, or context actually live.
@@ -72,14 +70,6 @@ The important product rule is simple:
 ### macOS
 
 The Mac is the primary desktop shell and the richest device surface.
-
-### iPhone
-
-Useful for mobile presence, capture, voice, and device-local context.
-
-### Android
-
-Useful for mobile chat, voice, camera, and automation workflows on another device.
 
 ### Remote helper machine
 

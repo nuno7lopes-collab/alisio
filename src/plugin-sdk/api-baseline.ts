@@ -113,7 +113,10 @@ function createCompilerContext(repoRoot: string) {
     throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\n"));
   }
   const parsedConfig = ts.parseJsonConfigFileContent(configFile.config, ts.sys, repoRoot);
-  const program = ts.createProgram(parsedConfig.fileNames, parsedConfig.options);
+  const rootNames = (Object.keys(pluginSdkDocMetadata) as PluginSdkDocEntrypoint[]).map(
+    (entrypoint) => path.join(repoRoot, "src", "plugin-sdk", `${entrypoint}.ts`),
+  );
+  const program = ts.createProgram(rootNames, parsedConfig.options);
   return {
     checker: program.getTypeChecker(),
     printer: ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }),

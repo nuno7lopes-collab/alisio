@@ -20,8 +20,7 @@ import {
   resolveChannelConfigWrites,
   resolveConfigWriteTargetFromPath,
 } from "../config-writes.js";
-import { listChannelPlugins } from "../index.js";
-import { loadChannelPlugin } from "../load.js";
+import { getChannelPlugin, listChannelPlugins } from "../index.js";
 import { loadChannelOutboundAdapter } from "../outbound/load.js";
 import type { ChannelOutboundAdapter, ChannelPlugin } from "../types.js";
 
@@ -452,7 +451,7 @@ describe("channel plugin loader", () => {
     expectedPlugin: ChannelPlugin;
   }) {
     setActivePluginRegistry(params.registry);
-    expect(await loadChannelPlugin("demo-loader")).toBe(params.expectedPlugin);
+    expect(getChannelPlugin("demo-loader")).toBe(params.expectedPlugin);
   }
 
   async function expectLoadedOutboundCase(params: {
@@ -464,7 +463,9 @@ describe("channel plugin loader", () => {
   }
 
   async function expectReloadedLoaderCase(params: {
-    load: typeof loadChannelPlugin | typeof loadChannelOutboundAdapter;
+    load:
+      | ((id: Parameters<typeof getChannelPlugin>[0]) => ReturnType<typeof getChannelPlugin>)
+      | typeof loadChannelOutboundAdapter;
     firstRegistry: Parameters<typeof setActivePluginRegistry>[0];
     secondRegistry: Parameters<typeof setActivePluginRegistry>[0];
     firstExpected: ChannelPlugin | ChannelOutboundAdapter | undefined;
@@ -543,7 +544,7 @@ describe("channel plugin loader", () => {
         return;
       case "reload-plugin":
         await expectReloadedLoaderCase({
-          load: loadChannelPlugin,
+          load: getChannelPlugin,
           firstRegistry: testCase.firstRegistry,
           secondRegistry: testCase.secondRegistry,
           firstExpected: testCase.firstExpected,

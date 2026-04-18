@@ -274,7 +274,7 @@ describe("gateway server models + voicewake", () => {
         client: {
           id: GATEWAY_CLIENT_NAMES.NODE_HOST,
           version: "1.0.0",
-          platform: "ios",
+          platform: "macos",
           mode: GATEWAY_CLIENT_MODES.NODE,
         },
       });

@@ -6,8 +6,6 @@ export const GATEWAY_CLIENT_IDS = {
   CLI: "cli",
   GATEWAY_CLIENT: "gateway-client",
   MACOS_APP: "alisio-macos",
-  IOS_APP: "alisio-ios",
-  ANDROID_APP: "alisio-android",
   NODE_HOST: "node-host",
   TEST: "test",
   FINGERPRINT: "fingerprint",
@@ -20,8 +18,6 @@ export const LEGACY_GATEWAY_CLIENT_ID_ALIASES = {
   "alisio-tui": GATEWAY_CLIENT_IDS.TUI,
   "alisio-probe": GATEWAY_CLIENT_IDS.PROBE,
   "alisio-macos": GATEWAY_CLIENT_IDS.MACOS_APP,
-  "alisio-ios": GATEWAY_CLIENT_IDS.IOS_APP,
-  "alisio-android": GATEWAY_CLIENT_IDS.ANDROID_APP,
 } as const;
 export type LegacyGatewayClientId = keyof typeof LEGACY_GATEWAY_CLIENT_ID_ALIASES;
 export type AcceptedGatewayClientId = GatewayClientId | LegacyGatewayClientId;

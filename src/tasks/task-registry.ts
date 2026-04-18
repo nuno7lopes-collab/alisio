@@ -51,7 +51,7 @@ const tasksWithPendingDelivery = new Set<string>();
 let listenerStarted = false;
 let listenerStop: (() => void) | null = null;
 let restoreAttempted = false;
-let deliveryRuntimePromise: Promise<typeof import("./task-registry-delivery-runtime.js")> | null =
+let deliveryRuntimePromise: Promise<typeof import("../infra/outbound/message.js")> | null =
   null;
 
 function cloneTaskRecord(record: TaskRecord): TaskRecord {
@@ -203,7 +203,7 @@ function appendTaskEvent(event: {
 }
 
 function loadTaskRegistryDeliveryRuntime() {
-  deliveryRuntimePromise ??= import("./task-registry-delivery-runtime.js");
+  deliveryRuntimePromise ??= import("../infra/outbound/message.js");
   return deliveryRuntimePromise;
 }
 

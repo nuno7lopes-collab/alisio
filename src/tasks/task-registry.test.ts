@@ -46,7 +46,7 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock("./task-registry-delivery-runtime.js", () => ({
+vi.mock("../infra/outbound/message.js", () => ({
   sendMessage: hoisted.sendMessageMock,
 }));
 
@@ -62,7 +62,7 @@ vi.mock("../agents/subagent-control.js", () => ({
 
 async function loadFreshTaskRegistryModulesForControlTest() {
   vi.resetModules();
-  vi.doMock("./task-registry-delivery-runtime.js", () => ({
+  vi.doMock("../infra/outbound/message.js", () => ({
     sendMessage: hoisted.sendMessageMock,
   }));
   vi.doMock("../acp/control-plane/manager.js", () => ({

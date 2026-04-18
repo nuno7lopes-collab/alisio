@@ -1227,10 +1227,7 @@ Optional sandboxing for the embedded agent. See [Sandboxing](/gateway/sandboxing
           network: "alisio-sandbox-browser",
           cdpPort: 9222,
           cdpSourceRange: "172.21.0.1/32",
-          vncPort: 5900,
-          noVncPort: 6080,
           headless: false,
-          enableNoVnc: true,
           allowHostControl: false,
           autoStart: true,
           autoStartTimeoutMs: 12000,
@@ -1356,8 +1353,7 @@ Transport is SSH into the OpenShell sandbox, but the plugin owns sandbox lifecyc
 
 **`docker.binds`** mounts additional host directories; global and per-agent binds are merged.
 
-**Sandboxed browser** (`sandbox.browser.enabled`): Chromium + CDP in a container. noVNC URL injected into system prompt. Does not require `browser.enabled` in `alisio.json`.
-noVNC observer access uses VNC auth by default and Alisio emits a short-lived token URL (instead of exposing the password in the shared URL).
+**Sandboxed browser** (`sandbox.browser.enabled`): Chromium + CDP in a container. Does not require `browser.enabled` in `alisio.json`.
 
 - `allowHostControl: false` (default) blocks sandboxed sessions from targeting the host browser.
 - `network` defaults to `alisio-sandbox-browser` (dedicated bridge network). Set to `bridge` only when you explicitly want global bridge connectivity.
@@ -1800,7 +1796,7 @@ Batches rapid text-only messages from the same sender into a single agent turn. 
 
 ## Talk
 
-Defaults for Talk mode (macOS/iOS/Android).
+Defaults for Talk mode (macOS).
 
 ```json5
 {
@@ -1823,7 +1819,7 @@ Defaults for Talk mode (macOS/iOS/Android).
 - `apiKey` and `providers.*.apiKey` accept plaintext strings or SecretRef objects.
 - `ELEVENLABS_API_KEY` fallback applies only when no Talk API key is configured.
 - `voiceAliases` lets Talk directives use friendly names.
-- `silenceTimeoutMs` controls how long Talk mode waits after user silence before it sends the transcript. Unset keeps the platform default pause window (`700 ms on macOS and Android, 900 ms on iOS`).
+- `silenceTimeoutMs` controls how long Talk mode waits after user silence before it sends the transcript. Unset keeps the platform default pause window (`700 ms on macOS`).
 
 ---
 
@@ -2609,14 +2605,6 @@ See [Plugins](/tools/plugin).
       // Remove tools from the default HTTP deny list
       allow: ["gateway"],
     },
-    push: {
-      apns: {
-        relay: {
-          baseUrl: "https://relay.example.com",
-          timeoutMs: 10000,
-        },
-      },
-    },
   },
 }
 ```
@@ -2642,11 +2630,6 @@ See [Plugins](/tools/plugin).
 - `remote.transport`: `ssh` (default) or `direct` (ws/wss). For `direct`, `remote.url` must be `ws://` or `wss://`.
 - `ALISIO_ALLOW_INSECURE_PRIVATE_WS=1`: client-side break-glass override that allows plaintext `ws://` to trusted private-network IPs; default remains loopback-only for plaintext.
 - `gateway.remote.token` / `.password` are remote-client credential fields. They do not configure gateway auth by themselves.
-- `gateway.push.apns.relay.baseUrl`: base HTTPS URL for the external APNs relay used by official/TestFlight iOS builds after they publish relay-backed registrations to the gateway. This URL must match the relay URL compiled into the iOS build.
-- `gateway.push.apns.relay.timeoutMs`: gateway-to-relay send timeout in milliseconds. Defaults to `10000`.
-- Relay-backed registrations are delegated to a specific gateway identity. The paired iOS app fetches `gateway.identity.get`, includes that identity in the relay registration, and forwards a registration-scoped send grant to the gateway. Another gateway cannot reuse that stored registration.
-- `ALISIO_APNS_RELAY_BASE_URL` / `ALISIO_APNS_RELAY_TIMEOUT_MS`: temporary env overrides for the relay config above.
-- `ALISIO_APNS_RELAY_ALLOW_HTTP=true`: development-only escape hatch for loopback HTTP relay URLs. Production relay URLs should stay on HTTPS.
 - `gateway.channelHealthCheckMinutes`: channel health-monitor interval in minutes. Set `0` to disable health-monitor restarts globally. Default: `5`.
 - `gateway.channelStaleEventThresholdMinutes`: stale-socket threshold in minutes. Keep this greater than or equal to `gateway.channelHealthCheckMinutes`. Default: `30`.
 - `gateway.channelMaxRestartsPerHour`: maximum health-monitor restarts per channel/account in a rolling hour. Default: `10`.

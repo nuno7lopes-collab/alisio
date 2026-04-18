@@ -47,8 +47,28 @@ import {
 import { applyXiaomiConfig, applyXiaomiProviderConfig } from "../plugin-sdk/xiaomi.js";
 import { ZAI_CODING_CN_BASE_URL, ZAI_GLOBAL_BASE_URL } from "../plugin-sdk/zai.js";
 import { applyZaiConfig, applyZaiProviderConfig } from "../plugin-sdk/zai.js";
-import { applyAuthProfileConfig } from "../plugins/provider-auth-helpers.js";
-import { setMinimaxApiKey, writeOAuthCredentials } from "../plugins/provider-auth-storage.js";
+import { upsertAuthProfile } from "../agents/auth-profiles.js";
+import type { SecretInput } from "../config/types.secrets.js";
+import {
+  applyAuthProfileConfig,
+  buildApiKeyCredential,
+  type ApiKeyStorageOptions,
+  writeOAuthCredentials,
+} from "../plugins/provider-auth-helpers.js";
+
+async function setMinimaxApiKey(
+  key: SecretInput,
+  agentDir?: string,
+  profileId: string = "minimax:default",
+  options?: ApiKeyStorageOptions,
+) {
+  const provider = profileId.split(":")[0] ?? "minimax";
+  upsertAuthProfile({
+    profileId,
+    credential: buildApiKeyCredential(provider, key, undefined, options),
+    agentDir,
+  });
+}
 
 function expectPrimaryModelPreserved(cfg: AlisioConfig): void {
   expect(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)).toBe(

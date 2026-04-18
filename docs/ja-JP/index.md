@@ -59,7 +59,7 @@ flowchart LR
   B --> D["CLI"]
   B --> E["Web Control UI"]
   B --> F["macOSアプリ"]
-  B --> G["iOSおよびAndroidノード"]
+  B --> G["iOSノード"]
 ```
 
 Gatewayは、セッション、ルーティング、チャネル接続の信頼できる唯一の情報源です。
@@ -83,7 +83,7 @@ Gatewayは、セッション、ルーティング、チャネル接続の信頼�
     チャット、設定、セッション、ノード用のブラウザダッシュボード。
   </Card>
   <Card title="モバイルノード" icon="smartphone">
-    Canvas対応のiOSおよびAndroidノードをペアリング。
+    Canvas対応のiOSノードをペアリング。
   </Card>
 </Columns>
 
@@ -158,7 +158,7 @@ Gatewayの起動後、ブラウザでControl UIを開きます。
     WhatsApp、Telegram、Discordなどのチャネル固有のセットアップ。
   </Card>
   <Card title="ノード" href="/nodes" icon="smartphone">
-    ペアリングとCanvas対応のiOSおよびAndroidノード。
+    ペアリングとCanvas対応のiOSノード。
   </Card>
   <Card title="ヘルプ" href="/help" icon="life-buoy">
     一般的な修正とトラブルシューティングのエントリーポイント。

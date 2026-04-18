@@ -12,9 +12,9 @@ title: "Discovery and Transports"
 Alisio has two distinct problems that look similar on the surface:
 
 1. **Operator remote control**: the macOS menu bar app controlling a gateway running elsewhere.
-2. **Node pairing**: iOS/Android (and future nodes) finding a gateway and pairing securely.
+2. **Node pairing**: companion nodes finding a gateway and pairing securely.
 
-The design goal is to keep all network discovery/advertising in the **Node Gateway** (`alisio gateway`) and keep clients (mac app, iOS) as consumers.
+The design goal is to keep all network discovery/advertising in the **Node Gateway** (`alisio gateway`) and keep clients as consumers.
 
 ## Terms
 
@@ -72,7 +72,7 @@ Security notes:
 - Bonjour/mDNS TXT records are **unauthenticated**. Clients must treat TXT values as UX hints only.
 - Routing (host/port) should prefer the **resolved service endpoint** (SRV + A/AAAA) over TXT-provided `lanHost`, `tailnetDns`, or `gatewayPort`.
 - TLS pinning must never allow an advertised `gatewayTlsSha256` to override a previously stored pin.
-- iOS/Android nodes should treat discovery-based direct connects as **TLS-only** and require an explicit “trust this fingerprint” confirmation before storing a first-time pin (out-of-band verification).
+- Nodes should treat discovery-based direct connects as **TLS-only** and require an explicit “trust this fingerprint” confirmation before storing a first-time pin (out-of-band verification).
 
 Disable/override:
 
@@ -119,4 +119,4 @@ The gateway is the source of truth for node/client admission.
 
 - **Gateway**: advertises discovery beacons, owns pairing decisions, and hosts the WS endpoint.
 - **macOS app**: helps you pick a gateway, shows pairing prompts, and uses SSH only as a fallback.
-- **iOS/Android nodes**: browse Bonjour as a convenience and connect to the paired Gateway WS.
+- **Nodes**: browse Bonjour as a convenience and connect to the paired Gateway WS.

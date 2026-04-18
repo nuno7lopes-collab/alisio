@@ -2,7 +2,7 @@
 summary: "Pairing overview: approve who can DM you + which nodes can join"
 read_when:
   - Setting up DM access control
-  - Pairing a new iOS/Android node
+  - Pairing a new device node
   - Reviewing Alisio security posture
 title: "Pairing"
 ---
@@ -54,18 +54,18 @@ Account scoping behavior:
 
 Treat these as sensitive (they gate access to your assistant).
 
-## 2) Node device pairing (iOS/Android/macOS/headless nodes)
+## 2) Node device pairing (iOS/macOS/headless nodes)
 
 Nodes connect to the Gateway as **devices** with `role: node`. The Gateway
 creates a device pairing request that must be approved.
 
-### Pair via Telegram (recommended for iOS)
+### Pair via Telegram
 
 If you use the `device-pair` plugin, you can do first-time device pairing entirely from Telegram:
 
 1. In Telegram, message your bot: `/pair`
 2. The bot replies with two messages: an instruction message and a separate **setup code** message (easy to copy/paste in Telegram).
-3. On your phone, open the Alisio iOS app → Settings → Gateway.
+3. Open the Alisio app on the device you want to pair.
 4. Paste the setup code and connect.
 5. Back in Telegram: `/pair pending` (review request IDs, role, and scopes), then approve.
 

@@ -6,7 +6,7 @@ import AlisioSupport
 struct AnyCodableEncodingTests {
     @Test func `encodes swift array and dictionary values`() throws {
         let payload: [String: Any] = [
-            "tags": ["node", "ios"],
+            "tags": ["node", "macos"],
             "meta": ["count": 2],
             "null": NSNull(),
         ]
@@ -14,7 +14,7 @@ struct AnyCodableEncodingTests {
         let data = try JSONEncoder().encode(AlisioProtocol.AnyCodable(payload))
         let obj = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        #expect(obj["tags"] as? [String] == ["node", "ios"])
+        #expect(obj["tags"] as? [String] == ["node", "macos"])
         #expect((obj["meta"] as? [String: Any])?["count"] as? Int == 2)
         #expect(obj["null"] is NSNull)
     }

@@ -52,7 +52,6 @@ Alisio 将**唤醒词作为单一全局列表**，由 **Gateway 网关**拥有�
 接收者：
 
 - 所有 WebSocket 客户端（macOS 应用、WebChat 等）
-- 所有已连接的节点（iOS/Android），以及节点连接时作为初始"当前状态"推送。
 
 ## 客户端行为
 
@@ -66,7 +65,6 @@ Alisio 将**唤醒词作为单一全局列表**，由 **Gateway 网关**拥有�
 - 使用全局列表进行 `VoiceWakeManager` 触发检测。
 - 在设置中编辑唤醒词会调用 `voicewake.set`（通过 Gateway 网关 WS），同时保持本地唤醒词检测的响应性。
 
-### Android 节点
 
 - 在设置中暴露唤醒词编辑器。
 - 通过 Gateway 网关 WS 调用 `voicewake.set`，使编辑在所有地方同步。

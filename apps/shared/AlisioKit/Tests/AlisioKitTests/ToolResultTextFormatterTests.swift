@@ -14,9 +14,9 @@ struct ToolResultTextFormatterTests {
           "ts": 1771610031380,
           "nodes": [
             {
-              "displayName": "iPhone 16 Pro Max",
+              "displayName": "MacBook Pro",
               "connected": true,
-              "platform": "ios"
+              "platform": "macos"
             }
           ]
         }
@@ -24,7 +24,7 @@ struct ToolResultTextFormatterTests {
 
         let result = ToolResultTextFormatter.format(text: json, toolName: "nodes")
         #expect(result.contains("1 node found."))
-        #expect(result.contains("iPhone 16 Pro Max"))
+        #expect(result.contains("MacBook Pro"))
         #expect(result.contains("connected"))
     }
 
@@ -33,7 +33,7 @@ struct ToolResultTextFormatterTests {
         {
           "status": "error",
           "tool": "nodes",
-          "error": "agent=main node=iPhone gateway=default action=invoke: pairing required"
+          "error": "agent=main node=MacBook gateway=default action=invoke: pairing required"
         }
         """
 

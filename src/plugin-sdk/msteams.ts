@@ -30,7 +30,7 @@ export {
   normalizeChannelSlug,
   resolveChannelEntryMatchWithFallback,
   resolveNestedAllowlistDecision,
-} from "../channels/plugins/channel-config.js";
+} from "../channels/channel-config.js";
 export { buildChannelConfigSchema } from "../channels/plugins/config-schema.js";
 export { resolveChannelMediaMaxBytes } from "../channels/plugins/media-limits.js";
 export { buildMediaPayload } from "../channels/plugins/media-payload.js";

@@ -27,9 +27,6 @@ Use this skill for release and publish-time workflow. Keep ordinary development 
 
 - Version locations include:
   - `package.json`
-  - `apps/android/app/build.gradle.kts`
-  - `apps/ios/Sources/Info.plist`
-  - `apps/ios/Tests/Info.plist`
   - `apps/macos/Sources/Alisio/Resources/Info.plist`
   - `docs/install/updating.md`
   - Peekaboo Xcode project and plist version fields

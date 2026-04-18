@@ -356,7 +356,7 @@ function encodeSetupCode(payload: SetupPayload): string {
 
 function buildPairingFlowLines(stepTwo: string): string[] {
   return [
-    "1) Open the iOS app → Settings → Gateway",
+    "1) Abre a app do Alisio no dispositivo que vais emparelhar",
     `2) ${stepTwo}`,
     "3) Back here, run /pair approve",
     "4) If this code leaks or you are done, run /pair cleanup",
@@ -673,7 +673,7 @@ export default definePluginEntry({
                 api,
                 ctx,
                 target,
-                caption: ["Scan this QR code with the Alisio iOS app:", "", ...infoLines].join(
+                caption: ["Scan this QR code with the Alisio app:", "", ...infoLines].join(
                   "\n",
                 ),
                 qrFilePath,
@@ -725,7 +725,7 @@ export default definePluginEntry({
             }
             return {
               text: [
-                "Scan this QR code with the Alisio iOS app:",
+                "Scan this QR code with the Alisio app:",
                 "",
                 formatQrInfoMarkdown({
                   payload,

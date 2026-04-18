@@ -2,29 +2,74 @@
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import { countAccountComputers, countPendingComputerAccess } from "./connections-computers.ts";
+import type { NodesProps } from "./connections-types.ts";
 import { renderConnections } from "./connections.ts";
-import { renderNodes, type NodesProps } from "./nodes.ts";
+import { renderNodes } from "./nodes.ts";
 
-function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
+type LegacyComputerOverrides = {
+  account?: NodesProps["computers"]["account"];
+  sharing?: NodesProps["computers"]["sharing"];
+  nodesLoading?: NodesProps["computers"]["nodesLoading"];
+  nodesLoaded?: NodesProps["computers"]["nodesLoaded"];
+  nodes?: NodesProps["computers"]["nodes"];
+  nodesError?: NodesProps["computers"]["nodesError"];
+  devicesLoading?: NodesProps["computers"]["devicesLoading"];
+  devicesError?: NodesProps["computers"]["devicesError"];
+  devicesList?: NodesProps["computers"]["devicesList"];
+  currentDeviceId?: NodesProps["computers"]["currentDeviceId"];
+  sharingLoading?: NodesProps["computers"]["sharingLoading"];
+  sharingError?: NodesProps["computers"]["sharingError"];
+  nodePairingsLoading?: NodesProps["computers"]["nodePairingsLoading"];
+  nodePairingsError?: NodesProps["computers"]["nodePairingsError"];
+  nodePairingsList?: NodesProps["computers"]["nodePairingsList"];
+  remoteComputerDrafts?: NodesProps["computers"]["remote"]["drafts"];
+  remoteComputerBusy?: NodesProps["computers"]["remote"]["busy"];
+  remoteComputerErrors?: NodesProps["computers"]["remote"]["errors"];
+  remoteComputerTasks?: NodesProps["computers"]["remote"]["tasks"];
+};
+
+function resolveOverride<T>(legacy: T | undefined, nested: T | undefined, fallback: T): T {
+  if (legacy !== undefined) {
+    return legacy;
+  }
+  if (nested !== undefined) {
+    return nested;
+  }
+  return fallback;
+}
+
+function baseProps(overrides: Partial<NodesProps> & LegacyComputerOverrides = {}): NodesProps {
   const base: NodesProps = {
     assistantName: "Alisio",
     assistantAgentId: "main",
-    nodesLoading: false,
-    nodesLoaded: true,
-    nodes: [],
-    nodesError: null,
-    devicesLoading: false,
-    devicesError: null,
-    devicesList: {
-      pending: [],
-      paired: [],
-    },
-    currentDeviceId: null,
-    nodePairingsLoading: false,
-    nodePairingsError: null,
-    nodePairingsList: {
-      pending: [],
-      paired: [],
+    computers: {
+      account: null,
+      sharing: null,
+      nodesLoading: false,
+      nodesLoaded: true,
+      nodes: [],
+      nodesError: null,
+      devicesLoading: false,
+      devicesError: null,
+      devicesList: {
+        pending: [],
+        paired: [],
+      },
+      currentDeviceId: null,
+      sharingLoading: false,
+      sharingError: null,
+      nodePairingsLoading: false,
+      nodePairingsError: null,
+      nodePairingsList: {
+        pending: [],
+        paired: [],
+      },
+      remote: {
+        drafts: {},
+        busy: {},
+        errors: {},
+        tasks: {},
+      },
     },
     configForm: null,
     configLoading: false,
@@ -40,7 +85,6 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
     execApprovalsTarget: "gateway",
     execApprovalsTargetNodeId: null,
     onRefresh: () => undefined,
-    onDevicesRefresh: () => undefined,
     onNodePairingsRefresh: () => undefined,
     onDeviceApprove: () => undefined,
     onDeviceReject: () => undefined,
@@ -62,14 +106,116 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
     onSaveExecApprovals: () => undefined,
     onSharingSetResourcePolicy: () => undefined,
   };
-  return { ...base, ...overrides };
+  return {
+    ...base,
+    ...overrides,
+    computers: {
+      ...base.computers,
+      ...overrides.computers,
+      account: resolveOverride(
+        overrides.account,
+        overrides.computers?.account,
+        base.computers.account,
+      ),
+      sharing: resolveOverride(
+        overrides.sharing,
+        overrides.computers?.sharing,
+        base.computers.sharing,
+      ),
+      nodesLoading: resolveOverride(
+        overrides.nodesLoading,
+        overrides.computers?.nodesLoading,
+        base.computers.nodesLoading,
+      ),
+      nodesLoaded: resolveOverride(
+        overrides.nodesLoaded,
+        overrides.computers?.nodesLoaded,
+        base.computers.nodesLoaded,
+      ),
+      nodes: resolveOverride(overrides.nodes, overrides.computers?.nodes, base.computers.nodes),
+      nodesError: resolveOverride(
+        overrides.nodesError,
+        overrides.computers?.nodesError,
+        base.computers.nodesError,
+      ),
+      devicesLoading: resolveOverride(
+        overrides.devicesLoading,
+        overrides.computers?.devicesLoading,
+        base.computers.devicesLoading,
+      ),
+      devicesError: resolveOverride(
+        overrides.devicesError,
+        overrides.computers?.devicesError,
+        base.computers.devicesError,
+      ),
+      devicesList: resolveOverride(
+        overrides.devicesList,
+        overrides.computers?.devicesList,
+        base.computers.devicesList,
+      ),
+      currentDeviceId: resolveOverride(
+        overrides.currentDeviceId,
+        overrides.computers?.currentDeviceId,
+        base.computers.currentDeviceId,
+      ),
+      sharingLoading: resolveOverride(
+        overrides.sharingLoading,
+        overrides.computers?.sharingLoading,
+        base.computers.sharingLoading,
+      ),
+      sharingError: resolveOverride(
+        overrides.sharingError,
+        overrides.computers?.sharingError,
+        base.computers.sharingError,
+      ),
+      nodePairingsLoading: resolveOverride(
+        overrides.nodePairingsLoading,
+        overrides.computers?.nodePairingsLoading,
+        base.computers.nodePairingsLoading,
+      ),
+      nodePairingsError: resolveOverride(
+        overrides.nodePairingsError,
+        overrides.computers?.nodePairingsError,
+        base.computers.nodePairingsError,
+      ),
+      nodePairingsList: resolveOverride(
+        overrides.nodePairingsList,
+        overrides.computers?.nodePairingsList,
+        base.computers.nodePairingsList,
+      ),
+      remote: {
+        ...base.computers.remote,
+        ...overrides.computers?.remote,
+        drafts: resolveOverride(
+          overrides.remoteComputerDrafts,
+          overrides.computers?.remote?.drafts,
+          base.computers.remote.drafts,
+        ),
+        busy: resolveOverride(
+          overrides.remoteComputerBusy,
+          overrides.computers?.remote?.busy,
+          base.computers.remote.busy,
+        ),
+        errors: resolveOverride(
+          overrides.remoteComputerErrors,
+          overrides.computers?.remote?.errors,
+          base.computers.remote.errors,
+        ),
+        tasks: resolveOverride(
+          overrides.remoteComputerTasks,
+          overrides.computers?.remote?.tasks,
+          base.computers.remote.tasks,
+        ),
+      },
+    },
+  };
 }
 
 describe("nodes devices pending rendering", () => {
   it("shows pending role and scopes from effective pending auth", () => {
     const container = document.createElement("div");
     render(
-      renderNodes(
+      renderConnections(
         baseProps({
           devicesList: {
             pending: [
@@ -97,7 +243,7 @@ describe("nodes devices pending rendering", () => {
   it("falls back to roles when role is absent", () => {
     const container = document.createElement("div");
     render(
-      renderNodes(
+      renderConnections(
         baseProps({
           devicesList: {
             pending: [
@@ -655,7 +801,7 @@ describe("nodes devices pending rendering", () => {
     const container = document.createElement("div");
 
     render(
-      renderNodes(
+      renderConnections(
         baseProps({
           devicesList: {
             pending: [],
@@ -690,7 +836,7 @@ describe("nodes devices pending rendering", () => {
     const container = document.createElement("div");
 
     render(
-      renderNodes(
+      renderConnections(
         baseProps({
           currentDeviceId: "device-2",
           devicesList: {

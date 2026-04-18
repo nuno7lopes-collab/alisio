@@ -1,5 +1,4 @@
 import { html, nothing } from "lit";
-import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import { t } from "../../i18n/index.ts";
 import { resolveConnectionsModel } from "../controllers/connections-model.ts";
 import { icons } from "../icons.ts";
@@ -9,7 +8,8 @@ import {
   renderSkeletonListItem,
   renderSkeletonPill,
 } from "./loading-skeleton.ts";
-import { renderNodes, type NodesProps } from "./nodes.ts";
+import type { NodesProps } from "./connections-types.ts";
+import { renderNodes } from "./nodes.ts";
 import {
   expandSharingScopeSelection,
   SHARING_POLICY_MODE_ORDER,
@@ -20,7 +20,7 @@ import {
   type SharingSuggestion,
 } from "./sharing-shared.ts";
 
-type SharingListTarget = NonNullable<NodesProps["sharing"]>["devices"]["available"][number];
+type SharingListTarget = NonNullable<NodesProps["computers"]["sharing"]>["devices"]["available"][number];
 
 function renderOverviewCard(params: {
   label: string;
@@ -121,7 +121,7 @@ function resolveSharingPolicyModeHint(mode: string) {
   return t(`alisio.connections.sharing.policyModeHint.${mode}`);
 }
 
-function resolveSharingResourcePolicies(sharing: NonNullable<NodesProps["sharing"]>) {
+function resolveSharingResourcePolicies(sharing: NonNullable<NodesProps["computers"]["sharing"]>) {
   return (
     sharing.policy.resourcePolicies ?? {
       compute: "light-approval",
@@ -137,7 +137,7 @@ function resolveSharingResourcePolicies(sharing: NonNullable<NodesProps["sharing
   );
 }
 
-function resolveExecutionPolicyMode(sharing: NonNullable<NodesProps["sharing"]>) {
+function resolveExecutionPolicyMode(sharing: NonNullable<NodesProps["computers"]["sharing"]>) {
   const policies = resolveSharingResourcePolicies(sharing);
   if (
     policies.models === "paired-device" &&
@@ -165,7 +165,7 @@ function resolveSensitiveSharingResourcesLabel() {
   ].join(", ");
 }
 
-function renderSharingSummary(sharing: NonNullable<NodesProps["sharing"]>) {
+function renderSharingSummary(sharing: NonNullable<NodesProps["computers"]["sharing"]>) {
   const resourcePolicies = resolveSharingResourcePolicies(sharing);
   return html`
     <div
@@ -290,7 +290,7 @@ function describeSharingTargetAccess(target: SharingListTarget) {
 }
 
 function resolveSharingOwnerBadge(params: {
-  viewer: NonNullable<NodesProps["sharing"]>["viewer"];
+  viewer: NonNullable<NodesProps["computers"]["sharing"]>["viewer"];
   target: SharingListTarget;
 }) {
   if (params.target.ownerKey === params.viewer.ownerKey) {
@@ -358,7 +358,7 @@ function renderSharingSuggestions(params: {
 
 function renderSharingResourcePolicies(
   props: NodesProps,
-  sharing: NonNullable<NodesProps["sharing"]>,
+  sharing: NonNullable<NodesProps["computers"]["sharing"]>,
 ) {
   const resourcePolicies = resolveSharingResourcePolicies(sharing);
   const automaticResources = SHARING_RESOURCE_ORDER.filter(
@@ -388,7 +388,7 @@ function renderSharingResourcePolicies(
                 <select
                   aria-label=${`${resolveSharingResourceLabel(resource)} ${t("alisio.connections.sharing.policyModeLabel")}`}
                   .value=${mode}
-                  ?disabled=${props.sharingLoading === true ||
+                  ?disabled=${props.computers.sharingLoading === true ||
                   !sharing.policy.resourcesEditable ||
                   !props.onSharingSetResourcePolicy}
                   @change=${(event: Event) =>
@@ -424,13 +424,14 @@ function renderSharingResourcePolicies(
 }
 
 function renderSharingContent(props: NodesProps) {
-  const loading = props.sharingLoading === true;
-  const showPanel = loading || props.sharingError != null || props.sharing != null;
+  const loading = props.computers.sharingLoading === true;
+  const showPanel =
+    loading || props.computers.sharingError != null || props.computers.sharing != null;
   if (!showPanel) {
     return nothing;
   }
 
-  const sharing = props.sharing;
+  const sharing = props.computers.sharing;
   const available = sharing?.devices.available ?? [];
   const sharedWithMe = sharing?.devices.sharedWithMe ?? [];
   const incomingRequests = sharing?.incomingRequests ?? [];
@@ -466,8 +467,10 @@ function renderSharingContent(props: NodesProps) {
 
   return html`
     <div class="alisio-connections-panel__body alisio-connections-panel__body--sharing">
-      ${props.sharingError
-        ? html`<div class="callout danger" style="margin-top: 12px;">${props.sharingError}</div>`
+      ${props.computers.sharingError
+        ? html`<div class="callout danger" style="margin-top: 12px;"
+            >${props.computers.sharingError}</div
+          >`
         : nothing}
       ${sharing
         ? html`
@@ -729,14 +732,8 @@ function renderSharingContent(props: NodesProps) {
 }
 
 export function renderConnections(props: NodesProps) {
-  const connectionsModel = resolveConnectionsModel({
-    account: props.account ?? null,
-    sharing: props.sharing ?? null,
-    devicesList: props.devicesList,
-    currentDeviceId: props.currentDeviceId ?? null,
-    nodes: props.nodes as NodeListNode[],
-    nodePairingsList: props.nodePairingsList,
-  });
+  const computers = props.computers;
+  const connectionsModel = resolveConnectionsModel(computers);
   const accountComputers = connectionsModel.accountComputersCount;
   const pendingAccess =
     connectionsModel.pendingDeviceRequests.length +
@@ -745,18 +742,18 @@ export function renderConnections(props: NodesProps) {
   const onlineComputers = connectionsModel.onlineComputersCount;
   const execReadyNodes = connectionsModel.execReadyNodesCount;
   const refreshing =
-    props.nodesLoading ||
-    props.devicesLoading ||
-    Boolean(props.sharingLoading) ||
-    props.nodePairingsLoading;
-  const devicesInitialLoading = !props.devicesList && !props.devicesError;
+    computers.nodesLoading ||
+    computers.devicesLoading ||
+    Boolean(computers.sharingLoading) ||
+    computers.nodePairingsLoading;
+  const devicesInitialLoading = !computers.devicesList && !computers.devicesError;
   const runtimeInitialLoading =
-    (!props.nodesLoaded && !props.nodesError) ||
-    (!props.nodePairingsList && !props.nodePairingsError);
-  const devicesUnavailable = !props.devicesList && Boolean(props.devicesError);
+    (!computers.nodesLoaded && !computers.nodesError) ||
+    (!computers.nodePairingsList && !computers.nodePairingsError);
+  const devicesUnavailable = !computers.devicesList && Boolean(computers.devicesError);
   const runtimeUnavailable =
-    (!props.nodesLoaded && Boolean(props.nodesError)) ||
-    (!props.nodePairingsList && Boolean(props.nodePairingsError));
+    (!computers.nodesLoaded && Boolean(computers.nodesError)) ||
+    (!computers.nodePairingsList && Boolean(computers.nodePairingsError));
   const text = {
     title: t("alisio.connections.title"),
     refreshing: t("alisio.connections.refreshing"),
@@ -834,7 +831,6 @@ export function renderConnections(props: NodesProps) {
           props,
           {
             includeExecApprovals: false,
-            showDevices: false,
             collapseNodeInventoryByComputer: true,
           },
           {

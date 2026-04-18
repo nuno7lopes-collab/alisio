@@ -8,7 +8,7 @@ title: "Device Model Database"
 
 # Device model database (friendly names)
 
-The macOS companion app shows friendly Apple device model names in the **Instances** UI by mapping Apple model identifiers (e.g. `iPad16,6`, `Mac16,6`) to human-readable names.
+The macOS companion app shows friendly Apple device model names in the **Instances** UI by mapping Apple model identifiers (e.g. `Mac16,6`) to human-readable names.
 
 The mapping is vendored as JSON under:
 
@@ -24,16 +24,12 @@ To keep builds deterministic, the JSON files are pinned to specific upstream com
 
 ## Updating the database
 
-1. Pick the upstream commits you want to pin to (one for iOS, one for macOS).
+1. Pick the upstream commit you want to pin for macOS.
 2. Update the commit hashes in `apps/macos/Sources/Alisio/Resources/DeviceModels/NOTICE.md`.
-3. Re-download the JSON files, pinned to those commits:
+3. Re-download the JSON file, pinned to that commit:
 
 ```bash
-IOS_COMMIT="<commit sha for ios-device-identifiers.json>"
 MAC_COMMIT="<commit sha for mac-device-identifiers.json>"
-
-curl -fsSL "https://raw.githubusercontent.com/kyle-seongwoo-jun/apple-device-identifiers/${IOS_COMMIT}/ios-device-identifiers.json" \
-  -o apps/macos/Sources/Alisio/Resources/DeviceModels/ios-device-identifiers.json
 
 curl -fsSL "https://raw.githubusercontent.com/kyle-seongwoo-jun/apple-device-identifiers/${MAC_COMMIT}/mac-device-identifiers.json" \
   -o apps/macos/Sources/Alisio/Resources/DeviceModels/mac-device-identifiers.json

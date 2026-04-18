@@ -586,7 +586,6 @@ curl -fsSL https://alisio.ai/install.sh | bash -s -- --install-method git
 
 在云端的工作方式：**Gateway 网关运行在服务器上**，你通过控制 UI（或 Tailscale/SSH）从笔记本/手机访问。你的状态 + 工作区位于服务器上，因此将主机视为数据来源并做好备份。
 
-你可以将**节点**（Mac/iOS/Android/无头）配对到云端 Gateway 网关，以访问本地屏幕/摄像头/画布或在笔记本上执行命令，同时 Gateway 网关保持在云端。
 
 中心：[平台](/platforms)。远程访问：[Gateway 网关远程](/gateway/remote)。
 节点：[节点](/nodes)、[节点 CLI](/cli/nodes)。
@@ -1328,7 +1327,6 @@ Gateway 网关监视配置文件并支持热重载：
 常见模式是**一个 Gateway 网关**（例如 Raspberry Pi）加上**节点**和**智能体**：
 
 - **Gateway 网关（中心）：** 拥有渠道（Signal/WhatsApp）、路由和会话。
-- **节点（设备）：** Mac/iOS/Android 作为外围设备连接，暴露本地工具（`system.run`、`canvas`、`camera`）。
 - **智能体（工作者）：** 用于特殊角色的独立大脑/工作区（例如“Hetzner 运维”、“个人数据”）。
 - **子智能体：** 需要并行处理时从主智能体生成后台工作。
 - **TUI：** 连接到 Gateway 网关并切换智能体/会话。
@@ -1457,7 +1455,6 @@ SSH 对临时 shell 访问很好，但节点对于持续的智能体工作流和
 
 ### 节点会运行 Gateway 网关服务吗
 
-不会。每台主机上应该只运行**一个 Gateway 网关**，除非你有意运行隔离的配置文件（参阅[多 Gateway 网关](/gateway/multiple-gateways)）。节点是连接到 Gateway 网关的外围设备（iOS/Android 节点，或 macOS 菜单栏应用的“节点模式”）。对于无头节点主机和 CLI 控制，参阅[节点主机 CLI](/cli/node)。
 
 `gateway`、`discovery` 和 `canvasHost` 的更改需要完全重启。
 

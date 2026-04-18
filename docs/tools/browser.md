@@ -653,7 +653,7 @@ State:
 - `alisio browser set media dark`
 - `alisio browser set timezone America/New_York`
 - `alisio browser set locale en-US`
-- `alisio browser set device "iPhone 14"`
+- `alisio browser set device "Desktop Chrome"`
 
 Notes:
 
@@ -763,7 +763,7 @@ These are useful for “make the site behave like X” workflows:
 - Media: `set media dark|light|no-preference|none`
 - Timezone / locale: `set timezone ...`, `set locale ...`
 - Device / viewport:
-  - `set device "iPhone 14"` (Playwright device presets)
+  - `set device "Desktop Chrome"` (Playwright device presets)
   - `set viewport 1280 720`
 
 ## Security & privacy

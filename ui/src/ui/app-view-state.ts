@@ -3,7 +3,6 @@ import type { PendingAlisioConnectorChatResume } from "./alisio-connector-oauth.
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus, FallbackStatus } from "./app-tool-stream.ts";
 import type {
-  BrowserPaneObserver,
   BrowserPanePreviewState,
   BrowserPaneSurfaceKind,
 } from "./controllers/browser-pane.ts";
@@ -125,6 +124,8 @@ export type AppViewState = {
   alisioConnectorCatalog: AlisioConnectorDefinition[];
   alisioConnectorAuthorizations: AlisioConnectorAuthorization[];
   alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null;
+  alisioConnectorSetupSubmitting: boolean;
+  alisioConnectorSetupError: string | null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null;
   alisioConnectorsSearch: string;
   alisioConnectorDialogId: string | null;
@@ -197,11 +198,12 @@ export type AppViewState = {
   sidebarContent: string | null;
   sidebarError: string | null;
   browserPaneSurfaceKind: BrowserPaneSurfaceKind;
-  browserPaneObserver: BrowserPaneObserver | null;
   resolveSessionBrowserPanePreview?: (sessionKey: string) => BrowserPanePreviewState | null;
   computerSessionLoading: boolean;
   computerSessionError: string | null;
   computerSession: ComputerSessionState | null;
+  selectedComputerReplayStepId: string | null;
+  computerStepDetailsOpen: boolean;
   splitRatio: number;
   scrollToBottom: (opts?: { smooth?: boolean }) => void;
   devicesLoading: boolean;
@@ -512,7 +514,10 @@ export type AppViewState = {
     handleRunUpdate: () => Promise<void>;
     setPassword: (next: string) => void;
     setChatMessage: (next: string) => void;
-    handleSendChat: (messageOverride?: string, opts?: { restoreDraft?: boolean }) => Promise<void>;
+    handleSendChat: (
+      messageOverride?: string,
+      opts?: { restoreDraft?: boolean; attachments?: ChatAttachment[] },
+    ) => Promise<void>;
     handleAbortChat: () => Promise<void>;
     removeQueuedMessage: (id: string) => void;
     handleChatScroll: (event: Event) => void;
@@ -523,7 +528,9 @@ export type AppViewState = {
     handleOpenSidebar: (content: string) => void;
     handleCloseSidebar: () => void;
     handleSelectBrowserPaneSurface: (surface: BrowserPaneSurfaceKind) => void;
-    handleComputerSessionCommand: (command: "pause" | "resume" | "stop") => void;
+    handleSelectComputerReplayStep: (stepId: string | null) => void;
+    handleToggleComputerStepDetails: (open: boolean) => void;
+  handleComputerSessionCommand: (command: "start" | "pause" | "resume" | "stop") => void;
     handleComputerSessionApproval: (decision: "allow-once" | "allow-session" | "deny") => void;
     handleRequestComputerPermission: (
       permission: "accessibility" | "screenRecording",

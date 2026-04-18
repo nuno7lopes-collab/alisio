@@ -111,22 +111,17 @@ function defaultIndexHTML() {
 
   const bridgeNames = ["alisioCanvasA2UIAction"];
   const helperNames = ["alisioSendUserAction"];
-  const hasIOS = () =>
+  const hasNativeBridge = () =>
     bridgeNames.some(
       (name) =>
         !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]),
-    );
-  const hasAndroid = () =>
-    bridgeNames.some(
-      (name) => !!(window[name] && typeof window[name].postMessage === "function"),
     );
   const findHelper = () => helperNames.find((name) => typeof window[name] === "function");
   const hasHelper = () => !!findHelper();
   statusEl.innerHTML =
     "Bridge: " +
     (hasHelper() ? "<span class='ok'>ready</span>" : "<span class='bad'>missing</span>") +
-    " · iOS=" + (hasIOS() ? "yes" : "no") +
-    " · Android=" + (hasAndroid() ? "yes" : "no");
+    " · native=" + (hasNativeBridge() ? "yes" : "no");
 
   const onStatus = (ev) => {
     const d = ev && ev.detail || {};
@@ -138,7 +133,7 @@ function defaultIndexHTML() {
 
   function send(name, sourceComponentId) {
     if (!hasHelper()) {
-      log("No action bridge found. Ensure you're viewing this on an iOS/Android Alisio node canvas.");
+      log("No action bridge found. Ensure you're viewing this on an Alisio canvas with native actions enabled.");
       return;
     }
     const helperName = findHelper();

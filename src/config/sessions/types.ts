@@ -380,7 +380,6 @@ export type SessionSystemPromptReport = {
     browserContractVersion?: number;
     browserTargetDefault?: "sandbox" | "host";
     hostBrowserAllowed?: boolean;
-    browserObserverUrl?: string;
   };
   systemPrompt: {
     chars: number;

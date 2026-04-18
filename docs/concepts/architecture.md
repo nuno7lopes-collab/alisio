@@ -14,7 +14,7 @@ title: "Gateway Architecture"
 - Control-plane clients (macOS app, CLI, web UI, automations) connect to the
   Gateway over **WebSocket** on the configured bind host (default
   `127.0.0.1:40705`).
-- **Devices (nodes)** (macOS/iOS/Android/headless) also connect over **WebSocket**, but
+- **Devices (nodes)** (macOS/iOS/headless) also connect over **WebSocket**, but
   declare `role: node` with explicit caps/commands.
 - One Gateway per host; it is the only place that opens a WhatsApp session.
 - The **canvas host** is served by the Gateway HTTP server under:
@@ -37,7 +37,7 @@ title: "Gateway Architecture"
 - Send requests (`health`, `status`, `send`, `agent`, `system-presence`).
 - Subscribe to events (`tick`, `agent`, `presence`, `shutdown`).
 
-### Devices (macOS / iOS / Android / headless)
+### Devices (macOS / iOS / headless)
 
 In product-facing docs and UI we say **Devices**. The protocol and CLI still use
 the technical role name `node`.

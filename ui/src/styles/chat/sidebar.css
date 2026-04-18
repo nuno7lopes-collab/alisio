@@ -7,6 +7,12 @@
   height: 100%;
 }
 
+.alisio-chat__workspace-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 10px;
+}
+
 .chat-main {
   min-width: 400px;
   display: flex;
@@ -110,23 +116,8 @@
   padding: var(--chat-pane-padding, 14px);
 }
 
-.browser-pane__content--observer {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-}
-
 .browser-pane__content--computer {
   padding: 12px;
-}
-
-.browser-pane__iframe {
-  width: 100%;
-  min-height: 420px;
-  flex: 1 1 0;
-  border: 0;
-  border-radius: calc(var(--chat-pane-radius, 20px) - 4px);
-  background: #05070b;
 }
 
 .browser-pane__raw-action {
@@ -140,8 +131,32 @@
 .computer-pane {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   min-height: 100%;
+}
+
+.workspace-pane__header {
+  backdrop-filter: blur(10px);
+}
+
+.workspace-pane__surface,
+.computer-pane__hero,
+.computer-pane__frame-card,
+.computer-pane__step-drawer,
+.computer-pane__permission-card,
+.computer-pane__step-card,
+.computer-pane__metric-card {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--card) 95%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03);
+}
+
+.computer-pane__hero {
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 48%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-secondary) 86%, transparent), var(--card));
 }
 
 .computer-pane__summary {
@@ -199,6 +214,20 @@
   font-size: 12px;
 }
 
+.computer-pane__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.95fr);
+  gap: 14px;
+}
+
+.computer-pane__workspace-main,
+.computer-pane__workspace-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
 .computer-pane__context {
   margin-top: 6px;
   display: flex;
@@ -248,12 +277,29 @@
 }
 
 .computer-pane__frame-card {
-  padding: 10px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 18px;
   background:
-    radial-gradient(circle at top, color-mix(in srgb, var(--accent) 10%, transparent), transparent 52%),
+    radial-gradient(circle at top, color-mix(in srgb, var(--accent) 14%, transparent), transparent 54%),
     linear-gradient(180deg, color-mix(in srgb, var(--panel-secondary) 92%, transparent), var(--panel));
+}
+
+.computer-pane__frame-toolbar,
+.workspace-pane__surface-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.computer-pane__frame-badges,
+.computer-pane__frame-meta,
+.computer-pane__replay-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .computer-pane__frame {
@@ -270,6 +316,55 @@
   height: auto;
 }
 
+.computer-pane__diff-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: normal;
+  opacity: 0.52;
+}
+
+.computer-pane__diff-base,
+.computer-pane__diff-current {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.computer-pane__diff-current {
+  mix-blend-mode: difference;
+  filter: saturate(1.15) contrast(1.08);
+}
+
+.computer-pane__action-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.computer-pane__action-path {
+  stroke: color-mix(in srgb, var(--accent) 78%, white 22%);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-dasharray: 4 2;
+  filter: drop-shadow(0 0 6px rgb(0 0 0 / 0.5));
+}
+
+.computer-pane__action-point,
+.computer-pane__action-destination {
+  fill: color-mix(in srgb, var(--accent) 82%, white 18%);
+  stroke: white;
+  stroke-width: 0.5;
+}
+
+.computer-pane__action-destination {
+  fill: color-mix(in srgb, #f4b15a 72%, white 28%);
+}
+
 .computer-pane__cursor {
   position: absolute;
   width: 16px;
@@ -283,23 +378,24 @@
   transform: translate(-10%, -10%) rotate(-18deg);
 }
 
+.computer-pane__frame-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .computer-pane__meta-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
-.computer-pane__meta-grid > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--panel-secondary) 72%, transparent);
-  color: var(--text-strong);
-  font-size: 13px;
+.computer-pane__meta-grid--metrics {
+  margin-top: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .computer-pane__meta-label,
@@ -311,7 +407,175 @@
   text-transform: uppercase;
 }
 
+.computer-pane__metric-card,
+.computer-pane__permission-card,
+.computer-pane__step-drawer,
+.workspace-pane__surface {
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+
+.computer-pane__metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.computer-pane__metric-card strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.computer-pane__metric-hint,
+.computer-pane__detail-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.computer-pane__permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.computer-pane__permission-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.computer-pane__permission-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.computer-pane__permission-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.computer-pane__permission-status--ok {
+  background: color-mix(in srgb, #3da56d 16%, var(--panel));
+  color: color-mix(in srgb, #3da56d 82%, white 18%);
+}
+
+.computer-pane__permission-status--missing {
+  background: color-mix(in srgb, #d18d2b 16%, var(--panel));
+  color: color-mix(in srgb, #d18d2b 84%, white 16%);
+}
+
+.computer-pane__replay-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.computer-pane__replay-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.computer-pane__scrubber {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.computer-pane__step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.computer-pane__step-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    transform var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
+}
+
+.computer-pane__step-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
+.computer-pane__step-card--selected {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--card));
+}
+
+.computer-pane__step-card-head,
+.computer-pane__step-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.computer-pane__step-card-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.computer-pane__step-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.computer-pane__step-drawer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.computer-pane__details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.computer-pane__detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .computer-pane__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.computer-pane__event-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -326,6 +590,17 @@
   border-radius: 12px;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel-secondary) 70%, transparent);
+}
+
+.computer-pane__event-entry {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
 }
 
 .computer-pane__timeline-copy {
@@ -368,6 +643,11 @@
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 
+.computer-pane__tag--surface {
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--text-strong) 10%, var(--panel));
+}
+
 .computer-pane__timeline-meta {
   display: flex;
   flex-direction: column;
@@ -378,9 +658,25 @@
   font-size: 11px;
 }
 
+.workspace-pane__surface {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 @media (max-width: 960px) {
   .computer-pane__summary {
     flex-direction: column;
+  }
+
+  .computer-pane__workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .computer-pane__meta-grid--metrics,
+  .computer-pane__details-grid,
+  .computer-pane__permission-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
   .computer-pane__meta-grid {
@@ -393,6 +689,22 @@
 
   .computer-pane__timeline-meta {
     align-items: flex-start;
+  }
+
+  .computer-pane__replay-toolbar,
+  .computer-pane__permission-head,
+  .computer-pane__step-drawer-head,
+  .computer-pane__frame-toolbar,
+  .workspace-pane__surface-hero {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .computer-pane__meta-grid--metrics,
+  .computer-pane__details-grid,
+  .computer-pane__permission-grid {
+    grid-template-columns: 1fr;
   }
 }
 

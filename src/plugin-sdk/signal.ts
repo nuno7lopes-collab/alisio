@@ -40,7 +40,7 @@ export {
   looksLikeSignalTargetId,
   normalizeSignalMessagingTarget,
 } from "../channels/plugins/normalize/signal.js";
-export { detectBinary } from "../plugins/setup-binary.js";
+export { detectBinary } from "../infra/detect-binary.js";
 export { installSignalCli } from "../plugins/signal-cli-install.js";
 
 export {

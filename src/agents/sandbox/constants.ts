@@ -44,8 +44,6 @@ export const SANDBOX_BROWSER_SECURITY_HASH_EPOCH = "2026-02-28-no-sandbox-env";
 export const DEFAULT_SANDBOX_BROWSER_PREFIX = "alisio-sbx-browser-";
 export const DEFAULT_SANDBOX_BROWSER_NETWORK = "alisio-sandbox-browser";
 export const DEFAULT_SANDBOX_BROWSER_CDP_PORT = 9222;
-export const DEFAULT_SANDBOX_BROWSER_VNC_PORT = 5900;
-export const DEFAULT_SANDBOX_BROWSER_NOVNC_PORT = 6080;
 export const DEFAULT_SANDBOX_BROWSER_AUTOSTART_TIMEOUT_MS = 12_000;
 
 export const SANDBOX_AGENT_WORKSPACE_MOUNT = "/agent";

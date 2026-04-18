@@ -12,13 +12,10 @@ export const NODE_READ_ACTION_COMMANDS = {
   notifications_list: "notifications.list",
   device_status: "device.status",
   device_info: "device.info",
-  device_permissions: "device.permissions",
-  device_health: "device.health",
 } as const;
 
 export type NodeCommandAction =
   | keyof typeof NODE_READ_ACTION_COMMANDS
-  | "notifications_action"
   | "location_get"
   | "invoke";
 
@@ -36,49 +33,12 @@ export async function executeNodeCommandAction(params: {
     case "camera_list":
     case "notifications_list":
     case "device_status":
-    case "device_info":
-    case "device_permissions":
-    case "device_health": {
+    case "device_info": {
       const node = readStringParam(params.input, "node", { required: true });
       const payloadRaw = await invokeNodeCommandPayload({
         gatewayOpts: params.gatewayOpts,
         node,
         command: NODE_READ_ACTION_COMMANDS[params.action],
-      });
-      const payload =
-        payloadRaw && typeof payloadRaw === "object" && payloadRaw !== null ? payloadRaw : {};
-      return jsonResult(payload);
-    }
-    case "notifications_action": {
-      const node = readStringParam(params.input, "node", { required: true });
-      const notificationKey = readStringParam(params.input, "notificationKey", { required: true });
-      const notificationAction =
-        typeof params.input.notificationAction === "string"
-          ? params.input.notificationAction.trim().toLowerCase()
-          : "";
-      if (
-        notificationAction !== "open" &&
-        notificationAction !== "dismiss" &&
-        notificationAction !== "reply"
-      ) {
-        throw new Error("notificationAction must be open|dismiss|reply");
-      }
-      const notificationReplyText =
-        typeof params.input.notificationReplyText === "string"
-          ? params.input.notificationReplyText.trim()
-          : undefined;
-      if (notificationAction === "reply" && !notificationReplyText) {
-        throw new Error("notificationReplyText required when notificationAction=reply");
-      }
-      const payloadRaw = await invokeNodeCommandPayload({
-        gatewayOpts: params.gatewayOpts,
-        node,
-        command: "notifications.actions",
-        commandParams: {
-          key: notificationKey,
-          action: notificationAction,
-          replyText: notificationReplyText,
-        },
       });
       const payload =
         payloadRaw && typeof payloadRaw === "object" && payloadRaw !== null ? payloadRaw : {};

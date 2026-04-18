@@ -13,7 +13,6 @@ export const CURRENT_BROWSER_SESSION_CONTRACT_VERSION = 1;
 export function resolveSystemPromptSandboxReport(params: {
   cfg?: AlisioConfig;
   sessionKey?: string;
-  browserObserverUrl?: string;
   hostBrowserAllowed?: boolean;
 }): SessionSystemPromptReport["sandbox"] | undefined {
   const runtime = resolveSandboxRuntimeStatus({
@@ -24,7 +23,7 @@ export function resolveSystemPromptSandboxReport(params: {
   const sandboxBrowserEnabled =
     runtime.sandboxed && sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
 
-  if (!runtime.sandboxed && !params.browserObserverUrl && params.hostBrowserAllowed == null) {
+  if (!runtime.sandboxed && params.hostBrowserAllowed == null) {
     return undefined;
   }
 
@@ -36,7 +35,6 @@ export function resolveSystemPromptSandboxReport(params: {
     hostBrowserAllowed: sandboxBrowserEnabled
       ? sandboxCfg.browser.allowHostControl
       : params.hostBrowserAllowed === true,
-    browserObserverUrl: params.browserObserverUrl?.trim() || undefined,
   };
 }
 

@@ -19,7 +19,7 @@ import {
   type PendingAlisioConnectorChatResume,
   type AlisioConnectorOAuthSignal,
 } from "./alisio-connector-oauth.ts";
-import { hasAlisioHostBridge, requestNativePermission } from "./alisio-host.ts";
+import { requestNativePermission } from "./alisio-host.ts";
 import {
   refreshAfterAlisioOpenAiOAuth,
   subscribeAlisioOpenAiOAuthSignals,
@@ -73,14 +73,10 @@ import {
 import { completeAlisioAccountEmailLinkAuth, saveAlisioAccount } from "./controllers/alisio.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import {
-  getBrowserPaneObserverIdentity,
   loadBrowserPaneUiState,
-  readBrowserPaneObserverStateFromSessionRow,
-  resolveBrowserPaneSessionObserver,
   saveBrowserPaneUiState,
   type BrowserPanePreviewState,
   type BrowserPaneMarkdownState,
-  type BrowserPaneObserver,
   type BrowserPaneSurfaceKind,
   type BrowserPaneUiState,
 } from "./controllers/browser-pane.ts";
@@ -163,8 +159,10 @@ export class AlisioApp extends LitElement {
   private presentationPreferencesFlushInFlight = false;
   private browserPaneUiBySession = new Map<string, BrowserPaneUiState>();
   private browserPaneMarkdownBySession = new Map<string, BrowserPaneMarkdownState>();
-  private browserPaneObserverBySession = new Map<string, BrowserPaneObserver>();
-  private browserPaneObserverIdentityBySession = new Map<string, string>();
+  private browserPaneComputerUiBySession = new Map<
+    string,
+    { selectedReplayStepId: string | null; detailsOpen: boolean }
+  >();
   private computerSessionBySession = new Map<string, ComputerSessionState>();
   private browserPaneComputerPresenceBySession = new Map<string, boolean>();
   private browserPanePendingActivityBySession = new Map<string, BrowserPaneSurfaceKind>();
@@ -246,6 +244,8 @@ export class AlisioApp extends LitElement {
   @state() alisioConnectorAuthorizations: import("./types.ts").AlisioConnectorAuthorization[] = [];
   @state() alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null =
     null;
+  @state() alisioConnectorSetupSubmitting = false;
+  @state() alisioConnectorSetupError: string | null = null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null = null;
   @state() alisioConnectorsSearch = "";
   @state() alisioConnectorDialogId: string | null = null;
@@ -321,11 +321,12 @@ export class AlisioApp extends LitElement {
     gatewayUrl: this.settings.gatewayUrl,
     sessionKey: this.settings.sessionKey,
   }).selectedSurface;
-  @state() browserPaneObserver: BrowserPaneObserver | null = null;
   @state() computerSessionLoading = false;
   @state() computerSessionError: string | null = null;
   @state() computerSession: ComputerSessionState | null = null;
   @state() splitRatio = this.settings.splitRatio;
+  @state() selectedComputerReplayStepId: string | null = null;
+  @state() computerStepDetailsOpen = true;
 
   @state() nodesLoading = false;
   @state() nodesLoaded = false;
@@ -1191,15 +1192,37 @@ export class AlisioApp extends LitElement {
     return this.computerSessionBySession.get(this.getBrowserPaneScopeKey(sessionKey)) ?? null;
   }
 
-  private shouldPreferComputerWorkspace(): boolean {
-    return this.nativeShellState?.platform === "macos" || hasAlisioHostBridge();
+  private getBrowserPaneComputerUiState(sessionKey: string): {
+    selectedReplayStepId: string | null;
+    detailsOpen: boolean;
+  } {
+    const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
+    const existing = this.browserPaneComputerUiBySession.get(scopeKey);
+    if (existing) {
+      return existing;
+    }
+    const created = {
+      selectedReplayStepId: null,
+      detailsOpen: true,
+    };
+    this.browserPaneComputerUiBySession.set(scopeKey, created);
+    return created;
   }
 
-  private resolveVisibleBrowserPaneObserver(sessionKey: string): BrowserPaneObserver | null {
-    if (this.shouldPreferComputerWorkspace()) {
-      return null;
-    }
-    return this.resolveSessionBrowserPaneObserver(sessionKey);
+  private rememberBrowserPaneComputerUiState(
+    sessionKey: string,
+    patch: Partial<{ selectedReplayStepId: string | null; detailsOpen: boolean }>,
+  ) {
+    const current = this.getBrowserPaneComputerUiState(sessionKey);
+    const next = {
+      selectedReplayStepId:
+        patch.selectedReplayStepId === undefined
+          ? current.selectedReplayStepId
+          : patch.selectedReplayStepId,
+      detailsOpen: patch.detailsOpen ?? current.detailsOpen,
+    };
+    this.browserPaneComputerUiBySession.set(this.getBrowserPaneScopeKey(sessionKey), next);
+    return next;
   }
 
   setComputerSession(sessionKey: string, session: ComputerSessionState | null): void {
@@ -1228,62 +1251,21 @@ export class AlisioApp extends LitElement {
     });
   }
 
-  private resolveSessionBrowserPaneObserver(sessionKey: string): BrowserPaneObserver | null {
-    const scopeKey = this.getBrowserPaneScopeKey(sessionKey);
-    const sessionRow = this.sessionsResult?.sessions?.find((entry) => entry.key === sessionKey);
-    const rowObserverState = readBrowserPaneObserverStateFromSessionRow(sessionRow);
-    if (rowObserverState.present) {
-      if (rowObserverState.observer) {
-        this.browserPaneObserverBySession.set(scopeKey, rowObserverState.observer);
-      } else {
-        this.browserPaneObserverBySession.delete(scopeKey);
-      }
-      return rowObserverState.observer;
-    }
-    const liveObserver = this.browserPaneObserverBySession.get(scopeKey) ?? null;
-    const resolved = resolveBrowserPaneSessionObserver({
-      sessionKey,
-      sessions: this.sessionsResult,
-      liveObserver,
-    });
-    if (resolved) {
-      this.browserPaneObserverBySession.set(scopeKey, resolved);
-      return resolved;
-    }
-    return liveObserver;
-  }
-
   resolveSessionBrowserPanePreview(sessionKey: string): BrowserPanePreviewState | null {
     const normalizedSessionKey = sessionKey.trim();
     if (!normalizedSessionKey) {
       return null;
     }
     return {
-      observer: this.resolveVisibleBrowserPaneObserver(normalizedSessionKey),
+      browser: null,
       computer: this.getComputerSession(normalizedSessionKey),
-      markdown: this.getBrowserPaneMarkdownState(normalizedSessionKey),
+      toolOutput: this.getBrowserPaneMarkdownState(normalizedSessionKey),
       selectedSurface: this.getBrowserPaneUiState(normalizedSessionKey).selectedSurface,
     };
   }
 
-  setBrowserPaneObserver(sessionKey: string, observer: BrowserPaneObserver | null): void {
-    const normalizedSessionKey = sessionKey.trim();
-    if (!normalizedSessionKey) {
-      return;
-    }
-    const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
-    if (observer) {
-      this.browserPaneObserverBySession.set(scopeKey, observer);
-    } else {
-      this.browserPaneObserverBySession.delete(scopeKey);
-    }
-    if (normalizedSessionKey === this.sessionKey) {
-      this.syncBrowserPaneForSession(normalizedSessionKey);
-    }
-  }
-
   notifyBrowserPaneActivity(sessionKey: string): void {
-    this.notifyBrowserPaneActivityForSurface(sessionKey, "observer");
+    this.notifyBrowserPaneActivityForSurface(sessionKey, "tool_output");
   }
 
   notifyBrowserPaneActivityForSurface(sessionKey: string, surface: BrowserPaneSurfaceKind): void {
@@ -1302,23 +1284,12 @@ export class AlisioApp extends LitElement {
     const normalizedSessionKey = sessionKey.trim() || "main";
     const scopeKey = this.getBrowserPaneScopeKey(normalizedSessionKey);
     const ui = this.getBrowserPaneUiState(normalizedSessionKey);
+    const computerUi = this.getBrowserPaneComputerUiState(normalizedSessionKey);
     const markdown = this.getBrowserPaneMarkdownState(normalizedSessionKey);
-    const prefersComputerWorkspace = this.shouldPreferComputerWorkspace();
-    const observer = this.resolveVisibleBrowserPaneObserver(normalizedSessionKey);
     const computerSession = this.getComputerSession(normalizedSessionKey);
-    const observerIdentity = getBrowserPaneObserverIdentity(observer);
-    const previousObserverIdentity =
-      this.browserPaneObserverIdentityBySession.get(scopeKey) ?? null;
-    const observerJustAppeared =
-      Boolean(observerIdentity) && observerIdentity !== previousObserverIdentity;
     const hadComputerSession = this.browserPaneComputerPresenceBySession.get(scopeKey) === true;
     const hasComputerSession = Boolean(computerSession);
     const computerJustAppeared = hasComputerSession && !hadComputerSession;
-    if (observerIdentity) {
-      this.browserPaneObserverIdentityBySession.set(scopeKey, observerIdentity);
-    } else {
-      this.browserPaneObserverIdentityBySession.delete(scopeKey);
-    }
     if (hasComputerSession) {
       this.browserPaneComputerPresenceBySession.set(scopeKey, true);
     } else {
@@ -1326,49 +1297,40 @@ export class AlisioApp extends LitElement {
     }
     const hasMarkdown = Boolean(markdown.content || markdown.error);
     let selectedSurface = ui.selectedSurface;
-    if (prefersComputerWorkspace && computerSession) {
+    if (computerJustAppeared) {
       selectedSurface = "computer";
-    } else if (observerJustAppeared && !ui.touched) {
-      selectedSurface = "observer";
-    } else if (computerJustAppeared) {
-      selectedSurface = "computer";
-    } else if (selectedSurface === "observer" && !observer) {
-      selectedSurface = computerSession ? "computer" : hasMarkdown ? "markdown" : selectedSurface;
     } else if (selectedSurface === "computer" && !computerSession) {
-      selectedSurface = observer ? "observer" : hasMarkdown ? "markdown" : selectedSurface;
-    } else if (selectedSurface === "markdown" && !hasMarkdown && observer) {
-      selectedSurface = "observer";
-    } else if (selectedSurface === "markdown" && !hasMarkdown && computerSession) {
+      selectedSurface = hasMarkdown ? "tool_output" : selectedSurface;
+    } else if (selectedSurface === "tool_output" && !hasMarkdown && computerSession) {
       selectedSurface = "computer";
     }
-    const hasSurface = Boolean(observer || computerSession || hasMarkdown);
+    const hasSurface = Boolean(computerSession || hasMarkdown);
     const pendingActivitySurface = this.browserPanePendingActivityBySession.get(scopeKey) ?? null;
     const shouldOpenForPaneActivity =
-      (pendingActivitySurface === "observer" &&
-        !prefersComputerWorkspace &&
-        Boolean(observer) &&
-        !ui.touched) ||
       (pendingActivitySurface === "computer" && Boolean(computerSession)) ||
-      (pendingActivitySurface === "markdown" && hasMarkdown);
-    if (
-      pendingActivitySurface &&
-      (shouldOpenForPaneActivity ||
-        (pendingActivitySurface === "observer" && (ui.touched || prefersComputerWorkspace)))
-    ) {
+      (pendingActivitySurface === "tool_output" && hasMarkdown);
+    if (pendingActivitySurface && shouldOpenForPaneActivity) {
       this.browserPanePendingActivityBySession.delete(scopeKey);
     }
     if (shouldOpenForPaneActivity && pendingActivitySurface) {
       selectedSurface = pendingActivitySurface;
     }
-    const autoOpenObserver =
-      (!prefersComputerWorkspace && observerJustAppeared && !ui.touched) ||
-      computerJustAppeared ||
-      (!ui.touched && Boolean(computerSession || (!prefersComputerWorkspace && observer))) ||
-      shouldOpenForPaneActivity;
+    const autoOpenObserver = shouldOpenForPaneActivity;
     this.sidebarContent = markdown.content;
     this.sidebarError = markdown.error;
-    this.browserPaneObserver = observer;
     this.computerSession = computerSession;
+    const selectedReplayStepId = computerSession?.replay.steps.some(
+      (step) => step.id === computerUi.selectedReplayStepId,
+    )
+      ? computerUi.selectedReplayStepId
+      : null;
+    if (selectedReplayStepId !== computerUi.selectedReplayStepId) {
+      this.rememberBrowserPaneComputerUiState(normalizedSessionKey, {
+        selectedReplayStepId,
+      });
+    }
+    this.selectedComputerReplayStepId = selectedReplayStepId;
+    this.computerStepDetailsOpen = computerUi.detailsOpen;
     this.browserPaneSurfaceKind = selectedSurface;
     this.sidebarOpen = hasSurface && (ui.open || autoOpenObserver);
   }
@@ -1381,13 +1343,13 @@ export class AlisioApp extends LitElement {
     });
     this.rememberBrowserPaneUiState(this.sessionKey, {
       open: true,
-      selectedSurface: "markdown",
+      selectedSurface: "tool_output",
       touched: true,
     });
     this.sidebarContent = content;
     this.sidebarError = null;
     this.sidebarOpen = true;
-    this.browserPaneSurfaceKind = "markdown";
+    this.browserPaneSurfaceKind = "tool_output";
   }
 
   handleCloseSidebar() {
@@ -1408,13 +1370,31 @@ export class AlisioApp extends LitElement {
     this.sidebarOpen = true;
   }
 
+  handleSelectComputerReplayStep(stepId: string | null) {
+    this.rememberBrowserPaneComputerUiState(this.sessionKey, {
+      selectedReplayStepId: stepId,
+      ...(stepId ? { detailsOpen: true } : {}),
+    });
+    this.selectedComputerReplayStepId = stepId;
+    if (stepId) {
+      this.computerStepDetailsOpen = true;
+    }
+  }
+
+  handleToggleComputerStepDetails(open: boolean) {
+    this.rememberBrowserPaneComputerUiState(this.sessionKey, {
+      detailsOpen: open,
+    });
+    this.computerStepDetailsOpen = open;
+  }
+
   handleSplitRatioChange(ratio: number) {
     const newRatio = Math.max(0.4, Math.min(0.7, ratio));
     this.splitRatio = newRatio;
     this.applySettings({ ...this.settings, splitRatio: newRatio });
   }
 
-  handleComputerSessionCommand(command: "pause" | "resume" | "stop") {
+  handleComputerSessionCommand(command: "start" | "pause" | "resume" | "stop") {
     void updateComputerSession(this, {
       sessionKey: this.sessionKey,
       command,

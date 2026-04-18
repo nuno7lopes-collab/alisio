@@ -144,7 +144,6 @@ x-i18n:
 - [平台概览](/platforms)
 - [macOS](/platforms/macos)
 - [iOS](/platforms/ios)
-- [Android](/platforms/android)
 - [Windows (WSL2)](/platforms/windows)
 - [Linux](/platforms/linux)
 - [Web 界面](/web)

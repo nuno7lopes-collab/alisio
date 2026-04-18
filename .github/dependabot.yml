@@ -97,22 +97,6 @@ updates:
           - patch
     open-pull-requests-limit: 5
 
-  # Gradle - Android app
-  - package-ecosystem: gradle
-    directory: /apps/android
-    schedule:
-      interval: daily
-    cooldown:
-      default-days: 2
-    groups:
-      android-deps:
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-    open-pull-requests-limit: 5
-
   # Docker base images
   - package-ecosystem: docker
     directory: /

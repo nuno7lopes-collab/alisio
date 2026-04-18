@@ -36,7 +36,7 @@ export { formatAllowlistMatchMeta } from "../channels/plugins/allowlist-match.js
 export {
   buildChannelKeyCandidates,
   resolveChannelEntryMatch,
-} from "../channels/plugins/channel-config.js";
+} from "../channels/channel-config.js";
 export { getChatChannelMeta } from "./channel-plugin-common.js";
 export { createAccountListHelpers } from "../channels/plugins/account-helpers.js";
 export {

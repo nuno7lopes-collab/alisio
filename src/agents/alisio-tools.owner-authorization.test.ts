@@ -22,6 +22,7 @@ describe("createAlisioTools owner authorization", () => {
     expect(tools.get("google_sheets")?.ownerOnly).toBe(true);
     expect(tools.get("gateway")?.ownerOnly).toBe(true);
     expect(tools.get("nodes")?.ownerOnly).toBe(true);
+    expect(tools.get("stripe")?.ownerOnly).toBe(true);
     expect(tools.get("youtube")?.ownerOnly).toBe(true);
   });
 

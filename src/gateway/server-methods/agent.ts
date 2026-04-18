@@ -150,7 +150,6 @@ function emitSessionsChanged(
             subagentControlScope: sessionRow.subagentControlScope,
             label: sessionRow.label,
             displayName: sessionRow.displayName,
-            observer: sessionRow.observer,
             deliveryContext: sessionRow.deliveryContext,
             parentSessionKey: sessionRow.parentSessionKey,
             childSessions: sessionRow.childSessions,

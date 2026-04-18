@@ -1,14 +1,14 @@
 ---
-summary: "CLI reference for `alisio qr` (generate iOS pairing QR + setup code)"
+summary: "CLI reference for `alisio qr` (generate device pairing QR + setup code)"
 read_when:
-  - You want to pair the iOS app with a gateway quickly
+  - You want to pair a device app with a gateway quickly
   - You need setup-code output for remote/manual sharing
 title: "qr"
 ---
 
 # `alisio qr`
 
-Generate an iOS pairing QR and setup code from your current Gateway configuration.
+Generate a device pairing QR and setup code from your current Gateway configuration.
 
 ## Usage
 

@@ -22,8 +22,9 @@ import {
 } from "../chat-model.test-helpers.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import { DEFAULT_THEME_SELECTION } from "../theme.ts";
-import type { ModelCatalogEntry } from "../types.ts";
+import type { ComputerSessionState, ModelCatalogEntry } from "../types.ts";
 import type { SessionsListResult } from "../types.ts";
+import { renderBrowserPane } from "./browser-pane.ts";
 import { cleanupChatModuleState, renderChat, type ChatProps } from "./chat.ts";
 
 function createSessions(): SessionsListResult {
@@ -252,7 +253,501 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
   };
 }
 
+function createWorkspaceComputerSession(
+  overrides: Partial<ComputerSessionState> = {},
+): ComputerSessionState {
+  return {
+    sessionKey: "main",
+    backend: "local-mac",
+    status: "running",
+    mode: "foreground_supervised",
+    target: {
+      id: "local-mac:mac-local:display:display-main",
+      label: "Local Mac (display-main)",
+      kind: "local-mac-host",
+      nodeId: "mac-local",
+      displayId: "display-main",
+      globalInput: true,
+      allowsConcurrentObserve: true,
+    },
+    capabilities: [
+      {
+        kind: "observe_only",
+        available: true,
+        exposure: "exposed",
+        reason: "Read-only screen capture is supported on the local Mac.",
+      },
+      {
+        kind: "foreground_control",
+        available: true,
+        exposure: "exposed",
+        reason:
+          "Control uses real macOS Accessibility input and may move focus, cursor, or global input.",
+      },
+      {
+        kind: "background_safe_control",
+        available: false,
+        exposure: "hidden",
+        reason:
+          "Local macOS control is not background-safe because it still depends on real foreground input.",
+      },
+      {
+        kind: "future_virtualized_control",
+        available: false,
+        exposure: "hidden",
+        reason: "No virtualized desktop target exists in the current local-mac runtime.",
+      },
+    ],
+    approvedApps: ["com.apple.safari"],
+    policy: {
+      allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+      deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+      sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+      commandLikeActions: [],
+    },
+    safety: {
+      level: "elevated",
+      lastEvent: {
+        id: "safety-1",
+        at: 800,
+        type: "untrusted_external_content",
+        reasonCode: "untrusted_external_content",
+        summary: "External content is untrusted by default.",
+        heuristic: true,
+        appName: "Safari",
+        appBundleId: "com.apple.Safari",
+        windowTitle: "Docs",
+      },
+      recentEvents: [
+        {
+          id: "safety-1",
+          at: 800,
+          type: "untrusted_external_content",
+          reasonCode: "untrusted_external_content",
+          summary: "External content is untrusted by default.",
+          heuristic: true,
+          appName: "Safari",
+          appBundleId: "com.apple.Safari",
+          windowTitle: "Docs",
+        },
+      ],
+    },
+    replay: {
+      frames: [
+        {
+          frameId: "frame-1",
+          capturedAt: 900,
+          stepId: "step-1",
+          stepSequence: 1,
+          stepPhase: "observe-before-action",
+          observation: {
+            frame: {
+              id: "frame-1",
+              dataUrl: "data:image/png;base64,frame-one",
+              mimeType: "image/png",
+              width: 1440,
+              height: 900,
+              pixelWidth: 2880,
+              pixelHeight: 1800,
+              logicalWidth: 1440,
+              logicalHeight: 900,
+              scaleFactor: 2,
+              orientation: "landscape",
+              displayId: "display-main",
+              sourceSpace: "display-pixel",
+              capturedAt: 900,
+              maxAgeMs: 1500,
+              staleAt: 2400,
+              cursor: {
+                x: 320,
+                y: 210,
+                visible: true,
+              },
+            },
+            context: {
+              display: {
+                id: "display-main",
+                width: 1440,
+                height: 900,
+                scale: 2,
+                logicalWidth: 1440,
+                logicalHeight: 900,
+                pixelWidth: 2880,
+                pixelHeight: 1800,
+                orientation: "landscape",
+              },
+              activeApp: {
+                name: "Safari",
+                bundleId: "com.apple.Safari",
+                processId: 77,
+              },
+              activeWindow: {
+                title: "Docs",
+              },
+              capturedAt: 900,
+            },
+          },
+          metadata: {
+            frameHash: "frame-hash-1",
+            sizeBytes: 1024,
+            captureLatencyMs: 14,
+            stale: false,
+            stalenessMs: 14,
+            transform: {
+              sourceSpace: "display-pixel",
+              sourceWidth: 2880,
+              sourceHeight: 1800,
+            },
+            display: {
+              id: "display-main",
+              width: 1440,
+              height: 900,
+              scale: 2,
+              logicalWidth: 1440,
+              logicalHeight: 900,
+              pixelWidth: 2880,
+              pixelHeight: 1800,
+              orientation: "landscape",
+            },
+            activeApp: {
+              name: "Safari",
+              bundleId: "com.apple.Safari",
+              processId: 77,
+            },
+            activeWindow: {
+              title: "Docs",
+            },
+          },
+        },
+        {
+          frameId: "frame-2",
+          capturedAt: 1000,
+          stepId: "step-1",
+          stepSequence: 1,
+          stepPhase: "observe-after-action",
+          observation: {
+            frame: {
+              id: "frame-2",
+              dataUrl: "data:image/png;base64,frame-two",
+              mimeType: "image/png",
+              width: 1440,
+              height: 900,
+              pixelWidth: 2880,
+              pixelHeight: 1800,
+              logicalWidth: 1440,
+              logicalHeight: 900,
+              scaleFactor: 2,
+              orientation: "landscape",
+              displayId: "display-main",
+              sourceSpace: "display-pixel",
+              capturedAt: 1000,
+              maxAgeMs: 1500,
+              staleAt: 2500,
+              cursor: {
+                x: 640,
+                y: 320,
+                visible: true,
+              },
+            },
+            context: {
+              display: {
+                id: "display-main",
+                width: 1440,
+                height: 900,
+                scale: 2,
+                logicalWidth: 1440,
+                logicalHeight: 900,
+                pixelWidth: 2880,
+                pixelHeight: 1800,
+                orientation: "landscape",
+              },
+              activeApp: {
+                name: "Safari",
+                bundleId: "com.apple.Safari",
+                processId: 77,
+              },
+              activeWindow: {
+                title: "Docs",
+              },
+              capturedAt: 1000,
+            },
+          },
+          metadata: {
+            frameHash: "frame-hash-2",
+            sizeBytes: 1200,
+            captureLatencyMs: 18,
+            stale: false,
+            stalenessMs: 18,
+            transform: {
+              sourceSpace: "display-pixel",
+              sourceWidth: 2880,
+              sourceHeight: 1800,
+            },
+            display: {
+              id: "display-main",
+              width: 1440,
+              height: 900,
+              scale: 2,
+              logicalWidth: 1440,
+              logicalHeight: 900,
+              pixelWidth: 2880,
+              pixelHeight: 1800,
+              orientation: "landscape",
+            },
+            activeApp: {
+              name: "Safari",
+              bundleId: "com.apple.Safari",
+              processId: 77,
+            },
+            activeWindow: {
+              title: "Docs",
+            },
+          },
+        },
+      ],
+      steps: [
+        {
+          id: "step-1",
+          sequence: 1,
+          toolCallId: "tool-1",
+          kind: "action",
+          phase: "observe-after-action",
+          status: "completed",
+          summary: "Click the docs navigation item",
+          actionType: "click",
+          sourceFrameId: "frame-1",
+          resultFrameId: "frame-2",
+          startedAt: 900,
+          updatedAt: 1000,
+          totalElapsedMs: 100,
+          lastActionElapsedMs: 72,
+          actionCount: 1,
+          approvalCount: 0,
+          safetyEventsCount: 1,
+          action: {
+            actionId: "action-1",
+            type: "click",
+            summary: "Click docs navigation item",
+            coordinateSpace: "display-pixel",
+            referenceWidth: 1440,
+            referenceHeight: 900,
+            target: {
+              x: 320,
+              y: 220,
+            },
+          },
+        },
+      ],
+      actionCount: 1,
+      safetyEventsCount: 1,
+    },
+    permissions: {
+      accessibility: true,
+      screenRecording: true,
+    },
+    blocking: null,
+    runtime: {
+      connectionState: "running",
+      launchCount: 1,
+      helperProtocolVersion: 2,
+      helperVersion: "1.0.0",
+      helperProcessId: 4242,
+      activeSession: {
+        sessionKey: "main",
+        state: "running",
+        updatedAt: 1000,
+      },
+      lastError: null,
+    },
+    context: {
+      display: {
+        id: "display-main",
+        width: 1440,
+        height: 900,
+        scale: 2,
+        logicalWidth: 1440,
+        logicalHeight: 900,
+        pixelWidth: 2880,
+        pixelHeight: 1800,
+        orientation: "landscape",
+      },
+      activeApp: {
+        name: "Safari",
+        bundleId: "com.apple.Safari",
+        processId: 77,
+      },
+      activeWindow: {
+        title: "Docs",
+      },
+      capturedAt: 1000,
+    },
+    frame: {
+      id: "frame-2",
+      dataUrl: "data:image/png;base64,frame-two",
+      mimeType: "image/png",
+      width: 1440,
+      height: 900,
+      pixelWidth: 2880,
+      pixelHeight: 1800,
+      logicalWidth: 1440,
+      logicalHeight: 900,
+      scaleFactor: 2,
+      orientation: "landscape",
+      displayId: "display-main",
+      sourceSpace: "display-pixel",
+      capturedAt: 1000,
+      maxAgeMs: 1500,
+      staleAt: 2500,
+      cursor: {
+        x: 640,
+        y: 320,
+        visible: true,
+      },
+    },
+    stepCounter: 1,
+    activeStep: null,
+    lastCompletedStep: {
+      id: "step-1",
+      sequence: 1,
+      toolCallId: "tool-1",
+      kind: "action",
+      phase: "observe-after-action",
+      status: "completed",
+      summary: "Click the docs navigation item",
+      actionType: "click",
+      sourceFrameId: "frame-1",
+      resultFrameId: "frame-2",
+      startedAt: 900,
+      updatedAt: 1000,
+    },
+    timeline: [
+      {
+        id: "timeline-1",
+        at: 900,
+        kind: "observation",
+        summary: "Captured the source frame.",
+        stepId: "step-1",
+        stepSequence: 1,
+        toolCallId: "tool-1",
+        stepPhase: "observe-before-action",
+        resultFrameId: "frame-1",
+      },
+      {
+        id: "timeline-2",
+        at: 950,
+        kind: "action",
+        summary: "Clicked the docs navigation item.",
+        stepId: "step-1",
+        stepSequence: 1,
+        toolCallId: "tool-1",
+        stepPhase: "action",
+        actionId: "action-1",
+        actionResultId: "action-result-1",
+        sourceFrameId: "frame-1",
+        success: true,
+        elapsedMs: 72,
+        retryCount: 0,
+      },
+      {
+        id: "timeline-3",
+        at: 1000,
+        kind: "safety",
+        summary: "External content kept the session elevated.",
+        stepId: "step-1",
+        stepSequence: 1,
+        toolCallId: "tool-1",
+        stepPhase: "observe-after-action",
+        safetyEventType: "untrusted_external_content",
+        reasonCode: "untrusted_external_content",
+        heuristic: true,
+      },
+    ],
+    eventLog: [
+      {
+        id: "event-1",
+        ordinal: 1,
+        at: 900,
+        code: "frame_captured",
+        summary: "Captured the source frame.",
+        sessionId: "main",
+        toolCallId: "tool-1",
+        stepId: "step-1",
+        stepSequence: 1,
+        stepPhase: "observe-before-action",
+        status: "observing",
+        sourceFrameId: "frame-1",
+      },
+      {
+        id: "event-2",
+        ordinal: 2,
+        at: 940,
+        code: "action_validated",
+        summary: "Action validated.",
+        sessionId: "main",
+        toolCallId: "tool-1",
+        stepId: "step-1",
+        stepSequence: 1,
+        stepPhase: "action",
+        status: "running",
+        actionType: "click",
+        actionId: "action-1",
+      },
+      {
+        id: "event-3",
+        ordinal: 3,
+        at: 950,
+        code: "action_executed",
+        summary: "Clicked the docs navigation item.",
+        sessionId: "main",
+        toolCallId: "tool-1",
+        stepId: "step-1",
+        stepSequence: 1,
+        stepPhase: "action",
+        status: "running",
+        actionType: "click",
+        actionId: "action-1",
+        nativeActionId: "action-result-1",
+        success: true,
+        elapsedMs: 72,
+      },
+      {
+        id: "event-4",
+        ordinal: 4,
+        at: 1000,
+        code: "safety_raised",
+        summary: "External content is untrusted by default.",
+        sessionId: "main",
+        toolCallId: "tool-1",
+        stepId: "step-1",
+        stepSequence: 1,
+        stepPhase: "observe-after-action",
+        status: "running",
+        actionType: "click",
+        reasonCode: "untrusted_external_content",
+        safetyEventType: "untrusted_external_content",
+        heuristic: true,
+      },
+    ],
+    buffers: {
+      eventLimit: 160,
+      replayFrameLimit: 24,
+      replayStepLimit: 24,
+      timelineLimit: 80,
+      eventLogTruncated: false,
+      replayFramesTruncated: false,
+      replayStepsTruncated: false,
+      timelineTruncated: false,
+    },
+    awaitingApproval: null,
+    lastError: null,
+    startedAt: 100,
+    updatedAt: 1000,
+    ...overrides,
+  };
+}
+
 afterEach(() => {
+  vi.useRealTimers();
   cleanupChatModuleState();
   document.body.innerHTML = "";
 });
@@ -640,7 +1135,7 @@ describe("chat view", () => {
         createProps({
           sidebarOpen: true,
           sidebarContent: "Hello **world**",
-          browserPaneSurfaceKind: "markdown",
+          browserPaneSurfaceKind: "tool_output",
           onCloseSidebar: () => undefined,
         }),
       ),
@@ -650,44 +1145,6 @@ describe("chat view", () => {
     expect(container.querySelector(".browser-pane")).not.toBeNull();
     expect(container.querySelector(".sidebar-markdown strong")?.textContent).toBe("world");
     expect(container.querySelector("resizable-divider")).not.toBeNull();
-  });
-
-  it("keeps the existing split container and renders the observer iframe", () => {
-    const container = document.createElement("div");
-    const onSelectBrowserPaneSurface = vi.fn();
-    render(
-      renderChat(
-        createProps({
-          sidebarOpen: true,
-          sidebarContent: "Hello **world**",
-          browserPaneSurfaceKind: "observer",
-          browserPaneObserver: {
-            kind: "novnc",
-            url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-            label: "Observed browser",
-          },
-          onCloseSidebar: () => undefined,
-          onSelectBrowserPaneSurface,
-        }),
-      ),
-      container,
-    );
-
-    expect(container.querySelector(".chat-split-container--open")).not.toBeNull();
-    expect(container.querySelector(".browser-pane__iframe")?.getAttribute("src")).toBe(
-      "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-    );
-
-    const switchButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".browser-pane__switch button"),
-    );
-    expect(switchButtons.map((button) => button.textContent?.trim())).toEqual([
-      "Sandbox Browser",
-      "Tool output",
-    ]);
-
-    switchButtons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onSelectBrowserPaneSurface).toHaveBeenCalledWith("markdown");
   });
 
   it("renders the computer surface with controls and approval actions", () => {
@@ -704,17 +1161,39 @@ describe("chat view", () => {
             sessionKey: "main",
             backend: "local-mac",
             status: "awaiting-approval",
-            mode: "control-approved-apps",
+            mode: "approved_apps_only",
             approvedApps: [],
+            policy: {
+              allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+              deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+              sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+              commandLikeActions: [],
+            },
+            safety: {
+              level: "normal",
+              recentEvents: [],
+            },
+            replay: {
+              frames: [],
+              steps: [],
+              actionCount: 0,
+              safetyEventsCount: 0,
+            },
             permissions: {
               accessibility: false,
               screenRecording: true,
             },
             context: {
               display: {
+                id: "display-1",
                 width: 1440,
                 height: 900,
                 scale: 2,
+                logicalWidth: 1440,
+                logicalHeight: 900,
+                pixelWidth: 2880,
+                pixelHeight: 1800,
+                orientation: "landscape",
               },
               activeApp: {
                 name: "Finder",
@@ -726,11 +1205,22 @@ describe("chat view", () => {
               capturedAt: 10,
             },
             frame: {
+              id: "frame-approval",
               dataUrl: "data:image/jpeg;base64,abc",
               mimeType: "image/jpeg",
               width: 1440,
               height: 900,
+              pixelWidth: 2880,
+              pixelHeight: 1800,
+              logicalWidth: 1440,
+              logicalHeight: 900,
+              scaleFactor: 2,
+              orientation: "landscape",
+              displayId: "display-1",
+              sourceSpace: "display-pixel",
               capturedAt: 10,
+              maxAgeMs: 1000,
+              staleAt: 1010,
               cursor: {
                 x: 120,
                 y: 64,
@@ -744,7 +1234,7 @@ describe("chat view", () => {
                 kind: "approval",
                 summary: "open Finder awaiting approval",
                 status: "awaiting-approval",
-                actionType: "app_focus",
+                actionType: "focus_app",
                 stepSequence: 3,
                 stepId: "step-3",
                 toolCallId: "tool-computer-1",
@@ -760,17 +1250,20 @@ describe("chat view", () => {
               phase: "awaiting-approval",
               status: "awaiting-approval",
               summary: "focus app Finder",
-              actionType: "app_focus",
+              actionType: "focus_app",
               startedAt: 9,
               updatedAt: 10,
             },
             awaitingApproval: {
               id: "approval-1",
               createdAt: 10,
-              actionType: "app_focus",
+              actionType: "focus_app",
               actionSummary: "focus app Finder",
               reason: "action targets unapproved app com.apple.finder",
+              reasonCode: "unapproved_app",
+              policyDecision: "require_session",
               sensitive: true,
+              safetyEvents: [],
               appName: "Finder",
               appBundleId: "com.apple.finder",
               stepId: "step-3",
@@ -806,72 +1299,6 @@ describe("chat view", () => {
     expect(onRequestComputerPermission).toHaveBeenCalledWith("accessibility");
   });
 
-  it("does not auto-open the observer pane when a live observer appears after the pane was previously touched", async () => {
-    window.history.replaceState({}, "", "/chat?session=main");
-    const app = document.createElement("alisio-app") as AlisioApp;
-    document.body.append(app);
-    app.handleOpenSidebar("Detalhes");
-    app.handleCloseSidebar();
-    await app.updateComplete;
-
-    expect(app.sidebarOpen).toBe(false);
-
-    app.setBrowserPaneObserver("main", {
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Observed browser",
-    });
-    await app.updateComplete;
-
-    expect(app.sidebarOpen).toBe(false);
-  });
-
-  it("does not reopen the pane on repeated observer updates that only rotate the token", async () => {
-    window.history.replaceState({}, "", "/chat?session=main");
-    const app = document.createElement("alisio-app") as AlisioApp;
-    document.body.append(app);
-
-    app.setBrowserPaneObserver("main", {
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Observed browser",
-    });
-    await app.updateComplete;
-    app.handleCloseSidebar();
-    await app.updateComplete;
-
-    app.setBrowserPaneObserver("main", {
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=def",
-      label: "Observed browser",
-    });
-    await app.updateComplete;
-
-    expect(app.sidebarOpen).toBe(false);
-  });
-
-  it("does not reopen the observer pane when browser activity arrives after the user closed it", async () => {
-    window.history.replaceState({}, "", "/chat?session=main");
-    const app = document.createElement("alisio-app") as AlisioApp;
-    document.body.append(app);
-
-    app.setBrowserPaneObserver("main", {
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Observed browser",
-    });
-    await app.updateComplete;
-    app.handleCloseSidebar();
-    await app.updateComplete;
-
-    expect(app.sidebarOpen).toBe(false);
-
-    app.notifyBrowserPaneActivity("main");
-    await app.updateComplete;
-
-    expect(app.sidebarOpen).toBe(false);
-  });
-
   it("reopens the computer pane when computer activity arrives after the user closed it", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
@@ -881,26 +1308,59 @@ describe("chat view", () => {
       sessionKey: "main",
       backend: "local-mac",
       status: "observing",
-      mode: "control-approved-apps",
+      mode: "approved_apps_only",
       approvedApps: [],
+      policy: {
+        allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+        deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+        sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+        commandLikeActions: [],
+      },
+      safety: {
+        level: "normal",
+        recentEvents: [],
+      },
+      replay: {
+        frames: [],
+        steps: [],
+        actionCount: 0,
+        safetyEventsCount: 0,
+      },
       permissions: {
         accessibility: true,
         screenRecording: true,
       },
       context: {
         display: {
+          id: "display-1",
           width: 1440,
           height: 900,
           scale: 2,
+          logicalWidth: 1440,
+          logicalHeight: 900,
+          pixelWidth: 2880,
+          pixelHeight: 1800,
+          orientation: "landscape",
         },
         capturedAt: 10,
       },
       frame: {
+        id: "frame-sidebar",
         dataUrl: "data:image/jpeg;base64,abc",
         mimeType: "image/jpeg",
         width: 1440,
         height: 900,
+        pixelWidth: 2880,
+        pixelHeight: 1800,
+        logicalWidth: 1440,
+        logicalHeight: 900,
+        scaleFactor: 2,
+        orientation: "landscape",
+        displayId: "display-1",
+        sourceSpace: "display-pixel",
         capturedAt: 10,
+        maxAgeMs: 1000,
+        staleAt: 1010,
       },
       stepCounter: 0,
       timeline: [],
@@ -921,7 +1381,7 @@ describe("chat view", () => {
     expect(app.querySelector(".computer-pane__frame-image")).not.toBeNull();
   });
 
-  it("prefers the computer pane and hides the sandbox observer in the native mac shell", async () => {
+  it("does not auto-open the computer pane until the user reopens it or activity arrives", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
     document.body.append(app);
@@ -947,35 +1407,63 @@ describe("chat view", () => {
       },
       logsPath: null,
     };
-    app.setBrowserPaneObserver("main", {
-      kind: "novnc",
-      url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      label: "Observed browser",
-    });
     app.setComputerSession("main", {
       sessionKey: "main",
       backend: "local-mac",
       status: "observing",
-      mode: "control-approved-apps",
+      mode: "approved_apps_only",
       approvedApps: [],
+      policy: {
+        allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+        deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+        sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
+        commandLikeActions: [],
+      },
+      safety: {
+        level: "normal",
+        recentEvents: [],
+      },
+      replay: {
+        frames: [],
+        steps: [],
+        actionCount: 0,
+        safetyEventsCount: 0,
+      },
       permissions: {
         accessibility: true,
         screenRecording: true,
       },
       context: {
         display: {
+          id: "display-1",
           width: 1440,
           height: 900,
           scale: 2,
+          logicalWidth: 1440,
+          logicalHeight: 900,
+          pixelWidth: 2880,
+          pixelHeight: 1800,
+          orientation: "landscape",
         },
         capturedAt: 10,
       },
       frame: {
+        id: "frame-native",
         dataUrl: "data:image/jpeg;base64,abc",
         mimeType: "image/jpeg",
         width: 1440,
         height: 900,
+        pixelWidth: 2880,
+        pixelHeight: 1800,
+        logicalWidth: 1440,
+        logicalHeight: 900,
+        scaleFactor: 2,
+        orientation: "landscape",
+        displayId: "display-1",
+        sourceSpace: "display-pixel",
         capturedAt: 10,
+        maxAgeMs: 1000,
+        staleAt: 1010,
       },
       stepCounter: 0,
       timeline: [],
@@ -985,60 +1473,296 @@ describe("chat view", () => {
     await app.updateComplete;
 
     expect(app.browserPaneSurfaceKind).toBe("computer");
-    expect(app.browserPaneObserver).toBeNull();
-    expect(app.querySelector(".browser-pane__iframe")).toBeNull();
+    expect(app.sidebarOpen).toBe(false);
+    expect(app.querySelector(".alisio-chat__workspace-toggle button")?.textContent).toContain(
+      "Open Computer",
+    );
+
+    (app.querySelector(".alisio-chat__workspace-toggle button") as HTMLButtonElement | null)?.click();
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.querySelector(".computer-pane__frame-image")).not.toBeNull();
   });
 
-  it("hides the sandbox observer surface in the native mac shell even when the pane is open", () => {
+  it("renders the workspace computer pane with replay, diff, metrics and step details", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(1100));
     const container = document.createElement("div");
     render(
-      renderChat(
-        createProps({
-          sidebarOpen: true,
-          browserPaneSurfaceKind: "observer",
-          browserPaneObserver: {
-            kind: "novnc",
-            url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-            label: "Observed browser",
-          },
-          nativeShellState: {
-            platform: "macos",
-            launchAtLogin: false,
-            permissions: {
-              notifications: true,
-              appleScript: true,
-              accessibility: true,
-              screenRecording: true,
-              microphone: true,
-              speechRecognition: true,
-              camera: true,
-              location: true,
-            },
-            voiceWake: {
-              supported: false,
-              enabled: false,
-              talkEnabled: false,
-              triggers: [],
-            },
-            logsPath: null,
-          },
-          onCloseSidebar: () => undefined,
-        }),
-      ),
+      renderBrowserPane({
+        computer: createWorkspaceComputerSession(),
+        selectedSurface: "computer",
+        selectedComputerReplayStepId: "step-1",
+        computerStepDetailsOpen: true,
+      }),
       container,
     );
 
-    expect(container.querySelector(".browser-pane__iframe")).toBeNull();
-    expect(container.querySelector(".chat-split-container--open")).toBeNull();
+    expect(container.querySelector(".computer-pane")).not.toBeNull();
+    expect(container.querySelector(".computer-pane__frame-image")).not.toBeNull();
+    expect(container.querySelector(".computer-pane__diff-layer")).not.toBeNull();
+    expect(container.querySelector(".computer-pane__action-overlay")).not.toBeNull();
+    expect(container.querySelector(".computer-pane__cursor")).not.toBeNull();
+    expect(container.querySelector(".computer-pane__scrubber")).not.toBeNull();
+    expect(container.querySelectorAll(".computer-pane__step-card")).toHaveLength(1);
+    expect(container.textContent).toContain("Safari");
+    expect(container.textContent).toContain("Docs");
+    expect(container.textContent).toContain("pid 4242");
+    expect(container.textContent).toContain("Click docs navigation item");
+    expect(container.textContent).toContain("External content is untrusted by default.");
+    expect(container.textContent).toContain("Event log");
+    expect(container.textContent).toContain("Capture latency");
+    expect(container.textContent).toContain("Fresh frame");
   });
 
-  it("does not open an empty split when the session has no observer and no markdown", () => {
+  it("renders partial replay and error inspector states without crashing on missing frames", () => {
+    const container = document.createElement("div");
+    render(
+      renderBrowserPane({
+        computer: createWorkspaceComputerSession({
+          replay: {
+            ...createWorkspaceComputerSession().replay,
+            frames: [],
+          },
+          eventLog: [
+            {
+              id: "event-fail-1",
+              ordinal: 1,
+              at: 1000,
+              code: "action_failed",
+              summary: "Click failed because the frame was stale.",
+              sessionId: "main",
+              toolCallId: "tool-1",
+              stepId: "step-1",
+              stepSequence: 1,
+              stepPhase: "action",
+              status: "error",
+              actionType: "click",
+              actionId: "action-1",
+              failureCategory: "stale-frame",
+            },
+          ],
+          buffers: {
+            eventLimit: 160,
+            replayFrameLimit: 24,
+            replayStepLimit: 24,
+            timelineLimit: 80,
+            eventLogTruncated: true,
+            replayFramesTruncated: true,
+            replayStepsTruncated: false,
+            timelineTruncated: false,
+          },
+        }),
+        selectedSurface: "computer",
+        selectedComputerReplayStepId: "step-1",
+        computerStepDetailsOpen: true,
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Replay data is partial");
+    expect(container.textContent).toContain("Error inspector");
+    expect(container.textContent).toContain("Click failed because the frame was stale.");
+    expect(container.textContent).toContain("frame that is no longer in the local replay buffer");
+  });
+
+  it("renders explicit workspace surfaces and exposes replay interactions", () => {
+    const onSelectSurface = vi.fn();
+    const onSelectComputerReplayStep = vi.fn();
+    const onToggleComputerStepDetails = vi.fn();
+    const container = document.createElement("div");
+    render(
+      renderBrowserPane({
+        browser: {
+          title: "Browser sandbox",
+          subtitle: "Isolated browser",
+          url: "https://docs.alisio.ai",
+          screenshotUrl: "data:image/png;base64,browser-shot",
+          status: "running",
+        },
+        computer: createWorkspaceComputerSession(),
+        toolOutput: {
+          content: "Tool output body",
+          error: null,
+        },
+        selectedSurface: "computer",
+        selectedComputerReplayStepId: "step-1",
+        computerStepDetailsOpen: true,
+        onSelectSurface,
+        onSelectComputerReplayStep,
+        onToggleComputerStepDetails,
+      }),
+      container,
+    );
+
+    const switchButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".browser-pane__switch button"),
+    );
+    expect(switchButtons.map((button) => button.textContent?.trim())).toEqual([
+      "Browser",
+      "Computer",
+      "Tool output",
+    ]);
+
+    switchButtons[0]?.click();
+    expect(onSelectSurface).toHaveBeenCalledWith("browser");
+
+    const scrubber = container.querySelector(".computer-pane__scrubber") as HTMLInputElement | null;
+    scrubber?.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(onSelectComputerReplayStep).toHaveBeenCalledWith("step-1");
+
+    const detailToggle = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".computer-pane__replay-actions button"),
+    ).find((button) => button.textContent?.includes("Hide details"));
+    detailToggle?.click();
+    expect(onToggleComputerStepDetails).toHaveBeenCalledWith(false);
+  });
+
+  it("renders a start control for stopped computer sessions", () => {
+    const onComputerSessionCommand = vi.fn();
+    const container = document.createElement("div");
+    render(
+      renderBrowserPane({
+        computer: createWorkspaceComputerSession({
+          status: "stopped",
+        }),
+        selectedSurface: "computer",
+        onComputerSessionCommand,
+      }),
+      container,
+    );
+
+    Array.from(container.querySelectorAll<HTMLButtonElement>(".computer-pane button"))
+      .find((button) => button.textContent?.includes("Start"))
+      ?.click();
+
+    expect(onComputerSessionCommand).toHaveBeenCalledWith("start");
+  });
+
+  it("shows approval controls and permission guidance from the workspace session state", () => {
+    const onComputerSessionApproval = vi.fn();
+    const onRequestComputerPermission = vi.fn();
+    const container = document.createElement("div");
+    render(
+      renderBrowserPane({
+        computer: createWorkspaceComputerSession({
+          status: "awaiting-approval",
+          permissions: {
+            accessibility: false,
+            screenRecording: false,
+          },
+          awaitingApproval: {
+            id: "approval-1",
+            createdAt: 1000,
+            actionType: "open_url",
+            actionSummary: "Open https://billing.example.com",
+            reason: "Host is outside the approved scope.",
+            reasonCode: "scope_escape_attempt",
+            policyDecision: "require_once",
+            sensitive: true,
+            safetyEvents: [
+              {
+                id: "safety-2",
+                at: 1000,
+                type: "scope_escape_attempt",
+                reasonCode: "scope_escape_attempt",
+                summary: "Attempt to leave the approved scope.",
+                heuristic: true,
+                host: "billing.example.com",
+              },
+            ],
+            stepId: "step-1",
+            stepSequence: 1,
+            toolCallId: "tool-1",
+          },
+        }),
+        selectedSurface: "computer",
+        onComputerSessionApproval,
+        onRequestComputerPermission,
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Awaiting approval");
+    expect(container.textContent).toContain("Host is outside the approved scope.");
+    expect(container.textContent).toContain("scope_escape_attempt");
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".computer-pane button"),
+    );
+    buttons.find((button) => button.textContent?.includes("Approve once"))?.click();
+    buttons.find((button) => button.textContent?.includes("Approve for session"))?.click();
+    buttons.find((button) => button.textContent?.includes("Deny"))?.click();
+    buttons
+      .filter((button) => button.textContent?.includes("Grant access"))
+      .forEach((button) => button.click());
+
+    expect(onComputerSessionApproval).toHaveBeenCalledWith("allow-once");
+    expect(onComputerSessionApproval).toHaveBeenCalledWith("allow-session");
+    expect(onComputerSessionApproval).toHaveBeenCalledWith("deny");
+    expect(onRequestComputerPermission).toHaveBeenCalledTimes(4);
+    expect(onRequestComputerPermission).toHaveBeenCalledWith("screenRecording");
+    expect(onRequestComputerPermission).toHaveBeenCalledWith("accessibility");
+  });
+
+  it("shows honest foreground control, background ownership and focus blocking", () => {
+    const onOpenComputerSession = vi.fn();
+    const container = document.createElement("div");
+    render(
+      renderBrowserPane({
+        computer: createWorkspaceComputerSession({
+          sessionKey: "observer-session",
+          blocking: {
+            kind: "blocked_on_focus",
+            reasonCode: "focus_required",
+            summary:
+              "foreground control required; session main already owns local-mac:mac-local:display:display-main",
+            at: 1100,
+            targetId: "local-mac:mac-local:display:display-main",
+            ownerSessionKey: "main",
+            foregroundControlRequired: true,
+            actionType: "click",
+          },
+          runtime: {
+            connectionState: "running",
+            launchCount: 1,
+            helperProtocolVersion: 2,
+            helperVersion: "1.0.0",
+            helperProcessId: 4242,
+            activeSession: {
+              sessionKey: "main",
+              state: "running",
+              updatedAt: 1000,
+            },
+            lastError: null,
+          },
+        }),
+        selectedSurface: "computer",
+        onOpenComputerSession,
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Background session");
+    expect(container.textContent).toContain("Foreground control required");
+    expect(container.textContent).toContain("Control owner: main");
+
+    const switchButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".computer-pane button"),
+    ).find((button) => button.textContent?.includes("Open active session"));
+    switchButton?.click();
+
+    expect(onOpenComputerSession).toHaveBeenCalledWith("main");
+  });
+
+  it("does not open an empty split when the session has no computer surface and no markdown", () => {
     const container = document.createElement("div");
     render(
       renderChat(
         createProps({
           sidebarOpen: true,
-          browserPaneSurfaceKind: "observer",
+          browserPaneSurfaceKind: "computer",
           onCloseSidebar: () => undefined,
         }),
       ),
@@ -1047,7 +1771,7 @@ describe("chat view", () => {
 
     expect(container.querySelector(".chat-split-container--open")).toBeNull();
     expect(container.querySelector(".chat-sidebar")).toBeNull();
-    expect(container.querySelector(".browser-pane__iframe")).toBeNull();
+    expect(container.querySelector(".computer-pane")).toBeNull();
   });
 
   it("renders first-load skeletons with the same grouped structure as real chat rows", () => {

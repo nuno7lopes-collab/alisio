@@ -318,6 +318,54 @@ describe("@alisio/memory-service", () => {
     expect(result.trace.isolation.deniedCount).toBe(1);
   });
 
+  it("allows private working-set items in the canonical main session", async () => {
+    const privateItem: MemoryContextItem = {
+      id: "session-private-main",
+      layer: "L1",
+      kind: "event",
+      title: "Private main-session event",
+      text: "This should remain available in the principal main session.",
+      visibility: "private",
+      reasonCodes: ["recent"],
+      scoreBreakdown: {
+        recency: 1,
+        confidence: 0.4,
+        lexical: 0.6,
+        vector: 0.2,
+        userFeedback: 0,
+      },
+      provenance: {
+        sourceLocator: "session:main",
+        evidenceIds: ["session-private-main"],
+      },
+      tokenCount: 8,
+    };
+    const { service } = createBaseService({
+      alwaysVisible: [],
+      workingSet: [privateItem],
+      structured: [],
+      textSearch: [],
+    });
+
+    const result = await service.retrieveContext({
+      profileId: "local-main",
+      agentId: "main",
+      sessionKey: "agent:main:main",
+      queryText: "main",
+      budgets: { maxTokens: 20, maxItems: 4 },
+      modes: {
+        includeWorkingSet: true,
+        includeClaims: true,
+        includePages: true,
+        includeFiles: true,
+      },
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual(["session-private-main"]);
+    expect(result.trace.isolation.privateAllowed).toBe(true);
+    expect(result.trace.isolation.deniedCount).toBe(0);
+  });
+
   it("denies cross-agent retrieval without explicit grants", async () => {
     const { service } = createBaseService({
       alwaysVisible: [],

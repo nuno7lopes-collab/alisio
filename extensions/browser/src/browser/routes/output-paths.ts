@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { resolveWritablePathWithinRoot } from "./path-output.js";
+import { resolveWritablePathWithinRoot } from "../paths.js";
 import type { BrowserResponse } from "./types.js";
 
 export async function ensureOutputRootDir(rootDir: string): Promise<void> {

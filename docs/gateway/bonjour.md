@@ -27,7 +27,7 @@ High‑level steps:
    DNS server for clients (including iOS).
 
 Alisio supports any discovery domain; `alisio.internal.` is just an example.
-iOS/Android nodes browse both `local.` and your configured wide‑area domain.
+Nodes browse both `local.` and your configured wide-area domain.
 
 ### Gateway config (recommended)
 
@@ -63,7 +63,7 @@ In the Tailscale admin console:
 - Add a nameserver pointing at the gateway’s tailnet IP (UDP/TCP 53).
 - Add split DNS so your discovery domain uses that nameserver.
 
-Once clients accept tailnet DNS, iOS nodes can browse
+Once clients accept tailnet DNS, nodes can browse
 `_alisio-gw._tcp` in your discovery domain without multicast.
 
 ### Gateway listener security (recommended)
@@ -82,7 +82,7 @@ Only the Gateway advertises `_alisio-gw._tcp`.
 
 ## Service types
 
-- `_alisio-gw._tcp` — gateway transport beacon (used by macOS/iOS/Android nodes).
+- `_alisio-gw._tcp` — gateway transport beacon (used by paired nodes).
 
 ## TXT keys (non-secret hints)
 
@@ -105,7 +105,7 @@ Security notes:
 - Bonjour/mDNS TXT records are **unauthenticated**. Clients must not treat TXT as authoritative routing.
 - Clients should route using the resolved service endpoint (SRV + A/AAAA). Treat `lanHost`, `tailnetDns`, `gatewayPort`, and `gatewayTlsSha256` as hints only.
 - TLS pinning must never allow an advertised `gatewayTlsSha256` to override a previously stored pin.
-- iOS/Android nodes should treat discovery-based direct connects as **TLS-only** and require explicit user confirmation before trusting a first-time fingerprint.
+- Nodes should treat discovery-based direct connects as **TLS-only** and require explicit user confirmation before trusting a first-time fingerprint.
 
 ## Debugging on macOS
 
@@ -135,9 +135,9 @@ The Gateway writes a rolling log file (printed on startup as
 - `bonjour: ... name conflict resolved` / `hostname conflict resolved`
 - `bonjour: watchdog detected non-announced service ...`
 
-## Debugging on iOS node
+## Debugging on a node
 
-The iOS node uses `NWBrowser` to discover `_alisio-gw._tcp`.
+The node uses `NWBrowser` to discover `_alisio-gw._tcp`.
 
 To capture logs:
 
@@ -161,7 +161,7 @@ Bonjour/DNS‑SD often escapes bytes in service instance names as decimal `\DDD`
 sequences (e.g. spaces become `\032`).
 
 - This is normal at the protocol level.
-- UIs should decode for display (iOS uses `BonjourEscapes.decode`).
+- UIs should decode for display.
 
 ## Disabling / configuration
 

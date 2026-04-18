@@ -293,10 +293,6 @@
       "destination": "/concepts/agent-workspace"
     },
     {
-      "source": "/android",
-      "destination": "/platforms/android"
-    },
-    {
       "source": "/architecture",
       "destination": "/concepts/architecture"
     },
@@ -455,10 +451,6 @@
     {
       "source": "/imessage",
       "destination": "/channels/imessage"
-    },
-    {
-      "source": "/ios",
-      "destination": "/platforms/ios"
     },
     {
       "source": "/linux",
@@ -992,6 +984,7 @@
                 "group": "Fundamentals",
                 "pages": [
                   "concepts/architecture",
+                  "architecture/computer-use-v2",
                   "concepts/agent",
                   "concepts/agent-loop",
                   "concepts/system-prompt",
@@ -1222,9 +1215,7 @@
                   "platforms/index",
                   "platforms/macos",
                   "platforms/linux",
-                  "platforms/windows",
-                  "platforms/android",
-                  "platforms/ios"
+                  "platforms/windows"
                 ]
               },
               {
@@ -1824,8 +1815,6 @@
                   "zh-CN/platforms/macos",
                   "zh-CN/platforms/linux",
                   "zh-CN/platforms/windows",
-                  "zh-CN/platforms/android",
-                  "zh-CN/platforms/ios",
                   "zh-CN/platforms/digitalocean",
                   "zh-CN/platforms/oracle",
                   "zh-CN/platforms/raspberry-pi"

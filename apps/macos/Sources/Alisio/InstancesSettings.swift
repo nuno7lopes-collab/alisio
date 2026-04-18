@@ -76,7 +76,7 @@ struct InstancesSettings: View {
                     }
 
                     if let device {
-                        // Avoid showing generic "Mac"/"iPhone"/etc; prefer the concrete model name.
+                        // Avoid showing generic device-family labels when a concrete model is available.
                         let family = (inst.deviceFamily ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         let isGeneric = !family.isEmpty && device.title == family
                         if !isGeneric {
@@ -127,11 +127,7 @@ struct InstancesSettings: View {
     private func label(icon: String?, text: String) -> some View {
         HStack(spacing: 4) {
             if let icon {
-                if icon == Self.androidSymbolToken {
-                    AndroidMark()
-                        .foregroundStyle(.secondary)
-                        .frame(width: 12, height: 12, alignment: .center)
-                } else if self.isSystemSymbolAvailable(icon) {
+                if self.isSystemSymbolAvailable(icon) {
                     Image(systemName: icon).foregroundStyle(.secondary).font(.caption)
                 }
             }
@@ -166,39 +162,19 @@ struct InstancesSettings: View {
     @ViewBuilder
     private func leadingDeviceIcon(_ inst: InstanceInfo, device: DevicePresentation?) -> some View {
         let symbol = self.leadingDeviceSymbol(inst, device: device)
-        if symbol == Self.androidSymbolToken {
-            AndroidMark()
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24, alignment: .center)
-                .accessibilityHidden(true)
-        } else {
-            Image(systemName: symbol)
-                .font(.system(size: 26, weight: .regular))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-        }
+        Image(systemName: symbol)
+            .font(.system(size: 26, weight: .regular))
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
     }
 
-    private static let androidSymbolToken = "android"
-
     private func leadingDeviceSymbol(_ inst: InstanceInfo, device: DevicePresentation?) -> String {
-        let family = (inst.deviceFamily ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if family == "android" {
-            return Self.androidSymbolToken
-        }
-
         if let title = device?.title.lowercased() {
             if title.contains("mac studio") {
                 return self.safeSystemSymbol("macstudio", fallback: "desktopcomputer")
             }
             if title.contains("macbook") {
                 return self.safeSystemSymbol("laptopcomputer", fallback: "laptopcomputer")
-            }
-            if title.contains("ipad") {
-                return self.safeSystemSymbol("ipad", fallback: "ipad")
-            }
-            if title.contains("iphone") {
-                return self.safeSystemSymbol("iphone", fallback: "iphone")
             }
         }
 
@@ -228,59 +204,11 @@ struct InstancesSettings: View {
         NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
     }
 
-    private struct AndroidMark: View {
-        var body: some View {
-            GeometryReader { geo in
-                let w = geo.size.width
-                let h = geo.size.height
-                let headHeight = h * 0.68
-                let headWidth = w * 0.92
-                let headY = h * 0.18
-                let corner = headHeight * 0.28
-
-                ZStack {
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .frame(width: headWidth, height: headHeight)
-                        .position(x: w / 2, y: headY + headHeight / 2)
-
-                    Circle()
-                        .frame(width: max(1, w * 0.1), height: max(1, w * 0.1))
-                        .position(x: w * 0.38, y: headY + headHeight * 0.55)
-                        .blendMode(.destinationOut)
-
-                    Circle()
-                        .frame(width: max(1, w * 0.1), height: max(1, w * 0.1))
-                        .position(x: w * 0.62, y: headY + headHeight * 0.55)
-                        .blendMode(.destinationOut)
-
-                    Rectangle()
-                        .frame(width: max(1, w * 0.08), height: max(1, h * 0.18))
-                        .rotationEffect(.degrees(-25))
-                        .position(x: w * 0.34, y: h * 0.12)
-
-                    Rectangle()
-                        .frame(width: max(1, w * 0.08), height: max(1, h * 0.18))
-                        .rotationEffect(.degrees(25))
-                        .position(x: w * 0.66, y: h * 0.12)
-                }
-                .compositingGroup()
-            }
-        }
-    }
-
     private func platformIcon(_ raw: String) -> String {
         let (prefix, _) = PlatformLabelFormatter.parse(raw)
         switch prefix {
         case "macos":
             return "laptopcomputer"
-        case "ios":
-            return "iphone"
-        case "ipados":
-            return "ipad"
-        case "tvos":
-            return "appletv"
-        case "watchos":
-            return "applewatch"
         default:
             return "cpu"
         }
@@ -359,32 +287,19 @@ extension InstancesSettings {
             reason: "self",
             text: "Mac Studio",
             ts: 1_700_000_000_000)
-        let genericIOS = InstanceInfo(
-            id: "iphone",
-            host: "phone",
+        let linuxNode = InstanceInfo(
+            id: "linux-node",
+            host: "builder",
             ip: "10.0.0.3",
             version: "2.0.0",
-            platform: "iOS 18.0",
-            deviceFamily: "iPhone",
+            platform: "Linux",
+            deviceFamily: "Linux",
             modelIdentifier: nil,
             lastInputSeconds: 35,
             mode: "node",
             reason: "connect",
-            text: "iPhone node",
+            text: "Linux node",
             ts: 1_700_000_100_000)
-        let android = InstanceInfo(
-            id: "android",
-            host: "pixel",
-            ip: nil,
-            version: "3.1.0",
-            platform: "Android 14",
-            deviceFamily: "Android",
-            modelIdentifier: nil,
-            lastInputSeconds: 90,
-            mode: "node",
-            reason: "seq gap",
-            text: "Android node",
-            ts: 1_700_000_200_000)
         let gateway = InstanceInfo(
             id: "gateway",
             host: "gateway",
@@ -400,8 +315,7 @@ extension InstancesSettings {
             ts: 1_700_000_300_000)
 
         _ = view.instanceRow(mac)
-        _ = view.instanceRow(genericIOS)
-        _ = view.instanceRow(android)
+        _ = view.instanceRow(linuxNode)
         _ = view.instanceRow(gateway)
 
         _ = view.leadingDeviceSymbol(
@@ -410,13 +324,8 @@ extension InstancesSettings {
         _ = view.leadingDeviceSymbol(
             mac,
             device: DevicePresentation(title: "MacBook Pro", symbol: "laptopcomputer"))
-        _ = view.leadingDeviceSymbol(android, device: nil)
-        _ = view.platformIcon("tvOS 17.1")
-        _ = view.platformIcon("watchOS 10")
         _ = view.platformIcon("unknown 1.0")
         _ = view.prettyPlatform("macOS 14.2")
-        _ = view.prettyPlatform("iOS 18")
-        _ = view.prettyPlatform("ipados 17.1")
         _ = view.prettyPlatform("linux")
         _ = view.prettyPlatform("   ")
         _ = PlatformLabelFormatter.parse("macOS 14.1")
@@ -432,10 +341,8 @@ extension InstancesSettings {
         _ = view.presenceUpdateSourceHelp("connect")
         _ = view.safeSystemSymbol("not-a-symbol", fallback: "cpu")
         _ = view.isSystemSymbolAvailable("sparkles")
-        _ = view.label(icon: "android", text: "Android")
         _ = view.label(icon: "sparkles", text: "Sparkles")
         _ = view.label(icon: nil, text: "Plain")
-        _ = AndroidMark().body
     }
 }
 

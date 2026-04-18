@@ -1,12 +1,81 @@
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AlisioConfig } from "../../config/config.js";
-import {
-  createBundleMcpTempHarness,
-  createBundleProbePlugin,
-} from "../../plugins/bundle-mcp.test-support.js";
 import { captureEnv } from "../../test-utils/env.js";
+import { clearPluginDiscoveryCache } from "../../plugins/discovery.js";
+import { clearPluginManifestRegistryCache } from "../../plugins/manifest-registry.js";
 import { prepareCliBundleMcpConfig } from "./bundle-mcp.js";
+
+function createBundleMcpTempHarness() {
+  const tempDirs: string[] = [];
+
+  return {
+    async createTempDir(prefix: string): Promise<string> {
+      const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+      tempDirs.push(dir);
+      return dir;
+    },
+    async cleanup() {
+      clearPluginDiscoveryCache();
+      clearPluginManifestRegistryCache();
+      await Promise.all(
+        tempDirs
+          .splice(0, tempDirs.length)
+          .map((dir) => fs.rm(dir, { recursive: true, force: true })),
+      );
+    },
+  };
+}
+
+function resolveBundlePluginRoot(homeDir: string, pluginId: string) {
+  return path.join(homeDir, ".alisio", "extensions", pluginId);
+}
+
+async function writeClaudeBundleManifest(params: {
+  homeDir: string;
+  pluginId: string;
+  manifest: Record<string, unknown>;
+}) {
+  const pluginRoot = resolveBundlePluginRoot(params.homeDir, params.pluginId);
+  await fs.mkdir(path.join(pluginRoot, ".claude-plugin"), { recursive: true });
+  await fs.writeFile(
+    path.join(pluginRoot, ".claude-plugin", "plugin.json"),
+    `${JSON.stringify(params.manifest, null, 2)}\n`,
+    "utf-8",
+  );
+  return pluginRoot;
+}
+
+async function createBundleProbePlugin(homeDir: string) {
+  const pluginRoot = resolveBundlePluginRoot(homeDir, "bundle-probe");
+  const serverPath = path.join(pluginRoot, "servers", "probe.mjs");
+  await fs.mkdir(path.dirname(serverPath), { recursive: true });
+  await fs.writeFile(serverPath, "export {};\n", "utf-8");
+  await writeClaudeBundleManifest({
+    homeDir,
+    pluginId: "bundle-probe",
+    manifest: { name: "bundle-probe" },
+  });
+  await fs.writeFile(
+    path.join(pluginRoot, ".mcp.json"),
+    `${JSON.stringify(
+      {
+        mcpServers: {
+          bundleProbe: {
+            command: "node",
+            args: ["./servers/probe.mjs"],
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf-8",
+  );
+  return { pluginRoot, serverPath };
+}
 
 const tempHarness = createBundleMcpTempHarness();
 

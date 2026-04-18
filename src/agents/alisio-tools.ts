@@ -39,6 +39,7 @@ import { createSessionsListTool } from "./tools/sessions-list-tool.js";
 import { createSessionsSendTool } from "./tools/sessions-send-tool.js";
 import { createSessionsSpawnTool } from "./tools/sessions-spawn-tool.js";
 import { createSessionsYieldTool } from "./tools/sessions-yield-tool.js";
+import { createStripeTool } from "./tools/stripe-tool.js";
 import { createSubagentsTool } from "./tools/subagents-tool.js";
 import { createTtsTool } from "./tools/tts-tool.js";
 import { createWebFetchTool, createWebSearchTool } from "./tools/web-tools.js";
@@ -229,6 +230,7 @@ export function createAlisioTools(
     createGmailModifyTool(),
     createGmailSendTool(),
     createGitHubTool(),
+    createStripeTool(),
     createYouTubeTool(),
     ...(imageGenerateTool ? [imageGenerateTool] : []),
     createGatewayTool({

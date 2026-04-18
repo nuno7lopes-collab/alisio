@@ -27,12 +27,12 @@ describe("shared/node-match", () => {
     expect(
       resolveNodeIdFromCandidates(
         [
-          { nodeId: "ios-old", displayName: "iPhone", connected: false },
-          { nodeId: "ios-live", displayName: "iPhone", connected: true },
+          { nodeId: "mac-old", displayName: "MacBook", connected: false },
+          { nodeId: "mac-live", displayName: "MacBook", connected: true },
         ],
-        "iphone",
+        "macbook",
       ),
-    ).toBe("ios-live");
+    ).toBe("mac-live");
   });
 
   it("prefers the strongest match type before client heuristics", () => {
@@ -73,12 +73,12 @@ describe("shared/node-match", () => {
     expect(() =>
       resolveNodeIdFromCandidates(
         [
-          { nodeId: "ios-a", displayName: "iPhone", connected: false },
-          { nodeId: "ios-b", displayName: "iPhone", connected: false },
+          { nodeId: "mac-a", displayName: "MacBook", connected: false },
+          { nodeId: "mac-b", displayName: "MacBook", connected: false },
         ],
-        "iphone",
+        "macbook",
       ),
-    ).toThrow(/ambiguous node: iphone.*node=ios-a.*node=ios-b/);
+    ).toThrow(/ambiguous node: macbook.*node=mac-a.*node=mac-b/);
   });
 
   it("throws clear unknown and ambiguous node errors", () => {
@@ -95,12 +95,12 @@ describe("shared/node-match", () => {
     expect(() =>
       resolveNodeIdFromCandidates(
         [
-          { nodeId: "ios-a", displayName: "iPhone", connected: true },
-          { nodeId: "ios-b", displayName: "iPhone", connected: true },
+          { nodeId: "mac-a", displayName: "MacBook", connected: true },
+          { nodeId: "mac-b", displayName: "MacBook", connected: true },
         ],
-        "iphone",
+        "macbook",
       ),
-    ).toThrow(/ambiguous node: iphone.*node=ios-a.*node=ios-b/);
+    ).toThrow(/ambiguous node: macbook.*node=mac-a.*node=mac-b/);
 
     expect(() => resolveNodeIdFromCandidates([], "")).toThrow(/node required/);
   });

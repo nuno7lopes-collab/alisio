@@ -483,7 +483,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     from your laptop/phone via the Control UI (or Tailscale/SSH). Your state + workspace
     live on the server, so treat the host as the source of truth and back it up.
 
-    You can pair **devices (nodes)** (Mac/iOS/Android/headless) to that cloud Gateway to access
+    You can pair **devices (nodes)** (Mac/iOS/headless) to that cloud Gateway to access
     local screen/camera/canvas or run commands on your laptop while keeping the
     Gateway in the cloud.
 
@@ -1489,7 +1489,7 @@ for usage/billing and raise limits as needed.
     **agents**:
 
     - **Gateway (central):** owns channels (Signal/WhatsApp), routing, and sessions.
-    - **Devices (nodes):** Macs/iOS/Android connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
+    - **Devices (nodes):** Macs/iOS connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
     - **Extra configured agents:** optional isolated runtimes for explicit routing boundaries, not automatic personal multi-agent continuity.
     - **Sub-agents:** ephemeral background workers spawned from a main agent when you want parallelism.
     - **TUI:** connect to the Gateway and switch agents/sessions.
@@ -1645,7 +1645,7 @@ for usage/billing and raise limits as needed.
 
   <Accordion title="Do devices run a gateway service?">
     No. Only **one gateway** should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)). Devices (nodes) are peripherals that connect
-    to the gateway (iOS/Android device nodes, or macOS "node mode" in the menubar app). For headless node
+    to the gateway (iOS device nodes, or macOS "node mode" in the menubar app). For headless node
     hosts and CLI control, see [Node host CLI](/cli/node).
 
     A full restart is required for `gateway`, `discovery`, and `canvasHost` changes.

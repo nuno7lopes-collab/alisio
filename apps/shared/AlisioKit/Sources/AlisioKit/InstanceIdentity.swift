@@ -1,23 +1,8 @@
 import Foundation
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 public enum InstanceIdentity {
     private static let suiteName = AlisioBranding.sharedSuiteName
     private static let instanceIdKey = "instanceId"
-
-#if canImport(UIKit)
-    private static func readMainActor<T: Sendable>(_ body: @MainActor () -> T) -> T {
-        if Thread.isMainThread {
-            return MainActor.assumeIsolated { body() }
-        }
-        return DispatchQueue.main.sync {
-            MainActor.assumeIsolated { body() }
-        }
-    }
-#endif
 
     public static let instanceId: String = {
         if let existing = AlisioDefaultsStore.loadString(
@@ -38,31 +23,15 @@ public enum InstanceIdentity {
     }()
 
     public static let displayName: String = {
-#if canImport(UIKit)
-        let name = Self.readMainActor {
-            UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        return name.isEmpty ? AlisioBranding.lowercaseName : name
-#else
         if let name = Host.current().localizedName?.trimmingCharacters(in: .whitespacesAndNewlines),
            !name.isEmpty
         {
             return name
         }
         return AlisioBranding.lowercaseName
-#endif
     }()
 
     public static let modelIdentifier: String? = {
-#if canImport(UIKit)
-        var systemInfo = utsname()
-        uname(&systemInfo)
-        let machine = withUnsafeBytes(of: &systemInfo.machine) { ptr in
-            String(bytes: ptr.prefix { $0 != 0 }, encoding: .utf8)
-        }
-        let trimmed = machine?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
-#else
         var size = 0
         guard sysctlbyname("hw.model", nil, &size, nil, 0) == 0, size > 1 else { return nil }
 
@@ -73,36 +42,14 @@ public enum InstanceIdentity {
         guard let raw = String(bytes: bytes, encoding: .utf8) else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-#endif
     }()
 
     public static let deviceFamily: String = {
-#if canImport(UIKit)
-        return Self.readMainActor {
-            switch UIDevice.current.userInterfaceIdiom {
-            case .pad: return "iPad"
-            case .phone: return "iPhone"
-            default: return "iOS"
-            }
-        }
-#else
         return "Mac"
-#endif
     }()
 
     public static let platformString: String = {
         let v = ProcessInfo.processInfo.operatingSystemVersion
-#if canImport(UIKit)
-        let name = Self.readMainActor {
-            switch UIDevice.current.userInterfaceIdiom {
-            case .pad: return "iPadOS"
-            case .phone: return "iOS"
-            default: return "iOS"
-            }
-        }
-        return "\(name) \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
-#else
         return "macOS \(v.majorVersion).\(v.minorVersion).\(v.patchVersion)"
-#endif
     }()
 }

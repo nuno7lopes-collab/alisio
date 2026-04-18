@@ -56,8 +56,8 @@ vi.mock("./pw-ai-state.js", () => ({
   isPwAiLoaded: vi.fn(() => false),
 }));
 
-let startBrowserControlServerFromConfig: typeof import("./server.js").startBrowserControlServerFromConfig;
-let stopBrowserControlServer: typeof import("./server.js").stopBrowserControlServer;
+let startBrowserControlServerFromConfig: typeof import("../server.js").startBrowserControlServerFromConfig;
+let stopBrowserControlServer: typeof import("../server.js").stopBrowserControlServer;
 
 describe("browser control auth bootstrap failures", () => {
   beforeEach(async () => {
@@ -67,7 +67,7 @@ describe("browser control auth bootstrap failures", () => {
     mocks.ensureExtensionRelayForProfiles.mockClear();
     vi.resetModules();
     ({ startBrowserControlServerFromConfig, stopBrowserControlServer } =
-      await import("./server.js"));
+      await import("../server.js"));
   });
 
   afterEach(async () => {

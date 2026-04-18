@@ -6,8 +6,8 @@ import {
   resolveTargetIdFromBody,
   withRouteTabContext,
 } from "./agent.shared.js";
+import { DEFAULT_DOWNLOAD_DIR } from "../paths.js";
 import { ensureOutputRootDir, resolveWritableOutputPathOrRespond } from "./output-paths.js";
-import { DEFAULT_DOWNLOAD_DIR } from "./path-output.js";
 import type { BrowserRouteRegistrar } from "./types.js";
 import { jsonError, toNumber, toStringOrEmpty } from "./utils.js";
 

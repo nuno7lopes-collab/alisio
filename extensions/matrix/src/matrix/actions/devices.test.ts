@@ -89,7 +89,7 @@ describe("matrix device actions", () => {
           },
           {
             deviceId: "phone123",
-            displayName: "Element iPhone",
+            displayName: "Element Mac",
             lastSeenIp: null,
             lastSeenTs: null,
             current: false,

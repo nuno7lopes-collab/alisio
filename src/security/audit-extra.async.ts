@@ -31,7 +31,7 @@ import {
   inspectPathPermissions,
   safeStat,
 } from "./audit-fs.js";
-import { pickSandboxToolPolicy } from "./audit-tool-policy.js";
+import { pickSandboxToolPolicy } from "../agents/sandbox-tool-policy.js";
 import { extensionUsesSkippedScannerPath, isPathInside } from "./scan-paths.js";
 import type { SkillScanFinding } from "./skill-scanner.js";
 import * as skillScanner from "./skill-scanner.js";

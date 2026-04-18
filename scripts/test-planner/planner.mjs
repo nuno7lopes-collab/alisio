@@ -213,7 +213,6 @@ const resolveCIManifestScope = (scope = {}, env = process.env) => ({
   docsChanged: parseBooleanLike(scope.docsChanged ?? env.ALISIO_CI_DOCS_CHANGED, false),
   runNode: parseBooleanLike(scope.runNode ?? env.ALISIO_CI_RUN_NODE, true),
   runMacos: parseBooleanLike(scope.runMacos ?? env.ALISIO_CI_RUN_MACOS, true),
-  runAndroid: parseBooleanLike(scope.runAndroid ?? env.ALISIO_CI_RUN_ANDROID, true),
   runWindows: parseBooleanLike(scope.runWindows ?? env.ALISIO_CI_RUN_WINDOWS, true),
   runSkillsPython: parseBooleanLike(scope.runSkillsPython ?? env.ALISIO_CI_RUN_SKILLS_PYTHON, true),
   hasChangedExtensions: parseBooleanLike(
@@ -1153,7 +1152,6 @@ export function buildCIExecutionManifest(scopeInput = {}, options = {}) {
   const nodeEligible = !scope.docsOnly && scope.runNode;
   const macosEligible = !scope.docsOnly && isPullRequest && scope.runMacos;
   const windowsEligible = !scope.docsOnly && scope.runWindows;
-  const androidEligible = !scope.docsOnly && scope.runAndroid;
   const docsEligible = scope.docsChanged;
   const skillsPythonEligible = !scope.docsOnly && (isPush || scope.runSkillsPython);
   const extensionFastEligible = nodeEligible && scope.hasChangedExtensions;
@@ -1265,30 +1263,6 @@ export function buildCIExecutionManifest(scopeInput = {}, options = {}) {
         shardCount: macosNodeShardCount,
       })
     : [];
-  const androidInclude = androidEligible
-    ? [
-        {
-          check_name: "android-test-play",
-          task: "test-play",
-          command: "./gradlew --no-daemon :app:testPlayDebugUnitTest",
-        },
-        {
-          check_name: "android-test-third-party",
-          task: "test-third-party",
-          command: "./gradlew --no-daemon :app:testThirdPartyDebugUnitTest",
-        },
-        {
-          check_name: "android-build-play",
-          task: "build-play",
-          command: "./gradlew --no-daemon :app:assemblePlayDebug",
-        },
-        {
-          check_name: "android-build-third-party",
-          task: "build-third-party",
-          command: "./gradlew --no-daemon :app:assembleThirdPartyDebug",
-        },
-      ]
-    : [];
   const bunChecksInclude = createShardMatrixEntries({
     checkNamePrefix: "bun-checks",
     runtime: "bun",
@@ -1322,7 +1296,6 @@ export function buildCIExecutionManifest(scopeInput = {}, options = {}) {
     },
     macosNode: { enabled: macosNodeInclude.length > 0, matrix: { include: macosNodeInclude } },
     macosSwift: { enabled: macosEligible },
-    android: { enabled: androidInclude.length > 0, matrix: { include: androidInclude } },
     bunChecks: { enabled: bunChecksInclude.length > 0, matrix: { include: bunChecksInclude } },
     installSmoke: { enabled: !scope.docsOnly && scope.runChangedSmoke },
   };
@@ -1344,7 +1317,6 @@ export function buildCIExecutionManifest(scopeInput = {}, options = {}) {
       ...checksWindowsInclude.map((entry) => entry.check_name),
       ...macosNodeInclude.map((entry) => entry.check_name),
       ...(macosEligible ? ["macos-swift"] : []),
-      ...androidInclude.map((entry) => entry.check_name),
       ...extensionFastInclude.map((entry) => entry.check_name),
       ...bunChecksInclude.map((entry) => entry.check_name),
       "check",

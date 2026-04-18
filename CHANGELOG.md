@@ -19,7 +19,6 @@ Docs: https://docs.alisio.ai
 - ACP/plugins: add an explicit default-off ACPX plugin-tools MCP bridge config, document the trust boundary, and harden the built-in bridge packaging/logging path so global installs and stdio MCP sessions work reliably. (#56867) Thanks @joe2643.
 - Agents/LLM: add a configurable idle-stream timeout for embedded runner requests so stalled model streams abort cleanly instead of hanging until the broader run timeout fires. (#55072) Thanks @liuy.
 - OpenAI/Responses: forward configured `text.verbosity` across Responses HTTP and WebSocket transports, surface it in `/status`, and keep per-agent verbosity precedence aligned with runtime behavior. (#47106) Thanks @merc1305 and @vincentkoc.
-- Android/notifications: add notification-forwarding controls with package filtering, quiet hours, rate limiting, and safer picker behavior for forwarded notification events. (#40175) Thanks @nimbleenigma.
 - Matrix/network: add explicit `channels.matrix.proxy` config for routing Matrix traffic through an HTTP(S) proxy, including account-level overrides and matching probe/runtime behavior. (#56931) thanks @patrick-yingxi-pan.
 - Background tasks: turn tasks into a real shared background-run control plane instead of ACP-only bookkeeping by unifying ACP, subagent, cron, and background CLI execution under one SQLite-backed ledger, routing detached lifecycle updates through the executor seam, adding audit/maintenance/status visibility, tightening auto-cleanup and lost-run recovery, improving task awareness in internal status/tool surfaces, and clarifying the split between heartbeat/main-session automation and detached scheduled runs. Thanks @vincentkoc and @mbelinky.
 
@@ -472,7 +471,6 @@ Docs: https://docs.alisio.ai
 - Plugins/Matrix: stop mention-gated or otherwise dropped room chatter from refreshing focused thread bindings before the message is actually routed, so idle ACP and session bindings can still expire normally in mention-required rooms. Thanks @vincentkoc, @dinakars777 and @mvanhorn.
 - Plugins/Matrix: durably dedupe inbound room events across gateway restarts so previously handled Matrix messages are not replayed as new, while preserving clean-restart backlog delivery for unseen events. (#50922) thanks @gumadeiras
 - Agents/media replies: migrate the remaining browser, canvas, and nodes snapshot outputs onto `details.media` so generated media keeps attaching to assistant replies after the collect-then-attach refactor. (#51731) Thanks @christianklotz.
-- Android/contacts search: escape literal `%` and `_` in contact-name queries so searches like `100%` or `_id` no longer match unrelated contacts through SQL `LIKE` wildcards. (#41891) Thanks @Kaneki-x.
 - Gateway/usage: include reset and deleted archived session transcripts in usage totals, session discovery, and archived-only session detail fallback so the Usage view no longer undercounts rotated sessions. (#43215) Thanks @rcrick.
 
 ### Changes
@@ -501,10 +499,6 @@ Docs: https://docs.alisio.ai
 - Control UI/appearance: unify theme border radii across Claw, Knot, and Dash, and add a Roundness slider to the Appearance settings so users can adjust corner radius from sharp to fully rounded. Thanks @BunsDev.
 - Control UI/usage: improve usage overview styling, localization, and responsive chat/context-notice presentation, including safer theme color handling and unclipped usage-header menus. (#51951) Thanks @BunsDev.
 - Control UI/usage: drop the empty session-detail placeholder card so the usage view stays single-column until a real session detail panel is selected. (#52013) Thanks @BunsDev.
-- Android/mobile: add a system-aware dark theme across onboarding and post-onboarding screens so the app follows the device theme through setup, chat, and voice flows. (#46249) Thanks @sibbl.
-- Android/Talk: move Talk speech synthesis behind gateway `talk.speak`, keep Talk secrets on the gateway, and switch Android playback to final-response audio instead of device-local ElevenLabs streaming. (#50849)
-- Android/nodes: add `callLog.search` plus shared Call Log permission wiring so Android nodes can search recent call history through the gateway. (#44073) Thanks @lixuankai.
-- Android/nodes: add `sms.search` plus shared SMS permission wiring so Android nodes can search device text messages through the gateway. (#48299) Thanks @lixuankai.
 - Telegram/apiRoot: add per-account custom Bot API endpoint support across send, probe, setup, doctor repair, and inbound media download paths so proxied or self-hosted Telegram deployments work end to end. (#48842) Thanks @Cypherm.
 - Telegram/topics: auto-rename DM forum topics on first message with LLM-generated labels, with per-account and per-DM `autoTopicLabel` overrides. (#51502) Thanks @Lukavyi.
 - Telegram/actions: add `topic-edit` for forum-topic renames and icon updates while sharing the same Telegram topic-edit transport used by the plugin runtime. (#47798) Thanks @obviyus.
@@ -578,19 +572,13 @@ Docs: https://docs.alisio.ai
 - Control UI/session routing: preserve established external delivery routes when webchat views or sends in externally originated sessions, so subagent completions still return to the original channel instead of the dashboard. (#47797) Thanks @brokemac79.
 - Telegram/replies: set `allow_sending_without_reply` on reply-targeted sends and media-error notices so deleted parent messages no longer drop otherwise valid replies. (#52524) Thanks @alisio886.
 - Telegram/polling: hard-timeout stuck `getUpdates` requests so wedged network paths fail over sooner instead of waiting for the polling stall watchdog. Thanks @vincentkoc.
-- Android/location: make current-location requests drop late callbacks after timeout instead of crashing with `Already resumed`. (#52318) Thanks @Kaneki-x.
-- Android/pairing: resolve portless secure setup URLs to `443` while preserving direct cleartext gateway defaults and explicit `:80` manual endpoints in onboarding. (#43540) Thanks @fmercurio.
-- Android/canvas: ignore bridge messages from pages outside the bundled scaffold and trusted A2UI surfaces. Thanks @vincentkoc.
 - CLI/status: keep `status --json` stdout clean by skipping plugin compatibility scans that were not rendered in the JSON payload. (#52449) Thanks @cgdusek.
 - WhatsApp/reconnect: restore the append recency filter in the extension inbox monitor and handle protobuf `Long` timestamps correctly, so fresh post-reconnect append messages are processed while stale history sync stays suppressed. (#42588) Thanks @MonkeyLeeT.
 - WhatsApp/login: wait for pending creds writes before reopening after Baileys `515` pairing restarts in both QR login and `channels login` flows, and keep the restart coverage pinned to the real wrapped error shape plus per-account creds queues. (#27910) Thanks @asyncjason.
-- Android/canvas: serialize A2UI action-status event strings before evaluating WebView JS, so action ids and multiline errors do not break the callback dispatch. (#43784) Thanks @Kaneki-x.
-- Android/camera: recycle intermediate and final snap bitmaps in `camera.snap` so repeated captures do not leak native image memory. (#41902) Thanks @Kaneki-x.
 - Control UI/logging: make browser-safe logger imports avoid eager temp-dir resolution so the bundled Control UI no longer crashes to a blank screen when logging reaches `tmp-alisio-dir`. (#48469) Fixes #48062. Thanks @7inspire.
 - Control UI/chat sessions: show human-readable labels in the grouped session dropdown again, keep unique scoped fallbacks when metadata is missing, and disambiguate duplicate labels only when needed. (#45130) Thanks @luzhidong.
 - Telegram/replies: ignore malformed non-string reply text and caption fields when describing reply context, so unexpected Telegram reply payloads no longer break inbound context assembly. (#50500) Thanks @p3nchan.
 - Control UI/dashboard: preserve structured gateway shutdown reasons across restart disconnects so config-triggered restarts no longer fall back to `disconnected (1006): no reason`. (#46580) Fixes #46532. Thanks @vincentkoc.
-- Android/chat: theme the thinking dropdown and TLS trust dialogs explicitly so popup surfaces match the active app theme instead of falling back to mismatched Material defaults.
 - Node/startup: remove leftover debug `console.log("node host PATH: ...")` that printed the resolved PATH on every `alisio node run` invocation. (#46515) Fixes #46411. Thanks @ademczuk.
 - Slack/startup: harden `@slack/bolt` import interop across current bundled runtime shapes so Slack monitors no longer crash with `App is not a constructor` after plugin-sdk bundling changes. (#45953) Thanks @merc1305.
 - Control UI/model switching: preserve the selected provider prefix when switching models from the chat dropdown, so multi-provider setups no longer send `anthropic/gpt-5.2`-style mismatches when the user picked `openai/gpt-5.2`. (#47581) Thanks @chrishham.
@@ -602,10 +590,7 @@ Docs: https://docs.alisio.ai
 - Gateway/probe: honor caller `--timeout` for active local loopback probes in `gateway status`, keep inactive remote-mode loopback probes fast, and clamp probe timers to JS-safe bounds so slow local/container gateways stop reporting false timeouts. (#47533) Thanks @MonkeyLeeT.
 - Config/startup: keep bundled web-search allowlist compatibility on a lightweight manifest path so config validation no longer pulls bundled web-search registry imports into startup, while still avoiding accidental auto-allow of config-loaded override plugins. (#51574) Thanks @RichardCao.
 - Gateway/chat.send: persist uploaded image references across reloads and compaction without delaying first-turn dispatch or double-submitting the same image to vision models. (#51324) Thanks @fuller-stack-dev.
-- Android/canvas: recycle captured and scaled snapshot bitmaps so repeated canvas snapshots do not leak native image memory. (#41889) Thanks @Kaneki-x.
-- Android/theme: switch status bar icon contrast with the active system theme so Android light mode no longer leaves unreadable light icons over the app header. (#51098) Thanks @goweii.
 - Gateway/openresponses: preserve assistant commentary and session continuity across hosted-tool `/v1/responses` turns, and emit streamed tool-call payloads before finalization so client tool loops stay resumable. (#52171) Thanks @CharZhou.
-- Android/Talk: serialize `TalkModeManager` player teardown so rapid interrupt/restart cycles stop double-releasing or overlapping TTS playback. (#52310) Thanks @Kaneki-x.
 - WhatsApp/reconnect: preserve the last inbound timestamp across reconnect attempts so the watchdog can still recycle linked-but-dead listeners after a restart instead of leaving them stuck connected forever.
 - Gateway/network discovery: guard LAN, tailnet, and pairing interface enumeration so WSL2 and restricted hosts degrade to missing-address fallbacks instead of crashing on `uv_interface_addresses` errors. (#44180, #47590)
 - Gateway/bonjour: suppress the non-fatal `@homebridge/ciao` IPv4-loss assertion during interface churn so WiFi/VPN/sleep-wake changes no longer take down the gateway. (#38628, #47159, #52431)
@@ -793,7 +778,6 @@ Docs: https://docs.alisio.ai
 
 ### Changes
 
-- Android/chat settings: redesign the chat settings sheet with grouped device and media sections, refresh the Connect and Voice tabs, and tighten the chat composer/session header for a denser mobile layout. (#44894) Thanks @obviyus.
 - iOS/onboarding: add a first-run welcome pager before gateway setup, stop auto-opening the QR scanner, and show `/pair qr` instructions on the connect step. (#45054) Thanks @ngutman.
 - Browser/existing-session: add an official Chrome DevTools MCP attach mode for signed-in live Chrome sessions, with docs for `chrome://inspect/#remote-debugging` enablement and direct backlinks to Chrome's own setup guides.
 - Browser/agents: add built-in `profile="user"` for the logged-in host browser and `profile="chrome-relay"` for the extension relay, so agent browser calls can prefer the real signed-in browser without the extra `browserSession` selector.
@@ -808,7 +792,6 @@ Docs: https://docs.alisio.ai
 - Dashboard/chat UI: stop reloading full chat history on every live tool result in dashboard v2 so tool-heavy runs no longer trigger UI freeze/re-render storms while the final event still refreshes persisted history. (#45541) Thanks @BunsDev.
 - Gateway/client requests: reject unanswered gateway RPC calls after a bounded timeout and clear their pending state, so stalled connections no longer leak hanging `GatewayClient.request()` promises indefinitely.
 - Build/plugin-sdk bundling: bundle plugin-sdk subpath entries in one shared build pass so published packages stop duplicating shared chunks and avoid the recent plugin-sdk memory blow-up. (#45426) Thanks @TarasShyn.
-- Android/onboarding QR scan: switch setup QR scanning to Google Code Scanner so onboarding uses a more reliable scanner instead of the legacy embedded ZXing flow. (#45021) Thanks @obviyus.
 - Browser/existing-session: harden driver validation and session lifecycle so transport errors trigger reconnects while tool-level errors preserve the session, and extract shared ARIA role sets to deduplicate Playwright and Chrome MCP snapshot paths. (#45682) Thanks @odysseus0.
 - Browser/existing-session: accept text-only `list_pages` and `new_page` responses from Chrome DevTools MCP so live-session tab discovery and new-tab open flows keep working when the server omits structured page metadata.
 - Control UI/insecure auth: preserve explicit shared token and password auth on plain-HTTP Control UI connects so LAN and reverse-proxy sessions no longer drop shared auth before the first WebSocket handshake. (#45088) Thanks @velvet-shark.
@@ -1105,8 +1088,6 @@ Docs: https://docs.alisio.ai
 - macOS/remote gateway: stop PortGuardian from killing Docker Desktop and other external listeners on the gateway port in remote mode, so containerized and tunneled gateway setups no longer lose their port-forward owner on app startup. (#6755) Thanks @teslamint.
 - Feishu/streaming recovery: clear stale `streamingStartPromise` when card creation fails (HTTP 400) so subsequent messages can retry streaming instead of silently dropping all future replies. Fixes #43322.
 - Exec/env sandbox: block JVM agent injection (`JAVA_TOOL_OPTIONS`, `_JAVA_OPTIONS`, `JDK_JAVA_OPTIONS`), Python breakpoint hijack (`PYTHONBREAKPOINT`), and .NET startup hooks (`DOTNET_STARTUP_HOOKS`) from the host exec environment. (#49025)
-- Android/camera clip cleanup: delete temporary clip files even when `readBytes()` fails so failed clip captures do not leak cache storage. (#41890) Thanks @Kaneki-x.
-- Android/photos: recycle decoded and intermediate bitmaps in `photos.latest` so repeated photo fetches stop leaking native memory. (#41888) Thanks @Kaneki-x.
 
 ### Security
 
@@ -1136,7 +1117,6 @@ Docs: https://docs.alisio.ai
 
 - Update/macOS launchd restart: re-enable disabled LaunchAgent services before updater bootstrap so `alisio update` can recover from a disabled gateway service instead of leaving the restart step stuck.
 - macOS app/chat UI: route browser proxy through the local node browser service, preserve plain-text paste semantics, strip completed assistant trace/debug wrapper noise from transcripts, refresh permission state after returning from System Settings, and tolerate malformed cron rows in the macOS tab. (#39516) Thanks @Imhermes1.
-- Android/Play distribution: remove self-update, background location, `screen.record`, and background mic capture from the Android app, narrow the foreground service to `dataSync` only, and clean up the legacy `location.enabledMode=always` preference migration. (#39660) Thanks @obviyus.
 - Telegram/DM routing: dedupe inbound Telegram DMs per agent instead of per session key so the same DM cannot trigger duplicate replies when both `agent:main:main` and `agent:main:telegram:direct:<id>` resolve for one agent. Fixes #40005. Supersedes #40116. (#40519) thanks @obviyus.
 - Cron/Telegram announce delivery: route text-only announce jobs through the real outbound adapters after finalizing descendant output so plain Telegram targets no longer report `delivered: true` when no message actually reached Telegram. (#40575) thanks @obviyus.
 - Matrix/DM routing: add safer fallback detection for broken `m.direct` homeservers, honor explicit room bindings over DM classification, and preserve room-bound agent selection for Matrix DM rooms. (#19736) Thanks @derbronko.
@@ -1779,11 +1759,8 @@ Docs: https://docs.alisio.ai
 
 - OpenAI/Streaming transport: make `openai` Responses WebSocket-first by default (`transport: "auto"` with SSE fallback), add shared OpenAI WS stream/connection runtime wiring with per-session cleanup, and preserve server-side compaction payload mutation (`store` + `context_management`) on the WS path.
 - Gateway/Container probes: add built-in HTTP liveness/readiness endpoints (`/health`, `/healthz`, `/ready`, `/readyz`) for Docker/Kubernetes health checks, with fallback routing so existing handlers on those paths are not shadowed. (#31272) Thanks @vincentkoc.
-- Android/Nodes: add `camera.list`, `device.permissions`, `device.health`, and `notifications.actions` (`open`/`dismiss`/`reply`) on Android nodes, plus first-class node-tool actions for the new device/notification commands. (#28260) Thanks @obviyus.
 - Discord/Thread bindings: replace fixed TTL lifecycle with inactivity (`idleHours`, default 24h) plus optional hard `maxAgeHours` lifecycle controls, and add `/session idle` + `/session max-age` commands for focused thread-bound sessions. (#27845) Thanks @osolmaz.
 - Telegram/DM topics: add per-DM `direct` + topic config (allowlists, `dmPolicy`, `skills`, `systemPrompt`, `requireTopic`), route DM topics as distinct inbound/outbound sessions, and enforce topic-aware authorization/debounce for messages, callbacks, commands, and reactions. Landed from contributor PR #30579 by @kesor. Thanks @kesor.
-- Android/Gateway capability refresh: add live Android capability integration coverage and node canvas capability refresh wiring, plus runtime hardening for A2UI readiness retries, scoped canvas URL normalization, debug diagnostics JSON, and JavaScript MIME delivery. (#28388) Thanks @obviyus.
-- Android/Nodes parity: add `system.notify`, `photos.latest`, `contacts.search`/`contacts.add`, `calendar.events`/`calendar.add`, and `motion.activity`/`motion.pedometer`, with motion sensor-aware command gating and improved activity sampling reliability. (#29398) Thanks @obviyus.
 - Agents/Thinking defaults: set `adaptive` as the default thinking level for Anthropic Claude 4.6 models (including Bedrock Claude 4.6 refs) while keeping other reasoning-capable models at `low` unless explicitly configured.
 - Web UI/Cron i18n: localize cron page labels, filters, form help text, and validation/error messaging in English and zh-CN. (#29315) Thanks @BUGKillerKing.
 - CLI/Config: add `alisio config file` to print the active config file path resolved from `ALISIO_CONFIG_PATH` or the default location. (#26256) thanks @cyb1278588254.
@@ -1831,11 +1808,8 @@ Docs: https://docs.alisio.ai
 - Tools/Edit workspace boundary errors: preserve the real `Path escapes workspace root` failure path instead of surfacing a misleading access/file-not-found error when editing outside workspace roots. Landed from contributor PR #31015 by @haosenwang1018. Thanks @haosenwang1018.
 - Browser/Open & navigate: accept `url` as an alias parameter for `open` and `navigate`. (#29260) Thanks @vincentkoc.
 - Sandbox/mkdirp boundary checks: allow directory-safe boundary validation for existing in-boundary subdirectories, preventing false `cannot create directories` failures in sandbox write mode. (#30610) Thanks @glitch418x.
-- Android/Nodes reliability: reject `facing=both` when `deviceId` is set to avoid mislabeled duplicate captures, allow notification `open`/`reply` on non-clearable entries while still gating dismiss, trigger listener rebind before notification actions, and scale invoke-result ack timeout to invoke budget for large clip payloads. (#28260) Thanks @obviyus.
 - LINE/Voice transcription: classify M4A voice media as `audio/mp4` (not `video/mp4`) by checking the MPEG-4 `ftyp` major brand (`M4A ` / `M4B `), restoring voice transcription for LINE voice messages. Landed from contributor PR #31151 by @scoootscooob. Thanks @scoootscooob.
 - Slack/Announce target account routing: enable session-backed announce-target lookup for Slack so multi-account announces resolve the correct `accountId` instead of defaulting to bot-token context. Landed from contributor PR #31028 by @taw0002. Thanks @taw0002.
-- Android/Voice screen TTS: stream assistant speech via ElevenLabs WebSocket in Talk Mode, stop cleanly on speaker mute/barge-in, and ignore stale out-of-order stream events. (#29521) Thanks @gregmousseau.
-- Android/Photos permissions: declare Android 14+ selected-photo access permission (`READ_MEDIA_VISUAL_USER_SELECTED`) and align Android permission/settings paths with current minSdk behavior for more reliable permission state handling.
 - Feishu/Reply media attachments: send Feishu reply `mediaUrl`/`mediaUrls` payloads as attachments alongside text/streamed replies in the reply dispatcher, including legacy fallback when `mediaUrls` is empty. (#28959) Thanks @icesword0760.
 - Slack/User-token resolution: normalize Slack account user-token sourcing through resolved account metadata (`SLACK_USER_TOKEN` env + config) so monitor reads, Slack actions, directory lookups, onboarding allow-from resolution, and capabilities probing consistently use the effective user token. (#28103) Thanks @chilu18.
 - Feishu/Outbound session routing: stop assuming bare `oc_` identifiers are always group chats, honor explicit `dm:`/`group:` prefixes for `oc_` chat IDs, and default ambiguous bare `oc_` targets to direct routing to avoid DM session misclassification. (#10407) Thanks @Bermudarat.
@@ -1852,15 +1826,12 @@ Docs: https://docs.alisio.ai
 - Feishu/Inbound media regression coverage: add explicit tests for message resource type mapping (`image` stays `image`, non-image maps to `file`) to prevent reintroducing unsupported Feishu `type=audio` fetches. (#16311, #8746) Thanks @Yaxuan42.
 - TTS/Voice bubbles: use opus output and enable `audioAsVoice` routing for Feishu and WhatsApp (in addition to Telegram) so supported channels receive voice-bubble playback instead of file-style audio attachments. (#27366) Thanks @smthfoxy.
 - Telegram/Reply media context: include replied media files in inbound context when replying to media, defer reply-media downloads to debounce flush, gate reply-media fetch behind DM authorization, and preserve replied media when non-vision sticker fallback runs (including cached-sticker paths). (#28488) Thanks @obviyus.
-- Android/Nodes notification wake flow: enable Android `system.notify` default allowlist, emit `notifications.changed` events for posted/removed notifications (excluding Alisio app-owned notifications), canonicalize notification session keys before enqueue/wake routing, and skip heartbeat wakes when consecutive notification summaries dedupe. (#29440) Thanks @obviyus.
 - Telegram/Voice fallback reply chunking: apply reply reference, quote text, and inline buttons only to the first fallback text chunk when voice delivery is blocked, preventing over-quoted multi-chunk replies. Landed from contributor PR #31067 by @xdanger. Thanks @xdanger.
 - Feishu/Multi-account + reply reliability: add `channels.feishu.defaultAccount` outbound routing support with schema validation, keep quoted-message extraction text-first (post/interactive/file placeholders instead of raw JSON), route Feishu video sends as `msg_type: "file"`, and avoid websocket event blocking by using non-blocking event handling in monitor dispatch. Landed from contributor PRs #29610, #30432, #30331, and #29501. Thanks @hclsys, @bmendonca3, @patrick-yingxi-pan, and @zwffff.
 - Feishu/Inbound rich-text parsing: preserve `share_chat` payload summaries when available and add explicit parsing for rich-text `code`/`code_block`/`pre` tags so forwarded and code-heavy messages keep useful context in agent input. (#28591) Thanks @kevinWangSheng.
 - Feishu/Post markdown parsing: parse rich-text `post` payloads through a shared markdown-aware parser with locale-wrapper support, preserved mention/image metadata extraction, and inline/fenced code fidelity for agent input rendering. (#12755) Thanks @WilsonLiu95.
 - Telegram/Outbound chunking: route oversize splitting through the shared outbound pipeline (including subagents), retry Telegram sends when escaped HTML exceeds limits, and preserve boundary whitespace when retry re-splitting rendered chunks so plain-text/transcript fidelity is retained. (#29342, #27317; follow-up to #27461) Thanks @obviyus.
 - Slack/Native commands: register Slack native status as `/agentstatus` (Slack-reserved `/status`) so manifest slash command registration stays valid while text `/status` still works. Landed from contributor PR #29032 by @maloqab. Thanks @maloqab.
-- Android/Camera clip: remove `camera.clip` HTTP-upload fallback to base64 so clip transport is deterministic and fail-loud, and reject non-positive `maxWidth` values so invalid inputs fall back to the safe resize default. (#28229) Thanks @obviyus.
-- Android/Gateway canvas capability refresh: send `node.canvas.capability.refresh` with object `params` (`{}`) from Android node runtime so gateway object-schema validation accepts refresh retries and A2UI host recovery works after scoped capability expiry. (#28413) Thanks @obviyus.
 - Onboarding/Custom providers: improve verification reliability for slower local endpoints during setup. (#27380) Thanks @Sid-Qin.
 - Daemon/macOS TLS certs: default LaunchAgent service env `NODE_EXTRA_CA_CERTS` to `/etc/ssl/cert.pem` (while preserving explicit overrides) so HTTPS clients no longer fail with local-issuer errors under launchd. (#27915) Thanks @Lukavyi.
 - Daemon/Linux systemd user-bus fallback: when `systemctl --user` cannot reach the user bus due missing session env, fall back to `systemctl --machine <user>@ --user` so daemon checks/install continue in headless SSH/server sessions. (#34884) Thanks @vincentkoc.
@@ -1899,7 +1870,6 @@ Docs: https://docs.alisio.ai
 ### Changes
 
 - Models/OpenAI forward compat: add support for `openai/gpt-5.4`, `openai/gpt-5.4-pro`, and `openai-codex/gpt-5.4`, including direct OpenAI Responses `serviceTier` passthrough safeguards for valid values. (#36590) Thanks @dorukardahan.
-- Android/Play package ID: rename the Android app package to `ai.alisio.app`, including matching benchmark and Android tooling references for Play publishing. (#38712) Thanks @obviyus.
 
 ### Fixes
 
@@ -2021,8 +1991,6 @@ Docs: https://docs.alisio.ai
 - Feishu/Onboarding SecretRef guards: avoid direct `.trim()` calls on object-form `appId`/`appSecret` in onboarding credential checks, keep status semantics strict when an account explicitly sets empty `appId` (no fallback to top-level `appId`), recognize env SecretRef `appId`/`appSecret` as configured so readiness is accurate, and preserve unresolved SecretRef errors in default account resolution for actionable diagnostics. (#30903) Thanks @LiaoyuanNing.
 - Memory/Hybrid recall: when strict hybrid scoring yields no hits, preserve keyword-backed matches using a text-weight floor so freshly indexed lexical canaries no longer disappear behind `minScore` filtering. (#29112) Thanks @ceo-nada.
 - Feishu/Startup probes: serialize multi-account bot-info probes during monitor startup so large Feishu account sets do not burst `/open-apis/bot/v3/info`, bound startup probe latency/abort handling to avoid head-of-line stalls, and avoid triggering rate limits. (#26685, #29941) Thanks @bmendonca3.
-- Android/Onboarding + voice reliability: request per-toggle onboarding permissions, update pairing guidance to `alisio devices list/approve`, restore assistant speech playback in mic capture flow, cancel superseded in-flight speech (mute + per-reply token rotation), and keep `talk.config` loads retryable after transient failures. (#29796) Thanks @obviyus.
-- Android/Notifications auth race: return `NOT_AUTHORIZED` when `POST_NOTIFICATIONS` is revoked between authorization precheck and delivery, instead of returning success while dropping the notification. (#30726) Thanks @obviyus.
 - Commands/Owner-only tools: treat identified direct-chat senders as owners when no owner allowlist is configured, while preserving internal `operator.admin` owner sessions. (#26331) thanks @widingmarcus-cyber
 - ACP/Harness thread spawn routing: force ACP harness thread creation through `sessions_spawn` (`runtime: "acp"`, `thread: true`) and explicitly forbid `message action=thread-create` for ACP harness requests, avoiding misrouted `Unknown channel` errors. (#30957) Thanks @dutifulbob.
 - Agents/Message tool scoping: include other configured channels in scoped `message` tool action enum + description so isolated/cron runs can discover and invoke cross-channel actions without schema validation failures. Landed from contributor PR #20840. Thanks @altaywtf.
@@ -2065,8 +2033,6 @@ Docs: https://docs.alisio.ai
 - Codex/WebSocket transport: make `openai-codex` WebSocket-first by default (`transport: "auto"` with SSE fallback), keep explicit per-model/runtime transport overrides, and add regression coverage + docs for transport selection.
 - Onboarding/Plugins: let channel plugins own interactive onboarding flows with optional `configureInteractive` and `configureWhenConfigured` hooks while preserving the generic fallback path. (#27191) thanks @gumadeiras.
 - Auth/Onboarding: add an explicit account-risk warning and confirmation gate before starting Gemini CLI OAuth, and document the caution in provider docs and the Gemini CLI auth plugin README. (#16683) Thanks @vincentkoc.
-- Android/Nodes: add Android `device` capability plus `device.status` and `device.info` node commands, including runtime handler wiring and protocol/registry coverage for device status/info payloads. (#27664) Thanks @obviyus.
-- Android/Nodes: add `notifications.list` support on Android nodes and expose `nodes notifications_list` in agent tooling for listing active device notifications. (#27344) thanks @obviyus.
 
 ### Fixes
 
@@ -2149,7 +2115,6 @@ Docs: https://docs.alisio.ai
 - Config/Plugins entries: treat unknown `plugins.entries.*` ids as startup warnings (ignored stale keys) instead of hard validation failures that can crash-loop gateway boot. Landed from contributor PR #27506 by @Sid-Qin. (#27455)
 - Telegram native commands: degrade command registration on `BOT_COMMANDS_TOO_MUCH` by retrying with fewer commands instead of crash-looping startup sync. Landed from contributor PR #27512 by @Sid-Qin. (#27456)
 - Web tools/Proxy: route `web_search` provider HTTP calls (Brave, Perplexity, xAI, Gemini, Kimi), redirect resolution, and `web_fetch` through a shared proxy-aware SSRF guard path so gateway installs behind `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY` no longer fail with transport `fetch failed` errors. (#27430) thanks @kevinWangSheng.
-- Android/Node invoke: remove native gateway WebSocket `Origin` header to avoid false origin rejections, unify invoke command registry/policy/error parsing paths, and keep command availability checks centralized to reduce dispatcher/advertisement drift. (#27257) Thanks @obviyus.
 - Gateway shared-auth scopes: preserve requested operator scopes for shared-token clients when device identity is unavailable, instead of clearing scopes during auth handling. Landed from contributor PR #27498 by @kevinWangSheng. (#27494)
 - Cron/Hooks isolated routing: preserve canonical `agent:*` session keys in isolated runs so already-qualified keys are not double-prefixed (for example `agent:main:main` no longer becomes `agent:main:agent:main:main`). Landed from contributor PR #27333 by @MaheshBhushan. (#27289, #27282)
 - Channels/Multi-account config: when adding a non-default channel account to a single-account top-level channel setup, move existing account-scoped top-level single-account values into `channels.<channel>.accounts.default` before writing the new account so the original account keeps working without duplicated account values at channel root; `alisio doctor --fix` now repairs previously mixed channel account shapes the same way. (#27334) thanks @gumadeiras.
@@ -2160,8 +2125,6 @@ Docs: https://docs.alisio.ai
 
 ### Changes
 
-- Android/Chat: improve streaming delivery handling and markdown rendering quality in the native Android chat UI, including better GitHub-flavored markdown behavior. (#26079) Thanks @obviyus.
-- Android/Startup perf: defer foreground-service startup, move WebView debugging init out of critical startup, and add startup macrobenchmark + low-noise perf CLI scripts for deterministic cold-start tracking. (#26659) Thanks @obviyus.
 - UI/Chat compose: add mobile stacked layout for compose action buttons on small screens to improve send/session controls usability. (#11167) Thanks @junyiz.
 - Heartbeat/Config: replace heartbeat DM toggle with `agents.defaults.heartbeat.directPolicy` (`allow` | `block`; also supported per-agent via `agents.list[].heartbeat.directPolicy`) for clearer delivery semantics.
 - Onboarding/Security: clarify onboarding security notices that Alisio is personal-by-default (single trusted operator boundary) and shared/multi-user setups require explicit lock-down/hardening.
@@ -2241,7 +2204,6 @@ Docs: https://docs.alisio.ai
 ### Changes
 
 - Auto-reply/Abort shortcuts: expand standalone stop phrases (`stop alisio`, `stop action`, `stop run`, `stop agent`, `please stop`, and related variants), accept trailing punctuation (for example `STOP ALISIO!!!`), add multilingual stop keywords (including ES/FR/ZH/HI/AR/JP/DE/PT/RU forms), and treat exact `do not do that` as a stop trigger while preserving strict standalone matching. (#25103) Thanks @steipete and @vincentkoc.
-- Android/App UX: ship a native four-step onboarding flow, move post-onboarding into a five-tab shell (Connect, Chat, Voice, Screen, Settings), add a full Connect setup/manual mode screen, and refresh Android chat/settings surfaces for the new navigation model.
 - Talk/Gateway config: add provider-agnostic Talk configuration with legacy compatibility, and expose gateway Talk ElevenLabs config metadata for setup/status surfaces.
 - Security/Audit: add `security.trust_model.multi_user_heuristic` to flag likely shared-user ingress and clarify the personal-assistant trust model, with hardening guidance for intentional multi-user setups (`sandbox.mode="all"`, workspace-scoped FS, reduced tool surface, no personal/private identities on shared runtimes).
 - Dependencies: refresh key runtime and tooling packages across the workspace (Bedrock SDK, pi runtime stack, OpenAI, Google auth, and oxlint/oxfmt), while intentionally keeping `@buape/carbon` pinned.
@@ -2270,7 +2232,6 @@ Docs: https://docs.alisio.ai
 - Telegram/Media fetch: prioritize IPv4 before IPv6 in SSRF pinned DNS address ordering so media downloads still work on hosts with broken IPv6 routing. (#24295, #23975) Thanks @Glucksberg.
 - Telegram/Outbound API: replace Node 22's global undici dispatcher when applying Telegram `autoSelectFamily` decisions so outbound `fetch` calls inherit IPv4 fallback instead of staying pinned to stale dispatcher settings. (#25682, #25676) Thanks @lairtonlelis.
 - Onboarding/Telegram: keep core-channel onboarding available when plugin registry population is missing by falling back to built-in adapters and continuing wizard setup with actionable recovery guidance. (#25803) Thanks @Suko.
-- Android/Gateway auth: preserve Android gateway auth state across onboarding, use the native client id for operator sessions, retry with shared-token fallback after device-token auth failures, and avoid clearing tokens on transient connect errors.
 - Slack/DM routing: treat `D*` channel IDs as direct messages even when Slack sends an incorrect `channel_type`, preventing DM traffic from being misclassified as channel/group chats. (#25479) Thanks @mcaxtr.
 - Zalo/Group policy: enforce sender authorization for group messages with `groupPolicy` + `groupAllowFrom` (fallback to `allowFrom`), default runtime group behavior to fail-closed allowlist, and block unauthorized non-command group messages before dispatch. Thanks @tdjackey for reporting.
 - macOS/Voice input: guard all audio-input startup paths against missing default microphones (Voice Wake, Talk Mode, Push-to-Talk, mic-level monitor, tester) to avoid launch/runtime crashes on mic-less Macs and fail gracefully until input becomes available. (#25817) Thanks @sfo2001.
@@ -3369,7 +3330,6 @@ Docs: https://docs.alisio.ai
 - Security/Onboarding: clarify multi-user DM isolation remediation with explicit `alisio config set session.dmScope ...` commands in security audit, doctor security, and channel onboarding guidance. (#13129) Thanks @VintLin.
 - Security/Gateway: bind node `system.run` approval overrides to gateway exec-approval records (runId-bound), preventing approval-bypass via `node.invoke` param injection. Thanks @222n5.
 - Agents/Nodes: harden node exec approval decision handling in the `nodes` tool run path by failing closed on unexpected approval decisions, and add regression coverage for approval-required retry/deny/timeout flows. (#4726) Thanks @rmorse.
-- Android/Nodes: harden `app.update` by requiring HTTPS and gateway-host URL matching plus SHA-256 verification, stream URL camera downloads to disk with size guards to avoid memory spikes, and stop signing release builds with debug keys. (#13541) Thanks @smartprogrammer93.
 - Routing: enforce strict binding-scope matching across peer/guild/team/roles so peer-scoped Discord/Slack bindings no longer match unrelated guild/team contexts or fallback tiers. (#15274) Thanks @lailoo.
 - Exec/Allowlist: allow multiline heredoc bodies (`<<`, `<<-`) while keeping multiline non-heredoc shell commands blocked, so exec approval parsing permits heredoc input safely without allowing general newline command chaining. (#13811) Thanks @mcaxtr.
 - Config: preserve `${VAR}` env references when writing config files so `alisio config set/apply/patch` does not persist secrets to disk. Thanks @thewilloftheshadow.
@@ -3508,7 +3468,6 @@ Docs: https://docs.alisio.ai
 - iOS: alpha node app + setup-code onboarding. (#11756) Thanks @mbelinky.
 - Channels: comprehensive BlueBubbles and channel cleanup. (#11093) Thanks @tyler6204.
 - Channels: IRC first-class channel support. (#11482) Thanks @vignesh07.
-- Plugins: device pairing + phone control plugins (Telegram `/pair`, iOS/Android node controls). (#11755) Thanks @mbelinky.
 - Tools: add Grok (xAI) as a `web_search` provider. (#12419) Thanks @tmchow.
 - Gateway: add agent management RPC methods for the web UI (`agents.create`, `agents.update`, `agents.delete`). (#11045) Thanks @advaitpaliwal.
 - Gateway: stream thinking events to WS clients and broadcast tool events independent of verbose level. (#10568) Thanks @nk1tz.
@@ -4113,7 +4072,6 @@ Docs: https://docs.alisio.ai
 - Telegram: render markdown in media captions. (#1478)
 - MS Teams: remove `.default` suffix from Graph scopes and Bot Framework probe scopes. (#1507, #1574) Thanks @Evizero.
 - Browser: keep extension relay tabs controllable when the extension reuses a session id after switching tabs. (#1160)
-- Voice wake: auto-save wake words on blur/submit across iOS/Android and align limits with macOS. (commit 69f645c66)
 - UI: keep the Control UI sidebar visible while scrolling long pages. (#1515) Thanks @pookNast.
 - UI: cache Control UI markdown rendering + memoize chat text extraction to reduce Safari typing jank. (commit d57cb2e1a)
 - TUI: forward unknown slash commands, include Gateway commands in autocomplete, and render slash replies as system output. (commit 1af227b61, commit 8195497ce, commit 6fba598ea)
@@ -4281,7 +4239,6 @@ Docs: https://docs.alisio.ai
 - Models: add Qwen Portal OAuth provider support. (#1120) https://docs.alisio.ai/providers/qwen
 - Onboarding: add allowlist prompts and username-to-id resolution across core and extension channels. https://docs.alisio.ai/start/onboarding
 - Docs: clarify allowlist input types and onboarding behavior for messaging channels. https://docs.alisio.ai/start/onboarding
-- Docs: refresh Android node discovery docs for the Gateway WS service type. https://docs.alisio.ai/platforms/android
 - Docs: surface Amazon Bedrock in provider lists and clarify Bedrock auth env vars. (#1289) https://docs.alisio.ai/bedrock
 - Docs: clarify WhatsApp voice notes. https://docs.alisio.ai/channels/whatsapp
 - Docs: clarify Windows WSL portproxy LAN access notes. https://docs.alisio.ai/platforms/windows
@@ -4290,10 +4247,6 @@ Docs: https://docs.alisio.ai
 - Agents: clarify node_modules read-only guidance in agent instructions.
 - Config: stamp last-touched metadata on write and warn if the config is newer than the running build.
 - macOS: hide usage section when usage is unavailable instead of showing provider errors.
-- Android: migrate node transport to the Gateway WebSocket protocol with TLS pinning support + gateway discovery naming.
-- Android: send structured payloads in node events/invokes and include user-agent metadata in gateway connects.
-- Android: remove legacy bridge transport code now that nodes use the gateway protocol.
-- Android: bump okhttp + dnsjava to satisfy lint dependency checks.
 - Build: update workspace + core/plugin deps.
 - Build: use tsgo for dev/watch builds by default (opt out with `ALISIO_TS_COMPILER=tsc`).
 - Repo: remove the Peekaboo git submodule now that the SPM release is used.
@@ -4309,7 +4262,6 @@ Docs: https://docs.alisio.ai
 - Diagnostics: gate heartbeat/webhook logging. (#1244)
 - Gateway: strip inbound envelope headers from chat history messages to keep clients clean.
 - Gateway: clarify unauthorized handshake responses with token/password mismatch guidance.
-- Gateway: allow mobile node client ids for iOS + Android handshake validation. (#1354)
 - Gateway: clarify connect/validation errors for gateway params. (#1347)
 - Gateway: preserve restart wake routing + thread replies across restarts. (#1337)
 - Gateway: reschedule per-agent heartbeats on config hot reload without restarting the runner.
@@ -4686,7 +4638,6 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - macOS: pass auth token/password to dashboard URL for authenticated access. (#918) - thanks @rahthakor.
 - macOS: reuse launchd gateway auth and skip wizard when gateway config already exists. (#917)
 - macOS: prefer the default bridge tunnel port in remote mode for node bridge connectivity; document macOS remote control + bridge tunnels. (#960, fixes #865) - thanks @kkarimi.
-- Apps: use canonical main session keys from gateway defaults across macOS/iOS/Android to avoid creating bare `main` sessions.
 - macOS: fix cron preview/testing payload to use `channel` key. (#867) - thanks @wes-davis.
 - Telegram: honor `channels.telegram.timeoutSeconds` for grammY API requests. (#863) - thanks @Snaver.
 - Telegram: split long captions into media + follow-up text messages. (#907) - thanks @jalehman.
@@ -4959,7 +4910,6 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Discord: include forwarded message snapshots in agent session context. (#667) - thanks @rubyrunsstuff.
 - Telegram: add `telegram.draftChunk` to tune draft streaming chunking for `streamMode: "block"`. (#667) - thanks @rubyrunsstuff.
 - Tests/Agents: add regression coverage for workspace tool path resolution and bash cwd defaults.
-- iOS/Android: enable stricter concurrency/lint checks; fix Swift 6 strict concurrency issues + Android lint errors (ExifInterface, obsolete SDK check). (#662) - thanks @KristijanJovanovski.
 - Auth: read Codex CLI keychain tokens on macOS before falling back to `~/.codex/auth.json`, preventing stale refresh tokens from breaking gateway live tests.
 - Security/Exec approvals: reject shell command substitution (`$()` and backticks) inside double quotes to prevent exec allowlist bypass when exec allowlist mode is explicitly enabled (the default configuration does not use this mode). Thanks @simecek.
 - iOS/macOS: share `AsyncTimeout`, require explicit `bridgeStableID` on connect, and harden tool display defaults (avoids missing-resource label fallbacks).
@@ -5000,7 +4950,6 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - TUI: agent picker + agents list RPC; improved status line.
 - Doctor/Daemon: audit/repair flows, permissions checks, supervisor config audits; provider status probes + warnings for Discord intents and Telegram privacy; last activity timestamps; gateway restart guidance.
 - Docs: Hetzner Docker VPS guide + cross-links (#556/#592) - thanks @Iamadig; Ansible guide (#545) - thanks @pasogott; provider troubleshooting index; hook parameter expansion (#532) - thanks @mcinteerj; model allowlist notes; OAuth deep dive; showcase refresh.
-- Apps/Branding: refreshed iOS/Android/macOS icons (#521) - thanks @fishfisher.
 
 ### Fixes
 
@@ -5053,7 +5002,6 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - **Providers (Telegram/WhatsApp/Discord/Slack/Signal/iMessage):** retry/backoff, threading, reactions, media groups/attachments, mention gating, typing behavior, and error/log stability; long polling + forum topic isolation for Telegram.
 - **Gateway/CLI UX:** `alisio logs`, cron list colors/aliases, docs search, agents list/add/delete flows, status usage snapshots, runtime/auth source display, and `/status`/commands auth unification.
 - **Control UI/Web:** logs tab, focus mode polish, config form resilience, streaming stability, tool output caps, windowed chat history, and reconnect/password URL auth.
-- **macOS/Android/TUI/Build:** macOS gateway races, QR bundling, JSON5 config safety, Voice Wake hardening; Android EXIF rotation + APK naming/versioning; TUI key handling; tooling/bundling fixes.
 - **Packaging/compat:** npm dist folder coverage, Node 25 qrcode-terminal import fixes, Bun/Playwright/WebSocket patches, and Docker Bun install.
 - **Docs:** new FAQ/ClawHub/config examples/showcase entries and clarified auth, sandbox, and systemd docs.
 
@@ -5091,7 +5039,6 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 
 - Control UI: render Markdown in tool result cards.
 - Control UI: prevent overlapping action buttons in Discord guild rules on narrow layouts.
-- Android: tapping the foreground service notification brings the app to the front. (#179) - thanks @Syhids
 - Cron tool uses `id` for update/remove/run/runs (aligns with gateway params). (#180) - thanks @adamgall
 - Control UI: chat view uses page scroll with sticky header/sidebar and fixed composer (no inner scroll frame).
 - macOS: treat location permission as always-only to avoid iOS-only enums. (#165) - thanks @Nachx639

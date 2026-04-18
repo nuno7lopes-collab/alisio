@@ -10,7 +10,7 @@ export {
   normalizeChannelSlug,
   resolveChannelEntryMatchWithFallback,
   resolveNestedAllowlistDecision,
-} from "../channels/plugins/channel-config.js";
+} from "../channels/channel-config.js";
 export {
   deleteAccountFromConfigSection,
   clearAccountEntryFields,

@@ -8,8 +8,6 @@ Report vulnerabilities directly to the repository where the issue lives:
 
 - **Core CLI and gateway** — [alisio/alisio](https://github.com/alisio/alisio)
 - **macOS desktop app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/macos)
-- **iOS app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/ios)
-- **Android app** — [alisio/alisio](https://github.com/alisio/alisio) (apps/android)
 - **Marketplace service backend** — [alisio/clawhub](https://github.com/alisio/clawhub)
 - **Trust and threat model** — [alisio/trust](https://github.com/alisio/trust)
 

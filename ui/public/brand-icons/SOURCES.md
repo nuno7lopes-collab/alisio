@@ -4,7 +4,7 @@ Official/public vendor assets:
 
 - `facebook.png`: `https://www.facebook.com/images/fb_icon_325x325.png`
 - `instagram.png`: `https://static.cdninstagram.com/rsrc.php/yw/r/icwX0xAk0pz.webp`
-- `x.png`: `https://abs.twimg.com/responsive-web/client-web/icon-ios.77d25eba.png`
+- `x.png`: `https://x.com`
 - `tiktok.png`: `https://www.tiktok.com/apple-touch-icon.png`
 - `linkedin.png`: `https://static.licdn.com/aero-v1/sc/h/al2o9zrvru7aqj8e1x2rzsrca`
 - `pinterest.png`: `https://s.pinimg.com/webapp/logo_transparent_144x144-3da7a67b.png`
@@ -19,7 +19,7 @@ Official/public vendor assets:
 - `google-calendar.svg`: `https://www.gstatic.com/images/branding/productlogos/calendar_2020q4/v13/192px.svg`
 - `google-drive.svg`: `https://www.gstatic.com/images/branding/productlogos/drive_2020q4/v10/192px.svg`
 - `google-analytics.png`: `https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/9a/4a/e4/9a4ae45e-05ff-8af6-385d-eacdbec9993e/logo_google_analytics_color-0-1x_U007emarketing-0-0-0-7-0-0-0-85-220-0.png/512x512bb.jpg`
-- `notion.png`: `https://www.notion.so/front-static/logo-ios.png`
+- `notion.png`: `https://www.notion.so`
 - `github.png`: `https://github.com/fluidicon.png`
 - `slack.png`: `https://a.slack-edge.com/e6a93c1/img/icons/favicon-32.png`
 - `freshdesk.png`: `https://www.freshworks.com/favicons/apple-touch-icon.png`
@@ -31,3 +31,7 @@ Official/public vendor assets:
 - `signal.svg`: `https://signal.org/assets/images/favicon/favicon.svg`
 - `line.png`: `https://line.me/static/img/apple-touch-icon-152x152.png`
 - `imessage.png`: `/System/Applications/Messages.app/Contents/Resources/AppIcon.icns`
+
+Locally authored assets:
+
+- `stripe.svg`: local Stripe connector icon for the manual API key setup flow

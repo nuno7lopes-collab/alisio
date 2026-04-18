@@ -5,7 +5,7 @@ describe("matrix device health", () => {
   it("detects Alisio-managed device names", () => {
     expect(isAlisioManagedMatrixDevice("Alisio Gateway")).toBe(true);
     expect(isAlisioManagedMatrixDevice("Alisio Debug")).toBe(true);
-    expect(isAlisioManagedMatrixDevice("Element iPhone")).toBe(false);
+    expect(isAlisioManagedMatrixDevice("Element Mac")).toBe(false);
     expect(isAlisioManagedMatrixDevice(null)).toBe(false);
   });
 
@@ -28,7 +28,7 @@ describe("matrix device health", () => {
       },
       {
         deviceId: "phone123",
-        displayName: "Element iPhone",
+        displayName: "Element Mac",
         current: false,
       },
     ]);

@@ -55,7 +55,6 @@ export type GatewayRequestContext = {
   nodeSubscribe: (nodeId: string, sessionKey: string) => void;
   nodeUnsubscribe: (nodeId: string, sessionKey: string) => void;
   nodeUnsubscribeAll: (nodeId: string) => void;
-  hasConnectedMobileNode: () => boolean;
   hasExecApprovalClients?: (excludeConnId?: string) => boolean;
   disconnectClientsForDevice?: (deviceId: string, opts?: { role?: string }) => void;
   nodeRegistry: NodeRegistry;

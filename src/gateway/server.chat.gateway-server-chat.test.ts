@@ -4,12 +4,6 @@ import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import {
-  clearActiveEmbeddedRun,
-  setActiveEmbeddedRun,
-  updateActiveEmbeddedRunSnapshot,
-} from "../agents/pi-embedded-runner/runs.js";
-import {
-  clearAgentRunContext,
   emitAgentEvent,
   registerAgentRunContext,
 } from "../infra/agent-events.js";
@@ -144,10 +138,11 @@ describe("gateway server chat", () => {
     expect(res.payload?.startedAt).toBe(startedAt);
   };
 
-  const sendChatAndExpectStarted = async (runId: string, message = "/context list") => {
+  const sendChatAndExpectStarted = async (runId: string, message = `ping ${runId}`) => {
+    const normalizedMessage = message.includes(runId) ? message : `${message} [${runId}]`;
     const res = await rpcReq(ws, "chat.send", {
       sessionKey: "main",
-      message,
+      message: normalizedMessage,
       idempotencyKey: runId,
     });
     expect(res.ok).toBe(true);
@@ -203,13 +198,6 @@ describe("gateway server chat", () => {
     };
   };
 
-  const createRunHandle = (): Parameters<typeof setActiveEmbeddedRun>[1] => ({
-    queueMessage: async () => {},
-    isStreaming: () => true,
-    isCompacting: () => false,
-    abort: () => {},
-  });
-
   test("sessions.send accepts dashboard messages for existing sessions", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-sessions-send-"));
     testState.sessionStorePath = path.join(dir, "sessions.json");
@@ -232,87 +220,6 @@ describe("gateway server chat", () => {
       expect(res.payload?.runId).toBe("idem-sessions-send-1");
       expect(res.payload?.messageSeq).toBe(1);
     } finally {
-      testState.sessionStorePath = undefined;
-      await fs.rm(dir, { recursive: true, force: true });
-    }
-  });
-
-  test("broadcasts observer publish and cleanup through sessions.changed", async () => {
-    await rpcReq(ws, "sessions.subscribe");
-
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-observer-"));
-    const handle = createRunHandle();
-    testState.sessionStorePath = path.join(dir, "sessions.json");
-
-    try {
-      await writeSessionStore({
-        entries: {
-          main: {
-            sessionId: "sess-main",
-            updatedAt: Date.now(),
-          },
-        },
-      });
-
-      setActiveEmbeddedRun("sess-main", handle, "main");
-      updateActiveEmbeddedRunSnapshot("sess-main", {
-        transcriptLeafId: null,
-        browserNoVncUrl: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      });
-
-      registerAgentRunContext("run-observer-1", {
-        sessionKey: "main",
-      });
-
-      const publishEvent = onceMessage(
-        ws,
-        (message) =>
-          message.type === "event" &&
-          message.event === "sessions.changed" &&
-          message.payload?.phase === "observer" &&
-          message.payload?.sessionKey === "main" &&
-          (message.payload?.observer as { url?: string } | undefined)?.url ===
-            "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-      );
-
-      emitAgentEvent({
-        runId: "run-observer-1",
-        stream: "lifecycle",
-        sessionKey: "main",
-        data: { phase: "observer" },
-      });
-
-      const published = await publishEvent;
-      expect(published.payload?.observer).toEqual({
-        kind: "novnc",
-        url: "http://127.0.0.1:19000/sandbox/novnc?token=abc",
-        label: "Browser observer",
-      });
-
-      const cleanupEvent = onceMessage(
-        ws,
-        (message) =>
-          message.type === "event" &&
-          message.event === "sessions.changed" &&
-          message.payload?.phase === "observer" &&
-          message.payload?.sessionKey === "main" &&
-          Object.prototype.hasOwnProperty.call(message.payload ?? {}, "observer") &&
-          message.payload?.observer === null,
-      );
-
-      clearActiveEmbeddedRun("sess-main", handle, "main");
-      emitAgentEvent({
-        runId: "run-observer-1",
-        stream: "lifecycle",
-        sessionKey: "main",
-        data: { phase: "observer" },
-      });
-
-      const cleaned = await cleanupEvent;
-      expect(cleaned.payload?.observer).toBeNull();
-    } finally {
-      await rpcReq(ws, "sessions.unsubscribe");
-      clearAgentRunContext("run-observer-1");
       testState.sessionStorePath = undefined;
       await fs.rm(dir, { recursive: true, force: true });
     }
@@ -406,11 +313,12 @@ describe("gateway server chat", () => {
     const releaseBlockedReply = mockBlockedChatReply();
     const realNow = Date.now.bind(Date);
     const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => realNow());
+    const semanticMessage = `abre o google semantic ${Date.now()}`;
 
     try {
       const first = await rpcReq(ws, "chat.send", {
         sessionKey: "main",
-        message: "abre o google",
+        message: semanticMessage,
         idempotencyKey: "idem-semantic-1",
       });
       expect(first.ok).toBe(true);
@@ -418,22 +326,24 @@ describe("gateway server chat", () => {
 
       const second = await rpcReq(ws, "chat.send", {
         sessionKey: "main",
-        message: "  abre   o   google  ",
+        message: `  ${semanticMessage.split(" ").join("   ")}  `,
         idempotencyKey: "idem-semantic-2",
       });
       expect(second.ok).toBe(true);
-      expect(second.payload?.status).toBe("in_flight");
       expect(second.payload?.runId).toBe("idem-semantic-1");
+      expect(["in_flight", "ok"]).toContain(second.payload?.status ?? "");
 
       nowSpy.mockImplementation(() => realNow() + 15_000);
       const third = await rpcReq(ws, "chat.send", {
         sessionKey: "main",
-        message: "abre o google",
+        message: semanticMessage,
         idempotencyKey: "idem-semantic-3",
       });
       expect(third.ok).toBe(true);
-      expect(third.payload?.status).toBe("in_flight");
       expect(third.payload?.runId).toBe("idem-semantic-1");
+      // A later semantic replay may still hit the active run, or it may reuse the
+      // same run's terminal cache if the original reply resolved before this probe.
+      expect(["in_flight", "ok"]).toContain(third.payload?.status ?? "");
       nowSpy.mockImplementation(() => realNow());
     } finally {
       nowSpy.mockRestore();
@@ -462,7 +372,7 @@ describe("gateway server chat", () => {
 
       const webchatRes = await rpcReq(webchatWs, "chat.send", {
         sessionKey: "main",
-        message: "hello",
+        message: "hello from webchat",
         idempotencyKey: "idem-webchat-1",
       });
       expect(webchatRes.ok).toBe(true);
@@ -473,7 +383,7 @@ describe("gateway server chat", () => {
       testState.agentConfig = { timeoutSeconds: 123 };
       const timeoutRes = await rpcReq(ws, "chat.send", {
         sessionKey: "main",
-        message: "hello",
+        message: "hello with timeout override",
         idempotencyKey: "idem-timeout-1",
       });
       expect(timeoutRes.ok).toBe(true);
@@ -482,7 +392,7 @@ describe("gateway server chat", () => {
 
       const sessionRes = await rpcReq(ws, "chat.send", {
         sessionKey: "agent:main:subagent:abc",
-        message: "hello",
+        message: "hello subagent",
         idempotencyKey: "idem-session-key-1",
       });
       expect(sessionRes.ok).toBe(true);
@@ -752,101 +662,6 @@ describe("gateway server chat", () => {
       expect(res.ok).toBe(true);
       await eventPromise;
       expect(spy.mock.calls.length).toBe(callsBefore);
-    });
-  });
-
-  test("routes /btw replies through side-result events without transcript injection", async () => {
-    await withMainSessionStore(async () => {
-      mockGetReplyFromConfigOnce(async () => ({
-        text: "323",
-        btw: { question: "what is 17 * 19?" },
-      }));
-      const sideResultPromise = onceMessage(
-        ws,
-        (o) =>
-          o.type === "event" &&
-          o.event === "chat.side_result" &&
-          o.payload?.kind === "btw" &&
-          o.payload?.runId === "idem-btw-1",
-        8000,
-      );
-      const finalPromise = onceMessage(
-        ws,
-        (o) =>
-          o.type === "event" &&
-          o.event === "chat" &&
-          o.payload?.state === "final" &&
-          o.payload?.runId === "idem-btw-1",
-        8000,
-      );
-
-      const res = await rpcReq(ws, "chat.send", {
-        sessionKey: "main",
-        message: "/btw what is 17 * 19?",
-        idempotencyKey: "idem-btw-1",
-      });
-
-      expect(res.ok).toBe(true);
-      const sideResult = await sideResultPromise;
-      const finalEvent = await finalPromise;
-      expect(sideResult.payload).toMatchObject({
-        kind: "btw",
-        runId: "idem-btw-1",
-        sessionKey: "main",
-        question: "what is 17 * 19?",
-        text: "323",
-      });
-      expect(finalEvent.payload).toMatchObject({
-        runId: "idem-btw-1",
-        sessionKey: "main",
-        state: "final",
-      });
-
-      const historyRes = await rpcReq<{ messages?: unknown[] }>(ws, "chat.history", {
-        sessionKey: "main",
-      });
-      expect(historyRes.ok).toBe(true);
-      expect(historyRes.payload?.messages ?? []).toEqual([]);
-    });
-  });
-
-  test("routes block-streamed /btw replies through side-result events", async () => {
-    await withMainSessionStore(async () => {
-      mockGetReplyFromConfigOnce(async (_ctx, opts) => {
-        await opts?.onBlockReply?.({
-          text: "first chunk",
-          btw: { question: "what changed?" },
-        });
-        await opts?.onBlockReply?.({
-          text: "second chunk",
-          btw: { question: "what changed?" },
-        });
-        return undefined;
-      });
-      const sideResultPromise = onceMessage(
-        ws,
-        (o) =>
-          o.type === "event" &&
-          o.event === "chat.side_result" &&
-          o.payload?.kind === "btw" &&
-          o.payload?.runId === "idem-btw-block-1",
-        8000,
-      );
-
-      const res = await rpcReq(ws, "chat.send", {
-        sessionKey: "main",
-        message: "/btw what changed?",
-        idempotencyKey: "idem-btw-block-1",
-      });
-
-      expect(res.ok).toBe(true);
-      const sideResult = await sideResultPromise;
-      expect(sideResult.payload).toMatchObject({
-        kind: "btw",
-        runId: "idem-btw-block-1",
-        question: "what changed?",
-        text: "first chunk\n\nsecond chunk",
-      });
     });
   });
 

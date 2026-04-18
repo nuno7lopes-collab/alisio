@@ -95,11 +95,10 @@ appendComponentStyles(
 const emptyClasses = () => ({});
 const textHintStyles = () => ({ h1: {}, h2: {}, h3: {}, h4: {}, h5: {}, body: {}, caption: {} });
 
-const isAndroid = /Android/i.test(globalThis.navigator?.userAgent ?? "");
-const cardShadow = isAndroid ? "0 2px 10px rgba(0,0,0,.18)" : "0 10px 30px rgba(0,0,0,.35)";
-const buttonShadow = isAndroid ? "0 2px 10px rgba(6, 182, 212, 0.14)" : "0 10px 25px rgba(6, 182, 212, 0.18)";
-const statusShadow = isAndroid ? "0 2px 10px rgba(0, 0, 0, 0.18)" : "0 10px 24px rgba(0, 0, 0, 0.25)";
-const statusBlur = isAndroid ? "10px" : "14px";
+const cardShadow = "0 10px 30px rgba(0,0,0,.35)";
+const buttonShadow = "0 10px 25px rgba(6, 182, 212, 0.18)";
+const statusShadow = "0 10px 24px rgba(0, 0, 0, 0.25)";
+const statusBlur = "14px";
 
 const alisioTheme = {
   components: {
@@ -463,9 +462,7 @@ class AlisioA2UIHost extends LitElement {
     globalThis.__alisioLastA2UIAction = userAction;
 
     const iosHandlerNames = ["alisioCanvasA2UIAction", "alisioCanvasA2UIAction"];
-    const androidHandlerNames = ["alisioCanvasA2UIAction", "alisioCanvasA2UIAction"];
     let handler = null;
-    let androidBridge = false;
     for (const name of iosHandlerNames) {
       const candidate = globalThis.webkit?.messageHandlers?.[name];
       if (candidate?.postMessage) {
@@ -473,24 +470,9 @@ class AlisioA2UIHost extends LitElement {
         break;
       }
     }
-    if (!handler) {
-      for (const name of androidHandlerNames) {
-        const candidate = globalThis[name];
-        if (candidate?.postMessage) {
-          handler = candidate;
-          androidBridge = true;
-          break;
-        }
-      }
-    }
     if (handler?.postMessage) {
       try {
-        // WebKit message handlers support structured objects; Android's JS interface expects strings.
-        if (androidBridge) {
-          handler.postMessage(JSON.stringify({ userAction }));
-        } else {
-          handler.postMessage({ userAction });
-        }
+        handler.postMessage({ userAction });
       } catch (e) {
         const msg = String(e?.message ?? e);
         this.pendingAction = { id: actionId, name, phase: "error", startedAt: Date.now(), error: msg };

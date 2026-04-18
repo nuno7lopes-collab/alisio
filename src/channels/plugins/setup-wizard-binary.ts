@@ -1,5 +1,5 @@
 import type { AlisioConfig } from "../../config/config.js";
-import { detectBinary as defaultDetectBinary } from "../../plugins/setup-binary.js";
+import { detectBinary as defaultDetectBinary } from "../../infra/detect-binary.js";
 import type {
   ChannelSetupWizard,
   ChannelSetupWizardStatus,

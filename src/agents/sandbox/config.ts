@@ -7,9 +7,7 @@ import {
   DEFAULT_SANDBOX_BROWSER_CDP_PORT,
   DEFAULT_SANDBOX_BROWSER_IMAGE,
   DEFAULT_SANDBOX_BROWSER_NETWORK,
-  DEFAULT_SANDBOX_BROWSER_NOVNC_PORT,
   DEFAULT_SANDBOX_BROWSER_PREFIX,
-  DEFAULT_SANDBOX_BROWSER_VNC_PORT,
   DEFAULT_SANDBOX_CONTAINER_PREFIX,
   DEFAULT_SANDBOX_IDLE_HOURS,
   DEFAULT_SANDBOX_IMAGE,
@@ -145,13 +143,7 @@ export function resolveSandboxBrowserConfig(params: {
     network: agentBrowser?.network ?? globalBrowser?.network ?? DEFAULT_SANDBOX_BROWSER_NETWORK,
     cdpPort: agentBrowser?.cdpPort ?? globalBrowser?.cdpPort ?? DEFAULT_SANDBOX_BROWSER_CDP_PORT,
     cdpSourceRange: agentBrowser?.cdpSourceRange ?? globalBrowser?.cdpSourceRange,
-    vncPort: agentBrowser?.vncPort ?? globalBrowser?.vncPort ?? DEFAULT_SANDBOX_BROWSER_VNC_PORT,
-    noVncPort:
-      agentBrowser?.noVncPort ?? globalBrowser?.noVncPort ?? DEFAULT_SANDBOX_BROWSER_NOVNC_PORT,
     headless: agentBrowser?.headless ?? globalBrowser?.headless ?? false,
-    // Visible interaction now defaults to the native Computer lane on desktop.
-    // Keep noVNC opt-in for isolated sandbox debugging only.
-    enableNoVnc: agentBrowser?.enableNoVnc ?? globalBrowser?.enableNoVnc ?? false,
     allowHostControl: agentBrowser?.allowHostControl ?? globalBrowser?.allowHostControl ?? false,
     autoStart: agentBrowser?.autoStart ?? globalBrowser?.autoStart ?? true,
     autoStartTimeoutMs:

@@ -339,10 +339,6 @@
       "durationMs": 156.636474609375,
       "testCount": 4
     },
-    "test/scripts/ios-team-id.test.ts": {
-      "durationMs": 155.50732421875,
-      "testCount": 3
-    },
     "src/hooks/plugin-hooks.test.ts": {
       "durationMs": 151.358642578125,
       "testCount": 4

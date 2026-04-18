@@ -344,6 +344,7 @@ private struct WorkspaceChatStage: View {
 
     @State private var chatViewModel: AlisioChatViewModel
     @State private var computerStore: MacDesktopComputerStore
+    @State private var computerPanePresented = false
 
     init(sessionKey: String, state: AppState, palette: AlisioPalette, compact: Bool) {
         self.state = state
@@ -358,22 +359,31 @@ private struct WorkspaceChatStage: View {
     }
 
     var body: some View {
-        Group {
-            if self.compact || self.state.connectionMode != .local {
-                self.chatOnlyStage
-            } else {
-                HSplitView {
+        VStack(spacing: self.compact ? 0 : 12) {
+            if self.showsComputerToggle {
+                self.computerToolbar
+                    .padding(.horizontal, 22)
+                    .padding(.top, 18)
+            }
+
+            Group {
+                if !self.showsComputerToggle || !self.computerPanePresented {
                     self.chatOnlyStage
-                    DesktopComputerPane(store: self.computerStore, palette: self.palette)
-                        .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
+                } else {
+                    HSplitView {
+                        self.chatOnlyStage
+                        DesktopComputerPane(store: self.computerStore, palette: self.palette)
+                            .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
+                    }
                 }
             }
         }
         .task {
-            if self.state.connectionMode == .local, !self.compact {
+            if self.showsComputerToggle {
                 self.computerStore.activate()
             } else {
                 self.computerStore.deactivate()
+                self.computerPanePresented = false
             }
         }
         .onDisappear {
@@ -384,6 +394,12 @@ private struct WorkspaceChatStage: View {
                 self.computerStore.activate()
             } else {
                 self.computerStore.deactivate()
+                self.computerPanePresented = false
+            }
+        }
+        .onChange(of: self.computerStore.shouldAutoPresentPane) { _, shouldPresent in
+            if shouldPresent {
+                self.computerPanePresented = true
             }
         }
     }
@@ -398,6 +414,47 @@ private struct WorkspaceChatStage: View {
             showsAssistantTrace: true)
             .padding(self.compact ? 8 : 22)
             .background(self.palette.stage)
+    }
+
+    private var showsComputerToggle: Bool {
+        !self.compact && self.state.connectionMode == .local
+    }
+
+    private var computerToolbar: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Computer")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(self.palette.primaryText)
+                Text(self.computerToolbarSubtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(self.palette.secondaryText)
+            }
+            Spacer()
+            Group {
+                if self.computerPanePresented {
+                    Button("Hide computer") {
+                        self.computerPanePresented = false
+                    }
+                    .buttonStyle(AlisioGhostButtonStyle(palette: self.palette))
+                } else {
+                    Button("Show computer") {
+                        self.computerPanePresented = true
+                    }
+                    .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                }
+            }
+        }
+    }
+
+    private var computerToolbarSubtitle: String {
+        if self.computerStore.needsObservationPermission {
+            return "Screen Recording required for local observation."
+        }
+        if self.computerStore.needsControlPermission {
+            return "Observation is ready. Accessibility is still required for control actions."
+        }
+        return self.computerStore.statusLabel
     }
 }
 
@@ -443,15 +500,36 @@ private struct DesktopComputerPane: View {
                 }
             }
 
-            if self.store.needsPermissionGuidance {
-                Button {
-                    self.store.requestPermissions()
-                } label: {
-                    Label("Grant Permissions", systemImage: "lock.open.display")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+            if self.store.needsObservationPermission || self.store.needsControlPermission {
+                VStack(alignment: .leading, spacing: 10) {
+                    if self.store.needsObservationPermission {
+                        Button {
+                            self.store.requestObservationPermission()
+                        } label: {
+                            Label("Grant Screen Recording", systemImage: "display")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                    }
+
+                    if self.store.needsControlPermission {
+                        Button {
+                            self.store.requestControlPermission()
+                        } label: {
+                            Label("Grant Accessibility", systemImage: "hand.tap")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(AlisioGhostButtonStyle(palette: self.palette))
+                    }
+
+                    if let restartHint = self.store.permissionRestartHint {
+                        Text(restartHint)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(self.palette.secondaryText)
+                    }
                 }
-                .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
             }
 
             HStack(spacing: 10) {
@@ -464,6 +542,7 @@ private struct DesktopComputerPane: View {
                 } else {
                     Button("Start") { self.store.start() }
                         .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                        .disabled(!self.store.canStartSession)
                 }
 
                 Button("Stop") { self.store.stop() }
@@ -516,8 +595,8 @@ private struct DesktopComputerPane: View {
         if let errorText = self.store.errorText, !errorText.isEmpty {
             return errorText
         }
-        if self.store.needsPermissionGuidance {
-            return "Grant Accessibility and Screen Recording to observe the Mac."
+        if self.store.needsObservationPermission {
+            return "Grant Screen Recording to observe the Mac."
         }
         switch self.store.sessionState {
         case .running:
@@ -525,6 +604,9 @@ private struct DesktopComputerPane: View {
         case .paused:
             return "Session paused."
         case .stopped:
+            if self.store.needsControlPermission {
+                return "Observation is ready. Grant Accessibility to allow local control actions."
+            }
             return "Computer session stopped."
         }
     }

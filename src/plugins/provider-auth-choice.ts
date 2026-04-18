@@ -18,7 +18,8 @@ import {
 } from "./provider-auth-choice-helpers.js";
 import { applyAuthProfileConfig } from "./provider-auth-helpers.js";
 import { createVpsAwareOAuthHandlers } from "./provider-oauth-flow.js";
-import { isRemoteEnvironment, openUrl } from "./setup-browser.js";
+import { openUrl } from "../infra/browser-open.js";
+import { isRemoteEnvironment } from "../infra/remote-env.js";
 import type { ProviderAuthMethod, ProviderAuthOptionBag } from "./types.js";
 
 export type ApplyProviderAuthChoiceParams = {

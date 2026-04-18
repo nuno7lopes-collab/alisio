@@ -1,8 +1,0 @@
-// Shared iOS version defaults.
-// Generated overrides live in build/Version.xcconfig (git-ignored).
-
-ALISIO_GATEWAY_VERSION = 2026.3.30
-ALISIO_MARKETING_VERSION = 2026.3.30
-ALISIO_BUILD_VERSION = 2026033000
-
-#include? "../build/Version.xcconfig"

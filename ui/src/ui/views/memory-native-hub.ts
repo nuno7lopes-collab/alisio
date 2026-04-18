@@ -13,6 +13,7 @@ import {
   type MemoryNoteAttachment,
   type MemoryNoteBacklink,
   type MemoryNoteListEntry,
+  type MemoryNoteRole,
   type MemoryNotesListResult,
   requestMemoryFile,
   requestMemoryGraph,
@@ -94,11 +95,18 @@ function memoryText() {
     noteMarkdown: t("alisio.memory.wiki.editorTitle"),
     noteNoSelection: t("alisio.memory.wiki.noSelection"),
     notePath: t("alisio.memory.wiki.path"),
+    noteRole: t("alisio.memory.wiki.roleLabel"),
     noteUpdated: t("alisio.memory.wiki.updated"),
     notesCreate: t("alisio.memory.wiki.create"),
     notesCreateConfirm: t("alisio.memory.wiki.createConfirm"),
     notesCreatePlaceholder: t("alisio.memory.wiki.createPlaceholder"),
     notesListTitle: t("alisio.memory.wiki.listTitle"),
+    noteRoles: {
+      main: t("alisio.memory.wiki.roles.main"),
+      topic: t("alisio.memory.wiki.roles.topic"),
+      daily: t("alisio.memory.wiki.roles.daily"),
+      backlog: t("alisio.memory.wiki.roles.backlog"),
+    },
     preview: t("alisio.memory.preview"),
     previewEmpty: t("alisio.memory.previewEmpty"),
     refresh: t("common.refresh"),
@@ -219,13 +227,9 @@ function renderReasonTags(tags: MemoryNote["reasonTags"] | null | undefined) {
   if (entries.length === 0) {
     return nothing;
   }
-  return html`
-    <span class="alisio-memory-native__chips">
-      ${entries.map(
-        (tag) => html`<span class="alisio-memory-badge">${formatReasonLabel(tag)}</span>`,
-      )}
-    </span>
-  `;
+  return entries.map(
+    (tag) => html`<span class="alisio-memory-badge">${formatReasonLabel(tag)}</span>`,
+  );
 }
 
 function renderMemoryNotice(message: string, tone: "danger" | "info" = "info") {
@@ -274,73 +278,74 @@ function renderNoteSkeleton() {
   `;
 }
 
-type NoteExplorerTreeNode = {
+type NoteRoleGroup = {
+  role: MemoryNoteRole;
   label: string;
-  path: string;
-  folders: NoteExplorerTreeNode[];
+  icon: unknown;
   notes: MemoryNoteListEntry[];
-  noteCount: number;
 };
 
-function normalizeNoteFolder(pathValue: string | null | undefined) {
-  const normalized = typeof pathValue === "string" ? pathValue.replace(/\\/g, "/").trim() : "";
-  if (!normalized.includes("/")) {
-    return "/";
-  }
-  const folder = normalized.split("/").slice(0, -1).join("/");
-  return folder || "/";
+function resolveNoteRole(note: Pick<MemoryNoteListEntry, "memoryRole">): MemoryNoteRole {
+  return note.memoryRole ?? "topic";
 }
 
-function buildNoteExplorerTree(notes: MemoryNoteListEntry[]) {
-  type MutableNode = {
-    label: string;
-    path: string;
-    folders: Map<string, MutableNode>;
-    notes: MemoryNoteListEntry[];
-  };
-
-  const createNode = (path: string, label: string): MutableNode => ({
-    label,
-    path,
-    folders: new Map(),
-    notes: [],
-  });
-
-  const root = createNode("/", "/");
-  for (const note of notes) {
-    const folder = normalizeNoteFolder(note.path);
-    const segments = folder === "/" ? [] : folder.split("/").filter(Boolean);
-    let current = root;
-    let currentPath = "";
-    for (const segment of segments) {
-      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-      let child = current.folders.get(currentPath);
-      if (!child) {
-        child = createNode(currentPath, segment);
-        current.folders.set(currentPath, child);
-      }
-      current = child;
-    }
-    current.notes.push(note);
+function parseUpdatedAtMs(value: string | null | undefined) {
+  if (!value) {
+    return null;
   }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
-  const finalize = (node: MutableNode): NoteExplorerTreeNode => {
-    const folders = [...node.folders.values()]
-      .map((child) => finalize(child))
-      .toSorted((left, right) => left.label.localeCompare(right.label));
-    const orderedNotes = [...node.notes].toSorted((left, right) =>
-      left.title.localeCompare(right.title),
-    );
-    return {
-      label: node.label,
-      path: node.path,
-      folders,
-      notes: orderedNotes,
-      noteCount: orderedNotes.length + folders.reduce((sum, entry) => sum + entry.noteCount, 0),
-    };
-  };
+function compareExplorerNotes(left: MemoryNoteListEntry, right: MemoryNoteListEntry) {
+  const role = resolveNoteRole(left);
+  if (role !== resolveNoteRole(right)) {
+    return left.title.localeCompare(right.title);
+  }
+  if (role === "daily" || role === "backlog") {
+    const updatedDiff =
+      (parseUpdatedAtMs(right.updatedAt) ?? 0) - (parseUpdatedAtMs(left.updatedAt) ?? 0);
+    if (updatedDiff !== 0) {
+      return updatedDiff;
+    }
+    const pathDiff = (right.path ?? "").localeCompare(left.path ?? "");
+    if (pathDiff !== 0) {
+      return pathDiff;
+    }
+  }
+  return left.title.localeCompare(right.title);
+}
 
-  return finalize(root);
+function resolveRoleGroupLabel(text: ReturnType<typeof memoryText>, role: MemoryNoteRole) {
+  return text.noteRoles[role];
+}
+
+function resolveRoleGroupIcon(role: MemoryNoteRole) {
+  switch (role) {
+    case "main":
+      return icons.bookmark;
+    case "topic":
+      return icons.folder;
+    case "daily":
+      return icons.clock3;
+    case "backlog":
+      return icons.pin;
+  }
+}
+
+function buildNoteRoleGroups(
+  notes: MemoryNoteListEntry[],
+  text: ReturnType<typeof memoryText>,
+): NoteRoleGroup[] {
+  const roles: MemoryNoteRole[] = ["main", "topic", "daily", "backlog"];
+  return roles
+    .map((role) => ({
+      role,
+      label: resolveRoleGroupLabel(text, role),
+      icon: resolveRoleGroupIcon(role),
+      notes: notes.filter((note) => resolveNoteRole(note) === role).toSorted(compareExplorerNotes),
+    }))
+    .filter((group) => group.notes.length > 0);
 }
 
 function stripFrontmatter(markdown: string) {
@@ -384,6 +389,18 @@ function formatNoteSubtitle(
   return note.excerpt?.trim() || note.path?.trim() || formatTimestamp(note.updatedAt) || text.na;
 }
 
+function renderMemoryRoleChip(
+  text: Pick<ReturnType<typeof memoryText>, "noteRole" | "noteRoles">,
+  note: Pick<MemoryNote, "memoryRole">,
+) {
+  const role = resolveNoteRole(note);
+  return html`
+    <span class="alisio-memory-badge alisio-memory-badge--role" title=${text.noteRole}>
+      ${text.noteRoles[role]}
+    </span>
+  `;
+}
+
 export class AlisioMemoryNativeHub extends LitElement {
   private i18nController = new I18nController(this);
 
@@ -424,8 +441,6 @@ export class AlisioMemoryNativeHub extends LitElement {
   private attachmentToken = 0;
   private graphToken = 0;
   private searchReloadTimer: number | null = null;
-  private explorerTreeSource: MemoryNoteListEntry[] | null = null;
-  private explorerTreeCache: NoteExplorerTreeNode | null = null;
   private notePreviewMarkdown = "";
   private notePreviewHtml = "";
 
@@ -571,17 +586,6 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private shouldRefreshGraphForCurrentView() {
     return this.mainPaneMode === "graph";
-  }
-
-  private getExplorerTree() {
-    const notes = this.notesList?.notes ?? null;
-    if (this.explorerTreeSource === notes && this.explorerTreeCache) {
-      return this.explorerTreeCache;
-    }
-    const nextTree = buildNoteExplorerTree(notes ?? []);
-    this.explorerTreeSource = notes;
-    this.explorerTreeCache = nextTree;
-    return nextTree;
   }
 
   private getNotePreviewHtml() {
@@ -1190,61 +1194,51 @@ export class AlisioMemoryNativeHub extends LitElement {
     `;
   }
 
-  private renderExplorerNote(
-    note: MemoryNoteListEntry,
-    text: ReturnType<typeof memoryText>,
-    depth: number,
-  ) {
+  private renderExplorerNote(note: MemoryNoteListEntry, text: ReturnType<typeof memoryText>) {
     const isActive = this.selectedNoteId === note.id;
-    const subtitle = note.path?.trim()?.split("/").at(-1) ?? formatNoteSubtitle(text, note);
+    const subtitle = formatNoteSubtitle(text, note);
+    const role = resolveNoteRole(note);
     return html`
       <button
         type="button"
-        class="alisio-memory-tree__note ${isActive ? "is-active" : ""}"
+        class="alisio-memory-role-card ${isActive ? "is-active" : ""}"
         aria-current=${isActive ? "true" : "false"}
-        style=${`--tree-depth:${String(depth)}`}
         @click=${() => void this.selectNote(note.id)}
       >
-        <span class="alisio-memory-tree__glyph">${icons.fileText}</span>
-        <span class="alisio-memory-tree__note-copy">
+        <span class="alisio-memory-role-card__glyph">${resolveRoleGroupIcon(role)}</span>
+        <span class="alisio-memory-role-card__copy">
           <strong>${note.title}</strong>
           <span>${subtitle}</span>
         </span>
-        <span class="alisio-memory-tree__note-meta">
+        <span class="alisio-memory-role-card__meta">
           ${typeof note.backlinks === "number" ? `${note.backlinks}` : ""}
         </span>
       </button>
     `;
   }
 
-  private renderExplorerFolderNode(
-    node: NoteExplorerTreeNode,
+  private renderExplorerGroup(
+    group: NoteRoleGroup,
     text: ReturnType<typeof memoryText>,
-    depth = 0,
   ): TemplateResult {
     return html`
-      <details class="alisio-memory-tree__folder" open>
-        <summary
-          class="alisio-memory-tree__folder-summary"
-          style=${`--tree-depth:${String(depth)}`}
-        >
-          <span class="alisio-memory-tree__chevron">${icons.chevronRight}</span>
-          <span class="alisio-memory-tree__glyph">${icons.folder}</span>
-          <span class="alisio-memory-tree__folder-label">${node.label}</span>
-          <span class="alisio-memory-tree__folder-meta">${String(node.noteCount)}</span>
-        </summary>
-        <div class="alisio-memory-tree__children">
-          ${node.folders.map(
-            (child): TemplateResult => this.renderExplorerFolderNode(child, text, depth + 1),
-          )}
-          ${node.notes.map((note) => this.renderExplorerNote(note, text, depth + 1))}
+      <section class="alisio-memory-role-group" data-role=${group.role}>
+        <div class="alisio-memory-role-group__header">
+          <span class="alisio-memory-role-group__title">
+            <span class="alisio-memory-role-group__icon">${group.icon}</span>
+            <strong>${group.label}</strong>
+          </span>
+          <span class="alisio-memory-role-group__count">${String(group.notes.length)}</span>
         </div>
-      </details>
+        <div class="alisio-memory-role-group__list">
+          ${group.notes.map((note) => this.renderExplorerNote(note, text))}
+        </div>
+      </section>
     `;
   }
 
   private renderExplorer(text: ReturnType<typeof memoryText>) {
-    const tree = this.getExplorerTree();
+    const groups = buildNoteRoleGroups(this.notesList?.notes ?? [], text);
     const explorerError =
       this.notesError && !isMemoryBusyError(this.notesError) ? this.notesError : null;
     const emptyAction = html`
@@ -1304,9 +1298,8 @@ export class AlisioMemoryNativeHub extends LitElement {
                   compact: true,
                 })
               : html`
-                  <div class="alisio-memory-tree">
-                    ${tree.folders.map((node) => this.renderExplorerFolderNode(node, text))}
-                    ${tree.notes.map((note) => this.renderExplorerNote(note, text, 0))}
+                  <div class="alisio-memory-role-groups">
+                    ${groups.map((group) => this.renderExplorerGroup(group, text))}
                   </div>
                 `}
         </section>
@@ -1565,7 +1558,9 @@ export class AlisioMemoryNativeHub extends LitElement {
                 .filter(Boolean)
                 .map((item) => html`<span>${item}</span>`)}
             </div>
-            ${renderReasonTags(this.note.reasonTags)}
+            <span class="alisio-memory-native__chips">
+              ${renderMemoryRoleChip(text, this.note)} ${renderReasonTags(this.note.reasonTags)}
+            </span>
           </div>
           <div class="alisio-memory-note__actions">
             <div class="alisio-memory-note__utility-actions">
@@ -1986,51 +1981,48 @@ export class AlisioMemoryNativeHub extends LitElement {
           padding-top: 6px;
           border-top: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
         }
-        .alisio-memory-tree {
+        .alisio-memory-role-groups {
           display: grid;
-          gap: 4px;
+          gap: 14px;
         }
-        .alisio-memory-tree__folder {
+        .alisio-memory-role-group {
           display: grid;
-          gap: 4px;
+          gap: 8px;
         }
-        .alisio-memory-tree__folder > summary {
-          list-style: none;
-        }
-        .alisio-memory-tree__folder > summary::-webkit-details-marker {
-          display: none;
-        }
-        .alisio-memory-tree__folder-summary,
-        .alisio-memory-tree__note {
+        .alisio-memory-role-group__header,
+        .alisio-memory-role-card {
           display: flex;
           align-items: center;
           gap: 10px;
           width: 100%;
           padding: 8px 10px;
-          padding-left: calc(10px + var(--tree-depth, 0) * 14px);
           border-radius: 12px;
-          border: 0;
-          background: transparent;
+          border: 1px solid transparent;
           color: inherit;
           text-align: left;
         }
-        .alisio-memory-tree__folder-summary {
-          cursor: pointer;
+        .alisio-memory-role-group__header {
+          background: color-mix(in srgb, var(--surface-elevated) 72%, transparent);
           color: var(--text-muted);
-          font-size: 0.9rem;
+          font-size: 0.86rem;
           font-weight: 600;
         }
-        .alisio-memory-tree__folder[open]
-          > .alisio-memory-tree__folder-summary
-          .alisio-memory-tree__chevron {
-          transform: rotate(90deg);
+        .alisio-memory-role-group__title,
+        .alisio-memory-role-card__copy {
+          min-width: 0;
+          flex: 1 1 auto;
         }
-        .alisio-memory-tree__children {
+        .alisio-memory-role-group__title {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .alisio-memory-role-group__list {
           display: grid;
           gap: 4px;
         }
-        .alisio-memory-tree__chevron,
-        .alisio-memory-tree__glyph {
+        .alisio-memory-role-group__icon,
+        .alisio-memory-role-card__glyph {
           display: inline-flex;
           width: 16px;
           height: 16px;
@@ -2039,43 +2031,37 @@ export class AlisioMemoryNativeHub extends LitElement {
           color: var(--text-muted);
           flex: none;
         }
-        .alisio-memory-tree__chevron {
-          transition: transform 140ms ease;
-        }
-        .alisio-memory-tree__folder-label,
-        .alisio-memory-tree__note-copy {
-          min-width: 0;
-          flex: 1 1 auto;
-        }
-        .alisio-memory-tree__folder-meta,
-        .alisio-memory-tree__note-meta {
+        .alisio-memory-role-group__count,
+        .alisio-memory-role-card__meta {
           color: var(--text-muted);
           font-size: 0.78rem;
           flex: none;
         }
-        .alisio-memory-tree__note {
+        .alisio-memory-role-card {
           cursor: pointer;
+          border-color: color-mix(in srgb, var(--border-subtle) 62%, transparent);
+          background: color-mix(in srgb, var(--surface-panel) 96%, transparent);
           transition:
             background 140ms ease,
-            color 140ms ease;
+            color 140ms ease,
+            border-color 140ms ease;
         }
-        .alisio-memory-tree__note:hover,
-        .alisio-memory-tree__folder-summary:hover {
+        .alisio-memory-role-card:hover {
           background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
         }
-        .alisio-memory-tree__note.is-active {
+        .alisio-memory-role-card.is-active {
           background: color-mix(in srgb, var(--accent-primary) 18%, var(--surface-panel));
-          box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-primary) 34%, transparent);
+          border-color: color-mix(in srgb, var(--accent-primary) 34%, transparent);
         }
-        .alisio-memory-tree__note-copy {
+        .alisio-memory-role-card__copy {
           display: grid;
           gap: 2px;
         }
-        .alisio-memory-tree__note-copy strong {
+        .alisio-memory-role-card__copy strong {
           font-size: 0.94rem;
           font-weight: 600;
         }
-        .alisio-memory-tree__note-copy span {
+        .alisio-memory-role-card__copy span {
           color: var(--text-muted);
           font-size: 0.8rem;
           overflow: hidden;

@@ -1,7 +1,7 @@
 ---
-summary: "Camera capture (iOS/Android nodes + macOS app) for agent use: photos (jpg) and short video clips (mp4)"
+summary: "Camera capture (iOS nodes + macOS app) for agent use: photos (jpg) and short video clips (mp4)"
 read_when:
-  - Adding or modifying camera capture on iOS/Android nodes or macOS
+  - Adding or modifying camera capture on iOS nodes or macOS
   - Extending agent-accessible MEDIA temp-file workflows
 title: "Camera Capture"
 ---
@@ -11,7 +11,6 @@ title: "Camera Capture"
 Alisio supports **camera capture** for agent workflows:
 
 - **iOS node** (paired via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
-- **Android node** (paired via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
 - **macOS app** (node via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
 
 All camera access is gated behind **user-controlled settings**.
@@ -79,36 +78,6 @@ Notes:
 - `nodes camera snap` defaults to **both** facings to give the agent both views.
 - Output files are temporary (in the OS temp directory) unless you build your own wrapper.
 
-## Android node
-
-### Android user setting (default on)
-
-- Android Settings sheet → **Camera** → **Allow Camera** (`camera.enabled`)
-  - Default: **on** (missing key is treated as enabled).
-  - When off: `camera.*` commands return `CAMERA_DISABLED`.
-
-### Permissions
-
-- Android requires runtime permissions:
-  - `CAMERA` for both `camera.snap` and `camera.clip`.
-  - `RECORD_AUDIO` for `camera.clip` when `includeAudio=true`.
-
-If permissions are missing, the app will prompt when possible; if denied, `camera.*` requests fail with a
-`*_PERMISSION_REQUIRED` error.
-
-### Android foreground requirement
-
-Like `canvas.*`, the Android node only allows `camera.*` commands in the **foreground**. Background invocations return `NODE_BACKGROUND_UNAVAILABLE`.
-
-### Android commands (via Gateway `node.invoke`)
-
-- `camera.list`
-  - Response payload:
-    - `devices`: array of `{ id, name, position, deviceType }`
-
-### Payload guard
-
-Photos are recompressed to keep the base64 payload under 5 MB.
 
 ## macOS app
 

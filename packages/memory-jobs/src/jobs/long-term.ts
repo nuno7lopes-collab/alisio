@@ -8,8 +8,8 @@ import {
   type SleepProjectionSnapshot,
 } from "../canonical.js";
 import type { GaiaSleepWriteFacade } from "../gaia.js";
+import { extractPromotedItems } from "../promotion-text.js";
 import type { SqliteMemoryJobStore } from "../store.js";
-import { normalizeTextKey } from "../text.js";
 import type {
   LongTermCursor,
   LongTermSummaryCursor,
@@ -23,7 +23,6 @@ const BATCH_LIMIT = 12;
 const CHECKPOINT_EVENT_THRESHOLD = 8;
 const CHECKPOINT_SIZE_THRESHOLD_BYTES = 8_192;
 const DAILY_NOTE_PATH_RE = /^memory\/(\d{4}-\d{2}-\d{2})\.md$/;
-const SESSION_HEADING_RE = /^##\s+(\d{2}:\d{2})(?::\d{2})?\s+UTC\b/i;
 const ROOT_PAGE_ID = "memory-root";
 const ROOT_TITLE = "Memory";
 const ROOT_SLUG = "memory-root";
@@ -34,8 +33,6 @@ const AUTO_SECTION_HEADING = "## Auto-promoted long-term memory";
 const AUTO_SECTION_NOTE =
   "> Maintained automatically from canonical `memory/YYYY-MM-DD.md` notes.";
 const MAX_ITEMS_PER_DAY = 8;
-const MAX_SECTION_LINES = 3;
-const MAX_ITEM_CHARS = 240;
 const AUTO_SECTION_RE = new RegExp(
   `${escapeRegExp(AUTO_SECTION_START)}[\\s\\S]*?${escapeRegExp(AUTO_SECTION_END)}`,
   "m",
@@ -45,7 +42,7 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function createInitialCursor(): LongTermCursor {
+export function createInitialLongTermCursor(): LongTermCursor {
   return {
     summaries: [],
     checkpoint: {
@@ -80,105 +77,6 @@ function mergeCounts(target: Record<string, number>, next: Record<string, number
   }
 }
 
-function isMetadataNoise(line: string): boolean {
-  return (
-    /^- \*\*(?:Action|Session Key|Session ID|Source)\*\*:/i.test(line) ||
-    /^#{1,6}\s+Conversation Summary\b/i.test(line) ||
-    /^Current time:/i.test(line) ||
-    line.startsWith('```') ||
-    /^<!--.*-->$/.test(line)
-  );
-}
-
-function normalizePromotedLine(line: string): string {
-  return line
-    .trim()
-    .replace(/^[-*]\s+/, "")
-    .replace(/^\d+[.)]\s+/, "")
-    .replace(/^(?:user|assistant|system):\s*/i, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function truncateItem(value: string): string {
-  if (value.length <= MAX_ITEM_CHARS) {
-    return value;
-  }
-  return `${value.slice(0, MAX_ITEM_CHARS - 1).trimEnd()}…`;
-}
-
-function dedupeItems(values: readonly string[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const value of values) {
-    const normalized = normalizeTextKey(value);
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-    seen.add(normalized);
-    out.push(value);
-  }
-  return out;
-}
-
-function buildSessionItem(label: string | undefined, lines: readonly string[]): string | undefined {
-  const cleaned = dedupeItems(lines).slice(0, MAX_SECTION_LINES);
-  if (cleaned.length === 0) {
-    return undefined;
-  }
-  const summary = cleaned.join(" / ");
-  return truncateItem(label ? `**${label}** ${summary}` : summary);
-}
-
-function extractPromotedItems(markdownBody: string): string[] {
-  const lines = markdownBody.split(/\r?\n/);
-  const sessionItems: string[] = [];
-  const genericItems: string[] = [];
-  let currentSessionLabel: string | undefined;
-  let currentSessionLines: string[] = [];
-
-  const flushSession = () => {
-    const item = buildSessionItem(currentSessionLabel, currentSessionLines);
-    if (item) {
-      sessionItems.push(item);
-    }
-    currentSessionLabel = undefined;
-    currentSessionLines = [];
-  };
-
-  for (const rawLine of lines) {
-    const trimmed = rawLine.trim();
-    const sessionMatch = SESSION_HEADING_RE.exec(trimmed);
-    if (sessionMatch) {
-      flushSession();
-      currentSessionLabel = `${sessionMatch[1]} UTC`;
-      continue;
-    }
-    if (!trimmed) {
-      continue;
-    }
-    if (isMetadataNoise(trimmed)) {
-      continue;
-    }
-    if (/^#{1,6}\s+/.test(trimmed)) {
-      flushSession();
-      continue;
-    }
-    const cleaned = normalizePromotedLine(trimmed);
-    if (!cleaned) {
-      continue;
-    }
-    if (currentSessionLabel) {
-      currentSessionLines.push(cleaned);
-      continue;
-    }
-    genericItems.push(truncateItem(cleaned));
-  }
-
-  flushSession();
-  return dedupeItems([...sessionItems, ...genericItems]).slice(0, MAX_ITEMS_PER_DAY);
-}
-
 function buildSummaryFromProjection(
   projection: SleepProjectionSnapshot,
 ): LongTermSummaryCursor | undefined {
@@ -186,7 +84,7 @@ function buildSummaryFromProjection(
   if (!match) {
     return undefined;
   }
-  const items = extractPromotedItems(projection.markdownBody);
+  const items = extractPromotedItems(projection.markdownBody).slice(0, MAX_ITEMS_PER_DAY);
   if (items.length === 0) {
     return undefined;
   }
@@ -366,7 +264,7 @@ export async function runLongTermSlice(params: {
     jobId,
     profileId: params.profileId,
     kind: "long-term",
-    initialCursor: createInitialCursor(),
+    initialCursor: createInitialLongTermCursor(),
   });
   params.store.saveJobRecord({
     jobId,
@@ -541,7 +439,7 @@ export async function runLongTermSlice(params: {
         }
       }
 
-      const completedCursor = createInitialCursor();
+      const completedCursor = createInitialLongTermCursor();
       await persistCheckpoint({
         gaia: params.gaia,
         cursor,

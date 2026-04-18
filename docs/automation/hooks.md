@@ -52,7 +52,7 @@ The hooks system allows you to:
 
 Alisio ships with four bundled hooks that are automatically discovered:
 
-- **💾 session-memory**: Saves session context to the canonical daily memory note in your agent workspace (default `~/.alisio/workspace/memory/`) when you issue `/new` or `/reset`
+- **💾 session-memory**: Saves session context to the canonical backlog queue in your agent workspace (default `~/.alisio/workspace/memory/backlog/`) when you issue `/new` or `/reset`
 - **📎 bootstrap-extra-files**: Injects additional workspace bootstrap files from configured glob/path patterns during `agent:bootstrap`
 - **📝 command-logger**: Logs all command events to `~/.alisio/logs/commands.log`
 - **🚀 boot-md**: Runs `BOOT.md` when the gateway starts (requires internal hooks enabled)
@@ -913,21 +913,38 @@ Saves session context to memory when you issue `/new` or `/reset`.
 
 **Requirements**: `workspace.dir` must be configured
 
-**Output**: `<workspace>/memory/YYYY-MM-DD.md` (defaults to `~/.alisio/workspace`)
+**Output**: `<workspace>/memory/backlog/YYYY-MM-DD/<slug>.md` (defaults to `~/.alisio/workspace`)
 
 **What it does**:
 
 1. Uses the pre-reset session entry to locate the correct transcript
 2. Extracts the last 15 user/assistant messages from the conversation (configurable)
-3. Uses LLM to generate a descriptive section label
-4. Appends the snapshot to the canonical daily note for that day
-5. Reingests the updated note through the canonical memory pipeline
+3. Uses LLM to generate a descriptive backlog slug
+4. Writes a canonical backlog note for that snapshot
+5. Reingests the backlog note through the canonical memory pipeline so sleep jobs can promote it into daily and topic memory
 
 **Example output**:
 
 ```markdown
-## 14:30:00 UTC - vendor-pitch
+---
+summary: "Can you help me design the API? Sure! Let's start with the endpoints..."
+memoryRole: backlog
+backlogStatus: pending
+capturedAt: "2026-01-16T14:30:00.000Z"
+sessionAction: "new"
+sessionKey: "agent:main:main"
+sessionId: "abc123def456"
+source: "telegram"
+tags:
+  - backlog
+  - session-memory
+---
 
+# Session new - Vendor Pitch
+
+## Context
+
+- **Captured At**: 2026-01-16T14:30:00.000Z
 - **Action**: /new
 - **Session Key**: agent:main:main
 - **Session ID**: abc123def456
@@ -939,11 +956,11 @@ user: Can you help me design the API?
 assistant: Sure! Let's start with the endpoints...
 ```
 
-**Section examples**:
+**Path examples**:
 
-- `## 14:30:00 UTC - vendor-pitch`
-- `## 15:10:00 UTC - api-design`
-- `## 17:20:00 UTC` (fallback when slug generation fails)
+- `memory/backlog/2026-01-16/vendor-pitch.md`
+- `memory/backlog/2026-01-16/api-design.md`
+- `memory/backlog/2026-01-16/note.md` (fallback when slug generation fails)
 
 **Enable**:
 

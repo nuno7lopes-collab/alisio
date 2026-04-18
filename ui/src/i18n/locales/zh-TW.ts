@@ -147,12 +147,11 @@ export const zh_TW: TranslationMap = mergeTranslationMaps(zh_CN, {
         title: "面板",
         surfacePicker: "面板視圖",
         close: "關閉面板",
-        observerTitle: "瀏覽器觀察器",
         viewRawText: "查看原始文字",
         noContent: "暫無內容",
         unavailable: "暫無可用面板",
         surfaces: {
-          observer: "瀏覽器",
+          computer: "Computer",
           markdown: "工具輸出",
         },
       },

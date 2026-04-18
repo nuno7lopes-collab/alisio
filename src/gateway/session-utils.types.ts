@@ -39,11 +39,6 @@ export type GatewaySessionRow = {
   relationship?: ConversationRelationship;
   label?: string;
   displayName?: string;
-  observer?: {
-    kind: "novnc";
-    url: string;
-    label?: string;
-  } | null;
   derivedTitle?: string;
   lastMessagePreview?: string;
   channel?: string;

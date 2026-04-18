@@ -10,7 +10,7 @@ title: "Gateway Protocol"
 # Gateway protocol (WebSocket)
 
 The Gateway WS protocol is the **single control plane + node transport** for
-Alisio. All clients (CLI, web UI, macOS app, iOS/Android nodes, headless
+Alisio. All clients (CLI, web UI, macOS app, desktop nodes, headless
 nodes) connect over WebSocket and declare their **role** + **scope** at
 handshake time.
 
@@ -100,9 +100,9 @@ When a device token is issued, `hello-ok` also includes:
     "minProtocol": 3,
     "maxProtocol": 3,
     "client": {
-      "id": "ios-node",
+      "id": "node-host",
       "version": "1.2.3",
-      "platform": "ios",
+      "platform": "macos",
       "mode": "node"
     },
     "role": "node",
@@ -112,7 +112,7 @@ When a device token is issued, `hello-ok` also includes:
     "permissions": { "camera.capture": true, "screen.record": false },
     "auth": { "token": "…" },
     "locale": "en-US",
-    "userAgent": "alisio-ios/1.2.3",
+    "userAgent": "alisio-macos/1.2.3",
     "device": {
       "id": "device_fingerprint",
       "publicKey": "…",

@@ -431,15 +431,6 @@ function formatPlatformLabel(platform: string | null | undefined) {
   if (normalized === "linux") {
     return "Linux";
   }
-  if (normalized === "ios" || normalized === "iphone") {
-    return "iPhone";
-  }
-  if (normalized === "ipados" || normalized === "ipad") {
-    return "iPad";
-  }
-  if (normalized === "android") {
-    return "Android";
-  }
   return platform?.trim() ?? "";
 }
 

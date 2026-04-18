@@ -845,20 +845,6 @@ public struct NodeRenameParams: Codable, Sendable {
 
 public struct NodeListParams: Codable, Sendable {}
 
-public struct NodePendingAckParams: Codable, Sendable {
-    public let ids: [String]
-
-    public init(
-        ids: [String])
-    {
-        self.ids = ids
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case ids
-    }
-}
-
 public struct NodeDescribeParams: Codable, Sendable {
     public let nodeid: String
 
@@ -1086,74 +1072,6 @@ public struct NodeInvokeRequestEvent: Codable, Sendable {
         case paramsjson = "paramsJSON"
         case timeoutms = "timeoutMs"
         case idempotencykey = "idempotencyKey"
-    }
-}
-
-public struct PushTestParams: Codable, Sendable {
-    public let nodeid: String
-    public let title: String?
-    public let body: String?
-    public let environment: String?
-
-    public init(
-        nodeid: String,
-        title: String?,
-        body: String?,
-        environment: String?)
-    {
-        self.nodeid = nodeid
-        self.title = title
-        self.body = body
-        self.environment = environment
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case nodeid = "nodeId"
-        case title
-        case body
-        case environment
-    }
-}
-
-public struct PushTestResult: Codable, Sendable {
-    public let ok: Bool
-    public let status: Int
-    public let apnsid: String?
-    public let reason: String?
-    public let tokensuffix: String
-    public let topic: String
-    public let environment: String
-    public let transport: String
-
-    public init(
-        ok: Bool,
-        status: Int,
-        apnsid: String?,
-        reason: String?,
-        tokensuffix: String,
-        topic: String,
-        environment: String,
-        transport: String)
-    {
-        self.ok = ok
-        self.status = status
-        self.apnsid = apnsid
-        self.reason = reason
-        self.tokensuffix = tokensuffix
-        self.topic = topic
-        self.environment = environment
-        self.transport = transport
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case ok
-        case status
-        case apnsid = "apnsId"
-        case reason
-        case tokensuffix = "tokenSuffix"
-        case topic
-        case environment
-        case transport
     }
 }
 

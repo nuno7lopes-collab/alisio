@@ -28,7 +28,7 @@ For a complete map of the docs, see [Docs hubs](/start/hubs).
 - [Workspace templates](/reference/templates/AGENTS)
 - [RPC adapters](/reference/rpc)
 - [Gateway runbook](/gateway)
-- [Devices (iOS and Android)](/nodes)
+- [Devices (iOS)](/nodes)
 - [Web surfaces (Control UI)](/web)
 - [Discovery and transports](/gateway/discovery)
 - [Remote access](/gateway/remote)
@@ -50,8 +50,6 @@ For a complete map of the docs, see [Docs hubs](/start/hubs).
 ## Companion apps
 
 - [macOS app](/platforms/macos)
-- [iOS app](/platforms/ios)
-- [Android app](/platforms/android)
 - [Windows (WSL2)](/platforms/windows)
 - [Linux app](/platforms/linux)
 

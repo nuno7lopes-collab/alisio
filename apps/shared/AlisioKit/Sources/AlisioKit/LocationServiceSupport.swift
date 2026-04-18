@@ -30,7 +30,7 @@ public extension LocationServiceCommon {
 
 public enum LocationServiceSupport {
     public static func accuracyAuthorization(manager: CLLocationManager) -> CLAccuracyAuthorization {
-        if #available(iOS 14.0, macOS 11.0, *) {
+        if #available(macOS 11.0, *) {
             return manager.accuracyAuthorization
         }
         return .fullAccuracy

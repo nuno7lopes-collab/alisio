@@ -147,8 +147,6 @@ const BASE_METHODS = [
   "node.pending.enqueue",
   "node.invoke",
   "node.task.start",
-  "node.pending.pull",
-  "node.pending.ack",
   "node.invoke.result",
   "node.task.event",
   "node.task.result",
@@ -192,6 +190,7 @@ const BASE_METHODS = [
   "chat.send",
   "computer.session.get",
   "computer.session.update",
+  "computer.session.export",
   "computer.session.approve",
 ];
 

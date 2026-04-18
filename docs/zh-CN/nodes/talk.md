@@ -1,6 +1,5 @@
 ---
 read_when:
-  - 在 macOS/iOS/Android 上实现 Talk 模式
   - 更改语音/TTS/中断行为
 summary: Talk 模式：使用 ElevenLabs TTS 进行连续语音对话
 title: Talk 模式
@@ -74,7 +73,6 @@ Talk 模式是一个连续的语音对话循环：
 - `voiceId`：回退到 `ELEVENLABS_VOICE_ID` / `SAG_VOICE_ID`（或当 API 密钥可用时使用第一个 ElevenLabs 语音）
 - `modelId`：未设置时默认为 `eleven_v3`
 - `apiKey`：回退到 `ELEVENLABS_API_KEY`（或 Gateway 网关 shell profile（如果可用））
-- `outputFormat`：macOS/iOS 上默认为 `pcm_44100`，Android 上默认为 `pcm_24000`（设置 `mp3_*` 以强制 MP3 流式传输）
 
 ## macOS UI
 
@@ -91,7 +89,5 @@ Talk 模式是一个连续的语音对话循环：
 
 - 需要语音 + 麦克风权限。
 - 使用 `chat.send` 针对会话键 `main`。
-- TTS 使用带有 `ELEVENLABS_API_KEY` 的 ElevenLabs 流式 API，并在 macOS/iOS/Android 上进行增量播放以降低延迟。
 - `eleven_v3` 的 `stability` 验证为 `0.0`、`0.5` 或 `1.0`；其他模型接受 `0..1`。
 - 设置时 `latency_tier` 验证为 `0..4`。
-- Android 支持 `pcm_16000`、`pcm_22050`、`pcm_24000` 和 `pcm_44100` 输出格式，用于低延迟 AudioTrack 流式传输。

@@ -65,14 +65,14 @@ vi.mock("./server-context.js", async (importOriginal) => {
   };
 });
 
-let startBrowserControlServerFromConfig: typeof import("./server.js").startBrowserControlServerFromConfig;
-let stopBrowserControlServer: typeof import("./server.js").stopBrowserControlServer;
+let startBrowserControlServerFromConfig: typeof import("../server.js").startBrowserControlServerFromConfig;
+let stopBrowserControlServer: typeof import("../server.js").stopBrowserControlServer;
 
 describe("browser control evaluate gating", () => {
   beforeAll(async () => {
     vi.resetModules();
     ({ startBrowserControlServerFromConfig, stopBrowserControlServer } =
-      await import("./server.js"));
+      await import("../server.js"));
   });
 
   beforeEach(async () => {

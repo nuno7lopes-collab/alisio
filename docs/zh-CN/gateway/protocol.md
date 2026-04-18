@@ -16,7 +16,6 @@ x-i18n:
 
 # Gateway 网关协议（WebSocket）
 
-Gateway 网关 WS 协议是 Alisio 的**单一控制平面 + 节点传输**。所有客户端（CLI、Web UI、macOS 应用、iOS/Android 节点、无头节点）都通过 WebSocket 连接，并在握手时声明其**角色** + **作用域**。
 
 ## 传输
 

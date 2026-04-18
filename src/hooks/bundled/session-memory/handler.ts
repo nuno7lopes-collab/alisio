@@ -1,7 +1,7 @@
 /**
  * Session memory hook handler
  *
- * Saves session context to the canonical daily memory note when /new or /reset command is triggered
+ * Saves session context to the canonical backlog notes when /new or /reset command is triggered
  */
 
 import os from "node:os";
@@ -14,9 +14,9 @@ import type { AlisioConfig } from "../../../config/config.js";
 import { resolveStateDir } from "../../../config/paths.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
 import {
-  appendCanonicalDailyMemoryEntry,
-  buildSessionMemoryDailyEntry,
+  buildSessionMemoryBacklogNote,
   syncDailyMemoryThroughCanonicalPipeline,
+  writeCanonicalBacklogMemoryNote,
 } from "../../../memory/daily-memory.js";
 import {
   parseAgentSessionKey,
@@ -169,7 +169,8 @@ const saveSessionToMemory: HookHandler = async (event) => {
     // Extract context details
     const sessionId = (sessionEntry.sessionId as string) || "unknown";
     const source = (context.commandSource as string) || "unknown";
-    const entry = buildSessionMemoryDailyEntry({
+    const note = buildSessionMemoryBacklogNote({
+      cfg,
       nowMs,
       slug,
       action: commandAction,
@@ -179,14 +180,11 @@ const saveSessionToMemory: HookHandler = async (event) => {
       sessionContent,
     });
 
-    const target = await appendCanonicalDailyMemoryEntry({
-      cfg,
-      agentId: memoryAgentId,
+    const target = await writeCanonicalBacklogMemoryNote({
       workspaceDir,
-      entry,
-      nowMs,
+      note,
     });
-    log.debug("Session memory appended to canonical daily note", {
+    log.debug("Session memory saved to canonical backlog note", {
       path: target.absolutePath.replace(os.homedir(), "~"),
       agentId: memoryAgentId,
     });

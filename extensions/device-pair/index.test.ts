@@ -167,7 +167,7 @@ describe("device-pair /pair qr", () => {
         scopes: [],
       },
     });
-    expect(text).toContain("Scan this QR code with the Alisio iOS app:");
+    expect(text).toContain("Scan this QR code with the Alisio app:");
     expect(text).toContain("![Alisio pairing QR](data:image/png;base64,ZmFrZXBuZw==)");
     expect(text).toContain("- Security: single-use bootstrap token");
     expect(text).toContain("**Important:** Run `/pair cleanup` after pairing finishes.");
@@ -317,7 +317,7 @@ describe("device-pair /pair qr", () => {
       } & Record<string, unknown>,
     ];
     expect(target).toBe(testCase.expectedTarget);
-    expect(caption).toContain("Scan this QR code with the Alisio iOS app:");
+    expect(caption).toContain("Scan this QR code with the Alisio app:");
     expect(caption).toContain("IMPORTANT: After pairing finishes, run /pair cleanup.");
     expect(caption).toContain("If this QR code leaks, run /pair cleanup immediately.");
     expect(opts.mediaUrl).toMatch(/pair-qr\.png$/);
@@ -400,7 +400,7 @@ describe("device-pair notify pending formatting", () => {
         requestId: "req-1",
         deviceId: "device-1",
         displayName: "dev one",
-        platform: "ios",
+        platform: "macos",
         role: "operator",
         scopes: ["operator.admin", "operator.read"],
         remoteIp: "198.51.100.2",
@@ -410,7 +410,7 @@ describe("device-pair notify pending formatting", () => {
     const text = formatPendingRequests(pending);
     expect(text).toContain("Pending device pairing requests:");
     expect(text).toContain("name=dev one");
-    expect(text).toContain("platform=ios");
+    expect(text).toContain("platform=macos");
     expect(text).toContain("role=operator");
     expect(text).toContain("scopes=operator.admin, operator.read");
     expect(text).toContain("ip=198.51.100.2");
@@ -442,8 +442,8 @@ describe("device-pair /pair approve", () => {
           requestId: "req-1",
           deviceId: "victim-phone",
           publicKey: "victim-public-key",
-          displayName: "Victim Phone",
-          platform: "ios",
+          displayName: "Victim Mac",
+          platform: "macos",
           ts: Date.now(),
         },
       ],
@@ -473,8 +473,8 @@ describe("device-pair /pair approve", () => {
           requestId: "req-1",
           deviceId: "victim-phone",
           publicKey: "victim-public-key",
-          displayName: "Victim Phone",
-          platform: "ios",
+          displayName: "Victim Mac",
+          platform: "macos",
           ts: Date.now(),
         },
       ],
@@ -486,8 +486,8 @@ describe("device-pair /pair approve", () => {
       device: {
         deviceId: "victim-phone",
         publicKey: "victim-public-key",
-        displayName: "Victim Phone",
-        platform: "ios",
+        displayName: "Victim Mac",
+        platform: "macos",
         role: "operator",
         roles: ["operator"],
         scopes: ["operator.pairing"],
@@ -518,7 +518,7 @@ describe("device-pair /pair approve", () => {
     expect(vi.mocked(approveDevicePairing)).toHaveBeenCalledWith("req-1", {
       callerScopes: ["operator.write", "operator.pairing"],
     });
-    expect(result).toEqual({ text: "✅ Paired Victim Phone (ios)." });
+    expect(result).toEqual({ text: "✅ Paired Victim Mac (macos)." });
   });
 
   it("does not force an empty caller scope context for external approvals", async () => {
@@ -528,8 +528,8 @@ describe("device-pair /pair approve", () => {
           requestId: "req-1",
           deviceId: "victim-phone",
           publicKey: "victim-public-key",
-          displayName: "Victim Phone",
-          platform: "ios",
+          displayName: "Victim Mac",
+          platform: "macos",
           ts: Date.now(),
         },
       ],
@@ -541,8 +541,8 @@ describe("device-pair /pair approve", () => {
       device: {
         deviceId: "victim-phone",
         publicKey: "victim-public-key",
-        displayName: "Victim Phone",
-        platform: "ios",
+        displayName: "Victim Mac",
+        platform: "macos",
         role: "operator",
         roles: ["operator"],
         scopes: ["operator.pairing"],
@@ -571,7 +571,7 @@ describe("device-pair /pair approve", () => {
     );
 
     expect(vi.mocked(approveDevicePairing)).toHaveBeenCalledWith("req-1");
-    expect(result).toEqual({ text: "✅ Paired Victim Phone (ios)." });
+    expect(result).toEqual({ text: "✅ Paired Victim Mac (macos)." });
   });
 
   it("rejects approvals above the caller scopes", async () => {
@@ -581,8 +581,8 @@ describe("device-pair /pair approve", () => {
           requestId: "req-1",
           deviceId: "victim-phone",
           publicKey: "victim-public-key",
-          displayName: "Victim Phone",
-          platform: "ios",
+          displayName: "Victim Mac",
+          platform: "macos",
           ts: Date.now(),
         },
       ],

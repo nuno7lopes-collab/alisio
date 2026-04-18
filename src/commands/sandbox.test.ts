@@ -55,7 +55,6 @@ function createBrowser(overrides: Partial<SandboxBrowserInfo> = {}): SandboxBrow
     createdAtMs: NOW - 3600000,
     lastUsedAtMs: NOW - 600000,
     cdpPort: 9222,
-    noVncPort: 5900,
     ...overrides,
   };
 }

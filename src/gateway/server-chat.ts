@@ -679,7 +679,6 @@ export function createAgentEventHandler({
       subagentControlScope: row?.subagentControlScope,
       label: row?.label,
       displayName: row?.displayName,
-      observer: row?.observer,
       deliveryContext: row?.deliveryContext,
       parentSessionKey: row?.parentSessionKey,
       childSessions: row?.childSessions,
@@ -1131,10 +1130,7 @@ export function createAgentEventHandler({
       agentRunSeq.delete(clientRunId);
     }
 
-    if (
-      sessionKey &&
-      (lifecyclePhase === "start" || lifecyclePhase === "end" || lifecyclePhase === "observer")
-    ) {
+    if (sessionKey && (lifecyclePhase === "start" || lifecyclePhase === "end")) {
       if (lifecyclePhase === "start" || lifecyclePhase === "end") {
         void persistGatewaySessionLifecycleEvent({ sessionKey, event: evt }).catch(() => undefined);
       }

@@ -17,7 +17,6 @@ export type ActiveEmbeddedRunSnapshot = {
   transcriptLeafId: string | null;
   messages?: unknown[];
   inFlightPrompt?: string;
-  browserNoVncUrl?: string;
 };
 
 type EmbeddedRunWaiter = {

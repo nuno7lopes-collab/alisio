@@ -23,7 +23,7 @@ import {
 installWebAutoReplyTestHomeHooks();
 
 async function startWatchdogScenario(params: {
-  monitorWebChannel: typeof import("./auto-reply.js").monitorWebChannel;
+  monitorWebChannel: typeof import("./auto-reply.impl.js").monitorWebChannel;
 }) {
   const sleep = vi.fn(async () => {});
   const scripted = createScriptedWebListenerFactory();
@@ -61,9 +61,9 @@ async function startWatchdogScenario(params: {
 describe("web auto-reply connection", () => {
   installWebAutoReplyUnitTestHooks();
 
-  let monitorWebChannel: typeof import("./auto-reply.js").monitorWebChannel;
+  let monitorWebChannel: typeof import("./auto-reply.impl.js").monitorWebChannel;
   beforeAll(async () => {
-    ({ monitorWebChannel } = await import("./auto-reply.js"));
+    ({ monitorWebChannel } = await import("./auto-reply.impl.js"));
   });
 
   it("handles helper envelope timestamps with trimmed timezones (regression)", () => {

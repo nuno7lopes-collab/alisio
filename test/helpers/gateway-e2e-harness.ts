@@ -275,7 +275,7 @@ export async function connectNode(
     clientName: GATEWAY_CLIENT_NAMES.NODE_HOST,
     clientDisplayName: label,
     clientVersion: "1.0.0",
-    platform: "ios",
+    platform: "macos",
     mode: GATEWAY_CLIENT_MODES.NODE,
     role: "node",
     scopes: [],
