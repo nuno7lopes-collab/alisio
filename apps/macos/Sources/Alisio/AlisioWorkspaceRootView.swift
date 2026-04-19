@@ -502,32 +502,40 @@ private struct DesktopComputerPane: View {
 
             if self.store.needsObservationPermission || self.store.needsControlPermission {
                 VStack(alignment: .leading, spacing: 10) {
-                    if self.store.needsObservationPermission {
+                    if let restartHint = self.store.permissionRestartHint {
                         Button {
-                            self.store.requestObservationPermission()
+                            DebugActions.restartApp()
                         } label: {
-                            Label("Grant Screen Recording", systemImage: "display")
+                            Label("Restart Alisio", systemImage: "arrow.clockwise")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                         }
                         .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
-                    }
-
-                    if self.store.needsControlPermission {
-                        Button {
-                            self.store.requestControlPermission()
-                        } label: {
-                            Label("Grant Accessibility", systemImage: "hand.tap")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 10)
-                        }
-                        .buttonStyle(AlisioGhostButtonStyle(palette: self.palette))
-                    }
-
-                    if let restartHint = self.store.permissionRestartHint {
                         Text(restartHint)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(self.palette.secondaryText)
+                    } else {
+                        if self.store.needsObservationPermission {
+                            Button {
+                                self.store.requestObservationPermission()
+                            } label: {
+                                Label("Grant Screen Recording", systemImage: "display")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                            }
+                            .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                        }
+
+                        if self.store.needsControlPermission {
+                            Button {
+                                self.store.requestControlPermission()
+                            } label: {
+                                Label("Grant Accessibility", systemImage: "hand.tap")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                            }
+                            .buttonStyle(AlisioGhostButtonStyle(palette: self.palette))
+                        }
                     }
                 }
             }
