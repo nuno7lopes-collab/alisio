@@ -234,7 +234,7 @@ describe("tasks view", () => {
     expect(container.textContent).toContain("command started");
   });
 
-  it("renders the linked live browser session inside the task detail", () => {
+  it("renders the linked live output inside the task detail", () => {
     const container = document.createElement("div");
     render(
       renderTasks(
@@ -245,7 +245,7 @@ describe("tasks view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Live session");
+    expect(container.textContent).toContain("Live output");
     expect(container.textContent).toContain("Resumo live da task");
   });
 });

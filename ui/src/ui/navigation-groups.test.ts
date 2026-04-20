@@ -25,8 +25,8 @@ describe("TAB_GROUPS", () => {
       "tasks",
       "cron",
       "models",
-      "channels",
       "authentications",
+      "channels",
       "capabilities",
       "connections",
       "organization",
@@ -77,6 +77,8 @@ describe("TAB_GROUPS", () => {
     expect(navigation.settingsSectionFromPath("/infrastructure")).toBeNull();
     expect(navigation.settingsSectionFromPath("/ai-agents")).toBeNull();
     expect(navigation.settingsSectionFromPath("/config")).toBeNull();
+    expect(navigation.normalizeSettingsSection("host")).toBe("host");
+    expect(navigation.publicSettingsSectionFor("host")).toBe("host");
     expect(navigation.normalizeSettingsSection("billing")).toBe("billing");
     expect(navigation.normalizeSettingsSection("ai")).toBe("general");
   });

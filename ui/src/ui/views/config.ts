@@ -421,7 +421,7 @@ const SECTION_CATEGORIES: SectionCategory[] = [
     sections: [
       { key: "gateway", label: "Alisio" },
       { key: "web", label: "Web" },
-      { key: "browser", label: "Browser" },
+      { key: "browser", label: "Web tools" },
       { key: "nodeHost", label: "NodeHost" },
       { key: "canvasHost", label: "CanvasHost" },
       { key: "discovery", label: "Discovery" },

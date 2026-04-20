@@ -15,6 +15,7 @@ import {
   rememberPendingAlisioConnectorChatResume,
 } from "./alisio-connector-oauth.ts";
 import {
+  hasAlisioHostBridge,
   loadNativeShellState,
   openExternal,
   openNativeSettings,
@@ -37,7 +38,6 @@ import {
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import { buildChatModelOptions } from "./chat-model-select-state.ts";
-import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   beginAlisioAccountEmailAuth,
@@ -84,6 +84,7 @@ import {
   waitWebChannelLogin,
 } from "./controllers/channels.ts";
 import type { ChatRuntimeSetupHint } from "./controllers/chat.ts";
+import { resolveComputersViewState } from "./controllers/computers.ts";
 import {
   ensureAgentConfigEntry,
   loadConfig,
@@ -102,7 +103,6 @@ import {
   revokeDeviceToken,
   rotateDeviceToken,
 } from "./controllers/devices.ts";
-import { resolveComputersViewState } from "./controllers/computers.ts";
 import {
   changeExecApprovalsTarget,
   loadSelectedExecApprovals,
@@ -111,7 +111,7 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
-import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
+import { loadMemoryStatus, resolvePreferredMemoryAgentId } from "./controllers/memory-runtime.ts";
 import {
   approveNodePairing,
   loadNodePairings,
@@ -302,7 +302,8 @@ function scheduleOpenAiRefresh(state: AppViewState) {
 }
 
 function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
-  const popup = typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
+  const hasNativeHostBridge = hasAlisioHostBridge();
+  const popup = hasNativeHostBridge ? null : reserveExternalPopup();
   void beginAlisioAiConnect(state, callbackUrl)
     .then((result) => {
       const targetUrl = result?.setupUrl;
@@ -313,9 +314,8 @@ function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
       scheduleOpenAiRefresh(state);
       void openExternalTarget(targetUrl, {
         popup,
-        openViaHost:
-          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
-        preferNewTab: typeof window.alisioHost?.request === "function",
+        openViaHost: hasNativeHostBridge ? (url) => openExternal(url) : null,
+        preferNewTab: hasNativeHostBridge,
       });
     })
     .catch(() => {
@@ -405,9 +405,9 @@ function beginConnectorFlow(
   } else {
     state.pendingConnectorChatResume = existingPendingResume;
   }
+  const hasNativeHostBridge = hasAlisioHostBridge();
   const popup =
-    typeof window.alisioHost?.request === "function" ||
-    !shouldReserveConnectorPopup(state, connectorId)
+    hasNativeHostBridge || !shouldReserveConnectorPopup(state, connectorId)
       ? null
       : reserveExternalPopup();
   void beginAlisioConnector(state, connectorId)
@@ -440,9 +440,8 @@ function beginConnectorFlow(
       scheduleConnectorAuthorizationRefresh(state, connectorId);
       void openExternalTarget(targetUrl, {
         popup,
-        openViaHost:
-          typeof window.alisioHost?.request === "function" ? (url) => openExternal(url) : null,
-        preferNewTab: typeof window.alisioHost?.request === "function",
+        openViaHost: hasNativeHostBridge ? (url) => openExternal(url) : null,
+        preferNewTab: hasNativeHostBridge,
       }).then((navigationResult) => {
         if (navigationResult === "invalid") {
           state.alisioConnectorsError = t("alisio.authentications.errors.invalidUrl");
@@ -1181,11 +1180,9 @@ export function renderApp(state: AppViewState) {
                 void rejectChannelPairingRequest(state, { channelId, accountId, requestId });
               },
               onOpenSupportUrl: (targetUrl) => {
+                const hasNativeHostBridge = hasAlisioHostBridge();
                 void openExternalTarget(targetUrl, {
-                  openViaHost:
-                    typeof window.alisioHost?.request === "function"
-                      ? (url) => openExternal(url)
-                      : null,
+                  openViaHost: hasNativeHostBridge ? (url) => openExternal(url) : null,
                   preferNewTab: true,
                 });
               },
@@ -1639,6 +1636,8 @@ export function renderApp(state: AppViewState) {
           ? html`
               <section class="alisio-chat-shell">
                 ${renderChat({
+                  startupLoading: state.alisioStartupLoading,
+                  bootstrapLoading: state.alisioBootstrapLoading,
                   sessionKey: state.sessionKey,
                   showThinking,
                   showToolCalls,
@@ -1738,12 +1737,15 @@ export function renderApp(state: AppViewState) {
                   showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
                   onScrollToBottom: () => state.scrollToBottom(),
                   sidebarOpen: state.sidebarOpen,
+                  browserPaneBrowserState: state.browserPaneBrowserState,
                   sidebarContent: state.sidebarContent,
                   sidebarError: state.sidebarError,
                   browserPaneSurfaceKind: state.browserPaneSurfaceKind,
-                  computerSessionLoading: state.computerSessionLoading,
-                  computerSessionError: state.computerSessionError,
-                  computerSession: state.computerSession,
+                  computerSessionLoading: hasAlisioHostBridge()
+                    ? state.computerSessionLoading
+                    : false,
+                  computerSessionError: hasAlisioHostBridge() ? state.computerSessionError : null,
+                  computerSession: hasAlisioHostBridge() ? state.computerSession : null,
                   selectedComputerReplayStepId: state.selectedComputerReplayStepId,
                   computerStepDetailsOpen: state.computerStepDetailsOpen,
                   splitRatio: state.splitRatio,
@@ -1751,20 +1753,27 @@ export function renderApp(state: AppViewState) {
                   onCloseSidebar: () => state.handleCloseSidebar(),
                   onSelectBrowserPaneSurface: (surface) =>
                     state.handleSelectBrowserPaneSurface(surface),
-                  onSelectComputerReplayStep: (stepId) =>
-                    state.handleSelectComputerReplayStep(stepId),
-                  onToggleComputerStepDetails: (open) =>
-                    state.handleToggleComputerStepDetails(open),
-                  onComputerSessionCommand: (command) =>
-                    state.handleComputerSessionCommand(command),
-                  onComputerSessionApproval: (decision) =>
-                    state.handleComputerSessionApproval(decision),
-                  onRequestComputerPermission: (permission) =>
-                    state.handleRequestComputerPermission(permission),
-                  onOpenComputerSession: (sessionKey) => {
-                    switchChatSession(state, sessionKey);
-                    state.setTab("chat" as import("./navigation.ts").Tab);
-                  },
+                  onSelectComputerReplayStep: hasAlisioHostBridge()
+                    ? (stepId) => state.handleSelectComputerReplayStep(stepId)
+                    : undefined,
+                  onToggleComputerStepDetails: hasAlisioHostBridge()
+                    ? (open) => state.handleToggleComputerStepDetails(open)
+                    : undefined,
+                  onComputerSessionCommand: hasAlisioHostBridge()
+                    ? (command) => state.handleComputerSessionCommand(command)
+                    : undefined,
+                  onComputerSessionApproval: hasAlisioHostBridge()
+                    ? (decision) => state.handleComputerSessionApproval(decision)
+                    : undefined,
+                  onRequestComputerPermission: hasAlisioHostBridge()
+                    ? (permission) => state.handleRequestComputerPermission(permission)
+                    : undefined,
+                  onOpenComputerSession: hasAlisioHostBridge()
+                    ? (sessionKey) => {
+                        switchChatSession(state, sessionKey);
+                        state.setTab("chat" as import("./navigation.ts").Tab);
+                      }
+                    : undefined,
                   onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
                   assistantName: state.assistantName,
                   assistantAvatar: state.assistantAvatar,

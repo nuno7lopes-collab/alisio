@@ -131,15 +131,38 @@ export const de: TranslationMap = mergeTranslationMaps(en, {
         tool: "Werkzeug",
       },
       browserPane: {
-        title: "Bereich",
+        title: "Aktivitätsbereich",
         surfacePicker: "Bereichsansicht",
         close: "Bereich schließen",
         viewRawText: "Rohtext anzeigen",
         noContent: "Kein Inhalt verfügbar",
         unavailable: "Keine Bereichsansicht verfügbar",
         surfaces: {
-          computer: "Computer",
-          markdown: "Tool-Ausgabe",
+          preview: "Vorschau",
+          computer: "Live-Sitzung",
+          tool_output: "Tool-Ausgabe",
+        },
+      },
+      loadingStates: {
+        connecting: {
+          eyebrow: "Verbinden",
+          title: "Verbindung zum Workspace wird aufgebaut",
+          body: "Die Runtime-Verbindung wird geöffnet, bevor dieser Chat geladen wird.",
+        },
+        bootstrap: {
+          eyebrow: "Bootstrap",
+          title: "Chat wird vorbereitet",
+          body: "Der anfängliche Workspace-Status wird synchronisiert, bevor die Sitzung angezeigt wird.",
+        },
+        history: {
+          eyebrow: "Verlauf",
+          title: "Sitzungsverlauf wird geladen",
+          body: "Die neuesten Nachrichten und Tool-Aktivitäten für diese Sitzung werden geladen.",
+        },
+        runStart: {
+          eyebrow: "Cold start",
+          title: "Ausführung wird gestartet",
+          body: "Die Remote-Runtime wärmt sich auf und bereitet die Tool-Ausführung vor.",
         },
       },
       attachments: {

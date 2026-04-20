@@ -296,7 +296,7 @@ export const SECTION_META: Record<string, { label: string; description: string }
   // Additional sections
   meta: { label: "Metadata", description: "Alisio metadata and version information" },
   logging: { label: "Logging", description: "Log levels and output configuration" },
-  browser: { label: "Browser", description: "Browser automation settings" },
+  browser: { label: "Web tools", description: "Web tool and remote preview settings" },
   ui: { label: "UI", description: "User interface preferences" },
   models: { label: "Models", description: "AI model configurations and providers" },
   bindings: { label: "Bindings", description: "Key bindings and shortcuts" },

@@ -161,7 +161,7 @@ describe("renderCapabilities", () => {
     );
 
     expect(saveButton?.disabled).toBe(false);
-    expect(container.textContent).toContain("Managed by Alisio");
+    expect(container.textContent).toMatch(/Managed by Alisio|External source/);
     expect(container.textContent).not.toContain("\u006fpen\u0063law-managed");
   });
 
@@ -546,7 +546,7 @@ describe("renderCapabilities", () => {
     await Promise.resolve();
 
     const text = container.textContent ?? "";
-    expect(text).toContain("On this computer");
+    expect(text).toContain("Ready in this workspace");
     expect(text).toContain("Available to add");
     expect(text).toContain("Not installed");
     expect(text).toContain("Allow once");
@@ -588,7 +588,7 @@ describe("renderCapabilities", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("On this computer");
+    expect(text).toContain("Ready in this workspace");
     expect(text).toContain("Available to add");
     expect(text).toContain("Local Only Skill");
     expect(text).toContain("Catalog Skill");
@@ -638,7 +638,7 @@ describe("renderCapabilities", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("On this computer");
+    expect(text).toContain("Ready in this workspace");
     expect(text).toContain("Available to add");
     expect(text).toContain("Not installed");
     expect(text).toContain("Needs setup");

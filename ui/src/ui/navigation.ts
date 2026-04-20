@@ -29,8 +29,8 @@ export const TAB_GROUPS = [
       "tasks",
       "cron",
       "models",
-      "channels",
       "authentications",
+      "channels",
       "capabilities",
       "connections",
       "organization",
@@ -39,9 +39,22 @@ export const TAB_GROUPS = [
   },
 ] as const;
 
-export const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
+export const COMMAND_PALETTE_TABS = [
+  "chat",
+  "memory",
+  "tasks",
+  "authentications",
+  "channels",
+  "connections",
+  "capabilities",
+  "organization",
+  "settings",
+] as const satisfies readonly Tab[];
+
+export const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "host", "support"] as const;
 
 const LEGACY_SETTINGS_SECTIONS = [
+  "host",
   "appearance",
   "language",
   "security",
@@ -64,6 +77,9 @@ type PublicTab = (typeof PUBLIC_TABS)[number];
 export type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
 
 export type Tab = PublicTab;
+export type SettingsSectionVisibility = {
+  hostShellAvailable?: boolean;
+};
 
 export function normalizePublicTab(tab: Tab): PublicTab {
   return tab;
@@ -141,6 +157,9 @@ export function normalizeSettingsSection(value: string | null | undefined): Sett
   switch (normalized) {
     case "billing":
       return "billing";
+    case "host":
+    case "mac":
+      return "host";
     case "appearance":
     case "language":
       return "general";
@@ -155,7 +174,7 @@ export function normalizeSettingsSection(value: string | null | undefined): Sett
     case "communications":
       return "support";
     case "infrastructure":
-      return "mac";
+      return "host";
     default:
       return "general";
   }
@@ -177,15 +196,23 @@ export function publicSettingsSectionFor(section: SettingsSection): PublicSettin
     case "debug":
     case "logs":
       return "account";
-    case "mac":
+    case "host":
     case "infrastructure":
-      return "mac";
+      return "host";
     case "support":
     case "communications":
       return "support";
     default:
       return "general";
   }
+}
+
+export function visibleSettingsSections(
+  visibility: SettingsSectionVisibility = {},
+): PublicSettingsSection[] {
+  return PUBLIC_SETTINGS_SECTIONS.filter(
+    (section) => section !== "host" || visibility.hostShellAvailable === true,
+  );
 }
 
 export function settingsSectionFromPath(pathname: string, basePath = ""): SettingsSection | null {

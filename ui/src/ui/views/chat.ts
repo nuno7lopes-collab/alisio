@@ -27,7 +27,12 @@ import {
   type SlashCommandDef,
 } from "../chat/slash-commands.ts";
 import { isSttSupported, startStt, stopStt } from "../chat/speech.ts";
-import type { BrowserPaneSurfaceKind } from "../controllers/browser-pane.ts";
+import {
+  hasBrowserPaneBrowserActivity,
+  hasBrowserPaneToolOutputActivity,
+  type BrowserPaneBrowserState,
+  type BrowserPaneSurfaceKind,
+} from "../controllers/browser-pane.ts";
 import type { ChatRuntimeSetupHint } from "../controllers/chat.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "../controllers/exec-approval.ts";
 import type {
@@ -76,6 +81,8 @@ export type ChatProps = {
   showThinking: boolean;
   showToolCalls: boolean;
   loading: boolean;
+  startupLoading?: boolean;
+  bootstrapLoading?: boolean;
   sending: boolean;
   canAbort?: boolean;
   finalizing?: boolean;
@@ -109,6 +116,7 @@ export type ChatProps = {
   sessions: SessionsListResult | null;
   focusMode: boolean;
   sidebarOpen?: boolean;
+  browserPaneBrowserState?: BrowserPaneBrowserState | null;
   sidebarContent?: string | null;
   sidebarError?: string | null;
   browserPaneSurfaceKind?: BrowserPaneSurfaceKind;
@@ -1112,6 +1120,39 @@ function renderChatLoadingSkeleton(): TemplateResult {
   `;
 }
 
+function renderChatLoadingState(props: ChatProps): TemplateResult {
+  const phase = !props.connected
+    ? "connecting"
+    : props.startupLoading || props.bootstrapLoading
+      ? "bootstrap"
+      : "history";
+  return html`
+    <div class="alisio-chat__loading-state" role="status" aria-live="polite">
+      <span class="chip">${chatText(`loadingStates.${phase}.eyebrow`)}</span>
+      <strong>${chatText(`loadingStates.${phase}.title`)}</strong>
+      <span>${chatText(`loadingStates.${phase}.body`)}</span>
+    </div>
+  `;
+}
+
+function renderChatRunStartupState(props: ChatProps): TemplateResult | typeof nothing {
+  if (!props.sending || Boolean(props.stream?.trim()) || props.finalizing) {
+    return nothing;
+  }
+  return html`
+    <div class="alisio-chat__startup-state" role="status" aria-live="polite">
+      <span class="chat-run-status__chip chat-run-status__chip--refresh">
+        <span class="chat-run-status__icon" aria-hidden="true">${icons.loader}</span>
+        <span class="chat-run-status__label">${chatText("loadingStates.runStart.eyebrow")}</span>
+      </span>
+      <div class="alisio-chat__startup-copy">
+        <strong>${chatText("loadingStates.runStart.title")}</strong>
+        <span>${chatText("loadingStates.runStart.body")}</span>
+      </div>
+    </div>
+  `;
+}
+
 function renderThreadRefreshIndicator(): TemplateResult {
   return html`
     <div class="alisio-chat__refresh-indicator" role="status" aria-live="polite">
@@ -1376,32 +1417,42 @@ export function renderChat(props: ChatProps) {
     content: props.sidebarContent ?? null,
     error: props.sidebarError ?? null,
   };
+  const browserPaneBrowser = props.browserPaneBrowserState ?? null;
+  const hasBrowserPane = hasBrowserPaneBrowserActivity(browserPaneBrowser);
+  const hasToolOutputPane = hasBrowserPaneToolOutputActivity(browserPaneToolOutput);
   const sidebarOpen = Boolean(
     props.sidebarOpen &&
     props.onCloseSidebar &&
-    (props.computerSession || browserPaneToolOutput.content || browserPaneToolOutput.error),
+    (hasBrowserPane || props.computerSession || hasToolOutputPane),
   );
   const workspacePaneSurface: BrowserPaneSurfaceKind | null =
-    props.browserPaneSurfaceKind === "computer" && props.computerSession
-      ? "computer"
-      : props.browserPaneSurfaceKind === "tool_output" &&
-          (browserPaneToolOutput.content || browserPaneToolOutput.error)
-        ? "tool_output"
-        : props.computerSession
-          ? "computer"
-          : browserPaneToolOutput.content || browserPaneToolOutput.error
+    props.browserPaneSurfaceKind === "preview" && hasBrowserPane
+      ? "preview"
+      : props.browserPaneSurfaceKind === "computer" && props.computerSession
+        ? "computer"
+        : props.browserPaneSurfaceKind === "tool_output" && hasToolOutputPane
+          ? "tool_output"
+          : hasToolOutputPane
             ? "tool_output"
-            : null;
+            : hasBrowserPane
+              ? "preview"
+              : props.computerSession
+                ? "computer"
+                : null;
   const workspacePaneOpenLabel =
-    workspacePaneSurface === "computer"
+    workspacePaneSurface === "preview"
       ? chatText("workspacePane.open", {
-          surface: chatText("browserPane.surfaces.computer"),
+          surface: chatText("browserPane.surfaces.preview"),
         })
-      : workspacePaneSurface === "tool_output"
+      : workspacePaneSurface === "computer"
         ? chatText("workspacePane.open", {
-            surface: chatText("browserPane.surfaces.tool_output"),
+            surface: chatText("browserPane.surfaces.computer"),
           })
-        : null;
+        : workspacePaneSurface === "tool_output"
+          ? chatText("workspacePane.open", {
+              surface: chatText("browserPane.surfaces.tool_output"),
+            })
+          : null;
 
   const handleCodeBlockCopy = (e: Event) => {
     const btn = (e.target as HTMLElement).closest(".code-block-copy");
@@ -1432,7 +1483,9 @@ export function renderChat(props: ChatProps) {
     >
       <div class="chat-thread-inner alisio-chat__thread">
         ${props.loading && chatItems.length > 0 ? renderThreadRefreshIndicator() : nothing}
-        ${props.loading && chatItems.length === 0 ? renderChatLoadingSkeleton() : nothing}
+        ${props.loading && chatItems.length === 0
+          ? html`${renderChatLoadingState(props)} ${renderChatLoadingSkeleton()}`
+          : nothing}
         ${isEmpty && !vs.searchOpen ? renderWelcomeState(props) : nothing}
         ${isEmpty && vs.searchOpen
           ? html` <div class="agent-chat__empty">${chatText("noMatchingMessages")}</div> `
@@ -1739,7 +1792,7 @@ export function renderChat(props: ChatProps) {
       ${showGenericDisabledReason
         ? html`<div class="callout">${props.disabledReason}</div>`
         : nothing}
-      ${runtimeSetupCallout}
+      ${runtimeSetupCallout} ${renderChatRunStartupState(props)}
       ${props.error && !props.runtimeSetupHint
         ? html`<div class="callout danger">${props.error}</div>`
         : nothing}
@@ -1792,12 +1845,12 @@ export function renderChat(props: ChatProps) {
               ></resizable-divider>
               <div class="chat-sidebar">
                 ${renderBrowserPane({
-                  browser: null,
+                  browser: browserPaneBrowser,
                   computer: props.computerSession ?? null,
                   computerLoading: props.computerSessionLoading ?? false,
                   computerError: props.computerSessionError ?? null,
                   toolOutput: browserPaneToolOutput,
-                  selectedSurface: props.browserPaneSurfaceKind ?? "computer",
+                  selectedSurface: props.browserPaneSurfaceKind ?? "tool_output",
                   selectedComputerReplayStepId: props.selectedComputerReplayStepId ?? null,
                   computerStepDetailsOpen: props.computerStepDetailsOpen ?? true,
                   onSelectSurface: props.onSelectBrowserPaneSurface,

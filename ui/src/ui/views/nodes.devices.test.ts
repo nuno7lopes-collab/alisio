@@ -309,10 +309,10 @@ describe("nodes devices pending rendering", () => {
     expect(text).toContain("Computers");
     expect(text).toContain("More on this account");
     expect(text).not.toContain("Other accounts");
-    expect(text).toContain("Alisio nodes and execution");
+    expect(text).toContain("Runtime and execution");
     expect(text).toContain("Execution");
-    expect(text).toContain("Alisio nodes");
-    expect(text).toContain("Node requests");
+    expect(text).toContain("Runtime computers");
+    expect(text).toContain("Runtime requests");
   });
 
   it("does not repeat covered nodes as a separate runtime inventory section", () => {
@@ -367,9 +367,9 @@ describe("nodes devices pending rendering", () => {
       ),
     ).map((node) => node.textContent?.trim());
 
-    expect(runtimeTitles).toContain("Node requests");
+    expect(runtimeTitles).toContain("Runtime requests");
     expect(runtimeTitles).toContain("Execution");
-    expect(runtimeTitles).not.toContain("Alisio nodes");
+    expect(runtimeTitles).not.toContain("Runtime computers");
   });
 
   it("counts the same-account current Mac once when sharing still exposes legacy node targets", () => {
@@ -875,7 +875,7 @@ describe("nodes devices pending rendering", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("Studio Mac");
-    expect(text).toContain("this computer");
+    expect(text).toContain("current runtime");
     expect(text).toContain("1 old backend records");
     expect(text).not.toContain("device-1");
     expect(text).not.toContain("device-2");
@@ -904,7 +904,10 @@ describe("nodes devices pending rendering", () => {
               remoteIp: "10.0.0.8",
               version: "1.2.3",
               commands: ["system.run", "health.ping", "jobs.list"],
-              capabilities: [{ title: "filesystem" }, { title: "browser" }],
+              capabilities: [
+                { id: "filesystem", title: "filesystem" },
+                { id: "browser", title: "browser" },
+              ],
             },
           ],
         }),
@@ -1106,7 +1109,7 @@ describe("nodes devices pending rendering", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Node requests");
+    expect(text).toContain("Runtime requests");
     expect(text).toContain("Runner");
     expect(text).toContain("1 commands");
     expect(text).toContain("Approve");
@@ -1385,7 +1388,7 @@ describe("nodes devices pending rendering", () => {
     const sharingPanel = container.querySelector(".alisio-connections-panel--sharing");
     const text = sharingPanel?.textContent ?? "";
     expect(container.querySelectorAll(".alisio-connections-panel--sharing")).toHaveLength(1);
-    expect(text).toContain("No shared devices, requests, or approvals right now.");
+    expect(text).toContain("No shared computers, requests, or approvals right now.");
     expect(text).not.toContain("Available to request");
     expect(text).not.toContain("Shared with you");
     expect(text).not.toContain("Incoming requests");

@@ -63,8 +63,8 @@ type DerivedComputerWorkspace = {
 
 function getBrowserPaneLabel(kind: BrowserPaneSurfaceKind): string {
   switch (kind) {
-    case "browser":
-      return chatText("browserPane.surfaces.browser");
+    case "preview":
+      return chatText("browserPane.surfaces.preview");
     case "computer":
       return chatText("browserPane.surfaces.computer");
     case "tool_output":
@@ -80,12 +80,14 @@ function formatComputerMode(mode: ComputerSessionState["mode"]): string {
   return chatText(`browserPane.computer.modes.${mode}`);
 }
 
-function formatComputerSafetyLevel(level: NonNullable<ComputerSessionState["safety"]>["level"]): string {
+function formatComputerSafetyLevel(
+  level: NonNullable<ComputerSessionState["safety"]>["level"],
+): string {
   return chatText(`browserPane.computer.safetyLevel.${level}`);
 }
 
 function formatComputerPolicyDecision(
-  decision: NonNullable<NonNullable<ComputerSessionState["awaitingApproval"]>["policyDecision"]>,
+  decision: NonNullable<ComputerTimelineEntry["policyDecision"]>,
 ): string {
   return chatText(`browserPane.computer.policyDecision.${decision}`);
 }
@@ -108,11 +110,15 @@ function formatComputerRuntimeState(
   return chatText(`browserPane.computer.runtimeState.${state}`);
 }
 
-function formatComputerCapability(kind: ComputerSessionState["capabilities"][number]["kind"]): string {
+function formatComputerCapability(
+  kind: ComputerSessionState["capabilities"][number]["kind"],
+): string {
   return chatText(`browserPane.computer.capability.${kind}`);
 }
 
-function formatComputerBlocking(kind: NonNullable<ComputerSessionState["blocking"]>["kind"]): string {
+function formatComputerBlocking(
+  kind: NonNullable<ComputerSessionState["blocking"]>["kind"],
+): string {
   return chatText(`browserPane.computer.blocking.${kind}`);
 }
 
@@ -186,8 +192,9 @@ function renderComputerTimelineEntry(entry: ComputerTimelineEntry) {
   const stepLabel =
     entry.stepSequence !== undefined ? formatComputerStepLabel(entry.stepSequence) : null;
   const phaseLabel = entry.stepPhase ? formatComputerStepPhase(entry.stepPhase) : null;
-  const policyDecision =
-    entry.policyDecision ? formatComputerPolicyDecision(entry.policyDecision) : null;
+  const policyDecision = entry.policyDecision
+    ? formatComputerPolicyDecision(entry.policyDecision)
+    : null;
   const eventLabel = entry.eventCode ? formatComputerTimelineEvent(entry.eventCode) : null;
   return html`
     <div class="computer-pane__timeline-entry computer-pane__timeline-entry--${entry.kind}">
@@ -259,10 +266,12 @@ function deriveComputerWorkspace(
   selectedStepId: string | null | undefined,
 ): DerivedComputerWorkspace {
   const frameMap = buildReplayFrameMap(session);
-  const eventLog = [...(session.eventLog ?? [])].sort(
+  const eventLog = (session.eventLog ?? []).toSorted(
     (left, right) => left.ordinal - right.ordinal || left.at - right.at,
   );
-  const replaySteps = [...session.replay.steps].sort((left, right) => left.sequence - right.sequence);
+  const replaySteps = session.replay.steps.toSorted(
+    (left, right) => left.sequence - right.sequence,
+  );
   const selectedStep =
     (selectedStepId ? replaySteps.find((step) => step.id === selectedStepId) : null) ??
     replaySteps.at(-1) ??
@@ -293,10 +302,12 @@ function deriveComputerWorkspace(
       )
     : [];
   const selectedErrors = selectedEvents.filter(
-    (entry) => entry.code === "action_failed" || (entry.code === "state_transition" && entry.status === "error"),
+    (entry) =>
+      entry.code === "action_failed" ||
+      (entry.code === "state_transition" && entry.status === "error"),
   );
   const lastActionSummary =
-    [...replaySteps].reverse().find((step) => Boolean(step.action?.summary))?.action?.summary ?? null;
+    replaySteps.toReversed().find((step) => Boolean(step.action?.summary))?.action?.summary ?? null;
   return {
     replaySteps,
     selectedStep,
@@ -311,14 +322,14 @@ function deriveComputerWorkspace(
     lastActionSummary,
     replayPartial: Boolean(
       session.buffers?.eventLogTruncated ||
-        session.buffers?.replayFramesTruncated ||
-        session.buffers?.replayStepsTruncated ||
-        session.buffers?.timelineTruncated,
+      session.buffers?.replayFramesTruncated ||
+      session.buffers?.replayStepsTruncated ||
+      session.buffers?.timelineTruncated,
     ),
     selectedFrameMissing: Boolean(
       selectedStep &&
-        (selectedStep.resultFrameId || selectedStep.sourceFrameId) &&
-        !selectedReplayFrame,
+      (selectedStep.resultFrameId || selectedStep.sourceFrameId) &&
+      !selectedReplayFrame,
     ),
   };
 }
@@ -335,9 +346,17 @@ function renderComputerLogEntry(entry: ComputerSessionLogEvent) {
                 >${formatComputerStepLabel(entry.stepSequence)}</span
               >`
             : nothing}
-          ${entry.stepPhase ? html`<span class="computer-pane__tag">${formatComputerStepPhase(entry.stepPhase)}</span>` : nothing}
-          ${entry.actionType ? html`<span class="computer-pane__tag">${entry.actionType}</span>` : nothing}
-          ${entry.failureCategory ? html`<span class="computer-pane__tag">${entry.failureCategory}</span>` : nothing}
+          ${entry.stepPhase
+            ? html`<span class="computer-pane__tag"
+                >${formatComputerStepPhase(entry.stepPhase)}</span
+              >`
+            : nothing}
+          ${entry.actionType
+            ? html`<span class="computer-pane__tag">${entry.actionType}</span>`
+            : nothing}
+          ${entry.failureCategory
+            ? html`<span class="computer-pane__tag">${entry.failureCategory}</span>`
+            : nothing}
         </div>
       </div>
       <div class="computer-pane__timeline-meta">
@@ -384,7 +403,12 @@ function renderComputerActionOverlay(action: ComputerReplayAction | null) {
         : nothing}
       ${target
         ? html`
-            <circle class="computer-pane__action-point" cx=${target.x} cy=${target.y} r="2.2"></circle>
+            <circle
+              class="computer-pane__action-point"
+              cx=${target.x}
+              cy=${target.y}
+              r="2.2"
+            ></circle>
           `
         : nothing}
       ${destination
@@ -414,8 +438,12 @@ function renderComputerFrameStage(params: {
   const frameCursorY = frame?.height ? ((cursor?.y ?? 0) / frame.height) * 100 : 0;
   if (!frame) {
     return params.loading
-      ? html`<div class="muted browser-pane__empty">${chatText("browserPane.computer.loading")}</div>`
-      : html`<div class="muted browser-pane__empty">${chatText("browserPane.computer.noFrame")}</div>`;
+      ? html`<div class="muted browser-pane__empty">
+          ${chatText("browserPane.computer.loading")}
+        </div>`
+      : html`<div class="muted browser-pane__empty">
+          ${chatText("browserPane.computer.noFrame")}
+        </div>`;
   }
   return html`
     <div class="computer-pane__stage">
@@ -423,7 +451,9 @@ function renderComputerFrameStage(params: {
         <div class="computer-pane__frame-toolbar">
           <div class="computer-pane__frame-badges">
             <span class="computer-pane__tag computer-pane__tag--surface">Computer</span>
-            <span class="computer-pane__tag">${context?.activeApp?.name ?? chatText("browserPane.computer.desktop")}</span>
+            <span class="computer-pane__tag"
+              >${context?.activeApp?.name ?? chatText("browserPane.computer.desktop")}</span
+            >
             ${context?.activeWindow?.title
               ? html`<span class="computer-pane__tag">${context.activeWindow.title}</span>`
               : nothing}
@@ -432,7 +462,10 @@ function renderComputerFrameStage(params: {
               : nothing}
           </div>
           <div class="computer-pane__frame-meta">
-            <span>${chatText("browserPane.computer.frameAge")}: ${formatFrameAge(params.workspace.frameAgeMs)}</span>
+            <span
+              >${chatText("browserPane.computer.frameAge")}:
+              ${formatFrameAge(params.workspace.frameAgeMs)}</span
+            >
           </div>
         </div>
         <div class="computer-pane__frame">
@@ -460,7 +493,9 @@ function renderComputerFrameStage(params: {
             : nothing}
         </div>
         <div class="computer-pane__frame-footer">
-          <span>${Math.round(frame.logicalWidth)} × ${Math.round(frame.logicalHeight)} logical</span>
+          <span
+            >${Math.round(frame.logicalWidth)} × ${Math.round(frame.logicalHeight)} logical</span
+          >
           <span>${Math.round(frame.pixelWidth)} × ${Math.round(frame.pixelHeight)} px</span>
           <span>${frame.scaleFactor}x</span>
           <span>${frame.orientation}</span>
@@ -496,25 +531,26 @@ function renderComputerMetricCard(label: string, value: string, hint?: string | 
 
 function renderComputerPermissionStatus(
   permission: "screenRecording" | "accessibility",
-  granted: boolean,
+  granted: boolean | null,
   onRequestPermission?: BrowserPaneProps["onRequestComputerPermission"],
 ) {
+  const isGranted = granted === true;
   return html`
     <div class="computer-pane__permission-card">
       <div class="computer-pane__permission-head">
         <strong>${nativeShellPermissionLabel(permission)}</strong>
         <span
-          class="computer-pane__permission-status ${granted
+          class="computer-pane__permission-status ${isGranted
             ? "computer-pane__permission-status--ok"
             : "computer-pane__permission-status--missing"}"
         >
-          ${granted
+          ${isGranted
             ? chatText("browserPane.computer.permissionGranted")
             : chatText("browserPane.computer.permissionMissing")}
         </span>
       </div>
       <span>${nativeShellPermissionDescription(permission)}</span>
-      ${!granted && onRequestPermission
+      ${!isGranted && onRequestPermission
         ? html`
             <button
               class="btn btn--sm"
@@ -529,12 +565,20 @@ function renderComputerPermissionStatus(
   `;
 }
 
-function renderComputerReplayControls(props: BrowserPaneProps, workspace: DerivedComputerWorkspace) {
+function renderComputerReplayControls(
+  props: BrowserPaneProps,
+  workspace: DerivedComputerWorkspace,
+) {
   if (workspace.replaySteps.length === 0) {
-    return html`<div class="muted browser-pane__empty">${chatText("browserPane.computer.noTimeline")}</div>`;
+    return html`<div class="muted browser-pane__empty">
+      ${chatText("browserPane.computer.noTimeline")}
+    </div>`;
   }
   const selectedIndex = workspace.selectedStep
-    ? Math.max(0, workspace.replaySteps.findIndex((step) => step.id === workspace.selectedStep?.id))
+    ? Math.max(
+        0,
+        workspace.replaySteps.findIndex((step) => step.id === workspace.selectedStep?.id),
+      )
     : workspace.replaySteps.length - 1;
   return html`
     <div class="computer-pane__replay-toolbar">
@@ -579,7 +623,10 @@ function renderComputerReplayControls(props: BrowserPaneProps, workspace: Derive
   `;
 }
 
-function renderComputerReplayStepList(props: BrowserPaneProps, workspace: DerivedComputerWorkspace) {
+function renderComputerReplayStepList(
+  props: BrowserPaneProps,
+  workspace: DerivedComputerWorkspace,
+) {
   return html`
     <div class="computer-pane__step-list">
       ${workspace.replaySteps.map((step) => {
@@ -601,7 +648,9 @@ function renderComputerReplayStepList(props: BrowserPaneProps, workspace: Derive
             <div class="computer-pane__step-card-meta">
               <span>${formatDuration(step.totalElapsedMs)}</span>
               <span>${chatText("browserPane.computer.actionCount")}: ${step.actionCount}</span>
-              <span>${chatText("browserPane.computer.safetyEvents")}: ${step.safetyEventsCount}</span>
+              <span
+                >${chatText("browserPane.computer.safetyEvents")}: ${step.safetyEventsCount}</span
+              >
             </div>
           </button>
         `;
@@ -663,18 +712,31 @@ function renderComputerStepDetailsDrawer(
       ${action
         ? html`
             <div class="computer-pane__detail-block">
-              <span class="computer-pane__meta-label">${chatText("browserPane.computer.lastAction")}</span>
+              <span class="computer-pane__meta-label"
+                >${chatText("browserPane.computer.lastAction")}</span
+              >
               <strong>${action.summary}</strong>
               <div class="computer-pane__timeline-tags">
                 ${action.target
-                  ? html`<span class="computer-pane__tag">${Math.round(action.target.x)}, ${Math.round(action.target.y)}</span>`
+                  ? html`<span class="computer-pane__tag"
+                      >${Math.round(action.target.x)}, ${Math.round(action.target.y)}</span
+                    >`
                   : nothing}
                 ${action.destination
-                  ? html`<span class="computer-pane__tag">${Math.round(action.destination.x)}, ${Math.round(action.destination.y)}</span>`
+                  ? html`<span class="computer-pane__tag"
+                      >${Math.round(action.destination.x)},
+                      ${Math.round(action.destination.y)}</span
+                    >`
                   : nothing}
-                ${action.url ? html`<span class="computer-pane__tag">${action.url}</span>` : nothing}
-                ${action.path ? html`<span class="computer-pane__tag">${action.path}</span>` : nothing}
-                ${action.app ? html`<span class="computer-pane__tag">${action.app}</span>` : nothing}
+                ${action.url
+                  ? html`<span class="computer-pane__tag">${action.url}</span>`
+                  : nothing}
+                ${action.path
+                  ? html`<span class="computer-pane__tag">${action.path}</span>`
+                  : nothing}
+                ${action.app
+                  ? html`<span class="computer-pane__tag">${action.app}</span>`
+                  : nothing}
                 ${action.keyCombo
                   ? html`<span class="computer-pane__tag">${action.keyCombo}</span>`
                   : nothing}
@@ -777,7 +839,8 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
     lastEvent: null,
     recentEvents: [],
   };
-  const canStart = session.status === "stopped" || session.status === "idle" || session.status === "error";
+  const canStart =
+    session.status === "stopped" || session.status === "idle" || session.status === "error";
   const canPause = session.status !== "paused" && session.status !== "stopped";
   const canResume = session.status === "paused";
   const missingAccessibility = !session.permissions.accessibility;
@@ -793,7 +856,8 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
       : null;
   const foregroundControl =
     capabilities.some(
-      (entry) => entry.kind === "foreground_control" && entry.available && entry.exposure === "exposed",
+      (entry) =>
+        entry.kind === "foreground_control" && entry.available && entry.exposure === "exposed",
     ) &&
     !capabilities.some(
       (entry) =>
@@ -804,11 +868,14 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
       (entry) => entry.kind === "observe_only" && entry.available && entry.exposure === "exposed",
     ) &&
     !capabilities.some(
-      (entry) => entry.kind === "foreground_control" && entry.available && entry.exposure === "exposed",
+      (entry) =>
+        entry.kind === "foreground_control" && entry.available && entry.exposure === "exposed",
     );
   const selectedStepLatency =
     workspace.selectedStep?.totalElapsedMs ??
-    (lastCompletedStep ? Math.max(0, lastCompletedStep.updatedAt - lastCompletedStep.startedAt) : null);
+    (lastCompletedStep
+      ? Math.max(0, lastCompletedStep.updatedAt - lastCompletedStep.startedAt)
+      : null);
 
   return html`
     <div class="computer-pane">
@@ -835,15 +902,21 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
                   `
                 : backgroundSessionKey
                   ? html`
-                      <span class="computer-pane__tag">${chatText("browserPane.computer.backgroundSession")}</span>
+                      <span class="computer-pane__tag"
+                        >${chatText("browserPane.computer.backgroundSession")}</span
+                      >
                     `
                   : nothing}
               ${foregroundControl
                 ? html`
-                    <span class="computer-pane__tag">${formatComputerCapability("foreground_control")}</span>
+                    <span class="computer-pane__tag"
+                      >${formatComputerCapability("foreground_control")}</span
+                    >
                   `
                 : observeOnlyOnly
-                  ? html`<span class="computer-pane__tag">${formatComputerCapability("observe_only")}</span>`
+                  ? html`<span class="computer-pane__tag"
+                      >${formatComputerCapability("observe_only")}</span
+                    >`
                   : nothing}
             </div>
             <div class="computer-pane__context">
@@ -860,7 +933,9 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
                     <span class="computer-pane__tag computer-pane__tag--step"
                       >${formatComputerStepLabel(activeStep.sequence)}</span
                     >
-                    <span class="computer-pane__tag">${formatComputerStepPhase(activeStep.phase)}</span>
+                    <span class="computer-pane__tag"
+                      >${formatComputerStepPhase(activeStep.phase)}</span
+                    >
                     <span class="computer-pane__step-text">${activeStep.summary}</span>
                   `
                 : lastCompletedStep
@@ -952,16 +1027,22 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
         </div>
       </div>
 
-      ${props.computerError ? html`<div class="callout danger">${props.computerError}</div>` : nothing}
+      ${props.computerError
+        ? html`<div class="callout danger">${props.computerError}</div>`
+        : nothing}
       ${session.lastError ? html`<div class="callout danger">${session.lastError}</div>` : nothing}
       ${runtime && runtime.connectionState !== "running"
         ? html`
             <div
-              class="callout ${runtime.connectionState === "starting" ? "warning" : "danger"} computer-pane__callout"
+              class="callout ${runtime.connectionState === "starting"
+                ? "warning"
+                : "danger"} computer-pane__callout"
             >
               <strong>${chatText("browserPane.computer.helperState")}</strong>
               <span>${formatComputerRuntimeState(runtime.connectionState)}</span>
-              ${runtime.lastError?.message ? html`<span>${runtime.lastError.message}</span>` : nothing}
+              ${runtime.lastError?.message
+                ? html`<span>${runtime.lastError.message}</span>`
+                : nothing}
             </div>
           `
         : nothing}
@@ -993,10 +1074,20 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
             </div>
           `
         : nothing}
+      ${foregroundControl && blocking?.kind !== "blocked_on_focus"
+        ? html`
+            <div class="callout info computer-pane__callout">
+              <strong>${formatComputerCapability("foreground_control")}</strong>
+              <span>${chatText("browserPane.computer.foregroundControlHint")}</span>
+            </div>
+          `
+        : nothing}
       ${safety.lastEvent || safety.level !== "normal"
         ? html`
             <div
-              class="callout ${safety.level === "watch" ? "warning" : "info"} computer-pane__callout"
+              class="callout ${safety.level === "watch"
+                ? "warning"
+                : "info"} computer-pane__callout"
             >
               <strong>${chatText("browserPane.computer.safetyBanner")}</strong>
               <span>${formatComputerSafetyLevel(safety.level)}</span>
@@ -1024,7 +1115,9 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
               <strong>${chatText("browserPane.computer.awaitingApproval")}</strong>
               <span>${awaitingApproval.actionSummary}</span>
               ${awaitingApproval.policyDecision
-                ? html`<span>${formatComputerPolicyDecision(awaitingApproval.policyDecision)}</span>`
+                ? html`<span
+                    >${formatComputerPolicyDecision(awaitingApproval.policyDecision)}</span
+                  >`
                 : nothing}
               <span>${awaitingApproval.reason}</span>
               ${approvalSafetyEvents.length > 0
@@ -1093,11 +1186,15 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
               context
                 ? `${context.display.id ? `${context.display.id} · ` : ""}${Math.round(context.display.logicalWidth)} × ${Math.round(context.display.logicalHeight)}`
                 : chatText("browserPane.computer.unknown"),
-              context ? `${Math.round(context.display.pixelWidth)} × ${Math.round(context.display.pixelHeight)} px @ ${context.display.scale}x` : null,
+              context
+                ? `${Math.round(context.display.pixelWidth)} × ${Math.round(context.display.pixelHeight)} px @ ${context.display.scale}x`
+                : null,
             )}
             ${renderComputerMetricCard(
               chatText("browserPane.computer.helperProcess"),
-              runtime?.helperProcessId ? `pid ${runtime.helperProcessId}` : chatText("browserPane.computer.none"),
+              runtime?.helperProcessId
+                ? `pid ${runtime.helperProcessId}`
+                : chatText("browserPane.computer.none"),
               runtime?.helperVersion ?? null,
             )}
           </div>
@@ -1125,26 +1222,30 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
   `;
 }
 
-function renderBrowserSurface(browser: BrowserPaneBrowserState) {
+function renderPreviewSurface(preview: BrowserPaneBrowserState) {
   return html`
-    <div class="workspace-pane__surface workspace-pane__surface--browser">
+    <div class="workspace-pane__surface workspace-pane__surface--preview">
       <div class="workspace-pane__surface-hero">
         <div>
-          <div class="browser-pane__title">${browser.title ?? getBrowserPaneLabel("browser")}</div>
-          ${browser.subtitle ? html`<div class="computer-pane__step-text">${browser.subtitle}</div>` : nothing}
+          <div class="browser-pane__title">${preview.title ?? getBrowserPaneLabel("preview")}</div>
+          ${preview.subtitle
+            ? html`<div class="computer-pane__step-text">${preview.subtitle}</div>`
+            : nothing}
         </div>
-        ${browser.status ? html`<span class="computer-pane__tag">${browser.status}</span>` : nothing}
+        ${preview.status
+          ? html`<span class="computer-pane__tag">${preview.status}</span>`
+          : nothing}
       </div>
-      ${browser.screenshotUrl
+      ${preview.screenshotUrl
         ? html`
             <div class="computer-pane__frame-card">
               <div class="computer-pane__frame">
-                <img class="computer-pane__frame-image" alt="" src=${browser.screenshotUrl} />
+                <img class="computer-pane__frame-image" alt="" src=${preview.screenshotUrl} />
               </div>
             </div>
           `
         : html`<div class="muted browser-pane__empty">${chatText("browserPane.noContent")}</div>`}
-      ${browser.url ? html`<div class="computer-pane__detail-note">${browser.url}</div>` : nothing}
+      ${preview.url ? html`<div class="computer-pane__detail-note">${preview.url}</div>` : nothing}
     </div>
   `;
 }
@@ -1179,7 +1280,7 @@ export function renderBrowserPane(props: BrowserPaneProps) {
     toolOutput: props.toolOutput ?? null,
   });
   const surface = resolveBrowserPaneSurface({
-    preferredSurface: props.selectedSurface ?? "computer",
+    preferredSurface: props.selectedSurface ?? "tool_output",
     browser: props.browser ?? null,
     computer: props.computer ?? null,
     toolOutput: props.toolOutput ?? null,
@@ -1237,13 +1338,13 @@ export function renderBrowserPane(props: BrowserPaneProps) {
       </div>
       <div
         class="browser-pane__content ${surface?.kind === "computer"
-            ? "browser-pane__content--computer"
-            : ""}"
+          ? "browser-pane__content--computer"
+          : ""}"
       >
         ${surface?.kind === "computer"
           ? renderComputerSurface(props, surface.session)
-          : surface?.kind === "browser"
-            ? renderBrowserSurface(surface.browser)
+          : surface?.kind === "preview"
+            ? renderPreviewSurface(surface.preview)
             : surface?.kind === "tool_output"
               ? renderToolOutputSurface(props, surface)
               : html`<div class="muted browser-pane__empty">

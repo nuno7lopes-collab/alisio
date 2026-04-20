@@ -52,7 +52,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     models: "Modelos",
     channels: "Canales",
     capabilities: "Capacidades",
-    authentications: "Providers",
+    authentications: "Apps",
     connections: "Conexiones",
     security: "Seguridad",
     organization: "Organización",
@@ -72,8 +72,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     channels: "WhatsApp, Telegram y Discord, donde las conversaciones ya ocurren.",
     capabilities:
       "Una vista clara de lo que Alisio ya puede hacer y de lo que todavía necesita configuración.",
-    authentications:
-      "Auth de providers, fuentes de modelo y apps conectadas en una vista clara del runtime.",
+    authentications: "OAuth y permisos para apps externas que Alisio puede usar por ti.",
     connections: "Dispositivos, nodos, bindings y conectividad del runtime.",
     security: "Aprobaciones, modos de acceso exec y controles de seguridad del runtime.",
     organization: "Sistemas del workspace, canales y estado de entrega.",
@@ -83,7 +82,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     memory: "Memoria a largo plazo, notas diarias y contexto editable en un solo lugar.",
     tasks: "Ejecuciones en segundo plano, entrega y seguimiento del operador en una sola vista.",
     cron: "Trabajos programados, ejecuciones y entrega en un solo espacio.",
-    settings: "Configuración del workspace, cuenta y shell nativa.",
+    settings: "General, cuenta y controles del host.",
   },
   alisio: {
     login: {
@@ -113,15 +112,38 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         tool: "Herramienta",
       },
       browserPane: {
-        title: "Panel",
+        title: "Panel de actividad",
         surfacePicker: "Superficie del panel",
         close: "Cerrar panel",
         viewRawText: "Ver texto sin formato",
         noContent: "No hay contenido disponible",
         unavailable: "No hay panel disponible",
         surfaces: {
-          computer: "Computer",
-          markdown: "Salida de la herramienta",
+          preview: "Vista previa",
+          computer: "Sesión en vivo",
+          tool_output: "Salida de la herramienta",
+        },
+      },
+      loadingStates: {
+        connecting: {
+          eyebrow: "Conectando",
+          title: "Conectando al workspace",
+          body: "Abriendo la conexión con el runtime antes de cargar este chat.",
+        },
+        bootstrap: {
+          eyebrow: "Bootstrap",
+          title: "Preparando el chat",
+          body: "Sincronizando el estado inicial del workspace antes de mostrar la sesión.",
+        },
+        history: {
+          eyebrow: "Historial",
+          title: "Cargando el historial de la sesión",
+          body: "Recuperando los mensajes y la actividad de herramientas más recientes de esta sesión.",
+        },
+        runStart: {
+          eyebrow: "Cold start",
+          title: "Iniciando la ejecución",
+          body: "El runtime remoto se está calentando y preparando la ejecución de herramientas.",
         },
       },
       welcome: {
@@ -325,7 +347,6 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       agent: "Agente",
       loading: "Cargando memoria",
       longTerm: "Memoria a largo plazo",
-      notes: "Notas",
       noteCount: "Notas",
       longTermCount: "Archivos persistentes",
       lastUpdated: "Última actualización",
@@ -408,10 +429,10 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       builtin: "Integrado",
       views: {
         label: "Vistas de memoria",
-        wiki: "Wiki",
+        notes: "Notas",
         files: "Ficheros",
         graph: "Grafo",
-        wikiDescription: "Recorre páginas, backlinks y evidencias como una wiki personal.",
+        notesDescription: "Recorre páginas, backlinks y evidencias como una wiki personal.",
         filesDescription:
           "Inspecciona ficheros, procedencia y páginas relacionadas sin perder contexto.",
         graphDescription: "Ve entidades, relaciones y la vecindad activa de la memoria.",
@@ -421,7 +442,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         subtitle:
           "Sincroniza, exporta y confirma rápidamente el estado actual de la memoria de este agente.",
       },
-      wiki: {
+      notes: {
         listTitle: "Páginas wiki",
         empty: "Todavía no hay páginas wiki disponibles.",
         unavailable: "Esta versión de Alisio todavía no expone la wiki nativa.",
@@ -664,7 +685,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         missingConfigBody:
           "Este conector ya usa el flujo OAuth nativo de Alisio, pero la app del proveedor todavía no está configurada en este gateway de Alisio.",
         missingTokenEncryptionBody:
-          "Este conector no puede guardar tokens OAuth de forma segura en este Mac ahora mismo. Restaura el keychain de inicio de sesión o configura ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY antes de volver a intentarlo.",
+          "Este conector no puede guardar tokens OAuth de forma segura en este host ahora mismo. Restaura el almacenamiento local seguro de tokens o configura ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY antes de volver a intentarlo.",
         reviewBody:
           "Este conector ya es visible en el producto, pero la aprobación del proveedor y el soporte de runtime todavía se están desplegando.",
         unavailableBody: "Este conector todavía no está activado en el entorno actual.",
@@ -681,7 +702,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         missingUrl: "Falta la URL de autenticación para este conector.",
         invalidUrl: "La URL de autenticación de este conector no es válida.",
         missingTokenEncryption:
-          "Esta autenticación no puede iniciarse porque el almacenamiento local seguro de tokens no está disponible en este Mac.",
+          "Esta autenticación no puede iniciarse porque el almacenamiento local seguro de tokens no está disponible en este host.",
         preparing: "Esta autenticación se está preparando y estará disponible pronto.",
         reviewPending: "Esta autenticación sigue en revisión y estará disponible más adelante.",
         unavailable: "Esta autenticación no está disponible en este entorno.",
@@ -1020,7 +1041,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     },
     settings: {
       title: "Ajustes",
-      subtitle: "Apariencia, cuenta, soporte y controles de la shell nativa.",
+      subtitle: "General, cuenta, IA y controles del host.",
       common: {
         unavailable: "No disponible",
       },
@@ -1034,7 +1055,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         devices: "Dispositivos",
         billing: "Facturación",
         support: "Soporte",
-        mac: "Mac",
+        host: "Host",
         advanced: "Avanzado",
         ariaLabel: "Secciones de ajustes",
       },
@@ -1277,12 +1298,12 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         setupSubtitle: "Abre el flujo de configuración para otro workspace o un enlace manual.",
         openSetup: "Abrir configuración",
       },
-      mac: {
-        title: "Shell Mac",
-        subtitle: "Controles nativos expuestos a través del bridge explícito `window.alisioHost`.",
-        loading: "Cargando estado de la shell nativa…",
-        unavailable: "Disponible solo dentro de la app nativa Alisio para macOS.",
-        bridge: "Controles nativos expuestos a través del bridge explícito `window.alisioHost`.",
+      host: {
+        title: "Host de escritorio",
+        subtitle: "Controles del host expuestos a través del bridge explícito `window.alisioHost`.",
+        loading: "Cargando estado del host nativo…",
+        unavailable: "Disponible solo dentro de un host nativo de Alisio.",
+        bridge: "Controles del host expuestos a través del bridge explícito `window.alisioHost`.",
         launchAtLogin: "Abrir al iniciar sesión",
         launchEnable: "Activar",
         launchDisable: "Desactivar",
@@ -1299,7 +1320,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         enableTalk: "Activar talk",
         logs: "Registros",
         revealLogs: "Mostrar registros",
-        openNativeSettings: "Abrir ajustes nativos",
+        openNativeSettings: "Abrir ajustes del host",
         permissionsTitle: "Permisos",
         granted: "Concedido",
         needsApproval: "Necesita aprobación",
@@ -1323,7 +1344,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
           microphone: "Escucha funciones de voz y graba audio.",
           speechRecognition: "Transcribe frases de activación en el dispositivo.",
           camera: "Toma fotos o clips cortos con la cámara.",
-          location: "Comparte la ubicación de este Mac cuando tú lo decidas.",
+          location: "Comparte la ubicación de este host cuando tú lo decidas.",
         },
       },
     },
@@ -1418,12 +1439,12 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
           "Controla si otros usuarios pueden pedir acceso a los ordenadores de esta cuenta.",
       },
       nodes: {
-        title: "Nodos",
-        subtitle: "Cada nodo disponible para ejecutar el runtime.",
-        empty: "No se encontraron nodos.",
-        pendingTitle: "Solicitudes de nodo",
-        pendingSubtitle: "Nodos esperando aprobación antes de entrar en la ejecución.",
-        pendingEmpty: "No hay solicitudes de nodo pendientes.",
+        title: "Ordenadores de runtime",
+        subtitle: "Cada ordenador conectado disponible para ejecutar el runtime.",
+        empty: "No se encontraron ordenadores de runtime.",
+        pendingTitle: "Solicitudes de runtime",
+        pendingSubtitle: "Ordenadores esperando aprobación antes de entrar en la ejecución.",
+        pendingEmpty: "No hay solicitudes de runtime pendientes.",
         paired: "emparejado",
         unpaired: "sin emparejar",
         connected: "conectado",
@@ -1435,7 +1456,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         repair: "reparación",
         approve: "Aprobar",
         reject: "Rechazar",
-        rejectConfirm: "¿Rechazar esta solicitud de emparejamiento del nodo?",
+        rejectConfirm: "¿Rechazar esta solicitud de emparejamiento del ordenador de runtime?",
       },
       devices: {
         title: "Ordenadores",
@@ -1475,7 +1496,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       sharing: {
         title: "Compartir",
         subtitle: "Descubrimiento automático. El acceso sigue controlado por políticas.",
-        note: "Los dispositivos de runtime conocidos aparecen automáticamente. Después del emparejamiento, los dispositivos vinculados en la misma cuenta comparten acceso a modelos. La ejecución sigue requiriendo una aprobación explícita por dispositivo. La memoria, el vault, los archivos y otro contexto sensible no se comparten automáticamente aquí.",
+        note: "Los ordenadores de runtime conocidos aparecen automáticamente. Después del emparejamiento, los ordenadores vinculados en la misma cuenta comparten acceso a modelos. La ejecución sigue requiriendo una aprobación explícita por ordenador. La memoria, el vault, los archivos y otro contexto sensible no se comparten automáticamente aquí.",
         suggestionsTitle: "Sugerencias para compartir",
         target: "Destino",
         policyTitle: "Política para compartir",
@@ -1487,9 +1508,9 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         requestModelsAndExec: "Solicitar modelos y ejecución",
         requestReadOnly: "Solicitar acceso",
         availableTitle: "Disponibles para solicitar",
-        availableEmpty: "No hay otros dispositivos que se puedan solicitar ahora mismo.",
+        availableEmpty: "No hay otros ordenadores que se puedan solicitar ahora mismo.",
         sharedTitle: "Compartidos contigo",
-        sharedEmpty: "Todavía no hay dispositivos compartidos contigo.",
+        sharedEmpty: "Todavía no hay ordenadores compartidos contigo.",
         incomingTitle: "Solicitudes entrantes",
         incomingEmpty: "No hay solicitudes entrantes.",
         outgoingTitle: "Tus solicitudes",
@@ -1503,10 +1524,10 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         revoke: "Revocar",
         allowExternalUse: "Permitir uso externo",
         externalOn:
-          "Los dispositivos de la organización permiten solicitudes externas en este momento.",
+          "Los ordenadores de la organización permiten solicitudes externas en este momento.",
         externalOff:
-          "Los dispositivos de la organización siguen requiriendo una activación explícita para uso externo.",
-        emptyState: "No hay dispositivos compartidos, solicitudes ni aprobaciones ahora mismo.",
+          "Los ordenadores de la organización siguen requiriendo una activación explícita para uso externo.",
+        emptyState: "No hay ordenadores compartidos, solicitudes ni aprobaciones ahora mismo.",
         sameAccount: "Misma cuenta",
         sensitiveGroup: "Sensibles",
         models: "Modelos",
@@ -1528,13 +1549,13 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
           context: "Contexto sensible",
         },
         policyMode: {
-          "paired-device": "Dispositivo emparejado",
+          "paired-device": "Ordenador emparejado",
           "light-approval": "Aprobación ligera",
           "explicit-consent": "Consentimiento explícito",
         },
         policyModeHint: {
           "paired-device":
-            "Permite por defecto dispositivos emparejados de la misma cuenta después del primer paso de confianza.",
+            "Permite por defecto ordenadores emparejados de la misma cuenta después del primer paso de confianza.",
           "light-approval":
             "Permite descubrimiento y sugerencias, pero exige una aprobación ligera antes del uso.",
           "explicit-consent":
@@ -1547,7 +1568,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
           },
           artifactCache: {
             title: "Reutilizar artefactos de {target}",
-            body: "Los outputs útiles y los artefactos intermedios pueden quedarse en el dispositivo emparejado y sugerirse cuando ayuden.",
+            body: "Los outputs útiles y los artefactos intermedios pueden quedarse en el ordenador emparejado y sugerirse cuando ayuden.",
           },
           cacheReuse: {
             title: "Reutilizar cache de {target}",
@@ -1816,7 +1837,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
       gateway: {
         title: "Reconectar app",
         subtitle:
-          "La app de Alisio en este Mac todavía no está disponible. Reconéctala para continuar la configuración y llegar a los pasos de cuenta, OpenAI y workspace.",
+          "El host nativo de Alisio todavía no está disponible. Reconéctalo para continuar la configuración y llegar a los pasos de cuenta, OpenAI y workspace.",
         savedAccount:
           "Encontramos una cuenta guardada para {email}. Cuando la app vuelva a estar online, podrás continuar con esa cuenta.",
         reconnect: "Reconectar app",
@@ -1930,15 +1951,15 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         connect: "Conectar OpenAI",
       },
       permissions: {
-        title: "Termina los permisos de macOS",
+        title: "Termina los permisos del host",
         subtitle:
-          "Algunas funciones nativas necesitan aprobación de macOS antes de funcionar de forma fiable.",
+          "Algunas funciones nativas necesitan aprobación del host antes de funcionar de forma fiable.",
         loading: "Cargando permisos…",
         unavailable:
-          "Los detalles de la shell nativa todavía no están disponibles. Abre el panel de ajustes de macOS y vuelve a intentarlo.",
+          "Los detalles del host nativo todavía no están disponibles. Abre el panel de ajustes del host y vuelve a intentarlo.",
         disableLaunch: "Desactivar inicio al iniciar sesión",
         enableLaunch: "Activar inicio al iniciar sesión",
-        openSettings: "Abrir ajustes de macOS",
+        openSettings: "Abrir ajustes del host",
       },
       ready: {
         title: "Cuenta lista",

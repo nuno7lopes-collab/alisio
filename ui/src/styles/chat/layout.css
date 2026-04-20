@@ -1589,6 +1589,40 @@ details.chat-tools-menu > .chat-tools-menu__panel {
   margin: 0 auto 4px;
 }
 
+.alisio-chat__loading-state,
+.alisio-chat__startup-state {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  margin: 0 0 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 48%),
+    color-mix(in srgb, var(--card) 96%, transparent);
+  animation: fade-in 0.24s var(--ease-out);
+}
+
+.alisio-chat__loading-state strong,
+.alisio-chat__startup-copy strong {
+  color: var(--text-strong);
+}
+
+.alisio-chat__loading-state span:last-child,
+.alisio-chat__startup-copy span {
+  color: var(--text-muted);
+}
+
+.alisio-chat__startup-state {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+}
+
+.alisio-chat__startup-copy {
+  display: grid;
+  gap: 4px;
+}
+
 .chat-run-status__chip--refresh {
   min-height: 30px;
   padding: 6px 10px;

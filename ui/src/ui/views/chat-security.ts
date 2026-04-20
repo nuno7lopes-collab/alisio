@@ -57,6 +57,7 @@ type ChatSecuritySurfaceState = {
     tone: "muted" | "warn" | "ready";
   };
   computerStatusAria: string;
+  showComputerStatus: boolean;
 };
 
 function accessModeLabel(mode: SecurityAccessMode) {
@@ -263,6 +264,8 @@ function resolveChatSecuritySurfaceState(
               tone: "muted" as const,
             };
   const computerStatusAria = `${t("alisio.chat.access.computerTitle")}: ${computerStatus.title}`;
+  const showComputerStatus =
+    props.nativeShellLoading || Boolean(props.nativeShellError || nativeShellSummary);
 
   return {
     queue,
@@ -276,6 +279,7 @@ function resolveChatSecuritySurfaceState(
     canOpenNativeSettings,
     computerStatus,
     computerStatusAria,
+    showComputerStatus,
   };
 }
 
@@ -354,22 +358,24 @@ export function renderChatSecurityAccessStrip(
               <span>${surface.currentModeLabel}</span>
             </span>
           `}
-
-      <button
-        type="button"
-        class="alisio-chat__access-pill alisio-chat__access-pill--status alisio-chat__access-pill--${surface
-          .computerStatus.tone} ${surface.canOpenNativeSettings
-          ? "alisio-chat__access-pill--interactive"
-          : ""}"
-        title=${surface.computerStatus.title}
-        aria-label=${surface.computerStatusAria}
-        ?disabled=${!surface.canOpenNativeSettings}
-        @click=${() => props.onOpenNativeSettings?.()}
-      >
-        <span class="alisio-chat__access-pill-icon">${icons.monitor}</span>
-        <span>${surface.computerStatus.label}</span>
-      </button>
-
+      ${surface.showComputerStatus
+        ? html`
+            <button
+              type="button"
+              class="alisio-chat__access-pill alisio-chat__access-pill--status alisio-chat__access-pill--${surface
+                .computerStatus.tone} ${surface.canOpenNativeSettings
+                ? "alisio-chat__access-pill--interactive"
+                : ""}"
+              title=${surface.computerStatus.title}
+              aria-label=${surface.computerStatusAria}
+              ?disabled=${!surface.canOpenNativeSettings}
+              @click=${() => props.onOpenNativeSettings?.()}
+            >
+              <span class="alisio-chat__access-pill-icon">${icons.monitor}</span>
+              <span>${surface.computerStatus.label}</span>
+            </button>
+          `
+        : nothing}
       ${surface.queue.length
         ? html`
             <span

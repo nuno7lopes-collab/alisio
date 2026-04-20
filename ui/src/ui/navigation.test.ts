@@ -90,11 +90,11 @@ describe("subtitleForTab", () => {
     expect(subtitleForTab("cron")).toMatch(/scheduled/i);
     expect(subtitleForTab("models")).toContain("OpenAI");
     expect(subtitleForTab("channels")).toContain("WhatsApp");
-    expect(subtitleForTab("capabilities")).toContain("simpler");
-    expect(subtitleForTab("connections")).toContain("Devices");
+    expect(subtitleForTab("capabilities")).toContain("tools");
+    expect(subtitleForTab("connections")).toContain("Runtime");
     expect(subtitleForTab("security")).toContain("Approvals");
-    expect(subtitleForTab("authentications")).toContain("external apps");
-    expect(subtitleForTab("settings")).toContain("General");
+    expect(subtitleForTab("authentications")).toContain("connectors");
+    expect(subtitleForTab("settings")).toContain("web workspace");
   });
 });
 

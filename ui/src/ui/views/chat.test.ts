@@ -265,6 +265,7 @@ function createWorkspaceComputerSession(
       id: "local-mac:mac-local:display:display-main",
       label: "Local Mac (display-main)",
       kind: "local-mac-host",
+      platform: "macos",
       nodeId: "mac-local",
       displayId: "display-main",
       globalInput: true,
@@ -275,12 +276,14 @@ function createWorkspaceComputerSession(
         kind: "observe_only",
         available: true,
         exposure: "exposed",
+        reasonCode: "local_mac_observe_supported",
         reason: "Read-only screen capture is supported on the local Mac.",
       },
       {
         kind: "foreground_control",
         available: true,
         exposure: "exposed",
+        reasonCode: "local_mac_foreground_control_supported",
         reason:
           "Control uses real macOS Accessibility input and may move focus, cursor, or global input.",
       },
@@ -288,6 +291,7 @@ function createWorkspaceComputerSession(
         kind: "background_safe_control",
         available: false,
         exposure: "hidden",
+        reasonCode: "local_mac_background_safe_control_unavailable",
         reason:
           "Local macOS control is not background-safe because it still depends on real foreground input.",
       },
@@ -295,6 +299,7 @@ function createWorkspaceComputerSession(
         kind: "future_virtualized_control",
         available: false,
         exposure: "hidden",
+        reasonCode: "local_mac_virtualized_control_unavailable",
         reason: "No virtualized desktop target exists in the current local-mac runtime.",
       },
     ],
@@ -544,6 +549,8 @@ function createWorkspaceComputerSession(
     permissions: {
       accessibility: true,
       screenRecording: true,
+      observation: "granted",
+      control: "granted",
     },
     blocking: null,
     runtime: {
@@ -746,6 +753,28 @@ function createWorkspaceComputerSession(
   };
 }
 
+function createComputerPermissions(params: {
+  accessibility: boolean | null;
+  screenRecording: boolean | null;
+}): ComputerSessionState["permissions"] {
+  return {
+    accessibility: params.accessibility,
+    screenRecording: params.screenRecording,
+    observation:
+      params.screenRecording === true
+        ? "granted"
+        : params.screenRecording === false
+          ? "missing"
+          : "unknown",
+    control:
+      params.accessibility === true
+        ? "granted"
+        : params.accessibility === false
+          ? "missing"
+          : "unknown",
+  };
+}
+
 afterEach(() => {
   vi.useRealTimers();
   cleanupChatModuleState();
@@ -898,6 +927,25 @@ describe("chat view", () => {
       expect.objectContaining({ id: "approval-1" }),
       "allow-once",
     );
+  });
+
+  it("hides unavailable local computer status in the web chat strip", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          accessMode: "recommended",
+          onApplyAccessMode: () => undefined,
+          nativeShellState: null,
+          nativeShellLoading: false,
+          nativeShellError: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).not.toContain("No local access");
+    expect(container.textContent).not.toContain("Computer access");
   });
 
   it("disables the already active quick access mode in chat", () => {
@@ -1147,342 +1195,196 @@ describe("chat view", () => {
     expect(container.querySelector("resizable-divider")).not.toBeNull();
   });
 
-  it("renders the computer surface with controls and approval actions", () => {
-    const container = document.createElement("div");
-    const onComputerSessionCommand = vi.fn();
-    const onComputerSessionApproval = vi.fn();
-    const onRequestComputerPermission = vi.fn();
-    render(
-      renderChat(
-        createProps({
-          sidebarOpen: true,
-          browserPaneSurfaceKind: "computer",
-          computerSession: {
-            sessionKey: "main",
-            backend: "local-mac",
-            status: "awaiting-approval",
-            mode: "approved_apps_only",
-            approvedApps: [],
-            policy: {
-              allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-              deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-              sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-              commandLikeActions: [],
-            },
-            safety: {
-              level: "normal",
-              recentEvents: [],
-            },
-            replay: {
-              frames: [],
-              steps: [],
-              actionCount: 0,
-              safetyEventsCount: 0,
-            },
-            permissions: {
-              accessibility: false,
-              screenRecording: true,
-            },
-            context: {
-              display: {
-                id: "display-1",
-                width: 1440,
-                height: 900,
-                scale: 2,
-                logicalWidth: 1440,
-                logicalHeight: 900,
-                pixelWidth: 2880,
-                pixelHeight: 1800,
-                orientation: "landscape",
-              },
-              activeApp: {
-                name: "Finder",
-                bundleId: "com.apple.finder",
-              },
-              activeWindow: {
-                title: "Downloads",
-              },
-              capturedAt: 10,
-            },
-            frame: {
-              id: "frame-approval",
-              dataUrl: "data:image/jpeg;base64,abc",
-              mimeType: "image/jpeg",
-              width: 1440,
-              height: 900,
-              pixelWidth: 2880,
-              pixelHeight: 1800,
-              logicalWidth: 1440,
-              logicalHeight: 900,
-              scaleFactor: 2,
-              orientation: "landscape",
-              displayId: "display-1",
-              sourceSpace: "display-pixel",
-              capturedAt: 10,
-              maxAgeMs: 1000,
-              staleAt: 1010,
-              cursor: {
-                x: 120,
-                y: 64,
-                visible: true,
-              },
-            },
-            timeline: [
-              {
-                id: "entry-1",
-                at: 10,
-                kind: "approval",
-                summary: "open Finder awaiting approval",
-                status: "awaiting-approval",
-                actionType: "focus_app",
-                stepSequence: 3,
-                stepId: "step-3",
-                toolCallId: "tool-computer-1",
-                stepPhase: "awaiting-approval",
-              },
-            ],
-            stepCounter: 3,
-            activeStep: {
-              id: "step-3",
-              sequence: 3,
-              toolCallId: "tool-computer-1",
-              kind: "action",
-              phase: "awaiting-approval",
-              status: "awaiting-approval",
-              summary: "focus app Finder",
-              actionType: "focus_app",
-              startedAt: 9,
-              updatedAt: 10,
-            },
-            awaitingApproval: {
-              id: "approval-1",
-              createdAt: 10,
-              actionType: "focus_app",
-              actionSummary: "focus app Finder",
-              reason: "action targets unapproved app com.apple.finder",
-              reasonCode: "unapproved_app",
-              policyDecision: "require_session",
-              sensitive: true,
-              safetyEvents: [],
-              appName: "Finder",
-              appBundleId: "com.apple.finder",
-              stepId: "step-3",
-              stepSequence: 3,
-              toolCallId: "tool-computer-1",
-            },
-            startedAt: 1,
-            updatedAt: 10,
-          },
-          onCloseSidebar: () => undefined,
-          onComputerSessionCommand,
-          onComputerSessionApproval,
-          onRequestComputerPermission,
-        }),
-      ),
-      container,
-    );
-
-    expect(container.querySelector(".computer-pane")).not.toBeNull();
-    expect(container.querySelector(".computer-pane__frame-image")).not.toBeNull();
-    expect(container.textContent).toContain("Finder");
-    expect(container.textContent).toContain("Awaiting approval");
-
-    const buttons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".computer-pane button"),
-    );
-    buttons.find((button) => button.textContent?.includes("Pause"))?.click();
-    buttons.find((button) => button.textContent?.includes("Approve once"))?.click();
-    buttons.find((button) => button.textContent?.includes("Grant access"))?.click();
-
-    expect(onComputerSessionCommand).toHaveBeenCalledWith("pause");
-    expect(onComputerSessionApproval).toHaveBeenCalledWith("allow-once");
-    expect(onRequestComputerPermission).toHaveBeenCalledWith("accessibility");
-  });
-
-  it("reopens the computer pane when computer activity arrives after the user closed it", async () => {
+  it("keeps native computer panes hidden in the web shell even if backend state exists", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
     document.body.append(app);
 
-    app.setComputerSession("main", {
-      sessionKey: "main",
-      backend: "local-mac",
-      status: "observing",
-      mode: "approved_apps_only",
-      approvedApps: [],
-      policy: {
-        allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-        deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-        sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-        commandLikeActions: [],
-      },
-      safety: {
-        level: "normal",
-        recentEvents: [],
-      },
-      replay: {
-        frames: [],
-        steps: [],
-        actionCount: 0,
-        safetyEventsCount: 0,
-      },
-      permissions: {
-        accessibility: true,
-        screenRecording: true,
-      },
-      context: {
-        display: {
-          id: "display-1",
+    app.setComputerSession(
+      "main",
+      createWorkspaceComputerSession({
+        status: "observing",
+        mode: "approved_apps_only",
+        approvedApps: [],
+        safety: {
+          level: "normal",
+          recentEvents: [],
+        },
+        permissions: createComputerPermissions({
+          accessibility: true,
+          screenRecording: true,
+        }),
+        context: {
+          display: {
+            id: "display-1",
+            width: 1440,
+            height: 900,
+            scale: 2,
+            logicalWidth: 1440,
+            logicalHeight: 900,
+            pixelWidth: 2880,
+            pixelHeight: 1800,
+            orientation: "landscape",
+          },
+          capturedAt: 10,
+        },
+        frame: {
+          id: "frame-sidebar",
+          dataUrl: "data:image/jpeg;base64,abc",
+          mimeType: "image/jpeg",
           width: 1440,
           height: 900,
-          scale: 2,
-          logicalWidth: 1440,
-          logicalHeight: 900,
           pixelWidth: 2880,
           pixelHeight: 1800,
+          logicalWidth: 1440,
+          logicalHeight: 900,
+          scaleFactor: 2,
           orientation: "landscape",
+          displayId: "display-1",
+          sourceSpace: "display-pixel",
+          capturedAt: 10,
+          maxAgeMs: 1000,
+          staleAt: 1010,
         },
-        capturedAt: 10,
-      },
-      frame: {
-        id: "frame-sidebar",
-        dataUrl: "data:image/jpeg;base64,abc",
-        mimeType: "image/jpeg",
-        width: 1440,
-        height: 900,
-        pixelWidth: 2880,
-        pixelHeight: 1800,
-        logicalWidth: 1440,
-        logicalHeight: 900,
-        scaleFactor: 2,
-        orientation: "landscape",
-        displayId: "display-1",
-        sourceSpace: "display-pixel",
-        capturedAt: 10,
-        maxAgeMs: 1000,
-        staleAt: 1010,
-      },
-      stepCounter: 0,
-      timeline: [],
-      startedAt: 1,
-      updatedAt: 10,
-    });
+        stepCounter: 0,
+        timeline: [],
+        startedAt: 1,
+        updatedAt: 10,
+      }),
+    );
     await app.updateComplete;
+
+    app.notifyBrowserPaneActivityForSurface("main", "computer");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+    expect(app.querySelector(".computer-pane")).toBeNull();
+    expect(
+      app.querySelector(".alisio-chat__workspace-toggle button")?.textContent ?? "",
+    ).not.toContain("Live session");
+  });
+
+  it("reopens the preview pane only after real preview activity arrives", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+
+    const browserState = {
+      title: "Live preview",
+      subtitle: "Remote tool snapshot",
+      url: "https://docs.alisio.ai",
+      screenshotUrl: "data:image/png;base64,browser-shot",
+      status: "running",
+    };
+
+    app.setBrowserPaneBrowserState("main", browserState);
+    await app.updateComplete;
+
+    expect(app.browserPaneSurfaceKind).toBe("preview");
+    expect(app.sidebarOpen).toBe(false);
+    expect(app.querySelector(".alisio-chat__workspace-toggle button")?.textContent).toContain(
+      "Open Preview",
+    );
+
+    app.querySelector<HTMLButtonElement>(".alisio-chat__workspace-toggle button")?.click();
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.textContent).toContain("Live preview");
+
     app.handleCloseSidebar();
     await app.updateComplete;
 
     expect(app.sidebarOpen).toBe(false);
 
-    app.notifyBrowserPaneActivityForSurface("main", "computer");
+    // Keeping the same browser state around must not reopen the pane by itself.
+    app.setBrowserPaneBrowserState("main", browserState);
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+
+    app.notifyBrowserPaneActivityForSurface("main", "preview");
     await app.updateComplete;
 
     expect(app.sidebarOpen).toBe(true);
-    expect(app.browserPaneSurfaceKind).toBe("computer");
-    expect(app.querySelector(".computer-pane__frame-image")).not.toBeNull();
+    expect(app.browserPaneSurfaceKind).toBe("preview");
   });
 
-  it("does not auto-open the computer pane until the user reopens it or activity arrives", async () => {
+  it("abre a pane de preview quando a actividade live chega antes do preview final", async () => {
     window.history.replaceState({}, "", "/chat?session=main");
     const app = document.createElement("alisio-app") as AlisioApp;
     document.body.append(app);
 
-    app.nativeShellState = {
-      platform: "macos",
-      launchAtLogin: false,
-      permissions: {
-        notifications: true,
-        appleScript: true,
-        accessibility: true,
-        screenRecording: true,
-        microphone: true,
-        speechRecognition: true,
-        camera: true,
-        location: true,
-      },
-      voiceWake: {
-        supported: false,
-        enabled: false,
-        talkEnabled: false,
-        triggers: [],
-      },
-      logsPath: null,
-    };
-    app.setComputerSession("main", {
-      sessionKey: "main",
-      backend: "local-mac",
-      status: "observing",
-      mode: "approved_apps_only",
-      approvedApps: [],
-      policy: {
-        allow: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-        deny: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-        sensitive: { apps: [], paths: [], hosts: [], actions: [], surfaces: [] },
-        commandLikeActions: [],
-      },
-      safety: {
-        level: "normal",
-        recentEvents: [],
-      },
-      replay: {
-        frames: [],
-        steps: [],
-        actionCount: 0,
-        safetyEventsCount: 0,
-      },
-      permissions: {
-        accessibility: true,
-        screenRecording: true,
-      },
-      context: {
-        display: {
-          id: "display-1",
-          width: 1440,
-          height: 900,
-          scale: 2,
-          logicalWidth: 1440,
-          logicalHeight: 900,
-          pixelWidth: 2880,
-          pixelHeight: 1800,
-          orientation: "landscape",
-        },
-        capturedAt: 10,
-      },
-      frame: {
-        id: "frame-native",
-        dataUrl: "data:image/jpeg;base64,abc",
-        mimeType: "image/jpeg",
-        width: 1440,
-        height: 900,
-        pixelWidth: 2880,
-        pixelHeight: 1800,
-        logicalWidth: 1440,
-        logicalHeight: 900,
-        scaleFactor: 2,
-        orientation: "landscape",
-        displayId: "display-1",
-        sourceSpace: "display-pixel",
-        capturedAt: 10,
-        maxAgeMs: 1000,
-        staleAt: 1010,
-      },
-      stepCounter: 0,
-      timeline: [],
-      startedAt: 1,
-      updatedAt: 10,
-    });
+    app.notifyBrowserPaneActivityForSurface("main", "preview");
     await app.updateComplete;
 
-    expect(app.browserPaneSurfaceKind).toBe("computer");
     expect(app.sidebarOpen).toBe(false);
-    expect(app.querySelector(".alisio-chat__workspace-toggle button")?.textContent).toContain(
-      "Open Computer",
-    );
 
-    (app.querySelector(".alisio-chat__workspace-toggle button") as HTMLButtonElement | null)?.click();
+    app.chatToolMessages = [
+      {
+        role: "assistant",
+        toolName: "browser",
+        toolPhase: "result",
+        content: [
+          {
+            type: "toolresult",
+            name: "browser",
+            text: '{"ok":true}',
+            details: { ok: true, url: "https://grokopedia.com" },
+          },
+        ],
+      },
+    ];
+
+    app.refreshBrowserPaneBrowserState("main");
     await app.updateComplete;
 
     expect(app.sidebarOpen).toBe(true);
-    expect(app.querySelector(".computer-pane__frame-image")).not.toBeNull();
+    expect(app.browserPaneSurfaceKind).toBe("preview");
+
+    (
+      app as unknown as {
+        syncBrowserPaneForSession: (sessionKey: string) => void;
+      }
+    ).syncBrowserPaneForSession("main");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.browserPaneBrowserState?.url).toBe("https://grokopedia.com");
+  });
+
+  it("keeps tool output minimized until a new tool-output activity is signalled", async () => {
+    window.history.replaceState({}, "", "/chat?session=main");
+    const app = document.createElement("alisio-app") as AlisioApp;
+    document.body.append(app);
+
+    app.handleOpenSidebar("Tool output body");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.browserPaneSurfaceKind).toBe("tool_output");
+    expect(app.textContent).toContain("Tool output body");
+
+    app.handleCloseSidebar();
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+
+    // A plain resync must not reopen the pane while the same session output still exists.
+    (
+      app as unknown as {
+        syncBrowserPaneForSession: (sessionKey: string) => void;
+      }
+    ).syncBrowserPaneForSession("main");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(false);
+
+    app.notifyBrowserPaneActivity("main");
+    await app.updateComplete;
+
+    expect(app.sidebarOpen).toBe(true);
+    expect(app.browserPaneSurfaceKind).toBe("tool_output");
   });
 
   it("renders the workspace computer pane with replay, diff, metrics and step details", () => {
@@ -1575,8 +1477,8 @@ describe("chat view", () => {
     render(
       renderBrowserPane({
         browser: {
-          title: "Browser sandbox",
-          subtitle: "Isolated browser",
+          title: "Live preview",
+          subtitle: "Remote tool snapshot",
           url: "https://docs.alisio.ai",
           screenshotUrl: "data:image/png;base64,browser-shot",
           status: "running",
@@ -1600,13 +1502,13 @@ describe("chat view", () => {
       container.querySelectorAll<HTMLButtonElement>(".browser-pane__switch button"),
     );
     expect(switchButtons.map((button) => button.textContent?.trim())).toEqual([
-      "Browser",
-      "Computer",
       "Tool output",
+      "Preview",
+      "Live session",
     ]);
 
-    switchButtons[0]?.click();
-    expect(onSelectSurface).toHaveBeenCalledWith("browser");
+    switchButtons[1]?.click();
+    expect(onSelectSurface).toHaveBeenCalledWith("preview");
 
     const scrubber = container.querySelector(".computer-pane__scrubber") as HTMLInputElement | null;
     scrubber?.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1647,11 +1549,11 @@ describe("chat view", () => {
     render(
       renderBrowserPane({
         computer: createWorkspaceComputerSession({
-          status: "awaiting-approval",
-          permissions: {
+          status: "blocked_on_approval",
+          permissions: createComputerPermissions({
             accessibility: false,
             screenRecording: false,
-          },
+          }),
           awaitingApproval: {
             id: "approval-1",
             createdAt: 1000,
@@ -1756,13 +1658,20 @@ describe("chat view", () => {
     expect(onOpenComputerSession).toHaveBeenCalledWith("main");
   });
 
-  it("does not open an empty split when the session has no computer surface and no markdown", () => {
+  it("does not open an empty split when the session has no real workspace pane activity", () => {
     const container = document.createElement("div");
     render(
       renderChat(
         createProps({
           sidebarOpen: true,
-          browserPaneSurfaceKind: "computer",
+          browserPaneSurfaceKind: "preview",
+          browserPaneBrowserState: {
+            title: "   ",
+            subtitle: "",
+            url: "",
+            screenshotUrl: null,
+            status: "",
+          },
           onCloseSidebar: () => undefined,
         }),
       ),
@@ -1786,6 +1695,9 @@ describe("chat view", () => {
     );
 
     expect(container.querySelector(".chat-loading-skeleton")).not.toBeNull();
+    expect(container.querySelector(".alisio-chat__loading-state")?.textContent).toContain(
+      "Loading session history",
+    );
     expect(container.querySelectorAll(".chat-group--skeleton")).toHaveLength(4);
     expect(container.querySelector(".chat-line")).toBeNull();
     expect(container.querySelector(".chat-msg")).toBeNull();
@@ -1814,6 +1726,26 @@ describe("chat view", () => {
     expect(container.querySelector(".chat-loading-skeleton")).toBeNull();
     expect(container.textContent).toContain("Loading chat");
     expect(container.querySelector(".chat-thread")?.getAttribute("aria-busy")).toBe("true");
+  });
+
+  it("shows explicit bootstrap and cold-start states instead of looking stuck", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          loading: true,
+          startupLoading: true,
+          bootstrapLoading: true,
+          sending: true,
+          messages: [],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Preparing the chat");
+    expect(container.textContent).toContain("Starting the run");
+    expect(container.textContent).toContain("remote runtime is warming up");
   });
 
   it("renders a connector auth CTA in chat tool cards and wires the connector flow", () => {

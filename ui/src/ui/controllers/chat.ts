@@ -837,6 +837,14 @@ export type ChatState = {
   chatFinalizing?: boolean;
   lastError: string | null;
   chatRuntimeSetupHint?: ChatRuntimeSetupHint | null;
+  refreshBrowserPaneBrowserState?: (sessionKey: string) => {
+    hasActivity: boolean;
+    changed: boolean;
+  };
+  notifyBrowserPaneActivityForSurface?: (
+    sessionKey: string,
+    surface: import("./browser-pane.ts").BrowserPaneSurfaceKind,
+  ) => void;
 };
 
 export type ChatRuntimeSetupHint = {
@@ -1051,6 +1059,18 @@ function maybeResetToolStream(state: ChatState) {
   }
 }
 
+function refreshBrowserPaneBrowserStateIfPresent(
+  state: ChatState,
+  sessionKey = state.sessionKey,
+): { hasActivity: boolean; changed: boolean } {
+  return (
+    state.refreshBrowserPaneBrowserState?.(sessionKey) ?? {
+      hasActivity: false,
+      changed: false,
+    }
+  );
+}
+
 function describeRuntimeSetupError(error: unknown) {
   if (typeof error === "string") {
     return error;
@@ -1159,6 +1179,7 @@ export async function loadChatHistory(
       state.chatStreamStartedAt = null;
       state.chatFinalizing = false;
     }
+    refreshBrowserPaneBrowserStateIfPresent(state, requestState.sessionKey);
   } catch (err) {
     if (!isCurrentChatHistoryRequest(state, requestState)) {
       return;
@@ -1175,6 +1196,7 @@ export async function loadChatHistory(
     } else {
       state.lastError = String(err);
     }
+    refreshBrowserPaneBrowserStateIfPresent(state, requestState.sessionKey);
   } finally {
     if (!silent && isCurrentChatHistoryRequest(state, requestState)) {
       state.chatLoading = false;
@@ -1483,6 +1505,10 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatMessages = dedupeAdjacentChatMessages(
       collapseInvisibleRetryHistoryArtifacts(state.chatMessages),
     );
+  }
+  const browserPaneRefresh = refreshBrowserPaneBrowserStateIfPresent(state, payload.sessionKey);
+  if (browserPaneRefresh.hasActivity && browserPaneRefresh.changed) {
+    state.notifyBrowserPaneActivityForSurface?.(payload.sessionKey, "preview");
   }
   return payload.state;
 }

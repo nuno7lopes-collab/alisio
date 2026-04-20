@@ -58,7 +58,7 @@ function createRecommendation(
     availableRamGb: 36,
     availableVramGb: 18,
     label: "Recommended",
-    reason: "Best fit for this computer",
+    reason: "Best fit for the current runtime",
     ...overrides,
   };
 }
@@ -181,7 +181,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
       { value: "openai-codex/gpt-5.3-codex", label: "gpt-5.3-codex · openai-codex" },
       {
         value: "alisio-local-current/qwen3-4b-q4-k-m",
-        label: "Qwen3 4B · This computer",
+        label: "Qwen3 4B · Current runtime",
       },
       {
         value: "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
@@ -255,7 +255,7 @@ function createDefaultModelState(
 }
 
 describe("renderModelsHub", () => {
-  it("renders only OpenAI and this computer cards and wires local selection", () => {
+  it("renders only OpenAI and current runtime cards and wires local selection", () => {
     const props = createProps();
     const container = document.createElement("div");
 
@@ -265,10 +265,10 @@ describe("renderModelsHub", () => {
       container.querySelectorAll<HTMLElement>(".alisio-models__provider-title"),
     ).map((element) => element.textContent?.trim() ?? "");
 
-    expect(providerTitles).toEqual(["OpenAI", "This computer"]);
+    expect(providerTitles).toEqual(["OpenAI", "Current runtime"]);
 
     const localCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("This computer"),
+      (button) => button.textContent?.includes("Current runtime"),
     );
     localCard?.click();
     expect(props.onSelectProvider).toHaveBeenCalledWith("local");
@@ -321,7 +321,7 @@ describe("renderModelsHub", () => {
 
     const section = container.querySelector<HTMLElement>(".alisio-models-section");
 
-    expect(section?.textContent).toContain("This computer");
+    expect(section?.textContent).toContain("Current runtime");
     expect(section?.textContent).toContain("Qwen3 4B");
     expect(section?.textContent).toContain("Installing");
     expect(section?.textContent ?? "").not.toContain("Studio Mac");
@@ -386,9 +386,12 @@ describe("renderModelsHub", () => {
 
     render(renderModelsHub(props), container);
 
-    expect(container.textContent).not.toContain("Qwen3 32B");
+    const renderedModelRows = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__model-row"),
+    ).map((row) => row.textContent ?? "");
+    expect(renderedModelRows.some((text) => text.includes("Qwen3 32B"))).toBe(false);
     expect(container.textContent).toContain(
-      "Qwen3 32B needs more RAM or VRAM than this computer has.",
+      "Qwen3 32B needs more RAM or VRAM than the current runtime has.",
     );
     const blockedInstallButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),
@@ -439,7 +442,7 @@ describe("renderModelsHub", () => {
     const emptyContainer = document.createElement("div");
     render(renderModelsHub(emptyProps), emptyContainer);
     expect(emptyContainer.textContent).toContain(
-      "This computer has not reported any local model state yet.",
+      "The current runtime has not reported any local model state yet.",
     );
 
     const errorProps = createProps({

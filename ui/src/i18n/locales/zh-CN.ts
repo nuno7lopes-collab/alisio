@@ -144,15 +144,38 @@ export const zh_CN: TranslationMap = mergeTranslationMaps(en, {
         tool: "工具",
       },
       browserPane: {
-        title: "面板",
+        title: "活动面板",
         surfacePicker: "面板视图",
         close: "关闭面板",
         viewRawText: "查看原始文本",
         noContent: "暂无内容",
         unavailable: "暂无可用面板",
         surfaces: {
-          computer: "Computer",
-          markdown: "工具输出",
+          preview: "预览",
+          computer: "实时会话",
+          tool_output: "工具输出",
+        },
+      },
+      loadingStates: {
+        connecting: {
+          eyebrow: "连接中",
+          title: "正在连接工作区",
+          body: "在加载此聊天前，先建立运行时连接。",
+        },
+        bootstrap: {
+          eyebrow: "Bootstrap",
+          title: "正在准备聊天",
+          body: "在显示会话前，先同步工作区的初始状态。",
+        },
+        history: {
+          eyebrow: "历史记录",
+          title: "正在加载会话历史",
+          body: "正在获取此会话的最新消息和工具活动。",
+        },
+        runStart: {
+          eyebrow: "Cold start",
+          title: "正在启动运行",
+          body: "远端运行时正在预热并准备工具执行。",
         },
       },
       attachments: {

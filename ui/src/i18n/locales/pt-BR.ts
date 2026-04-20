@@ -31,7 +31,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
   tabs: {
     agents: "Agentes",
     home: "Início",
-    authentications: "Autenticações",
+    authentications: "Apps",
     organization: "Organização",
     sessions: "Sessões",
     automations: "Automações",
@@ -44,7 +44,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
   subtitles: {
     agents: "Espaços, ferramentas, identidades.",
     home: "Agente pessoa, foco e status do sistema.",
-    authentications: "Contas conectadas e acesso de runtime.",
+    authentications: "Apps e conectores que o Alisio pode usar por você depois de vinculados.",
     organization: "Sistemas do workspace, canais e saúde de entrega.",
     sessions: "Sessões ativas e padrões.",
     automations: "Despertares e execuções recorrentes.",
@@ -52,7 +52,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
     memory: "Memória de longo prazo, notas diárias e contexto editável em um só lugar.",
     tasks: "Execuções em segundo plano, entrega e acompanhamento do operador em uma visão.",
     cron: "Calendário semanal e mensal para cron jobs agendados.",
-    settings: "Configuração do workspace, shell nativo e diagnósticos.",
+    settings: "Geral, conta, conectores e padrões de suporte no workspace web.",
   },
   overview: {
     access: {
@@ -199,8 +199,8 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
   },
   tasksView: {
     browser: {
-      title: "Sessão ao vivo",
-      subtitle: "A superfície mais recente de browser ou ferramenta ligada a esta tarefa.",
+      title: "Saída ao vivo",
+      subtitle: "A saída de ferramenta ou prévia mais recente ligada a esta tarefa.",
     },
   },
   alisio: {
@@ -211,7 +211,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
         tool: "Ferramenta",
       },
       browserPane: {
-        title: "Painel",
+        title: "Painel de atividade",
         surfacePicker: "Superfície do painel",
         close: "Fechar painel",
         open: "Abrir {surface}",
@@ -219,8 +219,8 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
         noContent: "Sem conteúdo disponível",
         unavailable: "Sem painel disponível",
         surfaces: {
-          browser: "Browser",
-          computer: "Computer",
+          preview: "Prévia",
+          computer: "Sessão ao vivo",
           tool_output: "Saída da ferramenta",
         },
         computer: {
@@ -291,15 +291,21 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
             blocked_on_focus: "Controle em foreground obrigatório",
             blocked_on_approval: "Bloqueada por aprovação",
             blocked_on_runtime: "Runtime ocupado",
+            blocked_on_permissions: "Permissões pendentes",
+            blocked_on_restart_required: "Reinicialização necessária",
           },
           timelineEvent: {
             session_arbitrated: "Sessão arbitrada",
             session_blocked: "Sessão bloqueada",
             focus_required: "Foreground obrigatório",
+            blocked_on_permissions: "Permissões pendentes",
+            blocked_on_restart_required: "Reinicialização necessária",
+            runtime_unavailable: "Runtime indisponível",
             runtime_busy: "Runtime ocupado",
             concurrency_denied: "Concorrência negada",
-            mode_exposed: "Modo exposto",
-            mode_hidden: "Modo oculto",
+            capability_exposed: "Capacidade exposta",
+            capability_hidden: "Capacidade oculta",
+            lazy_open_requested: "Painel Computer solicitado",
           },
           modes: {
             observe_only: "observe_only",
@@ -313,6 +319,8 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
             watch: "Watch mode",
           },
           policyDecision: {
+            allow: "Permitido",
+            deny: "Negado",
             require_once: "Exige aprovação única",
             require_session: "Exige aprovação para a sessão",
           },
@@ -321,6 +329,11 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
             observing: "Observando",
             running: "Em execução",
             paused: "Pausado",
+            blocked_on_focus: "Controle em foreground obrigatório",
+            blocked_on_approval: "Bloqueada por aprovação",
+            blocked_on_runtime: "Runtime ocupado",
+            blocked_on_permissions: "Permissões pendentes",
+            blocked_on_restart_required: "Reinicialização necessária",
             "awaiting-approval": "Aguardando aprovação",
             error: "Erro",
             stopped: "Parado",
@@ -351,6 +364,28 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
       },
       workspacePane: {
         open: "Abrir {surface}",
+      },
+      loadingStates: {
+        connecting: {
+          eyebrow: "Conectando",
+          title: "Conectando ao workspace",
+          body: "Abrindo a conexão com o runtime antes de carregar este chat.",
+        },
+        bootstrap: {
+          eyebrow: "Bootstrap",
+          title: "Preparando o chat",
+          body: "Sincronizando o estado inicial do workspace antes de mostrar a sessão.",
+        },
+        history: {
+          eyebrow: "Histórico",
+          title: "Carregando o histórico da sessão",
+          body: "Buscando as mensagens e a atividade de ferramentas mais recentes desta sessão.",
+        },
+        runStart: {
+          eyebrow: "Cold start",
+          title: "Iniciando a execução",
+          body: "O runtime remoto está aquecendo e preparando a execução das ferramentas.",
+        },
       },
       attachments: {
         imageAlt: "Imagem anexada",
@@ -488,7 +523,6 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
       agent: "Agente",
       loading: "Carregando memória",
       longTerm: "Memória de longo prazo",
-      notes: "Notas",
       noteCount: "Notas",
       longTermCount: "Arquivos persistentes",
       lastUpdated: "Última atualização",
@@ -566,10 +600,10 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
       builtin: "Integrado",
       views: {
         label: "Vistas da memória",
-        wiki: "Wiki",
+        notes: "Notas",
         files: "Arquivos",
         graph: "Grafo",
-        wikiDescription: "Explore páginas, backlinks e evidências como uma wiki pessoal.",
+        notesDescription: "Explore páginas, backlinks e evidências como uma wiki pessoal.",
         filesDescription:
           "Percorra arquivos, proveniência e páginas relacionadas sem perder contexto.",
         graphDescription: "Veja entidades, relações e a vizinhança ativa da memória.",
@@ -579,7 +613,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
         subtitle:
           "Sincronize, exporte e confirme rapidamente o estado atual da memória deste agente.",
       },
-      wiki: {
+      notes: {
         listTitle: "Páginas wiki",
         empty: "Ainda não há páginas wiki disponíveis.",
         unavailable: "Esta versão do Alisio ainda não expõe a wiki nativa.",

@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import { hasAlisioHostBridge } from "../alisio-host.ts";
 import type { BrowserPanePreviewState } from "../controllers/browser-pane.ts";
 import type { TaskRuntimeFilter, TaskStatusFilter } from "../controllers/tasks.ts";
 import { formatMs, formatRelativeTimestamp } from "../format.ts";
@@ -901,11 +902,12 @@ function renderCanonicalTaskDetail(props: TasksViewProps, detail: TasksDetailRes
     openSessionKey && props.resolveSessionBrowserPanePreview
       ? props.resolveSessionBrowserPanePreview(openSessionKey)
       : null;
+  const nativeSessionSurfaceAvailable = hasAlisioHostBridge();
   const hasSessionPreview = Boolean(
     sessionPreview?.browser ||
-      sessionPreview?.computer ||
-      sessionPreview?.toolOutput.content ||
-      sessionPreview?.toolOutput.error,
+    (nativeSessionSurfaceAvailable && sessionPreview?.computer) ||
+    sessionPreview?.toolOutput.content ||
+    sessionPreview?.toolOutput.error,
   );
   const childExecutionMap = buildExecutionMap(childExecutions);
 
@@ -1031,9 +1033,9 @@ function renderCanonicalTaskDetail(props: TasksViewProps, detail: TasksDetailRes
             <div style="margin-top: 16px;">
               ${renderBrowserPane({
                 browser: sessionPreview?.browser ?? null,
-                computer: sessionPreview?.computer ?? null,
+                computer: nativeSessionSurfaceAvailable ? (sessionPreview?.computer ?? null) : null,
                 toolOutput: sessionPreview?.toolOutput ?? null,
-                selectedSurface: sessionPreview?.selectedSurface ?? "computer",
+                selectedSurface: sessionPreview?.selectedSurface ?? "tool_output",
                 embedded: true,
               })}
             </div>
