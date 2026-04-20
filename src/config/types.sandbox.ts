@@ -62,28 +62,26 @@ export type SandboxDockerSettings = {
 };
 
 export type SandboxBrowserSettings = {
+  /**
+   * Deprecated legacy browser-sandbox block.
+   * The shared runtime no longer provisions sandbox browsers and ignores these fields.
+   */
   enabled?: boolean;
   image?: string;
   containerPrefix?: string;
-  /** Docker network for sandbox browser containers (default: alisio-sandbox-browser). */
+  /** Legacy ignored Docker network for former sandbox browser containers. */
   network?: string;
   cdpPort?: number;
-  /** Optional CIDR allowlist for CDP ingress at the container edge (for example: 172.21.0.1/32). */
+  /** Legacy ignored CIDR allowlist for former CDP ingress. */
   cdpSourceRange?: string;
   headless?: boolean;
-  /**
-   * Allow sandboxed sessions to target the host browser control server.
-   * Default: false.
-   */
+  /** Legacy ignored host browser-control flag. */
   allowHostControl?: boolean;
-  /**
-   * When true (default), sandboxed browser control will try to start/reattach to
-   * the sandbox browser container when a tool call needs it.
-   */
+  /** Legacy ignored auto-start flag for the removed browser sandbox runtime. */
   autoStart?: boolean;
-  /** Max time to wait for CDP to become reachable after auto-start (ms). */
+  /** Legacy ignored auto-start timeout (ms). */
   autoStartTimeoutMs?: number;
-  /** Additional bind mounts for the browser container only. When set, replaces docker.binds for the browser container. */
+  /** Legacy ignored bind mounts for the removed browser sandbox runtime. */
   binds?: string[];
 };
 

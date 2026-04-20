@@ -6,7 +6,11 @@ import {
   isSensitiveComputerAction,
   mergeComputerPolicy,
 } from "./policy-engine.js";
-import { resolveComputerCapabilityMatrix, resolveComputerTarget } from "./runtime-profile.js";
+import {
+  findComputerCapability,
+  resolveComputerCapabilityMatrix,
+  resolveComputerTarget,
+} from "./runtime-profile.js";
 import { computerSessionArbiter } from "./session-arbiter.js";
 import type {
   ComputerApprovalMode,
@@ -17,6 +21,7 @@ import type {
   ComputerObservationContext,
   ComputerObservation,
   ComputerPolicyReasonCode,
+  ComputerPermissionAccessState,
   ComputerPermissionState,
   ComputerReplayAction,
   ComputerReplayFrameMetadata,
@@ -31,6 +36,7 @@ import type {
   ComputerSessionBlockingState,
   ComputerSafetyEvent,
   ComputerSessionPolicy,
+  ComputerSessionPolicyPatch,
   ComputerSessionReplay,
   ComputerSessionSafety,
   ComputerSessionState,
@@ -62,7 +68,7 @@ type EnsureSessionParams = {
   mode?: ComputerApprovalMode;
   nodeId?: string;
   permissions?: Partial<ComputerPermissionState>;
-  policy?: Partial<ComputerSessionPolicy>;
+  policy?: ComputerSessionPolicyPatch;
 };
 
 type InternalApprovalState = {
@@ -136,13 +142,11 @@ function cloneRuntimeState(
   return {
     ...runtime,
     activeSession: runtime.activeSession ? { ...runtime.activeSession } : undefined,
-    lastError: runtime.lastError ? { ...runtime.lastError } : runtime.lastError ?? null,
+    lastError: runtime.lastError ? { ...runtime.lastError } : (runtime.lastError ?? null),
   };
 }
 
-function clonePolicy(
-  policy: ComputerSessionPolicy | null | undefined,
-): ComputerSessionPolicy {
+function clonePolicy(policy: ComputerSessionPolicy | null | undefined): ComputerSessionPolicy {
   const current = policy ?? createDefaultComputerPolicy();
   return {
     allow: {
@@ -177,6 +181,25 @@ function cloneCapabilities(
   return (capabilities ?? []).map((entry) => ({ ...entry }));
 }
 
+function createPermissionState(
+  permissions: Partial<ComputerPermissionState> | null | undefined,
+): ComputerPermissionState {
+  return {
+    accessibility:
+      typeof permissions?.accessibility === "boolean" ? permissions.accessibility : null,
+    screenRecording:
+      typeof permissions?.screenRecording === "boolean" ? permissions.screenRecording : null,
+    observation: permissions?.observation ?? "unknown",
+    control: permissions?.control ?? "unknown",
+  };
+}
+
+function clonePermissionState(
+  permissions: ComputerPermissionState | null | undefined,
+): ComputerPermissionState {
+  return createPermissionState(permissions);
+}
+
 function cloneTarget(target: ComputerSessionTarget | null | undefined): ComputerSessionTarget {
   if (target) {
     return { ...target };
@@ -200,9 +223,7 @@ function cloneSafetyEvent(event: ComputerSafetyEvent): ComputerSafetyEvent {
   return { ...event };
 }
 
-function cloneSafetyState(
-  safety: ComputerSessionSafety | null | undefined,
-): ComputerSessionSafety {
+function cloneSafetyState(safety: ComputerSessionSafety | null | undefined): ComputerSessionSafety {
   return {
     level: safety?.level ?? "normal",
     lastEvent: safety?.lastEvent ? cloneSafetyEvent(safety.lastEvent) : null,
@@ -210,7 +231,9 @@ function cloneSafetyState(
   };
 }
 
-function cloneReplayAction(action: ComputerReplayAction | null | undefined): ComputerReplayAction | null {
+function cloneReplayAction(
+  action: ComputerReplayAction | null | undefined,
+): ComputerReplayAction | null {
   if (!action) {
     return null;
   }
@@ -297,7 +320,7 @@ function cloneState(state: InternalComputerSessionState): ComputerSessionState {
     safety: cloneSafetyState(state.safety),
     replay: cloneReplayState(state.replay),
     blocking: cloneBlockingState(state.blocking),
-    permissions: { ...state.permissions },
+    permissions: clonePermissionState(state.permissions),
     runtime: cloneRuntimeState(state.runtime),
     context: cloneObservationContext(state.context),
     frame: cloneFrame(state.frame),
@@ -397,10 +420,7 @@ function createInitialState(params: EnsureSessionParams): InternalComputerSessio
       safetyEventsCount: 0,
     },
     blocking: null,
-    permissions: {
-      accessibility: params.permissions?.accessibility ?? false,
-      screenRecording: params.permissions?.screenRecording ?? false,
-    },
+    permissions: createPermissionState(params.permissions),
     runtime: null,
     context: null,
     frame: null,
@@ -457,8 +477,6 @@ function summarizeAction(action: ComputerStructuredAction): string {
       return `open path ${action.path ?? ""}`;
     case "open_app":
       return `open app ${action.app ?? ""}`;
-    case "app_focus":
-      return `focus app ${action.app ?? ""}`;
   }
 }
 
@@ -531,7 +549,6 @@ function createReplayActionFromStructuredAction(
       };
     case "focus_app":
     case "open_app":
-    case "app_focus":
       return {
         ...base,
         app: action.app,
@@ -565,14 +582,112 @@ function computeFrameHash(dataUrl: string): string {
   return createHash("sha256").update(dataUrl).digest("hex").slice(0, 16);
 }
 
-function inferPermissionPatchFromError(error: string): Partial<ComputerPermissionState> | null {
-  if (/PERMISSION_MISSING:\s*accessibility/i.test(error)) {
-    return { accessibility: false };
+function summarizeRuntimeBusyState(runtime: ComputerRuntimeState): string {
+  if (runtime.lastError?.message?.trim()) {
+    return runtime.lastError.message.trim();
   }
-  if (/PERMISSION_MISSING:\s*screenRecording/i.test(error)) {
-    return { screenRecording: false };
+  if (runtime.connectionState === "starting" && runtime.launchCount <= 1) {
+    return "computer helper cold start in progress";
   }
-  return null;
+  if (runtime.connectionState === "starting") {
+    return "computer helper restart in progress";
+  }
+  return "computer runtime is not ready";
+}
+
+function isAccessibilityPermissionMissing(error: string): boolean {
+  return /PERMISSION_MISSING:\s*accessibility/i.test(error);
+}
+
+function isScreenRecordingPermissionMissing(error: string): boolean {
+  return /PERMISSION_MISSING:\s*screenRecording/i.test(error);
+}
+
+function mapBlockingKindToStatus(
+  kind: ComputerSessionBlockingState["kind"],
+): Extract<
+  ComputerSessionStatus,
+  | "blocked_on_focus"
+  | "blocked_on_approval"
+  | "blocked_on_runtime"
+  | "blocked_on_permissions"
+  | "blocked_on_restart_required"
+> {
+  switch (kind) {
+    case "blocked_on_focus":
+      return "blocked_on_focus";
+    case "blocked_on_approval":
+      return "blocked_on_approval";
+    case "blocked_on_runtime":
+      return "blocked_on_runtime";
+    case "blocked_on_permissions":
+      return "blocked_on_permissions";
+    case "blocked_on_restart_required":
+      return "blocked_on_restart_required";
+  }
+}
+
+function mapBlockingKindToEventCode(
+  blocking: ComputerSessionBlockingState,
+): Extract<
+  ComputerTimelineEventCode,
+  | "focus_required"
+  | "blocked_on_permissions"
+  | "blocked_on_restart_required"
+  | "runtime_unavailable"
+  | "runtime_busy"
+  | "concurrency_denied"
+  | "session_blocked"
+> {
+  switch (blocking.kind) {
+    case "blocked_on_focus":
+      return "focus_required";
+    case "blocked_on_permissions":
+      return "blocked_on_permissions";
+    case "blocked_on_restart_required":
+      return "blocked_on_restart_required";
+    case "blocked_on_runtime":
+      return blocking.reasonCode === "runtime_unavailable" ? "runtime_unavailable" : "runtime_busy";
+    case "blocked_on_approval":
+      return "session_blocked";
+  }
+}
+
+function defaultOpenTriggerForBlocking(
+  blocking: ComputerSessionBlockingState,
+): ComputerSessionBlockingState["openTrigger"] {
+  switch (blocking.kind) {
+    case "blocked_on_approval":
+      return "open_approval";
+    case "blocked_on_permissions":
+      return "open_permissions";
+    case "blocked_on_restart_required":
+      return "open_restart_required";
+    case "blocked_on_focus":
+      return "open_computer";
+    case "blocked_on_runtime":
+      return undefined;
+  }
+}
+
+function resolvePermissionAccessState(params: {
+  supported: boolean;
+  granted: boolean | null;
+  restartRequired: boolean;
+}): ComputerPermissionAccessState {
+  if (!params.supported) {
+    return "not_supported";
+  }
+  if (params.restartRequired) {
+    return "restart_required";
+  }
+  if (params.granted === true) {
+    return "granted";
+  }
+  if (params.granted === false) {
+    return "missing";
+  }
+  return "unknown";
 }
 
 function logPolicyEvent(
@@ -593,10 +708,14 @@ function logRuntimeEvent(
     | "session_arbitrated"
     | "session_blocked"
     | "focus_required"
+    | "blocked_on_permissions"
+    | "blocked_on_restart_required"
+    | "runtime_unavailable"
     | "runtime_busy"
     | "concurrency_denied"
-    | "mode_exposed"
-    | "mode_hidden",
+    | "capability_exposed"
+    | "capability_hidden"
+    | "lazy_open_requested",
   meta: Record<string, unknown>,
 ) {
   computerRuntimeLog.info(`computer runtime ${event}`, { event, ...meta });
@@ -619,22 +738,25 @@ export class ComputerSessionManager {
         existing.mode = params.mode;
       }
       if (params.permissions) {
-        existing.permissions = {
+        existing.permissions = createPermissionState({
           ...existing.permissions,
           ...params.permissions,
-        };
+        });
       }
       if (params.policy) {
         existing.policy = mergeComputerPolicy(existing.policy, params.policy);
       }
       this.refreshSessionProfile(existing);
       this.logCapabilityExposureChanges(existing, previousCapabilities);
+      this.reconcilePassiveTruth(existing);
       existing.updatedAt = nowStateTimestamp();
       return cloneState(existing);
     }
     const created = createInitialState(params);
-    this.logCapabilityExposureChanges(created, []);
     this.sessions.set(params.sessionKey, created);
+    this.refreshSessionProfile(created);
+    this.logCapabilityExposureChanges(created, []);
+    this.reconcilePassiveTruth(created);
     return cloneState(created);
   }
 
@@ -650,6 +772,15 @@ export class ComputerSessionManager {
   }): ComputerSessionState {
     const state = this.requireSession(params.sessionKey);
     state.blocking = null;
+    if (
+      state.status === "blocked_on_focus" ||
+      state.status === "blocked_on_approval" ||
+      state.status === "blocked_on_runtime" ||
+      state.status === "blocked_on_permissions" ||
+      state.status === "blocked_on_restart_required"
+    ) {
+      state.status = "idle";
+    }
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.pushTimeline(
       state,
@@ -659,10 +790,15 @@ export class ComputerSessionManager {
         ...this.stepLink(state.activeStep ?? state.lastCompletedStep),
       }),
     );
-    this.appendEventLog(state, params.eventCode === "focus_required" ? "focus_required" : "session_arbitrated", params.summary, {
-      status: state.status,
-      ...this.stepEventLink(state.activeStep ?? state.lastCompletedStep),
-    });
+    this.appendEventLog(
+      state,
+      params.eventCode === "focus_required" ? "focus_required" : "session_arbitrated",
+      params.summary,
+      {
+        status: state.status,
+        ...this.stepEventLink(state.activeStep ?? state.lastCompletedStep),
+      },
+    );
     logRuntimeEvent(params.eventCode ?? "session_arbitrated", {
       sessionKey: params.sessionKey,
       targetId: state.target.id,
@@ -676,55 +812,92 @@ export class ComputerSessionManager {
     blocking: ComputerSessionBlockingState | null,
   ): ComputerSessionState {
     const state = this.requireSession(sessionKey);
-    state.blocking = cloneBlockingState(blocking);
+    const nextBlocking = blocking
+      ? {
+          ...cloneBlockingState(blocking)!,
+          openTrigger: blocking.openTrigger ?? defaultOpenTriggerForBlocking(blocking),
+        }
+      : null;
+    state.blocking = nextBlocking;
+    if (!nextBlocking) {
+      if (
+        state.status === "blocked_on_focus" ||
+        state.status === "blocked_on_approval" ||
+        state.status === "blocked_on_runtime" ||
+        state.status === "blocked_on_permissions" ||
+        state.status === "blocked_on_restart_required"
+      ) {
+        state.status = "idle";
+      }
+      state.updatedAt = nowStateTimestamp();
+      return cloneState(state);
+    }
+    state.status = mapBlockingKindToStatus(nextBlocking.kind);
     state.updatedAt = nowStateTimestamp();
-    if (blocking) {
-      const blockingEventCode =
-        blocking.reasonCode === "focus_required"
-          ? "focus_required"
-          : blocking.reasonCode === "runtime_busy"
-            ? "session_blocked"
-            : blocking.reasonCode === "concurrency_denied"
-              ? "session_blocked"
-              : "session_blocked";
+    const eventCode = mapBlockingKindToEventCode(nextBlocking);
+    state.timeline = this.pushTimeline(
+      state,
+      createTimelineEntry("status", nextBlocking.summary, {
+        status: state.status,
+        eventCode,
+        actionType: nextBlocking.actionType,
+        reasonCode: nextBlocking.reasonCode,
+        openTrigger: nextBlocking.openTrigger,
+        ...this.stepLink(state.activeStep ?? state.lastCompletedStep),
+      }),
+    );
+    this.appendEventLog(
+      state,
+      eventCode === "focus_required" ? "focus_required" : "session_blocked",
+      nextBlocking.summary,
+      {
+        status: state.status,
+        actionType: nextBlocking.actionType,
+        reasonCode: nextBlocking.reasonCode,
+        openTrigger: nextBlocking.openTrigger,
+        ...this.stepEventLink(state.activeStep ?? state.lastCompletedStep),
+      },
+    );
+    if (nextBlocking.openTrigger) {
       state.timeline = this.pushTimeline(
         state,
-        createTimelineEntry("status", blocking.summary, {
+        createTimelineEntry("status", `open trigger -> ${nextBlocking.openTrigger}`, {
           status: state.status,
-          eventCode:
-            blocking.reasonCode === "focus_required"
-              ? "focus_required"
-              : blocking.reasonCode === "runtime_busy"
-                ? "runtime_busy"
-                : blocking.reasonCode === "concurrency_denied"
-                  ? "concurrency_denied"
-                  : "session_blocked",
-          actionType: blocking.actionType,
+          eventCode: "lazy_open_requested",
+          reasonCode: nextBlocking.reasonCode,
+          openTrigger: nextBlocking.openTrigger,
+          actionType: nextBlocking.actionType,
           ...this.stepLink(state.activeStep ?? state.lastCompletedStep),
         }),
       );
-      this.appendEventLog(state, blockingEventCode, blocking.summary, {
-        status: state.status,
-        actionType: blocking.actionType,
-        ...this.stepEventLink(state.activeStep ?? state.lastCompletedStep),
-      });
-      logRuntimeEvent(
-        blocking.reasonCode === "focus_required"
-          ? "focus_required"
-          : blocking.reasonCode === "runtime_busy"
-            ? "runtime_busy"
-            : blocking.reasonCode === "concurrency_denied"
-              ? "concurrency_denied"
-              : "session_blocked",
+      this.appendEventLog(
+        state,
+        "lazy_open_requested",
+        `open trigger -> ${nextBlocking.openTrigger}`,
         {
-          sessionKey,
-          targetId: blocking.targetId ?? state.target.id,
-          summary: blocking.summary,
-          ownerSessionKey: blocking.ownerSessionKey,
-          actionType: blocking.actionType,
+          status: state.status,
+          actionType: nextBlocking.actionType,
+          reasonCode: nextBlocking.reasonCode,
+          openTrigger: nextBlocking.openTrigger,
+          ...this.stepEventLink(state.activeStep ?? state.lastCompletedStep),
         },
       );
+      logRuntimeEvent("lazy_open_requested", {
+        sessionKey,
+        targetId: nextBlocking.targetId ?? state.target.id,
+        openTrigger: nextBlocking.openTrigger,
+        reasonCode: nextBlocking.reasonCode,
+      });
     }
+    logRuntimeEvent(eventCode, {
+      sessionKey,
+      targetId: nextBlocking.targetId ?? state.target.id,
+      summary: nextBlocking.summary,
+      ownerSessionKey: nextBlocking.ownerSessionKey,
+      actionType: nextBlocking.actionType,
+      reasonCode: nextBlocking.reasonCode,
+      openTrigger: nextBlocking.openTrigger,
+    });
     return cloneState(state);
   }
 
@@ -732,7 +905,9 @@ export class ComputerSessionManager {
     const state = this.requireSession(sessionKey);
     const previousMode = state.mode;
     state.mode = mode;
-    state.status = state.status === "stopped" ? state.status : "idle";
+    if (state.status !== "stopped") {
+      state.status = "idle";
+    }
     state.blocking = null;
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.pushTimeline(
@@ -752,13 +927,11 @@ export class ComputerSessionManager {
         mode,
       });
     }
+    this.reconcilePassiveTruth(state);
     return cloneState(state);
   }
 
-  setPolicy(
-    sessionKey: string,
-    policy: Partial<ComputerSessionPolicy>,
-  ): ComputerSessionState {
+  setPolicy(sessionKey: string, policy: ComputerSessionPolicyPatch): ComputerSessionState {
     const state = this.requireSession(sessionKey);
     state.policy = mergeComputerPolicy(state.policy, policy);
     state.updatedAt = nowStateTimestamp();
@@ -770,7 +943,11 @@ export class ComputerSessionManager {
     permissions: Partial<ComputerPermissionState>,
   ): ComputerSessionState {
     const state = this.requireSession(sessionKey);
-    state.permissions = { ...state.permissions, ...permissions };
+    state.permissions = createPermissionState({
+      ...state.permissions,
+      ...permissions,
+    });
+    this.reconcilePassiveTruth(state);
     state.updatedAt = nowStateTimestamp();
     return cloneState(state);
   }
@@ -778,9 +955,7 @@ export class ComputerSessionManager {
   setRuntime(sessionKey: string, runtime: ComputerRuntimeState | null): ComputerSessionState {
     const state = this.requireSession(sessionKey);
     state.runtime = cloneRuntimeState(runtime);
-    if (state.runtime?.connectionState === "running" && state.blocking?.kind === "blocked_on_runtime") {
-      state.blocking = null;
-    }
+    this.reconcilePassiveTruth(state);
     state.updatedAt = nowStateTimestamp();
     return cloneState(state);
   }
@@ -876,7 +1051,7 @@ export class ComputerSessionManager {
     if (state.blocking?.kind !== "blocked_on_approval") {
       state.blocking = null;
     }
-    if (state.status !== "awaiting-approval" && state.status !== "paused") {
+    if (state.status !== "blocked_on_approval" && state.status !== "paused") {
       state.status = "observing";
     }
     state.updatedAt = nowStateTimestamp();
@@ -885,8 +1060,7 @@ export class ComputerSessionManager {
       createTimelineEntry("observation", summary, {
         status: state.status,
         ...this.stepLink(state.activeStep),
-        resultFrameId:
-          options?.phase === "observe-after-action" ? observation.frame.id : undefined,
+        resultFrameId: options?.phase === "observe-after-action" ? observation.frame.id : undefined,
         sourceFrameId:
           options?.phase === "observe-before-action" ? observation.frame.id : undefined,
       }),
@@ -894,8 +1068,7 @@ export class ComputerSessionManager {
     this.appendEventLog(state, "frame_captured", summary, {
       status: state.status,
       ...this.stepEventLink(state.activeStep),
-      sourceFrameId:
-        options?.phase === "observe-before-action" ? observation.frame.id : undefined,
+      sourceFrameId: options?.phase === "observe-before-action" ? observation.frame.id : undefined,
       resultFrameId:
         options?.phase === "observe-after-action" || options?.phase === "observe"
           ? observation.frame.id
@@ -941,7 +1114,8 @@ export class ComputerSessionManager {
     state.replay.actionCount += 1;
     this.syncReplayStepFromSessionStep(state, state.activeStep, {
       actionCount:
-        (state.replay.steps.find((entry) => entry.id === state.activeStep?.id)?.actionCount ?? 0) + 1,
+        (state.replay.steps.find((entry) => entry.id === state.activeStep?.id)?.actionCount ?? 0) +
+        1,
       action: createReplayActionFromStructuredAction(action, summary),
     });
     state.blocking = null;
@@ -1020,7 +1194,10 @@ export class ComputerSessionManager {
     action: ComputerStructuredAction;
     context?: ComputerObservationContext | null;
     targetAppIdentity?: string | null;
-  }): { session: ComputerSessionState; evaluation: ReturnType<typeof evaluateComputerActionPolicy> } {
+  }): {
+    session: ComputerSessionState;
+    evaluation: ReturnType<typeof evaluateComputerActionPolicy>;
+  } {
     const state = this.requireSession(params.sessionKey);
     const evaluation = evaluateComputerActionPolicy({
       mode: state.mode,
@@ -1101,7 +1278,7 @@ export class ComputerSessionManager {
       params.reasonCode === "session_stopped"
         ? "stopped"
         : params.reasonCode === "approval_pending"
-          ? "awaiting-approval"
+          ? "blocked_on_approval"
           : params.reasonCode === "session_paused"
             ? "paused"
             : "paused";
@@ -1114,12 +1291,12 @@ export class ComputerSessionManager {
           : params.reasonCode === "session_paused"
             ? "blocked_on_runtime"
             : "blocked_on_runtime",
-      reasonCode:
-        params.reasonCode === "approval_pending" ? "approval_required" : "runtime_busy",
+      reasonCode: params.reasonCode === "approval_pending" ? "approval_required" : "runtime_busy",
       summary: params.reason,
       at: nowStateTimestamp(),
       targetId: state.target.id,
       actionType: params.action.type,
+      openTrigger: params.reasonCode === "approval_pending" ? "open_approval" : "open_computer",
     };
     if (state.activeStep) {
       state.activeStep.status = "cancelled";
@@ -1161,15 +1338,23 @@ export class ComputerSessionManager {
   recordError(sessionKey: string, error: string): ComputerSessionState {
     const state = this.requireSession(sessionKey);
     const failedStep = state.activeStep ?? state.lastCompletedStep;
-    state.status = "error";
     state.lastError = error;
     state.blocking = null;
-    const permissionPatch = inferPermissionPatchFromError(error);
-    if (permissionPatch) {
-      state.permissions = {
+    const missingAccessibility = isAccessibilityPermissionMissing(error);
+    const missingScreenRecording = isScreenRecordingPermissionMissing(error);
+    if (missingAccessibility && state.permissions.accessibility !== true) {
+      state.permissions = createPermissionState({
         ...state.permissions,
-        ...permissionPatch,
-      };
+        accessibility: false,
+        control: "missing",
+      });
+    }
+    if (missingScreenRecording && state.permissions.screenRecording !== true) {
+      state.permissions = createPermissionState({
+        ...state.permissions,
+        screenRecording: false,
+        observation: "missing",
+      });
     }
     state.awaitingApproval = null;
     if (state.pendingApproval) {
@@ -1184,6 +1369,67 @@ export class ComputerSessionManager {
       state.lastCompletedStep = cloneStep(state.activeStep);
       state.activeStep = null;
     }
+    if (missingScreenRecording) {
+      state.permissions = createPermissionState({
+        ...state.permissions,
+        observation: state.permissions.screenRecording === true ? "restart_required" : "missing",
+      });
+      state.updatedAt = nowStateTimestamp();
+      const blocking: ComputerSessionBlockingState =
+        state.permissions.observation === "restart_required"
+          ? {
+              kind: "blocked_on_restart_required",
+              reasonCode: "observation_restart_required",
+              summary:
+                "Screen recording permission was granted but the runtime still needs a restart.",
+              at: state.updatedAt,
+              targetId: state.target.id,
+              actionType: failedStep?.actionType,
+              openTrigger: "open_restart_required",
+            }
+          : {
+              kind: "blocked_on_permissions",
+              reasonCode: "observation_permission_missing",
+              summary: "Screen recording permission is missing for computer observation.",
+              at: state.updatedAt,
+              targetId: state.target.id,
+              actionType: failedStep?.actionType,
+              openTrigger: "open_permissions",
+            };
+      this.setBlocking(sessionKey, blocking);
+      return cloneState(state);
+    }
+    if (missingAccessibility) {
+      state.permissions = createPermissionState({
+        ...state.permissions,
+        control: state.permissions.accessibility === true ? "restart_required" : "missing",
+      });
+      state.updatedAt = nowStateTimestamp();
+      const blocking: ComputerSessionBlockingState =
+        state.permissions.control === "restart_required"
+          ? {
+              kind: "blocked_on_restart_required",
+              reasonCode: "control_restart_required",
+              summary:
+                "Accessibility permission was granted but the runtime still needs a restart.",
+              at: state.updatedAt,
+              targetId: state.target.id,
+              actionType: failedStep?.actionType,
+              openTrigger: "open_restart_required",
+            }
+          : {
+              kind: "blocked_on_permissions",
+              reasonCode: "control_permission_missing",
+              summary: "Accessibility permission is missing for computer control.",
+              at: state.updatedAt,
+              targetId: state.target.id,
+              actionType: failedStep?.actionType,
+              openTrigger: "open_permissions",
+            };
+      this.setBlocking(sessionKey, blocking);
+      return cloneState(state);
+    }
+    state.status = "error";
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.pushTimeline(
       state,
@@ -1229,6 +1475,7 @@ export class ComputerSessionManager {
     state.activeStep = null;
     state.blocking = null;
     state.updatedAt = step.updatedAt;
+    this.reconcilePassiveTruth(state);
     return cloneState(state);
   }
 
@@ -1249,6 +1496,7 @@ export class ComputerSessionManager {
     state.activeStep = null;
     state.blocking = null;
     state.updatedAt = step.updatedAt;
+    this.reconcilePassiveTruth(state);
     return cloneState(state);
   }
 
@@ -1294,6 +1542,7 @@ export class ComputerSessionManager {
       status: "idle",
       ...this.stepEventLink(state.activeStep ?? state.lastCompletedStep),
     });
+    this.reconcilePassiveTruth(state);
     return cloneState(state);
   }
 
@@ -1366,7 +1615,8 @@ export class ComputerSessionManager {
     });
     this.syncReplayStepFromSessionStep(state, state.activeStep, {
       approvalCount:
-        (state.replay.steps.find((entry) => entry.id === state.activeStep?.id)?.approvalCount ?? 0) + 1,
+        (state.replay.steps.find((entry) => entry.id === state.activeStep?.id)?.approvalCount ??
+          0) + 1,
     });
     state.blocking = {
       kind: "blocked_on_approval",
@@ -1376,26 +1626,54 @@ export class ComputerSessionManager {
       targetId: state.target.id,
       foregroundControlRequired: true,
       actionType: request.actionType,
+      openTrigger: "open_approval",
     };
     state.awaitingApproval = request;
-    state.status = "awaiting-approval";
+    state.status = "blocked_on_approval";
     state.updatedAt = nowStateTimestamp();
     state.timeline = this.pushTimeline(
       state,
       createTimelineEntry("approval", `${request.actionSummary} awaiting approval`, {
-        status: "awaiting-approval",
+        status: "blocked_on_approval",
         actionType: request.actionType,
         policyDecision: request.policyDecision,
         reasonCode: request.reasonCode,
+        openTrigger: "open_approval",
         ...this.stepLink(state.activeStep),
       }),
     );
     this.appendEventLog(state, "approval_requested", `${request.actionSummary} awaiting approval`, {
-      status: "awaiting-approval",
+      status: "blocked_on_approval",
       actionType: request.actionType,
       policyDecision: request.policyDecision,
       reasonCode: request.reasonCode,
+      openTrigger: "open_approval",
       ...this.stepEventLink(state.activeStep),
+    });
+    state.timeline = this.pushTimeline(
+      state,
+      createTimelineEntry("status", "open trigger -> open_approval", {
+        status: "blocked_on_approval",
+        eventCode: "lazy_open_requested",
+        actionType: request.actionType,
+        reasonCode: "approval_required",
+        openTrigger: "open_approval",
+        ...this.stepLink(state.activeStep),
+      }),
+    );
+    this.appendEventLog(state, "lazy_open_requested", "open trigger -> open_approval", {
+      status: "blocked_on_approval",
+      actionType: request.actionType,
+      reasonCode: "approval_required",
+      openTrigger: "open_approval",
+      ...this.stepEventLink(state.activeStep),
+    });
+    logRuntimeEvent("lazy_open_requested", {
+      sessionKey: params.sessionKey,
+      targetId: state.target.id,
+      openTrigger: "open_approval",
+      reasonCode: "approval_required",
+      actionType: request.actionType,
     });
     logPolicyEvent("approval_requested", {
       sessionKey: params.sessionKey,
@@ -1523,7 +1801,15 @@ export class ComputerSessionManager {
       (entry) => entry.code === "approval_requested" || entry.code === "approval_decided",
     );
     const lastErrors = eventLog
-      .filter((entry) => entry.code === "action_failed" || (entry.code === "state_transition" && entry.status === "error"))
+      .filter(
+        (entry) =>
+          entry.code === "action_failed" ||
+          (entry.code === "state_transition" && entry.status === "error") ||
+          (entry.code === "session_blocked" &&
+            (entry.status === "blocked_on_runtime" ||
+              entry.status === "blocked_on_permissions" ||
+              entry.status === "blocked_on_restart_required")),
+      )
       .slice(-12);
     const replayFrames = state.replay.frames.map((entry) => this.toExportFrame(entry));
     const replayPartial =
@@ -1541,11 +1827,14 @@ export class ComputerSessionManager {
         startedAt: state.startedAt,
         updatedAt: state.updatedAt,
         target: cloneTarget(state.target),
-        permissions: { ...state.permissions },
+        blocking: cloneBlockingState(state.blocking),
+        permissions: clonePermissionState(state.permissions),
         capabilities: cloneCapabilities(state.capabilities),
+        runtime: cloneRuntimeState(state.runtime),
         actionCount: state.replay.actionCount,
         safetyEventsCount: state.replay.safetyEventsCount,
-        approvalCount: approvalHistory.filter((entry) => entry.code === "approval_requested").length,
+        approvalCount: approvalHistory.filter((entry) => entry.code === "approval_requested")
+          .length,
         eventCount: eventLog.length,
         ...(state.lastError !== undefined ? { lastError: state.lastError } : {}),
         activeApp: state.context?.activeApp ? { ...state.context.activeApp } : null,
@@ -1553,14 +1842,18 @@ export class ComputerSessionManager {
         display: state.context?.display ? { ...state.context.display } : null,
         replayPartial,
         correlationCoverage: {
-          hasRunId: eventLog.some((entry) => typeof entry.runId === "string" && entry.runId.length > 0),
+          hasRunId: eventLog.some(
+            (entry) => typeof entry.runId === "string" && entry.runId.length > 0,
+          ),
           hasResponseId: eventLog.some(
             (entry) => typeof entry.responseId === "string" && entry.responseId.length > 0,
           ),
           hasToolCallId: eventLog.some(
             (entry) => typeof entry.toolCallId === "string" && entry.toolCallId.length > 0,
           ),
-          hasStepId: eventLog.some((entry) => typeof entry.stepId === "string" && entry.stepId.length > 0),
+          hasStepId: eventLog.some(
+            (entry) => typeof entry.stepId === "string" && entry.stepId.length > 0,
+          ),
           hasActionId: eventLog.some(
             (entry) => typeof entry.actionId === "string" && entry.actionId.length > 0,
           ),
@@ -1581,6 +1874,168 @@ export class ComputerSessionManager {
         frames: replayFrames,
       },
     };
+  }
+
+  private refreshPermissionTruth(state: InternalComputerSessionState) {
+    const observeCapability = findComputerCapability(state.capabilities, "observe_only");
+    const controlCapability = findComputerCapability(state.capabilities, "foreground_control");
+    const runtimeError = state.runtime?.lastError;
+    const runtimeMessage = runtimeError?.message ?? "";
+    const runtimePermission = runtimeError?.permission?.trim().toLowerCase() || undefined;
+    const screenRecordingRestartRequired =
+      runtimeError?.code === "PERMISSION_MISSING" &&
+      state.permissions.screenRecording === true &&
+      (runtimePermission === "screenrecording" ||
+        runtimePermission === "screen_recording" ||
+        runtimePermission === "screen-recording" ||
+        (!runtimePermission && isScreenRecordingPermissionMissing(runtimeMessage)));
+    const accessibilityRestartRequired =
+      runtimeError?.code === "PERMISSION_MISSING" &&
+      state.permissions.accessibility === true &&
+      (runtimePermission === "accessibility" ||
+        (!runtimePermission && isAccessibilityPermissionMissing(runtimeMessage)));
+    state.permissions = createPermissionState({
+      ...state.permissions,
+      observation: resolvePermissionAccessState({
+        supported: Boolean(
+          observeCapability?.available && observeCapability.exposure === "exposed",
+        ),
+        granted: state.permissions.screenRecording,
+        restartRequired: screenRecordingRestartRequired,
+      }),
+      control: resolvePermissionAccessState({
+        supported: Boolean(
+          controlCapability?.available && controlCapability.exposure === "exposed",
+        ),
+        granted: state.permissions.accessibility,
+        restartRequired: accessibilityRestartRequired,
+      }),
+    });
+  }
+
+  private derivePassiveBlocking(
+    state: InternalComputerSessionState,
+  ): ComputerSessionBlockingState | null {
+    const observeCapability = findComputerCapability(state.capabilities, "observe_only");
+    const observeSupported = Boolean(
+      observeCapability?.available && observeCapability.exposure === "exposed",
+    );
+    if (!observeSupported) {
+      return {
+        kind: "blocked_on_runtime",
+        reasonCode: "runtime_unavailable",
+        summary: observeCapability?.reason ?? "computer runtime unavailable",
+        at: nowStateTimestamp(),
+        targetId: state.target.id,
+        openTrigger: state.backend === "local-mac" ? "open_computer" : undefined,
+      };
+    }
+    if (
+      state.runtime?.connectionState === "disabled" ||
+      state.runtime?.connectionState === "invalidated"
+    ) {
+      return {
+        kind: "blocked_on_runtime",
+        reasonCode: "runtime_unavailable",
+        summary: state.runtime.lastError?.message ?? "computer runtime unavailable",
+        at: nowStateTimestamp(),
+        targetId: state.target.id,
+        openTrigger: "open_computer",
+      };
+    }
+    if (
+      state.runtime?.connectionState === "starting" ||
+      state.runtime?.connectionState === "interrupted"
+    ) {
+      return {
+        kind: "blocked_on_runtime",
+        reasonCode: "runtime_busy",
+        summary: summarizeRuntimeBusyState(state.runtime),
+        at: nowStateTimestamp(),
+        targetId: state.target.id,
+        openTrigger: "open_computer",
+      };
+    }
+    if (state.permissions.observation === "missing") {
+      return {
+        kind: "blocked_on_permissions",
+        reasonCode: "observation_permission_missing",
+        summary: "Screen recording permission is missing for computer observation.",
+        at: nowStateTimestamp(),
+        targetId: state.target.id,
+        openTrigger: "open_permissions",
+      };
+    }
+    if (state.permissions.observation === "restart_required") {
+      return {
+        kind: "blocked_on_restart_required",
+        reasonCode: "observation_restart_required",
+        summary: "Screen recording permission was granted but the runtime still needs a restart.",
+        at: nowStateTimestamp(),
+        targetId: state.target.id,
+        openTrigger: "open_restart_required",
+      };
+    }
+    return null;
+  }
+
+  private isPassiveBlockingState(
+    kind: ComputerSessionBlockingState["kind"] | null | undefined,
+  ): boolean {
+    return (
+      kind === "blocked_on_runtime" ||
+      kind === "blocked_on_permissions" ||
+      kind === "blocked_on_restart_required"
+    );
+  }
+
+  private blockingEquals(
+    current: ComputerSessionBlockingState | null | undefined,
+    next: ComputerSessionBlockingState | null | undefined,
+  ): boolean {
+    if (!current && !next) {
+      return true;
+    }
+    if (!current || !next) {
+      return false;
+    }
+    return (
+      current.kind === next.kind &&
+      current.reasonCode === next.reasonCode &&
+      current.summary === next.summary &&
+      current.targetId === next.targetId &&
+      current.actionType === next.actionType &&
+      current.openTrigger === next.openTrigger
+    );
+  }
+
+  private reconcilePassiveTruth(state: InternalComputerSessionState) {
+    this.refreshPermissionTruth(state);
+    if (
+      state.status === "paused" ||
+      state.status === "stopped" ||
+      state.awaitingApproval ||
+      state.blocking?.kind === "blocked_on_focus" ||
+      state.blocking?.kind === "blocked_on_approval"
+    ) {
+      return;
+    }
+
+    const nextBlocking = this.derivePassiveBlocking(state);
+    if (nextBlocking) {
+      if (
+        !this.blockingEquals(state.blocking, nextBlocking) ||
+        state.status !== mapBlockingKindToStatus(nextBlocking.kind)
+      ) {
+        this.setBlocking(state.sessionKey, nextBlocking);
+      }
+      return;
+    }
+
+    if (this.isPassiveBlockingState(state.blocking?.kind)) {
+      this.setBlocking(state.sessionKey, null);
+      state.updatedAt = nowStateTimestamp();
+    }
   }
 
   private upsertReplayStep(
@@ -1611,7 +2066,10 @@ export class ComputerSessionManager {
       approvalCount: existing?.approvalCount ?? 0,
       safetyEventsCount: existing?.safetyEventsCount ?? 0,
       ...patch,
-      action: patch?.action !== undefined ? cloneReplayAction(patch.action) : cloneReplayAction(existing?.action),
+      action:
+        patch?.action !== undefined
+          ? cloneReplayAction(patch.action)
+          : cloneReplayAction(existing?.action),
     };
     if (existingIndex >= 0) {
       state.replay.steps.splice(existingIndex, 1, next);
@@ -1663,7 +2121,9 @@ export class ComputerSessionManager {
         },
         display: { ...observation.context.display },
         activeApp: observation.context.activeApp ? { ...observation.context.activeApp } : null,
-        activeWindow: observation.context.activeWindow ? { ...observation.context.activeWindow } : null,
+        activeWindow: observation.context.activeWindow
+          ? { ...observation.context.activeWindow }
+          : null,
       },
       ...(step?.id ? { stepId: step.id } : {}),
       ...(step?.sequence !== undefined ? { stepSequence: step.sequence } : {}),
@@ -1697,14 +2157,20 @@ export class ComputerSessionManager {
     state.safety.lastEvent = cloneSafetyEvent(event);
     state.safety.recentEvents = [
       ...state.safety.recentEvents.filter(
-        (entry) => !(entry.type === event.type && entry.reasonCode === event.reasonCode && entry.summary === event.summary),
+        (entry) =>
+          !(
+            entry.type === event.type &&
+            entry.reasonCode === event.reasonCode &&
+            entry.summary === event.summary
+          ),
       ),
       cloneSafetyEvent(event),
     ].slice(-COMPUTER_SAFETY_EVENT_LIMIT);
     state.replay.safetyEventsCount += 1;
     this.syncReplayStepFromSessionStep(state, state.activeStep, {
       safetyEventsCount:
-        (state.replay.steps.find((entry) => entry.id === state.activeStep?.id)?.safetyEventsCount ?? 0) + 1,
+        (state.replay.steps.find((entry) => entry.id === state.activeStep?.id)?.safetyEventsCount ??
+          0) + 1,
     });
     state.timeline = this.pushTimeline(
       state,
@@ -1770,22 +2236,39 @@ export class ComputerSessionManager {
       if (
         before?.available === capability.available &&
         before?.exposure === capability.exposure &&
+        before?.reasonCode === capability.reasonCode &&
         before?.reason === capability.reason
       ) {
         continue;
       }
-      const event = capability.exposure === "exposed" && capability.available ? "mode_exposed" : "mode_hidden";
+      const event =
+        capability.exposure === "exposed" && capability.available
+          ? "capability_exposed"
+          : "capability_hidden";
       state.timeline = this.pushTimeline(
         state,
         createTimelineEntry("status", capability.reason, {
           status: state.status,
           eventCode: event,
+          reasonCode: capability.reasonCode,
+          capability: capability.kind,
         }),
+      );
+      this.appendEventLog(
+        state,
+        event === "capability_exposed" ? "capability_exposed" : "capability_hidden",
+        capability.reason,
+        {
+          status: state.status,
+          reasonCode: capability.reasonCode,
+          capability: capability.kind,
+        },
       );
       logRuntimeEvent(event, {
         sessionKey: state.sessionKey,
         backend: state.backend,
         capability: capability.kind,
+        reasonCode: capability.reasonCode,
         reason: capability.reason,
       });
     }
@@ -1923,8 +2406,12 @@ export class ComputerSessionManager {
           sourceHeight: frame.pixelHeight,
         },
         display: { ...entry.observation.context.display },
-        activeApp: entry.observation.context.activeApp ? { ...entry.observation.context.activeApp } : null,
-        activeWindow: entry.observation.context.activeWindow ? { ...entry.observation.context.activeWindow } : null,
+        activeApp: entry.observation.context.activeApp
+          ? { ...entry.observation.context.activeApp }
+          : null,
+        activeWindow: entry.observation.context.activeWindow
+          ? { ...entry.observation.context.activeWindow }
+          : null,
       } satisfies ComputerReplayFrameMetadata);
     return {
       frameId: entry.frameId,

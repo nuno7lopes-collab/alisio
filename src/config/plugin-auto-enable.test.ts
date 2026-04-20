@@ -135,7 +135,7 @@ describe("applyPluginAutoEnable", () => {
     expect(result.config.plugins?.allow).toBeUndefined();
   });
 
-  it("auto-enables browser when browser config exists under a restrictive plugins.allow", () => {
+  it("does not auto-enable browser from legacy browser config", () => {
     const result = applyPluginAutoEnable({
       config: {
         browser: {
@@ -148,12 +148,12 @@ describe("applyPluginAutoEnable", () => {
       env: {},
     });
 
-    expect(result.config.plugins?.allow).toEqual(["telegram", "browser"]);
-    expect(result.config.plugins?.entries?.browser?.enabled).toBe(true);
-    expect(result.changes).toContain("browser configured, enabled automatically.");
+    expect(result.config.plugins?.allow).toEqual(["telegram"]);
+    expect(result.config.plugins?.entries?.browser).toBeUndefined();
+    expect(result.changes).toEqual([]);
   });
 
-  it("auto-enables browser when tools.alsoAllow references browser", () => {
+  it("does not auto-enable browser from legacy tool references", () => {
     const result = applyPluginAutoEnable({
       config: {
         tools: {
@@ -166,9 +166,9 @@ describe("applyPluginAutoEnable", () => {
       env: {},
     });
 
-    expect(result.config.plugins?.allow).toEqual(["telegram", "browser"]);
-    expect(result.config.plugins?.entries?.browser?.enabled).toBe(true);
-    expect(result.changes).toContain("browser tool referenced, enabled automatically.");
+    expect(result.config.plugins?.allow).toEqual(["telegram"]);
+    expect(result.config.plugins?.entries?.browser).toBeUndefined();
+    expect(result.changes).toEqual([]);
   });
 
   it("keeps restrictive plugins.allow unchanged when browser is not referenced", () => {

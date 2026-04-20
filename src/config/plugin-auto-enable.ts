@@ -37,7 +37,10 @@ const EMPTY_PLUGIN_MANIFEST_REGISTRY: PluginManifestRegistry = {
 
 const CANONICAL_PLUGIN_MANIFEST_KEY = "alisio";
 const LEGACY_PLUGIN_MANIFEST_KEY = CANONICAL_PLUGIN_MANIFEST_KEY;
-const ENV_CATALOG_PATHS = [runtimeEnvKey("PLUGIN_CATALOG_PATHS"), runtimeEnvKey("MPM_CATALOG_PATHS")];
+const ENV_CATALOG_PATHS = [
+  runtimeEnvKey("PLUGIN_CATALOG_PATHS"),
+  runtimeEnvKey("MPM_CATALOG_PATHS"),
+];
 
 function resolveAutoEnableProviderPluginIds(
   registry: PluginManifestRegistry,
@@ -325,9 +328,6 @@ function configMayNeedPluginAutoEnable(cfg: AlisioConfig, env: NodeJS.ProcessEnv
   if (hasPotentialConfiguredChannels(cfg, env)) {
     return true;
   }
-  if (resolveBrowserAutoEnableReason(cfg)) {
-    return true;
-  }
   if (cfg.acp?.enabled === true || cfg.acp?.dispatch?.enabled === true) {
     return true;
   }
@@ -352,59 +352,6 @@ function configMayNeedPluginAutoEnable(cfg: AlisioConfig, env: NodeJS.ProcessEnv
   return false;
 }
 
-function listContainsBrowser(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.some((entry) => typeof entry === "string" && entry.trim().toLowerCase() === "browser")
-  );
-}
-
-function toolPolicyReferencesBrowser(value: unknown): boolean {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return listContainsBrowser(value.allow) || listContainsBrowser(value.alsoAllow);
-}
-
-function hasBrowserToolReference(cfg: AlisioConfig): boolean {
-  if (toolPolicyReferencesBrowser(cfg.tools)) {
-    return true;
-  }
-
-  const agentList = cfg.agents?.list;
-  if (!Array.isArray(agentList)) {
-    return false;
-  }
-
-  return agentList.some((entry) => isRecord(entry) && toolPolicyReferencesBrowser(entry.tools));
-}
-
-function hasExplicitBrowserPluginEntry(cfg: AlisioConfig): boolean {
-  return Boolean(
-    cfg.plugins?.entries && Object.prototype.hasOwnProperty.call(cfg.plugins.entries, "browser"),
-  );
-}
-
-function resolveBrowserAutoEnableReason(cfg: AlisioConfig): string | null {
-  if (cfg.browser?.enabled === false || cfg.plugins?.entries?.browser?.enabled === false) {
-    return null;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(cfg, "browser")) {
-    return "browser configured";
-  }
-
-  if (hasExplicitBrowserPluginEntry(cfg)) {
-    return "browser plugin configured";
-  }
-
-  if (hasBrowserToolReference(cfg)) {
-    return "browser tool referenced";
-  }
-
-  return null;
-}
-
 function resolveConfiguredPlugins(
   cfg: AlisioConfig,
   env: NodeJS.ProcessEnv,
@@ -418,11 +365,6 @@ function resolveConfiguredPlugins(
     if (isChannelConfigured(cfg, channelId, env)) {
       changes.push({ pluginId, reason: `${channelId} configured` });
     }
-  }
-
-  const browserReason = resolveBrowserAutoEnableReason(cfg);
-  if (browserReason) {
-    changes.push({ pluginId: "browser", reason: browserReason });
   }
 
   for (const [providerId, pluginId] of Object.entries(

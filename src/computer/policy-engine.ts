@@ -9,6 +9,7 @@ import type {
   ComputerSafetyEventType,
   ComputerSafetyLevel,
   ComputerSessionPolicy,
+  ComputerSessionPolicyPatch,
   ComputerSessionStatus,
   ComputerStructuredAction,
 } from "./types.js";
@@ -293,7 +294,7 @@ function mergeRuleScope(
 
 export function mergeComputerPolicy(
   current: ComputerSessionPolicy,
-  patch: Partial<ComputerSessionPolicy>,
+  patch: ComputerSessionPolicyPatch,
 ): ComputerSessionPolicy {
   return {
     allow: mergeRuleScope(current.allow, patch.allow),
@@ -302,7 +303,8 @@ export function mergeComputerPolicy(
     commandLikeActions: patch.commandLikeActions
       ? uniqActions(patch.commandLikeActions)
       : [...current.commandLikeActions],
-    lastDecision: patch.lastDecision === undefined ? current.lastDecision ?? null : patch.lastDecision,
+    lastDecision:
+      patch.lastDecision === undefined ? (current.lastDecision ?? null) : patch.lastDecision,
   };
 }
 
@@ -340,7 +342,9 @@ function resolveTargetMetadata(
 
 function matchesAppRule(value: PolicyMatchContext, patterns: readonly string[]): boolean {
   const haystack = uniqStrings(
-    [value.appIdentity, value.appBundleId, value.appName].filter((entry): entry is string => Boolean(entry)),
+    [value.appIdentity, value.appBundleId, value.appName].filter((entry): entry is string =>
+      Boolean(entry),
+    ),
   ).map((entry) => normalizeText(entry));
   return haystack.some((entry) => includesPattern(entry, patterns));
 }
@@ -408,7 +412,9 @@ function collectSafetyEvents(
 ): ComputerSafetyEvent[] {
   const events: ComputerSafetyEvent[] = [];
   const pushUnique = (event: ComputerSafetyEvent) => {
-    if (events.some((entry) => entry.type === event.type && entry.reasonCode === event.reasonCode)) {
+    if (
+      events.some((entry) => entry.type === event.type && entry.reasonCode === event.reasonCode)
+    ) {
       return;
     }
     events.push(event);
@@ -418,10 +424,7 @@ function collectSafetyEvents(
   const appName = match.appName ?? match.appIdentity ?? "foreground app";
   const actionType = match.action.type;
 
-  if (
-    matchesAppRule(match, DEFAULT_EXTERNAL_CONTENT_APPS) &&
-    !isPassiveAction(match.action)
-  ) {
+  if (matchesAppRule(match, DEFAULT_EXTERNAL_CONTENT_APPS) && !isPassiveAction(match.action)) {
     pushUnique(
       buildSafetyEvent(
         "untrusted_external_content",
@@ -475,7 +478,15 @@ function collectSafetyEvents(
   }
 
   if (
-    matchesAppRule(match, ["terminal", "iterm", "warp", "ghostty", "kitty", "alacritty", "hyper"]) &&
+    matchesAppRule(match, [
+      "terminal",
+      "iterm",
+      "warp",
+      "ghostty",
+      "kitty",
+      "alacritty",
+      "hyper",
+    ]) &&
     (includesPattern(surface, DEFAULT_PROD_TERMINAL_PATTERNS) ||
       isCommandLikeAction(match.action, policy))
   ) {
@@ -513,13 +524,14 @@ function resolveSafetyLevel(
     return "watch";
   }
   if (
-    safetyEvents.some((event) =>
-      event.type === "malicious_instruction_suspected" ||
-      event.type === "untrusted_external_content" ||
-      event.type === "sensitive_surface" ||
-      event.type === "prod_terminal_detected" ||
-      event.type === "payment_or_credentials_surface" ||
-      event.type === "auth_context_detected",
+    safetyEvents.some(
+      (event) =>
+        event.type === "malicious_instruction_suspected" ||
+        event.type === "untrusted_external_content" ||
+        event.type === "sensitive_surface" ||
+        event.type === "prod_terminal_detected" ||
+        event.type === "payment_or_credentials_surface" ||
+        event.type === "auth_context_detected",
     )
   ) {
     return "watch";
@@ -676,10 +688,7 @@ export function evaluateComputerActionPolicy(
     };
   }
 
-  if (
-    params.policy.allow.apps.length > 0 &&
-    !matchesAppRule(match, params.policy.allow.apps)
-  ) {
+  if (params.policy.allow.apps.length > 0 && !matchesAppRule(match, params.policy.allow.apps)) {
     const event = buildDeniedScopeEvent(
       "scope_escape_attempt",
       "scope_escape_attempt",
@@ -852,9 +861,7 @@ export function evaluateComputerActionPolicy(
     reasonCode: reasonEvent?.reasonCode ?? "foreground_supervision",
     reason:
       reasonEvent?.summary ??
-      (sensitiveAction
-        ? "one-time approval required for sensitive action"
-        : "action allowed"),
+      (sensitiveAction ? "one-time approval required for sensitive action" : "action allowed"),
     appIdentity: match.appIdentity,
     safetyLevel,
     safetyEvents,

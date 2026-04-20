@@ -3,15 +3,12 @@ import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
 import { NodeMacComputerEnvironment } from "../../computer/node-mac-environment.js";
 import { normalizeComputerApprovalMode } from "../../computer/policy-engine.js";
+import { actionRequiresForegroundControl } from "../../computer/runtime-profile.js";
 import {
   ComputerSessionArbitrationError,
   computerSessionArbiter,
 } from "../../computer/session-arbiter.js";
 import { computerSessionManager } from "../../computer/session-manager.js";
-import {
-  actionRequiresForegroundControl,
-  sessionSupportsBackgroundSafeControl,
-} from "../../computer/runtime-profile.js";
 import type {
   ComputerActionResult,
   ComputerApprovalMode,
@@ -51,7 +48,6 @@ const COMPUTER_ACTIONS = [
   "reveal_path",
   "open_path",
   "open_app",
-  "app_focus",
   "session",
   "pause",
   "resume",
@@ -181,11 +177,6 @@ function resolveActionFromParams(params: Record<string, unknown>): ComputerStruc
         type: "open_app",
         app: readStringParam(params, "app", { required: true }),
       };
-    case "app_focus":
-      return {
-        type: "focus_app",
-        app: readStringParam(params, "app", { required: true }),
-      };
     default:
       throw new Error(`unknown computer action ${action}`);
   }
@@ -253,6 +244,68 @@ function buildArbitrationBlockingState(
   };
 }
 
+function buildOperationBlockingState(params: {
+  session: ComputerSessionState;
+  operation: "observe" | "control";
+  actionType?: ComputerStructuredAction["type"];
+}) {
+  const capability =
+    params.operation === "observe"
+      ? params.session.capabilities.find((entry) => entry.kind === "observe_only")
+      : params.session.capabilities.find((entry) => entry.kind === "foreground_control");
+  if (!capability || !capability.available || capability.exposure !== "exposed") {
+    return {
+      kind: "blocked_on_runtime" as const,
+      reasonCode: "runtime_unavailable" as const,
+      summary: capability?.reason ?? "computer runtime unavailable",
+      at: Date.now(),
+      targetId: params.session.target.id,
+      ...(params.actionType ? { actionType: params.actionType } : {}),
+    };
+  }
+
+  const permissionState =
+    params.operation === "observe"
+      ? params.session.permissions.observation
+      : params.session.permissions.control;
+  if (permissionState === "missing") {
+    return {
+      kind: "blocked_on_permissions" as const,
+      reasonCode:
+        params.operation === "observe"
+          ? ("observation_permission_missing" as const)
+          : ("control_permission_missing" as const),
+      summary:
+        params.operation === "observe"
+          ? "Screen recording permission is missing for computer observation."
+          : "Accessibility permission is missing for computer control.",
+      at: Date.now(),
+      targetId: params.session.target.id,
+      ...(params.actionType ? { actionType: params.actionType } : {}),
+      openTrigger: "open_permissions" as const,
+    };
+  }
+  if (permissionState === "restart_required") {
+    return {
+      kind: "blocked_on_restart_required" as const,
+      reasonCode:
+        params.operation === "observe"
+          ? ("observation_restart_required" as const)
+          : ("control_restart_required" as const),
+      summary:
+        params.operation === "observe"
+          ? "Screen recording permission was granted but the runtime still needs a restart."
+          : "Accessibility permission was granted but the runtime still needs a restart.",
+      at: Date.now(),
+      targetId: params.session.target.id,
+      ...(params.actionType ? { actionType: params.actionType } : {}),
+      openTrigger: "open_restart_required" as const,
+    };
+  }
+
+  return null;
+}
+
 async function buildComputerToolResult(params: {
   label: string;
   state: ComputerSessionState;
@@ -297,7 +350,7 @@ export function createComputerTool(options?: {
     label: "Computer",
     name: "computer",
     description:
-      "Observe and control the local macOS computer through screenshots plus structured native actions. Use observe first, then act with coordinates from the latest frame.",
+      "Observe and control the local macOS computer through screenshots plus structured native actions such as open_url, open_app, focus_app, and direct input. Use observe first, then act with coordinates from the latest frame.",
     parameters: ComputerToolSchema,
     execute: async (_toolCallId, args, signal, onUpdate) => {
       const params = args as Record<string, unknown>;
@@ -310,7 +363,16 @@ export function createComputerTool(options?: {
         readStringParam(params, "node", { trim: true }),
         true,
       );
-      if (resolvedNode.platform?.toLowerCase().startsWith("mac") !== true) {
+      const normalizedPlatform = resolvedNode.platform?.toLowerCase() ?? "";
+      if (normalizedPlatform.startsWith("win")) {
+        computerSessionManager.ensureSession({
+          sessionKey,
+          backend: "windows-local",
+          nodeId: resolvedNode.nodeId,
+        });
+        throw new Error("computer runtime is unavailable on windows-local");
+      }
+      if (!normalizedPlatform.startsWith("mac")) {
         throw new Error("computer tool requires a macOS node");
       }
 
@@ -320,8 +382,12 @@ export function createComputerTool(options?: {
         nodeId: resolvedNode.nodeId,
         ...(mode ? { mode } : {}),
         permissions: {
-          accessibility: resolvedNode.permissions?.accessibility === true,
-          screenRecording: resolvedNode.permissions?.screenRecording === true,
+          ...(typeof resolvedNode.permissions?.accessibility === "boolean"
+            ? { accessibility: resolvedNode.permissions.accessibility }
+            : {}),
+          ...(typeof resolvedNode.permissions?.screenRecording === "boolean"
+            ? { screenRecording: resolvedNode.permissions.screenRecording }
+            : {}),
         },
       });
 
@@ -393,6 +459,15 @@ export function createComputerTool(options?: {
       }
 
       if (action === "observe" || action === "screenshot") {
+        const observeBlocked = buildOperationBlockingState({
+          session: computerSessionManager.getSession(sessionKey) ?? ensured,
+          operation: "observe",
+        });
+        if (observeBlocked) {
+          const blocked = computerSessionManager.setBlocking(sessionKey, observeBlocked);
+          await emitUpdate(observeBlocked.summary, blocked);
+          throw new Error(observeBlocked.summary);
+        }
         try {
           return await computerSessionArbiter.withObserveLane({
             sessionKey,
@@ -406,10 +481,7 @@ export function createComputerTool(options?: {
                 at: Date.now(),
                 targetId: sessionTargetId,
               });
-              void emitUpdate(
-                `Waiting for shared capture budget (${queuePosition})…`,
-                blocked,
-              );
+              void emitUpdate(`Waiting for shared capture budget (${queuePosition})…`, blocked);
             },
             onStarted: () => {
               const state = computerSessionManager.markSessionArbitrated({
@@ -485,13 +557,21 @@ export function createComputerTool(options?: {
       if (currentSession?.status === "paused") {
         throw new Error("session paused");
       }
-      if (currentSession?.status === "awaiting-approval") {
+      if (currentSession?.status === "blocked_on_approval" || currentSession?.awaitingApproval) {
         throw new Error("computer session is awaiting approval");
       }
+      const actionBlocked = buildOperationBlockingState({
+        session: currentSession ?? ensured,
+        operation: "control",
+        actionType: nativeAction.type,
+      });
+      if (actionBlocked) {
+        const blocked = computerSessionManager.setBlocking(sessionKey, actionBlocked);
+        await emitUpdate(actionBlocked.summary, blocked);
+        throw new Error(actionBlocked.summary);
+      }
       try {
-        const foregroundRequired =
-          actionRequiresForegroundControl(nativeAction.type) &&
-          !sessionSupportsBackgroundSafeControl(ensured.capabilities);
+        const foregroundRequired = actionRequiresForegroundControl(nativeAction.type);
         return await computerSessionArbiter.withControlLane({
           sessionKey,
           targetId: sessionTargetId,
@@ -549,12 +629,13 @@ export function createComputerTool(options?: {
             await emitUpdate("Captured fresh frame before action.", observedBeforeAction);
             const actionWithContext = withSourceFrameContext(nativeAction, latestObservation);
             computerSessionManager.recordActionRequested(sessionKey, actionWithContext);
-            const { evaluation, session: policyState } = computerSessionManager.evaluateActionPolicy({
-              sessionKey,
-              action: actionWithContext,
-              context: latestObservation.context,
-              targetAppIdentity: actionWithContext.app?.trim() || undefined,
-            });
+            const { evaluation, session: policyState } =
+              computerSessionManager.evaluateActionPolicy({
+                sessionKey,
+                action: actionWithContext,
+                context: latestObservation.context,
+                targetAppIdentity: actionWithContext.app?.trim() || undefined,
+              });
             if (evaluation.safetyEvents.length > 0 || evaluation.escalatedMode) {
               await emitUpdate("Safety policy updated for the current surface.", policyState);
             }
@@ -568,7 +649,10 @@ export function createComputerTool(options?: {
               await emitUpdate("Computer action blocked by local policy.", denied);
               throw new Error(evaluation.reason);
             }
-            if (evaluation.decision === "require_once" || evaluation.decision === "require_session") {
+            if (
+              evaluation.decision === "require_once" ||
+              evaluation.decision === "require_session"
+            ) {
               const pendingPromise = computerSessionManager.requestApproval({
                 sessionKey,
                 action: actionWithContext,
@@ -623,7 +707,8 @@ export function createComputerTool(options?: {
             }
             if (!actionResult.ok) {
               const failureSummary =
-                actionResult.results.find((result) => !result.success)?.summary ?? actionResult.summary;
+                actionResult.results.find((result) => !result.success)?.summary ??
+                actionResult.summary;
               const failed = computerSessionManager.recordError(sessionKey, failureSummary);
               await emitUpdate("Computer action failed.", failed);
               throw new Error(failureSummary);

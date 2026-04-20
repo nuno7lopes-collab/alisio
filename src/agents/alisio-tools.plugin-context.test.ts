@@ -107,25 +107,15 @@ describe("createAlisioTools plugin context", () => {
     );
   });
 
-  it("forwards browser session wiring to plugin tool context", () => {
-    const resolveSandboxBrowserBridgeUrl = vi.fn(async () => "http://127.0.0.1:9999");
+  it("does not forward removed browser runtime wiring to plugin tool context", () => {
     createAlisioTools({
       config: {} as never,
-      sandboxBrowserBridgeUrl: "http://127.0.0.1:9999",
-      resolveSandboxBrowserBridgeUrl,
-      allowHostBrowserControl: true,
-      preferSandbox: true,
     });
 
     expect(resolvePluginToolsMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        context: expect.objectContaining({
-          browser: {
-            sandboxBridgeUrl: "http://127.0.0.1:9999",
-            resolveSandboxBridgeUrl: resolveSandboxBrowserBridgeUrl,
-            allowHostControl: true,
-            preferSandbox: true,
-          },
+        context: expect.not.objectContaining({
+          browser: expect.anything(),
         }),
       }),
     );

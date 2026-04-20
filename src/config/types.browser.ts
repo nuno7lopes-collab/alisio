@@ -1,3 +1,7 @@
+/**
+ * Legacy browser-plugin config.
+ * Local macOS site/app interaction now goes through `computer use`, not the browser sandbox.
+ */
 export type BrowserProfileConfig = {
   /** CDP port for this profile. Allocated once at creation, persisted permanently. */
   cdpPort?: number;

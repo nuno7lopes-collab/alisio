@@ -29,6 +29,10 @@ export type SandboxToolPolicyResolved = {
 
 export type SandboxWorkspaceAccess = "none" | "ro" | "rw";
 
+/**
+ * Legacy browser-sandbox config shape kept only so existing config still parses.
+ * The shared backend no longer provisions or exposes sandbox browsers.
+ */
 export type SandboxBrowserConfig = {
   enabled: boolean;
   image: string;
@@ -95,7 +99,9 @@ export type SandboxContext = {
   containerWorkdir: string;
   docker: SandboxDockerConfig;
   tools: SandboxToolPolicy;
+  /** Deprecated: browser sandbox is no longer exposed and this stays false. */
   browserAllowHostControl: boolean;
+  /** Deprecated: browser sandbox is no longer exposed and this stays undefined. */
   browser?: SandboxBrowserContext;
   fsBridge?: SandboxFsBridge;
   backend?: SandboxBackendHandle;

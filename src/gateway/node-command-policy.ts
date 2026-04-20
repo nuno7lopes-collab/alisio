@@ -1,9 +1,5 @@
 import type { AlisioConfig } from "../config/config.js";
-import {
-  NODE_BROWSER_PROXY_COMMAND,
-  NODE_SYSTEM_NOTIFY_COMMAND,
-  NODE_SYSTEM_RUN_COMMANDS,
-} from "../infra/node-commands.js";
+import { NODE_SYSTEM_NOTIFY_COMMAND, NODE_SYSTEM_RUN_COMMANDS } from "../infra/node-commands.js";
 import { normalizeDeviceMetadataForPolicy } from "./device-metadata-normalization.js";
 import type { NodeSession } from "./node-registry.js";
 
@@ -35,8 +31,6 @@ const COMPUTER_COMMANDS = [
 ];
 
 const LOCATION_COMMANDS = ["location.get"];
-const NOTIFICATION_COMMANDS = ["notifications.list"];
-
 const DEVICE_COMMANDS = ["device.info", "device.status"];
 
 const CONTACTS_COMMANDS = ["contacts.search"];
@@ -52,11 +46,7 @@ const PHOTOS_COMMANDS = ["photos.latest"];
 
 const MOTION_COMMANDS = ["motion.activity", "motion.pedometer"];
 
-const SYSTEM_COMMANDS = [
-  ...NODE_SYSTEM_RUN_COMMANDS,
-  NODE_SYSTEM_NOTIFY_COMMAND,
-  NODE_BROWSER_PROXY_COMMAND,
-];
+const SYSTEM_COMMANDS = [...NODE_SYSTEM_RUN_COMMANDS, NODE_SYSTEM_NOTIFY_COMMAND];
 const UNKNOWN_PLATFORM_COMMANDS = [
   ...CANVAS_COMMANDS,
   ...CAMERA_COMMANDS,
@@ -75,6 +65,13 @@ export const DEFAULT_DANGEROUS_NODE_COMMANDS = [
   "computer.act",
 ];
 
+const PLATFORM_COMPUTER_COMMANDS: Record<PlatformId, string[]> = {
+  macos: [...COMPUTER_COMMANDS],
+  windows: [],
+  linux: [],
+  unknown: [],
+};
+
 const PLATFORM_DEFAULTS: Record<string, string[]> = {
   macos: [
     ...CANVAS_COMMANDS,
@@ -87,12 +84,12 @@ const PLATFORM_DEFAULTS: Record<string, string[]> = {
     ...PHOTOS_COMMANDS,
     ...MOTION_COMMANDS,
     ...SYSTEM_COMMANDS,
-    ...COMPUTER_COMMANDS,
+    ...PLATFORM_COMPUTER_COMMANDS.macos,
   ],
-  linux: [...SYSTEM_COMMANDS],
-  windows: [...SYSTEM_COMMANDS],
+  linux: [...SYSTEM_COMMANDS, ...PLATFORM_COMPUTER_COMMANDS.linux],
+  windows: [...SYSTEM_COMMANDS, ...PLATFORM_COMPUTER_COMMANDS.windows],
   // Fail-safe: unknown metadata should not receive host exec defaults.
-  unknown: [...UNKNOWN_PLATFORM_COMMANDS],
+  unknown: [...UNKNOWN_PLATFORM_COMMANDS, ...PLATFORM_COMPUTER_COMMANDS.unknown],
 };
 
 type PlatformId = "macos" | "windows" | "linux" | "unknown";

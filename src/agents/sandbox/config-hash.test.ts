@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSandboxBrowserConfigHash, computeSandboxConfigHash } from "./config-hash.js";
+import { computeSandboxConfigHash } from "./config-hash.js";
 import type { SandboxDockerConfig } from "./types.js";
 
 function createDockerConfig(overrides?: Partial<SandboxDockerConfig>): SandboxDockerConfig {
@@ -100,81 +100,6 @@ describe("computeSandboxConfigHash", () => {
       docker: createDockerConfig({
         [testCase.field]: testCase.after,
       } as Partial<SandboxDockerConfig>),
-    });
-    expect(left).not.toBe(right);
-  });
-});
-
-describe("computeSandboxBrowserConfigHash", () => {
-  it("treats docker bind order as significant", () => {
-    const shared = {
-      browser: {
-        cdpPort: 9222,
-        cdpSourceRange: undefined,
-        headless: false,
-      },
-      securityEpoch: "epoch-v1",
-      workspaceAccess: "rw" as const,
-      workspaceDir: "/tmp/workspace",
-      agentWorkspaceDir: "/tmp/workspace",
-    };
-    const left = computeSandboxBrowserConfigHash({
-      ...shared,
-      docker: createDockerConfig({
-        binds: ["/tmp/workspace:/workspace:rw", "/tmp/cache:/cache:ro"],
-      }),
-    });
-    const right = computeSandboxBrowserConfigHash({
-      ...shared,
-      docker: createDockerConfig({
-        binds: ["/tmp/cache:/cache:ro", "/tmp/workspace:/workspace:rw"],
-      }),
-    });
-    expect(left).not.toBe(right);
-  });
-
-  it("changes when security epoch changes", () => {
-    const shared = {
-      docker: createDockerConfig(),
-      browser: {
-        cdpPort: 9222,
-        cdpSourceRange: undefined,
-        headless: false,
-      },
-      workspaceAccess: "rw" as const,
-      workspaceDir: "/tmp/workspace",
-      agentWorkspaceDir: "/tmp/workspace",
-    };
-    const left = computeSandboxBrowserConfigHash({
-      ...shared,
-      securityEpoch: "epoch-v1",
-    });
-    const right = computeSandboxBrowserConfigHash({
-      ...shared,
-      securityEpoch: "epoch-v2",
-    });
-    expect(left).not.toBe(right);
-  });
-
-  it("changes when cdp source range changes", () => {
-    const shared = {
-      docker: createDockerConfig(),
-      browser: {
-        cdpPort: 9222,
-        headless: false,
-      },
-      securityEpoch: "epoch-v1",
-      workspaceAccess: "rw" as const,
-      workspaceDir: "/tmp/workspace",
-      agentWorkspaceDir: "/tmp/workspace",
-    };
-    const left = computeSandboxBrowserConfigHash({
-      ...shared,
-      browser: { ...shared.browser, cdpSourceRange: "172.21.0.1/32" },
-    });
-    const right = computeSandboxBrowserConfigHash({
-      ...shared,
-      browser: { ...shared.browser, cdpSourceRange: "172.22.0.1/32" },
     });
     expect(left).not.toBe(right);
   });

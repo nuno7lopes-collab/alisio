@@ -7,7 +7,7 @@ import { logWarn } from "../logger.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
-import { resolveAgentConfig, resolveSessionAgentId } from "./agent-scope.js";
+import { resolveAgentConfig } from "./agent-scope.js";
 import { createAlisioTools } from "./alisio-tools.js";
 import { createApplyPatchTool } from "./apply-patch.js";
 import {
@@ -45,14 +45,6 @@ import {
 import { cleanToolSchemaForGemini, normalizeToolParameters } from "./pi-tools.schema.js";
 import type { AnyAgentTool } from "./pi-tools.types.js";
 import type { SandboxContext } from "./sandbox.js";
-import {
-  ensureLiveSandboxBrowserBridgeUrl,
-  getLiveSandboxBrowserBridgeUrl,
-} from "./sandbox/browser.js";
-import { resolveSandboxConfigForAgent } from "./sandbox/config.js";
-import { resolveSandboxRuntimeStatus } from "./sandbox/runtime-status.js";
-import { resolveSandboxScopeKey } from "./sandbox/shared.js";
-import { isToolAllowed } from "./sandbox/tool-policy.js";
 import { createToolFsPolicy, resolveToolFsConfig } from "./tool-fs-policy.js";
 import {
   applyToolPolicyPipeline,
@@ -75,149 +67,6 @@ const TOOL_DENY_BY_MESSAGE_PROVIDER: Readonly<Record<string, readonly string[]>>
   voice: ["tts"],
 };
 const MEMORY_FLUSH_ALLOWED_TOOL_NAMES = new Set(["read", "write"]);
-const SANDBOX_BROWSER_BRIDGE_RESOLVE_TIMEOUT_MS = 5_000;
-const SANDBOX_BROWSER_BRIDGE_RESOLVE_INTERVAL_MS = 100;
-
-type BrowserToolRuntimeContext = {
-  sandboxBridgeUrl?: string;
-  allowHostControl: boolean;
-  preferSandbox: boolean;
-};
-
-type BrowserToolRuntimeResolution = BrowserToolRuntimeContext & {
-  sandboxScopeKey?: string;
-};
-
-function resolveBrowserToolRuntimeResolution(params: {
-  cfg?: AlisioConfig;
-  sessionKey?: string;
-  sandbox?: SandboxContext | null;
-}): BrowserToolRuntimeResolution {
-  const directSandboxBridgeUrl = params.sandbox?.browser?.bridgeUrl?.trim() || undefined;
-  if (params.sandbox) {
-    const cfg = params.cfg;
-    const sandboxSessionKey = params.sandbox.sessionKey?.trim();
-    const sandboxScopeKey =
-      cfg && sandboxSessionKey
-        ? resolveSandboxScopeKey(
-            resolveSandboxConfigForAgent(
-              cfg,
-              resolveSessionAgentId({
-                sessionKey: sandboxSessionKey,
-                config: cfg,
-              }),
-            ).scope,
-            sandboxSessionKey,
-          )
-        : undefined;
-    return {
-      sandboxBridgeUrl: directSandboxBridgeUrl,
-      allowHostControl: params.sandbox.browserAllowHostControl,
-      preferSandbox: true,
-      sandboxScopeKey,
-    };
-  }
-
-  const sessionKey = params.sessionKey?.trim();
-  const cfg = params.cfg;
-  if (!cfg || !sessionKey) {
-    return {
-      sandboxBridgeUrl: directSandboxBridgeUrl,
-      allowHostControl: true,
-      preferSandbox: false,
-    };
-  }
-
-  const agentId = resolveSessionAgentId({
-    sessionKey,
-    config: cfg,
-  });
-  const sandboxCfg = resolveSandboxConfigForAgent(cfg, agentId);
-  const sandboxBrowserEnabled =
-    sandboxCfg.browser.enabled && isToolAllowed(sandboxCfg.tools, "browser");
-  const liveScopeKey = sandboxBrowserEnabled
-    ? resolveSandboxScopeKey(sandboxCfg.scope, sessionKey)
-    : undefined;
-  const liveSandboxBridgeUrl = liveScopeKey
-    ? getLiveSandboxBrowserBridgeUrl(liveScopeKey)
-    : undefined;
-
-  if (liveSandboxBridgeUrl) {
-    return {
-      sandboxBridgeUrl: directSandboxBridgeUrl ?? liveSandboxBridgeUrl,
-      allowHostControl: sandboxCfg.browser.allowHostControl,
-      preferSandbox: true,
-      sandboxScopeKey: liveScopeKey,
-    };
-  }
-
-  const runtime = resolveSandboxRuntimeStatus({ cfg, sessionKey });
-  if (!runtime.sandboxed) {
-    const forceSandboxFirst = sandboxBrowserEnabled && sandboxCfg.mode === "all";
-    return {
-      sandboxBridgeUrl: directSandboxBridgeUrl,
-      allowHostControl: forceSandboxFirst ? sandboxCfg.browser.allowHostControl : true,
-      preferSandbox: forceSandboxFirst,
-      sandboxScopeKey: forceSandboxFirst ? liveScopeKey : undefined,
-    };
-  }
-
-  const scopeKey = sandboxBrowserEnabled
-    ? resolveSandboxScopeKey(sandboxCfg.scope, runtime.sessionKey || sessionKey)
-    : undefined;
-  // If the sandbox runtime already exists, reuse its bridge instead of silently
-  // falling back to the host browser for stale dashboard sessions.
-  const runtimeSandboxBridgeUrl = scopeKey ? getLiveSandboxBrowserBridgeUrl(scopeKey) : undefined;
-
-  return {
-    sandboxBridgeUrl: directSandboxBridgeUrl ?? runtimeSandboxBridgeUrl,
-    allowHostControl: sandboxBrowserEnabled ? sandboxCfg.browser.allowHostControl : true,
-    preferSandbox: sandboxBrowserEnabled,
-    sandboxScopeKey: scopeKey,
-  };
-}
-
-function resolveBrowserToolRuntimeContext(params: {
-  cfg?: AlisioConfig;
-  sessionKey?: string;
-  sandbox?: SandboxContext | null;
-}): BrowserToolRuntimeContext {
-  const resolution = resolveBrowserToolRuntimeResolution(params);
-  return {
-    sandboxBridgeUrl: resolution.sandboxBridgeUrl,
-    allowHostControl: resolution.allowHostControl,
-    preferSandbox: resolution.preferSandbox,
-  };
-}
-
-async function resolveLazySandboxBrowserBridgeUrl(params: {
-  cfg?: AlisioConfig;
-  sessionKey?: string;
-  sandbox?: SandboxContext | null;
-}): Promise<string | undefined> {
-  const resolution = resolveBrowserToolRuntimeResolution(params);
-  if (resolution.sandboxBridgeUrl?.trim()) {
-    return resolution.sandboxBridgeUrl.trim();
-  }
-  if (!resolution.preferSandbox || !resolution.sandboxScopeKey) {
-    return undefined;
-  }
-
-  const deadline = Date.now() + SANDBOX_BROWSER_BRIDGE_RESOLVE_TIMEOUT_MS;
-  while (Date.now() <= deadline) {
-    const nextBridgeUrl = (
-      await ensureLiveSandboxBrowserBridgeUrl(resolution.sandboxScopeKey, {
-        cfg: params.cfg,
-        sessionKey: params.sessionKey,
-      })
-    )?.trim();
-    if (nextBridgeUrl) {
-      return nextBridgeUrl;
-    }
-    await new Promise((resolve) => setTimeout(resolve, SANDBOX_BROWSER_BRIDGE_RESOLVE_INTERVAL_MS));
-  }
-  return getLiveSandboxBrowserBridgeUrl(resolution.sandboxScopeKey)?.trim() || undefined;
-}
 
 function normalizeMessageProvider(messageProvider?: string): string | undefined {
   const normalized = messageProvider?.trim().toLowerCase();
@@ -340,7 +189,6 @@ export const __testing = {
   wrapToolParamNormalization,
   assertRequiredParams,
   applyModelProviderToolPolicy,
-  resolveBrowserToolRuntimeContext,
 } as const;
 
 export function createAlisioCodingTools(options?: {
@@ -650,17 +498,6 @@ export function createAlisioCodingTools(options?: {
     // Channel docking: include channel-defined agent tools (login, etc.).
     ...listChannelAgentTools({ cfg: options?.config }),
     ...createAlisioTools({
-      ...resolveBrowserToolRuntimeContext({
-        cfg: options?.config,
-        sessionKey: options?.sessionKey,
-        sandbox,
-      }),
-      resolveSandboxBrowserBridgeUrl: () =>
-        resolveLazySandboxBrowserBridgeUrl({
-          cfg: options?.config,
-          sessionKey: options?.sessionKey,
-          sandbox,
-        }),
       agentSessionKey: options?.sessionKey,
       agentChannel: resolveGatewayMessageChannel(options?.messageProvider),
       agentAccountId: options?.agentAccountId,

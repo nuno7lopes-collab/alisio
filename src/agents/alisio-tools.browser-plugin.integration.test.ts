@@ -30,7 +30,7 @@ describe("createAlisioTools browser plugin integration", () => {
     bundledFixture = null;
   });
 
-  it("loads the bundled browser plugin through normal plugin resolution", () => {
+  it("filters the bundled browser tool out of the agent tool surface", () => {
     const tools = createAlisioTools({
       config: {
         plugins: {
@@ -39,10 +39,10 @@ describe("createAlisioTools browser plugin integration", () => {
       } as AlisioConfig,
     });
 
-    expect(tools.map((tool) => tool.name)).toContain("browser");
+    expect(tools.map((tool) => tool.name)).not.toContain("browser");
   });
 
-  it("omits the browser tool when the bundled browser plugin is disabled", () => {
+  it("still omits the browser tool when the bundled browser plugin is explicitly disabled", () => {
     const tools = createAlisioTools({
       config: {
         plugins: {

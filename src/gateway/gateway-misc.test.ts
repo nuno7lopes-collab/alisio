@@ -527,6 +527,7 @@ describe("resolveNodeCommandAllowlist", () => {
     expect(allow.has("computer.session.start")).toBe(true);
     expect(allow.has("computer.session.pause")).toBe(true);
     expect(allow.has("computer.health")).toBe(true);
+    expect(allow.has("browser.proxy")).toBe(false);
   });
 
   it("can explicitly allow dangerous commands via allowCommands", () => {

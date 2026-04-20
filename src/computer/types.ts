@@ -1,24 +1,36 @@
-export type ComputerBackendKind = "local-mac" | "remote-node" | "ssh-mac";
+export type ComputerBackendKind = "local-mac" | "web" | "windows-local" | "remote-node" | "ssh-mac";
 
-export type ComputerCapabilityKind =
-  | "observe_only"
-  | "foreground_control"
-  | "background_safe_control"
-  | "future_virtualized_control";
+export type ComputerCapabilityKind = "observe_only" | "foreground_control";
+
+export type ComputerCapabilityReasonCode =
+  | "local_mac_observe_supported"
+  | "local_mac_foreground_control_supported"
+  | "web_runtime_unavailable"
+  | "windows_local_runtime_unavailable"
+  | "remote_node_runtime_unavailable"
+  | "ssh_mac_runtime_unavailable";
 
 export type ComputerCapabilityExposure = "exposed" | "hidden";
 
 export type ComputerSessionTargetKind =
   | "local-mac-host"
+  | "web-session"
+  | "windows-local-host"
   | "remote-node-target"
   | "ssh-mac-host";
+
+export type ComputerSessionTargetPlatform = "macos" | "windows" | "web" | "unknown";
 
 export type ComputerSessionStatus =
   | "idle"
   | "observing"
   | "running"
   | "paused"
-  | "awaiting-approval"
+  | "blocked_on_focus"
+  | "blocked_on_approval"
+  | "blocked_on_runtime"
+  | "blocked_on_permissions"
+  | "blocked_on_restart_required"
   | "error"
   | "stopped";
 
@@ -49,8 +61,7 @@ export type ComputerActionType =
   | "open_url"
   | "reveal_path"
   | "open_path"
-  | "open_app"
-  | "app_focus";
+  | "open_app";
 
 export type ComputerStepKind = "observe" | "action";
 
@@ -102,22 +113,39 @@ export type ComputerPolicyDecision = "allow" | "require_once" | "require_session
 export type ComputerSessionBlockReasonCode =
   | "focus_required"
   | "approval_required"
+  | "runtime_unavailable"
   | "runtime_busy"
-  | "concurrency_denied";
+  | "concurrency_denied"
+  | "observation_permission_missing"
+  | "control_permission_missing"
+  | "observation_restart_required"
+  | "control_restart_required";
 
 export type ComputerSessionBlockingKind =
   | "blocked_on_focus"
   | "blocked_on_approval"
-  | "blocked_on_runtime";
+  | "blocked_on_runtime"
+  | "blocked_on_permissions"
+  | "blocked_on_restart_required";
+
+export type ComputerSessionOpenTrigger =
+  | "open_computer"
+  | "open_approval"
+  | "open_permissions"
+  | "open_restart_required";
 
 export type ComputerTimelineEventCode =
   | "session_arbitrated"
   | "session_blocked"
   | "focus_required"
+  | "blocked_on_permissions"
+  | "blocked_on_restart_required"
+  | "runtime_unavailable"
   | "runtime_busy"
   | "concurrency_denied"
-  | "mode_exposed"
-  | "mode_hidden";
+  | "capability_exposed"
+  | "capability_hidden"
+  | "lazy_open_requested";
 
 export type ComputerSessionLogEventCode =
   | "frame_captured"
@@ -134,7 +162,10 @@ export type ComputerSessionLogEventCode =
   | "session_stopped"
   | "session_blocked"
   | "session_arbitrated"
-  | "focus_required";
+  | "focus_required"
+  | "capability_exposed"
+  | "capability_hidden"
+  | "lazy_open_requested";
 
 export type ComputerPolicyReasonCode =
   | "session_stopped"
@@ -155,6 +186,11 @@ export type ComputerPolicyReasonCode =
   | "malicious_instruction_suspected"
   | "scope_escape_attempt"
   | "untrusted_external_content";
+
+export type ComputerReasonCode =
+  | ComputerPolicyReasonCode
+  | ComputerSessionBlockReasonCode
+  | ComputerCapabilityReasonCode;
 
 export type ComputerSafetyEventType =
   | "malicious_instruction_suspected"
@@ -302,6 +338,7 @@ export type ComputerCapabilityDescriptor = {
   kind: ComputerCapabilityKind;
   available: boolean;
   exposure: ComputerCapabilityExposure;
+  reasonCode: ComputerCapabilityReasonCode;
   reason: string;
 };
 
@@ -309,6 +346,7 @@ export type ComputerSessionTarget = {
   id: string;
   label: string;
   kind: ComputerSessionTargetKind;
+  platform: ComputerSessionTargetPlatform;
   nodeId?: string;
   displayId?: string;
   globalInput: boolean;
@@ -324,6 +362,7 @@ export type ComputerSessionBlockingState = {
   ownerSessionKey?: string;
   foregroundControlRequired?: boolean;
   actionType?: ComputerActionType;
+  openTrigger?: ComputerSessionOpenTrigger;
 };
 
 export type ComputerReplayAction = {
@@ -390,7 +429,9 @@ export type ComputerTimelineEntry = {
   retryCount?: number;
   failureCategory?: ComputerActionFailureCategory;
   policyDecision?: ComputerPolicyDecision;
-  reasonCode?: ComputerPolicyReasonCode;
+  reasonCode?: ComputerReasonCode;
+  capability?: ComputerCapabilityKind;
+  openTrigger?: ComputerSessionOpenTrigger;
   safetyEventType?: ComputerSafetyEventType;
   heuristic?: boolean;
 };
@@ -479,6 +520,14 @@ export type ComputerSessionPolicy = {
   lastDecision?: ComputerPolicyDecisionRecord | null;
 };
 
+export type ComputerSessionPolicyPatch = {
+  allow?: Partial<ComputerPolicyRuleScope>;
+  deny?: Partial<ComputerPolicyRuleScope>;
+  sensitive?: Partial<ComputerPolicyRuleScope>;
+  commandLikeActions?: ComputerActionType[];
+  lastDecision?: ComputerPolicyDecisionRecord | null;
+};
+
 export type ComputerSafetyEvent = {
   id: string;
   at: number;
@@ -520,7 +569,9 @@ export type ComputerSessionLogEvent = {
   sourceFrameId?: string;
   resultFrameId?: string;
   policyDecision?: ComputerPolicyDecision;
-  reasonCode?: ComputerPolicyReasonCode;
+  reasonCode?: ComputerReasonCode;
+  capability?: ComputerCapabilityKind;
+  openTrigger?: ComputerSessionOpenTrigger;
   safetyEventType?: ComputerSafetyEventType;
   success?: boolean;
   elapsedMs?: number;
@@ -547,9 +598,18 @@ export type ComputerSessionReplay = {
   safetyEventsCount: number;
 };
 
+export type ComputerPermissionAccessState =
+  | "unknown"
+  | "granted"
+  | "missing"
+  | "restart_required"
+  | "not_supported";
+
 export type ComputerPermissionState = {
-  accessibility: boolean;
-  screenRecording: boolean;
+  accessibility: boolean | null;
+  screenRecording: boolean | null;
+  observation: ComputerPermissionAccessState;
+  control: ComputerPermissionAccessState;
 };
 
 export type ComputerRuntimeErrorState = {
@@ -640,8 +700,10 @@ export type ComputerSessionExport = {
     startedAt: number;
     updatedAt: number;
     target: ComputerSessionTarget;
+    blocking?: ComputerSessionBlockingState | null;
     permissions: ComputerPermissionState;
     capabilities: ComputerCapabilityDescriptor[];
+    runtime?: ComputerRuntimeState | null;
     actionCount: number;
     safetyEventsCount: number;
     approvalCount: number;

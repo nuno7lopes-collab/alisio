@@ -3,7 +3,7 @@ summary: "Native-first local macOS computer use with screenshots plus structured
 read_when:
   - Enabling local host computer use on macOS
   - Debugging missing Screen Recording or Accessibility permissions
-  - Understanding how the Computer pane differs from the sandbox browser
+  - Understanding how local macOS computer use differs from remote web tooling
 title: "Computer (local macOS)"
 ---
 
@@ -12,14 +12,10 @@ title: "Computer (local macOS)"
 Alisio can expose the **local macOS desktop** to the agent through screenshots,
 frames, and structured native macOS actions instead of a remote-control stream.
 
-This is separate from the managed [Browser](/tools/browser):
+On macOS, visible local interaction should happen through `computer`.
 
-- `browser` remains the isolated sandbox/browser-control lane.
-- `computer` targets the real local macOS GUI.
-- The right-hand pane can switch between **Browser**, **Computer**, and
-  **Tool output** surfaces.
-
-On the desktop app, visible local interaction should happen through `computer`.
+Remote/non-local web capabilities such as `web_search`, `web_fetch`, apps, and
+connectors remain separate from this local computer surface.
 
 ## What it does
 
@@ -49,12 +45,23 @@ The current capability truth for local macOS is:
 
 - `observe_only`: available
 - `foreground_control`: available
-- `background_safe_control`: not available
-- `future_virtualized_control`: not available
 
-In practice this means Alisio can observe safely in the background, but local
-host control still depends on real foreground macOS input. The UI should say
-**Foreground control required** when that is the real execution mode.
+Windows note:
+
+- `windows-local` remains capability-gated and unavailable
+- native Windows currently stops at the desktop-host shell foundation, not at a
+  Windows equivalent of the local macOS `computer` runtime
+- for the current Windows host status, see [Windows](/platforms/windows)
+
+Web note:
+
+- the web app does **not** expose host-local `computer`
+- web keeps remote/non-local capabilities such as `web_search`, `web_fetch`,
+  apps, and connectors
+
+In practice this means local host control still depends on real foreground
+macOS input. The UI should say **Foreground control required** when that is the
+real execution mode.
 
 ## Permissions
 
@@ -147,7 +154,7 @@ Local computer use is split into a few layers:
 - A native macOS executor validates permissions, captures frames, and performs
   structured actions.
 - That executor runs inside a separate local helper process with a versioned
-  protocol; it is not the browser sandbox and it is not a VNC/noVNC host flow.
+  protocol; it is not a VNC/noVNC host flow.
 - A Gateway-side computer session manager owns timeline, approval state, status,
   step lifecycle, session-level policy, and safety events.
 - The agent-facing `computer` tool uses screenshots plus structured actions
@@ -155,8 +162,7 @@ Local computer use is split into a few layers:
   explicit computer step with approval/action/observation phases.
 - The UI renders the Computer surface natively in the existing right-hand pane.
 
-This design keeps the managed browser lane intact while adding a separate local
-host control surface for macOS.
+This design gives macOS a single local interaction path through `computer`.
 
 ## Concurrency model
 
@@ -180,6 +186,10 @@ pretending the action is still active:
 The timeline also records runtime-side concurrency events such as
 `session_arbitrated`, `focus_required`, `runtime_busy`, and
 `concurrency_denied`.
+
+During helper startup or restart, `blocked_on_runtime` is the expected state.
+The runtime should expose an honest summary such as `computer helper cold start
+in progress` instead of a generic execution error.
 
 ## Frame and coordinate accuracy
 
@@ -261,7 +271,8 @@ The runtime/concurrency path also emits:
 - `mode_hidden`
 
 These logs are intended for auditability and support the right-pane safety
-timeline without mixing browser-sandbox events into the local computer lane.
+timeline without mixing unrelated remote web-tool events into the local
+computer lane.
 
 ## Session export
 
@@ -289,7 +300,9 @@ Recommended operator flow for local macOS computer use:
 
 1. Run the signed macOS app bundle, not an ad-hoc dev bundle, before relying on Screen Recording or Accessibility state.
 2. Keep the lanes separate:
-   `browser` is the sandboxed browser surface, `computer` is the real local macOS surface, and `tool_output` is the generic workspace output lane.
+   `computer` is the real local macOS surface, and `tool_output` is the generic
+   workspace output lane. Remote web tools remain separate and do not provide
+   host-local control.
 3. Use `observe_only` when you only need visibility. Switch to a control mode only when foreground local input is acceptable.
 4. Treat **Foreground control required** literally. On local macOS, control can still move focus or use global input.
 5. If macOS permissions were just granted and the runtime still reports them missing, restart the app and re-check the Computer pane before assuming the session is broken.
@@ -310,7 +323,7 @@ Manual QA for the current local-mac release gate should cover at least:
 - Focus-steal truthfulness: confirm control paths that need real foreground input show **Foreground control required**.
 - Stop during long input: stop a long drag or typing sequence and confirm cancellation is reflected in state, timeline, and error reporting.
 - Concurrent sessions: multiple sessions may observe, but only one may control the same target at a time; blocked sessions should show a real blocked reason.
-- Browser sandbox unchanged: browser automation should keep working as its own isolated lane without inheriting local-computer state or approvals.
+- No browser-sandbox fallback: local macOS interaction should not fall back to a browser-only control path.
 - Old or partial session payloads: older or truncated session data should not break the Workspace Pane.
 - Session export: `computer.session.export` should return summary, errors, approval history, safety history, and replay metadata without raw frame payloads.
 
@@ -326,10 +339,9 @@ What is production-grade in the current local-mac release:
 
 What remains capability-gated or out of scope:
 
-- `background_safe_control` stays hidden on local macOS
-- `future_virtualized_control` stays hidden
 - remote-node and `ssh-mac` control are future work, not part of this release
-- browser sandbox and local computer control remain separate surfaces by design
+- `windows-local` remains unavailable
+- web remains remote/non-local only and does not expose host-local `computer`
 
 What remains heuristic or bounded:
 
@@ -338,3 +350,23 @@ What remains heuristic or bounded:
 - replay and export completeness once session buffers truncate older artifacts
 
 This page should not be read as a claim of perfect detection, full forensic replay, or background-safe host-local control.
+
+## Release note
+
+Current release note for this surface:
+
+- the **macOS local computer** lane is production-grade enough to ship with
+  explicit limitations
+- the **Windows desktop host** is foundation work only and does not yet expose
+  local `computer`
+- the **web app** does not expose host-local `computer` and should keep using
+  remote/non-local surfaces such as `web_search`, `web_fetch`, apps, and
+  connectors
+
+The honest launch message is therefore:
+
+- macOS: local observation plus foreground-supervised control
+- Windows: desktop host foundation without local computer control
+- web: no host-local computer control
+
+This should not be marketed as full cross-platform parity yet.

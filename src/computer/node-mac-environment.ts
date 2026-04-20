@@ -67,7 +67,6 @@ function parseActionType(value: unknown, label: string): ComputerActionType {
     case "reveal_path":
     case "open_path":
     case "open_app":
-    case "app_focus":
       return value;
     default:
       throw new Error(`invalid ${label}`);
@@ -134,20 +133,11 @@ function parseObservationPayload(payload: unknown): ComputerObservation {
         width: requireFiniteNumber(display.width, "context.display.width"),
         height: requireFiniteNumber(display.height, "context.display.height"),
         scale: requireFiniteNumber(display.scale, "context.display.scale"),
-        logicalWidth: requireFiniteNumber(
-          display.logicalWidth,
-          "context.display.logicalWidth",
-        ),
-        logicalHeight: requireFiniteNumber(
-          display.logicalHeight,
-          "context.display.logicalHeight",
-        ),
+        logicalWidth: requireFiniteNumber(display.logicalWidth, "context.display.logicalWidth"),
+        logicalHeight: requireFiniteNumber(display.logicalHeight, "context.display.logicalHeight"),
         pixelWidth: requireFiniteNumber(display.pixelWidth, "context.display.pixelWidth"),
         pixelHeight: requireFiniteNumber(display.pixelHeight, "context.display.pixelHeight"),
-        orientation: requireOrientation(
-          display.orientation,
-          "context.display.orientation",
-        ),
+        orientation: requireOrientation(display.orientation, "context.display.orientation"),
       },
       activeApp: isRecord(context.activeApp)
         ? {
@@ -201,10 +191,8 @@ function parseActionResults(payload: unknown): ComputerExecutedActionResult[] {
       retryCount,
       summary,
       failureCategory: parseFailureCategory(entry.failureCategory),
-      sourceFrameId:
-        typeof entry.sourceFrameId === "string" ? entry.sourceFrameId : undefined,
-      resultFrameId:
-        typeof entry.resultFrameId === "string" ? entry.resultFrameId : undefined,
+      sourceFrameId: typeof entry.sourceFrameId === "string" ? entry.sourceFrameId : undefined,
+      resultFrameId: typeof entry.resultFrameId === "string" ? entry.resultFrameId : undefined,
     });
   }
   return results;

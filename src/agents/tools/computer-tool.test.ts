@@ -115,7 +115,14 @@ describe("createComputerTool", () => {
         screenRecording: true,
       },
     });
-    computerSessionManager.setStatus(sessionKey, "awaiting-approval", "approval pending");
+    computerSessionManager.setBlocking(sessionKey, {
+      kind: "blocked_on_approval",
+      reasonCode: "approval_required",
+      summary: "approval pending",
+      at: 1,
+      targetId: "local-mac:local:host",
+      openTrigger: "open_approval",
+    });
 
     const tool = createComputerTool({ agentSessionKey: sessionKey });
 
@@ -127,6 +134,60 @@ describe("createComputerTool", () => {
       }),
     ).rejects.toThrow("awaiting approval");
     expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+  });
+
+  it("does not observe when screen recording permission is missing", async () => {
+    const sessionKey = "computer-tool-observe-permission-missing";
+    nodeMocks.resolveNode.mockResolvedValueOnce({
+      nodeId: "mac-local",
+      platform: "macos",
+      permissions: {
+        accessibility: true,
+        screenRecording: false,
+      },
+    });
+
+    const tool = createComputerTool({ agentSessionKey: sessionKey });
+
+    await expect(
+      tool.execute?.("tool-call-observe-permission", {
+        action: "observe",
+      }),
+    ).rejects.toThrow("Screen recording permission is missing");
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+    expect(computerSessionManager.getSession(sessionKey)).toMatchObject({
+      status: "blocked_on_permissions",
+      blocking: {
+        kind: "blocked_on_permissions",
+        reasonCode: "observation_permission_missing",
+      },
+    });
+  });
+
+  it("does not claim local computer control on windows-local", async () => {
+    const sessionKey = "computer-tool-windows";
+    nodeMocks.resolveNode.mockResolvedValueOnce({
+      nodeId: "windows-local",
+      platform: "windows",
+      permissions: {},
+    });
+
+    const tool = createComputerTool({ agentSessionKey: sessionKey });
+
+    await expect(
+      tool.execute?.("tool-call-windows", {
+        action: "session",
+      }),
+    ).rejects.toThrow("windows-local");
+    expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
+    expect(computerSessionManager.getSession(sessionKey)).toMatchObject({
+      backend: "windows-local",
+      status: "blocked_on_runtime",
+      permissions: {
+        observation: "not_supported",
+        control: "not_supported",
+      },
+    });
   });
 
   it("captures a fresh frame before control actions even when the session already has a frame", async () => {
@@ -257,11 +318,6 @@ describe("createComputerTool", () => {
           kind: "foreground_control",
           available: true,
           exposure: "exposed",
-        }),
-        expect.objectContaining({
-          kind: "background_safe_control",
-          available: false,
-          exposure: "hidden",
         }),
       ]),
     });

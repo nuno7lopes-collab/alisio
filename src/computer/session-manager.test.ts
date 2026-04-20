@@ -121,13 +121,9 @@ describe("ComputerSessionManager", () => {
           available: true,
           exposure: "exposed",
         }),
-        expect.objectContaining({
-          kind: "background_safe_control",
-          available: false,
-          exposure: "hidden",
-        }),
       ]),
     );
+    expect(session?.capabilities).toHaveLength(2);
   });
 
   it("updates permissions from explicit patches", () => {
@@ -140,6 +136,8 @@ describe("ComputerSessionManager", () => {
     expect(session.permissions).toEqual({
       accessibility: true,
       screenRecording: false,
+      observation: "missing",
+      control: "granted",
     });
   });
 
@@ -148,8 +146,62 @@ describe("ComputerSessionManager", () => {
 
     const session = manager.recordError("main", "PERMISSION_MISSING: accessibility");
 
-    expect(session.status).toBe("error");
-    expect(session.permissions.accessibility).toBe(false);
+    expect(session.status).toBe("blocked_on_restart_required");
+    expect(session.blocking).toMatchObject({
+      kind: "blocked_on_restart_required",
+      reasonCode: "control_restart_required",
+    });
+    expect(session.permissions).toMatchObject({
+      accessibility: true,
+      control: "restart_required",
+    });
+  });
+
+  it("hides local computer control on web and windows-local backends", () => {
+    const manager = new ComputerSessionManager();
+
+    const webSession = manager.ensureSession({
+      sessionKey: "web",
+      backend: "web",
+    });
+    const windowsSession = manager.ensureSession({
+      sessionKey: "windows",
+      backend: "windows-local",
+    });
+
+    expect(webSession.status).toBe("blocked_on_runtime");
+    expect(
+      webSession.capabilities.every((entry) => !entry.available && entry.exposure === "hidden"),
+    ).toBe(true);
+    expect(webSession.permissions).toMatchObject({
+      observation: "not_supported",
+      control: "not_supported",
+    });
+
+    expect(windowsSession.status).toBe("blocked_on_runtime");
+    expect(
+      windowsSession.capabilities.every((entry) => !entry.available && entry.exposure === "hidden"),
+    ).toBe(true);
+    expect(windowsSession.permissions).toMatchObject({
+      observation: "not_supported",
+      control: "not_supported",
+    });
+  });
+
+  it("reports helper cold start as blocked_on_runtime instead of a generic error", () => {
+    const manager = createManager();
+
+    const session = manager.setRuntime("main", {
+      connectionState: "starting",
+      launchCount: 0,
+    });
+
+    expect(session.status).toBe("blocked_on_runtime");
+    expect(session.blocking).toMatchObject({
+      kind: "blocked_on_runtime",
+      reasonCode: "runtime_busy",
+      summary: "computer helper cold start in progress",
+    });
   });
 
   it("requires approval for unapproved apps in approved-apps mode", () => {
@@ -354,13 +406,13 @@ describe("ComputerSessionManager", () => {
       toolCallId: "tool-2",
       kind: "action",
       phase: "observe-before-action",
-      summary: "prepare app focus",
-      actionType: "app_focus",
+      summary: "prepare focus app",
+      actionType: "focus_app",
     });
 
     const decisionPromise = manager.requestApproval({
       sessionKey: "main",
-      action: { type: "app_focus", app: "Finder" },
+      action: { type: "focus_app", app: "Finder" },
       reason: "action targets unapproved app com.apple.finder",
       reasonCode: "unapproved_app",
       policyDecision: "require_session",
@@ -478,12 +530,24 @@ describe("ComputerSessionManager", () => {
       ownerSessionKey: "other",
       actionType: "click",
     });
-    expect(blocked.timeline.at(-1)).toMatchObject({
-      kind: "status",
-      eventCode: "focus_required",
-      stepSequence: 1,
-      actionType: "click",
-    });
+    expect(blocked.status).toBe("blocked_on_focus");
+    expect(blocked.timeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "status",
+          eventCode: "focus_required",
+          stepSequence: 1,
+          actionType: "click",
+        }),
+        expect.objectContaining({
+          kind: "status",
+          eventCode: "lazy_open_requested",
+          stepSequence: 1,
+          actionType: "click",
+          openTrigger: "open_computer",
+        }),
+      ]),
+    );
   });
 
   it("keeps structured event ordering stable across observe, validate, execute and export", () => {
@@ -548,6 +612,8 @@ describe("ComputerSessionManager", () => {
 
     const exported = manager.exportSession("main");
     expect(exported.eventLog.map((entry) => entry.code)).toEqual([
+      "capability_exposed",
+      "capability_exposed",
       "state_transition",
       "frame_captured",
       "action_requested",
@@ -555,7 +621,7 @@ describe("ComputerSessionManager", () => {
       "action_executed",
       "frame_captured",
     ]);
-    expect(exported.eventLog.map((entry) => entry.ordinal)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(exported.eventLog.map((entry) => entry.ordinal)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(exported.replay.frames).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -573,6 +639,10 @@ describe("ComputerSessionManager", () => {
       hasNativeActionId: true,
       hasRunId: false,
       hasResponseId: false,
+    });
+    expect(exported.summary).toMatchObject({
+      blocking: null,
+      runtime: null,
     });
   });
 

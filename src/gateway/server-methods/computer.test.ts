@@ -3,7 +3,10 @@ import { computerSessionManager } from "../../computer/session-manager.js";
 import { computerHandlers } from "./computer.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
-function createOptions(params: Record<string, unknown>, invoke = vi.fn()): GatewayRequestHandlerOptions {
+function createOptions(
+  params: Record<string, unknown>,
+  invoke = vi.fn(),
+): GatewayRequestHandlerOptions {
   return {
     req: { type: "req", id: "req-1", method: "computer.session.get", params },
     params,
@@ -82,13 +85,16 @@ describe("computerHandlers", () => {
       }),
     );
     expect(opts.respond).toHaveBeenCalledTimes(1);
-    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
     expect(responsePayload).toMatchObject({
       sessionKey,
       session: {
         permissions: {
           accessibility: true,
           screenRecording: false,
+          observation: "missing",
+          control: "granted",
         },
         runtime: {
           connectionState: "running",
@@ -100,6 +106,47 @@ describe("computerHandlers", () => {
             state: "running",
             updatedAt: 123,
           },
+        },
+      },
+    });
+  });
+
+  it("surfaces helper cold start as blocked_on_runtime", async () => {
+    const sessionKey = "computer-session-cold-start";
+    computerSessionManager.ensureSession({
+      sessionKey,
+      nodeId: "mac-node-cold-start",
+    });
+    const invoke = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        payloadJSON: JSON.stringify({
+          connectionState: "starting",
+          launchCount: 0,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        payloadJSON: JSON.stringify({
+          accessibility: true,
+          screenRecording: true,
+        }),
+      });
+    const opts = createOptions({ sessionKey }, invoke);
+
+    await computerHandlers["computer.session.get"](opts);
+
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
+    expect(responsePayload).toMatchObject({
+      sessionKey,
+      session: {
+        status: "blocked_on_runtime",
+        blocking: {
+          kind: "blocked_on_runtime",
+          reasonCode: "runtime_busy",
+          summary: "computer helper cold start in progress",
         },
       },
     });
@@ -148,7 +195,8 @@ describe("computerHandlers", () => {
       }),
     );
     expect(opts.respond).toHaveBeenCalledTimes(1);
-    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
     expect(responsePayload).toMatchObject({
       sessionKey,
       session: {
@@ -190,12 +238,16 @@ describe("computerHandlers", () => {
     await computerHandlers["computer.session.get"](opts);
 
     expect(opts.respond).toHaveBeenCalledTimes(1);
-    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
     expect(responsePayload).toMatchObject({
       sessionKey,
       session: {
-        status: "error",
-        lastError: "command not declared by node",
+        status: "blocked_on_runtime",
+        blocking: {
+          kind: "blocked_on_runtime",
+          reasonCode: "runtime_unavailable",
+        },
         runtime: {
           connectionState: "disabled",
           lastError: {
@@ -203,6 +255,28 @@ describe("computerHandlers", () => {
             message: "command not declared by node",
             retryable: false,
           },
+        },
+      },
+    });
+  });
+
+  it("returns an explicit web capability matrix without node runtime calls", async () => {
+    const invoke = vi.fn();
+    const opts = createOptions({ sessionKey: "computer-session-web", backend: "web" }, invoke);
+
+    await computerHandlers["computer.session.get"](opts);
+
+    expect(invoke).not.toHaveBeenCalled();
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
+    expect(responsePayload).toMatchObject({
+      sessionKey: "computer-session-web",
+      session: {
+        backend: "web",
+        status: "blocked_on_runtime",
+        permissions: {
+          observation: "not_supported",
+          control: "not_supported",
         },
       },
     });
@@ -232,7 +306,8 @@ describe("computerHandlers", () => {
     await computerHandlers["computer.session.update"](opts);
 
     expect(opts.respond).toHaveBeenCalledTimes(1);
-    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
     expect(responsePayload).toMatchObject({
       sessionKey,
       session: {
@@ -260,7 +335,8 @@ describe("computerHandlers", () => {
     await computerHandlers["computer.session.export"](opts);
 
     expect(opts.respond).toHaveBeenCalledTimes(1);
-    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
     expect(responsePayload).toMatchObject({
       sessionKey,
       sessionExport: {

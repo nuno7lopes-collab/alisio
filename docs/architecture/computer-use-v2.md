@@ -10,7 +10,7 @@ This page documents the current **macOS local computer-use runtime** in Alisio a
 ## Scope
 
 - **In scope now:** local macOS computer use with a native helper process boundary.
-- **Not in scope now:** host-local VNC/noVNC, browser sandbox convergence, or claimed background-safe control.
+- **Not in scope now:** host-local VNC/noVNC, Windows local computer control, or claimed background-safe control.
 - **Future-compatible seams:** `local-mac` now, with room for `remote-node` and `ssh-mac` later.
 
 ## Runtime split
@@ -35,7 +35,7 @@ Alisio now uses a **separate helper process** for native computer control on mac
 
 - The helper is launched from the app binary with `--computer-helper`.
 - The parent node runtime talks to it over a **versioned JSON protocol over stdio**.
-- The helper is not declared as a browser sandbox and is not mixed with browser automation.
+- The helper is a dedicated computer-use runtime, not a browser-automation runtime.
 - The helper is not exposed as background-safe control. It still uses foreground macOS accessibility and screen-capture primitives.
 
 This is a real process boundary, but it is **not NSXPC yet**. We chose a separate process with a typed protocol because it fits the current packaging/runtime architecture without introducing a larger packaging rewrite in this phase.
@@ -113,8 +113,6 @@ The current structured action schema covers:
 - `open_path`
 - `open_app`
 
-Legacy aliases such as `app_focus` are normalized into the canonical action type before validation and execution.
-
 ## Validation and execution
 
 The native helper validates actions before execution:
@@ -169,6 +167,9 @@ Current behavior:
 - `computer.session.export` returns an honest debug/export snapshot of the current session without pretending a full forensic bundle already exists.
 - On helper interruption, the client marks the connection as `interrupted`, clears in-flight calls, and reconnects lazily on the next request.
 - On reconnect, the client restores desired session state for running and paused sessions before serving the next request.
+- While the helper is still starting or restarting, the session should surface
+  `blocked_on_runtime` with `runtime_busy` rather than collapsing into a generic
+  execution failure.
 
 ## Capability matrix
 
@@ -176,15 +177,16 @@ The runtime now exposes an explicit capability matrix per session target:
 
 - `observe_only`
 - `foreground_control`
-- `background_safe_control`
-- `future_virtualized_control`
 
 Current local-mac truth:
 
 - `observe_only` is available and exposed.
 - `foreground_control` is available and exposed.
-- `background_safe_control` is unavailable and hidden.
-- `future_virtualized_control` is unavailable and hidden.
+
+Current non-mac truth:
+
+- `web` does not expose host-local computer capabilities.
+- `windows-local` remains capability-gated and unavailable.
 
 This is deliberate. The local helper still drives real foreground macOS input,
 so the product does not market or expose host-local background-safe control.
@@ -410,8 +412,23 @@ Current hardening status for the local-mac release gate:
 - **Approval UX:** approval prompts come from policy outcomes (`require_once` / `require_session` / `deny`), not from UI-only guesses.
 - **Blocked-state truthfulness:** sessions expose `blocked_on_focus`, `blocked_on_approval`, and `blocked_on_runtime` when those are the real reasons work cannot proceed.
 - **Replay/export limits:** replay and export are bounded in memory, expose truncation flags, and do not claim a full forensic bundle.
-- **Capability truthfulness:** `observe_only` and `foreground_control` are the only exposed local-mac capabilities. `background_safe_control` remains hidden because the runtime still depends on real foreground macOS input.
-- **Browser separation:** browser sandbox behavior remains a separate lane and is not merged with host-local computer control.
+- **Capability truthfulness:** `observe_only` and `foreground_control` are the only exposed local-mac capabilities because the runtime still depends on real foreground macOS input.
+- **No browser fallback:** local macOS site and app interaction routes through `computer` actions such as `open_url`, `open_app`, and `focus_app`, not through a browser sandbox.
+
+## Validation gate
+
+The current release gate for local-mac computer use should be evaluated with a
+real mix of code gates and product smoke:
+
+- `pnpm build`
+- `swift build --package-path apps/macos`
+- `pnpm test -- src/computer/session-manager.test.ts src/gateway/server-methods/computer.test.ts src/agents/tools/computer-tool.test.ts ui/src/ui/controllers/browser-pane.test.ts ui/src/ui/navigation.test.ts ui/src/ui/navigation-groups.test.ts ui/src/ui/views/settings.test.ts ui/src/ui/views/chat.test.ts ui/src/ui/views/command-palette.test.ts ui/src/ui/controllers/chat.test.ts`
+- `pnpm test -- ui/src/ui/alisio-host.test.ts`
+- `scripts/restart-mac.sh`
+
+The final command is intentionally a **product smoke**, not just a packaging
+check. It rebuilds the Control UI, rebuilds the native macOS app, packages the
+debug app bundle, and opens the app through the supported local workflow.
 
 ## Release scope and non-claims
 
@@ -437,11 +454,26 @@ Heuristic or partial by design:
 - sensitive-surface and auth-context detection
 - replay/export completeness once bounded buffers have truncated older frames, steps, or events
 
+## Release recommendation
+
+Current recommendation for the local-mac release lane:
+
+- **GO WITH LIMITATIONS** for macOS local computer use once the validation gate
+  above is green on the exact tree being shipped.
+- **NO-GO** for any claim of parity across macOS, Windows, and web local-host
+  control. Windows currently stops at a desktop-host foundation, and web does
+  not expose host-local computer control.
+
+In other words:
+
+- shipping **macOS local computer use** is reasonable with explicit limits
+- shipping **cross-platform local computer parity** is not yet an honest claim
+
 ## Safety and limits
 
 - The runtime now has a real local policy engine, structured approvals, and heuristic visual prompt-injection detection.
 - It does **not** claim background-safe control.
-- It does **not** merge local computer control with the browser sandbox.
+- It does **not** provide a browser-sandbox fallback for local macOS control.
 - It does **not** yet provide a full deterministic forensic replay bundle. Current export/replay is bounded, metadata-driven, and honest about truncation.
 - It does **not** claim perfect automatic detection of prompt injection, credential surfaces, or sensitive intent. Current safety signals are explicit heuristics plus local policy scope.
 - It does **not** claim that all actions are background-safe. The helper still drives real foreground macOS input.

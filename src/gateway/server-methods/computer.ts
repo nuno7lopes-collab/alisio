@@ -1,14 +1,15 @@
-import { computerSessionManager } from "../../computer/session-manager.js";
 import { normalizeComputerApprovalMode } from "../../computer/policy-engine.js";
+import { computerSessionManager } from "../../computer/session-manager.js";
 import type {
   ComputerActionType,
   ComputerApprovalMode,
+  ComputerBackendKind,
   ComputerPermissionState,
   ComputerRuntimeConnectionState,
   ComputerRuntimeErrorCode,
   ComputerRuntimeSessionState,
   ComputerRuntimeState,
-  ComputerSessionPolicy,
+  ComputerSessionPolicyPatch,
 } from "../../computer/types.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { safeParseJson } from "./nodes.helpers.js";
@@ -21,6 +22,19 @@ function resolveSessionKey(params: Record<string, unknown>): string {
 
 function resolveApprovalMode(value: unknown): ComputerApprovalMode | null {
   return normalizeComputerApprovalMode(value);
+}
+
+function readBackendKind(value: unknown): ComputerBackendKind | null {
+  switch (value) {
+    case "local-mac":
+    case "web":
+    case "windows-local":
+    case "remote-node":
+    case "ssh-mac":
+      return value;
+    default:
+      return null;
+  }
 }
 
 function resolvePermissionPatch(value: unknown): Partial<ComputerPermissionState> | null {
@@ -71,7 +85,6 @@ function readActionType(value: unknown): ComputerActionType | null {
     case "reveal_path":
     case "open_path":
     case "open_app":
-    case "app_focus":
       return value;
     default:
       return null;
@@ -92,17 +105,19 @@ function readActionArray(value: unknown): ComputerActionType[] | null {
   if (!Array.isArray(value)) {
     return null;
   }
-  const items = value.map((entry) => readActionType(entry)).filter((entry): entry is ComputerActionType => Boolean(entry));
+  const items = value
+    .map((entry) => readActionType(entry))
+    .filter((entry): entry is ComputerActionType => Boolean(entry));
   return items;
 }
 
 function resolvePolicyScopePatch(
   value: unknown,
-): Partial<ComputerSessionPolicy["allow"]> | null {
+): NonNullable<ComputerSessionPolicyPatch["allow"]> | null {
   if (!isRecord(value)) {
     return null;
   }
-  const patch: Partial<ComputerSessionPolicy["allow"]> = {};
+  const patch: NonNullable<ComputerSessionPolicyPatch["allow"]> = {};
   const apps = readStringArray(value.apps);
   if (apps) {
     patch.apps = apps;
@@ -126,11 +141,11 @@ function resolvePolicyScopePatch(
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
-function resolvePolicyPatch(value: unknown): Partial<ComputerSessionPolicy> | null {
+function resolvePolicyPatch(value: unknown): ComputerSessionPolicyPatch | null {
   if (!isRecord(value)) {
     return null;
   }
-  const patch: Partial<ComputerSessionPolicy> = {};
+  const patch: ComputerSessionPolicyPatch = {};
   const allow = resolvePolicyScopePatch(value.allow);
   if (allow) {
     patch.allow = allow;
@@ -241,7 +256,12 @@ function readPermissionState(value: unknown): ComputerPermissionState | null {
   if (accessibility === null || screenRecording === null) {
     return null;
   }
-  return { accessibility, screenRecording };
+  return {
+    accessibility,
+    screenRecording,
+    observation: screenRecording ? "granted" : "missing",
+    control: accessibility ? "granted" : "missing",
+  };
 }
 
 function readRuntimeState(value: unknown): ComputerRuntimeState | null {
@@ -255,17 +275,18 @@ function readRuntimeState(value: unknown): ComputerRuntimeState | null {
     return null;
   }
 
-  const activeSession = helper && isRecord(helper.activeSession)
-    ? (() => {
-        const sessionKey = readString(helper.activeSession.sessionId);
-        const state = readRuntimeSessionState(helper.activeSession.state);
-        const updatedAt = readNumber(helper.activeSession.updatedAt);
-        if (!sessionKey || !state || updatedAt === null) {
-          return undefined;
-        }
-        return { sessionKey, state, updatedAt };
-      })()
-    : undefined;
+  const activeSession =
+    helper && isRecord(helper.activeSession)
+      ? (() => {
+          const sessionKey = readString(helper.activeSession.sessionId);
+          const state = readRuntimeSessionState(helper.activeSession.state);
+          const updatedAt = readNumber(helper.activeSession.updatedAt);
+          if (!sessionKey || !state || updatedAt === null) {
+            return undefined;
+          }
+          return { sessionKey, state, updatedAt };
+        })()
+      : undefined;
 
   const lastError = readRuntimeError(value.lastError) ?? readRuntimeError(helper?.lastError);
 
@@ -275,7 +296,9 @@ function readRuntimeState(value: unknown): ComputerRuntimeState | null {
     ...(readNumber(helper?.protocolVersion) !== null
       ? { helperProtocolVersion: readNumber(helper?.protocolVersion)! }
       : {}),
-    ...(readString(helper?.helperVersion) ? { helperVersion: readString(helper?.helperVersion)! } : {}),
+    ...(readString(helper?.helperVersion)
+      ? { helperVersion: readString(helper?.helperVersion)! }
+      : {}),
     ...(readNumber(helper?.processId) !== null
       ? { helperProcessId: readNumber(helper?.processId)! }
       : {}),
@@ -284,9 +307,7 @@ function readRuntimeState(value: unknown): ComputerRuntimeState | null {
   };
 }
 
-function readHelperSessionPayload(
-  value: unknown,
-): {
+function readHelperSessionPayload(value: unknown): {
   sessionKey: string;
   state: ComputerRuntimeSessionState;
   permissions: ComputerPermissionState;
@@ -317,47 +338,44 @@ function resolveNodeId(
   return current || null;
 }
 
-function ensureLocalSession(params: {
+function ensureComputerSession(params: {
   sessionKey: string;
+  backend?: ComputerBackendKind | null;
   nodeId?: string | null;
   mode?: ComputerApprovalMode | null;
   permissions?: Partial<ComputerPermissionState> | null;
 }) {
-  return (
-    computerSessionManager.getSession(params.sessionKey) ??
-    computerSessionManager.ensureSession({
-      sessionKey: params.sessionKey,
-      ...(params.nodeId ? { nodeId: params.nodeId } : {}),
-      ...(params.mode ? { mode: params.mode } : {}),
-      ...(params.permissions ? { permissions: params.permissions } : {}),
-    })
-  );
+  return computerSessionManager.ensureSession({
+    sessionKey: params.sessionKey,
+    ...(params.backend ? { backend: params.backend } : {}),
+    ...(params.nodeId ? { nodeId: params.nodeId } : {}),
+    ...(params.mode ? { mode: params.mode } : {}),
+    ...(params.permissions ? { permissions: params.permissions } : {}),
+  });
 }
 
 function applyRuntimeState(params: {
   sessionKey: string;
+  backend?: ComputerBackendKind | null;
   nodeId?: string | null;
   runtime: ComputerRuntimeState;
   permissions?: ComputerPermissionState | null;
 }) {
-  ensureLocalSession({
+  ensureComputerSession({
     sessionKey: params.sessionKey,
+    backend: params.backend,
     nodeId: params.nodeId,
     permissions: params.permissions ?? undefined,
   });
   if (params.permissions) {
     computerSessionManager.setPermissions(params.sessionKey, params.permissions);
   }
-  let session = computerSessionManager.setRuntime(params.sessionKey, params.runtime);
-  const runtimeError = params.runtime.lastError?.message?.trim();
-  if (runtimeError) {
-    session = computerSessionManager.recordError(params.sessionKey, runtimeError);
-  }
-  return session;
+  return computerSessionManager.setRuntime(params.sessionKey, params.runtime);
 }
 
 async function refreshRuntimeState(params: {
   sessionKey: string;
+  backend?: ComputerBackendKind | null;
   nodeId: string;
   context: Parameters<GatewayRequestHandlers["computer.session.get"]>[0]["context"];
 }) {
@@ -375,17 +393,21 @@ async function refreshRuntimeState(params: {
   ]);
 
   const runtime = healthRes.ok
-    ? readRuntimeState(healthRes.payloadJSON ? safeParseJson(healthRes.payloadJSON) : healthRes.payload) ??
-      createUnavailableRuntime("invalid computer.health payload")
+    ? (readRuntimeState(
+        healthRes.payloadJSON ? safeParseJson(healthRes.payloadJSON) : healthRes.payload,
+      ) ?? createUnavailableRuntime("invalid computer.health payload"))
     : createUnavailableRuntime(resolveNodeInvokeErrorMessage(healthRes.error));
   const permissions = permissionsRes.ok
     ? readPermissionState(
-        permissionsRes.payloadJSON ? safeParseJson(permissionsRes.payloadJSON) : permissionsRes.payload,
+        permissionsRes.payloadJSON
+          ? safeParseJson(permissionsRes.payloadJSON)
+          : permissionsRes.payload,
       )
     : null;
 
   return applyRuntimeState({
     sessionKey: params.sessionKey,
+    backend: params.backend,
     nodeId: params.nodeId,
     runtime,
     permissions,
@@ -395,9 +417,22 @@ async function refreshRuntimeState(params: {
 export const computerHandlers: GatewayRequestHandlers = {
   "computer.session.get": async ({ params, respond, context }) => {
     const sessionKey = resolveSessionKey(params);
-    const session = computerSessionManager.getSession(sessionKey);
+    const requestedBackend = params.backend === undefined ? null : readBackendKind(params.backend);
+    if (params.backend !== undefined && !requestedBackend) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid computer backend"));
+      return;
+    }
+    const existingSession = computerSessionManager.getSession(sessionKey);
+    const backend = requestedBackend ?? existingSession?.backend ?? "local-mac";
+    const session =
+      existingSession ??
+      ensureComputerSession({
+        sessionKey,
+        backend,
+        nodeId: readString(params.nodeId),
+      });
     const nodeId = resolveNodeId(params, session);
-    if (!nodeId) {
+    if (!nodeId || backend !== "local-mac") {
       respond(true, {
         sessionKey,
         session,
@@ -406,6 +441,7 @@ export const computerHandlers: GatewayRequestHandlers = {
     }
     const synced = await refreshRuntimeState({
       sessionKey,
+      backend,
       nodeId,
       context,
     });
@@ -414,6 +450,11 @@ export const computerHandlers: GatewayRequestHandlers = {
 
   "computer.session.update": async ({ params, respond, context }) => {
     const sessionKey = resolveSessionKey(params);
+    const requestedBackend = params.backend === undefined ? null : readBackendKind(params.backend);
+    if (params.backend !== undefined && !requestedBackend) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid computer backend"));
+      return;
+    }
     const mode = params.mode === undefined ? null : resolveApprovalMode(params.mode);
     if (params.mode !== undefined && !mode) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid computer mode"));
@@ -435,11 +476,13 @@ export const computerHandlers: GatewayRequestHandlers = {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "invalid computer policy"));
       return;
     }
-    let session = ensureLocalSession({
+    let session = ensureComputerSession({
       sessionKey,
+      backend: requestedBackend,
       nodeId: readString(params.nodeId),
       mode,
     });
+    const backend = requestedBackend ?? session.backend;
     if (mode) {
       session = computerSessionManager.setMode(sessionKey, mode);
     }
@@ -450,6 +493,21 @@ export const computerHandlers: GatewayRequestHandlers = {
       session = computerSessionManager.setPolicy(sessionKey, policy);
     }
     const nodeId = resolveNodeId(params, session);
+    if (
+      command &&
+      backend !== "local-mac" &&
+      (command === "start" || command === "pause" || command === "resume" || command === "stop")
+    ) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `computer runtime is unavailable for backend ${backend}`,
+        ),
+      );
+      return;
+    }
     switch (command) {
       case "":
         break;
@@ -471,6 +529,7 @@ export const computerHandlers: GatewayRequestHandlers = {
           const message = resolveNodeInvokeErrorMessage(res.error);
           session = applyRuntimeState({
             sessionKey,
+            backend,
             nodeId,
             runtime: createUnavailableRuntime(message),
           });
@@ -481,7 +540,11 @@ export const computerHandlers: GatewayRequestHandlers = {
           res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload,
         );
         if (!payload) {
-          respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"));
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"),
+          );
           return;
         }
         session = computerSessionManager.setPermissions(sessionKey, payload.permissions);
@@ -508,6 +571,7 @@ export const computerHandlers: GatewayRequestHandlers = {
             const message = resolveNodeInvokeErrorMessage(res.error);
             session = applyRuntimeState({
               sessionKey,
+              backend,
               nodeId,
               runtime: createUnavailableRuntime(message),
             });
@@ -518,7 +582,11 @@ export const computerHandlers: GatewayRequestHandlers = {
             res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload,
           );
           if (!payload) {
-            respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"));
+            respond(
+              false,
+              undefined,
+              errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"),
+            );
             return;
           }
           session = computerSessionManager.setPermissions(sessionKey, payload.permissions);
@@ -545,6 +613,7 @@ export const computerHandlers: GatewayRequestHandlers = {
             const message = resolveNodeInvokeErrorMessage(res.error);
             session = applyRuntimeState({
               sessionKey,
+              backend,
               nodeId,
               runtime: createUnavailableRuntime(message),
             });
@@ -555,7 +624,11 @@ export const computerHandlers: GatewayRequestHandlers = {
             res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload,
           );
           if (!payload) {
-            respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"));
+            respond(
+              false,
+              undefined,
+              errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"),
+            );
             return;
           }
           session = computerSessionManager.setPermissions(sessionKey, payload.permissions);
@@ -582,6 +655,7 @@ export const computerHandlers: GatewayRequestHandlers = {
             const message = resolveNodeInvokeErrorMessage(res.error);
             session = applyRuntimeState({
               sessionKey,
+              backend,
               nodeId,
               runtime: createUnavailableRuntime(message),
             });
@@ -592,7 +666,11 @@ export const computerHandlers: GatewayRequestHandlers = {
             res.payloadJSON ? safeParseJson(res.payloadJSON) : res.payload,
           );
           if (!payload) {
-            respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"));
+            respond(
+              false,
+              undefined,
+              errorShape(ErrorCodes.UNAVAILABLE, "invalid computer session payload"),
+            );
             return;
           }
           session = computerSessionManager.setPermissions(sessionKey, payload.permissions);

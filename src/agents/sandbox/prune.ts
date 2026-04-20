@@ -3,13 +3,11 @@ import { stopBrowserBridgeServer } from "../../plugin-sdk/browser-runtime.js";
 import { defaultRuntime } from "../../runtime.js";
 import { getSandboxBackendManager } from "./backend.js";
 import { BROWSER_BRIDGES } from "./browser-bridges.js";
-import { dockerSandboxBackendManager } from "./docker-backend.js";
 import {
   readBrowserRegistry,
   readRegistry,
   removeBrowserRegistryEntry,
   removeRegistryEntry,
-  type SandboxBrowserRegistryEntry,
   type SandboxRegistryEntry,
 } from "./registry.js";
 import type { SandboxConfig } from "./types.js";
@@ -78,37 +76,15 @@ async function pruneSandboxContainers(cfg: SandboxConfig) {
   });
 }
 
-async function pruneSandboxBrowsers(cfg: SandboxConfig) {
-  const config = loadConfig();
-  await pruneSandboxRegistryEntries<
-    SandboxBrowserRegistryEntry & {
-      backendId?: string;
-      runtimeLabel?: string;
-      configLabelKind?: string;
-    }
-  >({
-    cfg,
-    read: readBrowserRegistry,
-    remove: removeBrowserRegistryEntry,
-    removeRuntime: async (entry) => {
-      await dockerSandboxBackendManager.removeRuntime({
-        entry: {
-          ...entry,
-          backendId: "docker",
-          runtimeLabel: entry.containerName,
-          configLabelKind: "Image",
-        },
-        config,
-      });
-    },
-    onRemoved: async (entry) => {
-      const bridge = BROWSER_BRIDGES.get(entry.sessionKey);
-      if (bridge?.containerName === entry.containerName) {
-        await stopBrowserBridgeServer(bridge.bridge.server).catch(() => undefined);
-        BROWSER_BRIDGES.delete(entry.sessionKey);
-      }
-    },
-  });
+async function clearLegacyBrowserSandboxState() {
+  const registry = await readBrowserRegistry();
+  for (const entry of registry.entries) {
+    await removeBrowserRegistryEntry(entry.containerName);
+  }
+  for (const [sessionKey, bridge] of BROWSER_BRIDGES.entries()) {
+    await stopBrowserBridgeServer(bridge.bridge.server).catch(() => undefined);
+    BROWSER_BRIDGES.delete(sessionKey);
+  }
 }
 
 export async function maybePruneSandboxes(cfg: SandboxConfig) {
@@ -119,7 +95,7 @@ export async function maybePruneSandboxes(cfg: SandboxConfig) {
   lastPruneAtMs = now;
   try {
     await pruneSandboxContainers(cfg);
-    await pruneSandboxBrowsers(cfg);
+    await clearLegacyBrowserSandboxState();
   } catch (error) {
     const message =
       error instanceof Error

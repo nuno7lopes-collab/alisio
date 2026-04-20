@@ -57,12 +57,10 @@ const defaultAlisioToolsDeps: AlisioToolsDeps = {
 
 let alisioToolsDeps: AlisioToolsDeps = defaultAlisioToolsDeps;
 
+const REMOVED_PRODUCT_PLUGIN_TOOLS = new Set(["browser"]);
+
 export function createAlisioTools(
   options?: {
-    sandboxBrowserBridgeUrl?: string;
-    resolveSandboxBrowserBridgeUrl?: () => Promise<string | undefined>;
-    allowHostBrowserControl?: boolean;
-    preferSandbox?: boolean;
     agentSessionKey?: string;
     agentChannel?: GatewayMessageChannel;
     agentAccountId?: string;
@@ -300,12 +298,6 @@ export function createAlisioTools(
       agentId: sessionAgentId,
       sessionKey: options?.agentSessionKey,
       sessionId: options?.sessionId,
-      browser: {
-        sandboxBridgeUrl: options?.sandboxBrowserBridgeUrl,
-        resolveSandboxBridgeUrl: options?.resolveSandboxBrowserBridgeUrl,
-        allowHostControl: options?.allowHostBrowserControl,
-        preferSandbox: options?.preferSandbox,
-      },
       messageChannel: options?.agentChannel,
       agentAccountId: options?.agentAccountId,
       deliveryContext,
@@ -316,7 +308,7 @@ export function createAlisioTools(
     existingToolNames: new Set(tools.map((tool) => tool.name)),
     toolAllowlist: options?.pluginToolAllowlist,
     allowGatewaySubagentBinding: options?.allowGatewaySubagentBinding,
-  });
+  }).filter((tool) => !REMOVED_PRODUCT_PLUGIN_TOOLS.has(tool.name));
 
   const wrappedPluginTools = applyPluginToolDeliveryDefaults({
     tools: pluginTools,

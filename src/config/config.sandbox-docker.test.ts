@@ -180,7 +180,7 @@ describe("sandbox docker config", () => {
   });
 });
 
-describe("sandbox browser binds config", () => {
+describe("sandbox browser config", () => {
   it("accepts binds array in sandbox.browser config", () => {
     const res = validateConfigObject({
       agents: {
@@ -216,47 +216,19 @@ describe("sandbox browser binds config", () => {
     expect(res.ok).toBe(false);
   });
 
-  it("merges global and agent browser binds", () => {
+  it("forces browser sandbox config off even when browser settings are present", () => {
     const resolved = resolveSandboxBrowserConfig({
       scope: "agent",
       globalBrowser: { binds: ["/global:/global:ro"] },
-      agentBrowser: { binds: ["/agent:/agent:rw"] },
+      agentBrowser: { enabled: true, binds: ["/agent:/agent:rw"] },
     });
-    expect(resolved.binds).toEqual(["/global:/global:ro", "/agent:/agent:rw"]);
-  });
-
-  it("treats empty binds as configured (override to none)", () => {
-    const resolved = resolveSandboxBrowserConfig({
-      scope: "agent",
-      globalBrowser: { binds: [] },
-      agentBrowser: {},
-    });
-    expect(resolved.binds).toEqual([]);
-  });
-
-  it("ignores agent browser binds under shared scope", () => {
-    const resolved = resolveSandboxBrowserConfig({
-      scope: "shared",
-      globalBrowser: { binds: ["/global:/global:ro"] },
-      agentBrowser: { binds: ["/agent:/agent:rw"] },
-    });
-    expect(resolved.binds).toEqual(["/global:/global:ro"]);
-
-    const resolvedNoGlobal = resolveSandboxBrowserConfig({
-      scope: "shared",
-      globalBrowser: {},
-      agentBrowser: { binds: ["/agent:/agent:rw"] },
-    });
-    expect(resolvedNoGlobal.binds).toBeUndefined();
-  });
-
-  it("returns undefined binds when none configured", () => {
-    const resolved = resolveSandboxBrowserConfig({
-      scope: "agent",
-      globalBrowser: {},
-      agentBrowser: {},
+    expect(resolved).toMatchObject({
+      enabled: false,
+      allowHostControl: false,
+      autoStart: false,
     });
     expect(resolved.binds).toBeUndefined();
+    expect(resolved.cdpSourceRange).toBeUndefined();
   });
 
   it("defaults browser network to dedicated sandbox network", () => {
@@ -268,31 +240,32 @@ describe("sandbox browser binds config", () => {
     expect(resolved.network).toBe(DEFAULT_SANDBOX_BROWSER_NETWORK);
   });
 
-  it("defaults sandbox browser to visible Chromium without legacy observer settings", () => {
+  it("keeps browser sandbox disabled by default", () => {
     const resolved = resolveSandboxBrowserConfig({
       scope: "agent",
       globalBrowser: {},
       agentBrowser: {},
     });
+    expect(resolved.enabled).toBe(false);
     expect(resolved.headless).toBe(false);
   });
 
-  it("prefers agent browser network over global browser network", () => {
+  it("ignores legacy network overrides", () => {
     const resolved = resolveSandboxBrowserConfig({
       scope: "agent",
       globalBrowser: { network: "alisio-sandbox-browser-global" },
       agentBrowser: { network: "alisio-sandbox-browser-agent" },
     });
-    expect(resolved.network).toBe("alisio-sandbox-browser-agent");
+    expect(resolved.network).toBe(DEFAULT_SANDBOX_BROWSER_NETWORK);
   });
 
-  it("merges cdpSourceRange with agent override", () => {
+  it("ignores legacy cdp source range overrides", () => {
     const resolved = resolveSandboxBrowserConfig({
       scope: "agent",
       globalBrowser: { cdpSourceRange: "172.21.0.1/32" },
       agentBrowser: { cdpSourceRange: "172.22.0.1/32" },
     });
-    expect(resolved.cdpSourceRange).toBe("172.22.0.1/32");
+    expect(resolved.cdpSourceRange).toBeUndefined();
   });
 
   it("rejects host network mode in sandbox.browser config", () => {
