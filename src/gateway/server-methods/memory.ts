@@ -6,6 +6,7 @@ import {
   storeProfileRootKey,
 } from "../../../packages/memory-crypto/src/index.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
+import { resolveAgentWorkspaceDir } from "../../agents/agent-scope.js";
 import {
   resolveMemorySearchConfig,
   type ResolvedMemorySearchConfig,
@@ -14,6 +15,10 @@ import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { resolveStateDir } from "../../config/paths.js";
 import { resolveAlisioMemoryOwnerProfile } from "../../infra/alisio-memory-profile.js";
+import {
+  readPersonalContextSummary,
+  type PersonalContextSummary,
+} from "../../memory/personal-context.js";
 import {
   getActiveMemorySearchManager,
   resolveActiveMemoryBackendConfig,
@@ -324,6 +329,7 @@ function resolveMemoryBackendSnapshot(params: { cfg: AlisioConfig; agentId: stri
 function buildStatusWithoutManager(params: {
   agentId: string;
   enabled: boolean;
+  personalContext?: PersonalContextSummary;
   config?: MemoryStatusConfig;
   backend?: MemoryStatusResult["backend"];
   managerError?: string;
@@ -336,6 +342,7 @@ function buildStatusWithoutManager(params: {
   return {
     agentId: params.agentId,
     enabled: params.enabled,
+    ...(params.personalContext ? { personalContext: params.personalContext } : {}),
     ...(params.config ? { config: params.config } : {}),
     ...(params.backend ? { backend: params.backend } : {}),
     embedding: { ok: false, error },
@@ -347,6 +354,7 @@ function buildStatusWithoutManager(params: {
 async function collectManagerStatus(params: {
   agentId: string;
   enabled: boolean;
+  personalContext?: PersonalContextSummary;
   manager: NonNullable<Awaited<ReturnType<typeof getActiveMemorySearchManager>>["manager"]>;
   config?: MemoryStatusConfig;
   backend?: MemoryStatusResult["backend"];
@@ -378,6 +386,7 @@ async function collectManagerStatus(params: {
     return {
       agentId: params.agentId,
       enabled: params.enabled,
+      ...(params.personalContext ? { personalContext: params.personalContext } : {}),
       ...(params.config ? { config: params.config } : {}),
       ...(params.backend ? { backend: params.backend } : {}),
       runtime: buildRuntimeStatus(status, vectorAvailable),
@@ -388,6 +397,7 @@ async function collectManagerStatus(params: {
     return {
       agentId: params.agentId,
       enabled: params.enabled,
+      ...(params.personalContext ? { personalContext: params.personalContext } : {}),
       ...(params.config ? { config: params.config } : {}),
       ...(params.backend ? { backend: params.backend } : {}),
       embedding: {
@@ -435,6 +445,12 @@ export const memoryHandlers: GatewayRequestHandlers = {
     if (!context) {
       return;
     }
+    const personalContext = await readPersonalContextSummary({
+      cfg: context.cfg,
+      agentId: context.agentId,
+      workspaceDir: resolveAgentWorkspaceDir(context.cfg, context.agentId),
+      mainKey: context.cfg.session?.mainKey,
+    });
 
     const state = resolveMemoryStatusState(context.cfg, context.agentId);
     if (state.configError || !state.enabled) {
@@ -443,6 +459,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
         buildStatusWithoutManager({
           agentId: context.agentId,
           enabled: state.enabled,
+          personalContext,
           config: state.config,
           backend: state.backend,
           configError: state.configError,
@@ -463,6 +480,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
         buildStatusWithoutManager({
           agentId: context.agentId,
           enabled: state.enabled,
+          personalContext,
           config: state.config,
           backend: state.backend,
           managerError: error,
@@ -476,6 +494,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
       const result = await collectManagerStatus({
         agentId: context.agentId,
         enabled: state.enabled,
+        personalContext,
         manager,
         config: state.config,
         backend: state.backend,

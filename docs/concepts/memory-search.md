@@ -13,6 +13,10 @@ read_when:
 wording differs from the original text. It works by indexing memory into small
 chunks and searching them using embeddings, keywords, or both.
 
+`MEMORY.md` is the curated durable memory surface. Backlog, topic, and daily
+notes under `memory/` are operational memory surfaces. `memory_search` is the
+retrieval layer across those files; it does not replace their roles.
+
 ## Quick start
 
 If you have an OpenAI, Gemini, Voyage, or Mistral API key configured, memory
@@ -118,9 +122,9 @@ setup.
 
 ## Session memory search
 
-You can optionally index session transcripts so `memory_search` can recall
-earlier conversations. This is opt-in via
-`memorySearch.experimental.sessionMemory`. See the
+You can index session transcripts so `memory_search` can recall earlier
+conversations. Add `"sessions"` to `memorySearch.sources`; transcript recall
+stays retrieval-driven rather than being injected into every new turn. See the
 [configuration reference](/reference/memory-config) for details.
 
 ## Troubleshooting

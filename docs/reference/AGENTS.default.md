@@ -48,8 +48,10 @@ cp docs/reference/AGENTS.default.md ~/.alisio/workspace/AGENTS.md
 
 ## Session start (required)
 
-- Read `SOUL.md`, `USER.md`, and today+yesterday in `memory/`.
-- Read `MEMORY.md` when present; only fall back to lowercase `memory.md` when `MEMORY.md` is absent.
+- Treat injected bootstrap files as already loaded; do not immediately re-read `SOUL.md`, `USER.md`, `MEMORY.md`, or the other workspace bootstrap files just to "read them again".
+- In private direct sessions, rely on injected `MEMORY.md` when present.
+- Treat `main` as the default home session, not the only session allowed to inherit durable identity and memory.
+- Pull topic, daily, or backlog notes only when they are relevant to the current task, and prefer `memory_search` + `memory_get` over guessing dated paths.
 - Do it before responding.
 
 ## Soul (required)
@@ -65,10 +67,11 @@ cp docs/reference/AGENTS.default.md ~/.alisio/workspace/AGENTS.md
 
 ## Memory system (recommended)
 
-- Daily log: `memory/YYYY-MM-DD.md` (create `memory/` if needed).
+- Backlog intake: `memory/backlog/YYYY-MM-DD/<slug>.md`.
+- Topic notes: `memory/<topic>.md`.
+- Daily rollups: `memory/YYYY-MM-DD.md`.
 - Long-term memory: `MEMORY.md` for durable facts, preferences, and decisions.
-- Lowercase `memory.md` is legacy fallback only; do not keep both root files on purpose.
-- On session start, read today + yesterday + `MEMORY.md` when present, otherwise `memory.md`.
+- On session start, use injected `MEMORY.md` in private direct sessions, and pull topic/daily/backlog notes only when relevant.
 - Capture: decisions, preferences, constraints, open loops.
 - Avoid secrets unless explicitly requested.
 
@@ -93,7 +96,7 @@ git commit -m "Add Alisio workspace"
 
 - Runs WhatsApp gateway + Pi coding agent so the assistant can read/write chats, fetch context, and run skills via the host Mac.
 - macOS app manages permissions (screen recording, notifications, microphone) and exposes the `alisio` CLI via its bundled binary.
-- Direct chats collapse into the agent's `main` session by default; groups stay isolated as `agent:<agentId>:<channel>:group:<id>` (rooms/channels: `agent:<agentId>:<channel>:channel:<id>`); heartbeats keep background tasks alive.
+- `main` is the agent's default personal home session, but private direct chats may still use their own session keys depending on session scope. Durable identity and memory come from the workspace contract either way. Groups stay isolated as `agent:<agentId>:<channel>:group:<id>` (rooms/channels: `agent:<agentId>:<channel>:channel:<id>`); heartbeats keep background tasks alive.
 
 ## Core Skills (enable in Settings → Skills)
 

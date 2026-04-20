@@ -6,6 +6,10 @@ import { SafeOpenError } from "../../infra/fs-safe.js";
 /* Mocks                                                              */
 /* ------------------------------------------------------------------ */
 
+type GatewayAgentsListResult = ReturnType<
+  typeof import("../session-utils.js").listAgentsForGateway
+>;
+
 type MockDirent = Pick<
   import("node:fs").Dirent,
   "name" | "isFile" | "isDirectory" | "isSymbolicLink"
@@ -23,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   resolveAgentDir: vi.fn(() => "/agents/test-agent"),
   resolveAgentWorkspaceDir: vi.fn(() => "/workspace/test-agent"),
   resolveSessionTranscriptsDirForAgent: vi.fn(() => "/transcripts/test-agent"),
-  listAgentsForGateway: vi.fn(() => ({
+  listAgentsForGateway: vi.fn<() => GatewayAgentsListResult>(() => ({
     defaultId: "main",
     mainKey: "agent:main:main",
     scope: "global",
@@ -47,6 +51,81 @@ const mocks = vi.hoisted(() => ({
   fsOpen: vi.fn(async () => ({}) as unknown),
   appendFileWithinRoot: vi.fn(async () => {}),
   writeFileWithinRoot: vi.fn(async () => {}),
+  readPersonalContextSummary: vi.fn(async () => ({
+    version: 1,
+    bootstrap: {
+      path: "BOOTSTRAP.md",
+      present: false,
+      availability: "setup_only",
+      state: "completed",
+      oneTime: true,
+    },
+    identity: {
+      path: "IDENTITY.md",
+      present: true,
+      availability: "all_sessions",
+      resolved: {
+        name: "Test Agent",
+        avatar: "T",
+      },
+      sources: {
+        name: "identity-file",
+      },
+    },
+    soul: {
+      path: "SOUL.md",
+      present: true,
+      availability: "all_sessions",
+    },
+    preferences: {
+      path: "USER.md",
+      present: true,
+      availability: "all_sessions",
+    },
+    memory: {
+      main: {
+        path: "MEMORY.md",
+        present: true,
+        availability: "private_direct_sessions",
+      },
+      operational: {
+        root: "memory",
+        backlogRoot: "memory/backlog",
+        availability: "retrieval_only",
+        topicCount: 0,
+        dailyCount: 0,
+        backlogCount: 0,
+      },
+    },
+    sessionPolicy: {
+      main: {
+        kind: "main",
+        role: "default_personal_session",
+        key: "agent:main:main",
+        inherits: ["identity", "soul", "preferences", "main_memory"],
+      },
+      direct: {
+        kind: "direct",
+        role: "private_direct_session",
+        inherits: ["identity", "soul", "preferences", "main_memory"],
+      },
+      group: {
+        kind: "group",
+        role: "shared_session",
+        inherits: ["identity", "soul", "preferences"],
+      },
+      subagent: {
+        kind: "subagent",
+        role: "delegated_session",
+        inherits: ["identity", "soul", "preferences"],
+      },
+      cron: {
+        kind: "cron",
+        role: "automation_session",
+        inherits: ["identity", "soul", "preferences"],
+      },
+    },
+  })),
 }));
 
 vi.mock("../../config/config.js", () => ({
@@ -92,6 +171,10 @@ vi.mock("../../utils.js", () => ({
 
 vi.mock("../session-utils.js", () => ({
   listAgentsForGateway: mocks.listAgentsForGateway,
+}));
+
+vi.mock("../../memory/personal-context.js", () => ({
+  readPersonalContextSummary: mocks.readPersonalContextSummary,
 }));
 
 vi.mock("../../infra/fs-safe.js", async () => {
@@ -282,6 +365,7 @@ beforeEach(() => {
         close: async () => {},
       }) as unknown,
   );
+  mocks.readPersonalContextSummary.mockClear();
 });
 
 /* ------------------------------------------------------------------ */
@@ -460,6 +544,57 @@ describe("agents.create", () => {
     );
     expect(mocks.appendFileWithinRoot).toHaveBeenCalledTimes(1);
     expect(mocks.writeConfigFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("agents.list", () => {
+  it("returns personal context explicitly so clients do not infer bootstrap or memory semantics", async () => {
+    mocks.listAgentsForGateway.mockReturnValue({
+      defaultId: "main",
+      mainKey: "main",
+      scope: "global",
+      agents: [
+        {
+          id: "main",
+          identity: {
+            name: "Test Agent",
+            avatar: "T",
+          },
+          workspace: "/workspace/test-agent",
+        },
+      ],
+    });
+
+    const { respond, promise } = makeCall("agents.list", {});
+    await promise;
+
+    expect(mocks.readPersonalContextSummary).toHaveBeenCalledWith({
+      cfg: mocks.loadConfigReturn,
+      agentId: "main",
+      workspaceDir: "/workspace/test-agent",
+      mainKey: "main",
+    });
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        agents: [
+          expect.objectContaining({
+            id: "main",
+            personalContext: expect.objectContaining({
+              bootstrap: expect.objectContaining({
+                state: "completed",
+              }),
+              memory: expect.objectContaining({
+                main: expect.objectContaining({
+                  path: "MEMORY.md",
+                }),
+              }),
+            }),
+          }),
+        ],
+      }),
+      undefined,
+    );
   });
 });
 

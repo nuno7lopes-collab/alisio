@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { PersonalContextSummarySchema } from "./personal-context.js";
 import { NonEmptyString } from "./primitives.js";
 
 export const ModelChoiceSchema = Type.Object(
@@ -146,6 +147,7 @@ export const AgentSummarySchema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    personalContext: Type.Optional(PersonalContextSummarySchema),
     workspace: Type.Optional(NonEmptyString),
     model: Type.Optional(
       Type.Object(

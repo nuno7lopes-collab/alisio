@@ -50,7 +50,7 @@ Context** instead of **Group Chat Context**.
 
 ## Workspace bootstrap injection
 
-Bootstrap files are trimmed and appended under **Project Context** so the model sees identity and profile context without needing explicit reads:
+Bootstrap files are trimmed and appended under **Project Context** so the model sees durable context without needing explicit reads:
 
 - `AGENTS.md`
 - `SOUL.md`
@@ -59,12 +59,26 @@ Bootstrap files are trimmed and appended under **Project Context** so the model 
 - `USER.md`
 - `HEARTBEAT.md`
 - `BOOTSTRAP.md` (only on brand-new workspaces)
-- `MEMORY.md` when present, otherwise `memory.md` as a lowercase fallback
+- `MEMORY.md` when present
 
 All of these files are **injected into the context window** on every turn, which
 means they consume tokens. Keep them concise — especially `MEMORY.md`, which can
 grow over time and lead to unexpectedly high context usage and more frequent
 compaction.
+
+Because they are already injected, the runtime guidance treats these bootstrap
+files as **already read**. The agent should not waste startup `read` calls
+reopening `SOUL.md`, `USER.md`, `MEMORY.md`, or the other bootstrap files
+unless it needs exact lines for an edit or the user explicitly asks.
+
+The runtime also teaches the durable context contract explicitly:
+
+- `IDENTITY.md` answers who the agent is.
+- `SOUL.md` answers how the agent behaves.
+- `USER.md` answers who the human is and which preferences are durable.
+- `MEMORY.md` is curated durable memory for private direct sessions.
+- `memory/` is operational memory retrieved on demand.
+- `BOOTSTRAP.md` is setup-only and should disappear from normal flow after setup.
 
 > **Note:** `memory/*.md` daily files are **not** injected automatically. They
 > are accessed on demand via the `memory_search` and `memory_get` tools, so they
@@ -72,6 +86,22 @@ compaction.
 > When `memory.jobs` is enabled, background promotion can distill those daily
 > notes back into `MEMORY.md`, and that long-term projection is then injected as
 > normal bootstrap context.
+
+The agent also should not probe daily files by guessing fixed dated paths during
+startup. Daily, topic, backlog, and transcript recall should stay query-driven
+and only be pulled when relevant.
+
+## Session-type policy
+
+The runtime injects different subsets depending on the session type:
+
+- Private direct sessions, including the canonical `main` session, can inject `MEMORY.md`.
+- Shared group and channel sessions omit `MEMORY.md`.
+- Sub-agent and cron sessions use a reduced subset (`AGENTS.md`, `TOOLS.md`,
+  `SOUL.md`, `IDENTITY.md`, `USER.md`) to keep delegated runs lean.
+
+This means "new chat" creates a fresh conversation, but not a fresh identity.
+The durable personal context still comes from the workspace contract above.
 
 Large files are truncated with a marker. The max per-file size is controlled by
 `agents.defaults.bootstrapMaxChars` (default: 20000). Total injected bootstrap

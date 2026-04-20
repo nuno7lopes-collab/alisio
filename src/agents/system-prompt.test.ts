@@ -587,6 +587,25 @@ describe("buildAgentSystemPrompt", () => {
     );
   });
 
+  it("tells the model not to reread injected bootstrap files or guess daily note paths", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/alisio",
+    });
+
+    expect(prompt).toContain(
+      "Treat the durable personal context contract explicitly: IDENTITY.md defines who the agent is, SOUL.md defines persona and boundaries, USER.md defines the human and their preferences, MEMORY.md is the curated durable memory for private direct sessions, memory/ contains retrieval-driven operational notes, and BOOTSTRAP.md is setup-only.",
+    );
+    expect(prompt).toContain(
+      "Treat injected bootstrap files as already read. Do not spend read calls reopening AGENTS.md, SOUL.md, TOOLS.md, IDENTITY.md, USER.md, HEARTBEAT.md, BOOTSTRAP.md, or MEMORY.md at session start unless you need exact lines for an edit or the user explicitly asks.",
+    );
+    expect(prompt).toContain(
+      "The canonical main session is the default personal home session, not the only durable one. New private direct chats still inherit identity, soul, preferences, and MEMORY.md when present. Shared group/channel sessions omit MEMORY.md, while subagent and cron sessions get a reduced bootstrap subset.",
+    );
+    expect(prompt).toContain(
+      "Do not probe dated memory files by guessing fixed paths during startup. Pull topic, daily, backlog, or transcript context only when relevant, and prefer memory_search/memory_get when available.",
+    );
+  });
+
   it("omits project context when no context files are injected", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/alisio",

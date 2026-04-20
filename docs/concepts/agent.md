@@ -9,6 +9,19 @@ title: "Agent Runtime"
 
 Alisio runs a single embedded agent runtime.
 
+## Durable Personal Context Contract
+
+Alisio treats personal context as a small set of explicit durable surfaces:
+
+- `BOOTSTRAP.md` is setup-only. It exists for first-run onboarding, then should disappear from normal operation.
+- `IDENTITY.md` defines who the agent is.
+- `SOUL.md` defines persona, tone, and boundaries.
+- `USER.md` defines who the human is and which durable preferences matter.
+- `MEMORY.md` is curated durable memory for private direct chats.
+- `memory/` holds retrieval-driven operational memory: backlog intake, topic notes, and daily rollups.
+
+This is product contract, not just prompt flavor.
+
 ## Workspace (required)
 
 Alisio uses a single agent workspace directory (`agents.defaults.workspace`) as the agent’s **only** working directory (`cwd`) for tools and context.
@@ -31,6 +44,8 @@ Inside `agents.defaults.workspace`, Alisio expects these user-editable files:
 - `BOOTSTRAP.md` — one-time first-run ritual (deleted after completion)
 - `IDENTITY.md` — agent name/vibe/emoji
 - `USER.md` — user profile + preferred address
+- `MEMORY.md` — curated durable memory for private direct chats
+- `memory/` — retrieval-driven operational notes (`backlog`, `topic`, `daily`)
 
 On the first turn of a new session, Alisio injects the contents of these files directly into the agent context.
 
@@ -38,7 +53,7 @@ Blank files are skipped. Large files are trimmed and truncated with a marker so 
 
 If a file is missing, Alisio injects a single “missing file” marker line (and `alisio setup` will create a safe default template).
 
-`BOOTSTRAP.md` is only created for a **brand new workspace** (no other bootstrap files present). If you delete it after completing the ritual, it should not be recreated on later restarts.
+`BOOTSTRAP.md` is only created for a **brand new workspace** (no other bootstrap files present). Once setup is complete, it should disappear from operational flow and should not be recreated on later restarts.
 
 To disable bootstrap file creation entirely (for pre-seeded workspaces), set:
 
@@ -77,6 +92,19 @@ Session transcripts are stored as JSONL at:
 
 The session ID is stable and chosen by Alisio.
 Legacy session folders from other tools are not read.
+
+### Main vs other session types
+
+`main` is the default personal home session key. It is **not** the only session
+that can inherit durable personal context.
+
+- Private direct sessions inherit `IDENTITY.md`, `SOUL.md`, `USER.md`, and `MEMORY.md` when present.
+- Shared group or channel sessions still inherit identity, persona, and user preference context, but they do **not** inject `MEMORY.md`.
+- Subagent and cron sessions use a reduced bootstrap subset and do not inject `MEMORY.md`.
+
+So a "new chat" should feel like a new conversation, not like amnesia. Durable
+identity and memory come from workspace context, not from one specific
+transcript.
 
 ## Steering while streaming
 

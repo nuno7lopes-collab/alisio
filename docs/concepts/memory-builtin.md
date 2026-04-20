@@ -81,8 +81,14 @@ Operational surfaces now split cleanly:
   note-to-note relations under that human-facing projection, with a single
   surface that supports `overview` and `focus` modes.
 
-Alisio indexes `MEMORY.md` and `memory/*.md` into chunks (~400 tokens with
+Alisio indexes `MEMORY.md` and `memory/**/*.md` into chunks (~400 tokens with
 80-token overlap) for search.
+
+In product terms:
+
+- `MEMORY.md` is the curated durable memory surface.
+- `memory/backlog/`, `memory/<topic>.md`, and `memory/YYYY-MM-DD.md` are operational memory surfaces.
+- The builtin engine indexes those files and keeps native derived state aligned with them.
 
 - **File watching:** changes to memory files trigger a debounced reindex (1.5s).
 - **Auto-reindex:** when the embedding provider, model, or chunking config

@@ -293,10 +293,6 @@ export function mergePersonAgentMemoryDefaults(
       "memory" | "sessions"
     >,
     extraPaths: unique([...(memorySearch?.extraPaths ?? []), "MEMORY.md", "memory"]),
-    experimental: {
-      ...memorySearch?.experimental,
-      sessionMemory: memorySearch?.experimental?.sessionMemory ?? true,
-    },
   };
 }
 

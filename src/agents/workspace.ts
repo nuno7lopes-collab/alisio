@@ -183,6 +183,15 @@ type WorkspaceSetupState = {
   setupCompletedAt?: string;
 };
 
+export type WorkspaceBootstrapLifecycleState = "pending" | "completed";
+
+export type WorkspaceSetupSummary = {
+  state: WorkspaceBootstrapLifecycleState;
+  bootstrapFilePresent: boolean;
+  bootstrapSeededAt?: string;
+  setupCompletedAt?: string;
+};
+
 /** Set of recognized bootstrap filenames for runtime validation */
 const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
   DEFAULT_AGENTS_FILENAME,
@@ -224,6 +233,45 @@ function resolveWorkspaceStatePath(dir: string): string {
   return path.join(dir, WORKSPACE_STATE_DIRNAME, WORKSPACE_STATE_FILENAME);
 }
 
+async function workspaceHasSetupSignals(params: {
+  dir: string;
+  identityPath: string;
+  userPath: string;
+  identityTemplate: string;
+  userTemplate: string;
+  includeGitRepo: boolean;
+}): Promise<boolean> {
+  const [identityContentResult, userContentResult] = await Promise.allSettled([
+    fs.readFile(params.identityPath, "utf-8"),
+    fs.readFile(params.userPath, "utf-8"),
+  ]);
+  if (identityContentResult.status !== "fulfilled" || userContentResult.status !== "fulfilled") {
+    return false;
+  }
+  const identityContent = identityContentResult.value;
+  const userContent = userContentResult.value;
+  if (identityContent !== params.identityTemplate || userContent !== params.userTemplate) {
+    return true;
+  }
+
+  const indicators = [
+    path.join(params.dir, "memory"),
+    path.join(params.dir, DEFAULT_MEMORY_FILENAME),
+  ];
+  if (params.includeGitRepo) {
+    indicators.push(path.join(params.dir, ".git"));
+  }
+  for (const indicator of indicators) {
+    try {
+      await fs.access(indicator);
+      return true;
+    } catch {
+      // continue
+    }
+  }
+  return false;
+}
+
 function parseWorkspaceSetupState(raw: string): WorkspaceSetupState | null {
   try {
     const parsed = JSON.parse(raw) as {
@@ -260,6 +308,45 @@ async function readWorkspaceSetupState(statePath: string): Promise<WorkspaceSetu
   }
 }
 
+async function maybeFinalizeWorkspaceSetup(params: {
+  dir: string;
+  identityPath?: string;
+  userPath?: string;
+  statePath?: string;
+  includeGitRepo: boolean;
+}): Promise<boolean> {
+  const dir = resolveUserPath(params.dir);
+  const statePath = params.statePath ?? resolveWorkspaceStatePath(dir);
+  const state = await readWorkspaceSetupState(statePath);
+  if (typeof state.setupCompletedAt === "string" && state.setupCompletedAt.trim().length > 0) {
+    return true;
+  }
+
+  const identityPath = params.identityPath ?? path.join(dir, DEFAULT_IDENTITY_FILENAME);
+  const userPath = params.userPath ?? path.join(dir, DEFAULT_USER_FILENAME);
+  const [identityTemplate, userTemplate] = await Promise.all([
+    loadTemplate(DEFAULT_IDENTITY_FILENAME),
+    loadTemplate(DEFAULT_USER_FILENAME),
+  ]);
+  const hasSetupSignals = await workspaceHasSetupSignals({
+    dir,
+    identityPath,
+    userPath,
+    identityTemplate,
+    userTemplate,
+    includeGitRepo: params.includeGitRepo,
+  });
+  if (!hasSetupSignals) {
+    return false;
+  }
+
+  await writeWorkspaceSetupState(statePath, {
+    ...state,
+    setupCompletedAt: new Date().toISOString(),
+  });
+  return true;
+}
+
 async function readWorkspaceSetupStateForDir(dir: string): Promise<WorkspaceSetupState> {
   return await readWorkspaceSetupState(resolveWorkspaceStatePath(resolveUserPath(dir)));
 }
@@ -267,6 +354,23 @@ async function readWorkspaceSetupStateForDir(dir: string): Promise<WorkspaceSetu
 export async function isWorkspaceSetupCompleted(dir: string): Promise<boolean> {
   const state = await readWorkspaceSetupStateForDir(dir);
   return typeof state.setupCompletedAt === "string" && state.setupCompletedAt.trim().length > 0;
+}
+
+export async function readWorkspaceSetupSummary(dir: string): Promise<WorkspaceSetupSummary> {
+  const resolvedDir = resolveUserPath(dir);
+  const bootstrapPath = path.join(resolvedDir, DEFAULT_BOOTSTRAP_FILENAME);
+  const bootstrapFilePresent = await fileExists(bootstrapPath);
+  const setupCompleted = await maybeFinalizeWorkspaceSetup({
+    dir: resolvedDir,
+    includeGitRepo: false,
+  });
+  const state = await readWorkspaceSetupState(resolveWorkspaceStatePath(resolvedDir));
+  return {
+    state: setupCompleted ? "completed" : "pending",
+    bootstrapFilePresent,
+    ...(state.bootstrapSeededAt ? { bootstrapSeededAt: state.bootstrapSeededAt } : {}),
+    ...(state.setupCompletedAt ? { setupCompletedAt: state.setupCompletedAt } : {}),
+  };
 }
 
 async function writeWorkspaceSetupState(
@@ -409,32 +513,32 @@ export async function ensureAgentWorkspace(params?: {
     markState({ setupCompletedAt: nowIso() });
   }
 
+  if (bootstrapExists && !state.setupCompletedAt) {
+    const hasSetupSignals = await workspaceHasSetupSignals({
+      dir,
+      identityPath,
+      userPath,
+      identityTemplate,
+      userTemplate,
+      includeGitRepo: false,
+    });
+    if (hasSetupSignals) {
+      markState({ setupCompletedAt: nowIso() });
+    }
+  }
+
   if (!state.bootstrapSeededAt && !state.setupCompletedAt && !bootstrapExists) {
     // Legacy migration path: if USER/IDENTITY diverged from templates, or if user-content
     // indicators exist, treat setup as complete and avoid recreating BOOTSTRAP for
     // already-configured workspaces.
-    const [identityContent, userContent] = await Promise.all([
-      fs.readFile(identityPath, "utf-8"),
-      fs.readFile(userPath, "utf-8"),
-    ]);
-    const hasUserContent = await (async () => {
-      const indicators = [
-        path.join(dir, "memory"),
-        path.join(dir, DEFAULT_MEMORY_FILENAME),
-        path.join(dir, ".git"),
-      ];
-      for (const indicator of indicators) {
-        try {
-          await fs.access(indicator);
-          return true;
-        } catch {
-          // continue
-        }
-      }
-      return false;
-    })();
-    const legacySetupCompleted =
-      identityContent !== identityTemplate || userContent !== userTemplate || hasUserContent;
+    const legacySetupCompleted = await workspaceHasSetupSignals({
+      dir,
+      identityPath,
+      userPath,
+      identityTemplate,
+      userTemplate,
+      includeGitRepo: true,
+    });
     if (legacySetupCompleted) {
       markState({ setupCompletedAt: nowIso() });
     } else {
@@ -501,6 +605,10 @@ export async function loadWorkspaceBootstrapSnapshot(
   dir: string,
 ): Promise<WorkspaceBootstrapSnapshot> {
   const resolvedDir = resolveUserPath(dir);
+  const setupCompleted = await maybeFinalizeWorkspaceSetup({
+    dir: resolvedDir,
+    includeGitRepo: false,
+  });
 
   const entries: Array<{
     name: WorkspaceBootstrapFileName;
@@ -530,11 +638,13 @@ export async function loadWorkspaceBootstrapSnapshot(
       name: DEFAULT_HEARTBEAT_FILENAME,
       filePath: path.join(resolvedDir, DEFAULT_HEARTBEAT_FILENAME),
     },
-    {
+  ];
+  if (!setupCompleted) {
+    entries.push({
       name: DEFAULT_BOOTSTRAP_FILENAME,
       filePath: path.join(resolvedDir, DEFAULT_BOOTSTRAP_FILENAME),
-    },
-  ];
+    });
+  }
 
   const memoryEntry = await resolveMemoryBootstrapEntry(resolvedDir);
   if (memoryEntry) {

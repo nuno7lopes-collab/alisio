@@ -20,6 +20,83 @@ const exportPairingCode = vi.hoisted(() => vi.fn());
 const importProfileKeyFromPairingCode = vi.hoisted(() => vi.fn());
 const storeProfileRootKey = vi.hoisted(() => vi.fn());
 const logGatewayInfo = vi.hoisted(() => vi.fn());
+const readPersonalContextSummary = vi.hoisted(() =>
+  vi.fn(async () => ({
+    version: 1,
+    bootstrap: {
+      path: "BOOTSTRAP.md",
+      present: false,
+      availability: "setup_only",
+      state: "completed",
+      oneTime: true,
+    },
+    identity: {
+      path: "IDENTITY.md",
+      present: true,
+      availability: "all_sessions",
+      resolved: {
+        name: "Nuno",
+        avatar: "N",
+      },
+      sources: {
+        name: "identity-file",
+      },
+    },
+    soul: {
+      path: "SOUL.md",
+      present: true,
+      availability: "all_sessions",
+    },
+    preferences: {
+      path: "USER.md",
+      present: true,
+      availability: "all_sessions",
+    },
+    memory: {
+      main: {
+        path: "MEMORY.md",
+        present: true,
+        availability: "private_direct_sessions",
+      },
+      operational: {
+        root: "memory",
+        backlogRoot: "memory/backlog",
+        availability: "retrieval_only",
+        topicCount: 1,
+        dailyCount: 2,
+        backlogCount: 3,
+      },
+    },
+    sessionPolicy: {
+      main: {
+        kind: "main",
+        role: "default_personal_session",
+        key: "agent:main:main",
+        inherits: ["identity", "soul", "preferences", "main_memory"],
+      },
+      direct: {
+        kind: "direct",
+        role: "private_direct_session",
+        inherits: ["identity", "soul", "preferences", "main_memory"],
+      },
+      group: {
+        kind: "group",
+        role: "shared_session",
+        inherits: ["identity", "soul", "preferences"],
+      },
+      subagent: {
+        kind: "subagent",
+        role: "delegated_session",
+        inherits: ["identity", "soul", "preferences"],
+      },
+      cron: {
+        kind: "cron",
+        role: "automation_session",
+        inherits: ["identity", "soul", "preferences"],
+      },
+    },
+  })),
+);
 
 vi.mock("../../config/config.js", () => ({
   loadConfig,
@@ -35,6 +112,7 @@ vi.mock("../../infra/alisio-memory-profile.js", () => ({
 
 vi.mock("../../agents/agent-scope.js", () => ({
   listAgentIds,
+  resolveAgentWorkspaceDir: () => "/workspace/main",
 }));
 
 vi.mock("../../agents/memory-search.js", () => ({
@@ -44,6 +122,10 @@ vi.mock("../../agents/memory-search.js", () => ({
 vi.mock("../../plugins/memory-runtime.js", () => ({
   getActiveMemorySearchManager,
   resolveActiveMemoryBackendConfig,
+}));
+
+vi.mock("../../memory/personal-context.js", () => ({
+  readPersonalContextSummary,
 }));
 
 vi.mock("../../../packages/memory-crypto/src/index.js", () => ({
@@ -65,9 +147,6 @@ function createResolvedMemoryConfig(
     extraPaths: [],
     multimodal: { enabled: false, modalities: [], maxFileBytes: 0 },
     provider: "openai",
-    experimental: {
-      sessionMemory: false,
-    },
     fallback: "none",
     model: "text-embedding-3-small",
     local: {},
@@ -160,6 +239,82 @@ describe("memoryHandlers", () => {
     importProfileKeyFromPairingCode.mockReset();
     storeProfileRootKey.mockReset();
     logGatewayInfo.mockReset();
+    readPersonalContextSummary.mockReset();
+    readPersonalContextSummary.mockResolvedValue({
+      version: 1,
+      bootstrap: {
+        path: "BOOTSTRAP.md",
+        present: false,
+        availability: "setup_only",
+        state: "completed",
+        oneTime: true,
+      },
+      identity: {
+        path: "IDENTITY.md",
+        present: true,
+        availability: "all_sessions",
+        resolved: {
+          name: "Nuno",
+          avatar: "N",
+        },
+        sources: {
+          name: "identity-file",
+        },
+      },
+      soul: {
+        path: "SOUL.md",
+        present: true,
+        availability: "all_sessions",
+      },
+      preferences: {
+        path: "USER.md",
+        present: true,
+        availability: "all_sessions",
+      },
+      memory: {
+        main: {
+          path: "MEMORY.md",
+          present: true,
+          availability: "private_direct_sessions",
+        },
+        operational: {
+          root: "memory",
+          backlogRoot: "memory/backlog",
+          availability: "retrieval_only",
+          topicCount: 1,
+          dailyCount: 2,
+          backlogCount: 3,
+        },
+      },
+      sessionPolicy: {
+        main: {
+          kind: "main",
+          role: "default_personal_session",
+          key: "agent:main:main",
+          inherits: ["identity", "soul", "preferences", "main_memory"],
+        },
+        direct: {
+          kind: "direct",
+          role: "private_direct_session",
+          inherits: ["identity", "soul", "preferences", "main_memory"],
+        },
+        group: {
+          kind: "group",
+          role: "shared_session",
+          inherits: ["identity", "soul", "preferences"],
+        },
+        subagent: {
+          kind: "subagent",
+          role: "delegated_session",
+          inherits: ["identity", "soul", "preferences"],
+        },
+        cron: {
+          kind: "cron",
+          role: "automation_session",
+          inherits: ["identity", "soul", "preferences"],
+        },
+      },
+    });
   });
 
   it("returns detailed status for the requested agent", async () => {
@@ -255,6 +410,16 @@ describe("memoryHandlers", () => {
       expect.objectContaining({
         agentId: "main",
         enabled: true,
+        personalContext: expect.objectContaining({
+          bootstrap: expect.objectContaining({
+            state: "completed",
+          }),
+          memory: expect.objectContaining({
+            operational: expect.objectContaining({
+              backlogCount: 3,
+            }),
+          }),
+        }),
         backend: { backend: "builtin" },
         config: expect.objectContaining({
           provider: "openai",

@@ -76,11 +76,12 @@ These are the standard files Alisio expects inside the workspace:
 
 - `USER.md`
   - Who the user is and how to address them.
+  - Also holds durable human preferences that should survive sessions.
   - Loaded every session.
 
 - `IDENTITY.md`
-  - The agent's name, vibe, and emoji.
-  - Created/updated during the bootstrap ritual.
+  - The canonical durable answer to "who is the agent?"
+  - Holds the name, vibe, emoji, avatar, and other stable identity cues.
 
 - `TOOLS.md`
   - Notes about your local tools and conventions.
@@ -97,15 +98,24 @@ These are the standard files Alisio expects inside the workspace:
 - `BOOTSTRAP.md`
   - One-time first-run ritual.
   - Only created for a brand-new workspace.
-  - Delete it after the ritual is complete.
+  - Once setup is complete, it should stop participating in normal operation.
+
+- `memory/backlog/YYYY-MM-DD/<slug>.md`
+  - Canonical intake queue for pending memory captures before promotion.
+  - Good for session flushes, `/new`/`/reset` captures, and other promotable notes.
+
+- `memory/<topic>.md`
+  - Durable operational notes for a specific person, project, routine, or area.
+  - Retrieval-driven; not injected automatically on every turn.
 
 - `memory/YYYY-MM-DD.md`
-  - Daily memory log (one file per day).
-  - Recommended to read today + yesterday on session start.
+  - Promoted daily rollup (one file per day).
+  - Useful for recent temporal recall; not the first intake path and not injected automatically.
 
 - `MEMORY.md` (optional)
   - Curated long-term memory.
-  - Only load in the main, private session (not shared/group contexts).
+  - Injected into private direct sessions, including the canonical `main` session.
+  - Not injected into shared group/channel sessions.
 
 See [Memory](/concepts/memory) for the workflow and automatic memory flush.
 
@@ -122,6 +132,14 @@ adjust limits with `agents.defaults.bootstrapMaxChars` (default: 20000) and
 `agents.defaults.bootstrapTotalMaxChars` (default: 150000).
 `alisio setup` can recreate missing defaults without overwriting existing
 files.
+
+## Session semantics
+
+- `main` is the default personal home session key for an agent.
+- New private direct chats still inherit the same durable identity, persona,
+  preferences, and `MEMORY.md` context.
+- Operational memory under `memory/` stays retrieval-driven across all session
+  types.
 
 ## What is NOT in the workspace
 

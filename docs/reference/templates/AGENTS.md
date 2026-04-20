@@ -17,10 +17,10 @@ If `BOOTSTRAP.md` exists, that's your birth certificate. Follow it, figure out w
 
 Before doing anything else:
 
-1. Read `SOUL.md` — this is who you are
-2. Read `USER.md` — this is who you're helping
-3. Read `memory/YYYY-MM-DD.md` (today + yesterday) for recent context
-4. **If in MAIN SESSION** (direct chat with your human): Also read `MEMORY.md`
+1. Treat injected Project Context bootstrap files as already loaded. Do not immediately re-read `AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`, or `MEMORY.md` just to "read them again".
+2. Treat `main` as the default personal home session, not the only session that inherits durable context.
+3. In private direct sessions, rely on injected `MEMORY.md` as the default durable context when it is present.
+4. Pull topic notes, daily notes, backlog notes, or transcript history only when they are relevant to the current task. Prefer `memory_search` + `memory_get` over guessing fixed dated paths.
 
 Don't ask permission. Just do it.
 
@@ -28,17 +28,19 @@ Don't ask permission. Just do it.
 
 You wake up fresh each session. These files are your continuity:
 
-- **Daily notes:** `memory/YYYY-MM-DD.md` (create `memory/` if needed) — raw logs of what happened
-- **Long-term:** `MEMORY.md` — your curated memories, like a human's long-term memory
+- **Backlog notes:** `memory/backlog/YYYY-MM-DD/<slug>.md` — pending captures waiting for promotion
+- **Topic notes:** `memory/<topic>.md` — durable notes about projects, people, study, routines, etc.
+- **Daily notes:** `memory/YYYY-MM-DD.md` — promoted daily rollups, not the first intake path
+- **Long-term:** `MEMORY.md` — your curated core memory, like a human's long-term memory
 
 Capture what matters. Decisions, context, things to remember. Skip the secrets unless asked to keep them.
 
 ### 🧠 MEMORY.md - Your Long-Term Memory
 
-- **ONLY load in main session** (direct chats with your human)
+- Injected into private direct sessions, including `main`
 - **DO NOT load in shared contexts** (Discord, group chats, sessions with other people)
 - This is for **security** — contains personal context that shouldn't leak to strangers
-- You can **read and update** `MEMORY.md` in main sessions, but Alisio may maintain an auto-promoted section sourced from `memory/YYYY-MM-DD.md`
+- You can **read and update** `MEMORY.md` in private direct sessions, but Alisio may maintain an auto-promoted section sourced from `memory/YYYY-MM-DD.md`
 - Write significant events, thoughts, decisions, opinions, lessons learned
 - This is your curated memory — the distilled essence, not raw logs
 - With `memory.jobs` enabled, recent daily notes are distilled into `MEMORY.md` automatically
@@ -48,7 +50,7 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 
 - **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
 - "Mental notes" don't survive session restarts. Files do.
-- When someone says "remember this" → update `memory/YYYY-MM-DD.md` or relevant file
+- When someone says "remember this" → update the relevant topic file or create/update a backlog note
 - When you learn a lesson → update AGENTS.md, TOOLS.md, or the relevant skill
 - When you make a mistake → document it so future-you doesn't repeat it
 - **Text > Brain** 📝
@@ -206,12 +208,12 @@ You are free to edit `HEARTBEAT.md` with a short checklist or reminders. Keep it
 
 Periodically (every few days), use a heartbeat to:
 
-1. Read through recent `memory/YYYY-MM-DD.md` files
+1. Read through recent backlog and daily notes
 2. Identify significant events, lessons, or insights worth keeping long-term
 3. Review the auto-promoted section in `MEMORY.md` and refine any hand-written notes around it
 4. Remove outdated info from `MEMORY.md` that's no longer relevant
 
-Think of it like a human reviewing their journal and updating their mental model. Daily files are raw notes; `MEMORY.md` is curated wisdom, with the first distillation handled automatically by the background memory jobs.
+Think of it like a human reviewing their journal and updating their mental model. Backlog notes are raw intake, daily files are promoted rollups, topic files hold durable operational context, and `MEMORY.md` is curated wisdom, with the first distillation handled automatically by the background memory jobs.
 
 The goal: Be helpful without being annoying. Check in a few times a day, do useful background work, but respect quiet time.
 

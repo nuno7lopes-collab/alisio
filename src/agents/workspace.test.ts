@@ -13,6 +13,7 @@ import {
   ensureAgentWorkspace,
   filterBootstrapFilesForSession,
   loadWorkspaceBootstrapFiles,
+  readWorkspaceSetupSummary,
   resolveDefaultAgentWorkspaceDir,
   type WorkspaceBootstrapFile,
 } from "./workspace.js";
@@ -119,6 +120,20 @@ describe("ensureAgentWorkspace", () => {
     expect(state.setupCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
   });
 
+  it("marks stale bootstrap workspaces as completed once identity or memory exists", async () => {
+    const tempDir = await makeTempWorkspace("alisio-workspace-");
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+    await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_IDENTITY_FILENAME, content: "custom" });
+
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+
+    const state = await readWorkspaceState(tempDir);
+    expect(state.setupCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+    await expect(
+      fs.access(path.join(tempDir, DEFAULT_BOOTSTRAP_FILENAME)),
+    ).resolves.toBeUndefined();
+  });
+
   it("does not re-seed BOOTSTRAP.md for legacy completed workspaces without state marker", async () => {
     const tempDir = await makeTempWorkspace("alisio-workspace-");
     await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_IDENTITY_FILENAME, content: "custom" });
@@ -209,6 +224,21 @@ describe("loadWorkspaceBootstrapFiles", () => {
     expect(getMemoryEntries(files)).toHaveLength(0);
   });
 
+  it("omits BOOTSTRAP.md from injected bootstrap files once setup is complete", async () => {
+    const tempDir = await makeTempWorkspace("alisio-workspace-");
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+    await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_IDENTITY_FILENAME, content: "custom" });
+
+    const files = await loadWorkspaceBootstrapFiles(tempDir);
+
+    expect(files.map((file) => file.name)).not.toContain(DEFAULT_BOOTSTRAP_FILENAME);
+    await expect(
+      fs.access(path.join(tempDir, DEFAULT_BOOTSTRAP_FILENAME)),
+    ).resolves.toBeUndefined();
+    const state = await readWorkspaceState(tempDir);
+    expect(state.setupCompletedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+
   it("treats hardlinked bootstrap aliases as missing", async () => {
     if (process.platform === "win32") {
       return;
@@ -238,6 +268,29 @@ describe("loadWorkspaceBootstrapFiles", () => {
     } finally {
       await fs.rm(rootDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("readWorkspaceSetupSummary", () => {
+  it("reports pending setup for a freshly seeded bootstrap workspace", async () => {
+    const tempDir = await makeTempWorkspace("alisio-workspace-");
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+
+    await expect(readWorkspaceSetupSummary(tempDir)).resolves.toMatchObject({
+      state: "pending",
+      bootstrapFilePresent: true,
+    });
+  });
+
+  it("reports completed setup once durable signals exist", async () => {
+    const tempDir = await makeTempWorkspace("alisio-workspace-");
+    await ensureAgentWorkspace({ dir: tempDir, ensureBootstrapFiles: true });
+    await writeWorkspaceFile({ dir: tempDir, name: DEFAULT_MEMORY_FILENAME, content: "seed" });
+
+    await expect(readWorkspaceSetupSummary(tempDir)).resolves.toMatchObject({
+      state: "completed",
+      bootstrapFilePresent: true,
+    });
   });
 });
 

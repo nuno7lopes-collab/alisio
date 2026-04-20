@@ -54,6 +54,10 @@ automatically -- collections, updates, and embedding runs are handled for you.
   `vsearch` and `query`). If a mode fails, Alisio retries with `qmd query`.
 - If QMD fails entirely, Alisio falls back to the builtin SQLite engine.
 
+QMD does not change the durable workspace contract. It indexes `MEMORY.md` and
+`memory/**/*.md`; it does not redefine what counts as identity, preferences,
+main memory, or operational memory.
+
 <Info>
 The first search may be slow -- QMD auto-downloads GGUF models (~2 GB) for
 reranking and query expansion on the first `qmd query` run.

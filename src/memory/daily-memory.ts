@@ -30,10 +30,7 @@ function summarizeSessionContent(value: string | null | undefined): string {
   return normalized.length <= 140 ? normalized : `${normalized.slice(0, 139).trimEnd()}…`;
 }
 
-function resolveUniqueBacklogRelativePath(
-  existing: Set<string>,
-  relativePath: string,
-): string {
+function resolveUniqueBacklogRelativePath(existing: Set<string>, relativePath: string): string {
   if (!existing.has(relativePath)) {
     return relativePath;
   }
@@ -100,6 +97,7 @@ export function buildSessionMemoryBacklogNote(params: {
     `summary: ${toYamlQuoted(summary)}`,
     "memoryRole: backlog",
     "backlogStatus: pending",
+    'promotionMode: "topic-and-daily"',
     `capturedAt: ${toYamlQuoted(isoTimestamp)}`,
     `sessionAction: ${toYamlQuoted(params.action)}`,
     `sessionKey: ${toYamlQuoted(params.sessionKey)}`,
@@ -192,3 +190,7 @@ export async function syncDailyMemoryThroughCanonicalPipeline(params: {
     force,
   });
 }
+
+// Keep the historical export name while callers outside this ownership window
+// are updated independently.
+export const syncWorkspaceMemoryThroughCanonicalPipeline = syncDailyMemoryThroughCanonicalPipeline;

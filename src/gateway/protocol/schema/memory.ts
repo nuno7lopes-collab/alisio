@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { PersonalContextSummarySchema } from "./personal-context.js";
 import { NonEmptyString } from "./primitives.js";
 
 const MemorySourceSchema = Type.Union([Type.Literal("memory"), Type.Literal("sessions")]);
@@ -219,6 +220,7 @@ export const MemoryStatusResultSchema = Type.Object(
   {
     agentId: NonEmptyString,
     enabled: Type.Boolean(),
+    personalContext: Type.Optional(PersonalContextSummarySchema),
     config: Type.Optional(MemoryStatusConfigSchema),
     backend: Type.Optional(MemoryBackendSchema),
     runtime: Type.Optional(MemoryStatusRuntimeSchema),

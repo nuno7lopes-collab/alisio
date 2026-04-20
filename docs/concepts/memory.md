@@ -1,23 +1,34 @@
 ---
 title: "Memory Overview"
-summary: "How Alisio stores durable context through a canonical ledger, derived state, and native memory views."
+summary: "How Alisio turns workspace files, operational notes, and native storage into one durable personal-context contract."
 read_when:
-  - You want to understand how memory works
-  - You want to know which layer is canonical
-  - You want to understand native wiki pages, attachments, graph state, and sync
+  - You want to understand the personal-context contract
+  - You want to know how workspace memory relates to native storage and sync
 ---
 
 # Memory Overview
 
-Alisio memory is now a native product surface built around three user-facing
-views:
+Alisio memory starts with an explicit workspace contract:
 
-- Wiki
-- Files
-- Graph
+- `MEMORY.md` is curated durable memory.
+- `memory/backlog/YYYY-MM-DD/<slug>.md` is backlog intake.
+- `memory/<topic>.md` is durable operational topic memory.
+- `memory/YYYY-MM-DD.md` is promoted daily memory.
 
-Those views are backed by a **profile-scoped append-only ledger**. The ledger is
-the canonical memory source of truth. Everything else is derived from it.
+Everything else in the memory product should reinforce that contract, not blur
+it.
+
+## Product contract
+
+These layers are intentionally different:
+
+- **Main memory**: `MEMORY.md` for durable facts, preferences, decisions, and stable context.
+- **Operational memory**: backlog, topic, and daily notes under `memory/`.
+- **Retrieval layer**: search, note views, files views, graph views, and transcript recall.
+- **Canonical native store**: profile-scoped ledger-backed storage that syncs and rebuilds derived state.
+
+Main memory and operational memory are the human-facing product contract.
+Search, graph, and sync exist to support them.
 
 ## Canonical Layer
 
@@ -72,14 +83,14 @@ edits without treating the exported projection as the merge source of truth.
 
 ## Human Facing Surfaces
 
-Operators still get inspectable memory surfaces:
+Operators still get inspectable surfaces:
 
-- native Wiki editing
-- native Files browsing and provenance
-- native Graph navigation
+- workspace memory files (`MEMORY.md` and `memory/**/*.md`)
+- native note, file, and graph views
 - optional exports such as ZIP, JSON, or Markdown
 
-Exports are derived artifacts, not the canonical transaction log.
+Exports and native views are derived artifacts around the same durable contract,
+not separate memory systems with separate meaning.
 
 ## Why This Matters
 

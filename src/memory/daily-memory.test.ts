@@ -7,7 +7,9 @@ import { buildSessionMemoryBacklogNote, writeCanonicalBacklogMemoryNote } from "
 const tempRoots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(tempRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
+  await Promise.all(
+    tempRoots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })),
+  );
 });
 
 describe("session backlog memory helpers", () => {
@@ -25,6 +27,7 @@ describe("session backlog memory helpers", () => {
     expect(note.relativePath).toBe("memory/backlog/2026-04-18/physics-study.md");
     expect(note.content).toContain("memoryRole: backlog");
     expect(note.content).toContain("backlogStatus: pending");
+    expect(note.content).toContain('promotionMode: "topic-and-daily"');
     expect(note.content).toContain("# Session new - Physics Study");
     expect(note.content).toContain("## Conversation Summary");
     expect(note.content).toContain("user: Quero estudar fisica");

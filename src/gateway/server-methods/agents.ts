@@ -34,6 +34,7 @@ import {
 } from "../../infra/fs-safe.js";
 import { assertNoPathAliasEscape } from "../../infra/path-alias-guards.js";
 import { isNotFoundPathError } from "../../infra/path-guards.js";
+import { readPersonalContextSummary } from "../../memory/personal-context.js";
 import { movePathToTrash } from "../../plugin-sdk/browser-runtime.js";
 import { listMemoryFiles } from "../../plugin-sdk/memory-core-host-runtime-files.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
@@ -641,7 +642,7 @@ async function appendWorkspaceFileOrRespond(params: {
 }
 
 export const agentsHandlers: GatewayRequestHandlers = {
-  "agents.list": ({ params, respond }) => {
+  "agents.list": async ({ params, respond }) => {
     if (!validateAgentsListParams(params)) {
       respond(
         false,
@@ -656,7 +657,28 @@ export const agentsHandlers: GatewayRequestHandlers = {
 
     const cfg = loadConfig();
     const result = listAgentsForGateway(cfg);
-    respond(true, result, undefined);
+    const agents = await Promise.all(
+      result.agents.map(async (agent) => {
+        const workspaceDir = agent.workspace ?? resolveAgentWorkspaceDir(cfg, agent.id);
+        return {
+          ...agent,
+          personalContext: await readPersonalContextSummary({
+            cfg,
+            agentId: agent.id,
+            workspaceDir,
+            mainKey: result.mainKey,
+          }),
+        };
+      }),
+    );
+    respond(
+      true,
+      {
+        ...result,
+        agents,
+      },
+      undefined,
+    );
   },
   "agents.create": async ({ params, respond }) => {
     if (!validateAgentsCreateParams(params)) {

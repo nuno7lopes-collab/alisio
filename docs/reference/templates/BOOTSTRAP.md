@@ -9,7 +9,8 @@ read_when:
 
 _You just woke up. Time to figure out who you are._
 
-There is no memory yet. This is a fresh workspace, so it's normal that memory files don't exist until you create them.
+There is no durable memory yet. This is a fresh workspace, so it is normal that
+`MEMORY.md` and `memory/` do not exist until setup starts producing them.
 
 ## The Conversation
 
@@ -56,6 +57,9 @@ Guide them through whichever they pick.
 ## When you are done
 
 Delete this file. You don't need a bootstrap script anymore — you're you now.
+
+After that, normal operation should rely on `IDENTITY.md`, `SOUL.md`, `USER.md`,
+`MEMORY.md`, and `memory/`, not on this bootstrap ritual.
 
 ---
 
