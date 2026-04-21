@@ -9,7 +9,6 @@ import {
   beginAlisioAccountEmailAuth,
   beginAlisioAccountGoogleAuth,
   changeAlisioAccountEmail,
-  completeAlisioConnector,
   completeAlisioAccountEmailLinkAuth,
   signInAlisioAccountWithPassword,
   signUpAlisioAccountWithPassword,
@@ -112,8 +111,6 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioConnectorCatalog: [],
     alisioConnectorAuthorizations: [],
     alisioConnectorSetupGuide: null,
-    alisioConnectorSetupSubmitting: false,
-    alisioConnectorSetupError: null,
     setupWizardLoading: false,
     setupWizardSubmitting: false,
     setupWizardSessionId: null,
@@ -544,94 +541,6 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioConnectorAuthorizations).toEqual([
       { connectorId: "google", state: "connected" },
     ]);
-  });
-
-  it("completa a ligação manual da Stripe e refresca snapshots dependentes", async () => {
-    const request = vi.fn(async (method: string, params?: unknown) => {
-      if (method === "connectors.complete") {
-        expect(params).toEqual({
-          connectorId: "stripe",
-          apiKey: "rk_live_test_readonly",
-        });
-        return {
-          connectorId: "stripe",
-          state: "connected",
-          health: "healthy",
-          scopes: ["balance.read"],
-        };
-      }
-      if (method === "alisio.providers.get") {
-        return {
-          generatedAt: new Date().toISOString(),
-          summary: { connected: 1, ready: 0, attention: 0, total: 1 },
-          account: {} as never,
-          ai: {} as never,
-          connectors: {
-            catalog: [],
-            authorizations: [],
-          },
-          assistant: [],
-          providers: [],
-          runtimes: [],
-          apps: [],
-        };
-      }
-      if (method === "connectors.catalog") {
-        return { connectors: [] };
-      }
-      if (method === "connectors.list") {
-        return {
-          authorizations: [
-            {
-              connectorId: "stripe",
-              state: "connected",
-              health: "healthy",
-              scopes: ["balance.read"],
-            },
-          ],
-        };
-      }
-      if (method === "alisio.doctor.summary") {
-        return {
-          ok: true,
-          generatedAt: new Date().toISOString(),
-          checks: {
-            runtime: true,
-            gateway: true,
-            account: true,
-            organization: true,
-            ai: true,
-            permissions: true,
-          },
-          issues: [],
-          bootstrap: null,
-        };
-      }
-      throw new Error(`unexpected method: ${method}`);
-    });
-    const state = createState({
-      client: createClient(request),
-      alisioConnectorSetupGuide: {
-        connectorId: "stripe",
-        availability: "ready",
-        mode: "setup",
-        statusReason: "ready_for_setup",
-      },
-    });
-
-    const result = await completeAlisioConnector(state, "stripe", "rk_live_test_readonly");
-
-    expect(result).toMatchObject({
-      connectorId: "stripe",
-      state: "connected",
-    });
-    expect(state.alisioConnectorSetupGuide).toBeNull();
-    expect(state.alisioConnectorSetupSubmitting).toBe(false);
-    expect(state.alisioConnectorSetupError).toBeNull();
-    expect(request).toHaveBeenCalledWith("connectors.complete", {
-      connectorId: "stripe",
-      apiKey: "rk_live_test_readonly",
-    });
   });
 
   it("limpa estado e cache de connectors ao terminar sessão", async () => {

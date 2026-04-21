@@ -7,6 +7,7 @@ const STRIPE_RUNTIME_USER_AGENT = "Alisio";
 
 type StripeMode = "test" | "live";
 type StripeKeyKind = "secret" | "restricted";
+type StripeAccessKind = StripeKeyKind | "oauth";
 type StripeErrorResultStatus = "auth_required" | "read_failed";
 type StripeQueryValue = string | number | boolean | undefined;
 
@@ -46,7 +47,8 @@ export type AlisioStripeBalanceAmount = {
 export type AlisioStripeAccountSummary = {
   livemode: boolean;
   mode: StripeMode;
-  keyKind: StripeKeyKind;
+  accessKind: StripeAccessKind;
+  keyKind?: StripeKeyKind;
   available: AlisioStripeBalanceAmount[];
   pending: AlisioStripeBalanceAmount[];
   connectReserved?: AlisioStripeBalanceAmount[];
@@ -101,6 +103,72 @@ export type AlisioStripeChargeSummary = {
   createdAt?: string;
 };
 
+export type AlisioStripeProductSummary = {
+  id: string;
+  name: string;
+  active?: boolean;
+  description?: string;
+  defaultPriceId?: string;
+  livemode?: boolean;
+  createdAt?: string;
+};
+
+export type AlisioStripePriceSummary = {
+  id: string;
+  active?: boolean;
+  currency: string;
+  unitAmount?: number;
+  nickname?: string;
+  type?: string;
+  productId?: string;
+  productName?: string;
+  recurringInterval?: string;
+  recurringUsageType?: string;
+  livemode?: boolean;
+  createdAt?: string;
+};
+
+export type AlisioStripeSubscriptionSummary = {
+  id: string;
+  status: string;
+  customerId?: string;
+  customerLabel?: string;
+  customerEmail?: string;
+  collectionMethod?: string;
+  currency?: string;
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  canceledAt?: string;
+  livemode?: boolean;
+  createdAt?: string;
+};
+
+export type AlisioStripeDisputeSummary = {
+  id: string;
+  amount: number;
+  currency: string;
+  reason?: string;
+  status: string;
+  chargeId?: string;
+  paymentIntentId?: string;
+  livemode?: boolean;
+  createdAt?: string;
+};
+
+export type AlisioStripeRefundSummary = {
+  id: string;
+  amount: number;
+  currency: string;
+  status?: string;
+  reason?: string;
+  chargeId?: string;
+  paymentIntentId?: string;
+  failureReason?: string;
+  livemode?: boolean;
+  createdAt?: string;
+};
+
 export type AlisioStripeResult =
   | {
       ok: true;
@@ -145,6 +213,66 @@ export type AlisioStripeResult =
       charge: AlisioStripeChargeSummary;
     }
   | {
+      ok: true;
+      status: "products_listed";
+      connectorId: "stripe";
+      products: AlisioStripeProductSummary[];
+    }
+  | {
+      ok: true;
+      status: "product";
+      connectorId: "stripe";
+      product: AlisioStripeProductSummary;
+    }
+  | {
+      ok: true;
+      status: "prices_listed";
+      connectorId: "stripe";
+      prices: AlisioStripePriceSummary[];
+    }
+  | {
+      ok: true;
+      status: "price";
+      connectorId: "stripe";
+      price: AlisioStripePriceSummary;
+    }
+  | {
+      ok: true;
+      status: "subscriptions_listed";
+      connectorId: "stripe";
+      subscriptions: AlisioStripeSubscriptionSummary[];
+    }
+  | {
+      ok: true;
+      status: "subscription";
+      connectorId: "stripe";
+      subscription: AlisioStripeSubscriptionSummary;
+    }
+  | {
+      ok: true;
+      status: "disputes_listed";
+      connectorId: "stripe";
+      disputes: AlisioStripeDisputeSummary[];
+    }
+  | {
+      ok: true;
+      status: "dispute";
+      connectorId: "stripe";
+      dispute: AlisioStripeDisputeSummary;
+    }
+  | {
+      ok: true;
+      status: "refunds_listed";
+      connectorId: "stripe";
+      refunds: AlisioStripeRefundSummary[];
+    }
+  | {
+      ok: true;
+      status: "refund";
+      connectorId: "stripe";
+      refund: AlisioStripeRefundSummary;
+    }
+  | {
       ok: false;
       status: StripeErrorResultStatus;
       connectorId: "stripe";
@@ -159,6 +287,7 @@ export type AlisioStripeKeyValidationResult =
   | {
       ok: true;
       connectedAccount: StripeConnectedAccount;
+      accessKind: StripeAccessKind;
       keyKind: StripeKeyKind;
       mode: StripeMode;
     }
@@ -183,6 +312,35 @@ function detectStripeMode(apiKey: string): StripeMode {
 
 function detectStripeKeyKind(apiKey: string): StripeKeyKind {
   return apiKey.startsWith("rk_") ? "restricted" : "secret";
+}
+
+function normalizeStripeStoredCredential(value: string): {
+  token: string;
+  accessKind: StripeAccessKind;
+  keyKind?: StripeKeyKind;
+  modeHint?: StripeMode;
+} | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/^pk_(?:test|live)_[A-Za-z0-9_]+$/.test(trimmed)) {
+    return null;
+  }
+  const apiKey = normalizeStripeApiKey(trimmed);
+  if (!apiKey) {
+    return {
+      token: trimmed,
+      accessKind: "oauth",
+    };
+  }
+  const keyKind = detectStripeKeyKind(apiKey);
+  return {
+    token: apiKey,
+    accessKind: keyKind,
+    keyKind,
+    modeHint: detectStripeMode(apiKey),
+  };
 }
 
 function readString(value: unknown): string | undefined {
@@ -460,6 +618,182 @@ function normalizeStripeCharge(entry: Record<string, unknown>): AlisioStripeChar
   };
 }
 
+function normalizeExpandedProduct(value: unknown): {
+  productId?: string;
+  productName?: string;
+} {
+  if (typeof value === "string" && value.trim()) {
+    return { productId: value.trim() };
+  }
+  const product = readObject(value);
+  if (!product) {
+    return {};
+  }
+  const id = readString(product.id);
+  const name = readString(product.name);
+  return {
+    ...(id ? { productId: id } : {}),
+    ...(name ? { productName: name } : {}),
+  };
+}
+
+function normalizeExpandedPriceId(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim()
+    ? value.trim()
+    : readString(readObject(value)?.id);
+}
+
+function normalizeExpandedCharge(value: unknown): {
+  chargeId?: string;
+  paymentIntentId?: string;
+} {
+  if (typeof value === "string" && value.trim()) {
+    return { chargeId: value.trim() };
+  }
+  const charge = readObject(value);
+  if (!charge) {
+    return {};
+  }
+  const chargeId = readString(charge.id);
+  const paymentIntentId =
+    typeof charge.payment_intent === "string"
+      ? charge.payment_intent.trim() || undefined
+      : readString(readObject(charge.payment_intent)?.id);
+  return {
+    ...(chargeId ? { chargeId } : {}),
+    ...(paymentIntentId ? { paymentIntentId } : {}),
+  };
+}
+
+function normalizeStripeProduct(entry: Record<string, unknown>): AlisioStripeProductSummary | null {
+  const id = readString(entry.id);
+  const name = readString(entry.name);
+  if (!id || !name) {
+    return null;
+  }
+  return {
+    id,
+    name,
+    ...(readBoolean(entry.active) !== undefined ? { active: readBoolean(entry.active) } : {}),
+    ...(readString(entry.description) ? { description: readString(entry.description) } : {}),
+    ...(normalizeExpandedPriceId(entry.default_price)
+      ? { defaultPriceId: normalizeExpandedPriceId(entry.default_price) }
+      : {}),
+    ...(readBoolean(entry.livemode) !== undefined ? { livemode: readBoolean(entry.livemode) } : {}),
+    ...(toCreatedAt(entry.created) ? { createdAt: toCreatedAt(entry.created) } : {}),
+  };
+}
+
+function normalizeStripePrice(entry: Record<string, unknown>): AlisioStripePriceSummary | null {
+  const id = readString(entry.id);
+  const currency = readString(entry.currency);
+  if (!id || !currency) {
+    return null;
+  }
+  const recurring = readObject(entry.recurring);
+  return {
+    id,
+    currency,
+    ...(readBoolean(entry.active) !== undefined ? { active: readBoolean(entry.active) } : {}),
+    ...(readNumber(entry.unit_amount) !== undefined
+      ? { unitAmount: readNumber(entry.unit_amount) }
+      : {}),
+    ...(readString(entry.nickname) ? { nickname: readString(entry.nickname) } : {}),
+    ...(readString(entry.type) ? { type: readString(entry.type) } : {}),
+    ...normalizeExpandedProduct(entry.product),
+    ...(readString(recurring?.interval)
+      ? { recurringInterval: readString(recurring?.interval) }
+      : {}),
+    ...(readString(recurring?.usage_type)
+      ? { recurringUsageType: readString(recurring?.usage_type) }
+      : {}),
+    ...(readBoolean(entry.livemode) !== undefined ? { livemode: readBoolean(entry.livemode) } : {}),
+    ...(toCreatedAt(entry.created) ? { createdAt: toCreatedAt(entry.created) } : {}),
+  };
+}
+
+function normalizeStripeSubscription(
+  entry: Record<string, unknown>,
+): AlisioStripeSubscriptionSummary | null {
+  const id = readString(entry.id);
+  const status = readString(entry.status);
+  if (!id || !status) {
+    return null;
+  }
+  return {
+    id,
+    status,
+    ...normalizeExpandedCustomer(entry.customer),
+    ...(readString(entry.collection_method)
+      ? { collectionMethod: readString(entry.collection_method) }
+      : {}),
+    ...(readString(entry.currency) ? { currency: readString(entry.currency) } : {}),
+    ...(readBoolean(entry.cancel_at_period_end) !== undefined
+      ? { cancelAtPeriodEnd: readBoolean(entry.cancel_at_period_end) }
+      : {}),
+    ...(toCreatedAt(entry.current_period_start)
+      ? { currentPeriodStart: toCreatedAt(entry.current_period_start) }
+      : {}),
+    ...(toCreatedAt(entry.current_period_end)
+      ? { currentPeriodEnd: toCreatedAt(entry.current_period_end) }
+      : {}),
+    ...(toCreatedAt(entry.canceled_at) ? { canceledAt: toCreatedAt(entry.canceled_at) } : {}),
+    ...(readBoolean(entry.livemode) !== undefined ? { livemode: readBoolean(entry.livemode) } : {}),
+    ...(toCreatedAt(entry.created) ? { createdAt: toCreatedAt(entry.created) } : {}),
+  };
+}
+
+function normalizeStripeDispute(entry: Record<string, unknown>): AlisioStripeDisputeSummary | null {
+  const id = readString(entry.id);
+  const amount = readNumber(entry.amount);
+  const currency = readString(entry.currency);
+  const status = readString(entry.status);
+  if (!id || amount === undefined || !currency || !status) {
+    return null;
+  }
+  return {
+    id,
+    amount,
+    currency,
+    status,
+    ...(readString(entry.reason) ? { reason: readString(entry.reason) } : {}),
+    ...normalizeExpandedCharge(entry.charge),
+    ...(readBoolean(entry.livemode) !== undefined ? { livemode: readBoolean(entry.livemode) } : {}),
+    ...(toCreatedAt(entry.created) ? { createdAt: toCreatedAt(entry.created) } : {}),
+  };
+}
+
+function normalizeStripeRefund(entry: Record<string, unknown>): AlisioStripeRefundSummary | null {
+  const id = readString(entry.id);
+  const amount = readNumber(entry.amount);
+  const currency = readString(entry.currency);
+  if (!id || amount === undefined || !currency) {
+    return null;
+  }
+  const charge =
+    typeof entry.charge === "string" || readObject(entry.charge)
+      ? normalizeExpandedCharge(entry.charge)
+      : {};
+  const paymentIntentId =
+    readString(entry.payment_intent) ??
+    readString(readObject(entry.payment_intent)?.id) ??
+    charge.paymentIntentId;
+  return {
+    id,
+    amount,
+    currency,
+    ...(readString(entry.status) ? { status: readString(entry.status) } : {}),
+    ...(readString(entry.reason) ? { reason: readString(entry.reason) } : {}),
+    ...(charge.chargeId ? { chargeId: charge.chargeId } : {}),
+    ...(paymentIntentId ? { paymentIntentId } : {}),
+    ...(readString(entry.failure_reason)
+      ? { failureReason: readString(entry.failure_reason) }
+      : {}),
+    ...(readBoolean(entry.livemode) !== undefined ? { livemode: readBoolean(entry.livemode) } : {}),
+    ...(toCreatedAt(entry.created) ? { createdAt: toCreatedAt(entry.created) } : {}),
+  };
+}
+
 function buildStripeErrorResult(
   error: StripeRequestError,
   fallbackStatus: StripeErrorResultStatus = "read_failed",
@@ -486,21 +820,25 @@ function readPageLimit(value: number | undefined): number {
   return Math.min(value, STRIPE_MAX_LIMIT);
 }
 
-export async function validateAlisioStripeApiKey(
-  input: { apiKey: string },
-  fetchImpl: typeof fetch = fetch,
-): Promise<AlisioStripeKeyValidationResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
-  if (!apiKey) {
-    return {
-      ok: false,
-      message: "Enter a Stripe secret or restricted API key. Publishable keys are not supported.",
-    };
-  }
-
+async function validateStripeReadAccess(params: {
+  credential: string;
+  fetchImpl: typeof fetch;
+  modeHint?: StripeMode;
+}): Promise<
+  | {
+      ok: true;
+      mode: StripeMode;
+    }
+  | {
+      ok: false;
+      message: string;
+      reconnectRequired?: boolean;
+      missingPermissions?: string[];
+    }
+> {
   const balance = await requestStripe("balance", {
-    apiKey,
-    fetchImpl,
+    apiKey: params.credential,
+    fetchImpl: params.fetchImpl,
     fallbackMessage: "Stripe rejected the account balance request.",
   });
   if (!balance.ok) {
@@ -516,12 +854,17 @@ export async function validateAlisioStripeApiKey(
     { label: "customers", path: "customers" },
     { label: "charges", path: "charges" },
     { label: "payment intents", path: "payment_intents" },
+    { label: "products", path: "products" },
+    { label: "prices", path: "prices" },
+    { label: "subscriptions", path: "subscriptions" },
+    { label: "disputes", path: "disputes" },
+    { label: "refunds", path: "refunds" },
   ];
   for (const check of permissionChecks) {
     const result = await requestStripe(check.path, {
-      apiKey,
+      apiKey: params.credential,
       query: { limit: 1 },
-      fetchImpl,
+      fetchImpl: params.fetchImpl,
       fallbackMessage: `Stripe rejected the ${check.label} request.`,
     });
     if (result.ok) {
@@ -540,23 +883,125 @@ export async function validateAlisioStripeApiKey(
   if (permissionFailures.length > 0) {
     return {
       ok: false,
-      message: `Stripe key needs read access to ${joinHumanList(permissionFailures)}.`,
+      message: `Stripe credential needs read access to ${joinHumanList(permissionFailures)}.`,
       reconnectRequired: true,
       missingPermissions: permissionFailures,
     };
   }
 
   const livemode = readBoolean(balance.body.livemode);
-  const mode = livemode === undefined ? detectStripeMode(apiKey) : livemode ? "live" : "test";
+  return {
+    ok: true,
+    mode: livemode === undefined ? (params.modeHint ?? "live") : livemode ? "live" : "test",
+  };
+}
+
+function buildStripeConnectedAccount(params: {
+  mode: StripeMode;
+  accessKind: StripeAccessKind;
+  accountId?: string;
+}): StripeConnectedAccount {
+  const modeLabel = params.mode === "live" ? "live" : "test";
+  if (params.accountId?.trim()) {
+    return {
+      label: `Stripe ${modeLabel} account`,
+      handle: params.accountId.trim(),
+    };
+  }
+  if (params.accessKind === "restricted" || params.accessKind === "secret") {
+    return {
+      label: params.mode === "live" ? "Stripe live mode" : "Stripe test mode",
+      handle: params.accessKind === "restricted" ? "restricted key" : "secret key",
+    };
+  }
+  return {
+    label: `Stripe ${modeLabel} account`,
+  };
+}
+
+export async function validateAlisioStripeApiKey(
+  input: { apiKey: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeKeyValidationResult> {
+  const apiKey = normalizeStripeApiKey(input.apiKey);
+  if (!apiKey) {
+    return {
+      ok: false,
+      message: "Enter a Stripe secret or restricted API key. Publishable keys are not supported.",
+    };
+  }
+  const probe = await validateStripeReadAccess({
+    credential: apiKey,
+    fetchImpl,
+    modeHint: detectStripeMode(apiKey),
+  });
+  if (!probe.ok) {
+    return {
+      ok: false,
+      message: probe.message.replace("Stripe credential", "Stripe key"),
+      ...(probe.reconnectRequired ? { reconnectRequired: true } : {}),
+      ...(probe.missingPermissions ? { missingPermissions: probe.missingPermissions } : {}),
+    };
+  }
   const keyKind = detectStripeKeyKind(apiKey);
   return {
     ok: true,
+    accessKind: keyKind,
     keyKind,
-    mode,
-    connectedAccount: {
-      label: mode === "live" ? "Stripe live mode" : "Stripe test mode",
-      handle: keyKind === "restricted" ? "restricted key" : "secret key",
-    },
+    mode: probe.mode,
+    connectedAccount: buildStripeConnectedAccount({
+      mode: probe.mode,
+      accessKind: keyKind,
+    }),
+  };
+}
+
+export async function validateAlisioStripeAccessToken(
+  input: {
+    accessToken: string;
+    accountId?: string;
+    livemode?: boolean;
+  },
+  fetchImpl: typeof fetch = fetch,
+): Promise<
+  | {
+      ok: true;
+      connectedAccount: StripeConnectedAccount;
+      accessKind: "oauth";
+      mode: StripeMode;
+    }
+  | {
+      ok: false;
+      message: string;
+      reconnectRequired?: boolean;
+      missingPermissions?: string[];
+    }
+> {
+  const accessToken = input.accessToken.trim();
+  if (!accessToken || accessToken.startsWith("pk_")) {
+    return {
+      ok: false,
+      message: "Stripe OAuth access token is missing or invalid.",
+      reconnectRequired: true,
+    };
+  }
+  const probe = await validateStripeReadAccess({
+    credential: accessToken,
+    fetchImpl,
+    modeHint: typeof input.livemode === "boolean" ? (input.livemode ? "live" : "test") : undefined,
+  });
+  if (!probe.ok) {
+    return probe;
+  }
+  return {
+    ok: true,
+    accessKind: "oauth",
+    mode: probe.mode,
+    connectedAccount: buildStripeConnectedAccount({
+      mode: probe.mode,
+      accessKind: "oauth",
+      accountId: input.accountId,
+    }),
   };
 }
 
@@ -564,8 +1009,8 @@ export async function readAlisioStripeAccountWithApiKey(
   input: { apiKey: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
-  if (!apiKey) {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
@@ -575,7 +1020,7 @@ export async function readAlisioStripeAccountWithApiKey(
     };
   }
   const result = await requestStripe("balance", {
-    apiKey,
+    apiKey: credential.token,
     fetchImpl,
     fallbackMessage: "Stripe rejected the account balance request.",
   });
@@ -583,7 +1028,8 @@ export async function readAlisioStripeAccountWithApiKey(
     return buildStripeErrorResult(result.error);
   }
   const livemode = readBoolean(result.body.livemode);
-  const mode = livemode === undefined ? detectStripeMode(apiKey) : livemode ? "live" : "test";
+  const mode =
+    livemode === undefined ? (credential.modeHint ?? "live") : livemode ? "live" : "test";
   return {
     ok: true,
     status: "account",
@@ -591,7 +1037,8 @@ export async function readAlisioStripeAccountWithApiKey(
     account: {
       livemode: livemode ?? mode === "live",
       mode,
-      keyKind: detectStripeKeyKind(apiKey),
+      accessKind: credential.accessKind,
+      ...(credential.keyKind ? { keyKind: credential.keyKind } : {}),
       available: readObjectArray(result.body.available)
         .map((entry) => normalizeBalanceAmount(entry))
         .filter((entry): entry is AlisioStripeBalanceAmount => entry !== null),
@@ -609,18 +1056,18 @@ export async function listAlisioStripeCustomersWithApiKey(
   input: { apiKey: string; limit?: number; email?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
-  if (!apiKey) {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
       connectorId: STRIPE_CONNECTOR_ID,
-      message: "Stripe API key is required.",
+      message: "Stripe credential is required.",
       reconnectRequired: true,
     };
   }
   const result = await requestStripe("customers", {
-    apiKey,
+    apiKey: credential.token,
     query: {
       limit: readPageLimit(input.limit),
       ...(input.email?.trim() ? { email: input.email.trim() } : {}),
@@ -645,14 +1092,14 @@ export async function readAlisioStripeCustomerWithApiKey(
   input: { apiKey: string; customerId: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
+  const credential = normalizeStripeStoredCredential(input.apiKey);
   const customerId = input.customerId.trim();
-  if (!apiKey) {
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
       connectorId: STRIPE_CONNECTOR_ID,
-      message: "Stripe API key is required.",
+      message: "Stripe credential is required.",
       reconnectRequired: true,
     };
   }
@@ -665,7 +1112,7 @@ export async function readAlisioStripeCustomerWithApiKey(
     };
   }
   const result = await requestStripe(`customers/${encodeURIComponent(customerId)}`, {
-    apiKey,
+    apiKey: credential.token,
     fetchImpl,
     fallbackMessage: "Stripe rejected the customer request.",
   });
@@ -693,18 +1140,18 @@ export async function listAlisioStripePaymentIntentsWithApiKey(
   input: { apiKey: string; limit?: number; customer?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
-  if (!apiKey) {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
       connectorId: STRIPE_CONNECTOR_ID,
-      message: "Stripe API key is required.",
+      message: "Stripe credential is required.",
       reconnectRequired: true,
     };
   }
   const result = await requestStripe("payment_intents", {
-    apiKey,
+    apiKey: credential.token,
     query: {
       limit: readPageLimit(input.limit),
       ...(input.customer?.trim() ? { customer: input.customer.trim() } : {}),
@@ -730,14 +1177,14 @@ export async function readAlisioStripePaymentIntentWithApiKey(
   input: { apiKey: string; paymentIntentId: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
+  const credential = normalizeStripeStoredCredential(input.apiKey);
   const paymentIntentId = input.paymentIntentId.trim();
-  if (!apiKey) {
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
       connectorId: STRIPE_CONNECTOR_ID,
-      message: "Stripe API key is required.",
+      message: "Stripe credential is required.",
       reconnectRequired: true,
     };
   }
@@ -750,7 +1197,7 @@ export async function readAlisioStripePaymentIntentWithApiKey(
     };
   }
   const result = await requestStripe(`payment_intents/${encodeURIComponent(paymentIntentId)}`, {
-    apiKey,
+    apiKey: credential.token,
     expand: ["customer", "latest_charge"],
     fetchImpl,
     fallbackMessage: "Stripe rejected the payment intent request.",
@@ -779,18 +1226,18 @@ export async function listAlisioStripeChargesWithApiKey(
   input: { apiKey: string; limit?: number; customer?: string; paymentIntentId?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
-  if (!apiKey) {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
       connectorId: STRIPE_CONNECTOR_ID,
-      message: "Stripe API key is required.",
+      message: "Stripe credential is required.",
       reconnectRequired: true,
     };
   }
   const result = await requestStripe("charges", {
-    apiKey,
+    apiKey: credential.token,
     query: {
       limit: readPageLimit(input.limit),
       ...(input.customer?.trim() ? { customer: input.customer.trim() } : {}),
@@ -817,14 +1264,14 @@ export async function readAlisioStripeChargeWithApiKey(
   input: { apiKey: string; chargeId: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioStripeResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
+  const credential = normalizeStripeStoredCredential(input.apiKey);
   const chargeId = input.chargeId.trim();
-  if (!apiKey) {
+  if (!credential) {
     return {
       ok: false,
       status: "auth_required",
       connectorId: STRIPE_CONNECTOR_ID,
-      message: "Stripe API key is required.",
+      message: "Stripe credential is required.",
       reconnectRequired: true,
     };
   }
@@ -837,7 +1284,7 @@ export async function readAlisioStripeChargeWithApiKey(
     };
   }
   const result = await requestStripe(`charges/${encodeURIComponent(chargeId)}`, {
-    apiKey,
+    apiKey: credential.token,
     expand: ["customer", "payment_intent"],
     fetchImpl,
     fallbackMessage: "Stripe rejected the charge request.",
@@ -859,5 +1306,434 @@ export async function readAlisioStripeChargeWithApiKey(
     status: "charge",
     connectorId: STRIPE_CONNECTOR_ID,
     charge,
+  };
+}
+
+export async function listAlisioStripeProductsWithApiKey(
+  input: { apiKey: string; limit?: number } = { apiKey: "" },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  const result = await requestStripe("products", {
+    apiKey: credential.token,
+    query: {
+      limit: readPageLimit(input.limit),
+    },
+    expand: ["data.default_price"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the products request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  return {
+    ok: true,
+    status: "products_listed",
+    connectorId: STRIPE_CONNECTOR_ID,
+    products: readObjectArray(result.body.data)
+      .map((entry) => normalizeStripeProduct(entry))
+      .filter((entry): entry is AlisioStripeProductSummary => entry !== null),
+  };
+}
+
+export async function readAlisioStripeProductWithApiKey(
+  input: { apiKey: string; productId: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  const productId = input.productId.trim();
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  if (!productId) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "productId is required.",
+    };
+  }
+  const result = await requestStripe(`products/${encodeURIComponent(productId)}`, {
+    apiKey: credential.token,
+    expand: ["default_price"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the product request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  const product = normalizeStripeProduct(result.body);
+  if (!product) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe returned an invalid product payload.",
+    };
+  }
+  return {
+    ok: true,
+    status: "product",
+    connectorId: STRIPE_CONNECTOR_ID,
+    product,
+  };
+}
+
+export async function listAlisioStripePricesWithApiKey(
+  input: { apiKey: string; limit?: number; productId?: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  const result = await requestStripe("prices", {
+    apiKey: credential.token,
+    query: {
+      limit: readPageLimit(input.limit),
+      ...(input.productId?.trim() ? { product: input.productId.trim() } : {}),
+    },
+    expand: ["data.product"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the prices request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  return {
+    ok: true,
+    status: "prices_listed",
+    connectorId: STRIPE_CONNECTOR_ID,
+    prices: readObjectArray(result.body.data)
+      .map((entry) => normalizeStripePrice(entry))
+      .filter((entry): entry is AlisioStripePriceSummary => entry !== null),
+  };
+}
+
+export async function readAlisioStripePriceWithApiKey(
+  input: { apiKey: string; priceId: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  const priceId = input.priceId.trim();
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  if (!priceId) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "priceId is required.",
+    };
+  }
+  const result = await requestStripe(`prices/${encodeURIComponent(priceId)}`, {
+    apiKey: credential.token,
+    expand: ["product"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the price request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  const price = normalizeStripePrice(result.body);
+  if (!price) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe returned an invalid price payload.",
+    };
+  }
+  return {
+    ok: true,
+    status: "price",
+    connectorId: STRIPE_CONNECTOR_ID,
+    price,
+  };
+}
+
+export async function listAlisioStripeSubscriptionsWithApiKey(
+  input: { apiKey: string; limit?: number; customer?: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  const result = await requestStripe("subscriptions", {
+    apiKey: credential.token,
+    query: {
+      limit: readPageLimit(input.limit),
+      ...(input.customer?.trim() ? { customer: input.customer.trim() } : {}),
+    },
+    expand: ["data.customer"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the subscriptions request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  return {
+    ok: true,
+    status: "subscriptions_listed",
+    connectorId: STRIPE_CONNECTOR_ID,
+    subscriptions: readObjectArray(result.body.data)
+      .map((entry) => normalizeStripeSubscription(entry))
+      .filter((entry): entry is AlisioStripeSubscriptionSummary => entry !== null),
+  };
+}
+
+export async function readAlisioStripeSubscriptionWithApiKey(
+  input: { apiKey: string; subscriptionId: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  const subscriptionId = input.subscriptionId.trim();
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  if (!subscriptionId) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "subscriptionId is required.",
+    };
+  }
+  const result = await requestStripe(`subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    apiKey: credential.token,
+    expand: ["customer"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the subscription request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  const subscription = normalizeStripeSubscription(result.body);
+  if (!subscription) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe returned an invalid subscription payload.",
+    };
+  }
+  return {
+    ok: true,
+    status: "subscription",
+    connectorId: STRIPE_CONNECTOR_ID,
+    subscription,
+  };
+}
+
+export async function listAlisioStripeDisputesWithApiKey(
+  input: { apiKey: string; limit?: number } = { apiKey: "" },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  const result = await requestStripe("disputes", {
+    apiKey: credential.token,
+    query: {
+      limit: readPageLimit(input.limit),
+    },
+    expand: ["data.charge", "data.charge.payment_intent"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the disputes request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  return {
+    ok: true,
+    status: "disputes_listed",
+    connectorId: STRIPE_CONNECTOR_ID,
+    disputes: readObjectArray(result.body.data)
+      .map((entry) => normalizeStripeDispute(entry))
+      .filter((entry): entry is AlisioStripeDisputeSummary => entry !== null),
+  };
+}
+
+export async function readAlisioStripeDisputeWithApiKey(
+  input: { apiKey: string; disputeId: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  const disputeId = input.disputeId.trim();
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  if (!disputeId) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "disputeId is required.",
+    };
+  }
+  const result = await requestStripe(`disputes/${encodeURIComponent(disputeId)}`, {
+    apiKey: credential.token,
+    expand: ["charge", "charge.payment_intent"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the dispute request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  const dispute = normalizeStripeDispute(result.body);
+  if (!dispute) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe returned an invalid dispute payload.",
+    };
+  }
+  return {
+    ok: true,
+    status: "dispute",
+    connectorId: STRIPE_CONNECTOR_ID,
+    dispute,
+  };
+}
+
+export async function listAlisioStripeRefundsWithApiKey(
+  input: { apiKey: string; limit?: number; chargeId?: string; paymentIntentId?: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  const result = await requestStripe("refunds", {
+    apiKey: credential.token,
+    query: {
+      limit: readPageLimit(input.limit),
+      ...(input.chargeId?.trim() ? { charge: input.chargeId.trim() } : {}),
+      ...(input.paymentIntentId?.trim() ? { payment_intent: input.paymentIntentId.trim() } : {}),
+    },
+    expand: ["data.charge", "data.charge.payment_intent", "data.payment_intent"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the refunds request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  return {
+    ok: true,
+    status: "refunds_listed",
+    connectorId: STRIPE_CONNECTOR_ID,
+    refunds: readObjectArray(result.body.data)
+      .map((entry) => normalizeStripeRefund(entry))
+      .filter((entry): entry is AlisioStripeRefundSummary => entry !== null),
+  };
+}
+
+export async function readAlisioStripeRefundWithApiKey(
+  input: { apiKey: string; refundId: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioStripeResult> {
+  const credential = normalizeStripeStoredCredential(input.apiKey);
+  const refundId = input.refundId.trim();
+  if (!credential) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe credential is required.",
+      reconnectRequired: true,
+    };
+  }
+  if (!refundId) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "refundId is required.",
+    };
+  }
+  const result = await requestStripe(`refunds/${encodeURIComponent(refundId)}`, {
+    apiKey: credential.token,
+    expand: ["charge", "charge.payment_intent", "payment_intent"],
+    fetchImpl,
+    fallbackMessage: "Stripe rejected the refund request.",
+  });
+  if (!result.ok) {
+    return buildStripeErrorResult(result.error);
+  }
+  const refund = normalizeStripeRefund(result.body);
+  if (!refund) {
+    return {
+      ok: false,
+      status: "read_failed",
+      connectorId: STRIPE_CONNECTOR_ID,
+      message: "Stripe returned an invalid refund payload.",
+    };
+  }
+  return {
+    ok: true,
+    status: "refund",
+    connectorId: STRIPE_CONNECTOR_ID,
+    refund,
   };
 }

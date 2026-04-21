@@ -49,10 +49,16 @@ import {
   ALISIO_LOCAL_MODEL_BACKEND,
   findAlisioLocalModelCatalogEntry,
 } from "../../shared/alisio-local-models.js";
+import {
+  canonicalizeAlisioAccountResult,
+  canonicalizeAlisioBootstrapResult,
+  isAlisioAccountAuthenticated,
+} from "../alisio-contract.js";
 import { GATEWAY_EVENT_ALISIO_MODELS_OPERATION } from "../events.js";
 import {
   ErrorCodes,
   errorShape,
+  validateAlisioAccountResult,
   formatValidationErrors,
   validateAlisioAccountEmailChangeParams,
   validateAlisioAccountEmailChangeResult,
@@ -255,6 +261,24 @@ function broadcastLocalModelOperation(
   context.broadcast(GATEWAY_EVENT_ALISIO_MODELS_OPERATION, payload, { dropIfSlow: true });
 }
 
+async function requireAuthenticatedAlisioAccount(
+  respond: (ok: boolean, payload?: unknown, error?: unknown) => void,
+) {
+  const account = await getAlisioAccountState();
+  if (!isAlisioAccountAuthenticated(account)) {
+    respond(
+      false,
+      undefined,
+      errorShape(
+        ErrorCodes.INVALID_REQUEST,
+        "Alisio account sign-in required before using shared backend features.",
+      ),
+    );
+    return null;
+  }
+  return account;
+}
+
 function findCurrentModelTarget(
   models: AlisioModelsResult,
   modelId: string,
@@ -325,7 +349,21 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    respond(true, await getAlisioAccountState(), undefined);
+    const result = canonicalizeAlisioAccountResult(await getAlisioAccountState());
+    if (!validateAlisioAccountResult(result)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.account.get result: ${formatValidationErrors(
+            validateAlisioAccountResult.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    respond(true, result, undefined);
   },
   "alisio.account.beginEmailAuth": async ({ params, respond }) => {
     if (!validateAlisioAccountEmailAuthBeginParams(params)) {
@@ -893,6 +931,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     const result = await getAlisioAiState();
     if (!validateAlisioAiState(result)) {
       respond(
@@ -919,6 +960,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -966,6 +1010,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     try {
       const result = await completeAlisioAiConnect(params);
       if (!validateAlisioAiState(result)) {
@@ -1011,6 +1058,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     const result = await disconnectAlisioAi(params as { profileId?: string });
     respond(true, result, undefined);
   },
@@ -1026,6 +1076,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -1054,6 +1107,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -1096,6 +1152,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -1143,18 +1202,15 @@ export const alisioHandlers: GatewayRequestHandlers = {
     try {
       const { wizardSessionId, runtimeSetup, stored } = await loadBootstrapShellState(context);
       const { snapshot, summary } = stored;
-      const result = {
-        ...summary,
-        account: snapshot.account,
-        ai: snapshot.ai,
-        organization: snapshot.organization,
-        connectors: snapshot.connectors,
+      const result = canonicalizeAlisioBootstrapResult({
+        summary,
+        snapshot,
         wizard: {
           running: Boolean(wizardSessionId),
           sessionId: wizardSessionId,
         },
         models: runtimeSetup.models,
-      };
+      });
       if (!validateAlisioBootstrapResult(result)) {
         respond(
           false,
@@ -1193,6 +1249,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -1236,6 +1295,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
 
@@ -1487,6 +1549,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
 
     let operationTargetId = params.targetId;
     try {
@@ -1702,18 +1767,15 @@ export const alisioHandlers: GatewayRequestHandlers = {
         connectionRequired: false,
         bootstrap: bootstrapSummary,
       });
-      const bootstrap = {
-        ...bootstrapSummary,
-        account: snapshot.account,
-        ai: snapshot.ai,
-        organization: snapshot.organization,
-        connectors: snapshot.connectors,
+      const bootstrap = canonicalizeAlisioBootstrapResult({
+        summary: bootstrapSummary,
+        snapshot,
         wizard: {
           running: wizardSessionId !== null,
           sessionId: wizardSessionId,
         },
         models: runtimeSetup.models,
-      };
+      });
       const result = {
         ...doctorSummary,
         bootstrap,
@@ -1757,10 +1819,17 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     try {
-      const result = await loadAlisioProviderOverview({
+      const loaded = await loadAlisioProviderOverview({
         nodeRegistry: context.nodeRegistry,
       });
+      const result = {
+        ...loaded,
+        account: canonicalizeAlisioAccountResult(loaded.account),
+      };
       if (!validateAlisioProvidersResult(result)) {
         respond(
           false,
@@ -1877,6 +1946,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     respond(true, await getAlisioOrganizationState(), undefined);
   },
   "alisio.organization.set": async ({ params, respond }) => {
@@ -1891,6 +1963,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -1924,6 +1999,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     respond(true, { connectors: listAlisioConnectorDefinitions() }, undefined);
   },
   "connectors.list": async ({ params, respond }) => {
@@ -1940,6 +2018,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
+      return;
+    }
     respond(true, { authorizations: await listAlisioConnectorAuthorizations() }, undefined);
   },
   "connectors.begin": async ({ params, respond }) => {
@@ -1954,6 +2035,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -1992,6 +2076,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     try {
@@ -2035,6 +2122,9 @@ export const alisioHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
     const result = await revokeAlisioConnectorAuthorization(

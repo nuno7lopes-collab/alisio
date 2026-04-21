@@ -310,10 +310,69 @@ describe("alisio gateway methods", () => {
       connectionRequired: false,
       wizardRequired: false,
       wizardRunning: false,
+      authRequired: true,
       providerReady: false,
       accountReady: false,
       startupState: "signed_out",
       nextStep: "account",
+      scopeRoot: "account",
+    });
+  });
+
+  it("canonicalizes the account root around accountId, auth, device binding, and residency", async () => {
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
+
+      await alisioHandlers["alisio.account.get"]({
+        params: {},
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "alisio.account.get", params: {}, id: 18 } as never,
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        accountId: "user-1",
+        scopeRoot: "account",
+        canonical: {
+          accountId: "user-1",
+          source: "user_id",
+          authenticated: true,
+          authRequired: true,
+        },
+        session: {
+          state: "signed_in",
+          authRequired: true,
+          authenticated: true,
+          accountId: "user-1",
+        },
+        deviceBinding: {
+          binding: "account_bound",
+          runtime: "local",
+          accountId: "user-1",
+        },
+        runtimeContract: {
+          scopeRoot: "account",
+          backendShared: expect.arrayContaining([
+            "account",
+            "auth",
+            "linked_devices",
+            "session_index",
+            "automations",
+          ]),
+          localRuntime: expect.arrayContaining([
+            "identity",
+            "soul",
+            "preferences",
+            "memory",
+            "native_runtime",
+          ]),
+        },
+      });
     });
   });
 
@@ -409,7 +468,7 @@ describe("alisio gateway methods", () => {
     expect(payload.issues?.map((issue) => issue.code)).not.toContain("runtime_not_ready");
   });
 
-  it("serves local model targets for this computer", async () => {
+  it("requires auth before serving local model targets", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();
 
@@ -423,79 +482,76 @@ describe("alisio gateway methods", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.ok).toBe(true);
-    expect(calls[0]?.payload).toMatchObject({
-      backend: "llama.cpp",
-      targets: [
-        expect.objectContaining({
-          current: true,
-          connected: true,
-          backend: "llama.cpp",
-          recommendations: expect.any(Array),
-        }),
-      ],
+    expect(calls[0]?.ok).toBe(false);
+    expect(calls[0]?.error).toMatchObject({
+      code: "INVALID_REQUEST",
+      message: "Alisio account sign-in required before using shared backend features.",
     });
   });
 
   it("installs a published local model on this computer", async () => {
-    const context = makeContext();
-    const { calls, respond } = makeRespond();
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
 
-    await alisioHandlers["alisio.models.install"]({
-      params: {
-        targetId: "current",
-        modelId: "qwen3-4b-q4-k-m",
-      },
-      client: null,
-      context,
-      isWebchatConnect: () => false,
-      respond,
-      req: { method: "alisio.models.install", params: {}, id: 7 } as never,
-    });
+      await alisioHandlers["alisio.models.install"]({
+        params: {
+          targetId: "current",
+          modelId: "qwen3-4b-q4-k-m",
+        },
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "alisio.models.install", params: {}, id: 7 } as never,
+      });
 
-    expect(installAlisioLocalModelMock).toHaveBeenCalledWith(
-      expect.objectContaining({
+      expect(installAlisioLocalModelMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: "qwen3-4b-q4-k-m",
+        }),
+      );
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        ok: true,
+        backend: "llama.cpp",
+        targetId: expect.stringMatching(/^local:.*::llama\.cpp$/),
         modelId: "qwen3-4b-q4-k-m",
-      }),
-    );
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.ok).toBe(true);
-    expect(calls[0]?.payload).toMatchObject({
-      ok: true,
-      backend: "llama.cpp",
-      targetId: expect.stringMatching(/^local:.*::llama\.cpp$/),
-      modelId: "qwen3-4b-q4-k-m",
+      });
     });
   });
 
   it("uninstalls a published local model on this computer", async () => {
-    const context = makeContext();
-    const { calls, respond } = makeRespond();
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
 
-    await alisioHandlers["alisio.models.uninstall"]({
-      params: {
-        targetId: "current",
-        modelId: "qwen3-4b-q4-k-m",
-      },
-      client: null,
-      context,
-      isWebchatConnect: () => false,
-      respond,
-      req: { method: "alisio.models.uninstall", params: {}, id: 8 } as never,
-    });
+      await alisioHandlers["alisio.models.uninstall"]({
+        params: {
+          targetId: "current",
+          modelId: "qwen3-4b-q4-k-m",
+        },
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "alisio.models.uninstall", params: {}, id: 8 } as never,
+      });
 
-    expect(uninstallAlisioLocalModelMock).toHaveBeenCalledWith(
-      expect.objectContaining({
+      expect(uninstallAlisioLocalModelMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelId: "qwen3-4b-q4-k-m",
+        }),
+      );
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        ok: true,
+        backend: "llama.cpp",
+        targetId: expect.stringMatching(/^local:.*::llama\.cpp$/),
         modelId: "qwen3-4b-q4-k-m",
-      }),
-    );
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.ok).toBe(true);
-    expect(calls[0]?.payload).toMatchObject({
-      ok: true,
-      backend: "llama.cpp",
-      targetId: expect.stringMatching(/^local:.*::llama\.cpp$/),
-      modelId: "qwen3-4b-q4-k-m",
+      });
     });
   });
 

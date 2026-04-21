@@ -92,4 +92,33 @@ describe("handleAlisioOAuthHttpRequest", () => {
     expect(res.body()).toContain('"connectorId":"google-calendar"');
     expect(res.body()).toContain("window.location.replace(returnToUrl)");
   });
+
+  it("supports Stripe connector OAuth callbacks", async () => {
+    completeAlisioConnectorAuthorizationFromCallbackMock.mockResolvedValueOnce({
+      ok: true,
+      authorization: {
+        connectorId: "stripe",
+        state: "connected",
+        health: "healthy",
+        scopes: ["balance_read", "customer_read", "charge_read", "payment_intent_read"],
+        connectedAccount: {
+          label: "Stripe test account",
+          handle: "acct_123",
+        },
+      },
+    });
+    const req = {
+      method: "GET",
+      url: "/oauth/stripe/callback?code=test&state=abc",
+    } as const;
+    const res = createResponse();
+
+    const handled = await handleAlisioOAuthHttpRequest(req as never, res as never, {} as never);
+
+    expect(handled).toBe(true);
+    expect(res.statusCode).toBe(200);
+    expect(res.body()).toContain("Stripe");
+    expect(res.body()).toContain('"provider":"stripe"');
+    expect(res.body()).toContain('"connectorId":"stripe"');
+  });
 });

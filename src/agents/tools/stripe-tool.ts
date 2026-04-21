@@ -3,10 +3,20 @@ import {
   getAlisioStripeAccount,
   listAlisioStripeCharges,
   listAlisioStripeCustomers,
+  listAlisioStripeDisputes,
   listAlisioStripePaymentIntents,
+  listAlisioStripePrices,
+  listAlisioStripeProducts,
+  listAlisioStripeRefunds,
+  listAlisioStripeSubscriptions,
   readAlisioStripeCharge,
   readAlisioStripeCustomer,
+  readAlisioStripeDispute,
   readAlisioStripePaymentIntent,
+  readAlisioStripePrice,
+  readAlisioStripeProduct,
+  readAlisioStripeRefund,
+  readAlisioStripeSubscription,
 } from "../../infra/alisio-stripe.js";
 import {
   payloadTextResult,
@@ -19,7 +29,7 @@ import {
 const StripeToolSchema = Type.Object({
   action: Type.String({
     description:
-      'Action to run: "account", "list_customers", "customer", "list_payment_intents", "payment_intent", "list_charges", or "charge".',
+      'Action to run: "account", "list_customers", "customer", "list_payment_intents", "payment_intent", "list_charges", "charge", "list_products", "product", "list_prices", "price", "list_subscriptions", "subscription", "list_disputes", "dispute", "list_refunds", or "refund".',
   }),
   limit: Type.Optional(
     Type.Number({
@@ -49,6 +59,31 @@ const StripeToolSchema = Type.Object({
       description: 'Charge id for action="charge".',
     }),
   ),
+  productId: Type.Optional(
+    Type.String({
+      description: 'Product id for action="product", or a product filter for action="list_prices".',
+    }),
+  ),
+  priceId: Type.Optional(
+    Type.String({
+      description: 'Price id for action="price".',
+    }),
+  ),
+  subscriptionId: Type.Optional(
+    Type.String({
+      description: 'Subscription id for action="subscription".',
+    }),
+  ),
+  disputeId: Type.Optional(
+    Type.String({
+      description: 'Dispute id for action="dispute".',
+    }),
+  ),
+  refundId: Type.Optional(
+    Type.String({
+      description: 'Refund id for action="refund".',
+    }),
+  ),
 });
 
 function readStripeLimit(params: Record<string, unknown>): number | undefined {
@@ -68,9 +103,9 @@ export function createStripeTool(): AnyAgentTool {
     name: "stripe",
     ownerOnly: true,
     displaySummary:
-      "Inspect Stripe balance, customers, payment intents, and charges through the connected Stripe app.",
+      "Inspect Stripe balance, customers, subscriptions, products, prices, charges, refunds, disputes, and payment intents through the connected Stripe app.",
     description:
-      "Inspect Stripe balance, customers, payment intents, and charges through the connected Stripe app. Prefer this over browser automation for Stripe operations.",
+      "Inspect Stripe balance, customers, subscriptions, products, prices, charges, refunds, disputes, and payment intents through the connected Stripe app. Prefer this over browser automation for Stripe operations.",
     parameters: StripeToolSchema,
     execute: async (_toolCallId, args) => {
       const params = args as Record<string, unknown>;
@@ -131,8 +166,87 @@ export function createStripeTool(): AnyAgentTool {
         });
         return payloadTextResult(await readAlisioStripeCharge({ chargeId }));
       }
+      if (action === "list_products") {
+        const limit = readStripeLimit(params);
+        return payloadTextResult(
+          await listAlisioStripeProducts(limit !== undefined ? { limit } : {}),
+        );
+      }
+      if (action === "product") {
+        const productId = readStringParam(params, "productId", {
+          required: true,
+          label: "productId",
+        });
+        return payloadTextResult(await readAlisioStripeProduct({ productId }));
+      }
+      if (action === "list_prices") {
+        const limit = readStripeLimit(params);
+        const productId = readStringParam(params, "productId");
+        return payloadTextResult(
+          await listAlisioStripePrices({
+            ...(limit !== undefined ? { limit } : {}),
+            ...(productId ? { productId } : {}),
+          }),
+        );
+      }
+      if (action === "price") {
+        const priceId = readStringParam(params, "priceId", {
+          required: true,
+          label: "priceId",
+        });
+        return payloadTextResult(await readAlisioStripePrice({ priceId }));
+      }
+      if (action === "list_subscriptions") {
+        const limit = readStripeLimit(params);
+        const customer = readStringParam(params, "customerId");
+        return payloadTextResult(
+          await listAlisioStripeSubscriptions({
+            ...(limit !== undefined ? { limit } : {}),
+            ...(customer ? { customer } : {}),
+          }),
+        );
+      }
+      if (action === "subscription") {
+        const subscriptionId = readStringParam(params, "subscriptionId", {
+          required: true,
+          label: "subscriptionId",
+        });
+        return payloadTextResult(await readAlisioStripeSubscription({ subscriptionId }));
+      }
+      if (action === "list_disputes") {
+        const limit = readStripeLimit(params);
+        return payloadTextResult(
+          await listAlisioStripeDisputes(limit !== undefined ? { limit } : {}),
+        );
+      }
+      if (action === "dispute") {
+        const disputeId = readStringParam(params, "disputeId", {
+          required: true,
+          label: "disputeId",
+        });
+        return payloadTextResult(await readAlisioStripeDispute({ disputeId }));
+      }
+      if (action === "list_refunds") {
+        const limit = readStripeLimit(params);
+        const chargeId = readStringParam(params, "chargeId");
+        const paymentIntentId = readStringParam(params, "paymentIntentId");
+        return payloadTextResult(
+          await listAlisioStripeRefunds({
+            ...(limit !== undefined ? { limit } : {}),
+            ...(chargeId ? { chargeId } : {}),
+            ...(paymentIntentId ? { paymentIntentId } : {}),
+          }),
+        );
+      }
+      if (action === "refund") {
+        const refundId = readStringParam(params, "refundId", {
+          required: true,
+          label: "refundId",
+        });
+        return payloadTextResult(await readAlisioStripeRefund({ refundId }));
+      }
       throw new ToolInputError(
-        'action must be "account", "list_customers", "customer", "list_payment_intents", "payment_intent", "list_charges", or "charge"',
+        'action must be "account", "list_customers", "customer", "list_payment_intents", "payment_intent", "list_charges", "charge", "list_products", "product", "list_prices", "price", "list_subscriptions", "subscription", "list_disputes", "dispute", "list_refunds", or "refund"',
       );
     },
   };

@@ -82,8 +82,6 @@ function createProps(
     connectorCatalog: [],
     connectorAuthorizations: [],
     connectorSetupGuide: null,
-    connectorSetupSubmitting: false,
-    connectorSetupError: null,
     search: "",
     dialogConnectorId: null,
     dialogMode: null,
@@ -92,7 +90,6 @@ function createProps(
     onOpenConnectorInstall: vi.fn(),
     onCloseConnectorDialog: vi.fn(),
     onBeginConnector: vi.fn(),
-    onCompleteManualConnector: vi.fn(),
     onRevokeConnector: vi.fn(),
     onTryConnectorInChat: vi.fn(),
     ...overrides,
@@ -331,6 +328,7 @@ describe("authentications view", () => {
               connectorId: "gmail-modify",
               state: "connected",
               connectedAccount: {
+                label: "Nuno Lopes",
                 email: "nuno7lopes@gmail.com",
                 handle: "102786776818103502343",
               },
@@ -372,16 +370,24 @@ describe("authentications view", () => {
     expect(onBeginConnector).toHaveBeenCalledWith("github");
   });
 
-  it("renders Stripe manual setup inside the install dialog and submits the API key", () => {
+  it("keeps Stripe on the native install path instead of rendering a manual key form", () => {
     const container = document.createElement("div");
-    const onCompleteManualConnector = vi.fn();
+    const onBeginConnector = vi.fn();
     const connectorSetupGuide: AlisioConnectorsBeginResult = {
       connectorId: "stripe",
       availability: "ready",
       mode: "setup",
-      statusReason: "ready_for_setup",
+      statusReason: "missing_client_config",
+      provider: "stripe",
       providerLabel: "Stripe",
-      setupHint: "Paste a Stripe secret or restricted API key.",
+      callbackPath: "/oauth/stripe/callback",
+      requiredEnvVars: [
+        "ALISIO_STRIPE_CLIENT_ID",
+        "ALISIO_STRIPE_DEVELOPER_API_KEY",
+        "ALISIO_STRIPE_REDIRECT_URI",
+        "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY",
+      ],
+      setupHint: "Stripe can complete a native Stripe App OAuth install in Alisio.",
     };
 
     render(
@@ -400,21 +406,21 @@ describe("authentications view", () => {
             }),
           ],
           connectorSetupGuide,
-          onCompleteManualConnector,
+          onBeginConnector,
         }),
       ),
       container,
     );
 
-    const input = container.querySelector<HTMLInputElement>('input[name="apiKey"]');
-    expect(input?.placeholder).toContain("sk_live");
-    expect(container.textContent).toContain("Stripe API key");
-    input!.value = "rk_live_test_readonly";
-    container
-      .querySelector<HTMLFormElement>(".alisio-auth-dialog__manual-form")
-      ?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    expect(container.querySelector('input[name="apiKey"]')).toBeNull();
+    expect(container.textContent).not.toContain("Stripe API key");
+    expect(container.textContent).toContain("ALISIO_STRIPE_CLIENT_ID");
+    const installButton = Array.from(container.querySelectorAll("button")).find((candidate) =>
+      candidate.textContent?.includes("Install Stripe"),
+    );
+    installButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
-    expect(onCompleteManualConnector).toHaveBeenCalledWith("stripe", "rk_live_test_readonly");
+    expect(onBeginConnector).toHaveBeenCalledWith("stripe");
   });
 
   it("filters apps by search across both panels", () => {

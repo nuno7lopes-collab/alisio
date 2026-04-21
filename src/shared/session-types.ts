@@ -1,4 +1,11 @@
 import type { PersonWorkspaceSummary } from "../config/types.person.js";
+import type {
+  AccountDeviceBindingState,
+  AlisioBackendSharedResource,
+  AlisioLocalRuntimeResource,
+  CanonicalAccountIdSource,
+} from "./alisio-account-scope.js";
+import { ALISIO_ACCOUNT_SCOPE_ROOT } from "./alisio-account-scope.js";
 
 export type GatewayAgentIdentity = {
   name?: string;
@@ -34,8 +41,37 @@ export type GatewayPersonalContextSessionPolicy = {
   key?: string;
 };
 
+export type GatewayAccountScope = {
+  scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
+  accountId?: string;
+  source: CanonicalAccountIdSource;
+  authenticated: boolean;
+  authRequired: true;
+  workspaceMode: "account_scoped" | "legacy_unscoped";
+  workspaceRoot: string;
+};
+
+export type GatewayRuntimeResidencyContract = {
+  scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
+  backendShared: AlisioBackendSharedResource[];
+  localRuntime: AlisioLocalRuntimeResource[];
+};
+
+export type GatewayAccountDeviceBinding = {
+  binding: AccountDeviceBindingState;
+  runtime: "local";
+  current: boolean;
+  accountId?: string;
+  deviceId?: string;
+  label?: string;
+  platform?: string;
+};
+
 export type GatewayPersonalContextSummary = {
   version: 1;
+  accountScope: GatewayAccountScope;
+  runtimeContract: GatewayRuntimeResidencyContract;
+  deviceBinding: GatewayAccountDeviceBinding;
   bootstrap: GatewayPersonalContextFileSummary & {
     state: "pending" | "completed";
     oneTime: true;

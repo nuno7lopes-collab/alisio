@@ -1,4 +1,9 @@
 import { Type } from "@sinclair/typebox";
+import {
+  ALISIO_ACCOUNT_SCOPE_ROOT,
+  ALISIO_BACKEND_SHARED_RESOURCES,
+  ALISIO_LOCAL_RUNTIME_RESOURCES,
+} from "../../../shared/alisio-account-scope.js";
 import { NonEmptyString } from "./primitives.js";
 
 export const PersonalContextAvailabilitySchema = Type.Union([
@@ -30,6 +35,60 @@ export const PersonalContextSessionRoleSchema = Type.Union([
   Type.Literal("delegated_session"),
   Type.Literal("automation_session"),
 ]);
+
+const AccountScopeRootSchema = Type.Literal(ALISIO_ACCOUNT_SCOPE_ROOT);
+
+export const PersonalContextCanonicalAccountIdSourceSchema = Type.Union([
+  Type.Literal("account_id"),
+  Type.Literal("account_user_id"),
+  Type.Literal("user_id"),
+  Type.Literal("email"),
+  Type.Literal("missing"),
+]);
+
+export const PersonalContextWorkspaceModeSchema = Type.Union([
+  Type.Literal("account_scoped"),
+  Type.Literal("legacy_unscoped"),
+]);
+
+export const PersonalContextAccountScopeSchema = Type.Object(
+  {
+    scopeRoot: AccountScopeRootSchema,
+    accountId: Type.Optional(Type.String()),
+    source: PersonalContextCanonicalAccountIdSourceSchema,
+    authenticated: Type.Boolean(),
+    authRequired: Type.Literal(true),
+    workspaceMode: PersonalContextWorkspaceModeSchema,
+    workspaceRoot: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextRuntimeResidencyContractSchema = Type.Object(
+  {
+    scopeRoot: AccountScopeRootSchema,
+    backendShared: Type.Array(
+      Type.Union(ALISIO_BACKEND_SHARED_RESOURCES.map((entry) => Type.Literal(entry))),
+    ),
+    localRuntime: Type.Array(
+      Type.Union(ALISIO_LOCAL_RUNTIME_RESOURCES.map((entry) => Type.Literal(entry))),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextDeviceBindingSchema = Type.Object(
+  {
+    binding: Type.Union([Type.Literal("auth_required"), Type.Literal("account_bound")]),
+    runtime: Type.Literal("local"),
+    current: Type.Boolean(),
+    accountId: Type.Optional(Type.String()),
+    deviceId: Type.Optional(Type.String()),
+    label: Type.Optional(Type.String()),
+    platform: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
 
 export const PersonalContextFileSummarySchema = Type.Object(
   {
@@ -70,6 +129,9 @@ export const PersonalContextSessionPolicySchema = Type.Object(
 export const PersonalContextSummarySchema = Type.Object(
   {
     version: Type.Literal(1),
+    accountScope: PersonalContextAccountScopeSchema,
+    runtimeContract: PersonalContextRuntimeResidencyContractSchema,
+    deviceBinding: PersonalContextDeviceBindingSchema,
     bootstrap: Type.Object(
       {
         path: NonEmptyString,

@@ -1,5 +1,10 @@
 import { Type } from "@sinclair/typebox";
 import {
+  ALISIO_ACCOUNT_SCOPE_ROOT,
+  ALISIO_BACKEND_SHARED_RESOURCES,
+  ALISIO_LOCAL_RUNTIME_RESOURCES,
+} from "../../../shared/alisio-account-scope.js";
+import {
   ALISIO_AGENT_NAME_MAX_LENGTH,
   ALISIO_USERNAME_ALLOWED_PATTERN_SOURCE,
   ALISIO_USERNAME_MAX_LENGTH,
@@ -37,6 +42,7 @@ const ConnectorBeginReasonSchema = Type.Union([
 const OAuthProviderSchema = Type.Union([
   Type.Literal("google"),
   Type.Literal("github"),
+  Type.Literal("stripe"),
   Type.Literal("notion"),
   Type.Literal("vercel"),
 ]);
@@ -81,6 +87,24 @@ const AccountAuthMethodSchema = Type.Union([Type.Literal("email"), Type.Literal(
 
 const AccountBackendSchema = Type.Literal("supabase");
 const AccountPlanSchema = Type.Union(ALISIO_PLAN_VALUES.map((entry) => Type.Literal(entry)));
+const AccountScopeRootSchema = Type.Literal(ALISIO_ACCOUNT_SCOPE_ROOT);
+const CanonicalAccountIdSourceSchema = Type.Union([
+  Type.Literal("account_id"),
+  Type.Literal("account_user_id"),
+  Type.Literal("user_id"),
+  Type.Literal("email"),
+  Type.Literal("missing"),
+]);
+const AccountDeviceBindingStateSchema = Type.Union([
+  Type.Literal("auth_required"),
+  Type.Literal("account_bound"),
+]);
+const BackendSharedResourceSchema = Type.Union(
+  ALISIO_BACKEND_SHARED_RESOURCES.map((entry) => Type.Literal(entry)),
+);
+const LocalRuntimeResourceSchema = Type.Union(
+  ALISIO_LOCAL_RUNTIME_RESOURCES.map((entry) => Type.Literal(entry)),
+);
 
 const StartupStateSchema = Type.Union([
   Type.Literal("signed_out"),
@@ -247,6 +271,7 @@ export const AlisioConnectorAuthorizationSchema = Type.Object(
 
 export const AlisioLocalAccountProfileSchema = Type.Object(
   {
+    accountId: Type.Optional(Type.String()),
     userId: Type.Optional(Type.String()),
     username: Type.String({
       minLength: ALISIO_USERNAME_MIN_LENGTH,
@@ -282,6 +307,9 @@ export const AlisioAccountSessionSchema = Type.Object(
   {
     state: AccountSessionStateSchema,
     profileCompleted: Type.Boolean(),
+    authRequired: Type.Optional(Type.Literal(true)),
+    authenticated: Type.Optional(Type.Boolean()),
+    accountId: Type.Optional(Type.String()),
     authMethod: Type.Optional(AccountAuthMethodSchema),
     signedInAt: Type.Optional(Type.String()),
     signedOutAt: Type.Optional(Type.String()),
@@ -434,6 +462,42 @@ export const AlisioLocalDeviceSessionSchema = Type.Object(
     current: Type.Boolean(),
     status: Type.Literal("active"),
     lastSeenAt: NonEmptyString,
+    accountId: Type.Optional(Type.String()),
+    binding: Type.Optional(AccountDeviceBindingStateSchema),
+    runtime: Type.Optional(Type.Literal("local")),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioCanonicalAccountSchema = Type.Object(
+  {
+    scopeRoot: AccountScopeRootSchema,
+    accountId: Type.Optional(Type.String()),
+    source: CanonicalAccountIdSourceSchema,
+    authenticated: Type.Boolean(),
+    authRequired: Type.Literal(true),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioRuntimeResidencyContractSchema = Type.Object(
+  {
+    scopeRoot: AccountScopeRootSchema,
+    backendShared: Type.Array(BackendSharedResourceSchema),
+    localRuntime: Type.Array(LocalRuntimeResourceSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAccountDeviceBindingSchema = Type.Object(
+  {
+    binding: AccountDeviceBindingStateSchema,
+    runtime: Type.Literal("local"),
+    current: Type.Boolean(),
+    accountId: Type.Optional(Type.String()),
+    deviceId: Type.Optional(Type.String()),
+    label: Type.Optional(Type.String()),
+    platform: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
@@ -442,11 +506,16 @@ export const AlisioAccountGetParamsSchema = Type.Object({}, { additionalProperti
 
 export const AlisioAccountResultSchema = Type.Object(
   {
+    accountId: Type.Optional(Type.String()),
+    scopeRoot: AccountScopeRootSchema,
+    canonical: AlisioCanonicalAccountSchema,
     profile: AlisioLocalAccountProfileSchema,
     preferences: AlisioLocalUserPreferencesSchema,
     session: AlisioAccountSessionSchema,
     devices: Type.Array(AlisioLocalDeviceSessionSchema),
     cloud: AlisioAccountCloudSchema,
+    deviceBinding: AlisioAccountDeviceBindingSchema,
+    runtimeContract: AlisioRuntimeResidencyContractSchema,
   },
   { additionalProperties: false },
 );
@@ -1113,6 +1182,11 @@ export const AlisioBootstrapResultSchema = Type.Object(
     providerReady: Type.Boolean(),
     accountReady: Type.Boolean(),
     startupState: StartupStateSchema,
+    accountId: Type.Optional(Type.String()),
+    scopeRoot: AccountScopeRootSchema,
+    authRequired: Type.Literal(true),
+    deviceBinding: AlisioAccountDeviceBindingSchema,
+    runtimeContract: AlisioRuntimeResidencyContractSchema,
     organizationState: AlisioOrganizationStateSchema,
     connectorSummary: AlisioConnectorSummarySchema,
     nextStep: BootstrapStepSchema,

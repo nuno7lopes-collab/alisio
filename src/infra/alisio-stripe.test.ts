@@ -8,7 +8,12 @@ import {
   getAlisioStripeAccount,
   listAlisioStripeCharges,
   listAlisioStripeCustomers,
+  listAlisioStripeDisputes,
   listAlisioStripePaymentIntents,
+  listAlisioStripePrices,
+  listAlisioStripeProducts,
+  listAlisioStripeRefunds,
+  listAlisioStripeSubscriptions,
   readAlisioStripeCharge,
 } from "./alisio-stripe.js";
 
@@ -98,6 +103,11 @@ async function connectStripe(env: NodeJS.ProcessEnv) {
         pending: [],
       }),
     )
+    .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
+    .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
+    .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
+    .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
+    .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
     .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
     .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
     .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }));
@@ -275,6 +285,93 @@ describe("alisio stripe runtime", () => {
           customerId: "cus_123",
           paymentIntentId: "pi_123",
         },
+      });
+    });
+  });
+
+  it("lists Stripe products, prices, subscriptions, disputes, and refunds through the runtime wrapper", async () => {
+    await withTempDir({ prefix: "alisio-stripe-runtime-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await connectStripe(env);
+
+      const products = await listAlisioStripeProducts(
+        { limit: 2 },
+        env,
+        vi.fn<typeof fetch>().mockResolvedValueOnce(
+          jsonResponse({
+            object: "list",
+            data: [{ id: "prod_123", name: "Starter", default_price: "price_123" }],
+          }),
+        ),
+      );
+      expect(products).toMatchObject({
+        ok: true,
+        status: "products_listed",
+        products: [{ id: "prod_123", defaultPriceId: "price_123" }],
+      });
+
+      const prices = await listAlisioStripePrices(
+        { limit: 2, productId: "prod_123" },
+        env,
+        vi.fn<typeof fetch>().mockResolvedValueOnce(
+          jsonResponse({
+            object: "list",
+            data: [{ id: "price_123", currency: "eur", product: "prod_123" }],
+          }),
+        ),
+      );
+      expect(prices).toMatchObject({
+        ok: true,
+        status: "prices_listed",
+        prices: [{ id: "price_123", productId: "prod_123" }],
+      });
+
+      const subscriptions = await listAlisioStripeSubscriptions(
+        { limit: 2, customer: "cus_123" },
+        env,
+        vi.fn<typeof fetch>().mockResolvedValueOnce(
+          jsonResponse({
+            object: "list",
+            data: [{ id: "sub_123", status: "active", customer: "cus_123" }],
+          }),
+        ),
+      );
+      expect(subscriptions).toMatchObject({
+        ok: true,
+        status: "subscriptions_listed",
+        subscriptions: [{ id: "sub_123", customerId: "cus_123" }],
+      });
+
+      const disputes = await listAlisioStripeDisputes(
+        { limit: 2 },
+        env,
+        vi.fn<typeof fetch>().mockResolvedValueOnce(
+          jsonResponse({
+            object: "list",
+            data: [{ id: "dp_123", amount: 900, currency: "eur", status: "needs_response" }],
+          }),
+        ),
+      );
+      expect(disputes).toMatchObject({
+        ok: true,
+        status: "disputes_listed",
+        disputes: [{ id: "dp_123", amount: 900 }],
+      });
+
+      const refunds = await listAlisioStripeRefunds(
+        { limit: 2, chargeId: "ch_123" },
+        env,
+        vi.fn<typeof fetch>().mockResolvedValueOnce(
+          jsonResponse({
+            object: "list",
+            data: [{ id: "re_123", amount: 900, currency: "eur", charge: "ch_123" }],
+          }),
+        ),
+      );
+      expect(refunds).toMatchObject({
+        ok: true,
+        status: "refunds_listed",
+        refunds: [{ id: "re_123", chargeId: "ch_123" }],
       });
     });
   });

@@ -19,6 +19,17 @@ import type { AlisioConfig } from "../config/config.js";
 import { listMemoryFiles } from "../plugin-sdk/memory-core-host-runtime-files.js";
 import { buildAgentMainSessionKey } from "../routing/session-key.js";
 import {
+  buildAccountDeviceBinding,
+  buildAccountWorkspaceScopeSegments,
+  buildAlisioDataResidencyContract,
+  resolveCanonicalAccountScope,
+  type AccountDeviceBinding,
+  type AlisioDataResidencyContract,
+  type CanonicalAccountIdSource,
+  ALISIO_ACCOUNT_SCOPE_ROOT,
+  normalizeCanonicalAccountId,
+} from "../shared/alisio-account-scope.js";
+import {
   MEMORY_BACKLOG_NOTES_DIR,
   MANUAL_MEMORY_NOTES_DIR,
   resolveMemoryNoteRole,
@@ -63,8 +74,23 @@ export type PersonalContextSessionPolicy = {
   key?: string;
 };
 
+export type PersonalContextWorkspaceMode = "account_scoped" | "legacy_unscoped";
+
+export type PersonalContextAccountScope = {
+  scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
+  accountId?: string;
+  source: CanonicalAccountIdSource;
+  authenticated: boolean;
+  authRequired: true;
+  workspaceMode: PersonalContextWorkspaceMode;
+  workspaceRoot: string;
+};
+
 export type PersonalContextSummary = {
   version: typeof PERSONAL_CONTEXT_CONTRACT_VERSION;
+  accountScope: PersonalContextAccountScope;
+  runtimeContract: AlisioDataResidencyContract;
+  deviceBinding: AccountDeviceBinding;
   bootstrap: PersonalContextFileSummary & {
     state: WorkspaceSetupSummary["state"];
     oneTime: true;
@@ -96,6 +122,29 @@ export type PersonalContextSummary = {
     cron: PersonalContextSessionPolicy;
   };
 };
+
+function resolveWorkspaceMode(
+  workspaceDir: string,
+  accountId?: string | null,
+): PersonalContextWorkspaceMode {
+  const canonicalAccountId = normalizeCanonicalAccountId(accountId);
+  if (!canonicalAccountId) {
+    return "legacy_unscoped";
+  }
+  const normalizedDir = path.resolve(workspaceDir).replace(/\\/g, "/");
+  const scopeSuffix = buildAccountWorkspaceScopeSegments(canonicalAccountId).join("/");
+  return normalizedDir.endsWith(`/${scopeSuffix}`) || normalizedDir === scopeSuffix
+    ? "account_scoped"
+    : "legacy_unscoped";
+}
+
+function resolveWorkspaceRootLabel(accountId?: string | null): string {
+  const canonicalAccountId = normalizeCanonicalAccountId(accountId);
+  if (!canonicalAccountId) {
+    return ".";
+  }
+  return buildAccountWorkspaceScopeSegments(canonicalAccountId).join("/");
+}
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {
@@ -185,6 +234,10 @@ export async function readPersonalContextSummary(params: {
   agentId: string;
   workspaceDir: string;
   mainKey?: string;
+  accountId?: string;
+  deviceId?: string;
+  deviceLabel?: string;
+  devicePlatform?: string;
   resolvedIdentity?: ResolvedAgentIdentity;
 }): Promise<PersonalContextSummary> {
   const workspaceDir = params.workspaceDir;
@@ -216,9 +269,27 @@ export async function readPersonalContextSummary(params: {
     agentId: params.agentId,
     workspaceDir,
   });
+  const accountScope = resolveCanonicalAccountScope({
+    authenticated: Boolean(normalizeCanonicalAccountId(params.accountId)),
+    accountId: params.accountId,
+  });
+  const deviceBinding = buildAccountDeviceBinding({
+    authenticated: accountScope.authenticated,
+    accountId: accountScope.accountId,
+    deviceId: params.deviceId,
+    label: params.deviceLabel,
+    platform: params.devicePlatform,
+  });
 
   return {
     version: PERSONAL_CONTEXT_CONTRACT_VERSION,
+    accountScope: {
+      ...accountScope,
+      workspaceMode: resolveWorkspaceMode(workspaceDir, accountScope.accountId),
+      workspaceRoot: resolveWorkspaceRootLabel(accountScope.accountId),
+    },
+    runtimeContract: buildAlisioDataResidencyContract(),
+    deviceBinding,
     bootstrap: {
       path: DEFAULT_BOOTSTRAP_FILENAME,
       present: setup.bootstrapFilePresent,

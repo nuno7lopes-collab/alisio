@@ -1407,7 +1407,7 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
-  it("starts Stripe in manual setup mode when secure token storage is ready", async () => {
+  it("keeps Stripe in setup mode until the Stripe App OAuth config exists", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
       const result = await beginAlisioConnectorSetup("stripe", env);
@@ -1416,16 +1416,27 @@ describe("beginAlisioConnectorSetup", () => {
         connectorId: "stripe",
         availability: "ready",
         mode: "setup",
+        provider: "stripe",
         providerLabel: "Stripe",
-        statusReason: "ready_for_setup",
+        callbackPath: "/oauth/stripe/callback",
+        statusReason: "missing_client_config",
+        requiredEnvVars: [
+          "ALISIO_STRIPE_CLIENT_ID",
+          "ALISIO_STRIPE_DEVELOPER_API_KEY",
+          "ALISIO_STRIPE_REDIRECT_URI",
+          "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY",
+        ],
       });
-      expect(result?.setupHint).toContain("restricted API key");
+      expect(result?.setupHint).toContain("Stripe App OAuth");
     });
   });
 
-  it("reports Stripe secure storage requirements when token encryption is unavailable", async () => {
+  it("reports Stripe secure storage requirements when OAuth config exists but token encryption is unavailable", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_STRIPE_CLIENT_ID: "stripe-client-id",
+        ALISIO_STRIPE_DEVELOPER_API_KEY: "sk_test_stripe_app_developer",
+        ALISIO_STRIPE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/stripe/callback",
         ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: "",
       });
       const result = await beginAlisioConnectorSetup("stripe", env);
@@ -1434,9 +1445,15 @@ describe("beginAlisioConnectorSetup", () => {
         connectorId: "stripe",
         availability: "ready",
         mode: "setup",
+        provider: "stripe",
         providerLabel: "Stripe",
         statusReason: "missing_token_encryption",
-        requiredEnvVars: ["ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY"],
+        requiredEnvVars: [
+          "ALISIO_STRIPE_CLIENT_ID",
+          "ALISIO_STRIPE_DEVELOPER_API_KEY",
+          "ALISIO_STRIPE_REDIRECT_URI",
+          "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY",
+        ],
       });
     });
   });
@@ -1544,6 +1561,39 @@ describe("beginAlisioConnectorSetup", () => {
       expect(launchUrl.searchParams.get("prompt")).toBe("select_account");
       expect(launchUrl.searchParams.get("code_challenge_method")).toBe("S256");
       expect(launchUrl.searchParams.get("scope")).toContain("repo");
+      expect(launchUrl.searchParams.get("state")).toBeTruthy();
+    });
+  });
+
+  it("builds a real Stripe App OAuth authorization URL when client config exists", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_STRIPE_CLIENT_ID: "ca_test_stripe_app",
+        ALISIO_STRIPE_DEVELOPER_API_KEY: "sk_test_stripe_app_developer",
+        ALISIO_STRIPE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/stripe/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const result = await beginAlisioConnectorSetup("stripe", env);
+
+      expect(result).toMatchObject({
+        connectorId: "stripe",
+        availability: "ready",
+        mode: "oauth",
+        provider: "stripe",
+        providerLabel: "Stripe",
+        redirectUri: "http://127.0.0.1:8787/oauth/stripe/callback",
+        statusReason: "ready_for_oauth",
+        callbackPath: "/oauth/stripe/callback",
+      });
+      const launchUrl = new URL(result?.setupUrl ?? "");
+      expect(`${launchUrl.origin}${launchUrl.pathname}`).toBe(
+        "https://marketplace.stripe.com/oauth/v2/authorize",
+      );
+      expect(launchUrl.searchParams.get("client_id")).toBe("ca_test_stripe_app");
+      expect(launchUrl.searchParams.get("redirect_uri")).toBe(
+        "http://127.0.0.1:8787/oauth/stripe/callback",
+      );
+      expect(launchUrl.searchParams.get("response_type")).toBe("code");
       expect(launchUrl.searchParams.get("state")).toBeTruthy();
     });
   });
@@ -2011,6 +2061,219 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("completes a Stripe App OAuth callback and stores refreshable account access", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_STRIPE_CLIENT_ID: "ca_test_stripe_app",
+        ALISIO_STRIPE_DEVELOPER_API_KEY: "sk_test_stripe_app_developer",
+        ALISIO_STRIPE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/stripe/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const begin = await beginAlisioConnectorSetup("stripe", env);
+      const launchUrl = new URL(begin?.setupUrl ?? "");
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "stripe-oauth-access",
+              refresh_token: "stripe-oauth-refresh",
+              token_type: "bearer",
+              scope: "stripe_apps",
+              livemode: false,
+              account_id: "acct_123",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              object: "balance",
+              livemode: false,
+              available: [],
+              pending: [],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+
+      const result = await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "stripe",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "stripe-code",
+        },
+        env,
+        fetchMock,
+      );
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.authorization.connectorId).toBe("stripe");
+        expect(result.authorization.scopes).toEqual([
+          "balance_read",
+          "customer_read",
+          "charge_read",
+          "payment_intent_read",
+          "product_read",
+          "price_read",
+          "subscription_read",
+          "dispute_read",
+          "refund_read",
+        ]);
+        expect(result.authorization.connectedAccount).toMatchObject({
+          label: "Stripe test account",
+          handle: "acct_123",
+        });
+      }
+      await expect(getAlisioConnectorAccessToken("stripe", env)).resolves.toBe(
+        "stripe-oauth-access",
+      );
+      const persistedState = await fs.readFile(alisioStateFile(root), "utf8");
+      expect(persistedState).not.toContain("stripe-oauth-access");
+      expect(persistedState).not.toContain("stripe-oauth-refresh");
+    });
+  });
+
   it("refreshes expired Google connector tokens before returning an access token", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
@@ -2083,6 +2346,147 @@ describe("beginAlisioConnectorSetup", () => {
       const persistedState = await fs.readFile(statePath, "utf8");
       expect(persistedState).not.toContain("google-access-refreshed");
       expect(persistedState).not.toContain("google-refresh");
+    });
+  });
+
+  it("refreshes expired Stripe OAuth connector tokens before returning an access token", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_STRIPE_CLIENT_ID: "ca_test_stripe_app",
+        ALISIO_STRIPE_DEVELOPER_API_KEY: "sk_test_stripe_app_developer",
+        ALISIO_STRIPE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/stripe/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const begin = await beginAlisioConnectorSetup("stripe", env);
+      const launchUrl = new URL(begin?.setupUrl ?? "");
+      const initialFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "stripe-oauth-access",
+              refresh_token: "stripe-oauth-refresh",
+              token_type: "bearer",
+              scope: "stripe_apps",
+              livemode: false,
+              account_id: "acct_123",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              object: "balance",
+              livemode: false,
+              available: [],
+              pending: [],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+
+      await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "stripe",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "stripe-code",
+        },
+        env,
+        initialFetch,
+      );
+
+      const statePath = alisioStateFile(root);
+      const state = JSON.parse(await fs.readFile(statePath, "utf8")) as {
+        oauthCredentials: Record<string, { expiresAt?: string }>;
+      };
+      state.oauthCredentials.stripe.expiresAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+
+      const refreshFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            access_token: "stripe-oauth-access-refreshed",
+            refresh_token: "stripe-oauth-refresh-rolled",
+            token_type: "bearer",
+            scope: "stripe_apps",
+            livemode: false,
+            account_id: "acct_123",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+      const token = await getAlisioConnectorAccessToken("stripe", env, refreshFetch);
+
+      expect(token).toBe("stripe-oauth-access-refreshed");
+      const authorizations = await listAlisioConnectorAuthorizations(env);
+      expect(authorizations.find((entry) => entry.connectorId === "stripe")).toMatchObject({
+        state: "connected",
+        health: "healthy",
+        scopes: [
+          "balance_read",
+          "customer_read",
+          "charge_read",
+          "payment_intent_read",
+          "product_read",
+          "price_read",
+          "subscription_read",
+          "dispute_read",
+          "refund_read",
+        ],
+      });
+      const persistedState = await fs.readFile(statePath, "utf8");
+      expect(persistedState).not.toContain("stripe-oauth-access-refreshed");
+      expect(persistedState).not.toContain("stripe-oauth-refresh-rolled");
     });
   });
 
@@ -2234,6 +2638,10 @@ describe("beginAlisioConnectorSetup", () => {
         state: "not_connected",
         health: "config_missing",
       });
+      expect(authorizations.find((entry) => entry.connectorId === "stripe")).toMatchObject({
+        state: "not_connected",
+        health: "config_missing",
+      });
       expect(authorizations.find((entry) => entry.connectorId === "facebook")).toMatchObject({
         state: "not_connected",
         health: "in_review",
@@ -2249,6 +2657,9 @@ describe("beginAlisioConnectorSetup", () => {
           "ALISIO_GOOGLE_CLIENT_ID=google-client-id",
           "ALISIO_GOOGLE_CLIENT_SECRET=google-client-secret",
           "ALISIO_GOOGLE_REDIRECT_URI=http://127.0.0.1:8787/oauth/google/callback",
+          "ALISIO_STRIPE_CLIENT_ID=ca_test_stripe_app",
+          "ALISIO_STRIPE_DEVELOPER_API_KEY=sk_test_stripe_app_developer",
+          "ALISIO_STRIPE_REDIRECT_URI=http://127.0.0.1:8787/oauth/stripe/callback",
           `ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY=${CONNECTOR_ENCRYPTION_KEY}`,
         ].join("\n"),
       );
@@ -2264,6 +2675,10 @@ describe("beginAlisioConnectorSetup", () => {
       expect(authorizations.find((entry) => entry.connectorId === "github")).toMatchObject({
         state: "not_connected",
         health: "config_missing",
+      });
+      expect(authorizations.find((entry) => entry.connectorId === "stripe")).toMatchObject({
+        state: "not_connected",
+        health: "healthy",
       });
     });
   });
@@ -2558,6 +2973,36 @@ describe("beginAlisioConnectorSetup", () => {
             status: 200,
             headers: { "content-type": "application/json" },
           }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
         );
 
       const result = await completeAlisioConnectorAuthorization(
@@ -2640,6 +3085,61 @@ describe("beginAlisioConnectorSetup", () => {
             }),
             { status: 403, headers: { "content-type": "application/json" } },
           ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: {
+                message: "Missing permission.",
+                code: "permission_denied",
+              },
+            }),
+            { status: 403, headers: { "content-type": "application/json" } },
+          ),
         );
 
       await expect(
@@ -2651,7 +3151,9 @@ describe("beginAlisioConnectorSetup", () => {
           env,
           fetchMock,
         ),
-      ).rejects.toThrow("Stripe key needs read access to customers, charges, and payment intents.");
+      ).rejects.toThrow(
+        "Stripe key needs read access to customers, charges, payment intents, products, prices, subscriptions, disputes, and refunds.",
+      );
     });
   });
 
@@ -4149,9 +4651,13 @@ describe("beginAlisioConnectorSetup", () => {
     expect(summary.available).toBe(summary.total - summary.unavailable);
   });
 
-  it("routes ready accounts into connectors when Stripe is available through manual setup", async () => {
+  it("routes ready accounts into connectors when Stripe App OAuth is configured", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
-      const env = await createReadyAlisioAccountEnv(root);
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_STRIPE_CLIENT_ID: "ca_test_stripe_app",
+        ALISIO_STRIPE_DEVELOPER_API_KEY: "sk_test_stripe_app_developer",
+        ALISIO_STRIPE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/stripe/callback",
+      });
       await setStoredAlisioPlan(root, "plus");
       await setAlisioOrganizationState(
         {

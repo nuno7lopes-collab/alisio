@@ -6,7 +6,7 @@ export const ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY =
   "alisio:alisio-connector-oauth:return-to:v1";
 export const ALISIO_CONNECTOR_OAUTH_SIGNAL_TYPE = "connector-oauth-complete";
 
-export type AlisioConnectorOAuthProvider = "google" | "github";
+export type AlisioConnectorOAuthProvider = "google" | "github" | "stripe";
 
 export type AlisioConnectorOAuthSignal = {
   type: typeof ALISIO_CONNECTOR_OAUTH_SIGNAL_TYPE;
@@ -39,8 +39,9 @@ export function isAlisioConnectorOAuthSignal(value: unknown): value is AlisioCon
     (value as { type?: unknown }).type === ALISIO_CONNECTOR_OAUTH_SIGNAL_TYPE &&
     typeof (value as { connectorId?: unknown }).connectorId === "string" &&
     typeof (value as { provider?: unknown }).provider === "string" &&
-    ((value as { provider?: unknown }).provider === "google" ||
-      (value as { provider?: unknown }).provider === "github") &&
+    (["google", "github", "stripe"] as const).includes(
+      (value as { provider?: unknown }).provider as AlisioConnectorOAuthProvider,
+    ) &&
     typeof (value as { signalId?: unknown }).signalId === "string" &&
     typeof (value as { createdAtMs?: unknown }).createdAtMs === "number"
   );

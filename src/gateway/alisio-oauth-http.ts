@@ -19,7 +19,7 @@ import {
   buildAlisioOpenAiOAuthSignal,
 } from "../shared/alisio-openai-oauth.js";
 
-type SupportedProvider = "google" | "github" | "openai" | "account-google";
+type SupportedProvider = "google" | "github" | "stripe" | "openai" | "account-google";
 type HtmlTone = "success" | "error";
 
 type HtmlDetail = {
@@ -40,6 +40,9 @@ function resolveProviderFromPath(pathname: string): SupportedProvider | null {
   }
   if (pathname === "/oauth/github/callback") {
     return "github";
+  }
+  if (pathname === "/oauth/stripe/callback") {
+    return "stripe";
   }
   if (pathname === "/__alisio/auth/openai/callback") {
     return "openai";
@@ -67,6 +70,8 @@ function formatProviderLabel(provider: SupportedProvider): string {
       return "GitHub";
     case "google":
       return "Google";
+    case "stripe":
+      return "Stripe";
     case "openai":
       return "OpenAI";
   }

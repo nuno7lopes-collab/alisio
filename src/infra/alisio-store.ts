@@ -99,7 +99,10 @@ import {
   type AlisioSharingCloudPrincipal,
   type AlisioSharingCloudRuntimeTarget,
 } from "./alisio-sharing-cloud.js";
-import { validateAlisioStripeApiKey } from "./alisio-stripe-client.js";
+import {
+  validateAlisioStripeAccessToken,
+  validateAlisioStripeApiKey,
+} from "./alisio-stripe-client.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import { resolveCurrentComputerFallbackLabel, resolveCurrentComputerId } from "./local-computer.js";
@@ -123,8 +126,8 @@ export type AlisioConnectorBeginReason =
   | "missing_token_encryption"
   | "review_required"
   | "unavailable";
-export type AlisioOAuthProvider = "google" | "github" | "notion" | "vercel";
-export type AlisioConnectorCredentialProvider = AlisioOAuthProvider | "stripe";
+export type AlisioOAuthProvider = "google" | "github" | "notion" | "stripe" | "vercel";
+export type AlisioConnectorCredentialProvider = AlisioOAuthProvider;
 export type AlisioPreferredLanguage = "en" | "pt-PT" | "es";
 export type AlisioAccountSessionState = "signed_out" | "signed_in";
 export type AlisioStartupState = "signed_out" | "needs_profile" | "needs_ai" | "ready";
@@ -642,6 +645,8 @@ type AlisioOAuthTokenSet = {
   tokenType?: string;
   scope?: string;
   expiresIn?: number;
+  accountId?: string;
+  livemode?: boolean;
 };
 
 const STORE_FILENAME = "alisio/state.json";
@@ -653,6 +658,7 @@ const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "Alisio Connector Token Encrypti
 const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE;
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const STRIPE_CONNECTOR_ID = "stripe";
+const STRIPE_OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const withLock = createAsyncLock();
 
 function resolveDurableRuntimeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -858,12 +864,23 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     providerLabel: "Stripe",
     category: "productivity",
     connectLabel: "Connect with Stripe",
-    summary: "Read customers, payments, charges, and balance data from Stripe.",
+    summary:
+      "Answer finance and operations questions with live Stripe customers, subscriptions, payments, disputes, refunds, products, prices, charges, and balance data.",
     detail:
-      "Uses a server-side Stripe secret or restricted API key stored securely on this gateway.",
+      "Connects through a Stripe App OAuth install flow and stores refreshable account access securely on this gateway.",
     availability: "ready",
-    setupUrl: "https://docs.stripe.com/keys",
-    scopes: ["balance.read", "customers.read", "charges.read", "payment_intents.read"],
+    setupUrl: "https://docs.stripe.com/stripe-apps/api-authentication/oauth",
+    scopes: [
+      "balance_read",
+      "customer_read",
+      "charge_read",
+      "payment_intent_read",
+      "product_read",
+      "price_read",
+      "subscription_read",
+      "dispute_read",
+      "refund_read",
+    ],
   },
   {
     id: "notion",
@@ -1376,6 +1393,9 @@ function resolveOAuthScopesRequiredForValidation(
   provider: AlisioOAuthProvider,
   requestedScopes: readonly string[],
 ) {
+  if (provider === "stripe") {
+    return [];
+  }
   if (provider !== "google") {
     return [...requestedScopes];
   }
@@ -1388,6 +1408,9 @@ function normalizeStoredOAuthScopes(
   scopes: readonly string[],
   fallback: readonly string[],
 ) {
+  if (provider === "stripe") {
+    return [...fallback];
+  }
   const source = scopes.length > 0 ? scopes : [...fallback];
   const normalized: string[] = [];
   const seen = new Set<string>();
@@ -6927,6 +6950,9 @@ function resolveConnectorOAuthProvider(connectorId: string): AlisioOAuthProvider
   if (connectorId === "github") {
     return "github";
   }
+  if (connectorId === STRIPE_CONNECTOR_ID) {
+    return "stripe";
+  }
   if (connectorId === "notion") {
     return "notion";
   }
@@ -6934,10 +6960,6 @@ function resolveConnectorOAuthProvider(connectorId: string): AlisioOAuthProvider
     return "vercel";
   }
   return null;
-}
-
-function connectorUsesManualTokenSetup(connectorId: string): boolean {
-  return connectorId === STRIPE_CONNECTOR_ID;
 }
 
 function providerLabel(provider: AlisioOAuthProvider) {
@@ -6948,6 +6970,8 @@ function providerLabel(provider: AlisioOAuthProvider) {
       return "GitHub";
     case "notion":
       return "Notion";
+    case "stripe":
+      return "Stripe";
     case "vercel":
       return "Vercel";
   }
@@ -6975,6 +6999,13 @@ function providerRequiredEnvVars(provider: AlisioOAuthProvider) {
         "ALISIO_NOTION_CLIENT_SECRET",
         "ALISIO_NOTION_REDIRECT_URI",
       ];
+    case "stripe":
+      return [
+        "ALISIO_STRIPE_CLIENT_ID",
+        "ALISIO_STRIPE_DEVELOPER_API_KEY",
+        "ALISIO_STRIPE_REDIRECT_URI",
+        CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV,
+      ];
     case "vercel":
       return [
         "ALISIO_VERCEL_CLIENT_ID",
@@ -6990,6 +7021,8 @@ function providerCallbackPath(provider: AlisioOAuthProvider): string | undefined
       return "/oauth/google/callback";
     case "github":
       return "/oauth/github/callback";
+    case "stripe":
+      return "/oauth/stripe/callback";
     default:
       return undefined;
   }
@@ -7000,17 +7033,31 @@ function providerSetupHint(provider: AlisioOAuthProvider, connectorTitle: string
   if (provider === "google" || provider === "github") {
     return `${connectorTitle} can complete native ${label} OAuth in Alisio as soon as the provider app credentials are configured on this gateway.`;
   }
+  if (provider === "stripe") {
+    return `${connectorTitle} can complete a native Stripe App OAuth install in Alisio as soon as this gateway has the Stripe app client ID, developer API key, and callback URL configured.`;
+  }
   return `${connectorTitle} is modeled in the product already, but the native ${label} OAuth callback is still pending in this rollout.`;
 }
 
-function providerRedirectUriEnvVar(provider: Extract<AlisioOAuthProvider, "google" | "github">) {
+function providerRedirectUriEnvVar(
+  provider: Extract<AlisioOAuthProvider, "google" | "github" | "stripe">,
+) {
   switch (provider) {
     case "google":
       return "ALISIO_GOOGLE_REDIRECT_URI";
     case "github":
       return "ALISIO_GITHUB_REDIRECT_URI";
+    case "stripe":
+      return "ALISIO_STRIPE_REDIRECT_URI";
   }
 }
+
+type AlisioOAuthClientConfig = {
+  clientId: string;
+  redirectUri: string;
+  clientSecret?: string;
+  developerApiKey?: string;
+};
 
 function resolveOAuthRedirectUriConfigIssue(
   provider: AlisioOAuthProvider,
@@ -7047,26 +7094,42 @@ function resolveOAuthClientConfig(provider: AlisioOAuthProvider, env: NodeJS.Pro
         clientId: runtimeEnv.ALISIO_GOOGLE_CLIENT_ID?.trim() || "",
         clientSecret: runtimeEnv.ALISIO_GOOGLE_CLIENT_SECRET?.trim() || "",
         redirectUri: runtimeEnv.ALISIO_GOOGLE_REDIRECT_URI?.trim() || "",
-      };
+      } satisfies AlisioOAuthClientConfig;
     case "github":
       return {
         clientId: runtimeEnv.ALISIO_GITHUB_CLIENT_ID?.trim() || "",
         clientSecret: runtimeEnv.ALISIO_GITHUB_CLIENT_SECRET?.trim() || "",
         redirectUri: runtimeEnv.ALISIO_GITHUB_REDIRECT_URI?.trim() || "",
-      };
+      } satisfies AlisioOAuthClientConfig;
     case "notion":
       return {
         clientId: runtimeEnv.ALISIO_NOTION_CLIENT_ID?.trim() || "",
         clientSecret: runtimeEnv.ALISIO_NOTION_CLIENT_SECRET?.trim() || "",
         redirectUri: runtimeEnv.ALISIO_NOTION_REDIRECT_URI?.trim() || "",
-      };
+      } satisfies AlisioOAuthClientConfig;
+    case "stripe":
+      return {
+        clientId: runtimeEnv.ALISIO_STRIPE_CLIENT_ID?.trim() || "",
+        developerApiKey: runtimeEnv.ALISIO_STRIPE_DEVELOPER_API_KEY?.trim() || "",
+        redirectUri: runtimeEnv.ALISIO_STRIPE_REDIRECT_URI?.trim() || "",
+      } satisfies AlisioOAuthClientConfig;
     case "vercel":
       return {
         clientId: runtimeEnv.ALISIO_VERCEL_CLIENT_ID?.trim() || "",
         clientSecret: runtimeEnv.ALISIO_VERCEL_CLIENT_SECRET?.trim() || "",
         redirectUri: runtimeEnv.ALISIO_VERCEL_REDIRECT_URI?.trim() || "",
-      };
+      } satisfies AlisioOAuthClientConfig;
   }
+}
+
+function hasRequiredOAuthClientConfig(
+  provider: AlisioOAuthProvider,
+  config: AlisioOAuthClientConfig,
+) {
+  if (provider === "stripe") {
+    return Boolean(config.clientId && config.developerApiKey && config.redirectUri);
+  }
+  return Boolean(config.clientId && config.clientSecret && config.redirectUri);
 }
 
 export async function requestAlisioAccountRecoveryEmail(
@@ -7148,8 +7211,8 @@ export async function updateAlisioAccountPassword(
 
 function providerSupportsRealCallback(
   provider: AlisioOAuthProvider,
-): provider is "google" | "github" {
-  return provider === "google" || provider === "github";
+): provider is "google" | "github" | "stripe" {
+  return provider === "google" || provider === "github" || provider === "stripe";
 }
 
 function isProviderClientConfigReady(provider: AlisioOAuthProvider, env: NodeJS.ProcessEnv) {
@@ -7158,8 +7221,7 @@ function isProviderClientConfigReady(provider: AlisioOAuthProvider, env: NodeJS.
   }
   const config = resolveOAuthClientConfig(provider, env);
   return Boolean(
-    config.clientId &&
-    config.clientSecret &&
+    hasRequiredOAuthClientConfig(provider, config) &&
     config.redirectUri &&
     !resolveOAuthRedirectUriConfigIssue(provider, config.redirectUri) &&
     resolveConnectorTokenEncryptionKey(env),
@@ -7175,9 +7237,6 @@ function resolveDefaultConnectorAuthorizationHealth(
   }
   if (connector.availability === "unavailable") {
     return "unavailable";
-  }
-  if (connectorUsesManualTokenSetup(connector.id)) {
-    return resolveConnectorTokenEncryptionKey(env) ? "healthy" : "config_missing";
   }
   const provider = resolveConnectorOAuthProvider(connector.id);
   if (!provider || !providerSupportsRealCallback(provider)) {
@@ -7199,9 +7258,11 @@ function buildAuthorizationUrl(params: {
       ? "https://accounts.google.com/o/oauth2/v2/auth"
       : params.provider === "github"
         ? "https://github.com/login/oauth/authorize"
-        : params.provider === "notion"
-          ? "https://api.notion.com/v1/oauth/authorize"
-          : "https://vercel.com/oauth/authorize",
+        : params.provider === "stripe"
+          ? "https://marketplace.stripe.com/oauth/v2/authorize"
+          : params.provider === "notion"
+            ? "https://api.notion.com/v1/oauth/authorize"
+            : "https://vercel.com/oauth/authorize",
   );
   url.searchParams.set("client_id", params.clientId);
   url.searchParams.set("redirect_uri", params.redirectUri);
@@ -7232,6 +7293,11 @@ function buildAuthorizationUrl(params: {
     return url.toString();
   }
 
+  if (params.provider === "stripe") {
+    url.searchParams.set("response_type", "code");
+    return url.toString();
+  }
+
   if (params.provider === "notion") {
     url.searchParams.set("owner", "user");
     url.searchParams.set("response_type", "code");
@@ -7254,6 +7320,9 @@ function hasRequiredOAuthScopes(
   grantedScopes: string[],
   requestedScopes: readonly string[],
 ) {
+  if (provider === "stripe") {
+    return true;
+  }
   if (grantedScopes.length === 0) {
     return true;
   }
@@ -7354,31 +7423,6 @@ export async function beginAlisioConnectorSetup(
     }
 
     if (!provider) {
-      if (connectorUsesManualTokenSetup(connector.id)) {
-        if (!resolveConnectorTokenEncryptionKey(env)) {
-          return {
-            connectorId: connector.id,
-            availability: connector.availability,
-            mode: "setup",
-            statusReason: "missing_token_encryption",
-            setupUrl: connector.setupUrl,
-            providerLabel: connector.providerLabel,
-            requiredEnvVars: [CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV],
-            setupHint:
-              "Paste a Stripe secret or restricted API key with read access to balance, customers, charges, and payment intents.",
-          };
-        }
-        return {
-          connectorId: connector.id,
-          availability: connector.availability,
-          mode: "setup",
-          statusReason: "ready_for_setup",
-          setupUrl: connector.setupUrl,
-          providerLabel: connector.providerLabel,
-          setupHint:
-            "Paste a Stripe secret or restricted API key. Publishable keys are not supported.",
-        };
-      }
       return {
         connectorId: connector.id,
         availability: connector.availability,
@@ -7401,7 +7445,11 @@ export async function beginAlisioConnectorSetup(
     const redirectUriIssue = config.redirectUri
       ? resolveOAuthRedirectUriConfigIssue(provider, config.redirectUri)
       : null;
-    if (!config.clientId || !config.clientSecret || !config.redirectUri || redirectUriIssue) {
+    if (
+      !hasRequiredOAuthClientConfig(provider, config) ||
+      !config.redirectUri ||
+      redirectUriIssue
+    ) {
       return {
         connectorId: connector.id,
         availability: connector.availability,
@@ -7459,7 +7507,7 @@ export async function beginAlisioConnectorSetup(
 }
 
 async function exchangeGoogleAuthorizationCode(params: {
-  config: ReturnType<typeof resolveOAuthClientConfig>;
+  config: AlisioOAuthClientConfig;
   code: string;
   codeVerifier?: string;
   fetchImpl: typeof fetch;
@@ -7473,7 +7521,7 @@ async function exchangeGoogleAuthorizationCode(params: {
       },
       body: new URLSearchParams({
         client_id: params.config.clientId,
-        client_secret: params.config.clientSecret,
+        client_secret: params.config.clientSecret!,
         code: params.code,
         grant_type: "authorization_code",
         redirect_uri: params.config.redirectUri,
@@ -7498,7 +7546,7 @@ async function exchangeGoogleAuthorizationCode(params: {
 }
 
 async function refreshGoogleAuthorizationCode(params: {
-  config: ReturnType<typeof resolveOAuthClientConfig>;
+  config: AlisioOAuthClientConfig;
   refreshToken: string;
   fetchImpl: typeof fetch;
 }): Promise<AlisioOAuthTokenSet | null> {
@@ -7511,7 +7559,7 @@ async function refreshGoogleAuthorizationCode(params: {
       },
       body: new URLSearchParams({
         client_id: params.config.clientId,
-        client_secret: params.config.clientSecret,
+        client_secret: params.config.clientSecret!,
         grant_type: "refresh_token",
         refresh_token: params.refreshToken,
       }),
@@ -7533,7 +7581,7 @@ async function refreshGoogleAuthorizationCode(params: {
 }
 
 async function exchangeGitHubAuthorizationCode(params: {
-  config: ReturnType<typeof resolveOAuthClientConfig>;
+  config: AlisioOAuthClientConfig;
   code: string;
   stateToken: string;
   codeVerifier?: string;
@@ -7549,7 +7597,7 @@ async function exchangeGitHubAuthorizationCode(params: {
       },
       body: new URLSearchParams({
         client_id: params.config.clientId,
-        client_secret: params.config.clientSecret,
+        client_secret: params.config.clientSecret!,
         code: params.code,
         redirect_uri: params.config.redirectUri,
         state: params.stateToken,
@@ -7565,6 +7613,96 @@ async function exchangeGitHubAuthorizationCode(params: {
       refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
       tokenType: typeof body.token_type === "string" ? body.token_type : undefined,
       scope: typeof body.scope === "string" ? body.scope : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function exchangeStripeAuthorizationCode(params: {
+  config: AlisioOAuthClientConfig;
+  code: string;
+  fetchImpl: typeof fetch;
+}): Promise<AlisioOAuthTokenSet | null> {
+  if (!params.config.developerApiKey) {
+    return null;
+  }
+  try {
+    const response = await params.fetchImpl("https://api.stripe.com/v1/oauth/token", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Basic ${Buffer.from(`${params.config.developerApiKey}:`, "utf8").toString("base64")}`,
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": "Alisio",
+      },
+      body: new URLSearchParams({
+        code: params.code,
+        grant_type: "authorization_code",
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!response.ok || !body || typeof body.access_token !== "string") {
+      return null;
+    }
+    return {
+      accessToken: body.access_token,
+      refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
+      tokenType: typeof body.token_type === "string" ? body.token_type : undefined,
+      scope: typeof body.scope === "string" ? body.scope : undefined,
+      expiresIn: STRIPE_OAUTH_ACCESS_TOKEN_TTL_SECONDS,
+      accountId:
+        typeof body.account_id === "string"
+          ? body.account_id
+          : typeof body.stripe_user_id === "string"
+            ? body.stripe_user_id
+            : undefined,
+      livemode: typeof body.livemode === "boolean" ? body.livemode : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function refreshStripeAuthorizationCode(params: {
+  config: AlisioOAuthClientConfig;
+  refreshToken: string;
+  fetchImpl: typeof fetch;
+}): Promise<AlisioOAuthTokenSet | null> {
+  if (!params.config.developerApiKey) {
+    return null;
+  }
+  try {
+    const response = await params.fetchImpl("https://api.stripe.com/v1/oauth/token", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Basic ${Buffer.from(`${params.config.developerApiKey}:`, "utf8").toString("base64")}`,
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": "Alisio",
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: params.refreshToken,
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!response.ok || !body || typeof body.access_token !== "string") {
+      return null;
+    }
+    return {
+      accessToken: body.access_token,
+      refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
+      tokenType: typeof body.token_type === "string" ? body.token_type : undefined,
+      scope: typeof body.scope === "string" ? body.scope : undefined,
+      expiresIn: STRIPE_OAUTH_ACCESS_TOKEN_TTL_SECONDS,
+      accountId:
+        typeof body.account_id === "string"
+          ? body.account_id
+          : typeof body.stripe_user_id === "string"
+            ? body.stripe_user_id
+            : undefined,
+      livemode: typeof body.livemode === "boolean" ? body.livemode : undefined,
     };
   } catch {
     return null;
@@ -7712,7 +7850,7 @@ async function refreshStoredConnectorCredential(params: {
     return credential;
   }
 
-  if (credential.provider !== "google") {
+  if (credential.provider !== "google" && credential.provider !== "stripe") {
     markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
     return null;
   }
@@ -7723,17 +7861,27 @@ async function refreshStoredConnectorCredential(params: {
     return null;
   }
 
-  const config = resolveOAuthClientConfig("google", params.env);
-  if (!config.clientId || !config.clientSecret) {
+  const config = resolveOAuthClientConfig(credential.provider, params.env);
+  if (
+    (credential.provider === "google" && (!config.clientId || !config.clientSecret)) ||
+    (credential.provider === "stripe" && !config.developerApiKey)
+  ) {
     markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
     return null;
   }
 
-  const refreshed = await refreshGoogleAuthorizationCode({
-    config,
-    refreshToken,
-    fetchImpl: params.fetchImpl,
-  });
+  const refreshed =
+    credential.provider === "google"
+      ? await refreshGoogleAuthorizationCode({
+          config,
+          refreshToken,
+          fetchImpl: params.fetchImpl,
+        })
+      : await refreshStripeAuthorizationCode({
+          config,
+          refreshToken,
+          fetchImpl: params.fetchImpl,
+        });
   if (!refreshed) {
     markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
     delete params.state.oauthCredentials[params.connector.id];
@@ -7741,7 +7889,7 @@ async function refreshStoredConnectorCredential(params: {
   }
 
   const next = buildStoredOAuthCredential({
-    provider: "google",
+    provider: credential.provider,
     accessToken: refreshed.accessToken,
     refreshToken: refreshed.refreshToken ?? refreshToken,
     tokenType: refreshed.tokenType ?? credential.tokenType,
@@ -7762,7 +7910,7 @@ async function refreshStoredConnectorCredential(params: {
       state: "connected",
       health: "healthy",
       scopes: parseGrantedScopes(
-        "google",
+        credential.provider,
         next.scope,
         resolveRequestedOAuthScopes(params.connector),
       ),
@@ -7802,7 +7950,7 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
   env: NodeJS.ProcessEnv = process.env,
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioOAuthCallbackResult> {
-  if (input.provider !== "google" && input.provider !== "github") {
+  if (input.provider !== "google" && input.provider !== "github" && input.provider !== "stripe") {
     return {
       ok: false,
       reason: "unknown_provider",
@@ -7864,7 +8012,11 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
     const redirectUriIssue = config.redirectUri
       ? resolveOAuthRedirectUriConfigIssue(pending.provider, config.redirectUri)
       : null;
-    if (!config.clientId || !config.clientSecret || !config.redirectUri || redirectUriIssue) {
+    if (
+      !hasRequiredOAuthClientConfig(pending.provider, config) ||
+      !config.redirectUri ||
+      redirectUriIssue
+    ) {
       return {
         ok: false,
         reason: "missing_client_config",
@@ -7925,13 +8077,19 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
             codeVerifier: pending.codeVerifier,
             fetchImpl,
           })
-        : await exchangeGitHubAuthorizationCode({
-            config,
-            code: input.code.trim(),
-            stateToken: input.stateToken!,
-            codeVerifier: pending.codeVerifier,
-            fetchImpl,
-          });
+        : pending.provider === "github"
+          ? await exchangeGitHubAuthorizationCode({
+              config,
+              code: input.code.trim(),
+              stateToken: input.stateToken!,
+              codeVerifier: pending.codeVerifier,
+              fetchImpl,
+            })
+          : await exchangeStripeAuthorizationCode({
+              config,
+              code: input.code.trim(),
+              fetchImpl,
+            });
     if (!exchanged) {
       delete state.pendingAuthorizations[input.stateToken!];
       await persistState(state, env);
@@ -7957,6 +8115,27 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
       } satisfies AlisioOAuthCallbackResult;
     }
 
+    const stripeValidation =
+      pending.provider === "stripe"
+        ? await validateAlisioStripeAccessToken(
+            {
+              accessToken: exchanged.accessToken,
+              accountId: exchanged.accountId,
+              livemode: exchanged.livemode,
+            },
+            fetchImpl,
+          )
+        : null;
+    if (stripeValidation && !stripeValidation.ok) {
+      delete state.pendingAuthorizations[input.stateToken!];
+      await persistState(state, env);
+      return {
+        ok: false,
+        reason: "token_exchange_failed",
+        message: stripeValidation.message,
+      } satisfies AlisioOAuthCallbackResult;
+    }
+
     const connectedAccount =
       pending.provider === "google"
         ? await fetchGoogleAccount({
@@ -7964,7 +8143,11 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
             idToken: exchanged.idToken,
             fetchImpl,
           })
-        : await fetchGitHubAccount({ accessToken: exchanged.accessToken, fetchImpl });
+        : pending.provider === "github"
+          ? await fetchGitHubAccount({ accessToken: exchanged.accessToken, fetchImpl })
+          : stripeValidation && stripeValidation.ok
+            ? stripeValidation.connectedAccount
+            : null;
     if (!connectedAccount) {
       delete state.pendingAuthorizations[input.stateToken!];
       await persistState(state, env);
@@ -8022,7 +8205,11 @@ export async function completeAlisioConnectorAuthorization(
       return null;
     }
     const provider = resolveConnectorOAuthProvider(connector.id);
-    if (provider === "google" || provider === "github") {
+    if (
+      provider === "google" ||
+      provider === "github" ||
+      (provider === "stripe" && !input.apiKey)
+    ) {
       return null;
     }
     const state = await loadStoredState(env);
@@ -8038,6 +8225,8 @@ export async function completeAlisioConnectorAuthorization(
       throw new AlisioAccountValidationError(gate.message);
     }
     if (connector.id === STRIPE_CONNECTOR_ID) {
+      // Compatibility path for older local Stripe setups that stored a read-only
+      // key directly. The primary product flow now uses Stripe App OAuth.
       const apiKey = input.apiKey?.trim();
       if (!apiKey) {
         throw new AlisioAccountValidationError("Enter a Stripe secret or restricted API key.");
