@@ -8,7 +8,7 @@ title: "Device Model Database"
 
 # Device model database (friendly names)
 
-The macOS companion app shows friendly Apple device model names in the **Instances** UI by mapping Apple model identifiers (e.g. `Mac16,6`) to human-readable names.
+The macOS app shows friendly Apple device model names in the **Instances** UI by mapping Apple model identifiers (e.g. `Mac16,6`) to human-readable names.
 
 The mapping is vendored as JSON under:
 

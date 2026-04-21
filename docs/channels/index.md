@@ -8,7 +8,7 @@ title: "Chat Channels"
 
 # Chat Channels
 
-Alisio can talk to you on any chat app you already use. Each channel connects via the Gateway.
+Alisio can talk to you on any chat app you already use. Each channel connects through the shared backend.
 Text is supported everywhere; media and reactions vary by channel.
 
 ## Supported channels
@@ -32,7 +32,6 @@ Text is supported everywhere; media and reactions vary by channel.
 - [Tlon](/channels/tlon) — Urbit-based messenger (plugin, installed separately).
 - [Twitch](/channels/twitch) — Twitch chat via IRC connection (plugin, installed separately).
 - [Voice Call](/plugins/voice-call) — Telephony via Plivo or Twilio (plugin, installed separately).
-- [WebChat](/web/webchat) — Gateway WebChat UI over WebSocket.
 - [WeChat](https://www.npmjs.com/package/@tencent-weixin/alisio-weixin) — Tencent iLink Bot plugin via QR login; private chats only.
 - [WhatsApp](/channels/whatsapp) — Most popular; uses Baileys and requires QR pairing.
 - [Zalo](/channels/zalo) — Zalo Bot API; Vietnam's popular messenger (plugin, installed separately).

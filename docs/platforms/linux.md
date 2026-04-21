@@ -1,7 +1,7 @@
 ---
-summary: "Linux support + companion app status"
+summary: "Linux support + desktop app status"
 read_when:
-  - Looking for Linux companion app status
+  - Looking for Linux desktop app status
   - Planning platform coverage or contributions
 title: "Linux App"
 ---
@@ -11,7 +11,7 @@ title: "Linux App"
 The Gateway is fully supported on Linux. **Node is the recommended runtime**.
 Bun is not recommended for the Gateway (WhatsApp/Telegram bugs).
 
-Native Linux companion apps are planned. Contributions are welcome if you want to help build one.
+Native Linux desktop apps are not part of the current product path. Contributions are welcome if you want to help build one.
 
 ## Beginner quick path (VPS)
 
@@ -19,7 +19,7 @@ Native Linux companion apps are planned. Contributions are welcome if you want t
 2. `npm i -g alisio@npm:alisio@latest`
 3. `alisio onboard --install-daemon`
 4. From your laptop: `ssh -N -L 40705:127.0.0.1:40705 <user>@<host>`
-5. Open `http://127.0.0.1:40705/` and paste your token
+5. Use `alisio tui` for terminal access, or `alisio dashboard` if you intentionally need the legacy browser admin UI
 
 Full Linux server guide: [Linux Server](/vps). Step-by-step VPS example: [exe.dev](/install/exe-dev)
 

@@ -83,7 +83,7 @@ Notes:
 
 ### User setting (default off)
 
-The macOS companion app exposes a checkbox:
+The macOS app exposes a checkbox:
 
 - **Settings → General → Allow Camera** (`alisio.cameraEnabled`)
   - Default: **off**
@@ -120,7 +120,7 @@ Notes:
 
 ## macOS screen video (OS-level)
 
-For _screen_ video (not camera), use the macOS companion:
+For _screen_ video (not camera), use the macOS app:
 
 ```bash
 alisio nodes screen record --node <id> --duration 10s --fps 15   # prints MEDIA:<path>

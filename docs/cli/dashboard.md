@@ -1,14 +1,17 @@
 ---
-summary: "CLI reference for `alisio dashboard` (open the Control UI)"
+summary: "CLI reference for `alisio dashboard` (open the legacy browser admin surface)"
 read_when:
-  - You want to open the Control UI with your current token
+  - You want to open the legacy browser admin surface with your current token
   - You want to print the URL without launching a browser
 title: "dashboard"
 ---
 
 # `alisio dashboard`
 
-Open the Control UI using your current auth.
+Open the legacy browser admin surface using your current auth.
+
+This is an operator and compatibility path. The main product surface is the
+native macOS app, not the browser admin UI.
 
 ```bash
 alisio dashboard

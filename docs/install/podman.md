@@ -180,7 +180,7 @@ Podman-specific note:
 See:
 
 - [Tailscale](/gateway/tailscale)
-- [Control UI](/web/control-ui)
+- [Dashboard CLI](/cli/dashboard)
 
 ## Systemd (Quadlet, optional)
 

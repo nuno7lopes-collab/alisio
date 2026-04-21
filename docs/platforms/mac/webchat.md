@@ -7,10 +7,10 @@ title: "Workspace (macOS)"
 
 # Workspace (macOS app)
 
-The macOS app now uses a **native SwiftUI workspace shell** for the main
-product surface. Chat, navigation, settings, and the right inspector pane all
-live in the native host. WebKit is only kept for narrow technical surfaces such
-as Canvas, not as the primary workspace shell.
+The macOS app uses a **native SwiftUI workspace** for the main product
+surface. Chat, navigation, settings, and the right inspector pane all live in
+the native host. WebKit is only kept for narrow technical surfaces such as
+Canvas, not as the primary product UI.
 
 The workspace connects to the Gateway and defaults to the **main session** for
 the selected agent, with a native session switcher for other sessions.

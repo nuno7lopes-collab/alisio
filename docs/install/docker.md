@@ -379,7 +379,7 @@ scripts/sandbox-setup.sh
     docker compose run --rm alisio-cli devices approve <requestId>
     ```
 
-    More detail: [Dashboard](/web/dashboard), [Devices](/cli/devices).
+    More detail: [Dashboard CLI](/cli/dashboard), [Devices](/cli/devices).
 
   </Accordion>
 

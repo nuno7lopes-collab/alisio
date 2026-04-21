@@ -172,4 +172,4 @@ user service (no lingering needed). See [Gateway runbook](/gateway) for the syst
 - [Discord](/channels/discord) and [Telegram](/channels/telegram) (reply tags + replyToMode settings)
 - [Getting Started](/start/getting-started)
 - [macOS app](/platforms/macos) (gateway lifecycle)
-- [macOS Dev Setup](/platforms/macos/dev-setup)
+- [macOS Dev Setup](/platforms/mac/dev-setup)

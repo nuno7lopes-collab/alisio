@@ -17,7 +17,7 @@ computers across localhost, LAN, and tailnet.
 - [Gateway architecture](/concepts/architecture)
 - [Gateway protocol](/gateway/protocol)
 - [Gateway runbook](/gateway)
-- [Web surfaces + bind modes](/web)
+- [Legacy browser admin access](/cli/dashboard)
 
 ## Pairing + identity
 

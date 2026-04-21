@@ -73,7 +73,7 @@ Use:
 
 `http://127.0.0.1:40705/`
 
-Do not default to a LAN IP for the Control UI. Plain HTTP on a LAN or tailnet address can trigger insecure-origin/device-auth behavior that is unrelated to CDP itself. See [Control UI](/web/control-ui).
+Do not default to a LAN IP for the Control UI. Plain HTTP on a LAN or tailnet address can trigger insecure-origin/device-auth behavior that is unrelated to CDP itself. See [Dashboard CLI](/cli/dashboard).
 
 ## Validate in layers
 
@@ -158,7 +158,7 @@ Then verify:
 
 Helpful page:
 
-- [Control UI](/web/control-ui)
+- [Dashboard CLI](/cli/dashboard)
 
 ### Layer 5: Verify end-to-end browser control
 

@@ -77,7 +77,6 @@ Use these hubs to discover every page, including deep dives and reference docs t
 - [BlueBubbles (iMessage)](/channels/bluebubbles)
 - [iMessage (legacy)](/channels/imessage)
 - [Location parsing](/channels/location)
-- [WebChat (legacy browser route)](/web/webchat)
 - [Webhooks](/automation/webhook)
 - [Gmail Pub/Sub](/automation/gmail-pubsub)
 
@@ -132,23 +131,16 @@ Use these hubs to discover every page, including deep dives and reference docs t
 
 - [Platforms overview](/platforms)
 - [macOS](/platforms/macos)
-- [Windows (WSL2)](/platforms/windows)
+- [Windows](/platforms/windows)
 - [Linux](/platforms/linux)
-- [Legacy browser surfaces](/web)
 
-## Legacy browser surfaces
-
-- [Dashboard (legacy browser)](/web/dashboard)
-- [Control UI (legacy browser)](/web/control-ui)
-- [WebChat (legacy browser route)](/web/webchat)
-
-## macOS companion app (advanced)
+## macOS app internals (advanced)
 
 - [macOS dev setup](/platforms/mac/dev-setup)
 - [macOS menu bar](/platforms/mac/menu-bar)
 - [macOS voice wake](/platforms/mac/voicewake)
 - [macOS voice overlay](/platforms/mac/voice-overlay)
-- [macOS WebChat](/platforms/mac/webchat)
+- [macOS Workspace](/platforms/mac/webchat)
 - [macOS Canvas](/platforms/mac/canvas)
 - [macOS child process](/platforms/mac/child-process)
 - [macOS health](/platforms/mac/health)

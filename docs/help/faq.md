@@ -152,11 +152,11 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
   </Accordion>
 
-  <Accordion title="How do I open the dashboard after onboarding?">
-    The wizard opens your browser with a clean (non-tokenized) dashboard URL right after onboarding and also prints the link in the summary. Keep that tab open; if it didn't launch, copy/paste the printed URL on the same machine.
+  <Accordion title="How do I open the legacy browser admin surface after CLI onboarding?">
+    If you intentionally use the legacy browser admin path, run `alisio dashboard`. It prints a clean URL, copies it when possible, and opens the browser if the environment supports that flow.
   </Accordion>
 
-  <Accordion title="How do I authenticate the dashboard (token) on localhost vs remote?">
+  <Accordion title="How do I authenticate the legacy browser admin surface (token) on localhost vs remote?">
     **Localhost (same machine):**
 
     - Open `http://127.0.0.1:40705/`.
@@ -169,7 +169,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     - **Tailnet bind**: run `alisio gateway run --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:40705/`, paste token in dashboard settings.
     - **SSH tunnel**: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/` and paste the token in Control UI settings.
 
-    See [Dashboard](/web/dashboard) and [Web surfaces](/web) for bind modes and auth details.
+    See [Dashboard CLI](/cli/dashboard) and [Remote access](/gateway/remote) for bind modes and auth details.
 
   </Accordion>
 
@@ -854,7 +854,7 @@ for usage/billing and raise limits as needed.
 
 <AccordionGroup>
   <Accordion title="What is Alisio, in one paragraph?">
-    Alisio is a personal AI assistant you run on your own devices. It replies on the messaging surfaces you already use (WhatsApp, Telegram, Slack, Mattermost (plugin), Discord, Google Chat, Signal, iMessage, WebChat) and can also do voice + a live Canvas on supported platforms. The **Gateway** is the always-on control plane; the assistant is the product.
+    Alisio is a personal AI assistant you run on your own devices. It replies on the messaging surfaces you already use (WhatsApp, Telegram, Slack, Mattermost (plugin), Discord, Google Chat, Signal, iMessage) and can also do voice + a live Canvas on supported platforms. The shared backend is the always-on runtime; the app, channels, and devices are how the product reaches you.
   </Accordion>
 
   <Accordion title="Value proposition">
@@ -925,7 +925,7 @@ for usage/billing and raise limits as needed.
     Advantages:
 
     - **Persistent memory + workspace** across sessions
-    - **Multi-platform access** (WhatsApp, Telegram, TUI, WebChat)
+    - **Multi-platform access** (WhatsApp, Telegram, TUI, macOS app)
     - **Tool orchestration** (browser, files, scheduling, hooks)
     - **Always-on Gateway** (run on a VPS, interact from anywhere)
     - **Devices** for local browser/screen/camera/exec
@@ -1499,7 +1499,7 @@ for usage/billing and raise limits as needed.
     persistent personal multi-agent behavior as roadmap work rather than as a
     finished release promise.
 
-    Docs: [Computers](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/web/tui).
+    Docs: [Computers](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/cli/tui).
 
   </Accordion>
 
@@ -2544,7 +2544,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     - If mismatch persists after the one retry, rotate/re-approve the paired device token:
       - `alisio devices list`
       - `alisio devices rotate --device <id> --role operator`
-    - Still stuck? Run `alisio status --all` and follow [Troubleshooting](/gateway/troubleshooting). See [Dashboard](/web/dashboard) for auth details.
+    - Still stuck? Run `alisio status --all` and follow [Troubleshooting](/gateway/troubleshooting). See [Dashboard CLI](/cli/dashboard) for auth details.
 
   </Accordion>
 
@@ -2701,7 +2701,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     - Model auth not loaded on the **gateway host** (check `models status`).
     - Channel pairing/allowlist blocking replies (check channel config + logs).
-    - WebChat/Dashboard is open without the right token.
+    - The legacy browser admin UI is open without the right token.
 
     If you are remote, confirm the tunnel/Tailscale connection is up and that the
     Gateway WebSocket is reachable.
@@ -2724,7 +2724,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     alisio logs --follow
     ```
 
-    Docs: [Dashboard](/web/dashboard), [Remote access](/gateway/remote), [Troubleshooting](/gateway/troubleshooting).
+    Docs: [Dashboard CLI](/cli/dashboard), [Remote access](/gateway/remote), [Troubleshooting](/gateway/troubleshooting).
 
   </Accordion>
 
@@ -2759,7 +2759,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     In the TUI, use `/status` to see the current state. If you expect replies in a chat
     channel, make sure delivery is enabled (`/deliver on`).
 
-    Docs: [TUI](/web/tui), [Slash commands](/tools/slash-commands).
+    Docs: [TUI](/cli/tui), [Slash commands](/tools/slash-commands).
 
   </Accordion>
 

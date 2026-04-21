@@ -39,14 +39,12 @@
     "source": "Devices overview",
     "target": "设备概览"
   },
-  {
-  },
+  {},
   {
     "source": "Device runbook: iOS",
     "target": "设备运行手册：iOS"
   },
-  {
-  },
+  {},
   {
     "source": "Pairing (DM and devices)",
     "target": "配对（私信与设备）"
@@ -394,5 +392,33 @@
   {
     "source": "Testing",
     "target": "测试"
+  },
+  {
+    "source": "/cli/dashboard",
+    "target": "/cli/dashboard"
+  },
+  {
+    "source": "Dashboard CLI",
+    "target": "Dashboard CLI"
+  },
+  {
+    "source": "Legacy browser admin access",
+    "target": "旧版浏览器管理访问"
+  },
+  {
+    "source": "TUI",
+    "target": "TUI"
+  },
+  {
+    "source": "Windows",
+    "target": "Windows"
+  },
+  {
+    "source": "macOS Workspace",
+    "target": "macOS 工作区"
+  },
+  {
+    "source": "macOS Dev Setup",
+    "target": "macOS 开发设置"
   }
 ]

@@ -29,14 +29,12 @@ For a complete map of the docs, see [Docs hubs](/start/hubs).
 - [RPC adapters](/reference/rpc)
 - [Gateway runbook](/gateway)
 - [Computers and local actions](/nodes)
-- [Legacy browser surfaces](/web)
 - [Discovery and transports](/gateway/discovery)
 - [Remote access](/gateway/remote)
 
 ## Providers and UX
 
 - [TUI](/cli/tui)
-- [Control UI (legacy browser)](/web/control-ui)
 - [Telegram](/channels/telegram)
 - [Discord](/channels/discord)
 - [Mattermost (plugin)](/channels/mattermost)
@@ -47,10 +45,10 @@ For a complete map of the docs, see [Docs hubs](/start/hubs).
 - [Media images](/nodes/images)
 - [Media audio](/nodes/audio)
 
-## Companion apps
+## Platforms
 
 - [macOS app](/platforms/macos)
-- [Windows (WSL2)](/platforms/windows)
+- [Windows](/platforms/windows)
 - [Linux app](/platforms/linux)
 
 ## Operations and safety

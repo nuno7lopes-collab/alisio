@@ -41,9 +41,9 @@ layer before changing code:
 
 | Symptom                                                                                                | Most likely layer                               | First checks                                                                                          | Deep pages                                                                                                         |
 | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| App opens but the first message never progresses, or the stage stays blank                             | Native workspace shell versus gateway readiness | `alisio gateway status`, `alisio gateway probe`, `alisio logs --follow`                               | [/platforms/mac/webchat](/platforms/mac/webchat), [/platforms/mac/bundled-gateway](/platforms/mac/bundled-gateway) |
+| App opens but the first message never progresses, or the stage stays blank                             | Native workspace versus gateway readiness       | `alisio gateway status`, `alisio gateway probe`, `alisio logs --follow`                               | [/platforms/mac/webchat](/platforms/mac/webchat), [/platforms/mac/bundled-gateway](/platforms/mac/bundled-gateway) |
 | Menu bar stays on starting/reconnecting, or Local mode never becomes ready                             | Gateway runtime / launchd / version mismatch    | `alisio gateway status`, `alisio doctor`, inspect `/tmp/alisio/alisio-gateway.log`                    | [/platforms/mac/bundled-gateway](/platforms/mac/bundled-gateway), [/platforms/mac/health](/platforms/mac/health)   |
-| Chat works but `computer use` shows no frame, stale frame, or reconnect churn                          | Local runtime/helper, not the frontend shell    | `alisio nodes status`, `alisio nodes describe --node <id>`, `alisio logs --follow`                    | [/platforms/mac/webchat](/platforms/mac/webchat), [/nodes/troubleshooting](/nodes/troubleshooting)                 |
+| Chat works but `computer use` shows no frame, stale frame, or reconnect churn                          | Local runtime/helper, not the native workspace  | `alisio nodes status`, `alisio nodes describe --node <id>`, `alisio logs --follow`                    | [/platforms/mac/webchat](/platforms/mac/webchat), [/nodes/troubleshooting](/nodes/troubleshooting)                 |
 | Accessibility or Screen Recording looks granted, but the app still asks again or says restart required | TCC/signing/permission persistence              | Re-check the app path/signature, then retry the permission recovery checklist                         | [/platforms/mac/permissions](/platforms/mac/permissions)                                                           |
 | The right inspector pane never appears even though the session is active                               | Native workspace state / inspector presentation | Confirm gateway is healthy first; then confirm the session has activity, a frame, or a surfaced error | [/platforms/mac/webchat](/platforms/mac/webchat)                                                                   |
 
@@ -99,7 +99,7 @@ Reference: [Plugin architecture](/plugins/architecture)
 flowchart TD
   A[Alisio is not working] --> B{What breaks first}
   B --> C[No replies]
-  B --> D[Dashboard or Control UI will not connect]
+  B --> D[Legacy browser admin will not connect]
   B --> E[Gateway will not start or service not running]
   B --> F[Channel connects but messages do not flow]
   B --> G[Cron or heartbeat did not fire or did not deliver]
@@ -107,7 +107,7 @@ flowchart TD
   B --> I[Browser tool fails]
 
   C --> C1[/No replies section/]
-  D --> D1[/Control UI section/]
+  D --> D1[/Legacy browser admin section/]
   E --> E1[/Gateway section/]
   F --> F1[/Channel flow section/]
   G --> G1[/Automation section/]
@@ -146,7 +146,7 @@ flowchart TD
 
   </Accordion>
 
-  <Accordion title="Dashboard or Control UI will not connect">
+  <Accordion title="Legacy browser admin will not connect">
     ```bash
     alisio status
     alisio gateway status
@@ -171,7 +171,7 @@ flowchart TD
     Deep pages:
 
     - [/gateway/troubleshooting#dashboard-control-ui-connectivity](/gateway/troubleshooting#dashboard-control-ui-connectivity)
-    - [/web/control-ui](/web/control-ui)
+    - [/cli/dashboard](/cli/dashboard)
     - [/gateway/authentication](/gateway/authentication)
 
   </Accordion>

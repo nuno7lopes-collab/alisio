@@ -48,7 +48,7 @@ Keep the Gateway local but expose it safely:
 - SSH tunnel to the laptop from other machines, or
 - Tailscale Serve the Control UI and keep the Gateway loopback-only.
 
-Guide: [Tailscale](/gateway/tailscale) and [Web overview](/web).
+Guide: [Tailscale](/gateway/tailscale) and [Dashboard CLI](/cli/dashboard).
 
 ## Command flow (what runs where)
 

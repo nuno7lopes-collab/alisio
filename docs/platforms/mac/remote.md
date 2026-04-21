@@ -46,7 +46,7 @@ Remote mode supports two transports:
 
 - **SSH tunnel**: the native workspace connects to the gateway over the forwarded WebSocket control port (default 40705).
 - **Direct (ws/wss)**: the native workspace connects straight to the configured gateway URL.
-- There is no separate HTTP shell for the macOS workspace anymore.
+- There is no separate browser workspace for macOS anymore.
 
 ## Permissions
 

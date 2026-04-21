@@ -1,5 +1,5 @@
 ---
-summary: "Logging overview: file logs, console output, CLI tailing, and the legacy browser admin surface"
+summary: "Logging overview: file logs, console output, CLI tailing, and the legacy browser admin path"
 read_when:
   - You need a beginner-friendly overview of logging
   - You want to configure log levels or formats
@@ -12,7 +12,7 @@ title: "Logging Overview"
 Alisio logs in two places:
 
 - **File logs** (JSON lines) written by the Gateway.
-- **Console output** shown in terminals and the legacy browser admin surface.
+- **Console output** shown in terminals and the legacy browser admin path.
 
 This page explains where logs live, how to read them, and how to configure log
 levels and formats.
@@ -69,7 +69,7 @@ alisio doctor
 ### Browser admin surface (legacy)
 
 The browser admin surface's **Logs** tab tails the same file using `logs.tail`.
-See [/web/control-ui](/web/control-ui) for how to open it.
+See [/cli/dashboard](/cli/dashboard) for how to open it.
 
 ### Channel-only logs
 

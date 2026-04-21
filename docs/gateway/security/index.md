@@ -821,7 +821,7 @@ Trusted proxies:
 - Alisio will trust `x-forwarded-for` (or `x-real-ip`) from those IPs to determine the client IP for local pairing checks and HTTP auth/local checks.
 - Ensure your proxy **overwrites** `x-forwarded-for` and blocks direct access to the Gateway port.
 
-See [Tailscale](/gateway/tailscale) and [Web overview](/web).
+See [Tailscale](/gateway/tailscale) and [Dashboard CLI](/cli/dashboard).
 
 ### 0.6.1) Browser control via node host (recommended)
 

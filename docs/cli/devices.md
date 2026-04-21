@@ -135,5 +135,5 @@ alisio devices approve <requestId>
 
 Related:
 
-- [Dashboard auth troubleshooting](/web/dashboard#if-you-see-unauthorized-1008)
+- [Dashboard auth troubleshooting](/gateway/troubleshooting#dashboard-control-ui-connectivity)
 - [Gateway troubleshooting](/gateway/troubleshooting#dashboard-control-ui-connectivity)
