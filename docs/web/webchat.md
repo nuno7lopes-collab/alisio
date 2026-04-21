@@ -1,13 +1,15 @@
 ---
-summary: "Loopback WebChat static host and Gateway WS usage for chat UI"
+summary: "Legacy browser WebChat route and Gateway WS usage for chat UI"
 read_when:
-  - Debugging or configuring WebChat access
-title: "WebChat"
+  - Debugging or configuring legacy browser WebChat access
+title: "WebChat (Legacy Browser Route)"
 ---
 
-# WebChat (Gateway WebSocket UI)
+# WebChat (Legacy Browser Route)
 
 Status: the macOS SwiftUI chat UI talks directly to the Gateway WebSocket.
+This page only exists for the remaining legacy browser route and protocol
+details.
 
 ## What it is
 
@@ -18,7 +20,8 @@ Status: the macOS SwiftUI chat UI talks directly to the Gateway WebSocket.
 ## Quick start
 
 1. Start the gateway.
-2. Open the WebChat UI (macOS app) or the Control UI chat tab.
+2. Prefer the macOS WebChat UI. Use the browser Control UI chat tab only if you
+   still rely on the legacy browser surface.
 3. Ensure gateway auth is configured (required by default, even on loopback).
 
 ## How it works (behavior)

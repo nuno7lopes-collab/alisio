@@ -60,7 +60,7 @@ public sealed partial class SettingsWindow : Window
     {
         return string.Join(Environment.NewLine, new[]
         {
-            $"- Shared shell host: {(snapshot.Capabilities.SharedShellHost ? "available" : "missing shell assets")}",
+            $"- Temporary shell host: {(snapshot.Capabilities.SharedShellHost ? "available" : "missing shell assets")}",
             "- Native settings window: available",
             "- External link handoff: available",
             "- Logs reveal: available",
@@ -69,7 +69,7 @@ public sealed partial class SettingsWindow : Window
             "- Launch at login: unavailable",
             "- Voice wake: unavailable",
             "- Managed device identity bridge: unavailable",
-            "- Bridge injection into the shared shell: experimental and off by default",
+            "- Bridge injection into the temporary shell: experimental and off by default",
         });
     }
 
@@ -95,7 +95,7 @@ public sealed partial class SettingsWindow : Window
         var snapshot = _snapshot ?? _hostStateService.CreateSnapshot();
         if (string.IsNullOrWhiteSpace(snapshot.ShellDirectory))
         {
-            PickedPathTextBlock.Text = "The shared shell directory is unavailable right now.";
+            PickedPathTextBlock.Text = "The shell assets directory is unavailable right now.";
             return;
         }
 

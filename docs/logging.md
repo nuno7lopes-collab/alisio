@@ -1,5 +1,5 @@
 ---
-summary: "Logging overview: file logs, console output, CLI tailing, and the Control UI"
+summary: "Logging overview: file logs, console output, CLI tailing, and the legacy browser admin surface"
 read_when:
   - You need a beginner-friendly overview of logging
   - You want to configure log levels or formats
@@ -12,7 +12,7 @@ title: "Logging Overview"
 Alisio logs in two places:
 
 - **File logs** (JSON lines) written by the Gateway.
-- **Console output** shown in terminals and the Control UI.
+- **Console output** shown in terminals and the legacy browser admin surface.
 
 This page explains where logs live, how to read them, and how to configure log
 levels and formats.
@@ -66,9 +66,9 @@ If the Gateway is unreachable, the CLI prints a short hint to run:
 alisio doctor
 ```
 
-### Control UI (web)
+### Browser admin surface (legacy)
 
-The Control UI’s **Logs** tab tails the same file using `logs.tail`.
+The browser admin surface's **Logs** tab tails the same file using `logs.tail`.
 See [/web/control-ui](/web/control-ui) for how to open it.
 
 ### Channel-only logs
@@ -83,7 +83,7 @@ alisio channels logs --channel whatsapp
 
 ### File logs (JSONL)
 
-Each line in the log file is a JSON object. The CLI and Control UI parse these
+Each line in the log file is a JSON object. The CLI and browser admin surface parse these
 entries to render structured output (time, level, subsystem, message).
 
 ### Console output

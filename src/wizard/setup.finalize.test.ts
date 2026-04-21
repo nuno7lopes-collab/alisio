@@ -554,6 +554,6 @@ describe("finalizeSetupWizard", () => {
       expect.stringContaining("Setup was run without Gateway service install"),
       "Gateway",
     );
-    expect(prompter.note).not.toHaveBeenCalledWith(expect.any(String), "Dashboard ready");
+    expect(prompter.note).not.toHaveBeenCalledWith(expect.any(String), "Browser admin ready");
   });
 });

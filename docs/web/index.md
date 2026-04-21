@@ -1,29 +1,38 @@
 ---
-summary: "Gateway web surfaces: Control UI, bind modes, and security"
+summary: "Legacy browser admin surfaces for the Gateway: compatibility, bind modes, and security"
 read_when:
   - You want to access the Gateway over Tailscale
-  - You want the browser Control UI and config editing
-title: "Web"
+  - You still rely on the legacy browser admin surface
+title: "Browser Surfaces (Legacy)"
 ---
 
-# Web (Gateway)
+# Browser Surfaces (Legacy)
 
-The Gateway serves a small **browser Control UI** (Vite + Lit) from the same port as the Gateway WebSocket:
+The Gateway still serves a small **browser admin surface** (Vite + Lit) from
+the same port as the Gateway WebSocket, but it is no longer the primary product
+face.
+
+Use these pages when you need legacy browser access, remote recovery, or
+Gateway admin work. For the main product story, start with the macOS app today
+and treat Windows as foundation work in progress.
+
+Current browser endpoint:
 
 - default: `http://<host>:40705/`
 - optional prefix: set `gateway.controlUi.basePath` (e.g. `/alisio`)
 
-Capabilities live in [Control UI](/web/control-ui).
-This page focuses on bind modes, security, and web-facing surfaces.
+Operational details live in [Control UI](/web/control-ui).
+This page focuses on bind modes, security, and compatibility browser surfaces.
 
 ## Webhooks
 
 When `hooks.enabled=true`, the Gateway also exposes a small webhook endpoint on the same HTTP server.
 See [Gateway configuration](/gateway/configuration) → `hooks` for auth + payloads.
 
-## Config (default-on)
+## Compatibility config
 
-The Control UI is **enabled by default** when assets are present (`dist/control-ui`).
+The browser admin surface is **enabled by default** when assets are present
+(`dist/control-ui`).
 You can control it via config:
 
 ```json5
@@ -111,7 +120,7 @@ Open:
   tokenless flow assumes the gateway host is trusted.
 - `gateway.tailscale.mode: "funnel"` requires `gateway.auth.mode: "password"` (shared password).
 
-## Building the UI
+## Building the browser assets
 
 The Gateway serves static files from `dist/control-ui`. Build them with:
 

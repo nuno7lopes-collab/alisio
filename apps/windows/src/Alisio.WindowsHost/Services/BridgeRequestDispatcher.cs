@@ -30,6 +30,7 @@ public sealed class BridgeRequestDispatcher
         return method switch
         {
             "getHostState" => _hostStateService.CreateSnapshot(),
+            // Compatibility bridge verb for the temporary shell.
             "getShellState" => _hostStateService.CreateLegacyShellState(),
             "openNativeSettings" => await OpenNativeSettingsAsync(),
             "revealLogs" => await RevealLogsAsync(),

@@ -354,17 +354,17 @@ export async function finalizeSetupWizard(
 
   await prompter.note(
     [
-      `Web UI: ${links.httpUrl}`,
+      `Browser admin URL: ${links.httpUrl}`,
       settings.authMode === "token" && settings.gatewayToken
-        ? `Web UI (with token): ${authedUrl}`
+        ? `Browser admin URL (with token): ${authedUrl}`
         : undefined,
       `Gateway WS: ${links.wsUrl}`,
       gatewayStatusLine,
-      "Docs: https://docs.alisio.ai/web/control-ui",
+      "Docs: https://docs.alisio.ai/web/dashboard",
     ]
       .filter(Boolean)
       .join("\n"),
-    "Control UI",
+    "Browser admin",
   );
 
   let controlUiOpened = false;
@@ -388,13 +388,13 @@ export async function finalizeSetupWizard(
 
     await prompter.note(
       [
-        "Gateway token: shared auth for the Gateway + Control UI.",
+        "Gateway token: shared auth for the Gateway and the legacy browser admin surface.",
         "Stored in: ~/.alisio/alisio.json (gateway.auth.token) or ALISIO_GATEWAY_TOKEN.",
         `View token: ${formatCliCommand("alisio config get gateway.auth.token")}`,
         `Generate token: ${formatCliCommand("alisio doctor --generate-gateway-token")}`,
-        "Web UI keeps dashboard URL tokens in memory for the current tab and strips them from the URL after load.",
+        "The browser admin surface keeps dashboard URL tokens in memory for the current tab and strips them from the URL after load.",
         `Open the dashboard anytime: ${formatCliCommand("alisio dashboard --no-open")}`,
-        "If prompted: paste the token into Control UI settings (or use the tokenized dashboard URL).",
+        "If prompted: paste the token into the browser access settings (or use the tokenized dashboard URL).",
       ].join("\n"),
       "Token",
     );
@@ -403,7 +403,7 @@ export async function finalizeSetupWizard(
       message: "How do you want to hatch your bot?",
       options: [
         { value: "tui", label: "Hatch in TUI (recommended)" },
-        { value: "web", label: "Open the Web UI" },
+        { value: "web", label: "Open browser admin surface (legacy)" },
         { value: "later", label: "Do this later" },
       ],
       initialValue: "tui",
@@ -442,13 +442,13 @@ export async function finalizeSetupWizard(
         [
           `Dashboard link (with token): ${authedUrl}`,
           controlUiOpened
-            ? "Opened in your browser. Keep that tab to control Alisio."
-            : "Copy/paste this URL in a browser on this machine to control Alisio.",
+            ? "Opened in your browser. Use that tab only if you still need browser admin access."
+            : "Copy/paste this URL in a browser on this machine if you still need browser admin access.",
           controlUiOpenHint,
         ]
           .filter(Boolean)
           .join("\n"),
-        "Dashboard ready",
+        "Browser admin ready",
       );
     } else {
       await prompter.note(
@@ -457,14 +457,13 @@ export async function finalizeSetupWizard(
       );
     }
   } else if (opts.skipUi) {
-    await prompter.note("Skipping Control UI/TUI prompts.", "Control UI");
+    await prompter.note("Skipping browser/TUI prompts.", "UI");
   }
 
   await prompter.note(
-    [
-      "Back up your agent workspace.",
-      "Docs: https://docs.alisio.ai/concepts/agent-workspace",
-    ].join("\n"),
+    ["Back up your agent workspace.", "Docs: https://docs.alisio.ai/concepts/agent-workspace"].join(
+      "\n",
+    ),
     "Workspace backup",
   );
 
@@ -504,13 +503,13 @@ export async function finalizeSetupWizard(
       [
         `Dashboard link (with token): ${authedUrl}`,
         controlUiOpened
-          ? "Opened in your browser. Keep that tab to control Alisio."
-          : "Copy/paste this URL in a browser on this machine to control Alisio.",
+          ? "Opened in your browser. Use that tab only if you still need browser admin access."
+          : "Copy/paste this URL in a browser on this machine if you still need browser admin access.",
         controlUiOpenHint,
       ]
         .filter(Boolean)
         .join("\n"),
-      "Dashboard ready",
+      "Browser admin ready",
     );
   }
 
@@ -613,10 +612,10 @@ export async function finalizeSetupWizard(
 
   await prompter.outro(
     controlUiOpened
-      ? "Onboarding complete. Dashboard opened; keep that tab to control Alisio."
+      ? "Onboarding complete. Legacy browser admin surface opened; keep that tab only if you still need browser access."
       : seededInBackground
-        ? "Onboarding complete. Web UI seeded in the background; open it anytime with the dashboard link above."
-        : "Onboarding complete. Use the dashboard link above to control Alisio.",
+        ? "Onboarding complete. Browser admin assets were prepared in the background; open them later only if you still need browser access."
+        : "Onboarding complete. Use the TUI or the app for primary interaction; keep the dashboard link only for legacy browser admin access.",
   );
 
   return { launchedTui };

@@ -68,6 +68,8 @@ public sealed class HostStateService
 
     public object CreateLegacyShellState()
     {
+        // Temporary compatibility payload for the current shell bridge.
+        // Keep it only until the Windows-native frontend no longer asks for getShellState.
         var snapshot = CreateSnapshot();
         return new
         {

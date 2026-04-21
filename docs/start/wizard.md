@@ -19,8 +19,9 @@ alisio onboard
 ```
 
 <Info>
-Fastest first chat: open the Control UI (no channel setup needed). Run
-`alisio dashboard` and chat in the browser. Docs: [Dashboard](/web/dashboard).
+Fastest first chat from CLI onboarding: open the TUI with `alisio tui`.
+If you still need browser-based gateway admin, the legacy dashboard docs live at
+[Dashboard](/web/dashboard).
 </Info>
 
 To reconfigure later:

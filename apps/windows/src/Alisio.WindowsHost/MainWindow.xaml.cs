@@ -75,7 +75,7 @@ public sealed partial class MainWindow : Window
             ShowEmptyState(_shellAssetLocator.Resolve().Message);
             if (showBanner)
             {
-                ShowBanner("Shared shell is still missing. Build `ui/dist` or stage shell assets first.", isError: true);
+                ShowBanner("Shell assets are still missing. Build `ui/dist` or stage shell assets first.", isError: true);
             }
 
             return;
@@ -89,14 +89,14 @@ public sealed partial class MainWindow : Window
             if (showBanner)
             {
                 var bridgeLabel = snapshot.ExperimentalShellBridgeEnabled ? "enabled" : "disabled";
-                ShowBanner($"Reloaded the shared shell. Experimental bridge is {bridgeLabel}.", isError: false);
+                ShowBanner($"Reloaded the shell assets. Experimental bridge is {bridgeLabel}.", isError: false);
             }
         }
         catch (Exception error)
         {
             await _logger.WriteAsync("webview initialization failed", error);
             ShowEmptyState(error.Message);
-            ShowBanner("Failed to initialize the shared shell. Check the Windows host log for details.", isError: true);
+            ShowBanner("Failed to initialize the shell assets. Check the Windows host log for details.", isError: true);
         }
     }
 

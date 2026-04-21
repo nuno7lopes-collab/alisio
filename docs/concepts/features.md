@@ -23,7 +23,7 @@ title: "Features"
     Images, audio, and documents in and out.
   </Card>
   <Card title="Apps and UI" icon="monitor">
-    Web Control UI and macOS companion app.
+    macOS app, TUI, and legacy browser admin surfaces.
   </Card>
   <Card title="Paired computers" icon="monitor-smartphone">
     Paired computers with local actions, approvals, and runtime commands.
@@ -60,7 +60,7 @@ title: "Features"
 
 **Apps and interfaces:**
 
-- WebChat and browser Control UI
+- macOS app, TUI, and legacy browser admin surface
 - macOS menu bar companion app
 - paired computers with Canvas, camera, screen recording, location, and voice
 

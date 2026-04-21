@@ -29,14 +29,14 @@ For a complete map of the docs, see [Docs hubs](/start/hubs).
 - [RPC adapters](/reference/rpc)
 - [Gateway runbook](/gateway)
 - [Computers and local actions](/nodes)
-- [Web surfaces (Control UI)](/web)
+- [Legacy browser surfaces](/web)
 - [Discovery and transports](/gateway/discovery)
 - [Remote access](/gateway/remote)
 
 ## Providers and UX
 
-- [WebChat](/web/webchat)
-- [Control UI (browser)](/web/control-ui)
+- [TUI](/cli/tui)
+- [Control UI (legacy browser)](/web/control-ui)
 - [Telegram](/channels/telegram)
 - [Discord](/channels/discord)
 - [Mattermost (plugin)](/channels/mattermost)

@@ -1,15 +1,16 @@
 ---
-summary: "Windows truth: native CLI, WSL2, and the current desktop-host foundation"
+summary: "Windows truth: usable CLI paths today, desktop-host foundation now, Windows-native frontend later"
 read_when:
   - Running Alisio on Windows
-  - Choosing between native Windows, WSL2, and the Windows desktop host
+  - Choosing between native Windows, WSL2, and the Windows desktop host foundation
   - Checking what the Windows host app does and does not do
 title: "Windows"
 ---
 
 # Windows
 
-As of **April 19, 2026**, Windows support is real, but it is **not one thing**.
+As of **April 21, 2026**, Windows support is real, but it is still a
+**preparation track**, not a finished desktop product.
 
 Treat these as separate surfaces:
 
@@ -19,6 +20,12 @@ Treat these as separate surfaces:
 - **Future Windows local `computer` runtime**
 
 They are **not** equivalent today.
+
+The current product story is simple:
+
+- **macOS is the primary desktop product today**
+- **Windows is being prepared in layers**
+- **WSL2 remains the recommended full-runtime path on Windows right now**
 
 ## Recommended path
 
@@ -71,12 +78,12 @@ This repo now contains a **real Windows desktop-host foundation** in
 What this foundation is:
 
 - a native **WinUI 3** desktop app on **Windows App SDK 1.8.6**
-- a **WebView2** host for the shared shell
+- a **WebView2** host for the current compatibility shell assets
 - a native settings window that tells the truth about Windows capability state
 - native log-folder reveal
 - native external-link handoff
 - native file and folder pickers
-- a real WebView2 request/response bridge base for later shell integration
+- a real WebView2 request/response bridge base for later Windows-native UI work
 
 What this foundation is **not**:
 
@@ -85,6 +92,7 @@ What this foundation is **not**:
 - not a Windows local `computer` runtime
 - not background-safe desktop control
 - not voice wake, launch-at-login, or a Windows-native permission bridge
+- not the final Windows frontend direction
 
 For the host architecture details, see
 [Windows Desktop Host](/architecture/windows-desktop-host).
@@ -93,11 +101,11 @@ For the host architecture details, see
 
 ### 1) Windows desktop host app
 
-This is the new native shell host in `apps/windows`.
+This is the current native desktop-host foundation in `apps/windows`.
 
 Current truth:
 
-- shared shell hosting: available
+- temporary shell hosting: available
 - WebView2 bridge base: available
 - shell bridge injection: **experimental and off by default**
 - native settings/logs/external/file pickers: available
@@ -105,7 +113,7 @@ Current truth:
 
 Why bridge injection is off by default:
 
-- the shared shell still hardcodes some macOS-native shell presentation
+- the current compatibility shell still hardcodes some macOS-native presentation
 - enabling that bridge by default on Windows would surface misleading UI
 - the host therefore keeps the bridge implementation real, but the shell wiring
   honest and opt-in until the shell contract becomes platform-neutral
@@ -150,7 +158,8 @@ Current Windows recommendation:
 
 - **GO** for a desktop-host foundation branch or internal preview
 - **GO WITH LIMITATIONS** only if the release message is explicit that Windows
-  ships a host shell foundation, not local-computer parity
+  ships a host foundation, not a finished Windows frontend and not
+  local-computer parity
 - **NO-GO** for any claim that Windows already matches macOS local `computer`
 
 ## Microsoft stack choice
@@ -165,7 +174,7 @@ native Windows desktop shell host:
 - WebView2 in WinUI 3:
   [https://learn.microsoft.com/microsoft-edge/webview2/get-started/winui](https://learn.microsoft.com/microsoft-edge/webview2/get-started/winui)
 
-The host loads the shared shell from either:
+The host currently loads compatibility shell assets from either:
 
 - `ui/dist` in a repo checkout
 - staged shell assets inside the Windows app folder

@@ -32,7 +32,7 @@
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <ToggleSwitch
                     x:Name="ExperimentalBridgeToggle"
-                    Header="Experimental shell bridge"
+                    Header="Experimental compatibility bridge"
                     Toggled="ExperimentalBridgeToggle_Toggled" />
                 <Button Click="NativeSettingsButton_Click" Content="Native settings" />
                 <Button Click="OpenLogsButton_Click" Content="Open logs" />
@@ -62,14 +62,14 @@
                 CornerRadius="12"
                 Visibility="Collapsed">
                 <StackPanel MaxWidth="760" Spacing="12">
-                    <TextBlock FontSize="24" FontWeight="SemiBold" Text="Shared shell not found" />
+                    <TextBlock FontSize="24" FontWeight="SemiBold" Text="Shell assets not found" />
                     <TextBlock
                         x:Name="EmptyStateTextBlock"
                         Opacity="0.8"
                         TextWrapping="WrapWholeWords" />
                     <TextBlock
                         Opacity="0.8"
-                        Text="Build the shared shell with `pnpm ui:build`, or stage it with `apps/windows/scripts/stage-shell.ps1`."
+                        Text="Build the current shell assets with `pnpm ui:build`, or stage them with `apps/windows/scripts/stage-shell.ps1`."
                         TextWrapping="WrapWholeWords" />
                 </StackPanel>
             </Border>

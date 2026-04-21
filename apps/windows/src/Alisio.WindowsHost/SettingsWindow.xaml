@@ -13,7 +13,7 @@
                 <TextBlock
                     MaxWidth="840"
                     Opacity="0.8"
-                    Text="This window is intentionally honest about what the Windows host does today, what the shared shell can use already, and what is still not implemented on Windows."
+                    Text="This window is intentionally honest about what the Windows host does today, what the temporary shell compatibility layer can use already, and what is still not implemented on Windows."
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
 
@@ -24,7 +24,7 @@
                 Background="#FFF8FAFC">
                 <TextBlock
                     MaxWidth="840"
-                    Text="The native request/response bridge exists, but shell injection stays off by default because the current shared shell still hardcodes macOS-native shell presentation in a few places."
+                    Text="The native request/response bridge exists, but bridge injection stays off by default because the current compatibility shell still hardcodes macOS-native presentation in a few places."
                     TextWrapping="WrapWholeWords" />
             </Border>
 
@@ -76,12 +76,12 @@
             <StackPanel Spacing="8">
                 <ToggleSwitch
                     x:Name="ExperimentalBridgeToggle"
-                    Header="Enable experimental shell bridge injection"
+                    Header="Enable experimental compatibility bridge injection"
                     Toggled="ExperimentalBridgeToggle_Toggled" />
                 <TextBlock
                     MaxWidth="840"
                     Opacity="0.8"
-                    Text="Keep this off unless you are actively working on the shared shell contract. The current shared shell still renders some host-native sections as macOS-specific."
+                    Text="Keep this off unless you are actively validating the temporary shell contract. The current compatibility shell still renders some host-native sections as macOS-specific."
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
 

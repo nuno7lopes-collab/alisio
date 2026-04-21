@@ -24,7 +24,7 @@ public sealed class ShellAssetLocator
                 true,
                 envDirectory,
                 "environment",
-                "Loaded shared shell from ALISIO_WINDOWS_SHELL_DIR.");
+                "Loaded Windows shell assets from ALISIO_WINDOWS_SHELL_DIR.");
         }
 
         if (TryResolveDirectory(_paths.StagedShellDirectory, out var stagedDirectory))
@@ -33,7 +33,7 @@ public sealed class ShellAssetLocator
                 true,
                 stagedDirectory,
                 "staged-assets",
-                "Loaded shared shell from staged app assets.");
+                "Loaded Windows shell assets from staged app assets.");
         }
 
         var appBase = new DirectoryInfo(AppContext.BaseDirectory);
@@ -46,7 +46,7 @@ public sealed class ShellAssetLocator
                     true,
                     repoDirectory,
                     "repo-checkout",
-                    "Loaded shared shell directly from ui/dist in this checkout.");
+                    "Loaded Windows shell assets directly from ui/dist in this checkout.");
             }
         }
 
@@ -56,14 +56,14 @@ public sealed class ShellAssetLocator
                 true,
                 currentDirectory,
                 "working-directory",
-                "Loaded shared shell from the current working directory.");
+                "Loaded Windows shell assets from the current working directory.");
         }
 
         return new ShellAssetResolution(
             false,
             null,
             "missing",
-            "No shared shell was found. Build ui/dist or stage shell assets first.");
+            "No Windows shell assets were found. Build ui/dist or stage shell assets first.");
     }
 
     private static bool TryResolveDirectory(string? candidate, out string resolvedDirectory)

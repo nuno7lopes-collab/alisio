@@ -1,14 +1,17 @@
 ---
-summary: "Gateway dashboard (Control UI) access and auth"
+summary: "Legacy browser dashboard access and auth for the Gateway"
 read_when:
-  - Changing dashboard authentication or exposure modes
-title: "Dashboard"
+  - Changing browser dashboard authentication or exposure modes
+title: "Dashboard (Legacy Browser Access)"
 ---
 
-# Dashboard (Control UI)
+# Dashboard (Legacy Browser Access)
 
-The Gateway dashboard is the browser Control UI served at `/` by default
-(override with `gateway.controlUi.basePath`).
+The Gateway dashboard is the legacy browser admin surface served at `/` by
+default (override with `gateway.controlUi.basePath`).
+
+Use it for compatibility access and browser-based Gateway admin, not as the
+primary product shell.
 
 Quick open (local Gateway):
 
@@ -18,17 +21,17 @@ Key references:
 
 - [Control UI](/web/control-ui) for usage and UI capabilities.
 - [Tailscale](/gateway/tailscale) for Serve/Funnel automation.
-- [Web surfaces](/web) for bind modes and security notes.
+- [Browser surfaces](/web) for bind modes and security notes.
 
 Authentication is enforced at the WebSocket handshake via `connect.params.auth`
 (token or password). See `gateway.auth` in [Gateway configuration](/gateway/configuration).
 
-Security note: the Control UI is an **admin surface** (chat, config, exec approvals).
+Security note: the Control UI is a **legacy admin surface** (chat, config, exec approvals).
 Do not expose it publicly. The UI keeps dashboard URL tokens in sessionStorage
 for the current browser tab session and selected gateway URL, and strips them from the URL after load.
 Prefer localhost, Tailscale Serve, or an SSH tunnel.
 
-## Fast path (recommended)
+## Fast path (when you still need browser access)
 
 - After onboarding, the CLI auto-opens the dashboard and prints a clean (non-tokenized) link.
 - Re-open anytime: `alisio dashboard` (copies link, opens browser if possible, shows SSH hint if headless).

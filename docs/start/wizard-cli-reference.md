@@ -97,8 +97,8 @@ It does not install or modify anything on the remote host.
 </Steps>
 
 <Note>
-If no GUI is detected, the wizard prints SSH port-forward instructions for the Control UI instead of opening a browser.
-If Control UI assets are missing, the wizard attempts to build them; fallback is `pnpm ui:build` (auto-installs UI deps).
+If no GUI is detected, the wizard prints SSH port-forward instructions for the legacy browser admin surface instead of opening a browser.
+If browser admin assets are missing, the wizard attempts to build them; fallback is `pnpm ui:build` (auto-installs UI deps).
 </Note>
 
 ## Remote mode details
@@ -280,7 +280,7 @@ Gateway wizard RPC:
 - `wizard.cancel`
 - `wizard.status`
 
-Clients (macOS app and Control UI) can render steps without re-implementing onboarding logic.
+Clients (macOS app and the legacy browser surface) can render steps without re-implementing onboarding logic.
 
 Signal setup behavior:
 

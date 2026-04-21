@@ -1,8 +1,8 @@
 ---
-summary: "Windows desktop-host foundation: WinUI 3, WebView2, and honest host gating"
+summary: "Windows desktop-host foundation: WinUI 3, WebView2, compatibility shell bridging, and honest host gating"
 read_when:
   - Understanding the Windows desktop-host architecture
-  - Working on the Windows shared-shell host
+  - Working on the Windows desktop-host foundation
   - Checking why the Windows bridge is opt-in instead of default-on
 title: "Windows Desktop Host"
 ---
@@ -12,8 +12,17 @@ title: "Windows Desktop Host"
 This page documents the current **Windows desktop-host foundation** under
 `apps/windows`.
 
-It exists to host the canonical shared shell on Windows without pretending that
-Windows already has macOS-equivalent native runtime features.
+It exists to host the current compatibility shell on Windows without pretending
+that Windows already has macOS-equivalent native runtime features or a finished
+Windows-native frontend.
+
+Windows follows the same backend contract as macOS:
+
+- the product root is `accountId`
+- product auth is mandatory
+- backend-shared state stays in the shared backend
+- `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, and `memory/` stay local to
+  the Windows runtime
 
 ## Stack
 
@@ -31,7 +40,7 @@ Official references:
 
 ## Shell loading
 
-The host resolves the shared shell from one of two places:
+The host resolves compatibility shell assets from one of two places:
 
 - `ui/dist` in a repo checkout
 - staged shell assets copied into the Windows app folder
@@ -65,9 +74,15 @@ The native dispatcher already handles Windows-host operations such as:
 - opening external links
 - file and folder pickers
 
+## Compatibility bridge
+
+The current shell bridge still exposes a compatibility verb,
+`getShellState`, because the temporary shell assets still ask for that payload.
+That compatibility adapter is deliberate. It is not the final Windows contract.
+
 ## Why the shell bridge is off by default
 
-The current shared shell still hardcodes some **macOS-native shell**
+The current compatibility shell still hardcodes some **macOS-native shell**
 presentation and behavior.
 
 If the Windows host injected `window.alisioHost` by default today, the shell
@@ -81,14 +96,14 @@ So the Windows host takes the stricter path:
 - the bridge implementation is real
 - the native settings window is real
 - the shell bridge injection is **experimental and opt-in**
-- the default path stays honest until the shared shell contract becomes
+- the default path stays honest until the shell contract becomes
   platform-neutral
 
 ## Capability truth
 
 Current Windows desktop-host truth:
 
-- shared shell host: yes
+- temporary shell host: yes
 - native settings window: yes
 - native logs reveal: yes
 - native external handoff: yes
@@ -102,11 +117,12 @@ Current Windows desktop-host truth:
 
 ## Release note
 
-Treat this surface as a **host foundation**, not as completed product parity.
+Treat this surface as a **host foundation**, not as completed product parity or
+the final Windows frontend direction.
 
 It is suitable for:
 
-- shared-shell convergence work
+- compatibility-shell convergence work
 - native Windows host integration
 - internal preview validation
 

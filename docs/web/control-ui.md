@@ -1,12 +1,16 @@
 ---
-summary: "Browser-based control UI for the Gateway (chat, nodes, config)"
+summary: "Legacy browser admin surface for the Gateway (chat, nodes, config)"
 read_when:
-  - You want to operate the Gateway from a browser
+  - You still operate the Gateway from a browser
   - You want Tailnet access without SSH tunnels
-title: "Control UI"
+title: "Control UI (Legacy Browser Admin Surface)"
 ---
 
-# Control UI (browser)
+# Control UI (Legacy Browser Admin Surface)
+
+Status: this is a **legacy browser admin surface**, not the primary product UI.
+Prefer the macOS app for daily product use. Use this page when you still need
+browser-based Gateway admin or compatibility access.
 
 The Control UI is a small **Vite + Lit** single-page app served by the Gateway:
 
@@ -73,7 +77,7 @@ The Control UI can localize itself on first load based on your browser locale, a
 - The selected locale is saved in browser storage and reused on future visits.
 - Missing translation keys fall back to English.
 
-## What it can do (today)
+## What the legacy surface can still do (today)
 
 - Chat with the model via Gateway WS (`chat.history`, `chat.send`, `chat.abort`, `chat.inject`)
 - Stream tool calls + live tool output cards in Chat (agent events)
@@ -202,7 +206,7 @@ severe security downgrade. Revert quickly after emergency use.
 
 See [Tailscale](/gateway/tailscale) for HTTPS setup guidance.
 
-## Building the UI
+## Building the browser assets
 
 The Gateway serves static files from `dist/control-ui`. Build them with:
 
