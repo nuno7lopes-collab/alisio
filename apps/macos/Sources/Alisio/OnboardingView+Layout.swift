@@ -34,20 +34,16 @@ extension OnboardingView {
         .onAppear {
             self.currentPage = 0
             self.updateMonitoring(for: 0)
-            self.syncShellOnboardingState()
         }
         .onChange(of: self.currentPage) { _, newValue in
             self.updateMonitoring(for: self.activePageIndex(for: newValue))
-            self.syncShellOnboardingState()
         }
         .onChange(of: self.state.connectionMode) { _, _ in
             let oldActive = self.activePageIndex
             self.reconcilePageForModeChange(previousActivePageIndex: oldActive)
             self.updateDiscoveryMonitoring(for: self.activePageIndex)
-            self.syncShellOnboardingState()
         }
         .onChange(of: self.onboardingWizard.isComplete) { _, newValue in
-            self.syncShellOnboardingState()
             guard newValue, self.activePageIndex == self.wizardPageIndex else { return }
             self.handleNext()
         }
@@ -61,7 +57,6 @@ extension OnboardingView {
             await self.loadWorkspaceDefaults()
             await self.ensureDefaultWorkspace()
             self.preferredGatewayID = GatewayDiscoveryPreferences.preferredStableID()
-            self.syncShellOnboardingState()
         }
     }
 
@@ -234,33 +229,4 @@ extension OnboardingView {
         .padding(.vertical, 4)
     }
 
-    private var alisioOnboardingStep: AlisioOnboardingState.Step {
-        switch self.activePageIndex {
-        case 1:
-            .gateway
-        case 3:
-            .setup
-        case 5:
-            .permissions
-        case 9:
-            .finish
-        default:
-            .welcome
-        }
-    }
-
-    func syncShellOnboardingState() {
-        guard let shellOnboarding = self.shellOnboarding else { return }
-        shellOnboarding.currentStep = self.alisioOnboardingStep
-        shellOnboarding.selectedGateway = switch self.state.connectionMode {
-        case .local: .local
-        case .remote: .remote
-        case .unconfigured: .unconfigured
-        }
-        shellOnboarding.permissionStates = Dictionary(
-            uniqueKeysWithValues: Capability.allCases.map { capability in
-                (String(describing: capability), self.permissionMonitor.status[capability] ?? false)
-            })
-        shellOnboarding.isWizardComplete = self.state.connectionMode != .local || self.onboardingWizard.isComplete
-    }
 }

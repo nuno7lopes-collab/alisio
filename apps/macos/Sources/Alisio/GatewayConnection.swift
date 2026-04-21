@@ -45,7 +45,7 @@ struct GatewayAgentInvocation {
 /// Single, shared Gateway websocket connection for the whole app.
 ///
 /// This owns exactly one `GatewayChannelActor` and reuses it across all callers
-/// (ControlChannel, debug actions, SwiftUI WebChat, etc.).
+/// (ControlChannel, debug actions, native workspace, etc.).
 actor GatewayConnection {
     static let shared = GatewayConnection()
     private static let operatorConnectScopes = [
@@ -536,7 +536,6 @@ extension GatewayConnection {
     struct ConfigGetSnapshot: Decodable {
         struct SnapshotConfig: Decodable {
             struct Session: Decodable {
-                let mainKey: String?
                 let scope: String?
             }
 

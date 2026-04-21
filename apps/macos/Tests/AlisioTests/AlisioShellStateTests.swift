@@ -5,54 +5,61 @@ import AlisioSupport
 @Suite(.serialized)
 @MainActor
 struct AlisioShellStateTests {
-    @Test func `chat route encodes session key in workspace path`() {
+    @Test func `chat route stores a non empty session key`() {
         let state = AlisioShellState()
         state.showChat(sessionKey: "team/main")
 
         #expect(state.route == .chat)
-        #expect(state.workspacePath() == "/chat?session=team/main")
+        #expect(state.activeSessionKey == "team/main")
     }
 
-    @Test func `shell starts on chat route`() {
+    @Test func `chat route ignores blank session keys`() {
+        let state = AlisioShellState()
+        state.showChat(sessionKey: "main")
+        state.showChat(sessionKey: "   ")
+
+        #expect(state.route == .chat)
+        #expect(state.activeSessionKey == "main")
+    }
+
+    @Test func `workspace starts on the native chat route`() {
         let state = AlisioShellState()
 
         #expect(state.route == .chat)
-        #expect(state.workspacePath() == "/chat")
-        #expect(state.requiresOnboarding == false)
+        #expect(state.settingsSection == .workspace)
     }
 
-    @Test func `onboarding route resolves to setup workspace path`() {
+    @Test func `onboarding route remains addressable`() {
         let state = AlisioShellState()
         state.show(route: .onboarding)
 
-        #expect(state.workspacePath() == "/setup")
+        #expect(state.route == .onboarding)
     }
 
-    @Test func `settings tabs map to canonical workspace routes`() {
+    @Test func `settings tabs map to native workspace sections`() {
         let state = AlisioShellState()
 
         state.showSettings(tab: .skills)
         #expect(state.route == .agents)
-        #expect(state.workspacePath() == "/capabilities")
 
         state.showSettings(tab: .cron)
         #expect(state.route == .automations)
-        #expect(state.workspacePath() == "/cron")
 
         state.showSettings(tab: .channels)
         #expect(state.route == .authentications)
-        #expect(state.workspacePath() == "/authentications")
 
         state.showSettings(tab: .instances)
         #expect(state.route == .organization)
-        #expect(state.workspacePath() == "/connections")
 
         state.showSettings(tab: .permissions)
         #expect(state.route == .settings)
-        #expect(state.workspacePath() == "/settings?section=mac")
+        #expect(state.settingsSection == .mac)
 
         state.showSettings(tab: .sessions)
         #expect(state.route == .chat)
-        #expect(state.workspacePath() == "/chat")
+
+        state.showSettings(tab: .debug)
+        #expect(state.route == .settings)
+        #expect(state.settingsSection == .debug)
     }
 }

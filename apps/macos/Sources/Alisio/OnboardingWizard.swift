@@ -6,26 +6,6 @@ import SwiftUI
 import AlisioSupport
 private let onboardingWizardLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "onboarding.wizard")
 
-// MARK: - Swift 6 AnyCodable Bridging Helpers
-
-// Bridge between AlisioProtocol.AnyCodable and the local module to avoid
-// Swift 6 strict concurrency type conflicts.
-
-private typealias ProtocolAnyCodable = AlisioProtocol.AnyCodable
-
-private func bridgeToLocal(_ value: ProtocolAnyCodable) -> AnyCodable {
-    if let data = try? JSONEncoder().encode(value),
-       let decoded = try? JSONDecoder().decode(AnyCodable.self, from: data)
-    {
-        return decoded
-    }
-    return AnyCodable(value.value)
-}
-
-private func bridgeToLocal(_ value: ProtocolAnyCodable?) -> AnyCodable? {
-    value.map(bridgeToLocal)
-}
-
 @MainActor
 @Observable
 final class OnboardingWizardModel {
@@ -388,11 +368,11 @@ struct OnboardingWizardStepView: View {
                 return
             }
             let option = self.optionItems[self.selectedIndex].option
-            self.onStepSubmit(bridgeToLocal(option.value) ?? AnyCodable(option.label))
+            self.onStepSubmit(option.value ?? AnyCodable(option.label))
         case "multiselect":
             let values = self.optionItems
                 .filter { self.selectedIndices.contains($0.index) }
-                .map { bridgeToLocal($0.option.value) ?? AnyCodable($0.option.label) }
+                .map { $0.option.value ?? AnyCodable($0.option.label) }
             self.onStepSubmit(AnyCodable(values))
         case "action":
             self.onStepSubmit(AnyCodable(true))

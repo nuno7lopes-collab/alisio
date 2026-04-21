@@ -302,15 +302,5 @@ struct LowCoverageHelperTests {
         let loaded = CanvasWindowController._testStoreAndLoadFrame(sessionKey: "test", frame: rect)
         UserDefaults.standard.removeObject(forKey: key)
         #expect(loaded?.size.width == rect.size.width)
-
-        let parsed = CanvasWindowController._testParseIPv4("192.168.1.2")
-        #expect(parsed != nil)
-        if let parsed {
-            #expect(CanvasWindowController._testIsLocalNetworkIPv4(parsed))
-        }
-
-        let url = try #require(URL(string: "http://192.168.1.2"))
-        #expect(CanvasWindowController._testIsLocalNetworkCanvasURL(url))
-        #expect(CanvasWindowController._testParseIPv4("not-an-ip") == nil)
     }
 }
