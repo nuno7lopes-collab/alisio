@@ -111,6 +111,28 @@
     padding-bottom: 12px;
   }
 
+  .sidebar-brand__popover {
+    top: calc(100% + 10px);
+    left: 0;
+    width: min(260px, calc(100vw - 56px));
+    transform: translate3d(0, -6px, 0);
+  }
+
+  .sidebar-brand__popover::before {
+    top: -8px;
+    left: 24px;
+    border-left: 1px solid color-mix(in srgb, var(--border-strong) 64%, transparent);
+    border-bottom: 0;
+    border-top: 1px solid color-mix(in srgb, var(--border-strong) 64%, transparent);
+    box-shadow: -2px -2px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  .sidebar-brand--heartbeat:hover .sidebar-brand__popover,
+  .sidebar-brand--heartbeat:focus-within .sidebar-brand__popover,
+  .sidebar-brand--heartbeat:focus-visible .sidebar-brand__popover {
+    transform: translate3d(0, 0, 0);
+  }
+
   .sidebar-edge-toggle {
     display: none;
   }

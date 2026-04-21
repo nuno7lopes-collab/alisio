@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
-import { startHeartbeatRunner } from "./heartbeat-runner.js";
+import { getHeartbeatScheduleSnapshot, startHeartbeatRunner } from "./heartbeat-runner.js";
 import { requestHeartbeatNow, resetHeartbeatWakeStateForTests } from "./heartbeat-wake.js";
 
 describe("startHeartbeatRunner", () => {
@@ -105,6 +105,31 @@ describe("startHeartbeatRunner", () => {
     );
 
     runner.stop();
+  });
+
+  it("exposes the next scheduled heartbeat for UI health surfaces", () => {
+    useFakeHeartbeatTime();
+
+    const runner = startDefaultRunner(vi.fn().mockResolvedValue({ status: "ran", durationMs: 1 }));
+
+    expect(getHeartbeatScheduleSnapshot()).toEqual({
+      enabled: true,
+      agents: [
+        {
+          agentId: "main",
+          intervalMs: 30 * 60_000,
+          lastRunMs: null,
+          nextDueMs: 30 * 60_000,
+        },
+      ],
+    });
+
+    runner.stop();
+
+    expect(getHeartbeatScheduleSnapshot()).toEqual({
+      enabled: false,
+      agents: [],
+    });
   });
 
   it("continues scheduling after runOnce throws an unhandled error", async () => {

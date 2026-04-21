@@ -238,8 +238,9 @@ describe("control UI routing", () => {
     expect(app.querySelector(".sidebar-shell__body")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__footer")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand")).not.toBeNull();
-    expect(app.querySelector(".sidebar-brand__logo")).not.toBeNull();
+    expect(app.querySelector(".sidebar-brand__avatar")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).not.toBeNull();
+    expect(app.querySelector(".sidebar-brand__popover")).not.toBeNull();
     expect(app.querySelector(".sidebar-edge-toggle")).not.toBeNull();
     expect(app.querySelector(".sidebar-context")).toBeNull();
     expect(app.querySelector(".nav-section__label")).not.toBeNull();

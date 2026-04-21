@@ -117,6 +117,7 @@ type GatewayHost = {
   healthResult: HealthSummary | null;
   healthError: string | null;
   debugHealth: HealthSummary | null;
+  debugHeartbeat?: unknown;
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
@@ -143,6 +144,20 @@ type GatewayHost = {
     hasActivity: boolean;
     changed: boolean;
   };
+};
+
+type HeartbeatEventPayload = {
+  ts: number;
+  status: "sent" | "ok-empty" | "ok-token" | "skipped" | "failed";
+  to?: string;
+  preview?: string;
+  durationMs?: number;
+  hasMedia?: boolean;
+  reason?: string;
+  channel?: string;
+  accountId?: string;
+  silent?: boolean;
+  indicatorType?: "ok" | "alert" | "error";
 };
 
 type SessionDefaultsSnapshot = {
@@ -355,6 +370,43 @@ function activeRunNeedsCanonicalHistory(host: GatewayHost, runId: string | undef
     return messageHasStructuredAttachments(record);
   }
   return false;
+}
+
+function readHeartbeatEventPayload(payload: unknown): HeartbeatEventPayload | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  if (typeof record.ts !== "number" || !Number.isFinite(record.ts)) {
+    return null;
+  }
+  const status = typeof record.status === "string" ? record.status : "";
+  if (
+    status !== "sent" &&
+    status !== "ok-empty" &&
+    status !== "ok-token" &&
+    status !== "skipped" &&
+    status !== "failed"
+  ) {
+    return null;
+  }
+  return {
+    ts: record.ts,
+    status,
+    ...(typeof record.to === "string" ? { to: record.to } : {}),
+    ...(typeof record.preview === "string" ? { preview: record.preview } : {}),
+    ...(typeof record.durationMs === "number" ? { durationMs: record.durationMs } : {}),
+    ...(typeof record.hasMedia === "boolean" ? { hasMedia: record.hasMedia } : {}),
+    ...(typeof record.reason === "string" ? { reason: record.reason } : {}),
+    ...(typeof record.channel === "string" ? { channel: record.channel } : {}),
+    ...(typeof record.accountId === "string" ? { accountId: record.accountId } : {}),
+    ...(typeof record.silent === "boolean" ? { silent: record.silent } : {}),
+    ...(record.indicatorType === "ok" ||
+    record.indicatorType === "alert" ||
+    record.indicatorType === "error"
+      ? { indicatorType: record.indicatorType }
+      : {}),
+  };
 }
 
 function applySessionDefaults(host: GatewayHost, defaults?: SessionDefaultsSnapshot) {
@@ -976,6 +1028,33 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       host.presenceEntries = payload.presence;
       host.presenceError = null;
       host.presenceStatus = null;
+    }
+    return;
+  }
+
+  if (evt.event === "heartbeat") {
+    const payload = readHeartbeatEventPayload(evt.payload);
+    if (!payload) {
+      return;
+    }
+    host.debugHeartbeat = payload;
+    const intervalMs =
+      typeof host.healthResult?.heartbeatSeconds === "number" &&
+      host.healthResult.heartbeatSeconds > 0
+        ? host.healthResult.heartbeatSeconds * 1000
+        : 0;
+    const nextHeartbeatDueAtMs = intervalMs > 0 ? payload.ts + intervalMs : null;
+    if (host.healthResult) {
+      host.healthResult = {
+        ...host.healthResult,
+        nextHeartbeatDueAtMs,
+      };
+    }
+    if (host.debugHealth) {
+      host.debugHealth = {
+        ...host.debugHealth,
+        nextHeartbeatDueAtMs,
+      };
     }
     return;
   }

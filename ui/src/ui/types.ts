@@ -960,6 +960,7 @@ export type HealthSummary = {
   ts: number;
   durationMs: number;
   heartbeatSeconds: number;
+  nextHeartbeatDueAtMs?: number | null;
   defaultAgentId: string;
   agents: Array<{ id: string; name?: string }>;
   sessions: {

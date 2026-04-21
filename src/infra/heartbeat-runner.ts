@@ -120,10 +120,65 @@ type HeartbeatAgentState = {
   nextDueMs: number;
 };
 
+export type HeartbeatScheduleEntry = {
+  agentId: string;
+  intervalMs: number;
+  lastRunMs: number | null;
+  nextDueMs: number;
+};
+
+export type HeartbeatScheduleSnapshot = {
+  enabled: boolean;
+  agents: HeartbeatScheduleEntry[];
+};
+
 export type HeartbeatRunner = {
   stop: () => void;
   updateConfig: (cfg: AlisioConfig) => void;
 };
+
+let activeHeartbeatScheduleOwner = 0;
+let heartbeatScheduleSnapshot: HeartbeatScheduleSnapshot = {
+  enabled: false,
+  agents: [],
+};
+
+function publishHeartbeatScheduleSnapshot(
+  owner: number,
+  agents: Map<string, HeartbeatAgentState>,
+): void {
+  if (owner !== activeHeartbeatScheduleOwner) {
+    return;
+  }
+  heartbeatScheduleSnapshot = {
+    enabled: agents.size > 0,
+    agents: Array.from(agents.values())
+      .map((agent) => ({
+        agentId: agent.agentId,
+        intervalMs: agent.intervalMs,
+        lastRunMs: typeof agent.lastRunMs === "number" ? agent.lastRunMs : null,
+        nextDueMs: agent.nextDueMs,
+      }))
+      .toSorted((left, right) => left.agentId.localeCompare(right.agentId)),
+  };
+}
+
+function clearHeartbeatScheduleSnapshot(owner: number): void {
+  if (owner !== activeHeartbeatScheduleOwner) {
+    return;
+  }
+  heartbeatScheduleSnapshot = {
+    enabled: false,
+    agents: [],
+  };
+}
+
+export function getHeartbeatScheduleSnapshot(): HeartbeatScheduleSnapshot {
+  return {
+    enabled: heartbeatScheduleSnapshot.enabled,
+    agents: heartbeatScheduleSnapshot.agents.map((entry) => ({ ...entry })),
+  };
+}
 
 function resolveHeartbeatAgents(cfg: AlisioConfig): HeartbeatAgent[] {
   const list = cfg.agents?.list ?? [];
@@ -1043,6 +1098,7 @@ export function startHeartbeatRunner(opts: {
 }): HeartbeatRunner {
   const runtime = opts.runtime ?? defaultRuntime;
   const runOnce = opts.runOnce ?? runHeartbeatOnce;
+  const owner = ++activeHeartbeatScheduleOwner;
   const state = {
     cfg: opts.cfg ?? loadConfig(),
     runtime,
@@ -1065,6 +1121,7 @@ export function startHeartbeatRunner(opts: {
   const advanceAgentSchedule = (agent: HeartbeatAgentState, now: number) => {
     agent.lastRunMs = now;
     agent.nextDueMs = now + agent.intervalMs;
+    publishHeartbeatScheduleSnapshot(owner, state.agents);
   };
 
   const scheduleNext = () => {
@@ -1124,6 +1181,7 @@ export function startHeartbeatRunner(opts: {
 
     state.cfg = cfg;
     state.agents = nextAgents;
+    publishHeartbeatScheduleSnapshot(owner, state.agents);
     const nextEnabled = nextAgents.size > 0;
     if (!initialized) {
       if (!nextEnabled) {
@@ -1276,6 +1334,7 @@ export function startHeartbeatRunner(opts: {
       clearTimeout(state.timer);
     }
     state.timer = null;
+    clearHeartbeatScheduleSnapshot(owner);
   };
 
   opts.abortSignal?.addEventListener("abort", cleanup, { once: true });

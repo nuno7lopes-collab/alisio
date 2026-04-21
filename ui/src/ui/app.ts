@@ -249,8 +249,6 @@ export class AlisioApp extends LitElement {
   @state() alisioConnectorAuthorizations: import("./types.ts").AlisioConnectorAuthorization[] = [];
   @state() alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null =
     null;
-  @state() alisioConnectorSetupSubmitting = false;
-  @state() alisioConnectorSetupError: string | null = null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null = null;
   @state() alisioConnectorsSearch = "";
   @state() alisioConnectorDialogId: string | null = null;
@@ -666,6 +664,7 @@ export class AlisioApp extends LitElement {
   private openAiOAuthCleanup: (() => void) | null = null;
   private openAiOAuthRefreshInFlight = false;
   private execApprovalTicker: number | null = null;
+  private heartbeatCountdownTicker: number | null = null;
   private sessionDeleteConfirmResolver: ((confirmed: boolean) => void) | null = null;
   private globalKeydownHandler = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "k") {
@@ -680,6 +679,19 @@ export class AlisioApp extends LitElement {
 
   createRenderRoot() {
     return this;
+  }
+
+  private syncHeartbeatCountdownTicker() {
+    const hasKnownHeartbeat =
+      this.connected && typeof this.healthResult?.nextHeartbeatDueAtMs === "number";
+    if (hasKnownHeartbeat && this.heartbeatCountdownTicker == null) {
+      this.heartbeatCountdownTicker = window.setInterval(() => this.requestUpdate(), 1000);
+      return;
+    }
+    if (!hasKnownHeartbeat && this.heartbeatCountdownTicker != null) {
+      window.clearInterval(this.heartbeatCountdownTicker);
+      this.heartbeatCountdownTicker = null;
+    }
   }
 
   connectedCallback() {
@@ -753,6 +765,10 @@ export class AlisioApp extends LitElement {
       window.clearInterval(this.execApprovalTicker);
       this.execApprovalTicker = null;
     }
+    if (this.heartbeatCountdownTicker != null) {
+      window.clearInterval(this.heartbeatCountdownTicker);
+      this.heartbeatCountdownTicker = null;
+    }
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
     super.disconnectedCallback();
   }
@@ -787,6 +803,9 @@ export class AlisioApp extends LitElement {
         window.clearInterval(this.execApprovalTicker);
         this.execApprovalTicker = null;
       }
+    }
+    if (changed.has("connected") || changed.has("healthResult")) {
+      this.syncHeartbeatCountdownTicker();
     }
     if (!changed.has("sessionKey") || this.agentsPanel !== "tools") {
       return;

@@ -44,7 +44,6 @@ import {
   beginAlisioAiConnect,
   beginAlisioConnector,
   changeAlisioAccountEmail,
-  completeAlisioConnector,
   disconnectAlisioAiProfile,
   installAlisioModel,
   loadAlisioConnectors,
@@ -341,6 +340,46 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+function formatHeartbeatCadence(ms: number | null): string {
+  if (!ms || !Number.isFinite(ms) || ms <= 0) {
+    return t("alisio.shell.heartbeat.unavailable");
+  }
+  const totalMinutes = Math.floor(ms / 60_000);
+  if (totalMinutes < 1) {
+    return `${Math.max(1, Math.round(ms / 1000))}s`;
+  }
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+  return `${totalMinutes}m`;
+}
+
+function formatHeartbeatCountdown(nextDueAtMs: number | null, nowMs: number): string {
+  if (!nextDueAtMs || !Number.isFinite(nextDueAtMs)) {
+    return t("alisio.shell.heartbeat.waiting");
+  }
+  const remainingMs = nextDueAtMs - nowMs;
+  if (remainingMs <= 1500) {
+    return t("alisio.shell.heartbeat.firingNow");
+  }
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  }
+  return `${Math.max(1, seconds)}s`;
+}
+
 function shouldReserveConnectorPopup(state: AppViewState, connectorId: string) {
   if (connectorId === "stripe") {
     return false;
@@ -383,7 +422,6 @@ function beginConnectorFlow(
 ) {
   state.alisioConnectorsError = null;
   state.alisioConnectorSetupGuide = null;
-  state.alisioConnectorSetupError = null;
   rememberAlisioConnectorOAuthReturnTo(window.location.href);
   const existingPendingResume = readPendingAlisioConnectorChatResume();
   if (opts?.resumeChatIntent) {
@@ -453,58 +491,6 @@ function beginConnectorFlow(
       state.alisioConnectorsError =
         error instanceof Error ? error.message : t("alisio.authentications.errors.startFailed");
     });
-}
-
-async function retryPendingConnectorChatResumeAfterConnect(
-  state: AppViewState,
-  connectorId: string,
-): Promise<boolean> {
-  const pending = state.pendingConnectorChatResume ?? readPendingAlisioConnectorChatResume();
-  if (!pending || pending.connectorId !== connectorId) {
-    return false;
-  }
-  const authorization = state.alisioConnectorAuthorizations.find(
-    (entry) => entry.connectorId === connectorId,
-  );
-  if (authorization?.state !== "connected") {
-    state.pendingConnectorChatResume = pending;
-    return false;
-  }
-
-  state.pendingConnectorChatResume = null;
-  clearPendingAlisioConnectorChatResume();
-  if (pending.sessionKey.trim() && pending.sessionKey !== state.sessionKey) {
-    state.sessionKey = pending.sessionKey;
-    state.applySettings({
-      ...state.settings,
-      sessionKey: pending.sessionKey,
-      lastActiveSessionKey: pending.sessionKey,
-    });
-  }
-  await state.handleSendChat(pending.message, {
-    restoreDraft: false,
-    attachments: pending.attachments,
-  });
-  return true;
-}
-
-async function completeManualConnectorFlow(
-  state: AppViewState,
-  connectorId: string,
-  apiKey: string,
-): Promise<void> {
-  const authorization = await completeAlisioConnector(state, connectorId, apiKey);
-  if (!authorization) {
-    state.alisioConnectorDialogId = connectorId;
-    state.alisioConnectorDialogMode = "install";
-    return;
-  }
-  state.alisioConnectorDialogId = null;
-  state.alisioConnectorDialogMode = null;
-  const resumed = await retryPendingConnectorChatResumeAfterConnect(state, connectorId);
-  if (!resumed) {
-    state.setTab("authentications" as import("./navigation.ts").Tab);
-  }
 }
 
 function resolveConnectorChatPrompt(state: AppViewState, connectorId: string): string {
@@ -766,6 +752,26 @@ export function renderApp(state: AppViewState) {
     : t("alisio.settings.sections.account");
   const appLogoUrl = agentLogoUrl(state.basePath ?? "");
   const connectionLabel = state.connected ? t("common.online") : t("common.offline");
+  const heartbeatIntervalMs =
+    typeof state.healthResult?.heartbeatSeconds === "number" &&
+    state.healthResult.heartbeatSeconds > 0
+      ? state.healthResult.heartbeatSeconds * 1000
+      : null;
+  const nextHeartbeatDueAtMs =
+    typeof state.healthResult?.nextHeartbeatDueAtMs === "number"
+      ? state.healthResult.nextHeartbeatDueAtMs
+      : null;
+  const heartbeatCountdownLabel = state.connected
+    ? formatHeartbeatCountdown(nextHeartbeatDueAtMs, Date.now())
+    : t("alisio.shell.heartbeat.unavailable");
+  const heartbeatCadenceLabel = state.connected
+    ? formatHeartbeatCadence(heartbeatIntervalMs)
+    : t("alisio.shell.heartbeat.unavailable");
+  const heartbeatStatusLabel = state.connected
+    ? t("alisio.shell.heartbeat.subtitle")
+    : t("alisio.shell.heartbeat.reconnecting");
+  const heartbeatTitle = t("alisio.shell.heartbeat.title");
+  const heartbeatAriaLabel = `${heartbeatTitle}. ${connectionLabel}. ${t("alisio.shell.heartbeat.next")}: ${heartbeatCountdownLabel}.`;
   const execApprovalsTarget = resolveSelectedExecApprovalsTarget(state);
   const resolveApprovalDecision = async (
     entry: import("./controllers/exec-approval.ts").ExecApprovalRequest,
@@ -922,17 +928,62 @@ export function renderApp(state: AppViewState) {
         <aside class="sidebar ${navCollapsed ? "sidebar--collapsed" : ""}">
           <div class="sidebar-shell">
             <div class="sidebar-shell__header">
-              <div class="sidebar-brand">
-                <span class="sidebar-brand__logo" aria-hidden="true"
-                  ><img src=${appLogoUrl} alt=""
-                /></span>
+              <div
+                class="sidebar-brand sidebar-brand--heartbeat ${state.connected
+                  ? "is-online"
+                  : "is-offline"}"
+                tabindex="0"
+                role="group"
+                aria-label=${heartbeatAriaLabel}
+              >
+                <span class="sidebar-brand__avatar-stack" aria-hidden="true">
+                  <span class="sidebar-brand__avatar-pulse"></span>
+                  <span class="sidebar-brand__avatar">
+                    <span class="sidebar-brand__avatar-face"></span>
+                  </span>
+                  <span
+                    class="sidebar-brand__status-dot ${state.connected ? "is-online" : ""}"
+                  ></span>
+                </span>
                 ${navCollapsed
                   ? nothing
                   : html`
                       <span class="sidebar-brand__copy">
-                        <span class="sidebar-brand__title">Alisio</span>
+                        <span class="sidebar-brand__eyebrow">${heartbeatStatusLabel}</span>
+                        <span class="sidebar-brand__title">${heartbeatTitle}</span>
                       </span>
                     `}
+                <div class="sidebar-brand__popover">
+                  <div class="sidebar-brand__popover-header">
+                    <div class="sidebar-brand__popover-copy">
+                      <span class="sidebar-brand__popover-eyebrow">${heartbeatStatusLabel}</span>
+                      <span class="sidebar-brand__popover-title">${heartbeatTitle}</span>
+                    </div>
+                    <span class="sidebar-brand__popover-pill ${state.connected ? "is-online" : ""}">
+                      ${connectionLabel}
+                    </span>
+                  </div>
+                  <div class="sidebar-brand__popover-meter" aria-hidden="true">
+                    <span class="sidebar-brand__popover-meter-track"></span>
+                    <span class="sidebar-brand__popover-meter-dot"></span>
+                  </div>
+                  <div class="sidebar-brand__popover-grid">
+                    <div class="sidebar-brand__popover-stat">
+                      <span class="sidebar-brand__popover-label"
+                        >${t("alisio.shell.heartbeat.next")}</span
+                      >
+                      <strong class="sidebar-brand__popover-value"
+                        >${heartbeatCountdownLabel}</strong
+                      >
+                    </div>
+                    <div class="sidebar-brand__popover-stat">
+                      <span class="sidebar-brand__popover-label"
+                        >${t("alisio.shell.heartbeat.cadence")}</span
+                      >
+                      <strong class="sidebar-brand__popover-value">${heartbeatCadenceLabel}</strong>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="sidebar-shell__body">
@@ -976,12 +1027,6 @@ export function renderApp(state: AppViewState) {
                         @click=${() => openSettingsSection("account")}
                       >
                         <span class="sidebar-footer-compact__avatar">${profileAvatarLabel}</span>
-                        <span
-                          class="sidebar-footer-compact__presence ${state.connected
-                            ? "is-online"
-                            : ""}"
-                          aria-hidden="true"
-                        ></span>
                       </button>
                     </div>
                   `
@@ -999,17 +1044,6 @@ export function renderApp(state: AppViewState) {
                           <span class="alisio-sidebar-account__meta">${profilePlan}</span>
                         </span>
                       </button>
-                      <div class="alisio-sidebar-account__footer">
-                        <div class="alisio-sidebar-account__status">
-                          <span
-                            class="alisio-sidebar-account__dot ${state.connected
-                              ? "is-online"
-                              : ""}"
-                            aria-label=${connectionLabel}
-                          ></span>
-                          <span>${connectionLabel}</span>
-                        </div>
-                      </div>
                     </div>
                   `}
             </div>
@@ -1073,8 +1107,6 @@ export function renderApp(state: AppViewState) {
               connectorCatalog: state.alisioConnectorCatalog,
               connectorAuthorizations: state.alisioConnectorAuthorizations,
               connectorSetupGuide: state.alisioConnectorSetupGuide,
-              connectorSetupSubmitting: state.alisioConnectorSetupSubmitting,
-              connectorSetupError: state.alisioConnectorSetupError,
               search: state.alisioConnectorsSearch,
               dialogConnectorId: state.alisioConnectorDialogId,
               dialogMode: state.alisioConnectorDialogMode,
@@ -1083,31 +1115,24 @@ export function renderApp(state: AppViewState) {
               },
               onOpenConnectorDetails: (connectorId) => {
                 state.alisioConnectorSetupGuide = null;
-                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = connectorId;
                 state.alisioConnectorDialogMode = "details";
               },
               onOpenConnectorInstall: (connectorId) => {
                 state.alisioConnectorSetupGuide = null;
-                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = connectorId;
                 state.alisioConnectorDialogMode = "install";
               },
               onCloseConnectorDialog: () => {
                 state.alisioConnectorSetupGuide = null;
-                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = null;
                 state.alisioConnectorDialogMode = null;
               },
               onBeginConnector: (connectorId) => {
                 beginConnectorFlow(state, connectorId);
               },
-              onCompleteManualConnector: (connectorId, apiKey) => {
-                void completeManualConnectorFlow(state, connectorId, apiKey);
-              },
               onRevokeConnector: (connectorId) => {
                 state.alisioConnectorSetupGuide = null;
-                state.alisioConnectorSetupError = null;
                 state.alisioConnectorDialogId = null;
                 state.alisioConnectorDialogMode = null;
                 void revokeAlisioConnector(state, connectorId);

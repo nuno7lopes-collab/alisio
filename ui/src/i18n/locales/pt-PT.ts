@@ -1916,6 +1916,16 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
       updateNow: "Actualizar agora",
       updating: "A actualizar…",
       dismissUpdate: "Fechar aviso de actualização",
+      heartbeat: {
+        title: "Nero",
+        subtitle: "Pulso autónomo",
+        reconnecting: "Pulso offline",
+        next: "Próximo heartbeat",
+        cadence: "Cadência",
+        waiting: "À espera da agenda",
+        unavailable: "Sem heartbeat activo",
+        firingNow: "A disparar",
+      },
       commandPalette: {
         placeholder: "Pesquisa definições, páginas ou comandos…",
         noResults: "Sem resultados",

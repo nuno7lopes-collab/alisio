@@ -125,8 +125,6 @@ export type AppViewState = {
   alisioConnectorCatalog: AlisioConnectorDefinition[];
   alisioConnectorAuthorizations: AlisioConnectorAuthorization[];
   alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null;
-  alisioConnectorSetupSubmitting: boolean;
-  alisioConnectorSetupError: string | null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null;
   alisioConnectorsSearch: string;
   alisioConnectorDialogId: string | null;

@@ -12,6 +12,7 @@ import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
 import { info } from "../globals.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { formatErrorMessage } from "../infra/errors.js";
+import { getHeartbeatScheduleSnapshot } from "../infra/heartbeat-runner.js";
 import {
   type HeartbeatSummary,
   resolveHeartbeatSummaryForAgent,
@@ -60,6 +61,8 @@ export type HealthSummary = {
   channelLabels: Record<string, string>;
   /** Legacy: default agent heartbeat seconds (rounded). */
   heartbeatSeconds: number;
+  /** Next scheduled heartbeat for the default agent, if known. */
+  nextHeartbeatDueAtMs?: number | null;
   defaultAgentId: string;
   agents: AgentHealthSummary[];
   sessions: {
@@ -442,6 +445,9 @@ export async function getHealthSnapshot(params?: {
   const heartbeatSeconds = defaultAgent?.heartbeat.everyMs
     ? Math.round(defaultAgent.heartbeat.everyMs / 1000)
     : 0;
+  const nextHeartbeatDueAtMs =
+    getHeartbeatScheduleSnapshot().agents.find((agent) => agent.agentId === defaultAgentId)
+      ?.nextDueMs ?? null;
   const sessions =
     defaultAgent?.sessions ??
     buildSessionSummary(resolveStorePath(cfg.session?.store, { agentId: defaultAgentId }));
@@ -584,6 +590,7 @@ export async function getHealthSnapshot(params?: {
     channelOrder,
     channelLabels,
     heartbeatSeconds,
+    nextHeartbeatDueAtMs,
     defaultAgentId,
     agents,
     sessions: {

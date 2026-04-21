@@ -1636,6 +1636,16 @@ export const en: TranslationMap = {
       updateNow: "Update now",
       updating: "Updating…",
       dismissUpdate: "Dismiss update banner",
+      heartbeat: {
+        title: "Nero",
+        subtitle: "Autonomous pulse",
+        reconnecting: "Pulse offline",
+        next: "Next heartbeat",
+        cadence: "Cadence",
+        waiting: "Waiting for schedule",
+        unavailable: "No active heartbeat",
+        firingNow: "Firing now",
+      },
       commandPalette: {
         placeholder: "Search settings, pages, or commands…",
         noResults: "No matching items",
