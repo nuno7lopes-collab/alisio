@@ -15,28 +15,6 @@ describe("readPostCompactionContext", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  async function expectLegacySectionFallback(
-    postCompactionSections: string[],
-    expectDefaultProse = false,
-  ) {
-    const content = `## Every Session\n\nDo startup things.\n\n## Safety\n\nBe safe.\n`;
-    fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
-    const cfg = {
-      agents: {
-        defaults: {
-          compaction: { postCompactionSections },
-        },
-      },
-    } as AlisioConfig;
-    const result = await readPostCompactionContext(tmpDir, cfg);
-    expect(result).not.toBeNull();
-    expect(result).toContain("Do startup things");
-    expect(result).toContain("Be safe");
-    if (expectDefaultProse) {
-      expect(result).toContain("Run your Session Startup sequence");
-    }
-  }
-
   it("returns null when no AGENTS.md exists", async () => {
     const result = await readPostCompactionContext(tmpDir);
     expect(result).toBeNull();
@@ -217,11 +195,11 @@ Never do Y.
   it("substitutes YYYY-MM-DD with the actual date in extracted sections", async () => {
     const content = `## Session Startup
 
-Read memory/YYYY-MM-DD.md and memory/yesterday.md.
+Read memory/backlog/YYYY-MM-DD/compaction.md and memory/yesterday.md.
 
 ## Red Lines
 
-Never modify memory/YYYY-MM-DD.md destructively.
+Never modify memory/backlog/YYYY-MM-DD/compaction.md destructively.
 `;
     fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
     const cfg = {
@@ -231,8 +209,8 @@ Never modify memory/YYYY-MM-DD.md destructively.
     const nowMs = Date.UTC(2026, 2, 3, 14, 0, 0);
     const result = await readPostCompactionContext(tmpDir, cfg, nowMs);
     expect(result).not.toBeNull();
-    expect(result).toContain("memory/2026-03-03.md");
-    expect(result).not.toContain("memory/YYYY-MM-DD.md");
+    expect(result).toContain("memory/backlog/2026-03-03/compaction.md");
+    expect(result).not.toContain("memory/backlog/YYYY-MM-DD/compaction.md");
     expect(result).toContain(
       "Current time: Tuesday, March 3rd, 2026 — 9:00 AM (America/New_York) / 2026-03-03 14:00 UTC",
     );
@@ -357,15 +335,11 @@ Read WORKFLOW.md on startup.
       expect(result).toContain("Run your Session Startup sequence");
     });
 
-    it("falls back to legacy sections when defaults are explicitly configured", async () => {
-      // Older AGENTS.md templates use "Every Session" / "Safety" instead of
-      // "Session Startup" / "Red Lines". Explicitly setting the defaults should
-      // still trigger the legacy fallback — same behavior as leaving the field unset.
-      await expectLegacySectionFallback(["Session Startup", "Red Lines"]);
-    });
-
-    it("falls back to legacy sections when default sections are configured in a different order", async () => {
-      await expectLegacySectionFallback(["Red Lines", "Session Startup"], true);
+    it("does not inject context from legacy section names", async () => {
+      const content = `## Every Session\n\nDo startup things.\n\n## Safety\n\nBe safe.\n`;
+      fs.writeFileSync(path.join(tmpDir, "AGENTS.md"), content);
+      const result = await readPostCompactionContext(tmpDir);
+      expect(result).toBeNull();
     });
 
     it("custom section names are matched case-insensitively", async () => {

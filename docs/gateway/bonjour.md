@@ -1,7 +1,7 @@
 ---
 summary: "Bonjour/mDNS discovery + debugging (Gateway beacons, clients, and common failure modes)"
 read_when:
-  - Debugging Bonjour discovery issues on macOS/iOS
+  - Debugging Bonjour discovery issues on macOS and other Apple clients
   - Changing mDNS service types, TXT records, or discovery UX
 title: "Bonjour Discovery"
 ---
@@ -24,7 +24,7 @@ High‑level steps:
 2. Publish DNS‑SD records for `_alisio-gw._tcp` under a dedicated zone
    (example: `alisio.internal.`).
 3. Configure Tailscale **split DNS** so your chosen domain resolves via that
-   DNS server for clients (including iOS).
+   DNS server for clients that use your Tailnet DNS settings.
 
 Alisio supports any discovery domain; `alisio.internal.` is just an example.
 Nodes browse both `local.` and your configured wide-area domain.

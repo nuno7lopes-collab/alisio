@@ -157,13 +157,13 @@ describe("runEmbeddedPiAgent usage reporting", () => {
       timeoutMs: 30000,
       runId: "run-memory-forwarding",
       trigger: "memory",
-      memoryFlushWritePath: "memory/2026-03-10.md",
+      memoryFlushWritePath: "memory/backlog/2026-03-10/compaction.md",
     });
 
     expect(mockedRunEmbeddedAttempt).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: "memory",
-        memoryFlushWritePath: "memory/2026-03-10.md",
+        memoryFlushWritePath: "memory/backlog/2026-03-10/compaction.md",
       }),
     );
   });

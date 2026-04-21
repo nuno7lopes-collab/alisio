@@ -19,6 +19,61 @@ NO_SIGN=0
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+validate_app_bundle() {
+  local bundle_path="$1"
+  [[ -d "$bundle_path" ]] || fail "App bundle não encontrado em $bundle_path."
+  [[ -f "$bundle_path/Contents/Info.plist" ]] || fail "App bundle sem Info.plist em $bundle_path."
+  [[ -x "$bundle_path/Contents/MacOS/$APP_EXECUTABLE" ]] \
+    || fail "App bundle sem executável em $bundle_path/Contents/MacOS/$APP_EXECUTABLE."
+  /usr/bin/codesign -dv --verbose=2 "$bundle_path" >/dev/null 2>&1 \
+    || fail "Assinatura inválida para $bundle_path."
+}
+
+wait_for_app_process() {
+  local bundle_path="$1"
+  local process_path="$bundle_path/Contents/MacOS/$APP_EXECUTABLE"
+  local attempt
+  for attempt in {1..30}; do
+    if pgrep -f "$process_path" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "A app não arrancou a partir de $process_path."
+}
+
+wait_for_app_window() {
+  local attempt
+  local window_count=""
+  for attempt in {1..20}; do
+    window_count="$(
+      osascript <<APPLESCRIPT 2>/dev/null || true
+tell application "System Events"
+  if exists process "$APP_NAME" then
+    tell process "$APP_NAME"
+      return count of windows
+    end tell
+  end if
+end tell
+return 0
+APPLESCRIPT
+    )"
+    window_count="${window_count//[[:space:]]/}"
+    if [[ "$window_count" =~ ^[1-9][0-9]*$ ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "A janela principal do $APP_NAME não ficou disponível após o arranque."
+}
+
+open_app_bundle() {
+  local bundle_path="$1"
+  open "$bundle_path" --args --chat || fail "Falha ao abrir $bundle_path."
+  wait_for_app_process "$bundle_path"
+  wait_for_app_window
+}
+
 run_step() {
   local label="$1"
   shift
@@ -90,7 +145,7 @@ if [[ -z "$APP_BUNDLE" ]]; then
 fi
 
 run_step "package app" bash -lc "cd '$ROOT_DIR' && SKIP_TSC=${SKIP_TSC:-1} MACOS_FINAL_APP_PATH='$APP_BUNDLE' bash '$ROOT_DIR/scripts/package-mac-app.sh'"
-[[ -d "$APP_BUNDLE" ]] || fail "App bundle não encontrado. Define ALISIO_APP_BUNDLE."
+run_step "validate app bundle" validate_app_bundle "$APP_BUNDLE"
 
-run_step "open app" open "$APP_BUNDLE"
+run_step "open app" open_app_bundle "$APP_BUNDLE"
 log "==> Log: ${LOG_PATH}"

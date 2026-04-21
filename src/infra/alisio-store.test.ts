@@ -1548,6 +1548,29 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("keeps GitHub in setup mode when the redirect URI does not point at the gateway callback", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_GITHUB_CLIENT_ID: "github-client-id",
+        ALISIO_GITHUB_CLIENT_SECRET: "github-client-secret",
+        ALISIO_GITHUB_REDIRECT_URI: "http://127.0.0.1:8787/oauth/github/done",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const result = await beginAlisioConnectorSetup("github", env);
+
+      expect(result).toMatchObject({
+        connectorId: "github",
+        availability: "ready",
+        mode: "setup",
+        provider: "github",
+        statusReason: "missing_client_config",
+        callbackPath: "/oauth/github/callback",
+      });
+      expect(result?.setupHint).toContain("ALISIO_GITHUB_REDIRECT_URI");
+      expect(result?.setupHint).toContain("/oauth/github/callback");
+    });
+  });
+
   it("allows new connector connections on Free after the first connected app", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
@@ -2063,6 +2086,80 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("refreshes expired Google connector tokens even when reconnect-only redirect config is missing", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
+        ALISIO_GOOGLE_CLIENT_SECRET: "google-client-secret",
+        ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const begin = await beginAlisioConnectorSetup("google-calendar", env);
+      const launchUrl = new URL(begin?.setupUrl ?? "");
+      const initialFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "google-access",
+              refresh_token: "google-refresh",
+              expires_in: 3600,
+              token_type: "Bearer",
+              scope: "openid email https://www.googleapis.com/auth/calendar",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              sub: "google-user-1",
+              name: "Nuno Lopes",
+              email: "nuno@example.com",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+
+      await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "google",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "google-code",
+        },
+        env,
+        initialFetch,
+      );
+
+      const statePath = alisioStateFile(root);
+      const state = JSON.parse(await fs.readFile(statePath, "utf8")) as {
+        oauthCredentials: Record<string, { expiresAt?: string }>;
+      };
+      state.oauthCredentials["google-calendar"].expiresAt = new Date(
+        Date.now() - 5 * 60 * 1000,
+      ).toISOString();
+      await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+
+      delete env.ALISIO_GOOGLE_REDIRECT_URI;
+
+      const refreshFetch = vi.fn<typeof fetch>().mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            access_token: "google-access-refreshed",
+            expires_in: 1800,
+            token_type: "Bearer",
+            scope: "openid email https://www.googleapis.com/auth/calendar",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+
+      const token = await getAlisioConnectorAccessToken("google-calendar", env, refreshFetch);
+
+      expect(token).toBe("google-access-refreshed");
+    });
+  });
+
   it("marks expired GitHub connector auth as needing reconnect when no refresh token exists", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
@@ -2164,6 +2261,23 @@ describe("beginAlisioConnectorSetup", () => {
         state: "not_connected",
         health: "healthy",
       });
+      expect(authorizations.find((entry) => entry.connectorId === "github")).toMatchObject({
+        state: "not_connected",
+        health: "config_missing",
+      });
+    });
+  });
+
+  it("treats ready connectors as config missing when the redirect URI does not match the real callback route", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const authorizations = await listAlisioConnectorAuthorizations({
+        ALISIO_STATE_DIR: root,
+        ALISIO_GITHUB_CLIENT_ID: "github-client-id",
+        ALISIO_GITHUB_CLIENT_SECRET: "github-client-secret",
+        ALISIO_GITHUB_REDIRECT_URI: "http://127.0.0.1:8787/oauth/github/done",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      } as NodeJS.ProcessEnv);
+
       expect(authorizations.find((entry) => entry.connectorId === "github")).toMatchObject({
         state: "not_connected",
         health: "config_missing",
@@ -4026,7 +4140,7 @@ describe("beginAlisioConnectorSetup", () => {
 
     expect(summary).toMatchObject({
       connected: 0,
-      needsReconnect: 0,
+      needsReconnect: 1,
       inReview: expect.any(Number),
       unavailable: expect.any(Number),
     });

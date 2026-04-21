@@ -426,7 +426,7 @@ As of `2026.1.10`, Alisio also suppresses **draft/typing streaming** when a part
 ## Pre-compaction "memory flush" (implemented)
 
 Goal: before auto-compaction happens, run a silent agentic turn that writes durable
-state to disk (e.g. `memory/YYYY-MM-DD.md` in the agent workspace) so compaction can’t
+state to disk (e.g. `memory/backlog/YYYY-MM-DD/compaction.md` in the agent workspace) so compaction can’t
 erase critical context.
 
 Alisio uses the **pre-threshold flush** approach:
@@ -449,6 +449,7 @@ Notes:
 - The flush runs once per compaction cycle (tracked in `sessions.json`).
 - The flush runs only for embedded Pi sessions (CLI backends skip it).
 - The flush is skipped when the session workspace is read-only (`workspaceAccess: "ro"` or `"none"`).
+- The canonical `memory/backlog/YYYY-MM-DD/compaction.md` seed is marked for `daily-only` promotion, so compaction flushes roll into the dated daily note instead of creating an artificial topic note.
 - See [Memory](/concepts/memory) for the workspace file layout and write patterns.
 
 Pi also exposes a `session_before_compact` hook in the extension API, but Alisio’s

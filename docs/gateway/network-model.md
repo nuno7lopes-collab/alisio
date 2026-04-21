@@ -1,5 +1,5 @@
 ---
-summary: "How the Gateway, devices (nodes), and canvas host connect."
+summary: "How the Gateway, paired computers (nodes), and canvas host connect."
 read_when:
   - You want a concise view of the Gateway networking model
 title: "Network model"
@@ -14,9 +14,9 @@ process that owns channel connections and the WebSocket control plane.
 
 - One Gateway per host is recommended. It is the only process allowed to own the WhatsApp Web session. For rescue bots or strict isolation, run multiple gateways with isolated profiles and ports. See [Multiple gateways](/gateway/multiple-gateways).
 - Loopback first: the Gateway WS defaults to `ws://127.0.0.1:40705`. The wizard generates a gateway token by default, even for loopback. For tailnet access, run `alisio gateway run --bind tailnet --token ...` because tokens are required for non-loopback binds.
-- Devices (nodes) connect to the Gateway WS over LAN, tailnet, or SSH as needed. The legacy TCP bridge is deprecated.
+- Paired computers (nodes) connect to the Gateway WS over LAN, tailnet, or SSH as needed. The legacy TCP bridge is deprecated.
 - Canvas host is served by the Gateway HTTP server on the **same port** as the Gateway (default `40705`):
   - `/__alisio__/canvas/`
   - `/__alisio__/a2ui/`
-    When `gateway.auth` is configured and the Gateway binds beyond loopback, these routes are protected by Gateway auth. Device (node) clients use node-scoped capability URLs tied to their active WS session. See [Gateway configuration](/gateway/configuration) (`canvasHost`, `gateway`).
+    When `gateway.auth` is configured and the Gateway binds beyond loopback, these routes are protected by Gateway auth. Paired-computer (`node`) clients use node-scoped capability URLs tied to their active WS session. See [Gateway configuration](/gateway/configuration) (`canvasHost`, `gateway`).
 - Remote use is typically SSH tunnel or tailnet VPN. See [Remote access](/gateway/remote) and [Discovery](/gateway/discovery).

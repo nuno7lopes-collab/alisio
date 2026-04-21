@@ -78,7 +78,10 @@ function normalizeWakeTarget(value?: string): string | undefined {
 function getWakeTargetKey(params: { agentId?: string; sessionKey?: string }) {
   const agentId = normalizeWakeTarget(params.agentId);
   const sessionKey = normalizeWakeTarget(params.sessionKey);
-  return `${agentId ?? ""}::${sessionKey ?? ""}`;
+  if (sessionKey) {
+    return `session:${sessionKey}`;
+  }
+  return `agent:${agentId ?? ""}`;
 }
 
 function queuePendingWakeReason(params?: {

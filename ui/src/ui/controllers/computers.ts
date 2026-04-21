@@ -2,10 +2,7 @@ import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import type { AlisioAccountState, AlisioSharingState } from "../types.ts";
 import type { DevicePairingList } from "./devices.ts";
 import type { RuntimeNodePairingList } from "./node-pairing.ts";
-import type {
-  RemoteComputerDraft,
-  RemoteComputerTaskRecord,
-} from "./remote-computers.ts";
+import type { RemoteComputerDraft, RemoteComputerTaskRecord } from "./remote-computers.ts";
 
 type ExecCapabilityRecord = {
   commands?: string[];
@@ -22,7 +19,7 @@ export type ComputersCatalogState = {
   account?: AlisioAccountState | null;
   sharing?: AlisioSharingState | null;
   devicesList: DevicePairingList | null;
-  currentDeviceId: string | null;
+  currentDeviceId?: string | null;
   nodes: NodeListNode[];
   nodePairingsList: RuntimeNodePairingList | null;
 };

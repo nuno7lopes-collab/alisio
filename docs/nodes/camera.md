@@ -1,7 +1,7 @@
 ---
-summary: "Camera capture (iOS nodes + macOS app) for agent use: photos (jpg) and short video clips (mp4)"
+summary: "Camera capture on paired computers for agent use: photos (jpg) and short video clips (mp4)"
 read_when:
-  - Adding or modifying camera capture on iOS nodes or macOS
+  - Adding or modifying camera capture on paired computers or macOS
   - Extending agent-accessible MEDIA temp-file workflows
 title: "Camera Capture"
 ---
@@ -10,18 +10,17 @@ title: "Camera Capture"
 
 Alisio supports **camera capture** for agent workflows:
 
-- **iOS node** (paired via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
-- **macOS app** (node via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
+- **paired computer runtime** (via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
+- **macOS app** (runtime via Gateway): capture a **photo** (`jpg`) or **short video clip** (`mp4`, with optional audio) via `node.invoke`.
 
 All camera access is gated behind **user-controlled settings**.
 
-## iOS node
+## Paired computer runtime
 
-### User setting (default on)
+### User setting
 
-- iOS Settings tab → **Camera** → **Allow Camera** (`camera.enabled`)
-  - Default: **on** (missing key is treated as enabled).
-  - When off: `camera.*` commands return `CAMERA_DISABLED`.
+- The host runtime decides whether camera capture is enabled.
+- When camera access is disabled on that host, `camera.*` commands return `CAMERA_DISABLED`.
 
 ### Commands (via Gateway `node.invoke`)
 
@@ -32,7 +31,7 @@ All camera access is gated behind **user-controlled settings**.
 - `camera.snap`
   - Params:
     - `facing`: `front|back` (default: `front`)
-    - `maxWidth`: number (optional; default `1600` on the iOS node)
+    - `maxWidth`: number (optional; host-defined default)
     - `quality`: `0..1` (optional; default `0.9`)
     - `format`: currently `jpg`
     - `delayMs`: number (optional; default `0`)
@@ -58,7 +57,9 @@ All camera access is gated behind **user-controlled settings**.
 
 ### Foreground requirement
 
-Like `canvas.*`, the iOS node only allows `camera.*` commands in the **foreground**. Background invocations return `NODE_BACKGROUND_UNAVAILABLE`.
+Some GUI runtimes only allow `camera.*` commands while the host app is in the
+foreground. If the runtime returns `NODE_BACKGROUND_UNAVAILABLE`, bring that
+app forward and retry.
 
 ### CLI helper (temp files + MEDIA)
 
@@ -77,7 +78,6 @@ Notes:
 
 - `nodes camera snap` defaults to **both** facings to give the agent both views.
 - Output files are temporary (in the OS temp directory) unless you build your own wrapper.
-
 
 ## macOS app
 

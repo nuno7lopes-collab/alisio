@@ -39,7 +39,7 @@ The desktop app is the center. Around it, you can add:
 - OpenAI-compatible servers on other machines
 - channels such as WhatsApp, Telegram, Slack, Discord, and email
 - connectors, apps, and skills from a local marketplace on each computer
-- paired devices for camera, voice, screen, notifications, and automation
+- paired computers for camera, voice, screen, notifications, and automation
 
 ## Product Shape
 

@@ -1750,44 +1750,62 @@
 }
 
 .alisio-auth-shell {
-  width: min(1120px, 100%);
+  width: min(1280px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 18px;
+  gap: 22px;
 }
 
 .alisio-auth-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: 18px;
+  padding: 6px 4px 0;
 }
 
 .alisio-auth-shell__title-wrap {
   min-width: 0;
 }
 
+.alisio-auth-shell__title-wrap .card-title {
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.02;
+}
+
+.alisio-auth-shell__header > .alisio-filter {
+  width: min(760px, 100%);
+}
+
 .alisio-auth-shell__columns {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: minmax(300px, 0.86fr) minmax(0, 1.14fr);
+  gap: 22px;
   align-items: start;
 }
 
 .alisio-auth-panel {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   min-width: 0;
   min-height: 420px;
-  padding: 16px;
+  padding: 20px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 58%, transparent);
-  border-radius: 24px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-elevated) 94%, transparent),
-    color-mix(in srgb, var(--bg-elevated) 88%, var(--bg-accent) 12%)
-  );
-  box-shadow: inset 0 1px 0 color-mix(in srgb, white 6%, transparent);
+  border-radius: 28px;
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--connector-accent, transparent) 10%, transparent),
+      transparent 36%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 96%, transparent),
+      color-mix(in srgb, var(--bg-elevated) 92%, var(--bg-accent) 8%)
+    );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 6%, transparent),
+    0 18px 48px color-mix(in srgb, black 18%, transparent);
 }
 
 .alisio-auth-panel__header {
@@ -1799,12 +1817,13 @@
 }
 
 .alisio-auth-panel__title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 650;
   color: var(--text-strong);
 }
 
 .alisio-auth-panel__empty {
+  grid-column: 1 / -1;
   padding: 28px 12px;
   color: var(--muted);
   text-align: center;
@@ -1814,25 +1833,39 @@
 
 .alisio-auth-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
+}
+
+.alisio-auth-panel[data-section="available"] .alisio-auth-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .alisio-app-row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  align-items: start;
+  gap: 14px;
+  min-height: 110px;
+  padding: 16px;
   border: 1px solid var(--connector-border, color-mix(in srgb, var(--border) 78%, transparent));
-  border-radius: 18px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--connector-surface, var(--bg-elevated)) 72%, transparent),
-    color-mix(in srgb, var(--bg-elevated) 92%, transparent)
-  );
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      color-mix(in srgb, var(--connector-accent, transparent) 10%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card) 94%, transparent),
+      color-mix(in srgb, var(--bg-elevated) 94%, transparent)
+    );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
   transition:
     border-color var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
     transform var(--duration-fast) var(--ease-out);
 }
 
@@ -1843,13 +1876,16 @@
     var(--connector-accent, var(--border-strong)) 40%,
     var(--border)
   );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent),
+    0 16px 36px color-mix(in srgb, black 18%, transparent);
   transform: translateY(-1px);
 }
 
 .alisio-app-row__surface {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -1863,40 +1899,47 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--connector-border, var(--border)) 72%, transparent);
-  background: color-mix(in srgb, var(--connector-surface, var(--bg-elevated)) 82%, transparent);
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, white 24%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 98%, var(--bg-elevated) 2%),
+    color-mix(in srgb, white 90%, var(--bg-elevated) 10%)
+  );
+  box-shadow:
+    0 10px 28px color-mix(in srgb, black 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 74%, transparent);
 }
 
 .alisio-app-row__icon img {
   width: auto;
   height: auto;
-  max-width: 24px;
-  max-height: 24px;
+  max-width: 32px;
+  max-height: 32px;
   object-fit: contain;
   display: block;
 }
 
 .alisio-app-row__copy {
   display: grid;
-  gap: 3px;
+  gap: 5px;
   min-width: 0;
 }
 
 .alisio-app-row__title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
   color: var(--text-strong);
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .alisio-app-row__subtitle {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 13px;
+  line-height: 1.55;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1909,6 +1952,7 @@
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  align-self: center;
 }
 
 .alisio-app-row__indicator {
@@ -1972,14 +2016,14 @@
 }
 
 .alisio-auth-dialog {
-  width: min(640px, 100%);
-  padding: 24px;
+  width: min(700px, 100%);
+  padding: 28px;
   border-color: color-mix(in srgb, var(--connector-border, var(--border)) 72%, var(--border));
   background:
     radial-gradient(
       circle at top right,
-      color-mix(in srgb, var(--connector-surface, transparent) 88%, transparent),
-      transparent 48%
+      color-mix(in srgb, var(--connector-accent, transparent) 10%, transparent),
+      transparent 44%
     ),
     linear-gradient(180deg, color-mix(in srgb, var(--card) 96%, black 4%), var(--card));
 }
@@ -2002,19 +2046,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 56px;
-  height: 56px;
-  flex: 0 0 56px;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--connector-border, var(--border)) 78%, transparent);
-  background: color-mix(in srgb, var(--connector-surface, var(--bg-elevated)) 82%, transparent);
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, white 24%, var(--border));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, white 98%, var(--bg-elevated) 2%),
+    color-mix(in srgb, white 90%, var(--bg-elevated) 10%)
+  );
+  box-shadow:
+    0 14px 34px color-mix(in srgb, black 20%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 74%, transparent);
 }
 
 .alisio-auth-dialog__hero-icon img {
   width: auto;
   height: auto;
-  max-width: 32px;
-  max-height: 32px;
+  max-width: 36px;
+  max-height: 36px;
   object-fit: contain;
 }
 
@@ -2059,7 +2110,7 @@
 
 .alisio-auth-dialog__facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -2070,6 +2121,10 @@
   border: 1px solid color-mix(in srgb, var(--border-strong) 58%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--bg-elevated) 84%, transparent);
+}
+
+.alisio-auth-dialog__fact--wide {
+  grid-column: span 2;
 }
 
 .alisio-auth-dialog__fact-label {
@@ -2085,6 +2140,21 @@
   font-size: 13px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+.alisio-auth-dialog__account-lines {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.alisio-auth-dialog__account-line {
+  min-width: 0;
+}
+
+.alisio-auth-dialog__account-line--primary {
+  font-weight: 600;
+  color: var(--text-strong);
 }
 
 .alisio-auth-dialog__chips {
@@ -2149,19 +2219,23 @@
     grid-template-columns: 1fr;
   }
 
+  .alisio-auth-panel[data-section="available"] .alisio-auth-list {
+    grid-template-columns: 1fr;
+  }
+
   .alisio-auth-panel {
     min-height: 0;
   }
 }
 
 @media (max-width: 640px) {
-  .alisio-auth-shell__header {
-    flex-direction: column;
-    align-items: stretch;
+  .alisio-auth-dialog__facts {
+    grid-template-columns: 1fr;
   }
 
   .alisio-app-row {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .alisio-app-row__aside {
@@ -2179,6 +2253,10 @@
 
   .alisio-auth-dialog__title {
     font-size: 24px;
+  }
+
+  .alisio-auth-dialog__fact--wide {
+    grid-column: auto;
   }
 
   .alisio-auth-dialog__footer {

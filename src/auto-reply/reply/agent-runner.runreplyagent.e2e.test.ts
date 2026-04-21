@@ -10,6 +10,7 @@ import { registerMemoryFlushPlanResolver } from "../../plugins/memory-state.js";
 import { withStateDirEnv } from "../../test-helpers/state-dir-env.js";
 import type { TemplateContext } from "../templating.js";
 import type { GetReplyOptions } from "../types.js";
+import { readPromptTokensFromSessionLog, runMemoryFlushIfNeeded } from "./agent-runner-memory.js";
 import {
   enqueueFollowupRun,
   refreshQueuedFollowupSession,
@@ -17,10 +18,6 @@ import {
   type FollowupRun,
   type QueueSettings,
 } from "./queue.js";
-import {
-  readPromptTokensFromSessionLog,
-  runMemoryFlushIfNeeded,
-} from "./agent-runner-memory.js";
 import { createMockTypingController } from "./test-helpers.js";
 
 function buildTestMemoryFlushPlan(params: { cfg?: AlisioConfig; nowMs?: number }) {
@@ -30,17 +27,17 @@ function buildTestMemoryFlushPlan(params: { cfg?: AlisioConfig; nowMs?: number }
   }
   const nowMs = Number.isFinite(params.nowMs) ? (params.nowMs as number) : Date.now();
   const dateStamp = new Date(nowMs).toISOString().slice(0, 10);
-  const relativePath = `memory/${dateStamp}.md`;
+  const relativePath = `memory/backlog/${dateStamp}/compaction.md`;
   const requiredPromptHints = [
-    `Store durable memories only in ${relativePath} (create memory/ if needed).`,
+    `Store durable memories only in ${relativePath} (create memory/backlog/ if needed).`,
     "Treat workspace bootstrap/reference files such as MEMORY.md, SOUL.md, TOOLS.md, and AGENTS.md as read-only during this flush; never overwrite, replace, or edit them.",
-    "If memory/YYYY-MM-DD.md already exists, APPEND new content only and do not overwrite existing entries.",
+    "If memory/backlog/YYYY-MM-DD/compaction.md already exists, APPEND new content only and do not overwrite existing entries.",
   ].join("\n");
   const requiredSystemHints = [
     "The session is near auto-compaction; capture durable memories to disk.",
-    "Store durable memories only in memory/YYYY-MM-DD.md (create memory/ if needed).",
+    "Store durable memories only in memory/backlog/YYYY-MM-DD/compaction.md (create memory/backlog/ if needed).",
     "Treat workspace bootstrap/reference files such as MEMORY.md, SOUL.md, TOOLS.md, and AGENTS.md as read-only during this flush; never overwrite, replace, or edit them.",
-    "If memory/YYYY-MM-DD.md already exists, APPEND new content only and do not overwrite existing entries.",
+    "If memory/backlog/YYYY-MM-DD/compaction.md already exists, APPEND new content only and do not overwrite existing entries.",
   ].join("\n");
   const ensureNoReply = (text: string) =>
     text.includes("NO_REPLY") ? text : `${text}\n\nIf nothing to store, reply with NO_REPLY.`;
@@ -62,6 +59,18 @@ function buildTestMemoryFlushPlan(params: { cfg?: AlisioConfig; nowMs?: number }
     prompt,
     systemPrompt,
     relativePath,
+    writeSeedContent: [
+      "---",
+      "memoryRole: backlog",
+      "backlogStatus: pending",
+      "promotionMode: daily-only",
+      `capturedAt: ${JSON.stringify(new Date(nowMs).toISOString())}`,
+      'sessionAction: "compaction"',
+      'source: "memory-flush"',
+      "---",
+      "# Compaction backlog",
+      "",
+    ].join("\n"),
   };
 }
 
@@ -79,6 +88,7 @@ type EmbeddedRunParams = {
   prompt?: string;
   extraSystemPrompt?: string;
   memoryFlushWritePath?: string;
+  memoryFlushWriteSeedContent?: string;
   sessionId?: string;
   sessionFile?: string;
   silentExpected?: boolean;
@@ -96,8 +106,9 @@ const state = vi.hoisted(() => ({
   runCliAgentMock: vi.fn(),
 }));
 
-const syncDailyMemoryThroughCanonicalPipelineMock = vi
-  .hoisted(() => vi.fn().mockResolvedValue(undefined));
+const syncWorkspaceMemoryThroughCanonicalPipelineMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
 
 let modelFallbackModule: typeof import("../../agents/model-fallback.js");
 let onAgentEvent: typeof import("../../infra/agent-events.js").onAgentEvent;
@@ -148,10 +159,7 @@ vi.mock("../../memory/daily-memory.js", async () => {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
   return {
-    readWorkspaceMemoryFileText: async (params: {
-      workspaceDir: string;
-      relativePath: string;
-    }) => {
+    readWorkspaceMemoryFileText: async (params: { workspaceDir: string; relativePath: string }) => {
       try {
         return await fs.readFile(path.join(params.workspaceDir, params.relativePath), "utf8");
       } catch (error) {
@@ -161,7 +169,7 @@ vi.mock("../../memory/daily-memory.js", async () => {
         throw error;
       }
     },
-    syncDailyMemoryThroughCanonicalPipeline: syncDailyMemoryThroughCanonicalPipelineMock,
+    syncWorkspaceMemoryThroughCanonicalPipeline: syncWorkspaceMemoryThroughCanonicalPipelineMock,
   };
 });
 
@@ -182,7 +190,7 @@ beforeEach(() => {
   state.compactEmbeddedPiSessionMock.mockReset();
   state.runEmbeddedPiAgentMock.mockReset();
   state.runCliAgentMock.mockReset();
-  syncDailyMemoryThroughCanonicalPipelineMock.mockClear();
+  syncWorkspaceMemoryThroughCanonicalPipelineMock.mockClear();
   vi.mocked(enqueueFollowupRun).mockClear();
   vi.mocked(refreshQueuedFollowupSession).mockClear();
   vi.mocked(scheduleFollowupDrain).mockClear();
@@ -1971,11 +1979,16 @@ describe("runReplyAgent memory flush", () => {
           tokensAfter: 8_000,
         },
       });
-      const calls: Array<{ prompt?: string; extraSystemPrompt?: string }> = [];
+      const calls: Array<{
+        prompt?: string;
+        extraSystemPrompt?: string;
+        memoryFlushWriteSeedContent?: string;
+      }> = [];
       state.runEmbeddedPiAgentMock.mockImplementation(async (params: EmbeddedRunParams) => {
         calls.push({
           prompt: params.prompt,
           extraSystemPrompt: params.extraSystemPrompt,
+          memoryFlushWriteSeedContent: params.memoryFlushWriteSeedContent,
         });
         return {
           payloads: [{ text: "ok" }],
@@ -2076,13 +2089,16 @@ describe("runReplyAgent memory flush", () => {
       const flushCall = calls[0];
       expect(flushCall?.prompt).toContain("Write notes.");
       expect(flushCall?.prompt).toContain("NO_REPLY");
-      expect(flushCall?.prompt).toMatch(/memory\/\d{4}-\d{2}-\d{2}\.md/);
+      expect(flushCall?.prompt).toMatch(/memory\/backlog\/\d{4}-\d{2}-\d{2}\/compaction\.md/);
       expect(flushCall?.prompt).toContain("MEMORY.md");
-      expect(flushCall?.memoryFlushWritePath).toMatch(/^memory\/\d{4}-\d{2}-\d{2}\.md$/);
+      expect(flushCall?.memoryFlushWritePath).toMatch(
+        /^memory\/backlog\/\d{4}-\d{2}-\d{2}\/compaction\.md$/,
+      );
+      expect(flushCall?.memoryFlushWriteSeedContent).toContain("promotionMode: daily-only");
       expect(flushCall?.extraSystemPrompt).toContain("extra system");
       expect(flushCall?.extraSystemPrompt).toContain("Flush memory now.");
       expect(flushCall?.extraSystemPrompt).toContain("NO_REPLY");
-      expect(flushCall?.extraSystemPrompt).toContain("memory/YYYY-MM-DD.md");
+      expect(flushCall?.extraSystemPrompt).toContain("memory/backlog/YYYY-MM-DD/compaction.md");
       expect(flushCall?.extraSystemPrompt).toContain("MEMORY.md");
       expect(flushCall?.silentExpected).toBe(true);
       expect(calls[1]?.prompt).toBe("hello");
@@ -2176,6 +2192,7 @@ describe("runReplyAgent memory flush", () => {
         prompt?: string;
         extraSystemPrompt?: string;
         memoryFlushWritePath?: string;
+        memoryFlushWriteSeedContent?: string;
         sessionId?: string;
         sessionFile?: string;
       }> = [];
@@ -2184,6 +2201,7 @@ describe("runReplyAgent memory flush", () => {
           prompt: params.prompt,
           extraSystemPrompt: params.extraSystemPrompt,
           memoryFlushWritePath: params.memoryFlushWritePath,
+          memoryFlushWriteSeedContent: params.memoryFlushWriteSeedContent,
           sessionId: params.sessionId,
           sessionFile: params.sessionFile,
         });
@@ -2219,10 +2237,13 @@ describe("runReplyAgent memory flush", () => {
       expect(calls).toHaveLength(2);
       expect(calls[0]?.prompt).toContain("Pre-compaction memory flush.");
       expect(calls[0]?.prompt).toContain("Current time:");
-      expect(calls[0]?.prompt).toMatch(/memory\/\d{4}-\d{2}-\d{2}\.md/);
+      expect(calls[0]?.prompt).toMatch(/memory\/backlog\/\d{4}-\d{2}-\d{2}\/compaction\.md/);
       expect(calls[0]?.prompt).toContain("MEMORY.md");
-      expect(calls[0]?.memoryFlushWritePath).toMatch(/^memory\/\d{4}-\d{2}-\d{2}\.md$/);
-      expect(calls[0]?.extraSystemPrompt).toContain("memory/YYYY-MM-DD.md");
+      expect(calls[0]?.memoryFlushWritePath).toMatch(
+        /^memory\/backlog\/\d{4}-\d{2}-\d{2}\/compaction\.md$/,
+      );
+      expect(calls[0]?.memoryFlushWriteSeedContent).toContain("promotionMode: daily-only");
+      expect(calls[0]?.extraSystemPrompt).toContain("memory/backlog/YYYY-MM-DD/compaction.md");
       expect(calls[0]?.extraSystemPrompt).toContain("MEMORY.md");
       expect(calls[1]?.prompt).toBe("hello");
       expect(calls[1]?.sessionId).toBe("session-rotated");
@@ -2376,7 +2397,7 @@ describe("runReplyAgent memory flush", () => {
       expect(calls).toHaveLength(1);
       expect(calls[0]?.prompt).toContain("Pre-compaction memory flush.");
       expect(calls[0]?.prompt).toContain("Current time:");
-      expect(calls[0]?.prompt).toMatch(/memory\/\d{4}-\d{2}-\d{2}\.md/);
+      expect(calls[0]?.prompt).toMatch(/memory\/backlog\/\d{4}-\d{2}-\d{2}\/compaction\.md/);
 
       const stored = JSON.parse(await fs.readFile(storePath, "utf-8"));
       expect(stored[sessionKey].memoryFlushAt).toBeTypeOf("number");
@@ -2413,7 +2434,7 @@ describe("runReplyAgent memory flush", () => {
     });
   });
 
-  it("syncs the canonical daily note when memory flush appends new content", async () => {
+  it("syncs canonical memory state when memory flush appends backlog content", async () => {
     await withTempStore(async (storePath) => {
       const sessionKey = "main";
       const workspaceDir = path.dirname(storePath);
@@ -2456,7 +2477,7 @@ describe("runReplyAgent memory flush", () => {
         commandBody: "hello",
       });
 
-      expect(syncDailyMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
+      expect(syncWorkspaceMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
         cfg: {},
         agentId: "main",
         reason: "memory-flush",
@@ -2464,15 +2485,21 @@ describe("runReplyAgent memory flush", () => {
     });
   });
 
-  it("does not sync the canonical daily note when memory flush leaves the file unchanged", async () => {
+  it("does not sync canonical memory state when memory flush leaves the backlog file unchanged", async () => {
     await withTempStore(async (storePath) => {
       const sessionKey = "main";
       const workspaceDir = path.dirname(storePath);
       const dateStamp = new Date().toISOString().slice(0, 10);
-      const dailyNotePath = path.join(workspaceDir, "memory", `${dateStamp}.md`);
-      const initialContent = "## 09:00:00 UTC\n\n- existing\n";
-      await fs.mkdir(path.dirname(dailyNotePath), { recursive: true });
-      await fs.writeFile(dailyNotePath, initialContent, "utf-8");
+      const backlogNotePath = path.join(
+        workspaceDir,
+        "memory",
+        "backlog",
+        dateStamp,
+        "compaction.md",
+      );
+      const initialContent = "# Compaction backlog\n\n- existing\n";
+      await fs.mkdir(path.dirname(backlogNotePath), { recursive: true });
+      await fs.writeFile(backlogNotePath, initialContent, "utf-8");
 
       const sessionEntry = {
         sessionId: "session",
@@ -2508,8 +2535,8 @@ describe("runReplyAgent memory flush", () => {
         commandBody: "hello",
       });
 
-      expect(syncDailyMemoryThroughCanonicalPipelineMock).not.toHaveBeenCalled();
-      expect(await fs.readFile(dailyNotePath, "utf-8")).toBe(initialContent);
+      expect(syncWorkspaceMemoryThroughCanonicalPipelineMock).not.toHaveBeenCalled();
+      expect(await fs.readFile(backlogNotePath, "utf-8")).toBe(initialContent);
     });
   });
 

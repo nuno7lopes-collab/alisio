@@ -22,6 +22,7 @@ import {
   summarizeDeviceTokens,
 } from "../../infra/device-pairing.js";
 import { normalizeDeviceAuthScopes } from "../../shared/device-auth.js";
+import { resolveNodeComputerId, resolveNodeComputerLabel } from "../../shared/node-list-types.js";
 import { resolveMissingRequestedScope } from "../../shared/operator-scope-compat.js";
 import { createKnownNodeCatalog, listKnownNodes } from "../node-catalog.js";
 import {
@@ -101,8 +102,8 @@ async function loadSharingStateForContext(
         : []),
       ...knownNodes.map((node) => ({
         targetId: node.nodeId,
-        computerId: node.computerId ?? node.nodeId,
-        computerLabel: node.computerLabel ?? node.displayName ?? node.nodeId,
+        computerId: resolveNodeComputerId(node),
+        computerLabel: resolveNodeComputerLabel(node),
         label: node.displayName ?? node.nodeId,
         platform: node.platform,
         sourceKind: "node" as const,

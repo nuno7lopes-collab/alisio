@@ -1,5 +1,12 @@
 import type { NodeListNode } from "../../../../src/shared/node-list-types.js";
 import type { AlisioAccountState, AlisioSharingState } from "../types.ts";
+import {
+  normalizeComputerText,
+  resolveComputerId,
+  resolveComputerLabelText,
+  resolveNodeRuntimeComputerId,
+  resolveNodeRuntimePlatform,
+} from "./computer-identity.ts";
 import type { ComputersCatalogState } from "./computers.ts";
 import { computerNodeSupportsExec, isComputerNodeConnected } from "./computers.ts";
 import {
@@ -56,11 +63,6 @@ type ConnectionsModelCache = {
   result: ConnectionsModel;
 };
 
-function normalizeId(value: string | null | undefined) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
 let lastConnectionsModelCache: ConnectionsModelCache | null = null;
 
 function resolveCurrentFallbackComputer(
@@ -89,7 +91,7 @@ export function resolveVisiblePendingSharingRequests(
 function resolveRuntimeGroups(nodes: readonly NodeListNode[]) {
   const groups = new Map<string, NodeListNode[]>();
   for (const node of nodes) {
-    const key = normalizeId(node.computerId) ?? normalizeId(node.nodeId);
+    const key = resolveNodeRuntimeComputerId(node);
     if (!key) {
       continue;
     }
@@ -127,17 +129,19 @@ function buildComputerModel(params: {
   const remote = params.remote ?? null;
   const fallback = params.fallback ?? null;
   const label =
-    local?.label ??
-    remote?.label ??
-    fallback?.label ??
-    runtimeNodes[0]?.computerLabel ??
-    runtimeNodes[0]?.displayName ??
-    params.computerId;
+    resolveComputerLabelText({
+      computerLabel: local?.label ?? remote?.label ?? runtimeNodes[0]?.computerLabel,
+      displayName: runtimeNodes[0]?.displayName,
+      platform: local?.platform ?? remote?.platform ?? fallback?.platform,
+      fallbackLabel: fallback?.label ?? params.computerId,
+    }) ?? params.computerId;
   const platform =
-    local?.platform?.trim() ??
-    remote?.platform?.trim() ??
-    fallback?.platform?.trim() ??
-    runtimeNodes.find((node) => normalizeId(node.platform))?.platform?.trim() ??
+    normalizeComputerText(local?.platform) ??
+    normalizeComputerText(remote?.platform) ??
+    normalizeComputerText(fallback?.platform) ??
+    runtimeNodes
+      .map((node) => resolveNodeRuntimePlatform(node))
+      .find((value): value is string => Boolean(value)) ??
     null;
   const connected =
     local?.isCurrentComputer === true ||
@@ -189,7 +193,7 @@ export function resolveConnectionsModel(input: ConnectionsModelInput): Connectio
 
   const currentLocalComputer =
     localComputers.find((computer) => computer.isCurrentComputer) ?? null;
-  const fallbackCurrentId = normalizeId(fallbackCurrent?.id);
+  const fallbackCurrentId = resolveComputerId({ fallbackId: fallbackCurrent?.id });
   const currentComputerId = currentLocalComputer?.computerId ?? fallbackCurrentId ?? null;
   const currentRemote = currentComputerId
     ? (sameAccountRemoteByComputerId.get(currentComputerId) ?? null)
@@ -204,7 +208,7 @@ export function resolveConnectionsModel(input: ConnectionsModelInput): Connectio
         remote: currentRemote,
         runtimeNodes: runtimeGroups.get(currentLocalComputer.computerId) ?? [],
       })
-    : fallbackCurrent && normalizeId(fallbackCurrent.id)
+    : fallbackCurrent && resolveComputerId({ fallbackId: fallbackCurrent.id })
       ? buildComputerModel({
           computerId: fallbackCurrent.id.trim(),
           fallback: fallbackCurrent,

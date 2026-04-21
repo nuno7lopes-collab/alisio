@@ -1,7 +1,7 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
 import { docsUrl } from "../brand-compat.ts";
 import { i18n, isSupportedLocale } from "../i18n/index.ts";
-import { loadNativeShellState } from "./alisio-host.ts";
+import { hasAlisioHostBridge, loadNativeShellState } from "./alisio-host.ts";
 import { alisioBootstrapBlocksChatAccess, resolveBlockingSetupStep } from "./alisio-setup-state.ts";
 import { refreshChat } from "./app-chat.ts";
 import {
@@ -13,7 +13,6 @@ import {
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { AlisioApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
-import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
@@ -37,7 +36,7 @@ import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
-import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
+import { loadMemoryStatus, resolvePreferredMemoryAgentId } from "./controllers/memory-runtime.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -51,6 +50,7 @@ import {
   normalizePath,
   normalizeSettingsSection,
   pathForTab,
+  publicSettingsSectionFor,
   publicTabFor,
   tabFromPath,
   type SettingsSection,
@@ -182,6 +182,22 @@ function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootst
     });
   }
   return null;
+}
+
+function resolvePublishedSettingsSection(
+  host: SettingsHost,
+  next: SettingsSection,
+): SettingsSection {
+  const normalized = normalizeSettingsSection(next);
+  return publicSettingsSectionFor(normalized) === "host" &&
+    !(
+      hasAlisioHostBridge() ||
+      host.nativeShellState ||
+      host.nativeShellLoading ||
+      host.nativeShellError
+    )
+    ? "general"
+    : normalized;
 }
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
@@ -326,7 +342,7 @@ export function setTab(host: SettingsHost, next: Tab) {
 }
 
 export function setSettingsSection(host: SettingsHost, next: SettingsSection) {
-  const normalized = normalizeSettingsSection(next);
+  const normalized = resolvePublishedSettingsSection(host, next);
   if (host.tab !== "settings") {
     host.settingsSection = normalized;
     applyTabSelection(host, "settings", { refreshPolicy: "always", syncUrl: true });
@@ -760,7 +776,7 @@ async function refreshSettingsSectionState(host: SettingsHost) {
     scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
     return;
   }
-  if (host.settingsSection === "mac") {
+  if (publicSettingsSectionFor(host.settingsSection) === "host") {
     await loadNativeShellState(host);
   }
 }
@@ -862,7 +878,10 @@ function resolveSettingsSectionFromLocation(host: SettingsHost, pathname: string
   const url = new URL(`http://localhost${pathname}${search || ""}`);
   const querySection = url.searchParams.get("section");
   if (querySection) {
-    host.settingsSection = normalizeSettingsSection(querySection);
+    host.settingsSection = resolvePublishedSettingsSection(
+      host,
+      normalizeSettingsSection(querySection),
+    );
   }
 }
 

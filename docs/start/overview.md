@@ -11,7 +11,7 @@ sidebarTitle: "Product Overview"
 
 Alisio is a desktop-first AI workspace.
 
-The primary product is the macOS app. It gives one computer a coherent AI layer that can use OpenAI, local models, or private servers, then connect that AI to channels, devices, connectors, and automations.
+The primary product is the macOS app. It gives one computer a coherent AI layer that can use OpenAI, local models, or private servers, then connect that AI to channels, other computers, connectors, and automations.
 
 ## The Short Version
 
@@ -19,7 +19,7 @@ Alisio turns one computer into:
 
 - your AI front door
 - your local automation runtime
-- your control point for channels, connectors, and paired devices
+- your control point for channels, connectors, and paired computers
 - your place to install skills, apps, and integrations
 
 ## Product Pillars
@@ -28,7 +28,7 @@ Alisio turns one computer into:
 - **macOS-first**: first-run quality, permissions, voice, notifications, and device control start on the Mac.
 - **OpenAI plus local**: hosted and local AI should coexist cleanly.
 - **Per-computer marketplace**: every computer has its own installable skills, apps, and integrations.
-- **Automation through real surfaces**: channels, connectors, schedules, and devices are practical automation inputs and outputs.
+- **Automation through real surfaces**: channels, connectors, schedules, and computers are practical automation inputs and outputs.
 
 ## How It Fits Together
 
@@ -39,7 +39,7 @@ flowchart TD
   A --> D["OpenAI-compatible server"]
   A --> E["Channels"]
   A --> F["Connectors and apps"]
-  A --> G["Paired devices"]
+  A --> G["Paired computers"]
   A --> H["Local marketplace"]
   E --> I["Inbox and delivery"]
   F --> J["Automation triggers and actions"]
@@ -61,7 +61,7 @@ flowchart TD
 - organize inbound messages and patient follow-up
 - summarize calls, voice notes, and uploaded documents
 - route tasks to staff through channels
-- keep device-local capture and notifications on the clinic Mac
+- keep computer-local capture and notifications on the clinic Mac
 
 ### Accounting
 
@@ -77,7 +77,7 @@ The first minimum sellable version of Alisio should include:
 1. A polished macOS install and first-run flow with sign-in and permissions.
 2. AI source selection with three obvious choices: OpenAI, Local, and Server.
 3. A local marketplace per computer for skills, apps, and integrations.
-4. Device-aware actions on the current Mac plus pairing for other devices.
+4. Computer-aware actions on the current Mac plus pairing for other computers.
 5. Channels and connectors as automation inputs and outputs.
 6. Durable workspace memory and simple operator-visible settings.
 
@@ -96,5 +96,5 @@ If those six things feel coherent, Alisio is sellable.
 - macOS product surface: [macOS App](/platforms/macos)
 - AI sources: [Model Providers](/concepts/model-providers)
 - Local and server runtimes: [Local Models and Servers](/gateway/local-models)
-- Device actions: [Devices](/nodes)
+- Computer actions: [Computers](/nodes)
 - Skills and marketplace: [Skills](/tools/skills)

@@ -15,41 +15,41 @@ export const NATIVE_SHELL_PERMISSION_ORDER = [
 export function nativeShellPermissionLabel(permission: NativeShellPermission) {
   switch (permission) {
     case "notifications":
-      return t("alisio.settings.mac.permissions.notifications");
+      return t("alisio.settings.host.permissions.notifications");
     case "appleScript":
-      return t("alisio.settings.mac.permissions.appleScript");
+      return t("alisio.settings.host.permissions.appleScript");
     case "accessibility":
-      return t("alisio.settings.mac.permissions.accessibility");
+      return t("alisio.settings.host.permissions.accessibility");
     case "screenRecording":
-      return t("alisio.settings.mac.permissions.screenRecording");
+      return t("alisio.settings.host.permissions.screenRecording");
     case "microphone":
-      return t("alisio.settings.mac.permissions.microphone");
+      return t("alisio.settings.host.permissions.microphone");
     case "speechRecognition":
-      return t("alisio.settings.mac.permissions.speechRecognition");
+      return t("alisio.settings.host.permissions.speechRecognition");
     case "camera":
-      return t("alisio.settings.mac.permissions.camera");
+      return t("alisio.settings.host.permissions.camera");
     case "location":
-      return t("alisio.settings.mac.permissions.location");
+      return t("alisio.settings.host.permissions.location");
   }
 }
 
 export function nativeShellPermissionDescription(permission: NativeShellPermission) {
   switch (permission) {
     case "notifications":
-      return t("alisio.settings.mac.permissionDescriptions.notifications");
+      return t("alisio.settings.host.permissionDescriptions.notifications");
     case "appleScript":
-      return t("alisio.settings.mac.permissionDescriptions.appleScript");
+      return t("alisio.settings.host.permissionDescriptions.appleScript");
     case "accessibility":
-      return t("alisio.settings.mac.permissionDescriptions.accessibility");
+      return t("alisio.settings.host.permissionDescriptions.accessibility");
     case "screenRecording":
-      return t("alisio.settings.mac.permissionDescriptions.screenRecording");
+      return t("alisio.settings.host.permissionDescriptions.screenRecording");
     case "microphone":
-      return t("alisio.settings.mac.permissionDescriptions.microphone");
+      return t("alisio.settings.host.permissionDescriptions.microphone");
     case "speechRecognition":
-      return t("alisio.settings.mac.permissionDescriptions.speechRecognition");
+      return t("alisio.settings.host.permissionDescriptions.speechRecognition");
     case "camera":
-      return t("alisio.settings.mac.permissionDescriptions.camera");
+      return t("alisio.settings.host.permissionDescriptions.camera");
     case "location":
-      return t("alisio.settings.mac.permissionDescriptions.location");
+      return t("alisio.settings.host.permissionDescriptions.location");
   }
 }

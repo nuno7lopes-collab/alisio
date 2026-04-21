@@ -1,8 +1,8 @@
 ---
-summary: "Global voice wake words (Gateway-owned) and how they sync across nodes"
+summary: "Global voice wake words (Gateway-owned) and how they sync across computers"
 read_when:
   - Changing voice wake words behavior or defaults
-  - Adding new node platforms that need wake word sync
+  - Adding new runtime platforms that need wake word sync
 title: "Voice Wake"
 ---
 
@@ -12,7 +12,7 @@ Alisio treats **wake words as a single global list** owned by the **Gateway**.
 
 - There are **no per-node custom wake words**.
 - **Any node/app UI may edit** the list; changes are persisted by the Gateway and broadcast to everyone.
-- macOS and iOS keep local **Voice Wake enabled/disabled** toggles (local UX + permissions differ).
+- Runtime UIs can keep local **Voice Wake enabled/disabled** toggles when their local UX or permissions differ.
 
 ## Storage (Gateway host)
 
@@ -45,7 +45,8 @@ Notes:
 Who receives it:
 
 - All WebSocket clients (macOS app, WebChat, etc.)
-- All connected nodes (iOS), and also on node connect as an initial “current state” push.
+- All connected runtimes that implement Voice Wake, including the initial
+  “current state” push on connect.
 
 ## Client behavior
 
@@ -54,8 +55,8 @@ Who receives it:
 - Uses the global list to gate `VoiceWakeRuntime` triggers.
 - Editing “Trigger words” in Voice Wake settings calls `voicewake.set` and then relies on the broadcast to keep other clients in sync.
 
-### iOS node
+### Other runtime clients
 
-- Uses the global list for `VoiceWakeManager` trigger detection.
-- Editing Wake Words in Settings calls `voicewake.set` (over the Gateway WS) and also keeps local wake-word detection responsive.
-
+- Any runtime that implements Voice Wake should consume the same global list.
+- Editing wake words should call `voicewake.set` and then rely on the broadcast
+  to keep other clients in sync.

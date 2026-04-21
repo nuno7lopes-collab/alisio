@@ -457,7 +457,7 @@ export type NativeShellVoiceWakeState = {
 };
 
 export type NativeShellState = {
-  platform: "macos";
+  platform: "macos" | "windows";
   launchAtLogin: boolean;
   permissions: Record<NativeShellPermission, boolean>;
   voiceWake: NativeShellVoiceWakeState;
@@ -561,8 +561,12 @@ export type {
   ComputerApprovalMode,
   ComputerApprovalRequest,
   ComputerBackendKind,
+  ComputerCapabilityReasonCode,
+  ComputerCoordinateSpace,
   ComputerFrame,
   ComputerObservationContext,
+  ComputerPolicyDecision,
+  ComputerPolicyReasonCode,
   ComputerPermissionState,
   ComputerReplayAction,
   ComputerReplayFrame,
@@ -570,13 +574,18 @@ export type {
   ComputerSessionExport,
   ComputerSessionExportFrame,
   ComputerSessionLogEvent,
+  ComputerSafetyEvent,
+  ComputerSafetyEventType,
+  ComputerSafetyLevel,
   ComputerReplayStep,
+  ComputerSessionSafety,
   ComputerSessionState,
   ComputerSessionStep,
   ComputerSessionStatus,
   ComputerStepPhase,
   ComputerStepStatus,
   ComputerStructuredAction,
+  ComputerTimelineEventCode,
   ComputerTimelineEntry,
 } from "../../../src/computer/types.js";
 

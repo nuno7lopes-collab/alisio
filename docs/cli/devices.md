@@ -1,20 +1,20 @@
 ---
-summary: "CLI reference for `alisio devices` (device pairing + token rotation/revocation)"
+summary: "CLI reference for `alisio devices` (computer pairing + token rotation/revocation)"
 read_when:
-  - You are approving device pairing requests
+  - You are approving computer pairing requests
   - You need to rotate or revoke device tokens
 title: "devices"
 ---
 
 # `alisio devices`
 
-Manage device pairing requests and device-scoped tokens.
+Manage computer pairing requests and device-scoped tokens.
 
 ## Commands
 
 ### `alisio devices list`
 
-List pending pairing requests and paired devices.
+List pending pairing requests and paired computers.
 
 ```
 alisio devices list
@@ -26,7 +26,7 @@ be reviewed before you approve.
 
 ### `alisio devices remove <deviceId>`
 
-Remove one paired device entry.
+Remove one paired computer entry.
 
 ```
 alisio devices remove <deviceId>
@@ -35,7 +35,7 @@ alisio devices remove <deviceId> --json
 
 ### `alisio devices clear --yes [--pending]`
 
-Clear paired devices in bulk.
+Clear paired computers in bulk.
 
 ```
 alisio devices clear --yes
@@ -111,7 +111,7 @@ Use this when Control UI or other clients keep failing with `AUTH_TOKEN_MISMATCH
 alisio config get gateway.auth.token
 ```
 
-2. List paired devices and identify the affected device id:
+2. List paired computers and identify the affected device id:
 
 ```bash
 alisio devices list

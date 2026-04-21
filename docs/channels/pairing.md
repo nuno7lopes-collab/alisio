@@ -1,8 +1,8 @@
 ---
-summary: "Pairing overview: approve who can DM you + which nodes can join"
+summary: "Pairing overview: approve who can DM you + which computers can join"
 read_when:
   - Setting up DM access control
-  - Pairing a new device node
+  - Pairing a new computer
   - Reviewing Alisio security posture
 title: "Pairing"
 ---
@@ -13,7 +13,7 @@ title: "Pairing"
 It is used in two places:
 
 1. **DM pairing** (who is allowed to talk to the bot)
-2. **Node pairing** (which devices/nodes are allowed to join the gateway network)
+2. **Computer pairing** (which computers are allowed to join the gateway workspace)
 
 Security context: [Security](/gateway/security)
 
@@ -54,18 +54,18 @@ Account scoping behavior:
 
 Treat these as sensitive (they gate access to your assistant).
 
-## 2) Node device pairing (iOS/macOS/headless nodes)
+## 2) Computer pairing (macOS/headless runtimes)
 
-Nodes connect to the Gateway as **devices** with `role: node`. The Gateway
-creates a device pairing request that must be approved.
+Runtime computers connect to the Gateway as **devices** with `role: node`. The
+Gateway creates a computer pairing request that must be approved.
 
 ### Pair via Telegram
 
-If you use the `device-pair` plugin, you can do first-time device pairing entirely from Telegram:
+If you use the `device-pair` plugin, you can do first-time computer pairing entirely from Telegram:
 
 1. In Telegram, message your bot: `/pair`
 2. The bot replies with two messages: an instruction message and a separate **setup code** message (easy to copy/paste in Telegram).
-3. Open the Alisio app on the device you want to pair.
+3. Open the Alisio app on the computer you want to pair.
 4. Paste the setup code and connect.
 5. Back in Telegram: `/pair pending` (review request IDs, role, and scopes), then approve.
 
@@ -76,7 +76,7 @@ The setup code is a base64-encoded JSON payload that contains:
 
 Treat the setup code like a password while it is valid.
 
-### Approve a node device
+### Approve a computer
 
 ```bash
 alisio devices list
@@ -84,21 +84,22 @@ alisio devices approve <requestId>
 alisio devices reject <requestId>
 ```
 
-If the same device retries with different auth details (for example different
+If the same computer retries with different auth details (for example different
 role/scopes/public key), the previous pending request is superseded and a new
 `requestId` is created.
 
-### Node pairing state storage
+### Computer pairing state storage
 
 Stored under `~/.alisio/devices/`:
 
 - `pending.json` (short-lived; pending requests expire)
-- `paired.json` (paired devices + tokens)
+- `paired.json` (paired computers + tokens)
 
 ### Notes
 
 - The legacy `node.pair.*` API (CLI: `alisio nodes pending/approve`) is a
-  separate gateway-owned pairing store. WS nodes still require device pairing.
+  separate gateway-owned compatibility store. Current WS runtime computers still
+  use the main `alisio devices ...` pairing flow.
 
 ## Related docs
 

@@ -36,6 +36,10 @@ function createState(overrides: Partial<ChatState> = {}): ChatState {
     connected: true,
     lastError: null,
     sessionKey: "main",
+    refreshBrowserPaneBrowserState: vi.fn(() => ({
+      hasActivity: false,
+      changed: false,
+    })),
     ...overrides,
   };
 }
@@ -75,10 +79,30 @@ describe("browser pane controller helpers", () => {
       backend: "local-mac" as const,
       status: "observing" as const,
       mode: "approved_apps_only" as const,
+      target: {
+        id: "local-mac:local:host",
+        label: "Local Mac",
+        kind: "local-mac-host" as const,
+        platform: "macos" as const,
+        nodeId: "local",
+        globalInput: true,
+        allowsConcurrentObserve: true,
+      },
+      capabilities: [
+        {
+          kind: "observe_only" as const,
+          available: true,
+          exposure: "exposed" as const,
+          reasonCode: "local_mac_observe_supported" as const,
+          reason: "Read-only screen capture is supported on the local Mac.",
+        },
+      ],
       approvedApps: [],
       permissions: {
         accessibility: true,
         screenRecording: false,
+        observation: "missing" as const,
+        control: "granted" as const,
       },
       replay: {
         frames: [],
@@ -154,6 +178,7 @@ describe("browser pane controller helpers", () => {
           id: "local-mac:local:host",
           label: "Local Mac",
           kind: "local-mac-host",
+          platform: "macos",
           nodeId: "local",
           globalInput: true,
           allowsConcurrentObserve: true,
@@ -163,27 +188,8 @@ describe("browser pane controller helpers", () => {
             kind: "observe_only",
             available: true,
             exposure: "exposed",
+            reasonCode: "local_mac_observe_supported",
             reason: "Read-only screen capture is supported on the local Mac.",
-          },
-          {
-            kind: "foreground_control",
-            available: true,
-            exposure: "exposed",
-            reason:
-              "Control uses real macOS Accessibility input and may move focus, cursor, or global input.",
-          },
-          {
-            kind: "background_safe_control",
-            available: false,
-            exposure: "hidden",
-            reason:
-              "Local macOS control is not background-safe because it still depends on real foreground input.",
-          },
-          {
-            kind: "future_virtualized_control",
-            available: false,
-            exposure: "hidden",
-            reason: "No virtualized desktop target exists in the current local-mac runtime.",
           },
         ],
         policy: {
@@ -255,10 +261,30 @@ describe("browser pane controller helpers", () => {
       backend: "local-mac" as const,
       status: "observing" as const,
       mode: "approved_apps_only" as const,
+      target: {
+        id: "local-mac:local:host",
+        label: "Local Mac",
+        kind: "local-mac-host" as const,
+        platform: "macos" as const,
+        nodeId: "local",
+        globalInput: true,
+        allowsConcurrentObserve: true,
+      },
+      capabilities: [
+        {
+          kind: "observe_only" as const,
+          available: true,
+          exposure: "exposed" as const,
+          reasonCode: "local_mac_observe_supported" as const,
+          reason: "Read-only screen capture is supported on the local Mac.",
+        },
+      ],
       approvedApps: [],
       permissions: {
         accessibility: true,
         screenRecording: true,
+        observation: "granted" as const,
+        control: "granted" as const,
       },
       replay: {
         frames: [],
@@ -540,6 +566,40 @@ describe("handleChatEvent", () => {
 
     expect(handleChatEvent(state, payload)).toBe("final");
     expect(state.chatMessages).toEqual([finalMessage]);
+  });
+
+  it("abre a pane do browser quando uma mensagem final nova traz actividade de browser", () => {
+    const notifyBrowserPaneActivityForSurface = vi.fn();
+    const state = createState({
+      sessionKey: "main",
+      chatRunId: "run-1",
+      refreshBrowserPaneBrowserState: vi.fn(() => ({
+        hasActivity: true,
+        changed: true,
+      })),
+      notifyBrowserPaneActivityForSurface,
+    });
+    const payload: ChatEventPayload = {
+      runId: "run-1",
+      sessionKey: "main",
+      state: "final",
+      message: {
+        role: "assistant",
+        toolName: "browser",
+        toolPhase: "result",
+        content: [
+          {
+            type: "toolresult",
+            name: "browser",
+            text: '{"ok":true}',
+            details: { ok: true, url: "https://grokopedia.com" },
+          },
+        ],
+      },
+    };
+
+    expect(handleChatEvent(state, payload)).toBe("final");
+    expect(notifyBrowserPaneActivityForSurface).toHaveBeenCalledWith("main", "browser");
   });
 
   it("drops NO_REPLY final payload from another run without clearing active stream", () => {
@@ -1274,6 +1334,39 @@ describe("handleSessionMessageEvent", () => {
 });
 
 describe("loadChatHistory", () => {
+  it("refreshes the browser pane preview after loading history", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        {
+          role: "assistant",
+          toolName: "browser",
+          toolPhase: "result",
+          content: [
+            {
+              type: "toolresult",
+              name: "browser",
+              text: '{"ok":true}',
+              details: { ok: true, url: "https://grokopedia.com" },
+            },
+          ],
+        },
+      ],
+    });
+    const refreshBrowserPaneBrowserState = vi.fn(() => ({
+      hasActivity: true,
+      changed: true,
+    }));
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      refreshBrowserPaneBrowserState,
+    });
+
+    await loadChatHistory(state);
+
+    expect(refreshBrowserPaneBrowserState).toHaveBeenCalledWith("main");
+  });
+
   it("filters NO_REPLY assistant messages from history", async () => {
     const messages = [
       { role: "user", content: [{ type: "text", text: "Hello" }] },

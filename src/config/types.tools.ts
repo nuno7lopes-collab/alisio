@@ -335,11 +335,6 @@ export type MemorySearchConfig = {
     /** Max bytes allowed per multimodal file before it is skipped. */
     maxFileBytes?: number;
   };
-  /** Experimental memory search settings. */
-  experimental?: {
-    /** Enable session transcript indexing (experimental, default: false). */
-    sessionMemory?: boolean;
-  };
   /** Memory embedding provider adapter id. */
   provider?: string;
   remote?: {

@@ -1,22 +1,24 @@
 ---
-summary: "Devices: pairing, permissions, and device-local capabilities across macOS and remote machines."
+summary: "Computers: pairing, permissions, and local capabilities across macOS and remote machines."
 read_when:
-  - Pairing a device into Alisio
-  - Explaining device-local actions and permissions
-  - Clarifying the UX term “Devices” versus the internal term “node”
-title: "Devices"
-sidebarTitle: "Devices"
+  - Pairing a computer into Alisio
+  - Explaining local actions and permissions
+  - Clarifying the product term “Computers” versus the internal term “node”
+title: "Computers"
+sidebarTitle: "Computers"
 ---
 
-# Devices
+# Computers
 
-In the product and UI, we say **Devices**.
+In the product and UI, we say **Computers**.
 
-Internally, some protocols and methods still use the technical word **node**. The product meaning is the same: a paired computer that gives Alisio local capabilities on that machine.
+Internally, some protocols and methods still use the technical words **device**
+and **node**. The product meaning is the same: a paired computer that gives
+Alisio local capabilities on that machine.
 
-## What A Device Is
+## What A Computer Is
 
-A device is a companion machine that can contribute local actions such as:
+A computer is a companion machine that can contribute local actions such as:
 
 - camera and media capture
 - microphone and speech
@@ -24,11 +26,11 @@ A device is a companion machine that can contribute local actions such as:
 - notifications
 - local automation and system actions
 
-## Why Devices Matter
+## Why Computers Matter
 
 Alisio is desktop-first, but it is not desktop-only.
 
-Devices let the system extend from one Mac to:
+Computers let the system extend from one Mac to:
 
 - another Mac
 - a remote helper machine
@@ -49,7 +51,7 @@ alisio nodes status
 
 Use the UI when available. Use the CLI when you are operating remotely or need deeper diagnostics.
 
-## Device-Local Actions
+## Local Actions On Computers
 
 Examples of what devices can expose:
 
@@ -62,7 +64,7 @@ Examples of what devices can expose:
 The important product rule is simple:
 
 - AI may decide **what** to do
-- the paired device decides **where** it can happen
+- the paired computer decides **where** it can happen
 - the permission model decides **whether** it is allowed
 
 ## Platform Roles
@@ -79,7 +81,7 @@ Useful when a workflow should run on another computer while the main Alisio work
 
 Use these words consistently in product-facing docs:
 
-- **Devices** for UX and product copy
+- **Computers** for UX and product copy
 - **node** only when explaining protocol details or low-level commands
 
 ## Related Pages

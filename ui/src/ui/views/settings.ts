@@ -6,11 +6,12 @@ import {
   normalizeAlisioPlan,
 } from "../../../../src/shared/alisio-billing.js";
 import { i18n, t } from "../../i18n/index.ts";
+import { hasAlisioHostBridge } from "../alisio-host.ts";
 import { alisioSetupStepLabel } from "../alisio-setup-step-label.ts";
 import { icons } from "../icons.ts";
 import {
-  PUBLIC_SETTINGS_SECTIONS,
   publicSettingsSectionFor,
+  visibleSettingsSections,
   type PublicSettingsSection,
   type SettingsSection,
 } from "../navigation.ts";
@@ -44,7 +45,7 @@ import {
 const SETTINGS_SECTION_ICONS = {
   general: icons.sun,
   account: icons.user,
-  mac: icons.terminal,
+  host: icons.terminal,
   support: icons.messageSquare,
 } as const;
 
@@ -54,8 +55,8 @@ function settingsSectionLabel(section: PublicSettingsSection) {
       return t("alisio.settings.sections.general");
     case "account":
       return t("alisio.settings.sections.account");
-    case "mac":
-      return t("alisio.settings.sections.mac");
+    case "host":
+      return t("alisio.settings.sections.host");
     case "support":
       return t("alisio.settings.sections.support");
   }
@@ -258,7 +259,7 @@ function renderSettingsCardSkeleton(params: {
   `;
 }
 
-function renderMacSection(props: {
+function renderHostSection(props: {
   nativeShellLoading: boolean;
   nativeShellError: string | null;
   nativeShellState: NativeShellState | null;
@@ -270,34 +271,34 @@ function renderMacSection(props: {
   onRevealLogs: () => void;
 }) {
   const text = {
-    loading: t("alisio.settings.mac.loading"),
-    title: t("alisio.settings.mac.title"),
-    subtitle: t("alisio.settings.mac.subtitle"),
-    unavailable: t("alisio.settings.mac.unavailable"),
+    loading: t("alisio.settings.host.loading"),
+    title: t("alisio.settings.host.title"),
+    subtitle: t("alisio.settings.host.subtitle"),
+    unavailable: t("alisio.settings.host.unavailable"),
     unavailableValue: t("alisio.settings.common.unavailable"),
-    bridge: t("alisio.settings.mac.bridge"),
-    launchAtLogin: t("alisio.settings.mac.launchAtLogin"),
-    launchEnable: t("alisio.settings.mac.launchEnable"),
-    launchDisable: t("alisio.settings.mac.launchDisable"),
-    enabled: t("alisio.settings.mac.enabled"),
-    disabled: t("alisio.settings.mac.disabled"),
-    voiceWake: t("alisio.settings.mac.voiceWake"),
-    listening: t("alisio.settings.mac.listening"),
-    off: t("alisio.settings.mac.off"),
-    talkMode: (enabled: string) => t("alisio.settings.mac.talkMode", { enabled }),
-    notSupported: t("alisio.settings.mac.notSupported"),
-    disableWake: t("alisio.settings.mac.disableWake"),
-    enableWake: t("alisio.settings.mac.enableWake"),
-    disableTalk: t("alisio.settings.mac.disableTalk"),
-    enableTalk: t("alisio.settings.mac.enableTalk"),
-    logs: t("alisio.settings.mac.logs"),
-    revealLogs: t("alisio.settings.mac.revealLogs"),
-    openNativeSettings: t("alisio.settings.mac.openNativeSettings"),
-    permissions: t("alisio.settings.mac.permissionsTitle"),
-    granted: t("alisio.settings.mac.granted"),
-    needsApproval: t("alisio.settings.mac.needsApproval"),
-    request: t("alisio.settings.mac.request"),
-    refresh: t("alisio.settings.mac.refresh"),
+    bridge: t("alisio.settings.host.bridge"),
+    launchAtLogin: t("alisio.settings.host.launchAtLogin"),
+    launchEnable: t("alisio.settings.host.launchEnable"),
+    launchDisable: t("alisio.settings.host.launchDisable"),
+    enabled: t("alisio.settings.host.enabled"),
+    disabled: t("alisio.settings.host.disabled"),
+    voiceWake: t("alisio.settings.host.voiceWake"),
+    listening: t("alisio.settings.host.listening"),
+    off: t("alisio.settings.host.off"),
+    talkMode: (enabled: string) => t("alisio.settings.host.talkMode", { enabled }),
+    notSupported: t("alisio.settings.host.notSupported"),
+    disableWake: t("alisio.settings.host.disableWake"),
+    enableWake: t("alisio.settings.host.enableWake"),
+    disableTalk: t("alisio.settings.host.disableTalk"),
+    enableTalk: t("alisio.settings.host.enableTalk"),
+    logs: t("alisio.settings.host.logs"),
+    revealLogs: t("alisio.settings.host.revealLogs"),
+    openNativeSettings: t("alisio.settings.host.openNativeSettings"),
+    permissions: t("alisio.settings.host.permissionsTitle"),
+    granted: t("alisio.settings.host.granted"),
+    needsApproval: t("alisio.settings.host.needsApproval"),
+    request: t("alisio.settings.host.request"),
+    refresh: t("alisio.settings.host.refresh"),
   };
   if (props.nativeShellLoading && !props.nativeShellState && !props.nativeShellError) {
     return html`
@@ -1006,10 +1007,20 @@ export function renderSettingsHub(props: {
   nativeRebuildError: string | null;
   onRebuildNativeApp: () => void;
 }) {
-  const activeSection = publicSettingsSectionFor(props.section);
+  const hostShellAvailable = Boolean(
+    hasAlisioHostBridge() ||
+    props.nativeShellState ||
+    props.nativeShellLoading ||
+    props.nativeShellError,
+  );
+  const publishedSections = visibleSettingsSections({ hostShellAvailable });
+  const activeSectionCandidate = publicSettingsSectionFor(props.section);
+  const activeSection = publishedSections.includes(activeSectionCandidate)
+    ? activeSectionCandidate
+    : "general";
   const billingFocused = props.section === "billing";
   const showDoctor =
-    activeSection === "mac" ||
+    activeSection === "host" ||
     props.doctorError != null ||
     (props.doctor != null && !props.doctor.ok);
   const sectionContent = (() => {
@@ -1084,11 +1095,11 @@ export function renderSettingsHub(props: {
                 })}
               `,
         );
-      case "mac":
+      case "host":
         return renderMainSection(
-          settingsSectionLabel("mac"),
+          settingsSectionLabel("host"),
           html`
-            ${renderMacSection({
+            ${renderHostSection({
               nativeShellLoading: props.nativeShellLoading,
               nativeShellError: props.nativeShellError,
               nativeShellState: props.nativeShellState,
@@ -1116,7 +1127,7 @@ export function renderSettingsHub(props: {
       <div class="alisio-settings-frame">
         <aside class="alisio-settings-sidebar">
           <nav class="alisio-settings-links" aria-label=${t("alisio.settings.sections.ariaLabel")}>
-            ${PUBLIC_SETTINGS_SECTIONS.map(
+            ${publishedSections.map(
               (section) => html`
                 <button
                   class="alisio-settings-link ${activeSection === section

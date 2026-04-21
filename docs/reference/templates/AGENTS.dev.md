@@ -33,10 +33,10 @@ git commit -m "Add agent workspace"
 - Don't run destructive commands unless explicitly asked.
 - Be concise in chat; write longer output to files in this workspace.
 
-## Daily memory (recommended)
+## Memory intake (recommended)
 
-- Keep a short daily log at memory/YYYY-MM-DD.md (create memory/ if needed).
-- On session start, read today + yesterday if present.
+- Use `memory/backlog/YYYY-MM-DD/<slug>.md` for pending captures that should be promoted later.
+- Use `memory/<topic>.md` for durable topic notes when the destination is already clear.
 - Capture durable facts, preferences, and decisions; avoid secrets.
 
 ## Heartbeats (optional)

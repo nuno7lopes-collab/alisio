@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -58,6 +59,32 @@ describe("agents helpers", () => {
     expect(work?.agentDir).toBe(path.resolve("/state/agents/work/agent"));
     expect(work?.bindings).toBe(1);
     expect(work?.isDefault).toBe(true);
+  });
+
+  it("buildAgentSummaries prefers IDENTITY.md over config identity", async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-agent-summary-"));
+    await fs.writeFile(
+      path.join(workspace, "IDENTITY.md"),
+      ["- Name: Atlas", "- Emoji: 🧠"].join("\n"),
+      "utf8",
+    );
+    const cfg: AlisioConfig = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            workspace,
+            identity: { name: "Config Bot", emoji: "🤖" },
+          },
+        ],
+      },
+    };
+
+    const [main] = buildAgentSummaries(cfg);
+
+    expect(main?.identityName).toBe("Atlas");
+    expect(main?.identityEmoji).toBe("🧠");
+    expect(main?.identitySource).toBe("identity");
   });
 
   it("applyAgentConfig merges updates", () => {

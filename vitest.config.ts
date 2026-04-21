@@ -97,6 +97,7 @@ export default defineConfig({
       "ui/src/ui/app-chat.test.ts",
       "ui/src/ui/app-polling.test.ts",
       "ui/src/ui/app-settings.test.ts",
+      "ui/src/ui/alisio-host.test.ts",
       "ui/src/ui/chat-model-select-state.test.ts",
       "ui/src/i18n/**/*.test.ts",
       "ui/src/ui/alisio-account-auth.node.test.ts",

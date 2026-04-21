@@ -202,7 +202,7 @@ describe("FS tools with workspaceOnly=false", () => {
   });
 
   it("restricts memory-triggered writes to append-only canonical memory files", async () => {
-    const allowedRelativePath = "memory/2026-03-07.md";
+    const allowedRelativePath = "memory/backlog/2026-03-07/compaction.md";
     const allowedAbsolutePath = path.join(workspaceDir, allowedRelativePath);
     await fs.mkdir(path.dirname(allowedAbsolutePath), { recursive: true });
     await fs.writeFile(allowedAbsolutePath, "seed");
@@ -231,7 +231,9 @@ describe("FS tools with workspaceOnly=false", () => {
         path: outsideFile,
         content: "should not write here",
       }),
-    ).rejects.toThrow(/Memory flush writes are restricted to memory\/2026-03-07\.md/);
+    ).rejects.toThrow(
+      /Memory flush writes are restricted to memory\/backlog\/2026-03-07\/compaction\.md/,
+    );
 
     const result = await writeTool!.execute("test-call-memory-append", {
       path: allowedRelativePath,
@@ -240,7 +242,7 @@ describe("FS tools with workspaceOnly=false", () => {
     expect(hasToolError(result)).toBe(false);
     expect(result.content).toContainEqual({
       type: "text",
-      text: "Appended content to memory/2026-03-07.md.",
+      text: "Appended content to memory/backlog/2026-03-07/compaction.md.",
     });
     await expect(fs.readFile(allowedAbsolutePath, "utf-8")).resolves.toBe("seed\nnew note");
   });

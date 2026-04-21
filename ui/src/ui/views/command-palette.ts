@@ -3,6 +3,7 @@ import { ref } from "lit/directives/ref.js";
 import { t } from "../../i18n/index.ts";
 import { SLASH_COMMANDS } from "../chat/slash-commands.ts";
 import { icons, type IconName } from "../icons.ts";
+import { COMMAND_PALETTE_TABS, iconForTab, titleForTab } from "../navigation.ts";
 
 type PaletteItem = {
   id: string;
@@ -22,72 +23,15 @@ const SLASH_PALETTE_ITEMS: PaletteItem[] = SLASH_COMMANDS.map((command) => ({
   description: command.description,
 }));
 
-const PALETTE_ITEMS: PaletteItem[] = [
-  ...SLASH_PALETTE_ITEMS,
-  {
-    id: "nav-chat",
-    label: "Chat",
-    icon: "messageSquare",
-    category: "navigation",
-    action: "nav:chat",
-  },
-  {
-    id: "nav-channels",
-    label: "Channels",
-    icon: "radio",
-    category: "navigation",
-    action: "nav:channels",
-  },
-  {
-    id: "nav-connections",
-    label: "Connections",
-    icon: "monitor",
-    category: "navigation",
-    action: "nav:connections",
-  },
-  {
-    id: "nav-memory",
-    label: "Memory",
-    icon: "book",
-    category: "navigation",
-    action: "nav:memory",
-  },
-  {
-    id: "nav-tasks",
-    label: "Tasks",
-    icon: "scrollText",
-    category: "navigation",
-    action: "nav:tasks",
-  },
-  {
-    id: "nav-authentications",
-    label: "Apps",
-    icon: "link",
-    category: "navigation",
-    action: "nav:authentications",
-  },
-  {
-    id: "nav-capabilities",
-    label: "Capabilities",
-    icon: "spark",
-    category: "navigation",
-    action: "nav:capabilities",
-  },
-  {
-    id: "nav-organization",
-    label: "Organization",
-    icon: "barChart",
-    category: "navigation",
-    action: "nav:organization",
-  },
-  {
-    id: "nav-settings",
-    label: "Settings",
-    icon: "settings",
-    category: "navigation",
-    action: "nav:settings",
-  },
-];
+const NAVIGATION_PALETTE_ITEMS: PaletteItem[] = COMMAND_PALETTE_TABS.map((tab) => ({
+  id: `nav-${tab}`,
+  label: titleForTab(tab),
+  icon: iconForTab(tab),
+  category: "navigation",
+  action: `nav:${tab}`,
+}));
+
+const PALETTE_ITEMS: PaletteItem[] = [...SLASH_PALETTE_ITEMS, ...NAVIGATION_PALETTE_ITEMS];
 
 export function getPaletteItems(): readonly PaletteItem[] {
   return PALETTE_ITEMS;

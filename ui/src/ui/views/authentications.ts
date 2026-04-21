@@ -30,6 +30,7 @@ import {
 } from "./loading-skeleton.ts";
 
 type ConnectorDialogMode = "details" | "install";
+type ConnectorDisplayStatus = AlisioProviderOverviewItem["status"] | "setup_required";
 
 type ConnectorEntry = {
   row: ConnectorRow;
@@ -39,7 +40,7 @@ type ConnectorEntry = {
   isLinked: boolean;
   summary: string;
   detail: string;
-  connectedAs: string | null;
+  connectedAccountLines: string[] | null;
   providerLabel: string;
   chips: string[];
   docsUrl: string | null;
@@ -64,18 +65,44 @@ function uniqueTrimmedValues(values: Array<string | null | undefined>): string[]
   return result;
 }
 
-function buildConnectedAccountLabel(
+function hasNormalizedValue(values: string[], candidate: string): boolean {
+  const normalizedCandidate = candidate.trim().toLowerCase();
+  return values.some((value) => value.toLowerCase() === normalizedCandidate);
+}
+
+function isOpaqueConnectedAccountHandle(value: string): boolean {
+  const normalized = value.trim();
+  if (!normalized) {
+    return false;
+  }
+  if (/^\d{10,}$/.test(normalized)) {
+    return true;
+  }
+  if (/^[0-9a-f]{24,}$/i.test(normalized)) {
+    return true;
+  }
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    normalized,
+  );
+}
+
+function buildConnectedAccountLines(
   authorization: AlisioConnectorAuthorization,
   item: AlisioProviderOverviewItem | undefined,
-): string | null {
-  const values = uniqueTrimmedValues([
+): string[] | null {
+  const emails = uniqueTrimmedValues([authorization.connectedAccount?.email, item?.accountEmail]);
+  const labels = uniqueTrimmedValues([
     authorization.connectedAccount?.label,
-    authorization.connectedAccount?.email,
-    authorization.connectedAccount?.handle,
     item?.accountLabel,
-    item?.accountEmail,
-  ]);
-  return values.length > 0 ? values.join(" · ") : null;
+  ]).filter((label) => !hasNormalizedValue(emails, label));
+  const handles = uniqueTrimmedValues([authorization.connectedAccount?.handle]).filter(
+    (handle) =>
+      !isOpaqueConnectedAccountHandle(handle) &&
+      !hasNormalizedValue(emails, handle) &&
+      !hasNormalizedValue(labels, handle),
+  );
+  const values = uniqueTrimmedValues([...emails, ...labels, ...handles]);
+  return values.length > 0 ? values : null;
 }
 
 function buildConnectorChips(
@@ -107,9 +134,7 @@ function matchesConnectorSearch(
     item?.detail ?? row.definition.detail ?? "",
     row.definition.providerLabel,
     row.definition.category,
-    row.authorization.connectedAccount?.label ?? "",
-    row.authorization.connectedAccount?.email ?? "",
-    row.authorization.connectedAccount?.handle ?? "",
+    ...(buildConnectedAccountLines(row.authorization, item) ?? []),
     ...row.definition.scopes,
   ]
     .join(" ")
@@ -147,6 +172,29 @@ function statusLabel(status: AlisioProviderOverviewItem["status"]) {
     default:
       return t("alisio.authentications.overviewStatuses.ready");
   }
+}
+
+function connectorDisplayStatus(
+  entry: Pick<ConnectorEntry, "isLinked" | "overviewStatus" | "row">,
+): ConnectorDisplayStatus {
+  if (!entry.isLinked && entry.row.status === "setup_required") {
+    return "setup_required";
+  }
+  return entry.overviewStatus;
+}
+
+function connectorDisplayStatusClass(status: ConnectorDisplayStatus) {
+  if (status === "setup_required") {
+    return "pill--ready";
+  }
+  return statusClass(status);
+}
+
+function connectorDisplayStatusLabel(status: ConnectorDisplayStatus) {
+  if (status === "setup_required") {
+    return t("alisio.authentications.statuses.setup_required");
+  }
+  return statusLabel(status);
 }
 
 function mapConnectorSurfaceStatusToOverviewStatus(
@@ -204,12 +252,11 @@ function resolveConnectorEntryState(
   row: ConnectorRow,
   _item: AlisioProviderOverviewItem | undefined,
 ): Pick<ConnectorEntry, "overviewStatus" | "actionStatus" | "isLinked"> {
-  const overviewStatus = mapConnectorSurfaceStatusToOverviewStatus(
-    resolveAlisioConnectorSurfaceUiStatus({
-      definition: row.definition,
-      authorization: row.authorization,
-    }),
-  );
+  const surfaceStatus = resolveAlisioConnectorSurfaceUiStatus({
+    definition: row.definition,
+    authorization: row.authorization,
+  });
+  const overviewStatus = mapConnectorSurfaceStatusToOverviewStatus(surfaceStatus);
   return {
     overviewStatus,
     actionStatus:
@@ -217,8 +264,8 @@ function resolveConnectorEntryState(
         ? "connected"
         : row.status === "needs_reconnect"
           ? "needs_reconnect"
-          : row.status === "setup_required"
-            ? "unavailable"
+          : surfaceStatus === "setup_required"
+            ? "ready"
             : overviewStatus === "coming_soon"
               ? "in_review"
               : overviewStatus === "unavailable"
@@ -252,6 +299,9 @@ function entrySortKey(entry: ConnectorEntry) {
             ? 3
             : 1;
     }
+  }
+  if (entry.row.status === "setup_required") {
+    return 1;
   }
   switch (entry.overviewStatus) {
     case "ready":
@@ -303,7 +353,7 @@ function buildConnectorEntries(params: {
       const item = appOverviewByConnectorId.get(row.definition.id);
       const state = resolveConnectorEntryState(row, item);
       const providerLabel = item?.providerLabel?.trim() || row.definition.providerLabel;
-      const connectedAs = buildConnectedAccountLabel(row.authorization, item);
+      const connectedAccountLines = buildConnectedAccountLines(row.authorization, item);
       return {
         row,
         item,
@@ -312,7 +362,7 @@ function buildConnectorEntries(params: {
         isLinked: state.isLinked,
         summary: item?.subtitle?.trim() || row.definition.summary,
         detail: resolveConnectorDetail(row, item, state.overviewStatus),
-        connectedAs,
+        connectedAccountLines,
         providerLabel,
         chips: buildConnectorChips(row, item, providerLabel),
         docsUrl: safeDocsUrl(item?.docsPath ?? row.definition.setupUrl),
@@ -377,12 +427,13 @@ function renderSectionEmpty(message: string) {
 }
 
 function renderRowStatus(entry: ConnectorEntry) {
+  const displayStatus = connectorDisplayStatus(entry);
   const showBadge =
-    (entry.isLinked && entry.overviewStatus !== "connected") ||
-    (!entry.isLinked && entry.overviewStatus !== "ready");
+    (entry.isLinked && displayStatus !== "connected") ||
+    (!entry.isLinked && displayStatus !== "ready");
   return showBadge
-    ? html`<span class="pill ${statusClass(entry.overviewStatus)}"
-        >${statusLabel(entry.overviewStatus)}</span
+    ? html`<span class="pill ${connectorDisplayStatusClass(displayStatus)}"
+        >${connectorDisplayStatusLabel(displayStatus)}</span
       >`
     : nothing;
 }
@@ -397,10 +448,11 @@ function renderRowAction(
   },
 ) {
   if (entry.isLinked) {
+    const displayStatus = connectorDisplayStatus(entry);
     const indicatorClass =
-      entry.overviewStatus === "connected"
+      displayStatus === "connected"
         ? "is-connected"
-        : entry.overviewStatus === "attention"
+        : displayStatus === "attention"
           ? "is-warning"
           : "is-muted";
     return html`
@@ -409,7 +461,7 @@ function renderRowAction(
         <span
           class="alisio-app-row__indicator ${indicatorClass}"
           aria-hidden="true"
-          title=${statusLabel(entry.overviewStatus)}
+          title=${connectorDisplayStatusLabel(displayStatus)}
           >${icons.check}</span
         >
       </div>
@@ -531,12 +583,95 @@ function renderLoadingPanels() {
   `;
 }
 
-function renderDialogFact(label: string, value: string | TemplateResult) {
+function renderDialogFact(label: string, value: string | TemplateResult, className?: string) {
   return html`
-    <div class="alisio-auth-dialog__fact">
+    <div class=${className ? `alisio-auth-dialog__fact ${className}` : "alisio-auth-dialog__fact"}>
       <div class="alisio-auth-dialog__fact-label">${label}</div>
       <div class="alisio-auth-dialog__fact-value">${value}</div>
     </div>
+  `;
+}
+
+function renderConnectedAccountFact(lines: string[]) {
+  return renderDialogFact(
+    t("alisio.authentications.labels.account"),
+    html`
+      <div class="alisio-auth-dialog__account-lines">
+        ${lines.map(
+          (line, index) => html`
+            <span
+              class=${index === 0
+                ? "alisio-auth-dialog__account-line alisio-auth-dialog__account-line--primary"
+                : "alisio-auth-dialog__account-line"}
+              >${line}</span
+            >
+          `,
+        )}
+      </div>
+    `,
+    "alisio-auth-dialog__fact--wide",
+  );
+}
+
+function resolveSetupGuideCopy(
+  setupGuide: AlisioConnectorsBeginResult,
+): { title: string; body: string } | null {
+  switch (setupGuide.statusReason) {
+    case "missing_client_config":
+      return {
+        title: t("alisio.authentications.setupGuide.missingConfigTitle"),
+        body: t("alisio.authentications.setupGuide.missingConfigBody"),
+      };
+    case "missing_token_encryption":
+      return {
+        title: t("alisio.authentications.setupGuide.missingTokenEncryptionTitle"),
+        body: t("alisio.authentications.setupGuide.missingTokenEncryptionBody"),
+      };
+    case "review_required":
+      return {
+        title: t("alisio.authentications.setupGuide.reviewTitle"),
+        body: t("alisio.authentications.setupGuide.reviewBody"),
+      };
+    case "unavailable":
+      return {
+        title: t("alisio.authentications.setupGuide.unavailableTitle"),
+        body: t("alisio.authentications.setupGuide.unavailableBody"),
+      };
+    default:
+      return null;
+  }
+}
+
+function renderConnectorSetupGuide(setupGuide: AlisioConnectorsBeginResult | null) {
+  if (!setupGuide || setupGuide.statusReason === "ready_for_setup") {
+    return nothing;
+  }
+  const copy = resolveSetupGuideCopy(setupGuide);
+  if (!copy) {
+    return nothing;
+  }
+  const callbackValue = setupGuide.redirectUri?.trim() || setupGuide.callbackPath?.trim() || "";
+  return html`
+    <div class="callout info">
+      <strong>${copy.title}</strong>
+      <div>${copy.body}</div>
+    </div>
+    <div class="alisio-auth-dialog__facts">
+      ${setupGuide.requiredEnvVars?.length
+        ? renderDialogFact(
+            t("alisio.authentications.setupGuide.envVars"),
+            setupGuide.requiredEnvVars.join(", "),
+          )
+        : nothing}
+      ${callbackValue
+        ? renderDialogFact(t("alisio.authentications.setupGuide.callback"), callbackValue)
+        : nothing}
+    </div>
+    ${callbackValue
+      ? html`<div class="alisio-auth-dialog__lead">
+          ${t("alisio.authentications.setupGuide.callbackHint")}
+        </div>`
+      : nothing}
   `;
 }
 
@@ -654,7 +789,8 @@ function renderManualSetupForm(params: {
         event.preventDefault();
         const form = event.currentTarget as HTMLFormElement;
         const formData = new FormData(form);
-        const apiKey = String(formData.get("apiKey") ?? "").trim();
+        const apiKeyValue = formData.get("apiKey");
+        const apiKey = typeof apiKeyValue === "string" ? apiKeyValue.trim() : "";
         params.onCompleteManualConnector(params.entry.row.definition.id, apiKey);
       }}
     >
@@ -712,6 +848,7 @@ function renderConnectorDialog(params: {
     params.mode === "install" &&
     params.setupGuide?.connectorId === params.entry.row.definition.id &&
     params.setupGuide.statusReason === "ready_for_setup";
+  const displayStatus = connectorDisplayStatus(params.entry);
   return html`
     <div
       class="exec-approval-overlay alisio-auth-dialog__overlay"
@@ -751,6 +888,11 @@ function renderConnectorDialog(params: {
           !manualSetupActive
             ? html`<div class="callout info">${params.setupGuide.setupHint}</div>`
             : nothing}
+          ${renderConnectorSetupGuide(
+            params.setupGuide?.connectorId === params.entry.row.definition.id
+              ? params.setupGuide
+              : null,
+          )}
           ${renderManualSetupForm({
             entry: params.entry,
             setupGuide: params.setupGuide ?? {
@@ -767,19 +909,16 @@ function renderConnectorDialog(params: {
           <div class="alisio-auth-dialog__facts">
             ${renderDialogFact(
               t("alisio.authentications.labels.status"),
-              html`<span class="pill ${statusClass(params.entry.overviewStatus)}"
-                >${statusLabel(params.entry.overviewStatus)}</span
+              html`<span class="pill ${connectorDisplayStatusClass(displayStatus)}"
+                >${connectorDisplayStatusLabel(displayStatus)}</span
               >`,
             )}
             ${renderDialogFact(
               t("alisio.authentications.labels.provider"),
               params.entry.providerLabel,
             )}
-            ${params.entry.connectedAs
-              ? renderDialogFact(
-                  t("alisio.authentications.labels.account"),
-                  params.entry.connectedAs,
-                )
+            ${params.entry.connectedAccountLines
+              ? renderConnectedAccountFact(params.entry.connectedAccountLines)
               : nothing}
           </div>
 

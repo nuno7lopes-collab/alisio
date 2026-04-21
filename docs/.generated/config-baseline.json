@@ -1097,7 +1097,7 @@
         "advanced"
       ],
       "label": "Post-Compaction Context Sections",
-      "help": "AGENTS.md H2/H3 section names re-injected after compaction so the agent reruns critical startup guidance. Leave unset to use \"Session Startup\"/\"Red Lines\" with legacy fallback to \"Every Session\"/\"Safety\"; set to [] to disable reinjection entirely.",
+      "help": "AGENTS.md H2/H3 section names re-injected after compaction so the agent reruns critical startup guidance. Leave unset to use \"Session Startup\"/\"Red Lines\"; set to [] to disable reinjection entirely.",
       "hasChildren": true
     },
     {
@@ -2022,32 +2022,6 @@
       "hasChildren": false
     },
     {
-      "path": "agents.defaults.memorySearch.experimental",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": true
-    },
-    {
-      "path": "agents.defaults.memorySearch.experimental.sessionMemory",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced",
-        "security",
-        "storage"
-      ],
-      "label": "Memory Search Session Index (Experimental)",
-      "help": "Indexes session transcripts into memory search so responses can reference prior chat turns. Keep this off unless transcript recall is needed, because indexing cost and storage usage both increase.",
-      "hasChildren": false
-    },
-    {
       "path": "agents.defaults.memorySearch.extraPaths",
       "kind": "core",
       "type": "array",
@@ -2596,7 +2570,7 @@
         "advanced"
       ],
       "label": "Memory Search Sources",
-      "help": "Chooses which sources are indexed: \"memory\" reads MEMORY.md + memory files, and \"sessions\" includes transcript history. Keep [\"memory\"] unless you need recall from prior chat transcripts.",
+      "help": "Use this to choose which sources are indexed: \"memory\" reads MEMORY.md + memory files, and \"sessions\" includes transcript history. Keep [\"memory\"] unless you need recall from prior chat transcripts; transcript recall remains query-driven instead of being injected into every new turn.",
       "hasChildren": true
     },
     {
@@ -3164,16 +3138,6 @@
       "hasChildren": false
     },
     {
-      "path": "agents.defaults.sandbox.browser.enableNoVnc",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
       "path": "agents.defaults.sandbox.browser.headless",
       "kind": "core",
       "type": "boolean",
@@ -3205,26 +3169,6 @@
       ],
       "label": "Sandbox Browser Network",
       "help": "Docker network for sandbox browser containers (default: alisio-sandbox-browser). Avoid bridge if you need stricter isolation.",
-      "hasChildren": false
-    },
-    {
-      "path": "agents.defaults.sandbox.browser.noVncPort",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "agents.defaults.sandbox.browser.vncPort",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
       "hasChildren": false
     },
     {
@@ -4584,26 +4528,6 @@
       "hasChildren": false
     },
     {
-      "path": "agents.list.*.memorySearch.experimental",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": true
-    },
-    {
-      "path": "agents.list.*.memorySearch.experimental.sessionMemory",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
       "path": "agents.list.*.memorySearch.extraPaths",
       "kind": "core",
       "type": "array",
@@ -5780,16 +5704,6 @@
       "hasChildren": false
     },
     {
-      "path": "agents.list.*.sandbox.browser.enableNoVnc",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
       "path": "agents.list.*.sandbox.browser.headless",
       "kind": "core",
       "type": "boolean",
@@ -5821,26 +5735,6 @@
       ],
       "label": "Agent Sandbox Browser Network",
       "help": "Per-agent override for sandbox browser Docker network.",
-      "hasChildren": false
-    },
-    {
-      "path": "agents.list.*.sandbox.browser.noVncPort",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
-      "hasChildren": false
-    },
-    {
-      "path": "agents.list.*.sandbox.browser.vncPort",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [],
       "hasChildren": false
     },
     {
@@ -41025,79 +40919,6 @@
       "hasChildren": false
     },
     {
-      "path": "gateway.push",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "network"
-      ],
-      "label": "Gateway Push Delivery",
-      "help": "Push-delivery settings used by the gateway when it needs to wake or notify paired devices. Configure relay-backed APNs here for official iOS builds; direct APNs auth remains env-based for local/manual builds.",
-      "hasChildren": true
-    },
-    {
-      "path": "gateway.push.apns",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "network"
-      ],
-      "label": "Gateway APNs Delivery",
-      "help": "APNs delivery settings for iOS devices paired to this gateway. Use relay settings for official/TestFlight builds that register through the external push relay.",
-      "hasChildren": true
-    },
-    {
-      "path": "gateway.push.apns.relay",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "network"
-      ],
-      "label": "Gateway APNs Relay",
-      "help": "External relay settings for relay-backed APNs sends. The gateway uses this relay for push.test, wake nudges, and reconnect wakes after a paired official iOS build publishes a relay-backed registration.",
-      "hasChildren": true
-    },
-    {
-      "path": "gateway.push.apns.relay.baseUrl",
-      "kind": "core",
-      "type": "string",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "advanced",
-        "network",
-        "url-secret"
-      ],
-      "label": "Gateway APNs Relay Base URL",
-      "help": "Base HTTPS URL for the external APNs relay service used by official/TestFlight iOS builds. Keep this aligned with the relay URL baked into the iOS build so registration and send traffic hit the same deployment.",
-      "hasChildren": false
-    },
-    {
-      "path": "gateway.push.apns.relay.timeoutMs",
-      "kind": "core",
-      "type": "integer",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "network",
-        "performance"
-      ],
-      "label": "Gateway APNs Relay Timeout (ms)",
-      "help": "Timeout in milliseconds for relay send requests from the gateway to the APNs relay (default: 10000). Increase for slower relays or networks, or lower to fail wake attempts faster.",
-      "hasChildren": false
-    },
-    {
       "path": "gateway.reload",
       "kind": "core",
       "type": "object",
@@ -60761,7 +60582,7 @@
         "performance"
       ],
       "label": "Talk Silence Timeout (ms)",
-      "help": "Milliseconds of user silence before Talk mode finalizes and sends the current transcript. Leave unset to keep the platform default pause window (700 ms on macOS, 900 ms on iOS).",
+      "help": "Milliseconds of user silence before Talk mode finalizes and sends the current transcript. Leave unset to keep the platform default pause window (700 ms on macOS).",
       "hasChildren": false
     },
     {

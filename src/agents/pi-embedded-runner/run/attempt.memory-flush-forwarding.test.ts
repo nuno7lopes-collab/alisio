@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { AnyAgentTool } from "../../pi-tools.types.js";
 import { resetEmbeddedAttemptHarness } from "./attempt.spawn-workspace.test-support.js";
 
-const MEMORY_RELATIVE_PATH = "memory/2026-03-24.md";
-const MEMORY_SEED = "# 2026-03-24\n";
+const MEMORY_RELATIVE_PATH = "memory/backlog/2026-03-24/compaction.md";
+const MEMORY_SEED = "# Compaction backlog\n";
 
 function createAttemptParams(workspaceDir: string) {
   return {

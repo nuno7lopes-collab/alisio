@@ -1,15 +1,17 @@
-import { GatewayRequestError } from "../gateway.ts";
-import type { GatewayBrowserClient } from "../gateway.ts";
 import {
   resolveComputerCapabilityMatrix,
   resolveComputerTarget,
 } from "../../../../src/computer/runtime-profile.js";
+import { GatewayRequestError } from "../gateway.ts";
+import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
   ComputerActionType,
   ComputerApprovalMode,
   ComputerApprovalRequest,
   ComputerCapabilityDescriptor,
   ComputerCapabilityKind,
+  ComputerCapabilityReasonCode,
+  ComputerCoordinateSpace,
   ComputerFrame,
   ComputerObservationContext,
   ComputerPolicyDecision,
@@ -68,16 +70,35 @@ function readBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
+function readPermissionAccessState(value: unknown): ComputerPermissionState["observation"] | null {
+  switch (value) {
+    case "unknown":
+    case "granted":
+    case "missing":
+    case "restart_required":
+    case "not_supported":
+      return value;
+    default:
+      return null;
+  }
+}
+
 function readSessionStatus(value: unknown): ComputerSessionStatus | null {
   switch (value) {
     case "idle":
     case "observing":
     case "running":
     case "paused":
-    case "awaiting-approval":
+    case "blocked_on_focus":
+    case "blocked_on_approval":
+    case "blocked_on_runtime":
+    case "blocked_on_permissions":
+    case "blocked_on_restart_required":
     case "error":
     case "stopped":
       return value;
+    case "awaiting-approval":
+      return "blocked_on_approval";
     default:
       return null;
   }
@@ -204,15 +225,35 @@ function readCapabilityKind(value: unknown): ComputerCapabilityKind | null {
   }
 }
 
+function readCapabilityReasonCode(value: unknown): ComputerCapabilityReasonCode | null {
+  switch (value) {
+    case "local_mac_observe_supported":
+    case "local_mac_foreground_control_supported":
+    case "local_mac_background_safe_control_unavailable":
+    case "local_mac_virtualized_control_unavailable":
+    case "web_runtime_unavailable":
+    case "windows_local_runtime_unavailable":
+    case "remote_node_runtime_unavailable":
+    case "ssh_mac_runtime_unavailable":
+      return value;
+    default:
+      return null;
+  }
+}
+
 function readTimelineEventCode(value: unknown): ComputerTimelineEventCode | null {
   switch (value) {
     case "session_arbitrated":
     case "session_blocked":
     case "focus_required":
+    case "blocked_on_permissions":
+    case "blocked_on_restart_required":
+    case "runtime_unavailable":
     case "runtime_busy":
     case "concurrency_denied":
-    case "mode_exposed":
-    case "mode_hidden":
+    case "capability_exposed":
+    case "capability_hidden":
+    case "lazy_open_requested":
       return value;
     default:
       return null;
@@ -236,6 +277,9 @@ function readSessionLogEventCode(value: unknown) {
     case "session_blocked":
     case "session_arbitrated":
     case "focus_required":
+    case "capability_exposed":
+    case "capability_hidden":
+    case "lazy_open_requested":
       return value;
     default:
       return null;
@@ -250,10 +294,25 @@ function readSessionTarget(value: unknown): ComputerSessionTarget | null {
   const label = readString(value.label);
   const kind =
     value.kind === "local-mac-host" ||
+    value.kind === "web-session" ||
+    value.kind === "windows-local-host" ||
     value.kind === "remote-node-target" ||
     value.kind === "ssh-mac-host"
       ? value.kind
       : null;
+  const platform =
+    value.platform === "macos" ||
+    value.platform === "windows" ||
+    value.platform === "web" ||
+    value.platform === "unknown"
+      ? value.platform
+      : kind === "local-mac-host" || kind === "ssh-mac-host"
+        ? "macos"
+        : kind === "windows-local-host"
+          ? "windows"
+          : kind === "web-session"
+            ? "web"
+            : "unknown";
   const globalInput = readBoolean(value.globalInput);
   const allowsConcurrentObserve = readBoolean(value.allowsConcurrentObserve);
   if (!id || !label || !kind || globalInput === null || allowsConcurrentObserve === null) {
@@ -263,6 +322,7 @@ function readSessionTarget(value: unknown): ComputerSessionTarget | null {
     id,
     label,
     kind,
+    platform,
     ...(readString(value.nodeId) ? { nodeId: readString(value.nodeId)! } : {}),
     ...(readString(value.displayId) ? { displayId: readString(value.displayId)! } : {}),
     globalInput,
@@ -276,15 +336,18 @@ function readCapabilityDescriptor(value: unknown): ComputerCapabilityDescriptor 
   }
   const kind = readCapabilityKind(value.kind);
   const available = readBoolean(value.available);
-  const exposure = value.exposure === "exposed" || value.exposure === "hidden" ? value.exposure : null;
+  const exposure =
+    value.exposure === "exposed" || value.exposure === "hidden" ? value.exposure : null;
+  const reasonCode = readCapabilityReasonCode(value.reasonCode);
   const reason = readString(value.reason);
-  if (!kind || available === null || !exposure || !reason) {
+  if (!kind || available === null || !exposure || !reasonCode || !reason) {
     return null;
   }
   return {
     kind,
     available,
     exposure,
+    reasonCode,
     reason,
   };
 }
@@ -296,14 +359,21 @@ function readBlockingState(value: unknown): ComputerSessionBlockingState | null 
   const kind =
     value.kind === "blocked_on_focus" ||
     value.kind === "blocked_on_approval" ||
-    value.kind === "blocked_on_runtime"
+    value.kind === "blocked_on_runtime" ||
+    value.kind === "blocked_on_permissions" ||
+    value.kind === "blocked_on_restart_required"
       ? value.kind
       : null;
   const reasonCode =
     value.reasonCode === "focus_required" ||
     value.reasonCode === "approval_required" ||
+    value.reasonCode === "runtime_unavailable" ||
     value.reasonCode === "runtime_busy" ||
-    value.reasonCode === "concurrency_denied"
+    value.reasonCode === "concurrency_denied" ||
+    value.reasonCode === "observation_permission_missing" ||
+    value.reasonCode === "control_permission_missing" ||
+    value.reasonCode === "observation_restart_required" ||
+    value.reasonCode === "control_restart_required"
       ? value.reasonCode
       : null;
   const summary = readString(value.summary);
@@ -322,9 +392,7 @@ function readBlockingState(value: unknown): ComputerSessionBlockingState | null 
     ...(readString(value.ownerSessionKey)
       ? { ownerSessionKey: readString(value.ownerSessionKey)! }
       : {}),
-    ...(foregroundControlRequired !== null
-      ? { foregroundControlRequired }
-      : {}),
+    ...(foregroundControlRequired !== null ? { foregroundControlRequired } : {}),
     ...(actionType ? { actionType } : {}),
   };
 }
@@ -367,6 +435,27 @@ function readPolicyReasonCode(value: unknown): ComputerPolicyReasonCode | null {
   }
 }
 
+function readTimelineReasonCode(value: unknown): ComputerTimelineEntry["reasonCode"] | null {
+  if (
+    value === "focus_required" ||
+    value === "approval_required" ||
+    value === "runtime_unavailable" ||
+    value === "runtime_busy" ||
+    value === "concurrency_denied" ||
+    value === "observation_permission_missing" ||
+    value === "control_permission_missing" ||
+    value === "observation_restart_required" ||
+    value === "control_restart_required"
+  ) {
+    return value;
+  }
+  const policyReasonCode = readPolicyReasonCode(value);
+  if (policyReasonCode) {
+    return policyReasonCode;
+  }
+  return readCapabilityReasonCode(value);
+}
+
 function readSafetyEventType(value: unknown): ComputerSafetyEventType | null {
   switch (value) {
     case "malicious_instruction_suspected":
@@ -388,10 +477,20 @@ function readPermissionState(value: unknown): ComputerPermissionState | null {
   }
   const accessibility = readBoolean(value.accessibility);
   const screenRecording = readBoolean(value.screenRecording);
+  const observation = readPermissionAccessState(value.observation);
+  const control = readPermissionAccessState(value.control);
   if (accessibility === null || screenRecording === null) {
     return null;
   }
-  return { accessibility, screenRecording };
+  return {
+    accessibility,
+    screenRecording,
+    observation:
+      observation ??
+      (screenRecording ? "granted" : screenRecording === null ? "unknown" : "missing"),
+    control:
+      control ?? (accessibility ? "granted" : accessibility === null ? "unknown" : "missing"),
+  };
 }
 
 function readRuntimeState(value: unknown) {
@@ -461,9 +560,10 @@ function readFrame(value: unknown): ComputerFrame | null {
   const logicalWidth = readNumber(value.logicalWidth);
   const logicalHeight = readNumber(value.logicalHeight);
   const scaleFactor = readNumber(value.scaleFactor);
-  const orientation = value.orientation === "landscape" || value.orientation === "portrait"
-    ? value.orientation
-    : null;
+  const orientation =
+    value.orientation === "landscape" || value.orientation === "portrait"
+      ? value.orientation
+      : null;
   const sourceSpace =
     value.sourceSpace === "display-pixel" || value.sourceSpace === "rendered-pane"
       ? value.sourceSpace
@@ -698,7 +798,7 @@ function readPolicyState(value: unknown) {
   };
 }
 
-function readSafetyState(value: unknown) {
+function readSafetyState(value: unknown): ComputerSessionState["safety"] | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -759,7 +859,7 @@ function readTimelineEntry(value: unknown): ComputerTimelineEntry | null {
   const elapsedMs = readNumber(value.elapsedMs) ?? undefined;
   const retryCount = readNumber(value.retryCount) ?? undefined;
   const policyDecision = readPolicyDecision(value.policyDecision) ?? undefined;
-  const reasonCode = readPolicyReasonCode(value.reasonCode) ?? undefined;
+  const reasonCode = readTimelineReasonCode(value.reasonCode) ?? undefined;
   const safetyEventType = readSafetyEventType(value.safetyEventType) ?? undefined;
   const heuristic = readBoolean(value.heuristic) ?? undefined;
   const failureCategory =
@@ -802,7 +902,7 @@ function readTimelineEntry(value: unknown): ComputerTimelineEntry | null {
   };
 }
 
-function readReplayFrameMetadata(value: unknown) {
+function readReplayFrameMetadata(value: unknown): ComputerReplayFrame["metadata"] | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -811,15 +911,17 @@ function readReplayFrameMetadata(value: unknown) {
   const captureLatencyMs = readNumber(value.captureLatencyMs);
   const stale = readBoolean(value.stale);
   const stalenessMs = readNumber(value.stalenessMs);
-  const display = readObservationContext({ display: value.display, capturedAt: 0 })?.display ?? null;
+  const display =
+    readObservationContext({ display: value.display, capturedAt: 0 })?.display ?? null;
   const transform =
-    (value.transform &&
+    value.transform &&
     isRecord(value.transform) &&
-    (value.transform.sourceSpace === "display-pixel" || value.transform.sourceSpace === "rendered-pane") &&
+    (value.transform.sourceSpace === "display-pixel" ||
+      value.transform.sourceSpace === "rendered-pane") &&
     readNumber(value.transform.sourceWidth) !== null &&
-    readNumber(value.transform.sourceHeight) !== null)
+    readNumber(value.transform.sourceHeight) !== null
       ? {
-          sourceSpace: value.transform.sourceSpace,
+          sourceSpace: value.transform.sourceSpace as ComputerCoordinateSpace,
           sourceWidth: readNumber(value.transform.sourceWidth)!,
           sourceHeight: readNumber(value.transform.sourceHeight)!,
           ...(readNumber(value.transform.renderedWidth) !== null
@@ -858,9 +960,10 @@ function readReplayFrameMetadata(value: unknown) {
           : {}),
       }
     : null;
-  const activeWindow = isRecord(value.activeWindow) && readString(value.activeWindow.title)
-    ? { title: readString(value.activeWindow.title)! }
-    : null;
+  const activeWindow =
+    isRecord(value.activeWindow) && readString(value.activeWindow.title)
+      ? { title: readString(value.activeWindow.title)! }
+      : null;
   return {
     frameHash,
     sizeBytes,
@@ -888,9 +991,7 @@ function readReplayAction(value: unknown): ComputerReplayAction | null {
       ? value.coordinateSpace
       : undefined;
   const readPoint = (candidate: unknown) =>
-    isRecord(candidate) &&
-    readNumber(candidate.x) !== null &&
-    readNumber(candidate.y) !== null
+    isRecord(candidate) && readNumber(candidate.x) !== null && readNumber(candidate.y) !== null
       ? {
           x: readNumber(candidate.x)!,
           y: readNumber(candidate.y)!,
@@ -926,7 +1027,9 @@ function readReplayFrame(value: unknown): ComputerReplayFrame | null {
   const frameId = readString(value.frameId);
   const capturedAt = readNumber(value.capturedAt);
   const frame = isRecord(value.observation) ? readFrame(value.observation.frame) : null;
-  const context = isRecord(value.observation) ? readObservationContext(value.observation.context) : null;
+  const context = isRecord(value.observation)
+    ? readObservationContext(value.observation.context)
+    : null;
   const metadata = readReplayFrameMetadata(value.metadata);
   if (!frameId || capturedAt === null || !frame || !context) {
     return null;
@@ -1099,12 +1202,8 @@ function readSessionLogEvent(value: unknown): ComputerSessionLogEvent | null {
     ...(readString(value.nativeActionId)
       ? { nativeActionId: readString(value.nativeActionId)! }
       : {}),
-    ...(readString(value.sourceFrameId)
-      ? { sourceFrameId: readString(value.sourceFrameId)! }
-      : {}),
-    ...(readString(value.resultFrameId)
-      ? { resultFrameId: readString(value.resultFrameId)! }
-      : {}),
+    ...(readString(value.sourceFrameId) ? { sourceFrameId: readString(value.sourceFrameId)! } : {}),
+    ...(readString(value.resultFrameId) ? { resultFrameId: readString(value.resultFrameId)! } : {}),
     ...(policyDecision ? { policyDecision } : {}),
     ...(reasonCode ? { reasonCode } : {}),
     ...(safetyEventType ? { safetyEventType } : {}),
@@ -1180,7 +1279,8 @@ function readSessionExportFrame(value: unknown): ComputerSessionExportFrame | nu
   const stalenessMs = readNumber(value.stalenessMs);
   const sizeBytes = readNumber(value.sizeBytes);
   const redacted = readBoolean(value.redacted);
-  const display = readObservationContext({ display: value.display, capturedAt: 0 })?.display ?? null;
+  const display =
+    readObservationContext({ display: value.display, capturedAt: 0 })?.display ?? null;
   if (
     !frameId ||
     !frameHash ||
@@ -1330,7 +1430,10 @@ function readComputerSessionExport(value: unknown): ComputerSessionExport | null
         ? { activeWindow: { title: readString(summaryRecord.activeWindow.title)! } }
         : {}),
       ...(readObservationContext({ display: summaryRecord.display, capturedAt: 0 })?.display
-        ? { display: readObservationContext({ display: summaryRecord.display, capturedAt: 0 })!.display }
+        ? {
+            display: readObservationContext({ display: summaryRecord.display, capturedAt: 0 })!
+              .display,
+          }
         : {}),
       replayPartial: readBoolean(summaryRecord.replayPartial) === true,
       correlationCoverage: isRecord(summaryRecord.correlationCoverage)
@@ -1340,7 +1443,8 @@ function readComputerSessionExport(value: unknown): ComputerSessionExport | null
             hasToolCallId: readBoolean(summaryRecord.correlationCoverage.hasToolCallId) === true,
             hasStepId: readBoolean(summaryRecord.correlationCoverage.hasStepId) === true,
             hasActionId: readBoolean(summaryRecord.correlationCoverage.hasActionId) === true,
-            hasNativeActionId: readBoolean(summaryRecord.correlationCoverage.hasNativeActionId) === true,
+            hasNativeActionId:
+              readBoolean(summaryRecord.correlationCoverage.hasNativeActionId) === true,
           }
         : {
             hasRunId: false,
@@ -1489,9 +1593,7 @@ function readApprovalRequest(value: unknown): ComputerApprovalRequest | null {
       : {}),
     ...(readString(value.toolCallId) ? { toolCallId: readString(value.toolCallId)! } : {}),
     ...(readString(value.runId) !== null ? { runId: readString(value.runId) } : {}),
-    ...(readString(value.responseId) !== null
-      ? { responseId: readString(value.responseId) }
-      : {}),
+    ...(readString(value.responseId) !== null ? { responseId: readString(value.responseId) } : {}),
   };
 }
 
@@ -1534,7 +1636,7 @@ export function readComputerSessionState(value: unknown): ComputerSessionState |
     ? value.eventLog
         .map((entry) => readSessionLogEvent(entry))
         .filter((entry): entry is ComputerSessionLogEvent => Boolean(entry))
-        .sort((left, right) => left.ordinal - right.ordinal || left.at - right.at)
+        .toSorted((left, right) => left.ordinal - right.ordinal || left.at - right.at)
     : [];
   const buffers = readBufferState(value.buffers) ?? {
     eventLimit: 160,
@@ -1582,8 +1684,7 @@ export function readComputerSessionState(value: unknown): ComputerSessionState |
         sessionKey,
         nodeId: readString(value.nodeId),
       }),
-    capabilities:
-      capabilities.length > 0 ? capabilities : resolveComputerCapabilityMatrix(backend),
+    capabilities: capabilities.length > 0 ? capabilities : resolveComputerCapabilityMatrix(backend),
     approvedApps: Array.isArray(value.approvedApps)
       ? value.approvedApps
           .map((entry) => readString(entry))
@@ -1784,9 +1885,12 @@ export async function exportComputerSession(
   }
   host.computerSessionLoading = true;
   try {
-    const response = await host.client.request<{ sessionExport?: unknown }>("computer.session.export", {
-      sessionKey,
-    });
+    const response = await host.client.request<{ sessionExport?: unknown }>(
+      "computer.session.export",
+      {
+        sessionKey,
+      },
+    );
     return readComputerSessionExport(response?.sessionExport);
   } catch (error) {
     host.computerSessionError = error instanceof Error ? error.message : String(error);

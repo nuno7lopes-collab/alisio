@@ -1,10 +1,10 @@
 import path from "node:path";
-import YAML from "yaml";
-import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
 import {
   buildCanonicalMemoryNotePath,
   slugifyMemoryNotePathComponent,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
+import YAML from "yaml";
 import type { CancellationToken } from "../cancellation.js";
 import {
   listPagesAfter,
@@ -15,15 +15,8 @@ import {
   type SleepProjectionSnapshot,
 } from "../canonical.js";
 import type { GaiaSleepWriteFacade } from "../gaia.js";
-import {
-  buildLongTermJobId,
-  createInitialLongTermCursor,
-} from "./long-term.js";
+import { buildPromotionSummary, extractPromotedItems } from "../promotion-text.js";
 import type { SqliteMemoryJobStore } from "../store.js";
-import {
-  buildPromotionSummary,
-  extractPromotedItems,
-} from "../promotion-text.js";
 import type {
   BacklogPromoteCursor,
   MemorySleepJobResult,
@@ -31,6 +24,7 @@ import type {
   SleepClock,
 } from "../types.js";
 import { createEventId, hashText, stableStringify, uniqueStrings } from "../utils.js";
+import { buildLongTermJobId, createInitialLongTermCursor } from "./long-term.js";
 
 const BATCH_LIMIT = 12;
 const CHECKPOINT_EVENT_THRESHOLD = 8;
@@ -49,6 +43,7 @@ type ParsedBacklogNote = {
   items: string[];
   topicSlug: string;
   topicTitle: string;
+  promotionMode: "topic-and-daily" | "daily-only";
 };
 
 type NoteTarget = {
@@ -161,7 +156,7 @@ function resolveTopicSlug(params: {
   const preferredSeed =
     !isGenericTopicSlug(baseSlug) && baseSlug !== "backlog"
       ? baseSlug
-      : params.items[0] ?? params.summary;
+      : (params.items[0] ?? params.summary);
   const slug = slugifyMemoryNotePathComponent(preferredSeed || baseSlug || "topic");
   return slug.slice(0, 80).replace(/-+$/g, "") || "topic";
 }
@@ -173,6 +168,31 @@ function formatTimeLabel(value: Date): string {
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizePromotionMode(value: unknown): ParsedBacklogNote["promotionMode"] | null {
+  const normalized = normalizeString(value).toLowerCase();
+  if (normalized === "topic-and-daily" || normalized === "daily-only") {
+    return normalized;
+  }
+  return null;
+}
+
+function resolvePromotionMode(params: {
+  frontmatter: Record<string, unknown>;
+  relativePath: string;
+}): ParsedBacklogNote["promotionMode"] {
+  const explicit = normalizePromotionMode(params.frontmatter.promotionMode);
+  if (explicit) {
+    return explicit;
+  }
+  const sessionAction = normalizeString(params.frontmatter.sessionAction).toLowerCase();
+  const source = normalizeString(params.frontmatter.source).toLowerCase();
+  const slug = path.posix.basename(params.relativePath, ".md").toLowerCase();
+  if (sessionAction === "compaction" || source === "memory-flush" || slug === "compaction") {
+    return "daily-only";
+  }
+  return "topic-and-daily";
 }
 
 function parseBacklogNote(params: {
@@ -213,6 +233,10 @@ function parseBacklogNote(params: {
     items,
     topicSlug,
     topicTitle: humanizeSlug(topicSlug) || params.page.title || "Topic",
+    promotionMode: resolvePromotionMode({
+      frontmatter: parsed.frontmatter,
+      relativePath: params.projection.relativePath,
+    }),
   };
 }
 
@@ -226,7 +250,11 @@ function entryMarkers(sourcePageId: string): {
   };
 }
 
-function stripManagedSection(markdown: string, start: string, end: string): {
+function stripManagedSection(
+  markdown: string,
+  start: string,
+  end: string,
+): {
   base: string;
   sectionBody: string;
 } {
@@ -239,7 +267,10 @@ function stripManagedSection(markdown: string, start: string, end: string): {
     };
   }
   return {
-    base: markdown.replace(sectionRe, "").replace(/\n{3,}/g, "\n\n").trim(),
+    base: markdown
+      .replace(sectionRe, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
     sectionBody: (match[1] ?? "").trim(),
   };
 }
@@ -397,7 +428,7 @@ function buildPromotionDrafts(params: {
   nowMs: number;
 }): {
   drafts: MemoryStateEventDraft[];
-  topicTarget: NoteTarget;
+  topicTarget?: NoteTarget;
   dailyTarget: NoteTarget;
 } {
   const topicRelativePath = buildCanonicalMemoryNotePath({
@@ -409,24 +440,10 @@ function buildPromotionDrafts(params: {
     role: "daily",
     dateStamp: params.parsed.dateStamp,
   });
-  const topicTarget = resolveNoteTarget({
-    db: params.store.db,
-    relativePath: topicRelativePath,
-    defaultTitle: params.parsed.topicTitle,
-  });
   const dailyTarget = resolveNoteTarget({
     db: params.store.db,
     relativePath: dailyRelativePath,
     defaultTitle: params.parsed.dateStamp,
-  });
-  const topicMarkdown = upsertManagedSection({
-    existingMarkdown: topicTarget.existingProjection?.markdownBody,
-    defaultTitle: topicTarget.title,
-    sectionStart: TOPIC_SECTION_START,
-    sectionEnd: TOPIC_SECTION_END,
-    sectionHeading: "## Promoted backlog",
-    entryId: params.sourcePage.pageId,
-    entryMarkdown: buildTopicEntry(params.parsed),
   });
   const dailyMarkdown = upsertManagedSection({
     existingMarkdown: dailyTarget.existingProjection?.markdownBody,
@@ -436,23 +453,44 @@ function buildPromotionDrafts(params: {
     entryId: params.sourcePage.pageId,
     entryMarkdown: buildDailyEntry(params.parsed),
   });
+  const topicTarget =
+    params.parsed.promotionMode === "topic-and-daily"
+      ? resolveNoteTarget({
+          db: params.store.db,
+          relativePath: topicRelativePath,
+          defaultTitle: params.parsed.topicTitle,
+        })
+      : undefined;
+  const topicMarkdown = topicTarget
+    ? upsertManagedSection({
+        existingMarkdown: topicTarget.existingProjection?.markdownBody,
+        defaultTitle: topicTarget.title,
+        sectionStart: TOPIC_SECTION_START,
+        sectionEnd: TOPIC_SECTION_END,
+        sectionHeading: "## Promoted backlog",
+        entryId: params.sourcePage.pageId,
+        entryMarkdown: buildTopicEntry(params.parsed),
+      })
+    : undefined;
   const drafts = [
-    ...buildPageUpdateDrafts({
-      pageId: topicTarget.pageId,
-      title: topicTarget.title,
-      relativePath: topicTarget.relativePath,
-      projectionKind: topicTarget.projectionKind,
-      existingPage: topicTarget.existingPage,
-      markdownBody: topicMarkdown,
-      tags: uniqueStrings([...(topicTarget.existingPage?.tags ?? []), "topic"]),
-      aliases: uniqueStrings([
-        ...(topicTarget.existingPage?.aliases ?? []),
-        params.parsed.topicTitle,
-        params.parsed.topicSlug,
-      ]),
-      sourcePageId: params.sourcePage.pageId,
-      nowMs: params.nowMs,
-    }),
+    ...(topicTarget && topicMarkdown
+      ? buildPageUpdateDrafts({
+          pageId: topicTarget.pageId,
+          title: topicTarget.title,
+          relativePath: topicTarget.relativePath,
+          projectionKind: topicTarget.projectionKind,
+          existingPage: topicTarget.existingPage,
+          markdownBody: topicMarkdown,
+          tags: uniqueStrings([...(topicTarget.existingPage?.tags ?? []), "topic"]),
+          aliases: uniqueStrings([
+            ...(topicTarget.existingPage?.aliases ?? []),
+            params.parsed.topicTitle,
+            params.parsed.topicSlug,
+          ]),
+          sourcePageId: params.sourcePage.pageId,
+          nowMs: params.nowMs,
+        })
+      : []),
     ...buildPageUpdateDrafts({
       pageId: dailyTarget.pageId,
       title: dailyTarget.title,
@@ -697,11 +735,7 @@ export async function runBacklogPromoteSlice(params: {
           : undefined;
 
       if (!projection || !parsed) {
-        notePayload(
-          cursor,
-          projection?.relativePath.length ?? page.pageId.length,
-          false,
-        );
+        notePayload(cursor, projection?.relativePath.length ?? page.pageId.length, false);
       } else {
         const promoted = buildPromotionDrafts({
           sourcePage: page,
@@ -719,23 +753,25 @@ export async function runBacklogPromoteSlice(params: {
           workspaceScope: params.workspaceScope,
         });
         params.store.transaction(() => {
-          const insertedTopic = params.store.appendAuditEvent({
-            jobId,
-            profileId: params.profileId,
-            kind: "backlog-promote",
-            eventType: "PROMOTED_TO_TOPIC",
-            entityId: page.pageId,
-            targetEntityId: promoted.topicTarget.pageId,
-            dedupeKey: `backlog-topic:${page.pageId}`,
-            payload: {
-              sourcePath: projection.relativePath,
-              targetPath: promoted.topicTarget.relativePath,
-              topicTitle: promoted.topicTarget.title,
-              summary: parsed.summary,
-              itemCount: parsed.items.length,
-              ledgerEventIds: writeResult.events.map((event) => event.eventId),
-            },
-          });
+          const insertedTopic = promoted.topicTarget
+            ? params.store.appendAuditEvent({
+                jobId,
+                profileId: params.profileId,
+                kind: "backlog-promote",
+                eventType: "PROMOTED_TO_TOPIC",
+                entityId: page.pageId,
+                targetEntityId: promoted.topicTarget.pageId,
+                dedupeKey: `backlog-topic:${page.pageId}`,
+                payload: {
+                  sourcePath: projection.relativePath,
+                  targetPath: promoted.topicTarget.relativePath,
+                  topicTitle: promoted.topicTarget.title,
+                  summary: parsed.summary,
+                  itemCount: parsed.items.length,
+                  ledgerEventIds: writeResult.events.map((event) => event.eventId),
+                },
+              })
+            : false;
           const insertedDaily = params.store.appendAuditEvent({
             jobId,
             profileId: params.profileId,
@@ -803,8 +839,9 @@ export async function runBacklogPromoteSlice(params: {
           cursor,
           JSON.stringify({
             pageId: page.pageId,
-            topicPath: promoted.topicTarget.relativePath,
+            ...(promoted.topicTarget ? { topicPath: promoted.topicTarget.relativePath } : {}),
             dailyPath: promoted.dailyTarget.relativePath,
+            promotionMode: parsed.promotionMode,
             summary: parsed.summary,
           }).length,
           true,

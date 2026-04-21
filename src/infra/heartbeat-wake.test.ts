@@ -283,6 +283,33 @@ describe("heartbeat-wake", () => {
     });
   });
 
+  it("coalesces the same session target even when one request omits agentId", async () => {
+    vi.useFakeTimers();
+    const handler = vi.fn().mockResolvedValue({ status: "ran", durationMs: 1 });
+    setHeartbeatWakeHandler(handler);
+
+    requestHeartbeatNow({
+      reason: "exec-event",
+      sessionKey: "agent:main:main",
+      coalesceMs: 100,
+    });
+    requestHeartbeatNow({
+      reason: "exec-event",
+      agentId: "main",
+      sessionKey: "agent:main:main",
+      coalesceMs: 100,
+    });
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith({
+      reason: "exec-event",
+      agentId: "main",
+      sessionKey: "agent:main:main",
+    });
+  });
+
   it("executes distinct targeted wakes queued in the same coalescing window", async () => {
     vi.useFakeTimers();
     const handler = vi.fn().mockResolvedValue({ status: "ran", durationMs: 1 });

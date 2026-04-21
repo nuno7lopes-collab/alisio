@@ -10,7 +10,7 @@ title: "Network"
 # Network hub
 
 This hub links the core docs for how Alisio connects, pairs, and secures
-devices across localhost, LAN, and tailnet.
+computers across localhost, LAN, and tailnet.
 
 ## Core model
 
@@ -21,9 +21,9 @@ devices across localhost, LAN, and tailnet.
 
 ## Pairing + identity
 
-- [Pairing overview (DM + nodes)](/channels/pairing)
-- [Gateway-owned node pairing](/gateway/pairing)
-- [Devices CLI (pairing + token rotation)](/cli/devices)
+- [Pairing overview (DM + computers)](/channels/pairing)
+- [Gateway pairing compatibility](/gateway/pairing)
+- [Computers CLI (pairing + token rotation)](/cli/devices)
 - [Pairing CLI (DM approvals)](/cli/pairing)
 
 Local trust:
@@ -39,9 +39,9 @@ Local trust:
 - [Remote access (SSH)](/gateway/remote)
 - [Tailscale](/gateway/tailscale)
 
-## Devices + transports
+## Computers + transports
 
-- [Devices overview](/nodes)
+- [Computers overview](/nodes)
 
 ## Security
 

@@ -612,12 +612,6 @@ export const MemorySearchSchema = z
       })
       .strict()
       .optional(),
-    experimental: z
-      .object({
-        sessionMemory: z.boolean().optional(),
-      })
-      .strict()
-      .optional(),
     provider: z.string().optional(),
     remote: z
       .object({

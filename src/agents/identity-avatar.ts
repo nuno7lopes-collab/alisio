@@ -10,8 +10,10 @@ import {
 } from "../shared/avatar-policy.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "./agent-scope.js";
-import { loadAgentIdentityFromWorkspace } from "./identity-file.js";
-import { resolveAgentIdentity } from "./identity.js";
+import {
+  normalizeAvatarDisplayToken,
+  resolveCanonicalAgentIdentitySnapshot,
+} from "./identity-canonical.js";
 
 export type AgentAvatarResolution =
   | { kind: "none"; reason: string }
@@ -39,17 +41,20 @@ function resolveAvatarSource(
   }
   if (opts?.includeUiAssistant && agentId === resolveDefaultAgentId(cfg)) {
     const fromUiAssistant = normalizeAvatarValue(cfg.ui?.assistant?.avatar);
-    if (fromUiAssistant) {
+    if (fromUiAssistant && normalizeAvatarDisplayToken(fromUiAssistant)) {
+      return fromUiAssistant;
+    }
+    if (fromUiAssistant && /^(https?:\/\/|data:image\/)/i.test(fromUiAssistant)) {
       return fromUiAssistant;
     }
   }
-  const fromConfig = normalizeAvatarValue(resolveAgentIdentity(cfg, agentId)?.avatar);
-  if (fromConfig) {
-    return fromConfig;
-  }
   const workspace = opts?.workspaceDir ?? resolveAgentWorkspaceDir(cfg, agentId);
-  const fromIdentity = normalizeAvatarValue(loadAgentIdentityFromWorkspace(workspace)?.avatar);
-  return fromIdentity;
+  const snapshot = resolveCanonicalAgentIdentitySnapshot({
+    cfg,
+    agentId,
+    workspaceDir: workspace,
+  });
+  return normalizeAvatarValue(snapshot.avatar);
 }
 
 function resolveExistingPath(value: string): string {

@@ -1,8 +1,8 @@
 ---
-summary: "How Alisio chooses between OpenAI, local models, and linked Alisio nodes."
+summary: "How Alisio chooses between OpenAI, local models, and linked Alisio computers."
 read_when:
   - Explaining AI source selection in the product
-  - Comparing hosted, local, and linked-node model paths
+  - Comparing hosted, local, and linked-computer model paths
 title: "Model Providers"
 ---
 

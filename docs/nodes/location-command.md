@@ -1,33 +1,34 @@
 ---
-summary: "Location command for nodes (location.get) and permission modes"
+summary: "Location command for runtime computers (`location.get`) and permission modes"
 read_when:
-  - Adding location node support or permissions UI
+  - Adding location support or permissions UI on runtime computers
   - Designing location permissions or foreground behavior
 title: "Location Command"
 ---
 
-# Location command (nodes)
+# Location command (runtime computers)
 
 ## TL;DR
 
-- `location.get` is a node command (via `node.invoke`).
+- `location.get` is a runtime command (via `node.invoke`).
 - Off by default.
 - App settings use a selector: Off / While Using.
 - Separate toggle: Precise Location.
 
 ## Why a selector (not just a switch)
 
-OS permissions are multi-level. We can expose a selector in-app, but the OS still decides the actual grant.
+OS permissions are multi-level. We can expose a selector in-app, but the OS
+still decides the actual grant.
 
-- iOS/macOS may expose **While Using** or **Always** in system prompts/Settings.
-- iOS currently supports foreground location only.
-- Precise location is a separate grant (iOS 14+ “Precise”).
+- Hosts may expose **While Using** or **Always** in system prompts or Settings.
+- Some hosts only support location while the app is active.
+- Precise location may be a separate grant depending on the platform.
 
 Selector in UI drives our requested mode; actual grant lives in OS settings.
 
 ## Settings model
 
-Per node device:
+Per runtime computer:
 
 - `location.enabledMode`: `off | whileUsing`
 - `location.preciseEnabled`: bool
@@ -39,7 +40,8 @@ UI behavior:
 
 ## Permissions mapping (node.permissions)
 
-Optional. macOS node reports `location` via the permissions map; iOS may omit it.
+Optional. macOS currently reports `location` via the permissions map; other
+runtime clients may omit it.
 
 ## Command: `location.get`
 
@@ -81,9 +83,9 @@ Errors (stable codes):
 
 ## Background behavior
 
-- iOS denies `location.get` while backgrounded.
-- Keep Alisio open when requesting location on iOS.
-- Other node platforms may differ.
+- Some hosts deny `location.get` while the app is backgrounded.
+- Keep the runtime app open if you see background-related location failures.
+- Runtime behavior can differ by host.
 
 ## Model/tooling integration
 

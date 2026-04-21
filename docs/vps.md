@@ -56,8 +56,9 @@ Security model details: [Security](/gateway/security).
 
 ## Using nodes with a VPS
 
-You can keep the Gateway in the cloud and pair **nodes** on your local devices
-(Mac/iOS/headless). Nodes provide local screen/camera/canvas and `system.run`
+You can keep the Gateway in the cloud and pair **runtime computers** on your
+local machines (Mac/headless helper hosts). Those computers provide local
+screen/camera/canvas and `system.run`
 capabilities while the Gateway stays in the cloud.
 
 Docs: [Nodes](/nodes), [Nodes CLI](/cli/nodes).

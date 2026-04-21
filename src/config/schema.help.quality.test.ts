@@ -77,7 +77,6 @@ const TARGET_KEYS = [
   "agents.defaults.memorySearch.multimodal.enabled",
   "agents.defaults.memorySearch.multimodal.modalities",
   "agents.defaults.memorySearch.multimodal.maxFileBytes",
-  "agents.defaults.memorySearch.experimental.sessionMemory",
   "agents.defaults.memorySearch.remote.baseUrl",
   "agents.defaults.memorySearch.remote.apiKey",
   "agents.defaults.memorySearch.remote.headers",
@@ -802,7 +801,6 @@ describe("config help copy quality", () => {
 
     const postCompactionSections = FIELD_HELP["agents.defaults.compaction.postCompactionSections"];
     expect(/Session Startup|Red Lines/i.test(postCompactionSections)).toBe(true);
-    expect(/Every Session|Safety/i.test(postCompactionSections)).toBe(true);
     expect(/\[\]|disable/i.test(postCompactionSections)).toBe(true);
 
     const compactionModel = FIELD_HELP["agents.defaults.compaction.model"];

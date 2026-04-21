@@ -92,7 +92,7 @@ It does not install or modify anything on the remote host.
     - Installs optional dependencies (some use Homebrew on macOS).
   </Step>
   <Step title="Finish">
-    - Summary and next steps, including iOS and macOS app options.
+    - Summary and next steps, including the macOS app and remote computer options.
   </Step>
 </Steps>
 

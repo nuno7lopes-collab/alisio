@@ -120,7 +120,6 @@ describe("resolveAgentConfig", () => {
     );
     expect(result?.memorySearch).toMatchObject({
       enabled: true,
-      experimental: { sessionMemory: true },
     });
     expect(result?.memorySearch?.sources).toEqual(expect.arrayContaining(["memory", "sessions"]));
     expect(result?.subagents).toBeUndefined();

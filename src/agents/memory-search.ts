@@ -31,9 +31,6 @@ export type ResolvedMemorySearchConfig = {
       timeoutMinutes: number;
     };
   };
-  experimental: {
-    sessionMemory: boolean;
-  };
   fallback: string;
   model: string;
   outputDimensionality?: number;
@@ -114,7 +111,6 @@ const OPENAI_OAUTH_MEMORY_PROVIDER_ID = "openai-codex";
 
 function normalizeSources(
   sources: Array<"memory" | "sessions"> | undefined,
-  sessionMemoryEnabled: boolean,
 ): Array<"memory" | "sessions"> {
   const normalized = new Set<"memory" | "sessions">();
   const input = sources?.length ? sources : DEFAULT_SOURCES;
@@ -122,7 +118,7 @@ function normalizeSources(
     if (source === "memory") {
       normalized.add("memory");
     }
-    if (source === "sessions" && sessionMemoryEnabled) {
+    if (source === "sessions") {
       normalized.add("sessions");
     }
   }
@@ -164,8 +160,6 @@ function mergeConfig(
   defaultProvider: string,
 ): ResolvedMemorySearchConfig {
   const enabled = overrides?.enabled ?? defaults?.enabled ?? true;
-  const sessionMemory =
-    overrides?.experimental?.sessionMemory ?? defaults?.experimental?.sessionMemory ?? false;
   const provider = overrides?.provider ?? defaults?.provider ?? defaultProvider;
   const primaryAdapter = provider === "auto" ? undefined : getMemoryEmbeddingProvider(provider);
   const defaultRemote = defaults?.remote;
@@ -213,7 +207,7 @@ function mergeConfig(
     modelPath: overrides?.local?.modelPath ?? defaults?.local?.modelPath,
     modelCacheDir: overrides?.local?.modelCacheDir ?? defaults?.local?.modelCacheDir,
   };
-  const sources = normalizeSources(overrides?.sources ?? defaults?.sources, sessionMemory);
+  const sources = normalizeSources(overrides?.sources ?? defaults?.sources);
   const rawPaths = [...(defaults?.extraPaths ?? []), ...(overrides?.extraPaths ?? [])]
     .map((value) => value.trim())
     .filter(Boolean);
@@ -338,9 +332,6 @@ function mergeConfig(
     multimodal,
     provider,
     remote,
-    experimental: {
-      sessionMemory,
-    },
     fallback,
     model,
     outputDimensionality,

@@ -509,7 +509,6 @@ function extractLatestUserAsk(messages: AgentMessage[]): string | null {
 /**
  * Read and format critical workspace context for compaction summary.
  * Extracts "Session Startup" and "Red Lines" from AGENTS.md.
- * Falls back to legacy names "Every Session" and "Safety".
  * Limited to 2000 chars to avoid bloating the summary.
  */
 async function readWorkspaceContextForSummary(): Promise<string> {
@@ -534,12 +533,7 @@ async function readWorkspaceContextForSummary(): Promise<string> {
         fs.closeSync(opened.fd);
       }
     })();
-    // Accept legacy section names ("Every Session", "Safety") as fallback
-    // for backward compatibility with older AGENTS.md templates.
-    let sections = extractSections(content, ["Session Startup", "Red Lines"]);
-    if (sections.length === 0) {
-      sections = extractSections(content, ["Every Session", "Safety"]);
-    }
+    const sections = extractSections(content, ["Session Startup", "Red Lines"]);
 
     if (sections.length === 0) {
       return "";

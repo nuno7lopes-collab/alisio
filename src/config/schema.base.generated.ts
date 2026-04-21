@@ -1870,15 +1870,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                     additionalProperties: false,
                   },
-                  experimental: {
-                    type: "object",
-                    properties: {
-                      sessionMemory: {
-                        type: "boolean",
-                      },
-                    },
-                    additionalProperties: false,
-                  },
                   provider: {
                     type: "string",
                   },
@@ -3447,15 +3438,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                           type: "integer",
                           exclusiveMinimum: 0,
                           maximum: 9007199254740991,
-                        },
-                      },
-                      additionalProperties: false,
-                    },
-                    experimental: {
-                      type: "object",
-                      properties: {
-                        sessionMemory: {
-                          type: "boolean",
                         },
                       },
                       additionalProperties: false,
@@ -13446,7 +13428,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.memorySearch.sources": {
       label: "Memory Search Sources",
-      help: 'Chooses which sources are indexed: "memory" reads MEMORY.md + memory files, and "sessions" includes transcript history. Keep ["memory"] unless you need recall from prior chat transcripts.',
+      help: 'Use this to choose which sources are indexed: "memory" reads MEMORY.md + memory files, and "sessions" includes transcript history. Keep ["memory"] unless you need recall from prior chat transcripts; transcript recall remains query-driven instead of being injected into every new turn.',
       tags: ["advanced"],
     },
     "agents.defaults.memorySearch.extraPaths": {
@@ -13473,11 +13455,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Memory Search Multimodal Max File Bytes",
       help: "Sets the maximum bytes allowed per multimodal file before it is skipped during memory indexing. Use this to cap upload cost and indexing latency, or raise it for short high-quality audio clips.",
       tags: ["performance", "storage"],
-    },
-    "agents.defaults.memorySearch.experimental.sessionMemory": {
-      label: "Memory Search Session Index (Experimental)",
-      help: "Indexes session transcripts into memory search so responses can reference prior chat turns. Keep this off unless transcript recall is needed, because indexing cost and storage usage both increase.",
-      tags: ["security", "storage", "advanced"],
     },
     "agents.defaults.memorySearch.provider": {
       label: "Memory Embeddings Provider",
@@ -14288,7 +14265,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.compaction.postCompactionSections": {
       label: "Post-Compaction Context Sections",
-      help: 'AGENTS.md H2/H3 section names re-injected after compaction so the agent reruns critical startup guidance. Leave unset to use "Session Startup"/"Red Lines" with legacy fallback to "Every Session"/"Safety"; set to [] to disable reinjection entirely.',
+      help: 'AGENTS.md H2/H3 section names re-injected after compaction so the agent reruns critical startup guidance. Leave unset to use "Session Startup"/"Red Lines"; set to [] to disable reinjection entirely.',
       tags: ["advanced"],
     },
     "agents.defaults.compaction.timeoutSeconds": {

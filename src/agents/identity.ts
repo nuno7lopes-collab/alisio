@@ -1,5 +1,6 @@
 import type { AlisioConfig, HumanDelayConfig, IdentityConfig } from "../config/config.js";
 import { resolveAgentConfig } from "./agent-scope.js";
+import { resolveCanonicalAgentIdentitySnapshot } from "./identity-canonical.js";
 
 const DEFAULT_ACK_REACTION = "👀";
 
@@ -41,12 +42,12 @@ export function resolveAckReaction(
   }
 
   // L4: Agent identity emoji fallback
-  const emoji = resolveAgentIdentity(cfg, agentId)?.emoji?.trim();
+  const emoji = resolveCanonicalAgentIdentitySnapshot({ cfg, agentId }).emoji?.trim();
   return emoji || DEFAULT_ACK_REACTION;
 }
 
 export function resolveIdentityNamePrefix(cfg: AlisioConfig, agentId: string): string | undefined {
-  const name = resolveAgentIdentity(cfg, agentId)?.name?.trim();
+  const name = resolveCanonicalAgentIdentitySnapshot({ cfg, agentId }).name?.trim();
   if (!name) {
     return undefined;
   }
@@ -55,7 +56,7 @@ export function resolveIdentityNamePrefix(cfg: AlisioConfig, agentId: string): s
 
 /** Returns just the identity name (without brackets) for template context. */
 export function resolveIdentityName(cfg: AlisioConfig, agentId: string): string | undefined {
-  return resolveAgentIdentity(cfg, agentId)?.name?.trim() || undefined;
+  return resolveCanonicalAgentIdentitySnapshot({ cfg, agentId }).name?.trim() || undefined;
 }
 
 export function resolveMessagePrefix(

@@ -27,7 +27,12 @@ export function renderNodes(
   const includeExecApprovals = opts?.includeExecApprovals ?? true;
   const collapseNodeInventoryByComputer = opts?.collapseNodeInventoryByComputer ?? false;
   const bindingState = resolveBindingsState(props);
-  const approvalsState = includeExecApprovals ? resolveExecApprovalsState(props) : null;
+  const approvalsState = includeExecApprovals
+    ? resolveExecApprovalsState({
+        ...props,
+        nodes: props.computers.nodes,
+      })
+    : null;
   return html`
     ${approvalsState ? renderExecApprovals(approvalsState) : nothing}
     ${renderRuntime(
@@ -82,9 +87,13 @@ function renderRuntime(
         : nothing}
       <div class="alisio-connections-runtime-stack">
         ${renderPendingNodeRequests(props)} ${renderBindings(state)}
-        ${renderNodeList(props, {
-          collapseByComputer: opts.collapseNodeInventoryByComputer,
-        }, context)}
+        ${renderNodeList(
+          props,
+          {
+            collapseByComputer: opts.collapseNodeInventoryByComputer,
+          },
+          context,
+        )}
       </div>
     </section>
   `;
@@ -281,7 +290,9 @@ function renderBindings(state: BindingState) {
                   ${syncLabel}
                 </span>
               `
-            : html`<span class="pill">${state.configLoading ? text.loading : text.loadConfig}</span>`}
+            : html`<span class="pill"
+                >${state.configLoading ? text.loading : text.loadConfig}</span
+              >`}
           <span class="alisio-connections-disclosure-icon" aria-hidden="true"
             >${icons.chevronDown}</span
           >
@@ -352,7 +363,9 @@ function renderBindings(state: BindingState) {
                         )}
                       </select>
                     </label>
-                    ${!supportsBinding ? html` <div class="muted">${text.noExecNodes}</div> ` : nothing}
+                    ${!supportsBinding
+                      ? html` <div class="muted">${text.noExecNodes}</div> `
+                      : nothing}
                   </div>
                 </div>
 

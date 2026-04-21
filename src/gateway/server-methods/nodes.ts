@@ -10,6 +10,11 @@ import {
   verifyNodeToken,
 } from "../../infra/node-pairing.js";
 import {
+  resolveNodeComputerId,
+  resolveNodeComputerLabel,
+  type NodeListNode,
+} from "../../shared/node-list-types.js";
+import {
   buildCanvasScopedHostUrl,
   CANVAS_CAPABILITY_TTL_MS,
   mintCanvasCapabilityToken,
@@ -64,6 +69,19 @@ type NodeSharingTarget = {
   connected: boolean;
   current: false;
 };
+
+function buildNodeSharingTarget(node: NodeListNode): NodeSharingTarget {
+  return {
+    targetId: node.nodeId,
+    computerId: resolveNodeComputerId(node),
+    computerLabel: resolveNodeComputerLabel(node),
+    label: node.displayName ?? node.nodeId,
+    platform: node.platform,
+    sourceKind: "node",
+    connected: node.connected === true,
+    current: false,
+  };
+}
 
 function clearVisibleNodeListCache() {
   cachedVisibleNodeList = undefined;
@@ -145,16 +163,7 @@ async function refreshVisibleNodeList(
   });
   const nodes = listKnownNodes(catalog);
   const accessIndex = await loadNodeSharingAccessIndex(
-    nodes.map((node) => ({
-      targetId: node.nodeId,
-      computerId: node.computerId,
-      computerLabel: node.computerLabel,
-      label: node.displayName ?? node.nodeId,
-      platform: node.platform,
-      sourceKind: "node" as const,
-      connected: node.connected === true,
-      current: false as const,
-    })),
+    nodes.map((node) => buildNodeSharingTarget(node)),
   );
   const visibleNodes = nodes.filter((node) => {
     const access = accessIndex[node.nodeId];
@@ -262,18 +271,7 @@ async function resolveKnownNodeSharingAccess(params: {
   if (!node) {
     return null;
   }
-  const accessIndex = await loadNodeSharingAccessIndex([
-    {
-      targetId: node.nodeId,
-      computerId: node.computerId,
-      computerLabel: node.computerLabel,
-      label: node.displayName ?? node.nodeId,
-      platform: node.platform,
-      sourceKind: "node",
-      connected: node.connected === true,
-      current: false,
-    },
-  ]);
+  const accessIndex = await loadNodeSharingAccessIndex([buildNodeSharingTarget(node)]);
   return {
     node,
     access: accessIndex[node.nodeId] ?? null,
@@ -490,18 +488,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
         return;
       }
-      const accessIndex = await loadNodeSharingAccessIndex([
-        {
-          targetId: node.nodeId,
-          computerId: node.computerId,
-          computerLabel: node.computerLabel,
-          label: node.displayName ?? node.nodeId,
-          platform: node.platform,
-          sourceKind: "node",
-          connected: node.connected === true,
-          current: false,
-        },
-      ]);
+      const accessIndex = await loadNodeSharingAccessIndex([buildNodeSharingTarget(node)]);
       const access = accessIndex[node.nodeId];
       if (!access || (access.execAccess !== "owner" && access.execAccess !== "shared")) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));

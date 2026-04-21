@@ -1,6 +1,6 @@
 ---
 title: "Sharing Protocol"
-summary: "Device and model sharing across accounts and organizations"
+summary: "Computer and model sharing across accounts and organizations"
 read_when:
   - Adding or reviewing Alisio sharing flows
   - Verifying approval, revocation, or audit behavior
@@ -8,8 +8,9 @@ read_when:
 
 # Sharing Protocol
 
-Alisio uses **devices** as the primary product term. Internal runtime or gateway
-code may still refer to nodes, but user-facing flows should say devices.
+In product-facing docs and UI, Alisio uses **computers** as the primary term.
+The sharing API still uses `devices.*` because that is the stable wire
+contract, and some runtime internals still say `node`.
 
 ## Scope
 
@@ -24,7 +25,7 @@ Supported grant scopes:
 - `model-use`: the grantee can use the target's published model surface
 - `exec`: the grantee can run execution on the shared target
 
-Approvals are explicit. Shared access is revocable. Shared devices are read-only
+Approvals are explicit. Shared access is revocable. Shared computers are read-only
 for model install and uninstall.
 
 ## Protocol
@@ -75,8 +76,8 @@ part of the same `2026-06-30` sunset.
 
 ## Flow
 
-1. The owner publishes runtime targets through the current device and connected
-   devices inventory.
+1. The owner publishes runtime targets through the current computer and the
+   connected-computers inventory.
 2. Another account or organization calls `devices.share.request` for a target
    and requested scopes.
 3. The owner approves or rejects the request.
@@ -87,8 +88,8 @@ part of the same `2026-06-30` sunset.
 ## Policy
 
 - Sharing requires the Plus plan.
-- User-owned devices can receive direct sharing requests.
-- Organization-owned devices require `allowExternalUse = true` before external
+- User-owned computers can receive direct sharing requests.
+- Organization-owned computers require `allowExternalUse = true` before external
   accounts can request access.
 - Only organization owners can change the external sharing policy.
 
@@ -113,5 +114,5 @@ grants, and audit entries. The local state file remains a compatibility fallback
 when cloud-backed sharing is unavailable.
 
 The runtime inventory still refreshes the target registry from the current
-device and connected devices list. Memory, vault, files, and other sensitive
+computer and connected-computers list. Memory, vault, files, and other sensitive
 context are not auto-shared through this contract.

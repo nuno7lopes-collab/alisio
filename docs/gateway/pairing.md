@@ -1,40 +1,45 @@
 ---
-summary: "Gateway-owned node pairing (Option B) for iOS and other remote nodes"
+summary: "Legacy gateway-owned pairing compatibility for `node.pair.*` clients"
 read_when:
-  - Implementing node pairing approvals without macOS UI
-  - Adding CLI flows for approving remote nodes
-  - Extending gateway protocol with node management
-title: "Gateway-Owned Pairing"
+  - Maintaining or debugging the legacy `node.pair.*` flow
+  - Verifying compatibility for older runtime clients
+  - Extending gateway protocol compatibility around node management
+title: "Gateway Pairing Compatibility"
 ---
 
-# Gateway-owned pairing (Option B)
+# Gateway pairing compatibility
 
-In Gateway-owned pairing, the **Gateway** is the source of truth for which nodes
-are allowed to join. UIs (macOS app, future clients) are just frontends that
-approve or reject pending requests.
+This page documents the legacy **`node.pair.*` compatibility flow**.
 
-**Important:** WS nodes use **device pairing** (role `node`) during `connect`.
-`node.pair.*` is a separate pairing store and does **not** gate the WS handshake.
-Only clients that explicitly call `node.pair.*` use this flow.
+It is **not** the primary pairing path for current Alisio computers. Current
+runtime pairing happens through the main device-pairing flow (`alisio devices
+...`) during `connect`.
+
+The **Gateway** remains the source of truth for this compatibility store. UIs
+and tools are just frontends that approve or reject pending requests.
+
+**Important:** WS runtime computers use **device pairing** (role `node`) during
+`connect`. `node.pair.*` is a separate pairing store and does **not** gate the
+WS handshake. Only clients that explicitly call `node.pair.*` use this flow.
 
 ## Concepts
 
-- **Pending request**: a node asked to join; requires approval.
-- **Paired node**: approved node with an issued auth token.
+- **Pending request**: a runtime computer asked to join through the legacy flow; requires approval.
+- **Paired node**: approved runtime computer with an issued compatibility auth token.
 - **Transport**: the Gateway WS endpoint forwards requests but does not decide
   membership. (Legacy TCP bridge support is deprecated/removed.)
 
 ## How pairing works
 
-1. A node connects to the Gateway WS and requests pairing.
+1. A runtime computer calls the legacy pairing request.
 2. The Gateway stores a **pending request** and emits `node.pair.requested`.
 3. You approve or reject the request (CLI or UI).
 4. On approval, the Gateway issues a **new token** (tokens are rotated on re‑pair).
-5. The node reconnects using the token and is now “paired”.
+5. The runtime computer reconnects using the token and is now “paired” in this compatibility store.
 
 Pending requests expire automatically after **5 minutes**.
 
-## CLI workflow (headless friendly)
+## CLI workflow (compatibility / headless friendly)
 
 ```bash
 alisio nodes pending
@@ -44,7 +49,7 @@ alisio nodes status
 alisio nodes rename --node <id|name|ip> --name "Living Room Mac"
 ```
 
-`nodes status` shows paired/connected nodes and their capabilities.
+`nodes status` shows paired and connected runtime entries plus their capabilities.
 
 ## API surface (gateway protocol)
 
@@ -63,7 +68,7 @@ Methods:
 
 Notes:
 
-- `node.pair.request` is idempotent per node: repeated calls return the same
+- `node.pair.request` is idempotent per runtime entry: repeated calls return the same
   pending request.
 - Approval **always** generates a fresh token; no token is ever returned from
   `node.pair.request`.
@@ -95,5 +100,7 @@ Security notes:
 ## Transport behavior
 
 - The transport is **stateless**; it does not store membership.
-- If the Gateway is offline or pairing is disabled, nodes cannot pair.
-- If the Gateway is in remote mode, pairing still happens against the remote Gateway’s store.
+- If the Gateway is offline or pairing is disabled, legacy `node.pair.*`
+  clients cannot pair.
+- If the Gateway is in remote mode, compatibility pairing still happens against
+  the remote Gateway’s store.

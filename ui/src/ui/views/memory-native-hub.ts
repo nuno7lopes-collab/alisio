@@ -90,22 +90,22 @@ function memoryText() {
     graphZoomOut: t("alisio.memory.graph.zoomOut"),
     none: t("common.none"),
     na: t("common.na"),
-    noteBacklinks: t("alisio.memory.wiki.backlinks"),
-    noteBacklinksEmpty: t("alisio.memory.wiki.backlinksEmpty"),
-    noteMarkdown: t("alisio.memory.wiki.editorTitle"),
-    noteNoSelection: t("alisio.memory.wiki.noSelection"),
-    notePath: t("alisio.memory.wiki.path"),
-    noteRole: t("alisio.memory.wiki.roleLabel"),
-    noteUpdated: t("alisio.memory.wiki.updated"),
-    notesCreate: t("alisio.memory.wiki.create"),
-    notesCreateConfirm: t("alisio.memory.wiki.createConfirm"),
-    notesCreatePlaceholder: t("alisio.memory.wiki.createPlaceholder"),
-    notesListTitle: t("alisio.memory.wiki.listTitle"),
+    noteBacklinks: t("alisio.memory.notes.backlinks"),
+    noteBacklinksEmpty: t("alisio.memory.notes.backlinksEmpty"),
+    noteMarkdown: t("alisio.memory.notes.editorTitle"),
+    noteNoSelection: t("alisio.memory.notes.noSelection"),
+    notePath: t("alisio.memory.notes.path"),
+    noteRole: t("alisio.memory.notes.roleLabel"),
+    noteUpdated: t("alisio.memory.notes.updated"),
+    notesCreate: t("alisio.memory.notes.create"),
+    notesCreateConfirm: t("alisio.memory.notes.createConfirm"),
+    notesCreatePlaceholder: t("alisio.memory.notes.createPlaceholder"),
+    notesListTitle: t("alisio.memory.notes.listTitle"),
     noteRoles: {
-      main: t("alisio.memory.wiki.roles.main"),
-      topic: t("alisio.memory.wiki.roles.topic"),
-      daily: t("alisio.memory.wiki.roles.daily"),
-      backlog: t("alisio.memory.wiki.roles.backlog"),
+      main: t("alisio.memory.notes.roles.main"),
+      topic: t("alisio.memory.notes.roles.topic"),
+      daily: t("alisio.memory.notes.roles.daily"),
+      backlog: t("alisio.memory.notes.roles.backlog"),
     },
     preview: t("alisio.memory.preview"),
     previewEmpty: t("alisio.memory.previewEmpty"),
@@ -116,7 +116,7 @@ function memoryText() {
     searchPlaceholder: t("alisio.memory.searchPlaceholder"),
     unsaved: t("alisio.memory.unsaved"),
     views: {
-      wiki: t("alisio.memory.views.wiki"),
+      notes: t("alisio.memory.views.notes"),
       graph: t("alisio.memory.views.graph"),
     },
     workspaceExplorer: t("alisio.memory.workspace.explorer"),
@@ -1112,7 +1112,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       <section class="alisio-memory-toolbar">
         <div class="alisio-memory-toolbar__copy">
           <div class="alisio-memory-toolbar__title-row">
-            <h2>${text.views.wiki}</h2>
+            <h2>${text.views.notes}</h2>
             ${visibleNotes == null
               ? nothing
               : html`
@@ -1127,7 +1127,7 @@ export class AlisioMemoryNativeHub extends LitElement {
               class="btn btn--sm ${this.mainPaneMode === "note" ? "primary" : ""}"
               @click=${() => (this.mainPaneMode = "note")}
             >
-              ${text.views.wiki}
+              ${text.views.notes}
             </button>
             <button
               type="button"

@@ -234,7 +234,6 @@ describe("memory index", () => {
     storePath: string;
     extraPaths?: string[];
     sources?: Array<"memory" | "sessions">;
-    sessionMemory?: boolean;
     provider?: "openai" | "gemini";
     model?: string;
     outputDimensionality?: number;
@@ -269,7 +268,6 @@ describe("memory index", () => {
             extraPaths: params.extraPaths,
             multimodal: params.multimodal,
             sources: params.sources,
-            experimental: { sessionMemory: params.sessionMemory ?? false },
           },
         },
         list: [{ id: "main", default: true }],
@@ -523,12 +521,10 @@ describe("memory index", () => {
     const firstCfg = createCfg({
       storePath: indexSourceChangePath,
       sources: ["memory"],
-      sessionMemory: false,
     });
     const secondCfg = createCfg({
       storePath: indexSourceChangePath,
       sources: ["memory", "sessions"],
-      sessionMemory: true,
     });
 
     try {
@@ -592,7 +588,6 @@ describe("memory index", () => {
         cfg: createCfg({
           storePath,
           sources: ["sessions"],
-          sessionMemory: true,
         }),
         agentId: "main",
       });
@@ -715,7 +710,6 @@ describe("memory index", () => {
           cfg: createCfg({
             storePath,
             sources: ["sessions"],
-            sessionMemory: true,
           }),
           agentId: "main",
         }),
@@ -815,7 +809,6 @@ describe("memory index", () => {
           cfg: createCfg({
             storePath,
             sources: ["sessions"],
-            sessionMemory: true,
           }),
           agentId: "main",
         }),
@@ -911,7 +904,6 @@ describe("memory index", () => {
           cfg: createCfg({
             storePath,
             sources: ["sessions"],
-            sessionMemory: true,
           }),
           agentId: "main",
         }),
@@ -1114,7 +1106,6 @@ describe("memory index", () => {
     const cfg = createCfg({
       storePath: path.join(workspaceDir, `index-status-aggregate-${randomUUID()}.sqlite`),
       sources: ["memory", "sessions"],
-      sessionMemory: true,
       onSearch: false,
     });
 

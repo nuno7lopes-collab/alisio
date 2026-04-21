@@ -15,7 +15,8 @@ type AlisioHostRequest = <T = unknown>(
 declare global {
   interface Window {
     alisioHost?: {
-      request: AlisioHostRequest;
+      request?: AlisioHostRequest;
+      invoke?: AlisioHostRequest;
     };
   }
 }
@@ -27,7 +28,11 @@ type NativeShellStateHost = {
 };
 
 export function hasAlisioHostBridge(): boolean {
-  return typeof window !== "undefined" && typeof window.alisioHost?.request === "function";
+  return (
+    typeof window !== "undefined" &&
+    (typeof window.alisioHost?.request === "function" ||
+      typeof window.alisioHost?.invoke === "function")
+  );
 }
 
 export async function requestAlisioHost<T = unknown>(
@@ -37,7 +42,11 @@ export async function requestAlisioHost<T = unknown>(
   if (!hasAlisioHostBridge()) {
     throw new Error("Native shell bridge unavailable");
   }
-  return window.alisioHost!.request<T>(method, params);
+  const requester = window.alisioHost?.request ?? window.alisioHost?.invoke;
+  if (typeof requester !== "function") {
+    throw new Error("Native shell bridge unavailable");
+  }
+  return requester<T>(method, params);
 }
 
 export async function loadNativeShellState(state: NativeShellStateHost) {

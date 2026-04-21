@@ -1,6 +1,7 @@
 import { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
 import { registerMemoryCli } from "./src/cli.js";
 import {
+  buildCompactionBacklogSeedContent,
   buildMemoryFlushPlan,
   DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES,
   DEFAULT_MEMORY_FLUSH_PROMPT,
@@ -14,10 +15,6 @@ import {
   handleMemoryNotesListGatewayRequest,
   handleMemoryNotesUpdateGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
-  handleMemoryWikiGetGatewayRequest,
-  handleMemoryWikiHistoryGatewayRequest,
-  handleMemoryWikiListGatewayRequest,
-  handleMemoryWikiUpdateGatewayRequest,
 } from "./src/gateway.native.js";
 import {
   handleMemoryFilesGetGatewayRequest,
@@ -35,6 +32,7 @@ import { buildPromptSection } from "./src/prompt-section.js";
 import { memoryRuntime } from "./src/runtime-provider.js";
 import { createMemoryGetTool, createMemoryGraphTool, createMemorySearchTool } from "./src/tools.js";
 export {
+  buildCompactionBacklogSeedContent,
   buildMemoryFlushPlan,
   DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES,
   DEFAULT_MEMORY_FLUSH_PROMPT,
@@ -84,34 +82,6 @@ export default definePluginEntry({
     api.registerGatewayMethod(
       "memory.notes.history",
       withMemoryJobsGatewayActivity(handleMemoryNotesHistoryGatewayRequest),
-      {
-        scope: "operator.read",
-      },
-    );
-    api.registerGatewayMethod(
-      "memory.wiki.list",
-      withMemoryJobsGatewayActivity(handleMemoryWikiListGatewayRequest),
-      {
-        scope: "operator.read",
-      },
-    );
-    api.registerGatewayMethod(
-      "memory.wiki.get",
-      withMemoryJobsGatewayActivity(handleMemoryWikiGetGatewayRequest),
-      {
-        scope: "operator.read",
-      },
-    );
-    api.registerGatewayMethod(
-      "memory.wiki.update",
-      withMemoryJobsGatewayActivity(handleMemoryWikiUpdateGatewayRequest),
-      {
-        scope: "operator.write",
-      },
-    );
-    api.registerGatewayMethod(
-      "memory.wiki.history",
-      withMemoryJobsGatewayActivity(handleMemoryWikiHistoryGatewayRequest),
       {
         scope: "operator.read",
       },

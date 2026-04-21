@@ -7,7 +7,6 @@ import {
   DefaultResourceLoader,
   SessionManager,
 } from "@mariozechner/pi-coding-agent";
-import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
 import { getMachineDisplayName } from "../../../infra/machine-name.js";
 import {
@@ -45,6 +44,10 @@ import {
 import { DEFAULT_CONTEXT_TOKENS } from "../../defaults.js";
 import { resolveAlisioDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
+import {
+  isHeartbeatEnabledForAgent,
+  resolveHeartbeatPromptForAgent,
+} from "../../heartbeat-config.js";
 import { resolveImageSanitizationLimits } from "../../image-sanitization.js";
 import { buildModelAliasLines } from "../../model-alias-lines.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
@@ -392,7 +395,7 @@ export async function runEmbeddedAttempt(
 
     const agentDir = params.agentDir ?? resolveAlisioAgentDir();
 
-    const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
+    const { sessionAgentId } = resolveSessionAgentIds({
       sessionKey: params.sessionKey,
       config: params.config,
       agentId: params.agentId,
@@ -605,7 +608,6 @@ export async function runEmbeddedAttempt(
         channelActions,
       },
     });
-    const isDefaultAgent = sessionAgentId === defaultAgentId;
     const promptMode = resolvePromptModeForSession(params.sessionKey);
     const docsPath = await resolveAlisioDocsPath({
       workspaceDir: effectiveWorkspace,
@@ -613,13 +615,20 @@ export async function runEmbeddedAttempt(
       cwd: effectiveWorkspace,
       moduleUrl: import.meta.url,
     });
+    const heartbeatEnabled = isHeartbeatEnabledForAgent({
+      cfg: params.config ?? {},
+      agentId: sessionAgentId,
+    });
     const ttsHint = params.config ? buildTtsSystemPromptHint(params.config) : undefined;
     const ownerDisplay = resolveOwnerDisplaySetting(params.config);
     const heartbeatPrompt = shouldInjectHeartbeatPrompt({
-      isDefaultAgent,
+      heartbeatEnabled,
       trigger: params.trigger,
     })
-      ? resolveHeartbeatPrompt(params.config?.agents?.defaults?.heartbeat?.prompt)
+      ? resolveHeartbeatPromptForAgent({
+          cfg: params.config ?? {},
+          agentId: sessionAgentId,
+        })
       : undefined;
 
     const appendPrompt = buildEmbeddedSystemPrompt({

@@ -1,8 +1,8 @@
 ---
-summary: "Alisio on macOS: the primary app experience for setup, permissions, AI, devices, and daily use."
+summary: "Alisio on macOS: the primary app experience for setup, permissions, AI, computers, and daily use."
 read_when:
   - Explaining the macOS product surface
-  - Documenting permissions, device actions, or local setup on a Mac
+  - Documenting permissions, computer actions, or local setup on a Mac
 title: "macOS App"
 ---
 
@@ -18,14 +18,14 @@ It is not a thin companion to some other product. It is where Alisio starts, whe
 - account sign-in
 - macOS permissions
 - OpenAI, Local, and Server AI setup
-- local device capabilities on this Mac
+- local computer capabilities on this Mac
 - connector, app, and skill installs from the local marketplace
 
 ## What The App Does Well
 
 - keeps setup visual and understandable
 - makes permission state visible
-- turns this Mac into a device-aware automation runtime
+- turns this Mac into a local automation runtime with real computer capabilities
 - gives Alisio a concrete desktop home instead of forcing a terminal-first mental model
 
 ## AI Sources On macOS
@@ -38,9 +38,9 @@ From the Mac app, Alisio should make three paths obvious:
 
 Those sources can coexist on one machine.
 
-## Device Capabilities
+## Computer Capabilities
 
-This Mac can expose device-local actions such as:
+This Mac can expose computer-local actions such as:
 
 - notifications
 - camera
@@ -55,7 +55,7 @@ That is why macOS permissions matter so much in the product.
 - **Local** is the default and recommended desktop path.
 - **Remote** is for connecting this Mac to a workspace that already lives elsewhere.
 
-Even in remote mode, the Mac app still matters because it can expose device-local capabilities from this computer.
+Even in remote mode, the Mac app still matters because it can expose local capabilities from this computer.
 
 ## Where State Lives
 
@@ -64,7 +64,7 @@ For desktop installs, local state should be treated as user-owned product state.
 - default state root: `~/.alisio`
 - common workspace path: `~/.alisio/workspace`
 
-Keep that data in a normal local folder, not in a sync-first location that might interfere with live sessions or device capabilities.
+Keep that data in a normal local folder, not in a sync-first location that might interfere with live sessions or local capabilities.
 
 ## Advanced Surfaces
 
@@ -85,4 +85,4 @@ But for the product story, the Mac app comes first.
 - [Onboarding (macOS App)](/start/onboarding)
 - [Product Overview](/start/overview)
 - [Local Models and Servers](/gateway/local-models)
-- [Devices](/nodes)
+- [Computers](/nodes)

@@ -3,6 +3,7 @@ import type { PendingAlisioConnectorChatResume } from "./alisio-connector-oauth.
 import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus, FallbackStatus } from "./app-tool-stream.ts";
 import type {
+  BrowserPaneBrowserState,
   BrowserPanePreviewState,
   BrowserPaneSurfaceKind,
 } from "./controllers/browser-pane.ts";
@@ -195,6 +196,7 @@ export type AppViewState = {
   chatNewMessagesBelow: boolean;
   navDrawerOpen: boolean;
   sidebarOpen: boolean;
+  browserPaneBrowserState: BrowserPaneBrowserState | null;
   sidebarContent: string | null;
   sidebarError: string | null;
   browserPaneSurfaceKind: BrowserPaneSurfaceKind;
@@ -530,7 +532,7 @@ export type AppViewState = {
     handleSelectBrowserPaneSurface: (surface: BrowserPaneSurfaceKind) => void;
     handleSelectComputerReplayStep: (stepId: string | null) => void;
     handleToggleComputerStepDetails: (open: boolean) => void;
-  handleComputerSessionCommand: (command: "start" | "pause" | "resume" | "stop") => void;
+    handleComputerSessionCommand: (command: "start" | "pause" | "resume" | "stop") => void;
     handleComputerSessionApproval: (decision: "allow-once" | "allow-session" | "deny") => void;
     handleRequestComputerPermission: (
       permission: "accessibility" | "screenRecording",

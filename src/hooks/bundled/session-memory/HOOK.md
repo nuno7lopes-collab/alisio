@@ -36,12 +36,14 @@ Each snapshot is stored as its own backlog note with the following format:
 ---
 memoryRole: backlog
 backlogStatus: pending
+promotionMode: "topic-and-daily"
 capturedAt: "2026-04-18T14:30:00.000Z"
 sessionAction: "new"
 tags:
   - backlog
   - session-memory
 ---
+
 # Session new - Vendor Pitch
 
 ## Context

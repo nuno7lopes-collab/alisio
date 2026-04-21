@@ -98,14 +98,14 @@ If you need hostile-user isolation, split trust boundaries by OS user/host and r
 
 Use this as the quick model when triaging risk:
 
-| Boundary or control                         | What it means                                     | Common misread                                                                |
-| ------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `gateway.auth` (token/password/device auth) | Authenticates callers to gateway APIs             | "Needs per-message signatures on every frame to be secure"                    |
-| `sessionKey`                                | Routing key for context/session selection         | "Session key is a user auth boundary"                                         |
-| Prompt/content guardrails                   | Reduce model abuse risk                           | "Prompt injection alone proves auth bypass"                                   |
-| `canvas.eval` / browser evaluate            | Intentional operator capability when enabled      | "Any JS eval primitive is automatically a vuln in this trust model"           |
-| Local TUI `!` shell                         | Explicit operator-triggered local execution       | "Local shell convenience command is remote injection"                         |
-| Node pairing and node commands              | Operator-level remote execution on paired devices | "Remote device control should be treated as untrusted user access by default" |
+| Boundary or control                         | What it means                                       | Common misread                                                                  |
+| ------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `gateway.auth` (token/password/device auth) | Authenticates callers to gateway APIs               | "Needs per-message signatures on every frame to be secure"                      |
+| `sessionKey`                                | Routing key for context/session selection           | "Session key is a user auth boundary"                                           |
+| Prompt/content guardrails                   | Reduce model abuse risk                             | "Prompt injection alone proves auth bypass"                                     |
+| `canvas.eval` / browser evaluate            | Intentional operator capability when enabled        | "Any JS eval primitive is automatically a vuln in this trust model"             |
+| Local TUI `!` shell                         | Explicit operator-triggered local execution         | "Local shell convenience command is remote injection"                           |
+| Node pairing and node commands              | Operator-level remote execution on paired computers | "Remote computer control should be treated as untrusted user access by default" |
 
 ## Not vulnerabilities by design
 

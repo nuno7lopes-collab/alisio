@@ -483,12 +483,12 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     from your laptop/phone via the Control UI (or Tailscale/SSH). Your state + workspace
     live on the server, so treat the host as the source of truth and back it up.
 
-    You can pair **devices (nodes)** (Mac/iOS/headless) to that cloud Gateway to access
+    You can pair **computers (nodes)** (Mac/headless helper hosts) to that cloud Gateway to access
     local screen/camera/canvas or run commands on your laptop while keeping the
     Gateway in the cloud.
 
     Hub: [Platforms](/platforms). Remote access: [Gateway remote](/gateway/remote).
-    Devices: [Devices](/nodes), [Devices CLI (nodes)](/cli/nodes).
+    Computers: [Computers](/nodes), [Nodes CLI](/cli/nodes).
 
   </Accordion>
 
@@ -1185,7 +1185,8 @@ for usage/billing and raise limits as needed.
 
   <Accordion title="Memory keeps forgetting things. How do I make it stick?">
     Ask the bot to **write the fact to memory**. Long-term notes belong in `MEMORY.md`,
-    short-term context goes into `memory/YYYY-MM-DD.md`.
+    topic notes belong in `memory/<topic>.md`, and pending session captures should land in
+    `memory/backlog/YYYY-MM-DD/<slug>.md` so the memory jobs can promote them cleanly.
 
     This is still an area we are improving. It helps to remind the model to store memories;
     it will know what to do. If it keeps forgetting, verify the Gateway is using the same
@@ -1268,8 +1269,8 @@ for usage/billing and raise limits as needed.
     These files live in the **agent workspace**, not `~/.alisio`.
 
     - **Workspace (per agent)**: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`,
-      `MEMORY.md` (or legacy fallback `memory.md` when `MEMORY.md` is absent),
-      `memory/YYYY-MM-DD.md`, optional `HEARTBEAT.md`.
+      `MEMORY.md`,
+      `memory/*.md`, `memory/YYYY-MM-DD.md`, `memory/backlog/YYYY-MM-DD/*.md`, optional `HEARTBEAT.md`.
     - **State dir (`~/.alisio`)**: config, credentials, auth profiles, sessions, logs,
       and shared skills (`~/.alisio/skills`).
 
@@ -1489,7 +1490,7 @@ for usage/billing and raise limits as needed.
     **agents**:
 
     - **Gateway (central):** owns channels (Signal/WhatsApp), routing, and sessions.
-    - **Devices (nodes):** Macs/iOS connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
+    - **Computers (nodes):** Macs and helper hosts connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
     - **Extra configured agents:** optional isolated runtimes for explicit routing boundaries, not automatic personal multi-agent continuity.
     - **Sub-agents:** ephemeral background workers spawned from a main agent when you want parallelism.
     - **TUI:** connect to the Gateway and switch agents/sessions.
@@ -1498,7 +1499,7 @@ for usage/billing and raise limits as needed.
     persistent personal multi-agent behavior as roadmap work rather than as a
     finished release promise.
 
-    Docs: [Devices](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/web/tui).
+    Docs: [Computers](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/web/tui).
 
   </Accordion>
 
@@ -1541,12 +1542,12 @@ for usage/billing and raise limits as needed.
 
     Telegram → Gateway → Agent → `node.*` → Node → Gateway → Telegram
 
-    Devices (nodes) don't see inbound provider traffic; they only receive node RPC calls.
+    Paired computers (nodes) don't see inbound provider traffic; they only receive node RPC calls.
 
   </Accordion>
 
   <Accordion title="How can my agent access my computer if the Gateway is hosted remotely?">
-    Short answer: **pair your computer as a device (node)**. The Gateway runs elsewhere, but it can
+    Short answer: **pair your computer as a runtime computer (node)**. The Gateway runs elsewhere, but it can
     call `node.*` tools (screen, camera, system) on your local machine over the Gateway WebSocket.
 
     Typical setup:
@@ -1555,20 +1556,20 @@ for usage/billing and raise limits as needed.
     2. Put the Gateway host + your computer on the same tailnet.
     3. Ensure the Gateway WS is reachable (tailnet bind or SSH tunnel).
     4. Open the macOS app locally and connect in **Remote over SSH** mode (or direct tailnet)
-       so it can register as a device node.
-    5. Approve the device on the Gateway:
+       so it can register as a paired runtime computer.
+    5. Approve the computer on the Gateway:
 
        ```bash
        alisio devices list
        alisio devices approve <requestId>
        ```
 
-    No separate TCP bridge is required; devices connect over the Gateway WebSocket.
+    No separate TCP bridge is required; paired computers connect over the Gateway WebSocket.
 
-    Security reminder: pairing a macOS device node allows `system.run` on that machine. Only
-    pair devices you trust, and review [Security](/gateway/security).
+    Security reminder: pairing a macOS runtime computer allows `system.run` on that machine. Only
+    pair computers you trust, and review [Security](/gateway/security).
 
-    Docs: [Devices](/nodes), [Gateway protocol](/gateway/protocol), [macOS remote mode](/platforms/mac/remote), [Security](/gateway/security).
+    Docs: [Computers](/nodes), [Gateway protocol](/gateway/protocol), [macOS remote mode](/platforms/mac/remote), [Security](/gateway/security).
 
   </Accordion>
 
@@ -1626,26 +1627,26 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Is there a benefit to using a node on my personal laptop instead of SSH from a VPS?">
-    Yes - devices are the first-class way to reach your laptop from a remote Gateway, and they
+    Yes - paired computers are the first-class way to reach your laptop from a remote Gateway, and they
     unlock more than shell access. The Gateway runs on macOS/Linux (Windows via WSL2) and is
     lightweight (a small VPS or Raspberry Pi-class box is fine; 4 GB RAM is plenty), so a common
-    setup is an always-on host plus your laptop as a node.
+    setup is an always-on host plus your laptop as a paired computer.
 
-    - **No inbound SSH required.** Devices (nodes) connect out to the Gateway WebSocket and use device pairing.
+    - **No inbound SSH required.** Paired computers (nodes) connect out to the Gateway WebSocket and use device pairing.
     - **Safer execution controls.** `system.run` is gated by node allowlists/approvals on that laptop.
-    - **More device tools.** Devices (nodes) expose `canvas`, `camera`, and `screen` in addition to `system.run`.
+    - **More local tools.** Paired computers (nodes) expose `canvas`, `camera`, and `screen` in addition to `system.run`.
     - **Local browser automation.** Keep the Gateway on a VPS, but run Chrome locally through a node host on the laptop, or attach to local Chrome on the host via Chrome MCP.
 
-    SSH is fine for ad-hoc shell access, but devices (nodes) are simpler for ongoing agent workflows and
-    device automation.
+    SSH is fine for ad-hoc shell access, but paired computers (nodes) are simpler for ongoing agent workflows and
+    local automation.
 
-    Docs: [Devices](/nodes), [Devices CLI (nodes)](/cli/nodes), [Browser](/tools/browser).
+    Docs: [Computers](/nodes), [Nodes CLI](/cli/nodes), [Browser](/tools/browser).
 
   </Accordion>
 
   <Accordion title="Do devices run a gateway service?">
-    No. Only **one gateway** should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)). Devices (nodes) are peripherals that connect
-    to the gateway (iOS device nodes, or macOS "node mode" in the menubar app). For headless node
+    No. Only **one gateway** should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)). Computers (nodes) are peripherals that connect
+    to the gateway (for example the macOS "node mode" path in the menubar app). For headless node
     hosts and CLI control, see [Node host CLI](/cli/node).
 
     A full restart is required for `gateway`, `discovery`, and `canvasHost` changes.
@@ -1696,8 +1697,8 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="How do I connect a Mac device to a remote Gateway (Tailscale Serve)?">
-    Serve exposes the **Gateway Control UI + WS**. Devices (nodes) connect over the same Gateway WS endpoint.
+  <Accordion title="How do I connect a Mac computer to a remote Gateway (Tailscale Serve)?">
+    Serve exposes the **Gateway Control UI + WS**. Paired computers (nodes) connect over the same Gateway WS endpoint.
 
     Recommended setup:
 

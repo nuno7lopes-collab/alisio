@@ -414,4 +414,99 @@ describe("loadAlisioProviderOverview", () => {
     expect(result.providers[0]?.usageWindows).toEqual([]);
     expect(result.providers[0]?.status).toBe("ready");
   });
+
+  it("keeps setup-required connectors visible as ready in the apps overview", async () => {
+    const result = await loadAlisioProviderOverview({
+      includeUsage: false,
+      deps: {
+        ensureAuthProfileStore: () =>
+          ({
+            version: 1,
+            profiles: {},
+          }) as never,
+        readConfigFileSnapshot: async () =>
+          ({
+            path: "/tmp/models.json",
+            valid: true,
+            config: {},
+            runtimeConfig: {},
+          }) as never,
+        getAlisioAccountState: async () =>
+          ({
+            profile: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: new Date().toISOString(),
+              plan: "free",
+            },
+            preferences: {
+              language: "en",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "system",
+              themeAccents: DEFAULT_THEME_ACCENTS,
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+            },
+            devices: [],
+            cloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
+          }) as never,
+        getAlisioAiState: async () =>
+          ({
+            provider: "openai",
+            status: "connected",
+            profiles: [],
+          }) as never,
+        listAlisioConnectorDefinitions: () =>
+          [
+            {
+              id: "stripe",
+              title: "Stripe",
+              providerLabel: "Stripe",
+              category: "productivity",
+              connectLabel: "Connect with Stripe",
+              summary: "Payments and customer data.",
+              availability: "ready",
+              scopes: ["balance.read"],
+            },
+          ] as never,
+        listAlisioConnectorAuthorizations: async () =>
+          [
+            {
+              connectorId: "stripe",
+              state: "not_connected",
+              health: "config_missing",
+              scopes: ["balance.read"],
+            },
+          ] as never,
+        loadAlisioModelProviderSnapshot: async () =>
+          ({
+            catalog: [],
+            dynamicSources: [],
+            dynamicCatalogEntries: [],
+            targets: [],
+          }) as never,
+        getActivePluginRegistry: () =>
+          ({
+            providers: [],
+            speechProviders: [],
+            imageGenerationProviders: [],
+            mediaUnderstandingProviders: [],
+            webSearchProviders: [],
+          }) as never,
+        listRegisteredMemoryEmbeddingProviders: () => [],
+        resolveProviderAuthOverview,
+        loadProviderUsageSummary: async () => null as never,
+      },
+    });
+
+    expect(result.apps.find((item) => item.connectorId === "stripe")?.status).toBe("ready");
+  });
 });

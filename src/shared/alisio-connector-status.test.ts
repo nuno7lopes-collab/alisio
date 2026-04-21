@@ -75,7 +75,7 @@ describe("resolveAlisioConnectorSurfaceUiStatus", () => {
     ).toBe("ready");
   });
 
-  it("hides connectors with missing local OAuth config from user-facing surfaces", () => {
+  it("keeps missing-config connectors in setup_required on user-facing surfaces", () => {
     expect(
       resolveAlisioConnectorSurfaceUiStatus({
         definition: { id: "github", availability: "ready" },
@@ -84,7 +84,7 @@ describe("resolveAlisioConnectorSurfaceUiStatus", () => {
           health: "config_missing",
         },
       }),
-    ).toBe("unavailable");
+    ).toBe("setup_required");
   });
 });
 
@@ -161,7 +161,7 @@ describe("summarizeAlisioConnectorSurfaceUiStatuses", () => {
     });
   });
 
-  it("counts missing-config connectors as unavailable on user-facing surfaces", () => {
+  it("counts missing-config connectors as setup_required on user-facing surfaces", () => {
     expect(
       summarizeAlisioConnectorSurfaceUiStatuses({
         definitions: [{ id: "github", availability: "ready" }],
@@ -179,8 +179,8 @@ describe("summarizeAlisioConnectorSurfaceUiStatuses", () => {
       connected: 0,
       needsReconnect: 0,
       inReview: 0,
-      unavailable: 1,
-      available: 0,
+      unavailable: 0,
+      available: 1,
     });
   });
 });

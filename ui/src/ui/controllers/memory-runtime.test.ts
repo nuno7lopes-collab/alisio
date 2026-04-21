@@ -7,8 +7,8 @@ import {
   requestMemoryExport,
   requestMemoryFile,
   requestMemoryNotesList,
-  requestMemoryWikiList,
-  requestMemoryWikiPage,
+  requestMemoryNote,
+  resolvePreferredMemoryAgentId,
   syncMemoryNow,
   type MemoryRuntimeState,
 } from "./memory-runtime.ts";
@@ -308,53 +308,14 @@ describe("memory-runtime controller", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back from memory.notes.list to memory.wiki.list during transition", async () => {
+  it("normalizes memory roles from canonical note paths and metadata", async () => {
     const { request } = createState();
 
     request.mockImplementation((method: string) => {
       if (method === "memory.notes.list") {
-        return Promise.reject(
-          new GatewayRequestError({
-            code: "INVALID_REQUEST",
-            message: "unknown method: memory.notes.list",
-          }),
-        );
-      }
-      if (method === "memory.wiki.list") {
         return Promise.resolve({
           agentId: "main",
-          pages: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
-        });
-      }
-      throw new Error(`unexpected request: ${method}`);
-    });
-
-    const result = await requestMemoryNotesList(
-      { request } as unknown as Parameters<typeof requestMemoryNotesList>[0],
-      { agentId: "main" },
-    );
-
-    expect(result.notes.map((note) => note.title)).toEqual(["Project Atlas"]);
-    expect(request).toHaveBeenCalledWith("memory.notes.list", { agentId: "main" });
-    expect(request).toHaveBeenCalledWith("memory.wiki.list", { agentId: "main" });
-  });
-
-  it("normalizes memory roles even when the gateway falls back to wiki pages", async () => {
-    const { request } = createState();
-
-    request.mockImplementation((method: string) => {
-      if (method === "memory.notes.list") {
-        return Promise.reject(
-          new GatewayRequestError({
-            code: "INVALID_REQUEST",
-            message: "unknown method: memory.notes.list",
-          }),
-        );
-      }
-      if (method === "memory.wiki.list") {
-        return Promise.resolve({
-          agentId: "main",
-          pages: [
+          notes: [
             { id: "main", title: "Memory", path: "MEMORY.md" },
             { id: "daily", title: "2026-04-17", path: "memory/2026-04-17.md" },
             {
@@ -400,15 +361,15 @@ describe("memory-runtime controller", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
-  it("surfaces a friendly native-wiki message when memory.wiki.list is unavailable", async () => {
+  it("surfaces a friendly native-notes message when memory.notes.list is unavailable", async () => {
     const { request } = createState();
 
     request.mockImplementation((method: string) => {
-      if (method === "memory.wiki.list") {
+      if (method === "memory.notes.list") {
         return Promise.reject(
           new GatewayRequestError({
             code: "INVALID_REQUEST",
-            message: "unknown method: memory.wiki.list",
+            message: "unknown method: memory.notes.list",
           }),
         );
       }
@@ -416,10 +377,11 @@ describe("memory-runtime controller", () => {
     });
 
     await expect(
-      requestMemoryWikiList({ request } as unknown as Parameters<typeof requestMemoryWikiList>[0], {
-        agentId: "main",
-      }),
-    ).rejects.toThrow("native memory wiki");
+      requestMemoryNotesList(
+        { request } as unknown as Parameters<typeof requestMemoryNotesList>[0],
+        { agentId: "main" },
+      ),
+    ).rejects.toThrow("native memory notes");
   });
 
   it("requests memory export with the selected format", async () => {
@@ -453,28 +415,67 @@ describe("memory-runtime controller", () => {
     });
   });
 
-  it("passes the active query when requesting a wiki page", async () => {
+  it("passes the active query when requesting a note", async () => {
     const { request } = createState();
 
     request.mockResolvedValue({
       agentId: "main",
-      page: {
+      note: {
         id: "atlas",
         title: "Project Atlas",
         content: "# Project Atlas",
       },
     });
 
-    await requestMemoryWikiPage(
-      { request } as unknown as Parameters<typeof requestMemoryWikiPage>[0],
-      { agentId: "main", pageId: "atlas", query: "atlas" },
-    );
-
-    expect(request).toHaveBeenCalledWith("memory.wiki.get", {
+    await requestMemoryNote({ request } as unknown as Parameters<typeof requestMemoryNote>[0], {
       agentId: "main",
-      pageId: "atlas",
+      noteId: "atlas",
       query: "atlas",
     });
+
+    expect(request).toHaveBeenCalledWith("memory.notes.get", {
+      agentId: "main",
+      noteId: "atlas",
+      query: "atlas",
+    });
+  });
+
+  it("resolves the preferred memory agent from selection, session, assistant, and defaults", () => {
+    expect(
+      resolvePreferredMemoryAgentId({
+        memorySelectedAgentId: "work",
+        sessionKey: "agent:main:main",
+        assistantAgentId: "main",
+        agentsList: {
+          defaultId: "main",
+          agents: [{ id: "main" }, { id: "work" }],
+        },
+      }),
+    ).toBe("work");
+
+    expect(
+      resolvePreferredMemoryAgentId({
+        memorySelectedAgentId: null,
+        sessionKey: "agent:work:main",
+        assistantAgentId: "main",
+        agentsList: {
+          defaultId: "main",
+          agents: [{ id: "main" }, { id: "work" }],
+        },
+      }),
+    ).toBe("work");
+
+    expect(
+      resolvePreferredMemoryAgentId({
+        memorySelectedAgentId: null,
+        sessionKey: "agent:missing:main",
+        assistantAgentId: "main",
+        agentsList: {
+          defaultId: "main",
+          agents: [{ id: "main" }],
+        },
+      }),
+    ).toBe("main");
   });
 
   it("passes the active query when requesting a file detail", async () => {

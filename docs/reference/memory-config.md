@@ -259,27 +259,26 @@ fastest and cheapest for large backfills.
 
 ---
 
-## Session memory search (experimental)
+## Session memory search
 
 Index session transcripts and surface them via `memory_search`:
 
 | Key                           | Type       | Default      | Description                             |
 | ----------------------------- | ---------- | ------------ | --------------------------------------- |
-| `experimental.sessionMemory`  | `boolean`  | `false`      | Enable session indexing                 |
 | `sources`                     | `string[]` | `["memory"]` | Add `"sessions"` to include transcripts |
 | `sync.sessions.deltaBytes`    | `number`   | `100000`     | Byte threshold for reindex              |
 | `sync.sessions.deltaMessages` | `number`   | `50`         | Message threshold for reindex           |
 
-Session indexing is opt-in and runs asynchronously. Results can be slightly
-stale. Session logs live on disk, so treat filesystem access as the trust
-boundary.
+Session indexing runs asynchronously whenever `"sessions"` is present in
+`memorySearch.sources`. Results can be slightly stale. Session logs live on
+disk, so treat filesystem access as the trust boundary.
 
 ---
 
 ## Background memory jobs
 
 Cooperative background memory jobs keep the canonical store tidy while the agent
-is idle. They promote candidate pages, run dedup/health checks, and distill
+is idle. They promote backlog/topic pages, run dedup/health checks, and distill
 canonical daily notes (`memory/YYYY-MM-DD.md`) into the long-term `MEMORY.md`
 projection.
 

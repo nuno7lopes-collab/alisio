@@ -308,6 +308,46 @@ describe("authentications view", () => {
     expect(onRevokeConnector).toHaveBeenCalledWith("gmail-send");
   });
 
+  it("hides opaque account identifiers from the connected account card", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications(
+        createProps({
+          dialogConnectorId: "gmail-modify",
+          dialogMode: "details",
+          connectorCatalog: [
+            connector({
+              id: "gmail-modify",
+              title: "Gmail Modify",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Label and archive messages.",
+            }),
+          ],
+          connectorAuthorizations: [
+            authorization({
+              connectorId: "gmail-modify",
+              state: "connected",
+              connectedAccount: {
+                email: "nuno7lopes@gmail.com",
+                handle: "102786776818103502343",
+              },
+            }),
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("nuno7lopes@gmail.com");
+    expect(container.textContent).not.toContain("102786776818103502343");
+    expect(
+      container.querySelectorAll(".alisio-auth-dialog__account-line").length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
   it("renders the install dialog from the plus action and starts the connector flow", () => {
     const container = document.createElement("div");
     const onBeginConnector = vi.fn();
@@ -404,7 +444,7 @@ describe("authentications view", () => {
     expect(container.textContent).not.toContain("GitHub");
   });
 
-  it("shows unavailable apps without an install action when OAuth config is missing", () => {
+  it("keeps setup-required apps actionable when OAuth config is missing", () => {
     const container = document.createElement("div");
 
     render(
@@ -423,8 +463,49 @@ describe("authentications view", () => {
     );
 
     const availableSection = container.querySelector('[data-section="available"]');
-    expect(availableSection?.textContent).toContain("Unavailable");
-    expect(availableSection?.querySelector(".alisio-app-row__indicator.is-action")).toBeNull();
+    expect(availableSection?.textContent).toContain("GitHub");
+    expect(availableSection?.querySelector(".alisio-app-row__indicator.is-action")).not.toBeNull();
+  });
+
+  it("renders concrete setup guidance for blocked connector installs", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications(
+        createProps({
+          dialogConnectorId: "github",
+          dialogMode: "install",
+          connectorCatalog: [connector({ id: "github", title: "GitHub" })],
+          connectorAuthorizations: [
+            authorization({
+              connectorId: "github",
+              health: "config_missing",
+            }),
+          ],
+          connectorSetupGuide: {
+            connectorId: "github",
+            availability: "ready",
+            mode: "setup",
+            provider: "github",
+            providerLabel: "GitHub",
+            statusReason: "missing_client_config",
+            callbackPath: "/oauth/github/callback",
+            requiredEnvVars: [
+              "ALISIO_GITHUB_CLIENT_ID",
+              "ALISIO_GITHUB_CLIENT_SECRET",
+              "ALISIO_GITHUB_REDIRECT_URI",
+              "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY",
+            ],
+            setupHint: "GitHub can complete native OAuth once the gateway app is configured.",
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Finish OAuth setup in Alisio");
+    expect(container.textContent).toContain("ALISIO_GITHUB_CLIENT_ID");
+    expect(container.textContent).toContain("/oauth/github/callback");
   });
 
   it("renders split-panel loading state on the first load", () => {

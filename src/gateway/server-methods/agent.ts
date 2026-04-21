@@ -870,7 +870,6 @@ export const agentHandlers: GatewayRequestHandlers = {
     const identity = resolveResolvedAgentIdentity({
       cfg,
       agentId: resolvedAgentId,
-      includeUiAssistant: true,
       includeAccountIdentity: true,
       accountProfile:
         account && hasRestorableAlisioAccount(account.profile, account.session)

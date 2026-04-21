@@ -1,4 +1,3 @@
-import { resolveHeartbeatPrompt } from "../../auto-reply/heartbeat.js";
 import { resolveSessionAgentIds } from "../agent-scope.js";
 import {
   buildBootstrapInjectionStats,
@@ -13,6 +12,7 @@ import {
 import { resolveCliBackendConfig } from "../cli-backends.js";
 import { hashCliSessionText, resolveCliSessionReuse } from "../cli-session.js";
 import { resolveAlisioDocsPath } from "../docs-path.js";
+import { isHeartbeatEnabledForAgent, resolveHeartbeatPromptForAgent } from "../heartbeat-config.js";
 import {
   resolveBootstrapMaxChars,
   resolveBootstrapPromptTruncationWarningMode,
@@ -113,15 +113,21 @@ export async function prepareCliRunContext(
     seenSignatures: params.bootstrapPromptWarningSignaturesSeen,
     previousSignature: params.bootstrapPromptWarningSignature,
   });
-  const { defaultAgentId, sessionAgentId } = resolveSessionAgentIds({
+  const { sessionAgentId } = resolveSessionAgentIds({
     sessionKey: params.sessionKey,
     config: params.config,
     agentId: params.agentId,
   });
-  const heartbeatPrompt =
-    sessionAgentId === defaultAgentId
-      ? resolveHeartbeatPrompt(params.config?.agents?.defaults?.heartbeat?.prompt)
-      : undefined;
+  const heartbeatEnabled = isHeartbeatEnabledForAgent({
+    cfg: params.config ?? {},
+    agentId: sessionAgentId,
+  });
+  const heartbeatPrompt = heartbeatEnabled
+    ? resolveHeartbeatPromptForAgent({
+        cfg: params.config ?? {},
+        agentId: sessionAgentId,
+      })
+    : undefined;
   const docsPath = await resolveAlisioDocsPath({
     workspaceDir,
     argv1: process.argv[1],

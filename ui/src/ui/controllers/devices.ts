@@ -2,6 +2,7 @@ import { t } from "../../i18n/index.ts";
 import { clearDeviceAuthToken, storeDeviceAuthToken } from "../device-auth.ts";
 import { loadManagedDeviceIdentity } from "../device-identity.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
+import { resolveComputerGroupKey, resolveComputerLabelText } from "./computer-identity.ts";
 
 export type DeviceTokenSummary = {
   role: string;
@@ -133,10 +134,6 @@ function collectPairedDeviceScopes(device: PairedDevice | null | undefined): str
   return [...scopes];
 }
 
-function normalizeComputerKeyPart(value: string | null | undefined) {
-  return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
-}
-
 export function resolveComputerLabel(
   device: Pick<
     PairedDevice,
@@ -144,18 +141,22 @@ export function resolveComputerLabel(
   >,
 ): string {
   return (
-    device.computerLabel?.trim() ||
-    device.displayName?.trim() ||
-    device.platform?.trim() ||
-    device.clientId?.trim() ||
-    device.clientMode?.trim() ||
-    device.deviceFamily?.trim() ||
-    t("alisio.connections.devices.computerFallback")
+    resolveComputerLabelText({
+      computerLabel: device.computerLabel,
+      displayName: device.displayName,
+      platform: device.platform,
+      clientId: device.clientId,
+      clientMode: device.clientMode,
+      deviceFamily: device.deviceFamily,
+    }) || t("alisio.connections.devices.computerFallback")
   );
 }
 
 function resolveComputerKey(device: PairedDevice) {
-  return normalizeComputerKeyPart(device.computerId) || `device:${device.deviceId}`;
+  return resolveComputerGroupKey({
+    computerId: device.computerId,
+    fallbackId: `device:${device.deviceId}`,
+  })!;
 }
 
 function comparePairedDeviceRecency(a: PairedDevice, b: PairedDevice) {

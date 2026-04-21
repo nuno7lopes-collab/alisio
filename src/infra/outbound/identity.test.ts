@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const resolveAgentIdentityMock = vi.hoisted(() => vi.fn());
 const resolveAgentAvatarMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../../agents/identity.js", () => ({
-  resolveAgentIdentity: (...args: unknown[]) => resolveAgentIdentityMock(...args),
+vi.mock("../../agents/identity-canonical.js", () => ({
+  resolveCanonicalAgentIdentitySnapshot: (...args: unknown[]) => resolveAgentIdentityMock(...args),
 }));
 
 vi.mock("../../agents/identity-avatar.js", () => ({

@@ -7,7 +7,6 @@ import { openBoundaryFile } from "../../infra/boundary-file-read.js";
 
 const MAX_CONTEXT_CHARS = 3000;
 const DEFAULT_POST_COMPACTION_SECTIONS = ["Session Startup", "Red Lines"];
-const LEGACY_POST_COMPACTION_SECTIONS = ["Every Session", "Safety"];
 
 // Compare configured section names as a case-insensitive set so deployments can
 // pin the documented defaults in any order without changing fallback semantics.
@@ -98,17 +97,9 @@ export async function readPostCompactionContext(
     const foundSectionNames: string[] = [];
     let sections = extractSections(content, sectionNames, foundSectionNames);
 
-    // Fall back to legacy section names ("Every Session" / "Safety") when using
-    // defaults and the current headings aren't found — preserves compatibility
-    // with older AGENTS.md templates. The fallback also applies when the user
-    // explicitly configures the default pair, so that pinning the documented
-    // defaults never silently changes behavior vs. leaving the field unset.
     const isDefaultSections =
       !Array.isArray(configuredSections) ||
       matchesSectionSet(configuredSections, DEFAULT_POST_COMPACTION_SECTIONS);
-    if (sections.length === 0 && isDefaultSections) {
-      sections = extractSections(content, LEGACY_POST_COMPACTION_SECTIONS, foundSectionNames);
-    }
 
     if (sections.length === 0) {
       return null;

@@ -27,7 +27,7 @@ import { logVerbose } from "../../globals.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
 import {
   readWorkspaceMemoryFileText,
-  syncDailyMemoryThroughCanonicalPipeline,
+  syncWorkspaceMemoryThroughCanonicalPipeline,
 } from "../../memory/daily-memory.js";
 import { resolveMemoryFlushPlan } from "../../plugins/memory-state.js";
 import type { TemplateContext } from "../templating.js";
@@ -299,7 +299,11 @@ function resolveMemoryFlushContextHashFromSession(params: {
   let messages: AgentMessage[] = [];
   if (sessionId) {
     try {
-      messages = readSessionMessages(sessionId, params.storePath, params.sessionFile) as AgentMessage[];
+      messages = readSessionMessages(
+        sessionId,
+        params.storePath,
+        params.sessionFile,
+      ) as AgentMessage[];
     } catch {
       messages = [];
     }
@@ -755,6 +759,7 @@ export async function runMemoryFlushIfNeeded(params: {
           silentExpected: true,
           trigger: "memory",
           memoryFlushWritePath,
+          memoryFlushWriteSeedContent: activeMemoryFlushPlan.writeSeedContent,
           prompt: activeMemoryFlushPlan.prompt,
           extraSystemPrompt: flushSystemPrompt,
           bootstrapPromptWarningSignaturesSeen,
@@ -871,7 +876,7 @@ export async function runMemoryFlushIfNeeded(params: {
   });
   if (memoryFlushFileAfter !== memoryFlushFileBefore) {
     try {
-      await syncDailyMemoryThroughCanonicalPipeline({
+      await syncWorkspaceMemoryThroughCanonicalPipeline({
         cfg: params.cfg,
         agentId: memoryAgentId,
         reason: "memory-flush",

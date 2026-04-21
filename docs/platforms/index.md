@@ -1,5 +1,5 @@
 ---
-summary: "Platform support overview (Gateway + companion apps)"
+summary: "Platform support overview (desktop hosts, gateway installs, and companion surfaces)"
 read_when:
   - Looking for OS support or install paths
   - Deciding where to run the Gateway
@@ -11,9 +11,10 @@ title: "Platforms"
 Alisio core is written in TypeScript. **Node is the recommended runtime**.
 Bun is not recommended for the Gateway (WhatsApp/Telegram bugs).
 
-Companion apps exist for macOS (menu bar app) and mobile nodes (iOS). Windows and
-Linux companion apps are planned, but the Gateway is fully supported today.
-Native companion apps for Windows are also planned; the Gateway is recommended via WSL2.
+The primary desktop app is macOS-first today. Windows and Linux are supported
+as gateway/runtime hosts, and the Gateway is fully supported today. Native
+Windows desktop host work is in progress; until then, the recommended Windows
+path is WSL2.
 
 ## Choose your OS
 

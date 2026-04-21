@@ -255,4 +255,52 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
       }),
     );
   });
+
+  it("merges partial heartbeat overrides with the resolved config", async () => {
+    await withHeartbeatFixture(async ({ tmpDir, storePath, seedSession }) => {
+      const cfg: AlisioConfig = {
+        agents: {
+          defaults: {
+            workspace: tmpDir,
+            heartbeat: {
+              every: "5m",
+              target: "none",
+              model: "vllm/llama3.2:1b",
+              suppressToolErrorWarnings: true,
+              lightContext: true,
+            },
+          },
+        },
+        channels: { whatsapp: { allowFrom: ["*"] } },
+        session: { store: storePath },
+      };
+      const sessionKey = resolveMainSessionKey(cfg);
+      await seedSession(sessionKey, { lastChannel: "whatsapp", lastTo: "+1555" });
+
+      const replySpy = vi.spyOn(replyModule, "getReplyFromConfig");
+      replySpy.mockResolvedValue({ text: "HEARTBEAT_OK" });
+
+      await runHeartbeatOnce({
+        cfg,
+        heartbeat: { target: "last" },
+        deps: {
+          getQueueSize: () => 0,
+          nowMs: () => 0,
+        },
+      });
+
+      expect(replySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          OriginatingChannel: "whatsapp",
+        }),
+        expect.objectContaining({
+          isHeartbeat: true,
+          heartbeatModelOverride: "vllm/llama3.2:1b",
+          suppressToolErrorWarnings: true,
+          bootstrapContextMode: "lightweight",
+        }),
+        cfg,
+      );
+    });
+  });
 });

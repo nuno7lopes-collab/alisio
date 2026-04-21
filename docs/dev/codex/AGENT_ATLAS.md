@@ -3,12 +3,12 @@
 ## Scope
 
 - Own the native memory operator surface in the control UI.
-- Keep the page split to exactly three views: Wiki, Files, and Graph.
+- Keep the page split to exactly three views: Notes, Files, and Graph.
 - Treat the ledger as canonical and the UI as a client of backend memory APIs.
 
 ## UI contract
 
-- Wiki loads pages from `memory.wiki.list`, `memory.wiki.get`, `memory.wiki.update`, and `memory.wiki.history`.
+- Notes load entries from `memory.notes.list`, `memory.notes.get`, `memory.notes.update`, and `memory.notes.history`.
 - Files loads attachments from `memory.files.list` and `memory.files.get`.
 - Trace inspection loads explainability from `memory.trace.get`.
 - Export uses `memory.export` with `zip`, `json`, or `markdown`.
@@ -23,5 +23,4 @@
 ## Safety
 
 - If a gateway is older and a native memory method is missing, show a friendly unsupported message instead of failing hard.
-- Keep legacy file editing behind `ui.memory.legacyEditor.enabled=false` by default.
 - Avoid backend refactors in UI work. Assume backend teams own schema and storage internals.

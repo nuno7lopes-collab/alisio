@@ -30,10 +30,6 @@ import {
   handleMemoryNotesListGatewayRequest,
   handleMemoryNotesUpdateGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
-  handleMemoryWikiGetGatewayRequest,
-  handleMemoryWikiHistoryGatewayRequest,
-  handleMemoryWikiListGatewayRequest,
-  handleMemoryWikiUpdateGatewayRequest,
 } from "./gateway.native.js";
 import {
   handleMemoryFilesGetGatewayRequest,
@@ -362,34 +358,34 @@ beforeEach(() => {
 });
 
 describe("native memory gateway handlers", () => {
-  it("serves wiki list, detail, history, and ledger-backed updates", async () => {
+  it("serves notes list, detail, history, and ledger-backed updates", async () => {
     const seeded = await seedNativeMemory();
 
-    const listRespond = await invoke(handleMemoryWikiListGatewayRequest, {
+    const listRespond = await invoke(handleMemoryNotesListGatewayRequest, {
       agentId: "main",
       query: "atlas",
     });
     const listResult = listRespond.mock.calls[0]?.[1] as {
-      pages: Array<{
+      notes: Array<{
         title: string;
         reasonTags?: Array<{ code: string }>;
         trace?: { query?: string; hitCount?: number };
       }>;
     };
-    const atlasListPage = listResult.pages.find((page) => page.title === "Project Atlas");
+    const atlasListPage = listResult.notes.find((note) => note.title === "Project Atlas");
     expect(atlasListPage).toBeDefined();
     expect(atlasListPage?.reasonTags?.map((tag) => tag.code)).toEqual(
       expect.arrayContaining(["alias_exact"]),
     );
     expect(atlasListPage?.trace).toEqual(expect.objectContaining({ query: "atlas" }));
 
-    const getRespond = await invoke(handleMemoryWikiGetGatewayRequest, {
+    const getRespond = await invoke(handleMemoryNotesGetGatewayRequest, {
       agentId: "main",
-      pageId: seeded.atlasPageId,
+      noteId: seeded.atlasPageId,
       query: "atlas",
     });
     const getResult = getRespond.mock.calls[0]?.[1] as {
-      page: {
+      note: {
         claims: Array<{ claim: string }>;
         evidence: Array<{ source?: string }>;
         backlinks: Array<{ title: string }>;
@@ -397,15 +393,15 @@ describe("native memory gateway handlers", () => {
         content: string;
       };
     };
-    expect(getResult.page.claims[0]?.claim).toContain("roadmap sign-off");
-    expect(getResult.page.evidence[0]?.source).toContain("project-atlas");
-    expect(getResult.page.backlinks.map((entry) => entry.title)).toContain("Roadmap");
-    expect(getResult.page.contextPreview?.trace).toBeDefined();
-    expect(getResult.page.content).toContain("priority: high");
+    expect(getResult.note.claims[0]?.claim).toContain("roadmap sign-off");
+    expect(getResult.note.evidence[0]?.source).toContain("project-atlas");
+    expect(getResult.note.backlinks.map((entry) => entry.title)).toContain("Roadmap");
+    expect(getResult.note.contextPreview?.trace).toBeDefined();
+    expect(getResult.note.content).toContain("priority: high");
 
-    const historyRespond = await invoke(handleMemoryWikiHistoryGatewayRequest, {
+    const historyRespond = await invoke(handleMemoryNotesHistoryGatewayRequest, {
       agentId: "main",
-      pageId: seeded.atlasPageId,
+      noteId: seeded.atlasPageId,
     });
     expect(historyRespond).toHaveBeenCalledWith(
       true,
@@ -420,9 +416,9 @@ describe("native memory gateway handlers", () => {
       undefined,
     );
 
-    const updateRespond = await invoke(handleMemoryWikiUpdateGatewayRequest, {
+    const updateRespond = await invoke(handleMemoryNotesUpdateGatewayRequest, {
       agentId: "main",
-      pageId: seeded.atlasPageId,
+      noteId: seeded.atlasPageId,
       title: "Project Atlas",
       content: [
         "---",
@@ -441,11 +437,11 @@ describe("native memory gateway handlers", () => {
     });
     const updateResult = updateRespond.mock.calls[0]?.[1] as {
       sync?: { lastSyncedLamport?: number };
-      page?: { content: string; revision?: { eventId?: string } };
+      note?: { content: string; revision?: { eventId?: string } };
     };
-    expect(updateResult.page?.content).toContain("priority: urgent");
-    expect(updateResult.page?.content).toContain("Updated blocker review.");
-    expect(updateResult.page?.revision?.eventId).toBeTruthy();
+    expect(updateResult.note?.content).toContain("priority: urgent");
+    expect(updateResult.note?.content).toContain("Updated blocker review.");
+    expect(updateResult.note?.revision?.eventId).toBeTruthy();
     expect(updateResult.sync?.lastSyncedLamport).toBeGreaterThan(0);
 
     const workspaceProjection = await fs.readFile(
@@ -552,7 +548,9 @@ describe("native memory gateway handlers", () => {
     const backlogResult = backlogRespond.mock.calls[0]?.[1] as {
       note?: { path?: string; content: string };
     };
-    expect(backlogResult.note?.path).toMatch(/^memory\/backlog\/\d{4}-\d{2}-\d{2}\/physics-study\.md$/);
+    expect(backlogResult.note?.path).toMatch(
+      /^memory\/backlog\/\d{4}-\d{2}-\d{2}\/physics-study\.md$/,
+    );
     expect(backlogResult.note?.content).toContain("memoryRole: backlog");
     if (!backlogResult.note?.path) {
       throw new Error("expected backlog note path");
@@ -575,7 +573,10 @@ describe("native memory gateway handlers", () => {
     };
     expect(mainResult.note?.path).toBe("MEMORY.md");
     expect(mainResult.note?.content).toContain("Updated canonical main memory.");
-    const mainProjection = await fs.readFile(path.join(seeded.test.workspaceDir, "MEMORY.md"), "utf8");
+    const mainProjection = await fs.readFile(
+      path.join(seeded.test.workspaceDir, "MEMORY.md"),
+      "utf8",
+    );
     expect(mainProjection).toContain("Updated canonical main memory.");
 
     await fs.rm(seeded.test.root, { recursive: true, force: true });
@@ -826,9 +827,9 @@ describe("native memory gateway handlers", () => {
   it("removes aliases and tags when the edited markdown no longer defines them", async () => {
     const seeded = await seedNativeMemory();
 
-    await invoke(handleMemoryWikiUpdateGatewayRequest, {
+    await invoke(handleMemoryNotesUpdateGatewayRequest, {
       agentId: "main",
-      pageId: seeded.atlasPageId,
+      noteId: seeded.atlasPageId,
       title: "Project Atlas",
       content: "# Project Atlas\n\nClean body.\n",
     });
@@ -869,7 +870,7 @@ describe("native memory gateway handlers", () => {
     await fs.rm(seeded.test.root, { recursive: true, force: true });
   });
 
-  it("revives workspace pages on the next canonical sync after a tombstone", async () => {
+  it("revives workspace pages only after the workspace note is recreated post-tombstone", async () => {
     const seeded = await seedNativeMemory();
 
     const tombstoned = await memoryWriteEvent({
@@ -892,6 +893,27 @@ describe("native memory gateway handlers", () => {
       ],
     });
     seeded.status = tombstoned.status;
+
+    await expect(
+      fs.readFile(path.join(seeded.test.workspaceDir, "memory", "project-atlas.md"), "utf8"),
+    ).rejects.toThrow();
+
+    await fs.writeFile(
+      path.join(seeded.test.workspaceDir, "memory", "project-atlas.md"),
+      [
+        "---",
+        "aliases:",
+        "  - Atlas",
+        "tags:",
+        "  - pinned",
+        "---",
+        "# Project Atlas",
+        "",
+        "Launch blockers still depend on [[memory/roadmap]].",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
 
     seeded.status = await syncCanonicalMemoryStore({
       cfg: seeded.test.cfg,
@@ -918,14 +940,14 @@ describe("native memory gateway handlers", () => {
       db.close();
     }
 
-    const listRespond = await invoke(handleMemoryWikiListGatewayRequest, {
+    const listRespond = await invoke(handleMemoryNotesListGatewayRequest, {
       agentId: "main",
       query: "atlas",
     });
     const listResult = listRespond.mock.calls[0]?.[1] as {
-      pages: Array<{ title: string }>;
+      notes: Array<{ title: string }>;
     };
-    expect(listResult.pages.map((page) => page.title)).toContain("Project Atlas");
+    expect(listResult.notes.map((note) => note.title)).toContain("Project Atlas");
 
     await fs.rm(seeded.test.root, { recursive: true, force: true });
   });

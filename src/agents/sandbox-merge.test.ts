@@ -99,14 +99,15 @@ describe("sandbox config merges", () => {
     }
   });
 
-  it("applies per-agent browser and prune overrides (ignored under shared scope)", () => {
+  it("keeps browser sandbox disabled while still merging prune overrides", () => {
     const browser = resolveSandboxBrowserConfig({
       scope: "agent",
       globalBrowser: { enabled: false, headless: false },
       agentBrowser: { enabled: true, headless: true },
     });
-    expect(browser.enabled).toBe(true);
-    expect(browser.headless).toBe(true);
+    expect(browser.enabled).toBe(false);
+    expect(browser.allowHostControl).toBe(false);
+    expect(browser.autoStart).toBe(false);
 
     const prune = resolveSandboxPruneConfig({
       scope: "agent",

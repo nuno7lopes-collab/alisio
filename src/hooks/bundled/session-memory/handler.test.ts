@@ -16,8 +16,9 @@ vi.mock("../../llm-slug-generator.js", () => ({
   generateSlugViaLLM: vi.fn().mockResolvedValue("simple-math"),
 }));
 
-const syncDailyMemoryThroughCanonicalPipelineMock = vi
-  .hoisted(() => vi.fn().mockResolvedValue(undefined));
+const syncWorkspaceMemoryThroughCanonicalPipelineMock = vi.hoisted(() =>
+  vi.fn().mockResolvedValue(undefined),
+);
 
 vi.mock("../../../memory/daily-memory.js", async () => {
   const actual = await vi.importActual<typeof import("../../../memory/daily-memory.js")>(
@@ -25,7 +26,7 @@ vi.mock("../../../memory/daily-memory.js", async () => {
   );
   return {
     ...actual,
-    syncDailyMemoryThroughCanonicalPipeline: syncDailyMemoryThroughCanonicalPipelineMock,
+    syncWorkspaceMemoryThroughCanonicalPipeline: syncWorkspaceMemoryThroughCanonicalPipelineMock,
   };
 });
 
@@ -55,7 +56,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  syncDailyMemoryThroughCanonicalPipelineMock.mockClear();
+  syncWorkspaceMemoryThroughCanonicalPipelineMock.mockClear();
 });
 
 /**
@@ -256,7 +257,7 @@ describe("session-memory hook", () => {
     const { files, memoryContent } = await runNewWithPreviousSession({ sessionContent });
     expect(files.length).toBe(1);
     expect(files[0]).toMatch(/^memory\/backlog\/\d{4}-\d{2}-\d{2}\/.+\.md$/);
-    expect(syncDailyMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
+    expect(syncWorkspaceMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
       cfg: expect.objectContaining({
         agents: expect.objectContaining({
           defaults: expect.objectContaining({
@@ -328,7 +329,7 @@ describe("session-memory hook", () => {
     expect(memoryContent).toContain("user: Remember this under Navi");
     expect(memoryContent).toContain("assistant: Stored in the bound workspace");
     expect(memoryContent).toContain("- **Session Key**: agent:navi:main");
-    expect(syncDailyMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
+    expect(syncWorkspaceMemoryThroughCanonicalPipelineMock).toHaveBeenCalledWith({
       cfg: expect.any(Object),
       agentId: "navi",
       reason: "session-memory",

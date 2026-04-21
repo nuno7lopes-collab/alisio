@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createProviderUsageFetch, makeResponse } from "../test-utils/provider-usage-fetch.js";
 import type { AlisioConfig } from "../config/config.js";
-import { loadProviderUsageSummary } from "./provider-usage.load.js";
+import { createProviderUsageFetch, makeResponse } from "../test-utils/provider-usage-fetch.js";
 import type { ProviderAuth } from "./provider-usage.auth.js";
+import { loadProviderUsageSummary } from "./provider-usage.load.js";
 import { ignoredErrors } from "./provider-usage.shared.js";
 const usageNow = Date.UTC(2026, 0, 7, 0, 0, 0);
 
@@ -101,7 +101,7 @@ describe("provider-usage.load", () => {
   it("returns unsupported provider snapshots for unknown provider ids", async () => {
     const mockFetch = createProviderUsageFetch(async () => makeResponse(404, "not found"));
     const summary = await loadUsageWithAuth(
-      [{ provider: "unsupported-provider", token: "token-u" }] as ProviderAuth[],
+      [{ provider: "unsupported-provider", token: "token-u" }] as unknown as ProviderAuth[],
       mockFetch,
     );
     expect(summary.providers).toHaveLength(1);

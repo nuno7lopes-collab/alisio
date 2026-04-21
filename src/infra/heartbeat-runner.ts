@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  resolveAgentConfig,
-  resolveAgentWorkspaceDir,
-  resolveDefaultAgentId,
-} from "../agents/agent-scope.js";
+import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { appendCronStyleCurrentTimeLine } from "../agents/current-time.js";
+import {
+  hasExplicitHeartbeatAgents,
+  resolveHeartbeatConfigForAgent,
+} from "../agents/heartbeat-config.js";
 import { resolveEffectiveMessagesConfig } from "../agents/identity.js";
 import { DEFAULT_HEARTBEAT_FILENAME } from "../agents/workspace.js";
 import { resolveHeartbeatReplyPayload } from "../auto-reply/heartbeat-reply-payload.js";
@@ -80,7 +80,12 @@ import {
   resolveHeartbeatDeliveryTarget,
   resolveHeartbeatSenderContext,
 } from "./outbound/targets.js";
-import { peekSystemEventEntries, resolveSystemEventDeliveryContext } from "./system-events.js";
+import {
+  drainSystemEventEntries,
+  enqueueSystemEvent,
+  peekSystemEventEntries,
+  resolveSystemEventDeliveryContext,
+} from "./system-events.js";
 
 export type HeartbeatDeps = OutboundSendDeps &
   ChannelHeartbeatDeps & {
@@ -120,23 +125,6 @@ export type HeartbeatRunner = {
   updateConfig: (cfg: AlisioConfig) => void;
 };
 
-function hasExplicitHeartbeatAgents(cfg: AlisioConfig) {
-  const list = cfg.agents?.list ?? [];
-  return list.some((entry) => Boolean(entry?.heartbeat));
-}
-
-function resolveHeartbeatConfig(cfg: AlisioConfig, agentId?: string): HeartbeatConfig | undefined {
-  const defaults = cfg.agents?.defaults?.heartbeat;
-  if (!agentId) {
-    return defaults;
-  }
-  const overrides = resolveAgentConfig(cfg, agentId)?.heartbeat;
-  if (!defaults && !overrides) {
-    return overrides;
-  }
-  return { ...defaults, ...overrides };
-}
-
 function resolveHeartbeatAgents(cfg: AlisioConfig): HeartbeatAgent[] {
   const list = cfg.agents?.list ?? [];
   if (hasExplicitHeartbeatAgents(cfg)) {
@@ -144,12 +132,20 @@ function resolveHeartbeatAgents(cfg: AlisioConfig): HeartbeatAgent[] {
       .filter((entry) => entry?.heartbeat)
       .map((entry) => {
         const id = normalizeAgentId(entry.id);
-        return { agentId: id, heartbeat: resolveHeartbeatConfig(cfg, id) };
+        return {
+          agentId: id,
+          heartbeat: resolveHeartbeatConfigForAgent({ cfg, agentId: id }),
+        };
       })
       .filter((entry) => entry.agentId);
   }
   const fallbackId = resolveDefaultAgentId(cfg);
-  return [{ agentId: fallbackId, heartbeat: resolveHeartbeatConfig(cfg, fallbackId) }];
+  return [
+    {
+      agentId: fallbackId,
+      heartbeat: resolveHeartbeatConfigForAgent({ cfg, agentId: fallbackId }),
+    },
+  ];
 }
 
 export function resolveHeartbeatPrompt(cfg: AlisioConfig, heartbeat?: HeartbeatConfig) {
@@ -303,6 +299,10 @@ async function pruneHeartbeatTranscript(params: {
   }
   try {
     const stat = await fs.stat(transcriptPath);
+    if (preHeartbeatSize === 0) {
+      await fs.unlink(transcriptPath).catch(() => {});
+      return;
+    }
     // Only truncate if the file has grown during the heartbeat run
     if (stat.size > preHeartbeatSize) {
       await fs.truncate(transcriptPath, preHeartbeatSize);
@@ -322,21 +322,51 @@ async function captureTranscriptState(params: {
   agentId?: string;
 }): Promise<{ transcriptPath?: string; preHeartbeatSize?: number }> {
   const { storePath, sessionKey, agentId } = params;
+  let transcriptPath: string | undefined;
   try {
     const store = loadSessionStore(storePath);
     const entry = store[sessionKey];
     if (!entry?.sessionId) {
       return {};
     }
-    const transcriptPath = resolveSessionFilePath(entry.sessionId, entry, {
+    transcriptPath = resolveSessionFilePath(entry.sessionId, entry, {
       agentId,
       sessionsDir: path.dirname(storePath),
     });
     const stat = await fs.stat(transcriptPath);
     return { transcriptPath, preHeartbeatSize: stat.size };
-  } catch {
+  } catch (err) {
     // Session or transcript doesn't exist yet - nothing to prune
-    return {};
+    if (transcriptPath && hasErrnoCode(err, "ENOENT")) {
+      return { transcriptPath, preHeartbeatSize: 0 };
+    }
+    return transcriptPath ? { transcriptPath } : {};
+  }
+}
+
+async function cleanupEphemeralHeartbeatSession(params: { storePath: string; sessionKey: string }) {
+  if (!params.sessionKey.endsWith(":heartbeat")) {
+    return;
+  }
+  await updateSessionStore(params.storePath, (store) => {
+    delete store[params.sessionKey];
+  });
+}
+
+function moveHeartbeatSystemEventsToRunSession(params: {
+  sourceSessionKey: string;
+  targetSessionKey: string;
+}) {
+  if (params.sourceSessionKey === params.targetSessionKey) {
+    return;
+  }
+  const drained = drainSystemEventEntries(params.sourceSessionKey);
+  for (const event of drained) {
+    enqueueSystemEvent(event.text, {
+      sessionKey: params.targetSessionKey,
+      contextKey: event.contextKey,
+      deliveryContext: event.deliveryContext,
+    });
   }
 }
 
@@ -425,6 +455,9 @@ async function resolveHeartbeatPreflight(params: {
     params.forcedSessionKey,
   );
   const pendingEventEntries = peekSystemEventEntries(session.sessionKey);
+  if (params.heartbeat?.isolatedSession === true) {
+    pendingEventEntries.push(...peekSystemEventEntries(`${session.sessionKey}:heartbeat`));
+  }
   const turnSourceDeliveryContext = resolveSystemEventDeliveryContext(pendingEventEntries);
   const hasTaggedCronEvents = pendingEventEntries.some((event) =>
     event.contextKey?.startsWith("cron:"),
@@ -535,7 +568,14 @@ export async function runHeartbeatOnce(opts: {
   const agentId = normalizeAgentId(
     explicitAgentId || forcedSessionAgentId || resolveDefaultAgentId(cfg),
   );
-  const heartbeat = opts.heartbeat ?? resolveHeartbeatConfig(cfg, agentId);
+  const resolvedHeartbeat = resolveHeartbeatConfigForAgent({ cfg, agentId });
+  const heartbeat =
+    resolvedHeartbeat || opts.heartbeat
+      ? {
+          ...resolvedHeartbeat,
+          ...opts.heartbeat,
+        }
+      : undefined;
   if (!areHeartbeatsEnabled()) {
     return { status: "skipped", reason: "disabled" };
   }
@@ -706,6 +746,13 @@ export async function runHeartbeatOnce(opts: {
   };
 
   try {
+    if (useIsolatedSession) {
+      moveHeartbeatSystemEventsToRunSession({
+        sourceSessionKey: sessionKey,
+        targetSessionKey: runSessionKey,
+      });
+    }
+
     // Capture transcript state before the heartbeat run so we can prune if HEARTBEAT_OK.
     // For isolated sessions, capture the isolated transcript (not the main session's).
     const transcriptState = await captureTranscriptState({
@@ -741,6 +788,12 @@ export async function runHeartbeatOnce(opts: {
       });
       // Prune the transcript to remove HEARTBEAT_OK turns
       await pruneHeartbeatTranscript(transcriptState);
+      if (useIsolatedSession) {
+        await cleanupEphemeralHeartbeatSession({
+          storePath: runStorePath,
+          sessionKey: runSessionKey,
+        });
+      }
       const okSent = await maybeSendHeartbeatOk();
       emitHeartbeatEvent({
         status: "ok-empty",
@@ -777,6 +830,12 @@ export async function runHeartbeatOnce(opts: {
       });
       // Prune the transcript to remove HEARTBEAT_OK turns
       await pruneHeartbeatTranscript(transcriptState);
+      if (useIsolatedSession) {
+        await cleanupEphemeralHeartbeatSession({
+          storePath: runStorePath,
+          sessionKey: runSessionKey,
+        });
+      }
       const okSent = await maybeSendHeartbeatOk();
       emitHeartbeatEvent({
         status: "ok-token",
@@ -814,6 +873,12 @@ export async function runHeartbeatOnce(opts: {
       });
       // Prune the transcript to remove duplicate heartbeat turns
       await pruneHeartbeatTranscript(transcriptState);
+      if (useIsolatedSession) {
+        await cleanupEphemeralHeartbeatSession({
+          storePath: runStorePath,
+          sessionKey: runSessionKey,
+        });
+      }
       emitHeartbeatEvent({
         status: "skipped",
         reason: "duplicate",
@@ -835,6 +900,12 @@ export async function runHeartbeatOnce(opts: {
       : normalized.text;
 
     if (delivery.channel === "none" || !delivery.to) {
+      if (useIsolatedSession) {
+        await cleanupEphemeralHeartbeatSession({
+          storePath: runStorePath,
+          sessionKey: runSessionKey,
+        });
+      }
       emitHeartbeatEvent({
         status: "skipped",
         reason: delivery.reason ?? "no-target",
@@ -852,6 +923,12 @@ export async function runHeartbeatOnce(opts: {
         sessionKey,
         updatedAt: previousUpdatedAt,
       });
+      if (useIsolatedSession) {
+        await cleanupEphemeralHeartbeatSession({
+          storePath: runStorePath,
+          sessionKey: runSessionKey,
+        });
+      }
       emitHeartbeatEvent({
         status: "skipped",
         reason: "alerts-disabled",
@@ -874,6 +951,12 @@ export async function runHeartbeatOnce(opts: {
         deps: opts.deps,
       });
       if (!readiness.ok) {
+        if (useIsolatedSession) {
+          await cleanupEphemeralHeartbeatSession({
+            storePath: runStorePath,
+            sessionKey: runSessionKey,
+          });
+        }
         emitHeartbeatEvent({
           status: "skipped",
           reason: readiness.reason,
@@ -1107,6 +1190,10 @@ export function startHeartbeatRunner(opts: {
             sessionKey: requestedSessionKey,
             deps: { runtime: state.runtime },
           });
+          if (res.status === "skipped" && res.reason === "requests-in-flight") {
+            requestsInFlight = true;
+            return res;
+          }
           if (res.status !== "skipped" || res.reason !== "disabled") {
             advanceAgentSchedule(targetAgent, now);
           }

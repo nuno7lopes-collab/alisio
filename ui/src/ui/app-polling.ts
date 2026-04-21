@@ -1,9 +1,8 @@
 import type { AlisioApp } from "./app.ts";
-import { resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadLogs } from "./controllers/logs.ts";
-import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
+import { loadMemoryStatus, resolvePreferredMemoryAgentId } from "./controllers/memory-runtime.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadTasksOverview } from "./controllers/tasks.ts";
 import type { SessionsListResult } from "./types.ts";

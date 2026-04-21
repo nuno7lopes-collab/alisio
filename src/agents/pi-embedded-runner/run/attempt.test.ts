@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import type { AlisioConfig } from "../../../config/config.js";
 import { appendBootstrapPromptWarning } from "../../bootstrap-budget.js";
+import { resolveHeartbeatPromptForAgent } from "../../heartbeat-config.js";
 import { buildAgentSystemPrompt } from "../../system-prompt.js";
 import { buildEmbeddedSystemPrompt } from "../system-prompt.js";
 import {
@@ -313,19 +313,63 @@ describe("shouldInjectHeartbeatPrompt", () => {
     expect(shouldInjectHeartbeatPromptForTrigger("cron")).toBe(false);
   });
 
-  it("injects the heartbeat prompt for default-agent non-cron runs", () => {
-    expect(shouldInjectHeartbeatPrompt({ isDefaultAgent: true, trigger: "user" })).toBe(true);
-    expect(shouldInjectHeartbeatPrompt({ isDefaultAgent: true, trigger: "heartbeat" })).toBe(true);
-    expect(shouldInjectHeartbeatPrompt({ isDefaultAgent: true, trigger: "memory" })).toBe(true);
-    expect(shouldInjectHeartbeatPrompt({ isDefaultAgent: true, trigger: undefined })).toBe(true);
+  it("injects the heartbeat prompt for heartbeat-enabled non-cron runs", () => {
+    expect(shouldInjectHeartbeatPrompt({ heartbeatEnabled: true, trigger: "user" })).toBe(true);
+    expect(shouldInjectHeartbeatPrompt({ heartbeatEnabled: true, trigger: "heartbeat" })).toBe(
+      true,
+    );
+    expect(shouldInjectHeartbeatPrompt({ heartbeatEnabled: true, trigger: "memory" })).toBe(true);
+    expect(shouldInjectHeartbeatPrompt({ heartbeatEnabled: true, trigger: undefined })).toBe(true);
   });
 
   it("suppresses the heartbeat prompt for cron-triggered runs", () => {
-    expect(shouldInjectHeartbeatPrompt({ isDefaultAgent: true, trigger: "cron" })).toBe(false);
+    expect(shouldInjectHeartbeatPrompt({ heartbeatEnabled: true, trigger: "cron" })).toBe(false);
   });
 
-  it("suppresses the heartbeat prompt for non-default agents", () => {
-    expect(shouldInjectHeartbeatPrompt({ isDefaultAgent: false, trigger: "user" })).toBe(false);
+  it("suppresses the heartbeat prompt when heartbeat is disabled for the agent", () => {
+    expect(shouldInjectHeartbeatPrompt({ heartbeatEnabled: false, trigger: "user" })).toBe(false);
+  });
+
+  it("keeps per-agent heartbeat prompts available for non-default agents", () => {
+    const cfg: AlisioConfig = {
+      agents: {
+        defaults: {
+          heartbeat: { prompt: "Default heartbeat" },
+        },
+        list: [
+          { id: "main", default: true },
+          { id: "ops", heartbeat: { prompt: "Ops heartbeat prompt" } },
+        ],
+      },
+    };
+    const heartbeatPrompt = shouldInjectHeartbeatPrompt({
+      heartbeatEnabled: true,
+      trigger: "user",
+    })
+      ? resolveHeartbeatPromptForAgent({ cfg, agentId: "ops" })
+      : undefined;
+    const prompt = buildEmbeddedSystemPrompt({
+      workspaceDir: "/tmp/alisio",
+      defaultThinkLevel: "off",
+      reasoningLevel: "off",
+      reasoningTagHint: false,
+      heartbeatPrompt,
+      promptMode: "full",
+      runtimeInfo: {
+        host: "host",
+        os: "Darwin",
+        arch: "arm64",
+        node: "v22.0.0",
+        model: "openai/gpt-5.4",
+      },
+      tools: [],
+      modelAliasLines: [],
+      userTimezone: "UTC",
+      userTime: "00:00",
+      userTimeFormat: "24",
+    });
+
+    expect(prompt).toContain("Ops heartbeat prompt");
   });
 
   it("omits heartbeat prompt content for cron-triggered full-mode runs on non-cron session keys", () => {
@@ -333,10 +377,10 @@ describe("shouldInjectHeartbeatPrompt", () => {
     expect(resolvePromptModeForSession(sessionKey)).toBe("full");
 
     const heartbeatPrompt = shouldInjectHeartbeatPrompt({
-      isDefaultAgent: true,
+      heartbeatEnabled: true,
       trigger: "cron",
     })
-      ? resolveHeartbeatPrompt(undefined)
+      ? resolveHeartbeatPromptForAgent({ cfg: {}, agentId: "main" })
       : undefined;
 
     const prompt = buildEmbeddedSystemPrompt({

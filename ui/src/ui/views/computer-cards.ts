@@ -1,20 +1,16 @@
 import { html, nothing } from "lit";
-import type {
-  PairedComputer,
-  PairedComputerToken,
-  PendingDevice,
-} from "../controllers/devices.ts";
+import { t } from "../../i18n/index.ts";
+import type { PairedComputer, PairedComputerToken, PendingDevice } from "../controllers/devices.ts";
+import { resolveComputerLabel } from "../controllers/devices.ts";
+import type { RuntimeNodePairingList } from "../controllers/node-pairing.ts";
 import type {
   RemoteComputerRecord,
   RemoteComputerTaskRecord,
 } from "../controllers/remote-computers.ts";
-import type { RuntimeNodePairingList } from "../controllers/node-pairing.ts";
-import { resolveComputerLabel } from "../controllers/devices.ts";
 import { formatRelativeTimestamp, formatList } from "../format.ts";
 import { icons } from "../icons.ts";
-import { t } from "../../i18n/index.ts";
-import { isConnectedNode, nodeSupportsExec } from "./nodes-shared.ts";
 import type { NodesProps } from "./connections-types.ts";
+import { isConnectedNode, nodeSupportsExec } from "./nodes-shared.ts";
 
 function renderTaskOutput(label: string, value: string, kind: "stdout" | "stderr") {
   if (!value.trim()) {
@@ -193,14 +189,15 @@ function renderRequestAction(computer: RemoteComputerRecord, props: NodesProps) 
 }
 
 function renderRevokeAction(computer: RemoteComputerRecord, props: NodesProps) {
-  if (!props.onSharingRevoke || !computer.grantId || computer.execAccess !== "shared") {
+  const grantId = computer.grantId;
+  if (!props.onSharingRevoke || !grantId || computer.execAccess !== "shared") {
     return nothing;
   }
   return html`
     <button
       class="btn btn--sm btn--ghost"
       ?disabled=${Boolean(props.computers.sharingLoading)}
-      @click=${() => props.onSharingRevoke?.(computer.grantId)}
+      @click=${() => props.onSharingRevoke?.(grantId)}
     >
       ${t("alisio.connections.remote.revokeControl")}
     </button>
@@ -220,7 +217,8 @@ function renderRemoteComputerActions(computer: RemoteComputerRecord, props: Node
 
 function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
   const tasks = props.computers.remote.tasks[computer.id] ?? [];
-  if (computer.phase !== "ready" || !computer.nodeId) {
+  const nodeId = computer.nodeId;
+  if (computer.phase !== "ready" || !nodeId) {
     return html`
       <div class="alisio-connections-entry__note">${resolveComputerHint(computer)}</div>
       ${tasks.length > 0
@@ -236,7 +234,7 @@ function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
     `;
   }
   const draft = props.computers.remote.drafts[computer.id] ?? { command: "", cwd: "" };
-  const busy = props.computers.remote.busy[computer.id] === true;
+  const busy = props.computers.remote.busy[computer.id] ?? false;
   const error = props.computers.remote.errors[computer.id] ?? null;
   return html`
     <div class="alisio-remote-computers__runner">
@@ -254,7 +252,7 @@ function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
             @keydown=${(event: KeyboardEvent) => {
               if (event.key === "Enter" && !event.shiftKey && !busy) {
                 event.preventDefault();
-                props.onRemoteComputerRun?.(computer.id, computer.nodeId);
+                props.onRemoteComputerRun?.(computer.id, nodeId);
               }
             }}
           />
@@ -278,7 +276,7 @@ function renderRunner(computer: RemoteComputerRecord, props: NodesProps) {
         <button
           class="btn btn--sm primary"
           ?disabled=${busy}
-          @click=${() => props.onRemoteComputerRun?.(computer.id, computer.nodeId)}
+          @click=${() => props.onRemoteComputerRun?.(computer.id, nodeId)}
         >
           ${busy
             ? t("alisio.connections.remote.runningAction")

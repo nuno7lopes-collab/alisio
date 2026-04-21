@@ -52,19 +52,19 @@ Guide: [Tailscale](/gateway/tailscale) and [Web overview](/web).
 
 ## Command flow (what runs where)
 
-One gateway service owns state + channels. Devices (nodes) are peripherals.
+One gateway service owns state + channels. Paired computers (nodes) are peripherals.
 
-Flow example (Telegram → device node):
+Flow example (Telegram → paired computer):
 
 - Telegram message arrives at the **Gateway**.
-- Gateway runs the **agent** and decides whether to call a device (node) tool.
-- Gateway calls the **device (node)** over the Gateway WebSocket (`node.*` RPC).
-- Device node returns the result; Gateway replies back out to Telegram.
+- Gateway runs the **agent** and decides whether to call a computer (`node`) tool.
+- Gateway calls the paired computer over the Gateway WebSocket (`node.*` RPC).
+- The paired computer returns the result; Gateway replies back out to Telegram.
 
 Notes:
 
-- **Devices (nodes) do not run the gateway service.** Only one gateway should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)).
-- macOS app “node mode” is just a device node client over the Gateway WebSocket.
+- **Paired computers (nodes) do not run the gateway service.** Only one gateway should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)).
+- macOS app “node mode” is just a paired-computer client over the Gateway WebSocket.
 
 ## SSH tunnel (CLI + tools)
 

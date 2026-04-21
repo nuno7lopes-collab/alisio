@@ -1,9 +1,9 @@
-import { t } from "../../i18n/index.ts";
+import { resolveAgentIdFromSessionKey } from "../../../../src/routing/session-key.js";
 import {
-  normalizeMemoryNoteRole as normalizeCanonicalMemoryNoteRole,
   resolveMemoryNoteRole as resolveCanonicalMemoryNoteRole,
   type MemoryNoteRole as CanonicalMemoryNoteRole,
 } from "../../../../src/shared/memory-file-paths.js";
+import { t } from "../../i18n/index.ts";
 import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { MemoryGraphState, MemoryStatusState, MemorySyncResult } from "../types.ts";
@@ -151,38 +151,6 @@ export type MemoryNotesUpdateResult = {
   sync?: MemorySyncSurface | null;
 };
 
-export type MemoryWikiTaxonomyFields = MemoryNoteTaxonomyFields;
-export type MemoryWikiListPage = MemoryNoteListEntry;
-export type MemoryWikiListResult = {
-  agentId: string;
-  pages: MemoryWikiListPage[];
-  sync?: MemorySyncSurface | null;
-  exportFormats?: string[] | null;
-};
-export type MemoryWikiBacklink = MemoryNoteBacklink;
-export type MemoryWikiRelatedFile = MemoryNoteAttachment;
-export type MemoryWikiPage = Omit<MemoryNote, "attachments"> & {
-  relatedFiles?: MemoryWikiRelatedFile[] | null;
-};
-export type MemoryWikiGetResult = {
-  agentId: string;
-  page: MemoryWikiPage;
-  sync?: MemorySyncSurface | null;
-};
-export type MemoryWikiHistoryEntry = MemoryNoteHistoryEntry;
-export type MemoryWikiHistoryResult = {
-  agentId: string;
-  pageId: string;
-  history: MemoryWikiHistoryEntry[];
-};
-export type MemoryWikiUpdateResult = {
-  ok: boolean;
-  agentId: string;
-  page?: MemoryWikiPage | null;
-  revision?: MemoryWikiPage["revision"] | null;
-  sync?: MemorySyncSurface | null;
-};
-
 export type MemoryFilePreviewKind =
   | "markdown"
   | "text"
@@ -271,14 +239,6 @@ export type MemoryTraceResult = {
   raw: unknown;
 };
 
-function normalizeString(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function normalizeMemoryNoteRole(value: unknown): MemoryNoteRole | null {
-  return normalizeCanonicalMemoryNoteRole(value);
-}
-
 function resolveMemoryNoteRole(
   value: Pick<MemoryNoteTaxonomyFields, "memoryRole" | "tags" | "collections"> & {
     path?: string | null;
@@ -333,27 +293,6 @@ function normalizeMemoryNotesUpdateResult(
   return {
     ...result,
     ...(result.note ? { note: normalizeMemoryNote(result.note) } : {}),
-  };
-}
-
-function normalizeMemoryWikiListResult(result: MemoryWikiListResult): MemoryWikiListResult {
-  return {
-    ...result,
-    pages: result.pages.map((page) => normalizeMemoryTaxonomy(page)),
-  };
-}
-
-function normalizeMemoryWikiGetResult(result: MemoryWikiGetResult): MemoryWikiGetResult {
-  return {
-    ...result,
-    page: normalizeMemoryTaxonomy(result.page),
-  };
-}
-
-function normalizeMemoryWikiUpdateResult(result: MemoryWikiUpdateResult): MemoryWikiUpdateResult {
-  return {
-    ...result,
-    ...(result.page ? { page: normalizeMemoryTaxonomy(result.page) } : {}),
   };
 }
 
@@ -510,23 +449,6 @@ function invalidateClientMemoryRequestCache(
   }
 }
 
-function toMemoryNote(page: MemoryWikiPage): MemoryNote {
-  const { relatedFiles, ...rest } = page;
-  return normalizeMemoryTaxonomy({
-    ...rest,
-    ...(relatedFiles ? { attachments: relatedFiles } : {}),
-  });
-}
-
-function toMemoryNotesListResult(result: MemoryWikiListResult): MemoryNotesListResult {
-  return normalizeMemoryNotesListResult({
-    agentId: result.agentId,
-    notes: result.pages,
-    ...(result.sync ? { sync: result.sync } : {}),
-    ...(result.exportFormats ? { exportFormats: result.exportFormats } : {}),
-  });
-}
-
 export type MemoryRuntimeState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -596,6 +518,30 @@ function clearMemoryRuntimeState(state: MemoryRuntimeState) {
   state.memoryGraphError = null;
 }
 
+export function resolvePreferredMemoryAgentId(state: {
+  memorySelectedAgentId: string | null;
+  sessionKey?: string;
+  assistantAgentId?: string | null;
+  agentsList?: { defaultId?: string | null; agents: Array<{ id: string }> } | null;
+}) {
+  const agents = state.agentsList?.agents ?? [];
+  const known = new Set(agents.map((agent) => agent.id));
+  const sessionAgentId =
+    typeof state.sessionKey === "string" ? resolveAgentIdFromSessionKey(state.sessionKey) : null;
+  for (const candidate of [
+    state.memorySelectedAgentId,
+    sessionAgentId,
+    state.assistantAgentId,
+    state.agentsList?.defaultId ?? null,
+    agents[0]?.id ?? null,
+  ]) {
+    if (candidate && known.has(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 function isUnknownMethodError(err: unknown, method: string) {
   return err instanceof GatewayRequestError && err.message.includes(`unknown method: ${method}`);
 }
@@ -655,33 +601,13 @@ export async function requestMemoryNotesList(
     client,
     buildMemoryRequestCacheKey("memory.notes.list", params),
     NOTES_LIST_CACHE_TTL_MS,
-    async () => {
-      try {
-        return normalizeMemoryNotesListResult(
-          await requestMemoryEndpoint<MemoryNotesListResult>(
-            client,
-            "memory.notes.list",
-            params,
-            "This version of Alisio does not expose native memory notes yet.",
-          ),
-        );
-      } catch (err) {
-        if (!isMemoryEndpointUnavailableError(err)) {
-          throw err;
-        }
-        try {
-          return toMemoryNotesListResult(await requestMemoryWikiList(client, params));
-        } catch (fallbackErr) {
-          if (isMemoryEndpointUnavailableError(fallbackErr)) {
-            throw new MemoryEndpointUnavailableError(
-              "memory.notes.list",
-              "This version of Alisio does not expose native memory notes yet.",
-            );
-          }
-          throw fallbackErr;
-        }
-      }
-    },
+    () =>
+      requestMemoryEndpoint<MemoryNotesListResult>(
+        client,
+        "memory.notes.list",
+        params,
+        "This version of Alisio does not expose native memory notes yet.",
+      ).then(normalizeMemoryNotesListResult),
     options,
   );
 }
@@ -695,42 +621,13 @@ export async function requestMemoryNote(
     client,
     buildMemoryRequestCacheKey("memory.notes.get", params),
     NOTE_CACHE_TTL_MS,
-    async () => {
-      try {
-        return normalizeMemoryNotesGetResult(
-          await requestMemoryEndpoint<MemoryNotesGetResult>(
-            client,
-            "memory.notes.get",
-            params,
-            "This version of Alisio does not expose native memory note loading yet.",
-          ),
-        );
-      } catch (err) {
-        if (!isMemoryEndpointUnavailableError(err)) {
-          throw err;
-        }
-        try {
-          const legacy = await requestMemoryWikiPage(client, {
-            agentId: params.agentId,
-            pageId: params.noteId,
-            ...(params.query ? { query: params.query } : {}),
-          });
-          return {
-            agentId: legacy.agentId,
-            note: toMemoryNote(legacy.page),
-            ...(legacy.sync ? { sync: legacy.sync } : {}),
-          } satisfies MemoryNotesGetResult;
-        } catch (fallbackErr) {
-          if (isMemoryEndpointUnavailableError(fallbackErr)) {
-            throw new MemoryEndpointUnavailableError(
-              "memory.notes.get",
-              "This version of Alisio does not expose native memory note loading yet.",
-            );
-          }
-          throw fallbackErr;
-        }
-      }
-    },
+    () =>
+      requestMemoryEndpoint<MemoryNotesGetResult>(
+        client,
+        "memory.notes.get",
+        params,
+        "This version of Alisio does not expose native memory note loading yet.",
+      ).then(normalizeMemoryNotesGetResult),
     options,
   );
 }
@@ -747,143 +644,25 @@ export async function requestMemoryNoteUpdate(
     query?: string;
   },
 ) {
-  try {
-    const result = await requestMemoryEndpoint<MemoryNotesUpdateResult>(
-      client,
-      "memory.notes.update",
-      params,
-      "This version of Alisio does not expose native memory note editing yet.",
-    );
-    invalidateClientMemoryRequestCache(client, { agentId: params.agentId });
-    return normalizeMemoryNotesUpdateResult(result);
-  } catch (err) {
-    if (!isMemoryEndpointUnavailableError(err)) {
-      throw err;
-    }
-    try {
-      const legacy = await requestMemoryWikiUpdate(client, {
-        agentId: params.agentId,
-        ...(params.noteId ? { pageId: params.noteId } : {}),
-        ...(params.relativePath ? { relativePath: params.relativePath } : {}),
-        ...(params.memoryRole ? { memoryRole: params.memoryRole } : {}),
-        title: params.title,
-        content: params.content,
-      });
-      invalidateClientMemoryRequestCache(client, { agentId: params.agentId });
-      return {
-        ok: legacy.ok,
-        agentId: legacy.agentId,
-        ...(legacy.page ? { note: toMemoryNote(legacy.page) } : {}),
-        ...(legacy.revision ? { revision: legacy.revision } : {}),
-        ...(legacy.sync ? { sync: legacy.sync } : {}),
-      } satisfies MemoryNotesUpdateResult;
-    } catch (fallbackErr) {
-      if (isMemoryEndpointUnavailableError(fallbackErr)) {
-        throw new MemoryEndpointUnavailableError(
-          "memory.notes.update",
-          "This version of Alisio does not expose native memory note editing yet.",
-        );
-      }
-      throw fallbackErr;
-    }
-  }
+  const result = await requestMemoryEndpoint<MemoryNotesUpdateResult>(
+    client,
+    "memory.notes.update",
+    params,
+    "This version of Alisio does not expose native memory note editing yet.",
+  );
+  invalidateClientMemoryRequestCache(client, { agentId: params.agentId });
+  return normalizeMemoryNotesUpdateResult(result);
 }
 
 export async function requestMemoryNoteHistory(
   client: GatewayBrowserClient,
   params: { agentId: string; noteId: string },
 ) {
-  try {
-    return await requestMemoryEndpoint<MemoryNotesHistoryResult>(
-      client,
-      "memory.notes.history",
-      params,
-      "This version of Alisio does not expose ledger-backed memory history yet.",
-    );
-  } catch (err) {
-    if (!isMemoryEndpointUnavailableError(err)) {
-      throw err;
-    }
-    try {
-      const legacy = await requestMemoryWikiHistory(client, {
-        agentId: params.agentId,
-        pageId: params.noteId,
-      });
-      return {
-        agentId: legacy.agentId,
-        noteId: legacy.pageId,
-        history: legacy.history,
-      } satisfies MemoryNotesHistoryResult;
-    } catch (fallbackErr) {
-      if (isMemoryEndpointUnavailableError(fallbackErr)) {
-        throw new MemoryEndpointUnavailableError(
-          "memory.notes.history",
-          "This version of Alisio does not expose ledger-backed memory history for notes yet.",
-        );
-      }
-      throw fallbackErr;
-    }
-  }
-}
-
-export async function requestMemoryWikiList(
-  client: GatewayBrowserClient,
-  params: { agentId: string; query?: string },
-) {
-  return normalizeMemoryWikiListResult(
-    await requestMemoryEndpoint<MemoryWikiListResult>(
-      client,
-      "memory.wiki.list",
-      params,
-      "This version of Alisio does not expose the native memory wiki yet.",
-    ),
-  );
-}
-
-export async function requestMemoryWikiPage(
-  client: GatewayBrowserClient,
-  params: { agentId: string; pageId: string; query?: string },
-) {
-  return normalizeMemoryWikiGetResult(
-    await requestMemoryEndpoint<MemoryWikiGetResult>(
-      client,
-      "memory.wiki.get",
-      params,
-      "This version of Alisio does not expose native memory page loading yet.",
-    ),
-  );
-}
-
-export async function requestMemoryWikiUpdate(
-  client: GatewayBrowserClient,
-  params: {
-    agentId: string;
-    pageId?: string;
-    relativePath?: string;
-    memoryRole?: MemoryNoteRole;
-    title: string;
-    content: string;
-  },
-) {
-  return normalizeMemoryWikiUpdateResult(
-    await requestMemoryEndpoint<MemoryWikiUpdateResult>(
-      client,
-      "memory.wiki.update",
-      params,
-      "This version of Alisio does not expose native memory editing yet.",
-    ),
-  );
-}
-
-export async function requestMemoryWikiHistory(
-  client: GatewayBrowserClient,
-  params: { agentId: string; pageId: string },
-) {
-  return requestMemoryEndpoint<MemoryWikiHistoryResult>(
+  return requestMemoryEndpoint<MemoryNotesHistoryResult>(
     client,
-    "memory.wiki.history",
+    "memory.notes.history",
     params,
-    "This version of Alisio does not expose ledger-backed memory history yet.",
+    "This version of Alisio does not expose ledger-backed memory history for notes yet.",
   );
 }
 

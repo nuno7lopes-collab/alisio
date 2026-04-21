@@ -3,12 +3,12 @@ import { t } from "../../i18n/index.ts";
 import { resolveConnectionsModel } from "../controllers/connections-model.ts";
 import { icons } from "../icons.ts";
 import { renderComputersPanel } from "./connections-computers.ts";
+import type { NodesProps } from "./connections-types.ts";
 import {
   renderSkeletonLines,
   renderSkeletonListItem,
   renderSkeletonPill,
 } from "./loading-skeleton.ts";
-import type { NodesProps } from "./connections-types.ts";
 import { renderNodes } from "./nodes.ts";
 import {
   expandSharingScopeSelection,
@@ -20,7 +20,9 @@ import {
   type SharingSuggestion,
 } from "./sharing-shared.ts";
 
-type SharingListTarget = NonNullable<NodesProps["computers"]["sharing"]>["devices"]["available"][number];
+type SharingListTarget = NonNullable<
+  NodesProps["computers"]["sharing"]
+>["devices"]["available"][number];
 
 function renderOverviewCard(params: {
   label: string;
@@ -388,7 +390,7 @@ function renderSharingResourcePolicies(
                 <select
                   aria-label=${`${resolveSharingResourceLabel(resource)} ${t("alisio.connections.sharing.policyModeLabel")}`}
                   .value=${mode}
-                  ?disabled=${props.computers.sharingLoading === true ||
+                  ?disabled=${props.computers.sharingLoading ||
                   !sharing.policy.resourcesEditable ||
                   !props.onSharingSetResourcePolicy}
                   @change=${(event: Event) =>
@@ -424,7 +426,7 @@ function renderSharingResourcePolicies(
 }
 
 function renderSharingContent(props: NodesProps) {
-  const loading = props.computers.sharingLoading === true;
+  const loading = props.computers.sharingLoading;
   const showPanel =
     loading || props.computers.sharingError != null || props.computers.sharing != null;
   if (!showPanel) {
@@ -468,9 +470,9 @@ function renderSharingContent(props: NodesProps) {
   return html`
     <div class="alisio-connections-panel__body alisio-connections-panel__body--sharing">
       ${props.computers.sharingError
-        ? html`<div class="callout danger" style="margin-top: 12px;"
-            >${props.computers.sharingError}</div
-          >`
+        ? html`<div class="callout danger" style="margin-top: 12px;">
+            ${props.computers.sharingError}
+          </div>`
         : nothing}
       ${sharing
         ? html`

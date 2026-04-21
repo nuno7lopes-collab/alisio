@@ -139,6 +139,10 @@ type GatewayHost = {
     sessionKey: string,
     surface?: import("./controllers/browser-pane.ts").BrowserPaneSurfaceKind,
   ) => void;
+  refreshBrowserPaneBrowserState?: (sessionKey: string) => {
+    hasActivity: boolean;
+    changed: boolean;
+  };
 };
 
 type SessionDefaultsSnapshot = {
@@ -904,6 +908,26 @@ function readComputerPaneActivitySessionKey(payload: unknown): string | null {
   return sessionKey || null;
 }
 
+function readBrowserPaneActivitySessionKey(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const event = payload as Record<string, unknown>;
+  if (event.stream !== "tool") {
+    return null;
+  }
+  const data =
+    event.data && typeof event.data === "object"
+      ? (event.data as Record<string, unknown>)
+      : undefined;
+  const toolName = typeof data?.name === "string" ? data.name.trim().toLowerCase() : "";
+  if (!toolName.includes("browser")) {
+    return null;
+  }
+  const sessionKey = typeof event.sessionKey === "string" ? event.sessionKey.trim() : "";
+  return sessionKey || null;
+}
+
 function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   host.eventLogBuffer = [
     { ts: Date.now(), event: evt.event, payload: evt.payload },
@@ -916,13 +940,20 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
 
   if (evt.event === "agent") {
     const computerPaneActivitySessionKey = readComputerPaneActivitySessionKey(evt.payload);
+    const browserPaneActivitySessionKey = readBrowserPaneActivitySessionKey(evt.payload);
     if (computerPaneActivitySessionKey) {
       host.notifyBrowserPaneActivity?.(computerPaneActivitySessionKey, "computer");
+    }
+    if (browserPaneActivitySessionKey) {
+      host.notifyBrowserPaneActivity?.(browserPaneActivitySessionKey, "browser");
     }
     handleAgentEvent(
       host as unknown as Parameters<typeof handleAgentEvent>[0],
       evt.payload as AgentEventPayload | undefined,
     );
+    if (browserPaneActivitySessionKey) {
+      host.refreshBrowserPaneBrowserState?.(browserPaneActivitySessionKey);
+    }
     return;
   }
 

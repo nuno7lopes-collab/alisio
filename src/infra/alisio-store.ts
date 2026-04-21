@@ -7003,6 +7003,42 @@ function providerSetupHint(provider: AlisioOAuthProvider, connectorTitle: string
   return `${connectorTitle} is modeled in the product already, but the native ${label} OAuth callback is still pending in this rollout.`;
 }
 
+function providerRedirectUriEnvVar(provider: Extract<AlisioOAuthProvider, "google" | "github">) {
+  switch (provider) {
+    case "google":
+      return "ALISIO_GOOGLE_REDIRECT_URI";
+    case "github":
+      return "ALISIO_GITHUB_REDIRECT_URI";
+  }
+}
+
+function resolveOAuthRedirectUriConfigIssue(
+  provider: AlisioOAuthProvider,
+  redirectUri: string,
+): string | null {
+  if (!providerSupportsRealCallback(provider)) {
+    return null;
+  }
+  const expectedPath = providerCallbackPath(provider);
+  if (!expectedPath) {
+    return null;
+  }
+  const envVar = providerRedirectUriEnvVar(provider);
+  let parsed: URL;
+  try {
+    parsed = new URL(redirectUri);
+  } catch {
+    return `${envVar} must be a full http(s) URL ending in ${expectedPath}.`;
+  }
+  if (
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:") ||
+    parsed.pathname !== expectedPath
+  ) {
+    return `${envVar} must be a full http(s) URL ending in ${expectedPath}.`;
+  }
+  return null;
+}
+
 function resolveOAuthClientConfig(provider: AlisioOAuthProvider, env: NodeJS.ProcessEnv) {
   const runtimeEnv = resolveDurableRuntimeEnv(env);
   switch (provider) {
@@ -7125,6 +7161,7 @@ function isProviderClientConfigReady(provider: AlisioOAuthProvider, env: NodeJS.
     config.clientId &&
     config.clientSecret &&
     config.redirectUri &&
+    !resolveOAuthRedirectUriConfigIssue(provider, config.redirectUri) &&
     resolveConnectorTokenEncryptionKey(env),
   );
 }
@@ -7361,7 +7398,10 @@ export async function beginAlisioConnectorSetup(
       };
     }
     const config = resolveOAuthClientConfig(provider, env);
-    if (!config.clientId || !config.clientSecret || !config.redirectUri) {
+    const redirectUriIssue = config.redirectUri
+      ? resolveOAuthRedirectUriConfigIssue(provider, config.redirectUri)
+      : null;
+    if (!config.clientId || !config.clientSecret || !config.redirectUri || redirectUriIssue) {
       return {
         connectorId: connector.id,
         availability: connector.availability,
@@ -7369,6 +7409,7 @@ export async function beginAlisioConnectorSetup(
         statusReason: "missing_client_config",
         setupUrl: connector.setupUrl,
         ...providerGuide,
+        ...(redirectUriIssue ? { setupHint: redirectUriIssue } : {}),
       };
     }
     if (!resolveConnectorTokenEncryptionKey(env)) {
@@ -7683,7 +7724,7 @@ async function refreshStoredConnectorCredential(params: {
   }
 
   const config = resolveOAuthClientConfig("google", params.env);
-  if (!config.clientId || !config.clientSecret || !config.redirectUri) {
+  if (!config.clientId || !config.clientSecret) {
     markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
     return null;
   }
@@ -7820,11 +7861,14 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
     }
 
     const config = resolveOAuthClientConfig(pending.provider, env);
-    if (!config.clientId || !config.clientSecret || !config.redirectUri) {
+    const redirectUriIssue = config.redirectUri
+      ? resolveOAuthRedirectUriConfigIssue(pending.provider, config.redirectUri)
+      : null;
+    if (!config.clientId || !config.clientSecret || !config.redirectUri || redirectUriIssue) {
       return {
         ok: false,
         reason: "missing_client_config",
-        message: "OAuth client configuration is incomplete on this gateway.",
+        message: redirectUriIssue ?? "OAuth client configuration is incomplete on this gateway.",
       } satisfies AlisioOAuthCallbackResult;
     }
     if (pending.redirectUri !== config.redirectUri) {

@@ -4,6 +4,7 @@ import {
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../agents/agent-scope.js";
+import { resolveCanonicalAgentIdentitySnapshot } from "../agents/identity-canonical.js";
 import type { AgentIdentityFile } from "../agents/identity-file.js";
 import {
   identityHasValues,
@@ -98,17 +99,22 @@ export function buildAgentSummaries(cfg: AlisioConfig): AgentSummary[] {
 
   return ordered.map((id) => {
     const workspace = resolveAgentWorkspaceDir(cfg, id);
-    const identity = loadAgentIdentity(workspace);
-    const configIdentity = configuredAgents.find(
-      (agent) => normalizeAgentId(agent.id) === id,
-    )?.identity;
-    const identityName = identity?.name ?? configIdentity?.name?.trim();
-    const identityEmoji = identity?.emoji ?? configIdentity?.emoji?.trim();
-    const identitySource = identity
-      ? "identity"
-      : configIdentity && (identityName || identityEmoji)
-        ? "config"
-        : undefined;
+    const identity = resolveCanonicalAgentIdentitySnapshot({
+      cfg,
+      agentId: id,
+      workspaceDir: workspace,
+    });
+    const identityName = identity.name;
+    const identityEmoji = identity.emoji;
+    const identitySource =
+      identity.sources.name === "identity-file" ||
+      identity.sources.emoji === "identity-file" ||
+      identity.sources.avatar === "identity-file" ||
+      identity.sources.theme === "identity-file"
+        ? "identity"
+        : identityName || identityEmoji
+          ? "config"
+          : undefined;
     return {
       id,
       name: resolveAgentName(cfg, id),

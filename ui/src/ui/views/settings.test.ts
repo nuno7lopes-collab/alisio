@@ -146,8 +146,27 @@ describe("renderSettingsHub", () => {
       container.querySelectorAll<HTMLElement>(".alisio-settings-link__label"),
     ).map((element) => element.textContent?.trim() ?? "");
 
-    expect(labels).toEqual(["General", "Account", "Mac", "Support"]);
+    expect(labels).toEqual(["General", "Account", "Support"]);
     expect(container.textContent).not.toContain("AI");
+  });
+
+  it("shows the Host section only when the current shell exposes host capabilities", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          nativeShellState: createNativeShellState(),
+        }),
+      ),
+      container,
+    );
+
+    const labels = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-settings-link__label"),
+    ).map((element) => element.textContent?.trim() ?? "");
+
+    expect(labels).toEqual(["General", "Account", "Host", "Support"]);
   });
 
   it("renders the compact general controls with the public language options", () => {
@@ -258,7 +277,7 @@ describe("renderSettingsHub", () => {
     expect(onResetPresentation).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the shared empty state when the account has no linked devices", () => {
+  it("renders the shared empty state when the account has no linked computers", () => {
     const container = document.createElement("div");
 
     render(
@@ -276,7 +295,7 @@ describe("renderSettingsHub", () => {
 
     const emptyState = container.querySelector(".empty-state--surface");
     expect(emptyState).not.toBeNull();
-    expect(emptyState?.textContent).toContain("No linked devices yet");
+    expect(emptyState?.textContent).toContain("No linked computers yet");
   });
 
   it("opens billing as a focused subsection with honest support CTA copy", () => {
@@ -382,13 +401,13 @@ describe("renderSettingsHub", () => {
     expect(usernameInput?.getAttribute("spellcheck")).toBe("false");
   });
 
-  it("keeps the Mac controls visible while the native shell refresh is in flight", () => {
+  it("keeps the Host controls visible while the native shell refresh is in flight", () => {
     const container = document.createElement("div");
 
     render(
       renderSettingsHub(
         createProps({
-          section: "mac",
+          section: "host",
           nativeShellLoading: true,
           nativeShellState: createNativeShellState(),
         }),
@@ -407,7 +426,7 @@ describe("renderSettingsHub", () => {
     render(
       renderSettingsHub(
         createProps({
-          section: "mac",
+          section: "host",
           doctorLoading: true,
           doctor: createDoctor({
             ok: false,
@@ -513,7 +532,7 @@ describe("renderSettingsHub", () => {
     expect(container.querySelector(".alisio-settings-doctor")).toBeNull();
   });
 
-  it("shows the sync action outside the Mac section when a local checkout is available", () => {
+  it("shows the sync action outside the Host section when a local checkout is available", () => {
     const container = document.createElement("div");
 
     render(
@@ -551,13 +570,13 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).not.toContain("Restart runtime");
   });
 
-  it("prefers the sync action over runtime restart in the Mac doctor state", () => {
+  it("prefers the sync action over runtime restart in the Host doctor state", () => {
     const container = document.createElement("div");
 
     render(
       renderSettingsHub(
         createProps({
-          section: "mac",
+          section: "host",
           nativeRebuildAvailable: true,
           doctor: {
             ok: false,

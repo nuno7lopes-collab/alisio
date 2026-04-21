@@ -1,7 +1,7 @@
 import {
   DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR,
   parseNonNegativeByteSize,
-  resolveCanonicalMemoryDailyNoteTarget,
+  resolveCanonicalMemoryBacklogNoteTarget,
   SILENT_REPLY_TOKEN,
   type MemoryFlushPlan,
   type AlisioConfig,
@@ -10,9 +10,9 @@ import {
 export const DEFAULT_MEMORY_FLUSH_SOFT_TOKENS = 4000;
 export const DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES = 2 * 1024 * 1024;
 const MEMORY_FLUSH_TARGET_HINT =
-  "Store durable memories only in memory/YYYY-MM-DD.md (create memory/ if needed).";
+  "Store durable memories only in memory/backlog/YYYY-MM-DD/compaction.md (create memory/backlog/ if needed).";
 const MEMORY_FLUSH_APPEND_ONLY_HINT =
-  "If memory/YYYY-MM-DD.md already exists, APPEND new content only and do not overwrite existing entries.";
+  "If memory/backlog/YYYY-MM-DD/compaction.md already exists, APPEND new content only and do not overwrite existing entries.";
 const MEMORY_FLUSH_READ_ONLY_HINT =
   "Treat workspace bootstrap/reference files such as MEMORY.md, SOUL.md, TOOLS.md, and AGENTS.md as read-only during this flush; never overwrite, replace, or edit them.";
 const MEMORY_FLUSH_REQUIRED_HINTS = [
@@ -21,12 +21,44 @@ const MEMORY_FLUSH_REQUIRED_HINTS = [
   MEMORY_FLUSH_READ_ONLY_HINT,
 ];
 
+function toYamlQuoted(value: string): string {
+  return JSON.stringify(value);
+}
+
+export function buildCompactionBacklogSeedContent(nowMs: number): string {
+  const capturedAt = new Date(nowMs).toISOString();
+  return [
+    "---",
+    "memoryRole: backlog",
+    "backlogStatus: pending",
+    "promotionMode: daily-only",
+    `capturedAt: ${toYamlQuoted(capturedAt)}`,
+    'sessionAction: "compaction"',
+    'source: "memory-flush"',
+    "tags:",
+    "  - backlog",
+    "  - memory-flush",
+    "  - compaction",
+    "---",
+    "# Compaction backlog",
+    "",
+    "## Context",
+    "",
+    `- **Captured At**: ${capturedAt}`,
+    "- **Action**: /compaction",
+    "- **Source**: memory-flush",
+    "",
+    "## Durable observations",
+    "",
+  ].join("\n");
+}
+
 export const DEFAULT_MEMORY_FLUSH_PROMPT = [
   "Pre-compaction memory flush.",
   MEMORY_FLUSH_TARGET_HINT,
   MEMORY_FLUSH_READ_ONLY_HINT,
   MEMORY_FLUSH_APPEND_ONLY_HINT,
-  "Do NOT create timestamped variant files (e.g., YYYY-MM-DD-HHMM.md); always use the canonical YYYY-MM-DD.md filename.",
+  "Do NOT create timestamped variant files; always use the canonical compaction backlog note for that day.",
   `If nothing to store, reply with ${SILENT_REPLY_TOKEN}.`,
 ].join(" ");
 
@@ -101,7 +133,12 @@ export function buildMemoryFlushPlan(
     normalizeNonNegativeInt(cfg?.agents?.defaults?.compaction?.reserveTokensFloor) ??
     DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR;
 
-  const target = resolveCanonicalMemoryDailyNoteTarget({ cfg, nowMs });
+  const target = resolveCanonicalMemoryBacklogNoteTarget({
+    cfg,
+    nowMs,
+    slug: "compaction",
+    title: "Compaction backlog",
+  });
   const targetHint = `Store durable memories only in ${target.relativePath}.`;
   const appendOnlyHint = `If ${target.relativePath} already exists, APPEND new content only and do not overwrite existing entries.`;
   const requiredHints = [targetHint, appendOnlyHint, MEMORY_FLUSH_READ_ONLY_HINT];
@@ -123,7 +160,9 @@ export function buildMemoryFlushPlan(
     ),
   );
   const prompt = appendCurrentTimeLine(
-    promptBase.replaceAll("YYYY-MM-DD", target.dateStamp),
+    promptBase
+      .replaceAll("YYYY-MM-DD", target.dateStamp)
+      .replaceAll("compaction.md", `${target.slug}.md`),
     target.timeLine,
   );
 
@@ -132,7 +171,10 @@ export function buildMemoryFlushPlan(
     forceFlushTranscriptBytes,
     reserveTokensFloor,
     prompt,
-    systemPrompt: systemPrompt.replaceAll("YYYY-MM-DD", target.dateStamp),
+    systemPrompt: systemPrompt
+      .replaceAll("YYYY-MM-DD", target.dateStamp)
+      .replaceAll("compaction.md", `${target.slug}.md`),
     relativePath: target.relativePath,
+    writeSeedContent: buildCompactionBacklogSeedContent(target.nowMs),
   };
 }

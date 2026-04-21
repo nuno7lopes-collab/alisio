@@ -1,0 +1,80 @@
+<Window
+    x:Class="Alisio.WindowsHost.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
+    mc:Ignorable="d"
+    Title="Alisio for Windows">
+    <Grid x:Name="RootGrid" Loaded="RootGrid_Loaded">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Padding="16" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="4">
+                <TextBlock FontSize="28" FontWeight="SemiBold" Text="Alisio Windows Host" />
+                <TextBlock
+                    x:Name="StatusTextBlock"
+                    MaxWidth="760"
+                    Opacity="0.75"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <ToggleSwitch
+                    x:Name="ExperimentalBridgeToggle"
+                    Header="Experimental shell bridge"
+                    Toggled="ExperimentalBridgeToggle_Toggled" />
+                <Button Click="NativeSettingsButton_Click" Content="Native settings" />
+                <Button Click="OpenLogsButton_Click" Content="Open logs" />
+                <Button Click="ReloadShellButton_Click" Content="Reload shell" />
+            </StackPanel>
+        </Grid>
+
+        <Border
+            x:Name="BannerBorder"
+            Grid.Row="1"
+            Margin="16,0,16,12"
+            Padding="12"
+            BorderBrush="#FF94A3B8"
+            BorderThickness="1"
+            Background="#FFF8FAFC"
+            Visibility="Collapsed">
+            <TextBlock x:Name="BannerTextBlock" TextWrapping="WrapWholeWords" />
+        </Border>
+
+        <Grid Grid.Row="2" Margin="16,0,16,16">
+            <Border
+                x:Name="EmptyStateBorder"
+                Padding="24"
+                BorderBrush="#FFD1D5DB"
+                BorderThickness="1"
+                Background="#FFF8FAFC"
+                CornerRadius="12"
+                Visibility="Collapsed">
+                <StackPanel MaxWidth="760" Spacing="12">
+                    <TextBlock FontSize="24" FontWeight="SemiBold" Text="Shared shell not found" />
+                    <TextBlock
+                        x:Name="EmptyStateTextBlock"
+                        Opacity="0.8"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        Opacity="0.8"
+                        Text="Build the shared shell with `pnpm ui:build`, or stage it with `apps/windows/scripts/stage-shell.ps1`."
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+
+            <controls:WebView2 x:Name="ShellWebView" Visibility="Collapsed" />
+        </Grid>
+    </Grid>
+</Window>

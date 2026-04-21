@@ -49,25 +49,29 @@ async function seedBacklogNote(params: {
 
 function buildBacklogMarkdown(params: {
   capturedAt: string;
-  summary: string;
-  action?: "new" | "reset";
+  summary?: string;
+  action?: "new" | "reset" | "compaction";
+  promotionMode?: "topic-and-daily" | "daily-only";
+  source?: string;
+  title?: string;
   body: string;
 }) {
   return [
     "---",
-    `summary: ${JSON.stringify(params.summary)}`,
+    ...(params.summary ? [`summary: ${JSON.stringify(params.summary)}`] : []),
     "memoryRole: backlog",
     "backlogStatus: pending",
+    `promotionMode: ${JSON.stringify(params.promotionMode ?? "topic-and-daily")}`,
     `capturedAt: ${JSON.stringify(params.capturedAt)}`,
     `sessionAction: ${JSON.stringify(params.action ?? "new")}`,
     `sessionKey: ${JSON.stringify("agent:main:main")}`,
     `sessionId: ${JSON.stringify("session-1")}`,
-    `source: ${JSON.stringify("session-memory")}`,
+    `source: ${JSON.stringify(params.source ?? "session-memory")}`,
     "tags:",
     "  - backlog",
-    "  - session-memory",
+    `  - ${params.source ?? "session-memory"}`,
     "---",
-    "# Session new - Physics Study",
+    `# ${params.title ?? "Session new - Physics Study"}`,
     "",
     "## Context",
     "",
@@ -75,7 +79,7 @@ function buildBacklogMarkdown(params: {
     `- **Action**: /${params.action ?? "new"}`,
     "- **Session Key**: agent:main:main",
     "- **Session ID**: session-1",
-    "- **Source**: session-memory",
+    `- **Source**: ${params.source ?? "session-memory"}`,
     "",
     "## Conversation Summary",
     "",
@@ -114,22 +118,37 @@ describe("memory backlog promotion job", () => {
       const result = await scheduler.runOnce();
       expect(result.status).toBe("completed");
 
-      const topicNote = await fs.readFile(path.join(workspaceDir, "memory", "physics-study.md"), "utf8");
+      const topicNote = await fs.readFile(
+        path.join(workspaceDir, "memory", "physics-study.md"),
+        "utf8",
+      );
       expect(topicNote).toContain("## Promoted backlog");
       expect(topicNote).toContain("### 2026-04-18 17:20 UTC");
-      expect(topicNote).toContain("Summary: Estou a estudar fisica e preciso de acompanhar lacunas em mecanica.");
+      expect(topicNote).toContain(
+        "Summary: Estou a estudar fisica e preciso de acompanhar lacunas em mecanica.",
+      );
       expect(topicNote).toContain("Quero estudar física de forma estruturada.");
 
-      const dailyNote = await fs.readFile(path.join(workspaceDir, "memory", "2026-04-18.md"), "utf8");
+      const dailyNote = await fs.readFile(
+        path.join(workspaceDir, "memory", "2026-04-18.md"),
+        "utf8",
+      );
       expect(dailyNote).toContain("## 17:20 UTC");
-      expect(dailyNote).toContain("Physics Study: Estou a estudar fisica e preciso de acompanhar lacunas em mecanica.");
+      expect(dailyNote).toContain(
+        "Physics Study: Estou a estudar fisica e preciso de acompanhar lacunas em mecanica.",
+      );
 
       const rootNote = await fs.readFile(path.join(workspaceDir, "MEMORY.md"), "utf8");
       expect(rootNote).toContain("## Auto-promoted long-term memory");
-      expect(rootNote).toContain("Physics Study: Estou a estudar fisica e preciso de acompanhar lacunas em mecanica.");
+      expect(rootNote).toContain(
+        "Physics Study: Estou a estudar fisica e preciso de acompanhar lacunas em mecanica.",
+      );
 
       await expect(
-        fs.readFile(path.join(workspaceDir, "memory", "backlog", "2026-04-18", "physics-study.md"), "utf8"),
+        fs.readFile(
+          path.join(workspaceDir, "memory", "backlog", "2026-04-18", "physics-study.md"),
+          "utf8",
+        ),
       ).rejects.toMatchObject({ code: "ENOENT" });
 
       const backlogPage = db
@@ -181,10 +200,16 @@ describe("memory backlog promotion job", () => {
       const result = await scheduler.runOnce();
       expect(result.status).toBe("completed");
 
-      const topicNote = await fs.readFile(path.join(workspaceDir, "memory", "physics-study.md"), "utf8");
+      const topicNote = await fs.readFile(
+        path.join(workspaceDir, "memory", "physics-study.md"),
+        "utf8",
+      );
       expect(topicNote).toContain("Quero consolidar o estudo de física por tópicos.");
 
-      const dailyNote = await fs.readFile(path.join(workspaceDir, "memory", "2026-04-18.md"), "utf8");
+      const dailyNote = await fs.readFile(
+        path.join(workspaceDir, "memory", "2026-04-18.md"),
+        "utf8",
+      );
       expect(dailyNote).toContain("## 09:10 UTC");
 
       await expect(
@@ -246,13 +271,71 @@ describe("memory backlog promotion job", () => {
       expect(secondRun.status).toBe("completed");
 
       const topicNote = await fs.readFile(path.join(workspaceDir, "memory", "football.md"), "utf8");
-      expect(topicNote.match(/Summary: Adoro futebol e jogo todas as sextas-feiras\./g)?.length ?? 0).toBe(1);
+      expect(
+        topicNote.match(/Summary: Adoro futebol e jogo todas as sextas-feiras\./g)?.length ?? 0,
+      ).toBe(1);
 
       const auditEvents = resumed.store
         .listAuditEvents({ profileId: status.profileId, kind: "backlog-promote" })
         .filter((event) => event.eventType === "PROMOTED_TO_TOPIC");
       expect(auditEvents).toHaveLength(1);
       resumed.close();
+    });
+  });
+
+  it("promotes compaction backlog notes into the daily note only", async () => {
+    await withMemoryJobDb(async ({ workspaceDir, nowMs, gaia, runtime, status }) => {
+      await seedBacklogNote({
+        gaia,
+        nowMs,
+        pageId: "backlog-compaction",
+        relativePath: "memory/backlog/2026-04-18/compaction.md",
+        markdownBody: buildBacklogMarkdown({
+          capturedAt: "2026-04-18T19:40:00.000Z",
+          action: "compaction",
+          promotionMode: "daily-only",
+          source: "memory-flush",
+          title: "Compaction backlog",
+          body: [
+            "- Preciso de continuar o plano de estudo de física.",
+            "- Ainda faltam exercícios de cinemática.",
+          ].join("\n"),
+        }),
+      });
+
+      const scheduler = createMemorySleepScheduler({
+        runtime,
+        featureFlags: {
+          enabled: true,
+          maxWallTimeMs: 5_000,
+        },
+        dependencies: createSchedulerTestDependencies({ status, gaia }),
+      });
+
+      const result = await scheduler.runOnce();
+      expect(result.status).toBe("completed");
+
+      await expect(
+        fs.readFile(path.join(workspaceDir, "memory", "compaction.md"), "utf8"),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+
+      const dailyNote = await fs.readFile(
+        path.join(workspaceDir, "memory", "2026-04-18.md"),
+        "utf8",
+      );
+      expect(dailyNote).toContain("## 19:40 UTC");
+      expect(dailyNote).toContain("Compaction: Preciso de continuar o plano de estudo de física.");
+
+      const rootNote = await fs.readFile(path.join(workspaceDir, "MEMORY.md"), "utf8");
+      expect(rootNote).toContain("Compaction: Preciso de continuar o plano de estudo de física.");
+
+      const auditEvents = scheduler.store.listAuditEvents({
+        profileId: status.profileId,
+        kind: "backlog-promote",
+      });
+      expect(auditEvents.map((event) => event.eventType)).toContain("PROMOTED_TO_DAILY");
+      expect(auditEvents.map((event) => event.eventType)).not.toContain("PROMOTED_TO_TOPIC");
+      scheduler.close();
     });
   });
 });

@@ -15,6 +15,7 @@ describe("connector-branding", () => {
     expect(getConnectorBranding("github", "GitHub").logoUrl).toBe("brand-icons/github.png");
     expect(getConnectorBranding("gmail-send", "Google").logoUrl).toBe("brand-icons/gmail.svg");
     expect(getConnectorBranding("stripe", "Stripe").logoUrl).toBe("brand-icons/stripe.svg");
+    expect(getConnectorBranding("stripe", "Stripe").accent).toBe("#533AFD");
   });
 
   it("prefixes connector and channel assets with the configured base path", () => {

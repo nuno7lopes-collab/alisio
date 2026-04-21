@@ -17,7 +17,6 @@ import {
 } from "../agents/model-selection.js";
 import { resolvePersonWorkspaceSummary } from "../agents/person-agent.js";
 import { resolveResolvedAgentIdentity } from "../agents/resolved-identity.js";
-import { resolveSandboxRuntimeStatus } from "../agents/sandbox/runtime-status.js";
 import {
   getSessionDisplaySubagentRunByChildSessionKey,
   getSubagentSessionRuntimeMs,
@@ -665,7 +664,6 @@ export function listAgentsForGateway(cfg: AlisioConfig): {
     const identity = resolveResolvedAgentIdentity({
       cfg,
       agentId,
-      includeUiAssistant: agentId === defaultId,
     });
     configuredById.set(agentId, {
       entry,

@@ -31,7 +31,4 @@ Official/public vendor assets:
 - `signal.svg`: `https://signal.org/assets/images/favicon/favicon.svg`
 - `line.png`: `https://line.me/static/img/apple-touch-icon-152x152.png`
 - `imessage.png`: `/System/Applications/Messages.app/Contents/Resources/AppIcon.icns`
-
-Locally authored assets:
-
-- `stripe.svg`: local Stripe connector icon for the manual API key setup flow
+- `stripe.svg`: `https://images.stripeassets.com/fzn2n1nzq965/1hgcBNd12BfT9VLgbId7By/01d91920114b124fb4cf6d448f9f06eb/favicon.svg`

@@ -9,7 +9,11 @@ import {
   setupTelegramHeartbeatPluginRuntimeForTests,
   withTempHeartbeatSandbox,
 } from "./heartbeat-runner.test-utils.js";
-import { enqueueSystemEvent, resetSystemEventsForTest } from "./system-events.js";
+import {
+  enqueueSystemEvent,
+  peekSystemEventEntries,
+  resetSystemEventsForTest,
+} from "./system-events.js";
 
 beforeEach(() => {
   setupTelegramHeartbeatPluginRuntimeForTests();
@@ -355,6 +359,60 @@ describe("Ghost reminder bug (issue #13317)", () => {
       expect(sendTelegram.mock.calls[0]?.[0]).toBe("-100155462274");
       const options = sendTelegram.mock.calls[0]?.[2] as { messageThreadId?: number } | undefined;
       expect(options?.messageThreadId).toBeUndefined();
+    });
+  });
+
+  it("moves pending base-session events into the isolated heartbeat session before the run", async () => {
+    await withTempHeartbeatSandbox(async ({ tmpDir, storePath, replySpy }) => {
+      const cfg: AlisioConfig = {
+        agents: {
+          defaults: {
+            workspace: tmpDir,
+            heartbeat: {
+              every: "5m",
+              target: "none",
+              isolatedSession: true,
+            },
+          },
+        },
+        session: { store: storePath },
+      };
+      const sessionKey = resolveMainSessionKey(cfg);
+      await fs.writeFile(
+        storePath,
+        JSON.stringify({
+          [sessionKey]: {
+            sessionId: "sid",
+            updatedAt: Date.now(),
+          },
+        }),
+      );
+
+      replySpy.mockResolvedValue({ text: "No delivery needed" });
+      enqueueSystemEvent("Gateway restart ok", {
+        sessionKey,
+      });
+
+      const result = await runHeartbeatOnce({
+        cfg,
+        agentId: "main",
+        reason: "wake",
+      });
+
+      expect(result.status).toBe("ran");
+      expect(peekSystemEventEntries(sessionKey)).toEqual([]);
+      expect(peekSystemEventEntries(`${sessionKey}:heartbeat`)).toEqual([
+        expect.objectContaining({
+          text: "Gateway restart ok",
+        }),
+      ]);
+      expect(replySpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          SessionKey: `${sessionKey}:heartbeat`,
+        }),
+        expect.anything(),
+        expect.anything(),
+      );
     });
   });
 });

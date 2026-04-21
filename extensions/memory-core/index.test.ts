@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const registerMemoryCli = vi.hoisted(() => vi.fn());
 const handleMemoryGraphGatewayRequest = vi.hoisted(() => vi.fn());
-const handleMemoryWikiListGatewayRequest = vi.hoisted(() => vi.fn());
-const handleMemoryWikiGetGatewayRequest = vi.hoisted(() => vi.fn());
-const handleMemoryWikiUpdateGatewayRequest = vi.hoisted(() => vi.fn());
-const handleMemoryWikiHistoryGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryNotesListGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryNotesGetGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryNotesUpdateGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryNotesHistoryGatewayRequest = vi.hoisted(() => vi.fn());
 const handleMemoryFilesListGatewayRequest = vi.hoisted(() => vi.fn());
 const handleMemoryFilesGetGatewayRequest = vi.hoisted(() => vi.fn());
 const handleMemoryTraceGetGatewayRequest = vi.hoisted(() => vi.fn());
@@ -38,10 +38,10 @@ vi.mock("./src/gateway.js", () => ({
 }));
 
 vi.mock("./src/gateway.native.js", () => ({
-  handleMemoryWikiListGatewayRequest,
-  handleMemoryWikiGetGatewayRequest,
-  handleMemoryWikiUpdateGatewayRequest,
-  handleMemoryWikiHistoryGatewayRequest,
+  handleMemoryNotesListGatewayRequest,
+  handleMemoryNotesGetGatewayRequest,
+  handleMemoryNotesUpdateGatewayRequest,
+  handleMemoryNotesHistoryGatewayRequest,
   handleMemoryFilesListGatewayRequest,
   handleMemoryFilesGetGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
@@ -73,6 +73,7 @@ vi.mock("./src/tools.js", () => ({
 const {
   default: plugin,
   buildMemoryFlushPlan,
+  buildCompactionBacklogSeedContent,
   buildPromptSection,
   DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES,
   DEFAULT_MEMORY_FLUSH_PROMPT,
@@ -152,17 +153,21 @@ describe("plugin registration", () => {
     expect(registerGatewayMethod).toHaveBeenCalledWith("memory.graph", expect.any(Function), {
       scope: "operator.read",
     });
-    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.wiki.list", expect.any(Function), {
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.notes.list", expect.any(Function), {
       scope: "operator.read",
     });
-    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.wiki.get", expect.any(Function), {
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.notes.get", expect.any(Function), {
       scope: "operator.read",
-    });
-    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.wiki.update", expect.any(Function), {
-      scope: "operator.write",
     });
     expect(registerGatewayMethod).toHaveBeenCalledWith(
-      "memory.wiki.history",
+      "memory.notes.update",
+      expect.any(Function),
+      {
+        scope: "operator.write",
+      },
+    );
+    expect(registerGatewayMethod).toHaveBeenCalledWith(
+      "memory.notes.history",
       expect.any(Function),
       {
         scope: "operator.read",
@@ -247,7 +252,7 @@ describe("buildMemoryFlushPlan", () => {
             ...cfg.agents?.defaults,
             compaction: {
               memoryFlush: {
-                prompt: "Store durable notes in memory/YYYY-MM-DD.md",
+                prompt: "Store durable notes in memory/backlog/YYYY-MM-DD/compaction.md",
               },
             },
           },
@@ -256,11 +261,11 @@ describe("buildMemoryFlushPlan", () => {
       nowMs: Date.UTC(2026, 1, 16, 15, 0, 0),
     });
 
-    expect(plan?.prompt).toContain("memory/2026-02-16.md");
+    expect(plan?.prompt).toContain("memory/backlog/2026-02-16/compaction.md");
     expect(plan?.prompt).toContain(
       "Current time: Monday, February 16th, 2026 — 10:00 AM (America/New_York) / 2026-02-16 15:00 UTC",
     );
-    expect(plan?.relativePath).toBe("memory/2026-02-16.md");
+    expect(plan?.relativePath).toBe("memory/backlog/2026-02-16/compaction.md");
   });
 
   it("does not append a duplicate current time line", () => {
@@ -294,6 +299,17 @@ describe("buildMemoryFlushPlan", () => {
     expect(plan?.prompt).toContain("memory/");
     expect(plan?.prompt).toContain("MEMORY.md");
     expect(plan?.systemPrompt).toContain("MEMORY.md");
+    expect(plan?.writeSeedContent).toContain("memoryRole: backlog");
+    expect(plan?.writeSeedContent).toContain("promotionMode: daily-only");
+  });
+
+  it("builds a canonical compaction backlog seed with daily-only promotion", () => {
+    const seed = buildCompactionBacklogSeedContent(Date.UTC(2026, 1, 16, 15, 0, 0));
+    expect(seed).toContain("backlogStatus: pending");
+    expect(seed).toContain("promotionMode: daily-only");
+    expect(seed).toContain('sessionAction: "compaction"');
+    expect(seed).toContain('source: "memory-flush"');
+    expect(seed).not.toContain("summary:");
   });
 
   it("respects disable flag", () => {
@@ -351,6 +367,6 @@ describe("buildMemoryFlushPlan", () => {
     expect(DEFAULT_MEMORY_FLUSH_PROMPT).toMatch(/APPEND/i);
     expect(DEFAULT_MEMORY_FLUSH_PROMPT).toContain("do not overwrite");
     expect(DEFAULT_MEMORY_FLUSH_PROMPT).toContain("timestamped variant");
-    expect(DEFAULT_MEMORY_FLUSH_PROMPT).toContain("YYYY-MM-DD.md");
+    expect(DEFAULT_MEMORY_FLUSH_PROMPT).toContain("memory/backlog/YYYY-MM-DD/compaction.md");
   });
 });

@@ -10,7 +10,7 @@ title: "Getting Started"
 
 The recommended path starts with the macOS app.
 
-You install Alisio, sign in, grant the permissions you want, choose how AI should run on that computer, and then connect the channels, apps, and devices you care about.
+You install Alisio, sign in, grant the permissions you want, choose how AI should run on that computer, and then connect the channels, apps, and other computers you care about.
 
 ## What You Need
 
@@ -67,12 +67,12 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
 
   </Step>
 
-  <Step title="Connect channels, apps, and devices">
+  <Step title="Connect channels, apps, and computers">
     Add the surfaces Alisio should use:
 
     - channels for inbound and outbound work
     - connectors and apps for automation
-    - paired devices for camera, voice, screen, notifications, and local actions
+    - paired computers for camera, voice, screen, notifications, and local actions
 
   </Step>
 
@@ -109,10 +109,10 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
     Product framing, use cases, and the minimum sellable product.
   </Card>
   <Card title="macOS App" href="/platforms/macos" icon="monitor-smartphone">
-    The main product surface for setup, permissions, and device control.
+    The main product surface for setup, permissions, and computer control.
   </Card>
-  <Card title="Devices" href="/nodes" icon="smartphone">
-    Pair devices and run device-local actions.
+  <Card title="Computers" href="/nodes" icon="monitor-smartphone">
+    Pair computers and run local actions where they make sense.
   </Card>
   <Card title="Skills" href="/tools/skills" icon="sparkles">
     Install skills and apps from the local marketplace on each computer.

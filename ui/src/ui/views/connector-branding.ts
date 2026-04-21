@@ -199,9 +199,9 @@ const CONNECTOR_BRANDING: Record<string, BrandDefinition> = {
   }),
   stripe: defineBrand({
     asset: "stripe.svg",
-    accent: "#635BFF",
-    surface: "rgba(99, 91, 255, 0.16)",
-    border: "rgba(99, 91, 255, 0.28)",
+    accent: "#533AFD",
+    surface: "rgba(83, 58, 253, 0.16)",
+    border: "rgba(83, 58, 253, 0.28)",
   }),
   slack: defineBrand({
     asset: "slack.png",

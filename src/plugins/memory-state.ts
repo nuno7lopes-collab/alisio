@@ -18,6 +18,7 @@ export type MemoryFlushPlan = {
   prompt: string;
   systemPrompt: string;
   relativePath: string;
+  writeSeedContent?: string;
 };
 
 export type MemoryFlushPlanResolver = (params: {

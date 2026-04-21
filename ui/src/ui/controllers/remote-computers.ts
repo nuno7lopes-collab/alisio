@@ -5,6 +5,13 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import type { AlisioSharingState } from "../types.ts";
 import { generateUUID } from "../uuid.ts";
 import {
+  normalizeComputerText,
+  resolveComputerGroupKey,
+  resolveComputerId,
+  resolveComputerLabelText,
+  resolveNodeRuntimeComputerId,
+} from "./computer-identity.ts";
+import {
   computerNodeSupportsExec,
   isComputerNodeConnected,
   type ComputersCatalogState,
@@ -77,6 +84,8 @@ type RemoteComputerCandidate = Omit<RemoteComputerRecord, "id" | "targetIds"> & 
   groupKey: string;
 };
 
+type RemoteComputerCatalogState = ComputersCatalogState;
+
 export type RemoteComputersState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -133,14 +142,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 let lastRemoteComputerCatalogCache: RemoteComputerCatalogCache | null = null;
-
-function normalizeString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
 
 function resolveTargetPhase(params: {
   target: Pick<SharingTarget, "requestStatus" | "execAccess">;
@@ -346,7 +347,9 @@ export function resolveRemoteComputerRecords(
   );
   const pairedComputers = new Set(
     (state.devicesList?.paired ?? [])
-      .map((entry) => normalizeString(entry.computerId) ?? normalizeString(entry.deviceId))
+      .map((entry) =>
+        resolveComputerId({ computerId: entry.computerId, fallbackId: entry.deviceId }),
+      )
       .filter((computerId): computerId is string => Boolean(computerId)),
   );
   const pendingDevices = new Set(
@@ -356,13 +359,15 @@ export function resolveRemoteComputerRecords(
   );
   const pendingComputers = new Set(
     (state.devicesList?.pending ?? [])
-      .map((entry) => normalizeString(entry.computerId) ?? normalizeString(entry.deviceId))
+      .map((entry) =>
+        resolveComputerId({ computerId: entry.computerId, fallbackId: entry.deviceId }),
+      )
       .filter((computerId): computerId is string => Boolean(computerId)),
   );
   const viewerOwnerKey = state.sharing?.viewer.ownerKey ?? null;
   const grouped = new Map<string, RemoteComputerCandidate[]>();
 
-  for (const target of collectSharingTargets(state.sharing)) {
+  for (const target of collectSharingTargets(state.sharing ?? null)) {
     const targetId = target.targetId.trim();
     if (!targetId) {
       continue;
@@ -371,15 +376,20 @@ export function resolveRemoteComputerRecords(
     const pairedNode = pairedNodeById.get(targetId) ?? null;
     const connected = isComputerNodeConnected(node) || target.connected;
     const execReady = computerNodeSupportsExec(node) || computerNodeSupportsExec(pairedNode);
-    const computerId = normalizeString(target.computerId) ?? targetId;
+    const computerId = resolveComputerId({ computerId: target.computerId, fallbackId: targetId })!;
     const sameAccount = viewerOwnerKey !== null && target.ownerKey === viewerOwnerKey;
     const candidate = {
       computerId,
       targetId,
-      label: normalizeString(target.computerLabel) ?? target.label,
-      platform: normalizeString(target.platform),
+      label:
+        resolveComputerLabelText({
+          computerLabel: target.computerLabel,
+          displayName: target.label,
+          fallbackLabel: targetId,
+        }) ?? targetId,
+      platform: normalizeComputerText(target.platform),
       sourceKind: target.sourceKind,
-      ownerLabel: normalizeString(target.ownerLabel),
+      ownerLabel: normalizeComputerText(target.ownerLabel),
       ownerKey: target.ownerKey,
       sameAccount,
       connected,
@@ -390,11 +400,19 @@ export function resolveRemoteComputerRecords(
       modelAccess: target.modelAccess,
       execAccess: target.execAccess,
       requestStatus: target.requestStatus ?? null,
-      grantId: normalizeString(target.grantId),
+      grantId: normalizeComputerText(target.grantId),
       grantScopes: [...(target.grantScopes ?? [])],
       phase: resolveTargetPhase({ target, connected, supportsExec: execReady }),
-      nodeId: node?.nodeId ?? pairedNode?.nodeId ?? targetId,
-      groupKey: sameAccount ? computerId : `${target.ownerKey}:${computerId}`,
+      nodeId:
+        node?.nodeId ??
+        pairedNode?.nodeId ??
+        resolveNodeRuntimeComputerId({
+          nodeId: targetId,
+          computerId: target.computerId,
+        }),
+      groupKey: sameAccount
+        ? (resolveComputerGroupKey({ computerId, fallbackId: targetId }) ?? computerId)
+        : `${target.ownerKey}:${resolveComputerGroupKey({ computerId, fallbackId: targetId }) ?? computerId}`,
     } satisfies RemoteComputerCandidate;
     const current = grouped.get(candidate.groupKey);
     if (current) {
@@ -461,7 +479,7 @@ export function resolveRemoteComputerRecords(
     .toSorted(sortRemoteComputers);
 
   lastRemoteComputerCatalogCache = {
-    sharing: state.sharing,
+    sharing: state.sharing ?? null,
     nodes: state.nodes,
     devicesList: state.devicesList,
     nodePairingsList: state.nodePairingsList,
@@ -548,7 +566,7 @@ export async function runRemoteComputerCommand(
       },
       idempotencyKey: generateUUID(),
     });
-    const acceptedTaskId = normalizeString(result?.taskId);
+    const acceptedTaskId = normalizeComputerText(result?.taskId);
     if (!acceptedTaskId || result?.status !== "accepted") {
       throw new Error(t("alisio.connections.remote.startFailed"));
     }
@@ -594,9 +612,9 @@ function coerceTaskUpdatedPayload(payload: unknown): TaskUpdatedEventPayload | n
   if (!isRecord(payload)) {
     return null;
   }
-  const taskId = normalizeString(payload.taskId);
-  const nodeId = normalizeString(payload.nodeId);
-  const phase = normalizeString(payload.phase);
+  const taskId = normalizeComputerText(payload.taskId);
+  const nodeId = normalizeComputerText(payload.nodeId);
+  const phase = normalizeComputerText(payload.phase);
   if (!taskId || !nodeId || (phase !== "event" && phase !== "result")) {
     return null;
   }
@@ -605,8 +623,8 @@ function coerceTaskUpdatedPayload(payload: unknown): TaskUpdatedEventPayload | n
       phase,
       taskId,
       nodeId,
-      capabilityId: normalizeString(payload.capabilityId) ?? undefined,
-      kind: normalizeString(payload.kind) ?? undefined,
+      capabilityId: normalizeComputerText(payload.capabilityId) ?? undefined,
+      kind: normalizeComputerText(payload.kind) ?? undefined,
       payload: payload.payload,
     };
   }
@@ -614,11 +632,11 @@ function coerceTaskUpdatedPayload(payload: unknown): TaskUpdatedEventPayload | n
     phase,
     taskId,
     nodeId,
-    capabilityId: normalizeString(payload.capabilityId) ?? undefined,
+    capabilityId: normalizeComputerText(payload.capabilityId) ?? undefined,
     ok: payload.ok === true,
     payload: payload.payload,
     error: isRecord(payload.error)
-      ? { message: normalizeString(payload.error.message) ?? undefined }
+      ? { message: normalizeComputerText(payload.error.message) ?? undefined }
       : null,
   };
 }
@@ -647,7 +665,7 @@ export function applyRemoteComputerTaskUpdate(
     const stdout = typeof payloadRecord?.stdout === "string" ? payloadRecord.stdout : task.stdout;
     const stderr = typeof payloadRecord?.stderr === "string" ? payloadRecord.stderr : task.stderr;
     const errorMessage =
-      normalizeString(payloadRecord?.error) ?? update.error?.message ?? task.error;
+      normalizeComputerText(payloadRecord?.error) ?? update.error?.message ?? task.error;
     const exitCode =
       typeof payloadRecord?.exitCode === "number" ? payloadRecord.exitCode : task.exitCode;
     const timedOut = payloadRecord?.timedOut === true;

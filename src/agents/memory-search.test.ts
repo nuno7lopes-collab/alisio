@@ -468,7 +468,7 @@ describe("memory search config", () => {
     });
   });
 
-  it("gates session sources behind experimental flag", () => {
+  it("preserves explicit session sources without an experimental gate", () => {
     const cfg = asConfig({
       agents: {
         defaults: {
@@ -477,34 +477,9 @@ describe("memory search config", () => {
             sources: ["memory", "sessions"],
           },
         },
-        list: [
-          {
-            id: "main",
-            default: true,
-            memorySearch: {
-              experimental: { sessionMemory: false },
-            },
-          },
-        ],
       },
     });
     const resolved = resolveMemorySearchConfig(cfg, "main");
-    expect(resolved?.sources).toEqual(["memory"]);
-  });
-
-  it("allows session sources when experimental flag is enabled", () => {
-    const cfg = asConfig({
-      agents: {
-        defaults: {
-          memorySearch: {
-            provider: "openai",
-            sources: ["memory", "sessions"],
-            experimental: { sessionMemory: true },
-          },
-        },
-      },
-    });
-    const resolved = resolveMemorySearchConfig(cfg, "main");
-    expect(resolved?.sources).toContain("sessions");
+    expect(resolved?.sources).toEqual(["memory", "sessions"]);
   });
 });

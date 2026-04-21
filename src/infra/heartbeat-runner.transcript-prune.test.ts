@@ -2,11 +2,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
-import { resolveMainSessionKey } from "../config/sessions.js";
+import {
+  loadSessionStore,
+  resolveMainSessionKey,
+  resolveSessionFilePath,
+} from "../config/sessions.js";
 import { runHeartbeatOnce } from "./heartbeat-runner.js";
 import {
   seedSessionStore,
   setupTelegramHeartbeatPluginRuntimeForTests,
+  withTempHeartbeatSandbox,
   withTempTelegramHeartbeatSandbox,
 } from "./heartbeat-runner.test-utils.js";
 
@@ -105,6 +110,63 @@ describe("heartbeat transcript pruning", () => {
         usage: { inputTokens: 10, outputTokens: 20, cacheReadTokens: 0, cacheWriteTokens: 0 },
       },
       expectPruned: false,
+    });
+  });
+
+  it("deletes isolated heartbeat transcripts created during an ack-only run and removes the ephemeral session entry", async () => {
+    await withTempHeartbeatSandbox(async ({ tmpDir, storePath, replySpy }) => {
+      const cfg: AlisioConfig = {
+        agents: {
+          defaults: {
+            workspace: tmpDir,
+            heartbeat: {
+              every: "5m",
+              target: "none",
+              isolatedSession: true,
+            },
+          },
+        },
+        session: { store: storePath },
+      };
+      const sessionKey = resolveMainSessionKey(cfg);
+      await seedSessionStore(storePath, sessionKey, {
+        sessionId: "main-session",
+        lastChannel: "telegram",
+        lastProvider: "telegram",
+        lastTo: "user123",
+      });
+
+      let isolatedTranscriptPath: string | undefined;
+      replySpy.mockImplementation(async (ctx: { SessionKey?: string }) => {
+        const runSessionKey = String(ctx.SessionKey);
+        const store = loadSessionStore(storePath);
+        const isolatedEntry = store[runSessionKey];
+        isolatedTranscriptPath = resolveSessionFilePath(isolatedEntry.sessionId, isolatedEntry, {
+          agentId: "main",
+          sessionsDir: path.dirname(storePath),
+        });
+        await fs.mkdir(path.dirname(isolatedTranscriptPath), { recursive: true });
+        await fs.writeFile(
+          isolatedTranscriptPath,
+          '{"role":"assistant","content":"HEARTBEAT_OK"}\n',
+        );
+        return {
+          text: "HEARTBEAT_OK",
+          usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        };
+      });
+
+      const result = await runHeartbeatOnce({
+        cfg,
+        agentId: "main",
+        reason: "test",
+      });
+
+      expect(result.status).toBe("ran");
+      expect(isolatedTranscriptPath).toBeDefined();
+      await expect(fs.stat(isolatedTranscriptPath!)).rejects.toMatchObject({ code: "ENOENT" });
+      const store = loadSessionStore(storePath);
+      expect(store[`${sessionKey}:heartbeat`]).toBeUndefined();
     });
   });
 });

@@ -50,6 +50,10 @@ type GatewayClientMock = {
 
 type ComputerSessionSetter = (sessionKey: string, session: ComputerSessionState | null) => void;
 type BrowserPaneActivityNotifier = (sessionKey: string, surface?: BrowserPaneSurfaceKind) => void;
+type BrowserPanePreviewRefresher = (sessionKey: string) => {
+  hasActivity: boolean;
+  changed: boolean;
+};
 
 const gatewayClientInstances: GatewayClientMock[] = [];
 
@@ -190,6 +194,7 @@ type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
   toolStreamSyncTimer: number | null;
   setComputerSession: ComputerSessionSetter;
   notifyBrowserPaneActivity: BrowserPaneActivityNotifier;
+  refreshBrowserPaneBrowserState: BrowserPanePreviewRefresher;
 };
 
 function createHost(): GatewayTestHost {
@@ -261,6 +266,10 @@ function createHost(): GatewayTestHost {
     alisioModelOperations: {},
     setComputerSession: vi.fn<ComputerSessionSetter>(),
     notifyBrowserPaneActivity: vi.fn<BrowserPaneActivityNotifier>(),
+    refreshBrowserPaneBrowserState: vi.fn<BrowserPanePreviewRefresher>(() => ({
+      hasActivity: false,
+      changed: false,
+    })),
   };
 }
 
@@ -1298,6 +1307,37 @@ describe("connectGateway", () => {
     });
 
     expect(loadChatHistoryMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("marca actividade de browser logo no evento live, mesmo antes do preview existir", () => {
+    const { host, client } = connectHostGateway();
+    host.refreshBrowserPaneBrowserState = vi.fn(() => ({
+      hasActivity: false,
+      changed: false,
+    }));
+
+    client.emitEvent({
+      event: "agent",
+      payload: {
+        runId: "engine-run-1",
+        seq: 1,
+        stream: "tool",
+        ts: 1,
+        sessionKey: "main",
+        data: {
+          toolCallId: "tool-browser-1",
+          name: "browser",
+          phase: "result",
+          result: {
+            ok: true,
+            url: "https://grokopedia.com",
+          },
+        },
+      },
+    });
+
+    expect(host.refreshBrowserPaneBrowserState).toHaveBeenCalledWith("main");
+    expect(host.notifyBrowserPaneActivity).toHaveBeenCalledWith("main", "browser");
   });
 
   it("commits the buffered assistant stream locally instead of reloading stale history", () => {

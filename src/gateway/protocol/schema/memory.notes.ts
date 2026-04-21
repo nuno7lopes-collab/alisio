@@ -1,29 +1,142 @@
 import { Type } from "@sinclair/typebox";
 import { NonEmptyString } from "./primitives.js";
-import {
-  MemoryWikiBacklinkSchema,
-  MemoryWikiClaimItemSchema,
-  MemoryWikiEvidenceItemSchema,
-  MemoryWikiHistoryEntrySchema,
-  MemoryWikiPageContextSchema,
-  MemoryWikiPageRevisionSchema,
-  MemoryWikiReasonTagSchema,
-  MemoryWikiRelatedFileSchema,
-  MemoryWikiRoleSchema,
-  MemoryWikiSyncSurfaceSchema,
-  MemoryWikiTaxonomySchema,
-} from "./memory.wiki.js";
 
-export const MemoryNoteAttachmentSchema = MemoryWikiRelatedFileSchema;
-export const MemoryNoteReasonTagSchema = MemoryWikiReasonTagSchema;
-export const MemoryNoteSyncSurfaceSchema = MemoryWikiSyncSurfaceSchema;
-export const MemoryNoteTaxonomySchema = MemoryWikiTaxonomySchema;
-export const MemoryNoteBacklinkSchema = MemoryWikiBacklinkSchema;
-export const MemoryNoteEvidenceItemSchema = MemoryWikiEvidenceItemSchema;
-export const MemoryNoteClaimItemSchema = MemoryWikiClaimItemSchema;
-export const MemoryNoteRevisionSchema = MemoryWikiPageRevisionSchema;
-export const MemoryNoteContextSchema = MemoryWikiPageContextSchema;
-export const MemoryNoteHistoryEntrySchema = MemoryWikiHistoryEntrySchema;
+export const MemoryNoteReasonTagSchema = Type.Object(
+  {
+    code: NonEmptyString,
+    label: NonEmptyString,
+    detail: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteSyncSurfaceSchema = Type.Object(
+  {
+    lastSyncedLamport: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.String()])),
+    e2eeRequired: Type.Optional(Type.Boolean()),
+    state: Type.Optional(Type.String()),
+    mode: Type.Optional(Type.String()),
+    blockedReason: Type.Optional(Type.String()),
+    lastSuccessAt: Type.Optional(Type.String()),
+    lastAckLamport: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.String()])),
+    pendingBacklog: Type.Optional(Type.Integer({ minimum: 0 })),
+    detail: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteRoleSchema = Type.Union([
+  Type.Literal("main"),
+  Type.Literal("topic"),
+  Type.Literal("daily"),
+  Type.Literal("backlog"),
+]);
+
+export const MemoryNoteTaxonomySchema = Type.Object(
+  {
+    summary: Type.Optional(Type.String()),
+    memoryRole: Type.Optional(MemoryNoteRoleSchema),
+    tags: Type.Optional(Type.Array(NonEmptyString)),
+    categories: Type.Optional(Type.Array(NonEmptyString)),
+    collections: Type.Optional(Type.Array(NonEmptyString)),
+    featured: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteAttachmentSchema = Type.Intersect([
+  Type.Object(
+    {
+      name: NonEmptyString,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      id: Type.Optional(Type.String()),
+      mediaType: Type.Optional(Type.String()),
+      updatedAt: Type.Optional(Type.String()),
+      provenanceSummary: Type.Optional(Type.String()),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+export const MemoryNoteBacklinkSchema = Type.Object(
+  {
+    id: Type.Optional(Type.String()),
+    title: NonEmptyString,
+    path: Type.Optional(Type.String()),
+    excerpt: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteEvidenceItemSchema = Type.Object(
+  {
+    id: Type.Optional(Type.String()),
+    title: Type.Optional(Type.String()),
+    excerpt: Type.Optional(Type.String()),
+    source: Type.Optional(Type.String()),
+    provenance: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            label: NonEmptyString,
+            value: NonEmptyString,
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteClaimItemSchema = Type.Object(
+  {
+    id: Type.Optional(Type.String()),
+    claim: NonEmptyString,
+    confidence: Type.Optional(Type.Union([Type.Number(), Type.String()])),
+    evidence: Type.Optional(Type.Array(MemoryNoteEvidenceItemSchema)),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteRevisionSchema = Type.Object(
+  {
+    eventId: Type.Optional(Type.String()),
+    lamport: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.String()])),
+    updatedAt: Type.Optional(Type.String()),
+    author: Type.Optional(Type.String()),
+    summary: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteContextSchema = Type.Object(
+  {
+    summary: Type.Optional(Type.String()),
+    reasonTags: Type.Optional(Type.Array(MemoryNoteReasonTagSchema)),
+    traceId: Type.Optional(Type.String()),
+    trace: Type.Optional(Type.Unknown()),
+    traceSummary: Type.Optional(Type.Array(Type.String())),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryNoteHistoryEntrySchema = Type.Object(
+  {
+    eventId: NonEmptyString,
+    lamport: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.String()])),
+    at: Type.Optional(Type.String()),
+    author: Type.Optional(Type.String()),
+    operation: Type.Optional(Type.String()),
+    summary: Type.Optional(Type.String()),
+    diffSummary: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
 
 export const MemoryNotesListParamsSchema = Type.Object(
   {
@@ -123,7 +236,7 @@ export const MemoryNotesUpdateParamsSchema = Type.Object(
     agentId: NonEmptyString,
     noteId: Type.Optional(Type.String()),
     relativePath: Type.Optional(Type.String()),
-    memoryRole: Type.Optional(MemoryWikiRoleSchema),
+    memoryRole: Type.Optional(MemoryNoteRoleSchema),
     title: NonEmptyString,
     content: Type.String(),
   },

@@ -89,10 +89,10 @@ export function resolvePromptModeForSession(sessionKey?: string): "minimal" | "f
 }
 
 export function shouldInjectHeartbeatPrompt(params: {
-  isDefaultAgent: boolean;
+  heartbeatEnabled: boolean;
   trigger?: EmbeddedRunAttemptParams["trigger"];
 }): boolean {
-  return params.isDefaultAgent && shouldInjectHeartbeatPromptForTrigger(params.trigger);
+  return params.heartbeatEnabled && shouldInjectHeartbeatPromptForTrigger(params.trigger);
 }
 
 export function resolveAttemptFsWorkspaceOnly(params: {

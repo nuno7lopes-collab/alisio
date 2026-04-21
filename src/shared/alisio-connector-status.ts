@@ -79,7 +79,7 @@ export function resolveAlisioConnectorSurfaceUiStatus(params: {
   authorization?: AlisioConnectorAuthorizationLike;
 }): AlisioConnectorUiStatus {
   if (params.authorization?.health === "config_missing") {
-    return "unavailable";
+    return "setup_required";
   }
   const rawStatus = resolveAlisioConnectorUiStatus(params);
   if (params.definition.availability === "unavailable") {

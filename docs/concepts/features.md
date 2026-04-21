@@ -25,8 +25,8 @@ title: "Features"
   <Card title="Apps and UI" icon="monitor">
     Web Control UI and macOS companion app.
   </Card>
-  <Card title="Mobile nodes" icon="smartphone">
-    iOS nodes with pairing, voice/chat, and rich device commands.
+  <Card title="Paired computers" icon="monitor-smartphone">
+    Paired computers with local actions, approvals, and runtime commands.
   </Card>
 </Columns>
 
@@ -62,7 +62,7 @@ title: "Features"
 
 - WebChat and browser Control UI
 - macOS menu bar companion app
-- iOS node with pairing, Canvas, camera, screen recording, location, and voice
+- paired computers with Canvas, camera, screen recording, location, and voice
 
 **Tools and automation:**
 

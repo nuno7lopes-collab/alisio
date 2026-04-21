@@ -33,9 +33,32 @@ export type NodeListNode = {
   permissions?: Record<string, boolean>;
   paired?: boolean;
   connected?: boolean;
+  online?: boolean;
   connectedAtMs?: number;
   approvedAtMs?: number;
 };
+
+export function normalizeNodeComputerText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function resolveNodeComputerId(node: Pick<NodeListNode, "computerId" | "nodeId">): string {
+  return normalizeNodeComputerText(node.computerId) ?? node.nodeId;
+}
+
+export function resolveNodeComputerLabel(
+  node: Pick<NodeListNode, "computerLabel" | "displayName" | "nodeId">,
+): string {
+  return (
+    normalizeNodeComputerText(node.computerLabel) ??
+    normalizeNodeComputerText(node.displayName) ??
+    node.nodeId
+  );
+}
 
 export type PendingRequest = {
   requestId: string;

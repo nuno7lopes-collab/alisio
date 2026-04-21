@@ -72,12 +72,12 @@ For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 
   </Step>
 
-  <Step title="Connect apps, channels, and devices">
+  <Step title="Connect apps, channels, and computers">
     Add the surfaces that matter for this computer:
 
     - channels for inbound and outbound work
     - connectors and apps for automation
-    - paired devices that extend capture, voice, and local actions
+    - paired computers that extend capture, voice, and local actions
 
   </Step>
 
@@ -86,7 +86,7 @@ For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 
     - chat
     - run the chosen AI source
-    - expose the approved device permissions
+    - expose the approved computer permissions
     - install at least one skill or integration
     - create or receive one real workflow
 

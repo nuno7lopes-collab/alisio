@@ -15,7 +15,7 @@ import { resolveStateDir } from "../../../config/paths.js";
 import { createSubsystemLogger } from "../../../logging/subsystem.js";
 import {
   buildSessionMemoryBacklogNote,
-  syncDailyMemoryThroughCanonicalPipeline,
+  syncWorkspaceMemoryThroughCanonicalPipeline,
   writeCanonicalBacklogMemoryNote,
 } from "../../../memory/daily-memory.js";
 import {
@@ -190,7 +190,7 @@ const saveSessionToMemory: HookHandler = async (event) => {
     });
 
     if (cfg) {
-      await syncDailyMemoryThroughCanonicalPipeline({
+      await syncWorkspaceMemoryThroughCanonicalPipeline({
         cfg,
         agentId: memoryAgentId,
         reason: "session-memory",

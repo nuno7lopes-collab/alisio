@@ -1,5 +1,5 @@
 import { resolveAgentAvatar } from "../../agents/identity-avatar.js";
-import { resolveAgentIdentity } from "../../agents/identity.js";
+import { resolveCanonicalAgentIdentitySnapshot } from "../../agents/identity-canonical.js";
 import type { AlisioConfig } from "../../config/config.js";
 
 export type OutboundIdentity = {
@@ -29,12 +29,12 @@ export function resolveAgentOutboundIdentity(
   cfg: AlisioConfig,
   agentId: string,
 ): OutboundIdentity | undefined {
-  const agentIdentity = resolveAgentIdentity(cfg, agentId);
+  const agentIdentity = resolveCanonicalAgentIdentitySnapshot({ cfg, agentId });
   const avatar = resolveAgentAvatar(cfg, agentId);
   return normalizeOutboundIdentity({
-    name: agentIdentity?.name,
-    emoji: agentIdentity?.emoji,
+    name: agentIdentity.name,
+    emoji: agentIdentity.emoji,
     avatarUrl: avatar.kind === "remote" ? avatar.url : undefined,
-    theme: agentIdentity?.theme,
+    theme: agentIdentity.theme,
   });
 }

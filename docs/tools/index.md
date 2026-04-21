@@ -11,7 +11,7 @@ title: "Tools and Plugins"
 
 Everything the agent does beyond generating text happens through **tools**.
 Tools are how the agent reads files, runs commands, browses the web, sends
-messages, and interacts with devices.
+messages, and interacts with computers.
 
 ## Tools, skills, and plugins
 
@@ -62,7 +62,7 @@ These tools ship with Alisio and are available without installing any plugins:
 | `apply_patch`                           | Multi-hunk file patches (workspace-contained by default)                | [Apply Patch](/tools/apply-patch)       |
 | `message`                               | Send messages across all channels                                       | [Agent Send](/tools/agent-send)         |
 | `canvas`                                | Drive node Canvas (present, eval, snapshot)                             |                                         |
-| `nodes`                                 | Discover and target paired devices                                      |                                         |
+| `nodes`                                 | Discover and target paired computers                                    |                                         |
 | `cron` / `gateway`                      | Manage scheduled jobs, restart gateway                                  |                                         |
 | `image` / `image_generate`              | Analyze or generate images                                              |                                         |
 | `sessions_*` / `agents_list`            | Session management, sub-agents                                          | [Sub-agents](/tools/subagents)          |

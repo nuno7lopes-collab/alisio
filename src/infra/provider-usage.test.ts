@@ -3,15 +3,16 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "../agents/auth-profiles.js";
+import type { AlisioConfig } from "../config/config.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import { createProviderUsageFetch, makeResponse } from "../test-utils/provider-usage-fetch.js";
+import type { ProviderAuth } from "./provider-usage.auth.js";
 import {
   formatUsageReportLines,
   formatUsageSummaryLine,
   loadProviderUsageSummary,
   type UsageSummary,
 } from "./provider-usage.js";
-import type { ProviderAuth } from "./provider-usage.auth.js";
 
 const usageNow = Date.UTC(2026, 0, 7, 0, 0, 0);
 

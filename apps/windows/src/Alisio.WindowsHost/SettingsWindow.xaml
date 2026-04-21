@@ -1,0 +1,126 @@
+<Window
+    x:Class="Alisio.WindowsHost.SettingsWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Alisio Windows Host Settings">
+    <ScrollViewer>
+        <StackPanel Padding="24" Spacing="20">
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="28" FontWeight="SemiBold" Text="Alisio Windows host settings" />
+                <TextBlock
+                    MaxWidth="840"
+                    Opacity="0.8"
+                    Text="This window is intentionally honest about what the Windows host does today, what the shared shell can use already, and what is still not implemented on Windows."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <Border
+                Padding="12"
+                BorderBrush="#FF94A3B8"
+                BorderThickness="1"
+                Background="#FFF8FAFC">
+                <TextBlock
+                    MaxWidth="840"
+                    Text="The native request/response bridge exists, but shell injection stays off by default because the current shared shell still hardcodes macOS-native shell presentation in a few places."
+                    TextWrapping="WrapWholeWords" />
+            </Border>
+
+            <Grid ColumnSpacing="16" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="Shell source" />
+                <TextBlock x:Name="ShellSourceTextBlock" Grid.Row="0" Grid.Column="1" TextWrapping="WrapWholeWords" />
+
+                <TextBlock Grid.Row="1" Text="Shell directory" />
+                <TextBlock x:Name="ShellDirectoryTextBlock" Grid.Row="1" Grid.Column="1" TextWrapping="WrapWholeWords" />
+
+                <TextBlock Grid.Row="2" Text="Logs directory" />
+                <TextBlock x:Name="LogsDirectoryTextBlock" Grid.Row="2" Grid.Column="1" TextWrapping="WrapWholeWords" />
+
+                <TextBlock Grid.Row="3" Text="Bridge injection" />
+                <TextBlock x:Name="BridgeStatusTextBlock" Grid.Row="3" Grid.Column="1" TextWrapping="WrapWholeWords" />
+
+                <TextBlock Grid.Row="4" Text="WSL executable" />
+                <TextBlock x:Name="WslStatusTextBlock" Grid.Row="4" Grid.Column="1" TextWrapping="WrapWholeWords" />
+
+                <TextBlock Grid.Row="5" Text="Local computer" />
+                <TextBlock
+                    Grid.Row="5"
+                    Grid.Column="1"
+                    Text="Unavailable. Windows host v1 does not expose the local `computer` runtime."
+                    TextWrapping="WrapWholeWords" />
+            </Grid>
+
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Capability truth" />
+                <TextBlock
+                    x:Name="CapabilityTruthTextBlock"
+                    MaxWidth="840"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <ToggleSwitch
+                    x:Name="ExperimentalBridgeToggle"
+                    Header="Enable experimental shell bridge injection"
+                    Toggled="ExperimentalBridgeToggle_Toggled" />
+                <TextBlock
+                    MaxWidth="840"
+                    Opacity="0.8"
+                    Text="Keep this off unless you are actively working on the shared shell contract. The current shared shell still renders some host-native sections as macOS-specific."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Host actions" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Click="OpenWindowsSettingsButton_Click" Content="Open Windows settings" />
+                    <Button Click="OpenLogsButton_Click" Content="Open logs folder" />
+                    <Button Click="OpenShellFolderButton_Click" Content="Open shell folder" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="File access hooks" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Click="PickFileButton_Click" Content="Pick file" />
+                    <Button Click="PickFolderButton_Click" Content="Pick folder" />
+                </StackPanel>
+                <TextBlock
+                    x:Name="PickedPathTextBlock"
+                    MaxWidth="840"
+                    Opacity="0.8"
+                    Text="No file or folder selected yet."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="22" FontWeight="SemiBold" Text="Windows privacy pages" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Click="OpenNotificationsButton_Click" Content="Notifications" />
+                    <Button Click="OpenMicrophoneButton_Click" Content="Microphone" />
+                    <Button Click="OpenCameraButton_Click" Content="Camera" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Click="OpenLocationButton_Click" Content="Location" />
+                    <Button Click="OpenSpeechButton_Click" Content="Speech" />
+                    <Button Click="OpenScreenRecordingButton_Click" Content="Graphics capture" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>
