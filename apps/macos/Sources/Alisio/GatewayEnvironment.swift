@@ -117,10 +117,10 @@ enum GatewayEnvironment {
         let expected = self.expectedGatewayVersion()
         let expectedString = self.expectedGatewayVersionString()
 
-        let projectRoot = CommandResolver.projectRoot()
-        let projectEntrypoint = CommandResolver.gatewayEntrypoint(in: projectRoot)
-        let usesBundledRuntime = CommandResolver.isBundledPackageRoot(projectRoot)
-        let gatewayBin = usesBundledRuntime ? nil : CommandResolver.alisioExecutable()
+        let projectRoot = CommandResolver.gatewayLaunchRoot()
+        let projectEntrypoint = projectRoot.flatMap { CommandResolver.gatewayEntrypoint(in: $0) }
+        let usesPackagedOrConfiguredRuntime = projectRoot != nil
+        let gatewayBin = usesPackagedOrConfiguredRuntime ? nil : CommandResolver.alisioExecutable()
 
         switch RuntimeLocator.resolve(searchPaths: CommandResolver.preferredPaths()) {
         case let .failure(err):
@@ -141,11 +141,10 @@ enum GatewayEnvironment {
             }
 
             let installed =
-                if usesBundledRuntime {
+                if let projectRoot {
                     self.readLocalGatewayVersion(projectRoot: projectRoot)
                 } else {
                     gatewayBin.flatMap { self.readGatewayVersion(binary: $0) }
-                        ?? self.readLocalGatewayVersion(projectRoot: projectRoot)
                 }
 
             if let expected, let installed, !installed.compatible(with: expected) {
@@ -168,7 +167,7 @@ enum GatewayEnvironment {
                 gatewayBinary: gatewayBin,
                 projectRoot: projectRoot,
                 projectEntrypoint: projectEntrypoint,
-                usesBundledRuntime: usesBundledRuntime)
+                usesBundledRuntime: usesPackagedOrConfiguredRuntime)
             return GatewayEnvironmentStatus(
                 kind: .ok,
                 nodeVersion: runtime.version.description,
@@ -188,11 +187,11 @@ enum GatewayEnvironment {
                 self.logger.debug("gateway command resolve ok (\(elapsedMs, privacy: .public)ms)")
             }
         }
-        let projectRoot = CommandResolver.projectRoot()
-        let projectEntrypoint = CommandResolver.gatewayEntrypoint(in: projectRoot)
+        let projectRoot = CommandResolver.gatewayLaunchRoot()
+        let projectEntrypoint = projectRoot.flatMap { CommandResolver.gatewayEntrypoint(in: $0) }
         let status = self.check()
-        let usesBundledRuntime = CommandResolver.isBundledPackageRoot(projectRoot)
-        let gatewayBin = usesBundledRuntime ? nil : CommandResolver.alisioExecutable()
+        let usesPackagedOrConfiguredRuntime = projectRoot != nil
+        let gatewayBin = usesPackagedOrConfiguredRuntime ? nil : CommandResolver.alisioExecutable()
         let runtime = RuntimeLocator.resolve(searchPaths: CommandResolver.preferredPaths())
 
         guard case .ok = status.kind else {
@@ -201,7 +200,6 @@ enum GatewayEnvironment {
 
         let port = self.gatewayPort()
         if let entry = projectEntrypoint,
-           usesBundledRuntime,
            case let .success(resolvedRuntime) = runtime
         {
             let bind = self.preferredGatewayBind() ?? "loopback"
@@ -323,8 +321,8 @@ enum GatewayEnvironment {
         return normalized
     }
 
-    static func missingGatewayMessage(projectRoot: URL) -> String {
-        if CommandResolver.isBundledPackageRoot(projectRoot) {
+    static func missingGatewayMessage(projectRoot: URL?) -> String {
+        if let projectRoot, CommandResolver.isBundledPackageRoot(projectRoot) {
             return "Bundled Alisio runtime missing from app package; rebuild the app."
         }
         return "Alisio CLI not found in PATH; install the CLI."
@@ -332,14 +330,14 @@ enum GatewayEnvironment {
 
     static func gatewayLocationLabel(
         gatewayBinary: String?,
-        projectRoot: URL,
+        projectRoot: URL?,
         projectEntrypoint: String?,
         usesBundledRuntime: Bool? = nil) -> String
     {
         if gatewayBinary != nil {
             return "(global CLI)"
         }
-        if usesBundledRuntime ?? CommandResolver.isBundledPackageRoot(projectRoot) {
+        if usesBundledRuntime ?? projectRoot.map({ CommandResolver.isBundledPackageRoot($0) }) ?? false {
             return "(bundled app runtime)"
         }
         if let projectEntrypoint {
@@ -398,11 +396,11 @@ enum GatewayEnvironment {
         return Semver.parse(version)
     }
 
-    private static func incompatibleGatewayRemediation(gatewayBinary: String?, projectRoot: URL) -> String {
+    private static func incompatibleGatewayRemediation(gatewayBinary: String?, projectRoot: URL?) -> String {
         if gatewayBinary != nil {
             return "install or update the global package."
         }
-        if CommandResolver.isBundledPackageRoot(projectRoot) {
+        if let projectRoot, CommandResolver.isBundledPackageRoot(projectRoot) {
             return "rebuild the app package."
         }
         return "update the local runtime."

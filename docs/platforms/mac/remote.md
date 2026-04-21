@@ -7,7 +7,7 @@ title: "Remote Control"
 
 # Remote Alisio (macOS ⇄ remote host)
 
-This flow lets the macOS app act as a full remote control for an Alisio gateway running on another host (desktop/server). It’s the app’s **Remote over SSH** (remote run) feature. All features—health checks, Voice Wake forwarding, and Web Chat—reuse the same remote SSH configuration from _Settings → General_.
+This flow lets the macOS app act as a full remote control for an Alisio gateway running on another host (desktop/server). It’s the app’s **Remote over SSH** (remote run) feature. All features, including the native workspace, health checks, and Voice Wake forwarding, reuse the same remote SSH configuration from _Settings → General_.
 
 ## Modes
 
@@ -19,7 +19,7 @@ This flow lets the macOS app act as a full remote control for an Alisio gateway 
 
 Remote mode supports two transports:
 
-- **SSH tunnel** (default): Uses `ssh -N -L ...` to forward the gateway port to localhost. The gateway will see the node’s IP as `127.0.0.1` because the tunnel is loopback.
+- **SSH tunnel** (default): Uses `ssh -N -L ...` to forward the gateway port to localhost. The gateway will see the runtime computer’s IP as `127.0.0.1` because the tunnel is loopback.
 - **Direct (ws/wss)**: Connects straight to the gateway URL. The gateway sees the real client IP.
 
 ## Prereqs on the remote host
@@ -40,18 +40,18 @@ Remote mode supports two transports:
    - **Project root** (advanced): remote checkout path used for commands.
    - **CLI path** (advanced): optional path to a runnable `alisio` entrypoint/binary (auto-filled when advertised).
 3. Hit **Test remote**. Success indicates the remote `alisio status --json` runs correctly. Failures usually mean PATH/CLI issues; exit 127 means the CLI isn’t found remotely.
-4. Health checks and Web Chat will now run through this SSH tunnel automatically.
+4. Health checks and the native macOS workspace will now run through this SSH tunnel automatically.
 
-## Web Chat
+## Native workspace
 
-- **SSH tunnel**: Web Chat connects to the gateway over the forwarded WebSocket control port (default 40705).
-- **Direct (ws/wss)**: Web Chat connects straight to the configured gateway URL.
-- There is no separate WebChat HTTP server anymore.
+- **SSH tunnel**: the native workspace connects to the gateway over the forwarded WebSocket control port (default 40705).
+- **Direct (ws/wss)**: the native workspace connects straight to the configured gateway URL.
+- There is no separate HTTP shell for the macOS workspace anymore.
 
 ## Permissions
 
 - The remote host needs the same TCC approvals as local (Automation, Accessibility, Screen Recording, Microphone, Speech Recognition, Notifications). Run onboarding on that machine to grant them once.
-- Devices (nodes) advertise their permission state via `node.list` / `node.describe` so agents know what’s available.
+- Runtime computers advertise their permission state via `node.list` / `node.describe` so agents know what’s available.
 
 ## Security notes
 
@@ -69,8 +69,8 @@ Remote mode supports two transports:
 
 - **exit 127 / not found**: `alisio` isn’t on PATH for non-login shells. Add it to `/etc/paths`, your shell rc, or symlink into `/usr/local/bin`/`/opt/homebrew/bin`.
 - **Health probe failed**: check SSH reachability, PATH, and that Baileys is logged in (`alisio status --json`).
-- **Web Chat stuck**: confirm the gateway is running on the remote host and the forwarded port matches the gateway WS port; the UI requires a healthy WS connection.
-- **Device node IP shows 127.0.0.1**: expected with the SSH tunnel. Switch **Transport** to **Direct (ws/wss)** if you want the gateway to see the real client IP.
+- **Workspace stuck**: confirm the gateway is running on the remote host and the forwarded port matches the gateway WS port; the native UI requires a healthy WS connection.
+- **Runtime computer IP shows 127.0.0.1**: expected with the SSH tunnel. Switch **Transport** to **Direct (ws/wss)** if you want the gateway to see the real client IP.
 - **Voice Wake**: trigger phrases are forwarded automatically in remote mode; no separate forwarder is needed.
 
 ## Notification sounds

@@ -76,11 +76,9 @@ final class ProcessBackedMacNodeComputerHelperTransport: MacNodeComputerHelperTr
                 } catch {
                     continuation.finish(throwing: error)
                 }
-                try? handle.close()
             }
             continuation.onTermination = { _ in
                 task.cancel()
-                try? handle.close()
             }
         }
     }
@@ -96,11 +94,9 @@ final class ProcessBackedMacNodeComputerHelperTransport: MacNodeComputerHelperTr
                     // Ignore stderr stream failures; the parent already observes process exit separately.
                 }
                 continuation.finish()
-                try? handle.close()
             }
             continuation.onTermination = { _ in
                 task.cancel()
-                try? handle.close()
             }
         }
     }

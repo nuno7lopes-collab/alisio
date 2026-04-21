@@ -32,12 +32,19 @@ struct AlisioShellStateTests {
         let state = AlisioShellState()
 
         state.showSettings(tab: .skills)
-        #expect(state.route == .settings)
-        #expect(state.settingsSection == .aiAgents)
-        #expect(state.workspacePath() == "/settings?section=aiAgents")
+        #expect(state.route == .agents)
+        #expect(state.workspacePath() == "/capabilities")
 
         state.showSettings(tab: .cron)
         #expect(state.route == .automations)
-        #expect(state.workspacePath() == "/automations")
+        #expect(state.workspacePath() == "/cron")
+
+        state.showSettings(tab: .channels)
+        #expect(state.route == .authentications)
+        #expect(state.workspacePath() == "/authentications")
+
+        state.showSettings(tab: .instances)
+        #expect(state.route == .organization)
+        #expect(state.workspacePath() == "/connections")
     }
 }

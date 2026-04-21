@@ -48,7 +48,7 @@ sudo install -m 644 -o root -g wheel /tmp/ai.alisio.plist /Library/Preferences/L
 ```
 
 - No reboot is required; logd notices the file quickly, but only new log lines will include private payloads.
-- View the richer output with the existing helper, e.g. `./scripts/alisio-log.sh --category WebChat --last 5m`.
+- View the richer output with the existing helper, e.g. `./scripts/alisio-log.sh --category workspace --last 5m`.
 
 ## Disable after debugging
 

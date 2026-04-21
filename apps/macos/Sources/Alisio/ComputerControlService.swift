@@ -744,6 +744,64 @@ final class ComputerControlService {
         return .executionFailed
     }
 
+    private func resolveApplicationURL(named app: String) -> URL? {
+        let trimmed = app.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        let fileURL = URL(fileURLWithPath: NSString(string: trimmed).expandingTildeInPath)
+        if fileURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+           FileManager.default.fileExists(atPath: fileURL.path)
+        {
+            return fileURL.standardizedFileURL
+        }
+
+        if let runningURL = NSWorkspace.shared.runningApplications
+            .first(where: {
+                $0.localizedName?.caseInsensitiveCompare(trimmed) == .orderedSame
+                    || $0.bundleIdentifier?.caseInsensitiveCompare(trimmed) == .orderedSame
+            })?
+            .bundleURL
+        {
+            return runningURL
+        }
+
+        if let bundleURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: trimmed) {
+            return bundleURL
+        }
+
+        let candidateName = trimmed.hasSuffix(".app") ? trimmed : "\(trimmed).app"
+        for directory in self.applicationLookupDirectories() {
+            let candidateURL = directory.appendingPathComponent(candidateName, isDirectory: true)
+            if FileManager.default.fileExists(atPath: candidateURL.path) {
+                return candidateURL
+            }
+        }
+
+        return nil
+    }
+
+    private func applicationLookupDirectories() -> [URL] {
+        let knownDirectories = [
+            "/Applications",
+            "/Applications/Utilities",
+            "/System/Applications",
+            "/System/Applications/Utilities",
+            "/System/Library/CoreServices",
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true).path,
+        ]
+
+        var seen: Set<String> = []
+        return knownDirectories.compactMap { rawPath in
+            let url = URL(fileURLWithPath: rawPath, isDirectory: true).standardizedFileURL
+            guard seen.insert(url.path).inserted else {
+                return nil
+            }
+            return url
+        }
+    }
+
     private func focusApplication(named app: String) async throws {
         if let running = NSWorkspace.shared.runningApplications.first(where: {
             $0.localizedName?.caseInsensitiveCompare(app) == .orderedSame
@@ -755,9 +813,7 @@ final class ComputerControlService {
             }
         }
 
-        let appURL =
-            NSWorkspace.shared.urlForApplication(withBundleIdentifier: app)
-            ?? NSWorkspace.shared.fullPath(forApplication: app).map { URL(fileURLWithPath: $0) }
+        let appURL = self.resolveApplicationURL(named: app)
         guard let appURL else {
             throw NSError(
                 domain: "ComputerControl",
@@ -786,9 +842,7 @@ final class ComputerControlService {
     }
 
     private func openApplication(named app: String) async throws {
-        let appURL =
-            NSWorkspace.shared.urlForApplication(withBundleIdentifier: app)
-            ?? NSWorkspace.shared.fullPath(forApplication: app).map { URL(fileURLWithPath: $0) }
+        let appURL = self.resolveApplicationURL(named: app)
         guard let appURL else {
             throw NSError(
                 domain: "ComputerControl",

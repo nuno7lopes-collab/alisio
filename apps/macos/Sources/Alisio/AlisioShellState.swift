@@ -65,7 +65,16 @@ final class AlisioShellState {
         var id: String { self.rawValue }
 
         var queryValue: String? {
-            self == .workspace ? nil : self.rawValue
+            switch self {
+            case .workspace, .appearance:
+                return "general"
+            case .communications:
+                return "support"
+            case .automation, .aiAgents, .debug, .logs:
+                return "account"
+            case .infrastructure, .mac:
+                return "mac"
+            }
         }
     }
 
@@ -126,15 +135,18 @@ final class AlisioShellState {
         case .authentications:
             return "/authentications"
         case .automations:
-            return "/automations"
+            return "/cron"
         case .agents:
-            return "/agents"
+            return "/capabilities"
         case .organization:
-            return "/organization"
+            return "/connections"
         case .sessions:
-            return "/sessions"
+            if let activeSessionKey, !activeSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "/chat?session=\(Self.encodeQueryValue(activeSessionKey))"
+            }
+            return "/chat"
         case .settings:
-            if let section = self.settingsSection.queryValue {
+            if let section = self.settingsSection.queryValue, section != "general" {
                 return "/settings?section=\(Self.encodeQueryValue(section))"
             }
             return "/settings"
@@ -146,17 +158,17 @@ final class AlisioShellState {
         case .general:
             (.settings, .workspace)
         case .channels:
-            (.settings, .communications)
+            (.authentications, nil)
         case .skills:
-            (.settings, .aiAgents)
+            (.agents, nil)
         case .sessions:
-            (.sessions, nil)
+            (.chat, nil)
         case .cron:
             (.automations, nil)
         case .config:
-            (.settings, .workspace)
+            (.settings, .debug)
         case .instances:
-            (.settings, .infrastructure)
+            (.organization, nil)
         case .voiceWake, .permissions:
             (.settings, .mac)
         case .debug:

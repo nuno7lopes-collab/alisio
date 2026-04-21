@@ -129,6 +129,9 @@ final class MacDesktopComputerStore {
             let refreshedPermissions = await self.refreshPermissionState(fallback: previousPermissions)
             await MainActor.run {
                 self.permissions = refreshedPermissions
+                PermissionRestartCoordinator.shared.markRequested(
+                    capabilities,
+                    currentStatus: Self.statusDictionary(from: refreshedPermissions))
                 self.permissionRestartHint = Self.resolvePermissionRestartHint(
                     requestedCapabilities: capabilities,
                     permissions: refreshedPermissions)
@@ -372,5 +375,12 @@ final class MacDesktopComputerStore {
         let encoded = String(dataUrl[marker.upperBound...])
         guard let data = Data(base64Encoded: encoded, options: .ignoreUnknownCharacters) else { return nil }
         return NSImage(data: data)
+    }
+
+    private static func statusDictionary(from permissions: MacNodeComputerPermissionPayload) -> [Capability: Bool] {
+        [
+            .accessibility: permissions.accessibility,
+            .screenRecording: permissions.screenRecording,
+        ]
     }
 }

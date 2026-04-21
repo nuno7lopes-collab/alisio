@@ -85,7 +85,7 @@ struct AlisioApp: App {
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
-                    AlisioWindowManager.shared.showSettings(tab: .general)
+                    SettingsWindowOpener.shared.open(tab: .general)
                 }
                 .keyboardShortcut(",", modifiers: [.command])
             }
@@ -115,17 +115,8 @@ struct AlisioApp: App {
     private static func applyAttachOnlyOverrideIfNeeded() {
         let args = CommandLine.arguments
         guard args.contains("--attach-only") || args.contains("--no-launchd") else { return }
-        if let error = GatewayLaunchAgentManager.setLaunchAgentWriteDisabled(true) {
-            Self.logger.error("attach-only flag failed: \(error, privacy: .public)")
-            return
-        }
-        Task {
-            _ = await GatewayLaunchAgentManager.set(
-                enabled: false,
-                bundlePath: Bundle.main.bundlePath,
-                port: GatewayEnvironment.gatewayPort())
-        }
-        Self.logger.info("attach-only flag enabled")
+        GatewayLaunchAgentManager.setSessionLaunchAgentWriteDisabled(true)
+        Self.logger.info("attach-only flag enabled (session only)")
     }
 
     private var isGatewaySleeping: Bool {
@@ -255,7 +246,7 @@ private final class StatusItemMouseHandlerView: NSView {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var state: AppState?
-    private let webChatAutoLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "Chat")
+    private let workspaceAutoLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "workspace")
     let updaterController: UpdaterProviding = makeUpdaterController()
 
     func application(_: NSApplication, open urls: [URL]) {
@@ -264,6 +255,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await DeepLinkHandler.shared.handle(url: url)
             }
         }
+    }
+
+    @MainActor
+    func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            AlisioWindowManager.shared.showPreferredChat()
+            return false
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        return true
     }
 
     @MainActor
@@ -304,9 +305,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Developer/testing helper: auto-open chat when launched with --chat.
         if CommandLine.arguments.contains("--chat") {
-            self.webChatAutoLogger.debug("Auto-opening chat via CLI flag")
-            AlisioWindowManager.shared.showPreferredChat()
+            self.workspaceAutoLogger.debug("Auto-opening workspace via CLI flag")
+            Task { @MainActor in
+                await self.ensureLaunchChatWindowVisible()
+            }
         }
+    }
+
+    @MainActor
+    private func ensureLaunchChatWindowVisible() async {
+        for attempt in 1 ... 8 {
+            AlisioWindowManager.shared.showPreferredChat()
+            if AlisioWindowManager.shared.hasVisibleWindow {
+                self.workspaceAutoLogger.debug(
+                    "Workspace window visible after launch attempt \(attempt, privacy: .public)")
+                NSApp.activate(ignoringOtherApps: true)
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(attempt == 1 ? 150 : 400))
+        }
+        self.workspaceAutoLogger.error("Timed out waiting for the workspace window to become visible")
     }
 
     func applicationWillTerminate(_ notification: Notification) {

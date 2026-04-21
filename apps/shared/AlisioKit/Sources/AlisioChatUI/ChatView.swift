@@ -393,11 +393,7 @@ public struct AlisioChatView: View {
     }
 
     private var emptyStateTitle: String {
-        #if os(macOS)
-        "Web Chat"
-        #else
         "Chat"
-        #endif
     }
 
     private var emptyStateMessage: String {

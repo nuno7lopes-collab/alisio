@@ -298,6 +298,105 @@ import AlisioSupport
         #expect(resolved?.path == bundledRoot.path)
     }
 
+    @Test func `gateway launch root ignores inferred developer checkout by default`() throws {
+        let bundledRoot = try makeTempDirForTests()
+        try "{}".write(to: bundledRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("src"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("ui"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("apps/macos"),
+            withIntermediateDirectories: true)
+
+        let bundleURL = bundledRoot.appendingPathComponent(".run/Alisio.app", isDirectory: true)
+        try FileManager().createDirectory(at: bundleURL, withIntermediateDirectories: true)
+
+        let defaults = self.makeDefaults()
+        let resolved = CommandResolver.gatewayLaunchRoot(
+            defaults: defaults,
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(resolved == nil)
+    }
+
+    @Test func `gateway launch root still honors explicit configured project root`() throws {
+        let defaults = self.makeDefaults()
+        let configuredRoot = try makeTempDirForTests()
+        try "{}".write(to: configuredRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        defaults.set(configuredRoot.path, forKey: "alisio.gatewayProjectRootPath")
+
+        let bundledRoot = try makeTempDirForTests()
+        try "{}".write(to: bundledRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("src"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("ui"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("apps/macos"),
+            withIntermediateDirectories: true)
+
+        let bundleURL = bundledRoot.appendingPathComponent(".run/Alisio.app", isDirectory: true)
+        try FileManager().createDirectory(at: bundleURL, withIntermediateDirectories: true)
+
+        let resolved = CommandResolver.gatewayLaunchRoot(
+            defaults: defaults,
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(resolved?.path == configuredRoot.path)
+    }
+
+    @Test func `gateway service command ignores inferred developer checkout by default`() throws {
+        let bundleRoot = try makeTempDirForTests()
+        let bundleURL = bundleRoot.appendingPathComponent(".run/Alisio.app", isDirectory: true)
+        try FileManager().createDirectory(at: bundleURL, withIntermediateDirectories: true)
+
+        let binDir = try makeTempDirForTests()
+        let alisioPath = binDir.appendingPathComponent("alisio")
+        try makeExecutableForTests(at: alisioPath)
+
+        let command = CommandResolver.gatewayServiceCommand(
+            subcommand: "gateway",
+            extraArgs: ["install", "--json"],
+            defaults: self.makeDefaults(),
+            searchPaths: [binDir.path],
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(command.prefix(3).elementsEqual([alisioPath.path, "gateway", "install"]))
+    }
+
+    @Test func `gateway service command honors explicit configured runtime`() throws {
+        let defaults = self.makeDefaults()
+        let configuredRoot = try makeTempDirForTests()
+        defaults.set(configuredRoot.path, forKey: "alisio.gatewayProjectRootPath")
+
+        let alisioPath = configuredRoot
+            .appendingPathComponent("node_modules/.bin")
+            .appendingPathComponent("alisio")
+        try makeExecutableForTests(at: alisioPath)
+
+        let bundleRoot = try makeTempDirForTests()
+        let bundleURL = bundleRoot.appendingPathComponent(".run/Alisio.app", isDirectory: true)
+        try FileManager().createDirectory(at: bundleURL, withIntermediateDirectories: true)
+
+        let command = CommandResolver.gatewayServiceCommand(
+            subcommand: "gateway",
+            extraArgs: ["install", "--json"],
+            defaults: defaults,
+            searchPaths: [configuredRoot.appendingPathComponent("node_modules/.bin").path],
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(command.prefix(3).elementsEqual([alisioPath.path, "gateway", "install"]))
+    }
+
     @Test func `prefers packaged runtime root over stored project root`() throws {
         let defaults = self.makeDefaults()
         let stale = try makeTempDirForTests()

@@ -1,5 +1,6 @@
 import CoreLocation
 import AlisioIPC
+import Observation
 import SwiftUI
 
 import AlisioSupport
@@ -224,6 +225,7 @@ struct PermissionStatusList: View {
     var compact: Bool = false
     var showRefresh: Bool = true
     @State private var pendingCapability: Capability?
+    @Bindable private var restartCoordinator = PermissionRestartCoordinator.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -231,6 +233,7 @@ struct PermissionStatusList: View {
                 PermissionRow(
                     capability: cap,
                     status: self.status[cap] ?? false,
+                    restartRequired: self.restartCoordinator.requiresRestart(for: cap),
                     isPending: self.pendingCapability == cap,
                     compact: self.compact)
                 {
@@ -269,6 +272,8 @@ struct PermissionStatusList: View {
 
         _ = await PermissionManager.ensure([cap], interactive: true)
         await self.refreshStatusTransitions()
+        let latest = await PermissionManager.status([cap])
+        self.restartCoordinator.markRequested([cap], currentStatus: latest)
     }
 
     @MainActor
@@ -292,6 +297,7 @@ private struct PermissionDetails {
 struct PermissionRow: View {
     let capability: Capability
     let status: Bool
+    let restartRequired: Bool
     let isPending: Bool
     let compact: Bool
     let action: () -> Void
@@ -299,12 +305,14 @@ struct PermissionRow: View {
     init(
         capability: Capability,
         status: Bool,
+        restartRequired: Bool = false,
         isPending: Bool = false,
         compact: Bool = false,
         action: @escaping () -> Void)
     {
         self.capability = capability
         self.status = status
+        self.restartRequired = restartRequired
         self.isPending = isPending
         self.compact = compact
         self.action = action
@@ -347,6 +355,12 @@ struct PermissionRow: View {
                     title: "On",
                     systemImage: "checkmark.circle.fill",
                     tint: .green)
+            } else if self.restartRequired {
+                Button(self.compact ? "Restart" : "Restart Alisio") {
+                    DebugActions.restartApp()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(self.compact ? .small : .regular)
             } else if self.isPending {
                 HStack(spacing: 6) {
                     ProgressView()

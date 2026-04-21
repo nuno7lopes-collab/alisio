@@ -9,10 +9,12 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "desktop.chat.transport")
 
     func requestHistory(sessionKey: String) async throws -> AlisioChatHistoryPayload {
-        try await GatewayConnection.shared.chatHistory(sessionKey: sessionKey)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "chat.history")
+        return try await GatewayConnection.shared.chatHistory(sessionKey: sessionKey)
     }
 
     func listModels() async throws -> [AlisioChatModelChoice] {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "models.list")
         let decoded: ModelsListResult = try await GatewayConnection.shared.requestDecoded(method: .modelsList)
         return decoded.models.map { model in
             AlisioChatModelChoice(
@@ -30,6 +32,7 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
         idempotencyKey: String,
         attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse
     {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "chat.send")
         Self.logger.info(
             "chat.send start session=\(sessionKey, privacy: .public) len=\(message.count, privacy: .public) " +
                 "attachments=\(attachments.count, privacy: .public)")
@@ -49,10 +52,12 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     }
 
     func abortRun(sessionKey: String, runId: String) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "chat.abort")
         _ = try await GatewayConnection.shared.chatAbort(sessionKey: sessionKey, runId: runId)
     }
 
     func listSessions(limit: Int?) async throws -> AlisioChatSessionsListResponse {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.list")
         var params: [String: AnyHashable] = [
             "includeGlobal": AnyHashable(true),
             "includeUnknown": AnyHashable(false),
@@ -65,12 +70,14 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     }
 
     func setSessionModel(sessionKey: String, model: String?) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.patch:model")
         var params: [String: AnyHashable] = ["key": AnyHashable(sessionKey)]
         params["model"] = model.map(AnyHashable.init) ?? AnyHashable(NSNull())
         _ = try await ControlChannel.shared.request(method: "sessions.patch", params: params)
     }
 
     func setSessionThinking(sessionKey: String, thinkingLevel: String) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.patch:thinking")
         try await SessionActions.patchSession(key: sessionKey, thinking: .some(thinkingLevel))
     }
 
@@ -87,7 +94,7 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
                     switch push {
                     case .snapshot:
                         continuation.yield(.health(ok: true))
-                    case let .seqGap(_, _):
+                    case .seqGap(_, _):
                         continuation.yield(.seqGap)
                     case let .event(event):
                         switch event.event {
@@ -136,5 +143,17 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
 
     func compactSession(sessionKey: String) async throws {
         try await SessionActions.compactSession(key: sessionKey)
+    }
+
+    private func ensureLocalGatewayReadyIfNeeded(reason: String) async throws {
+        let mode = await MainActor.run { AppStateStore.shared.connectionMode }
+        guard mode == .local else { return }
+        do {
+            try await GatewayProcessManager.shared.ensureLocalGatewayReady(timeout: 15)
+        } catch {
+            Self.logger.error(
+                "local gateway readiness failed before \(reason, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            throw error
+        }
     }
 }

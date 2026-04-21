@@ -81,6 +81,30 @@ enum CommandResolver {
         UserDefaults.standard.set(path, forKey: self.projectRootDefaultsKey)
     }
 
+    static func configuredProjectRoot(
+        defaults: UserDefaults = .standard,
+        fileManager: FileManager = .default) -> URL?
+    {
+        guard let stored = defaults.string(forKey: self.projectRootDefaultsKey),
+              let url = self.expandPath(stored),
+              fileManager.fileExists(atPath: url.path)
+        else {
+            return nil
+        }
+        return url
+    }
+
+    static func gatewayLaunchRoot(
+        defaults: UserDefaults = .standard,
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> URL?
+    {
+        if let bundled = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) {
+            return bundled
+        }
+        return self.configuredProjectRoot(defaults: defaults, fileManager: fileManager)
+    }
+
     static func projectRootPath() -> String {
         self.projectRoot().path
     }
@@ -453,6 +477,72 @@ enum CommandResolver {
             fileManager: fileManager)
     }
 
+    static func gatewayServiceCommand(
+        subcommand: String,
+        extraArgs: [String] = [],
+        defaults: UserDefaults = .standard,
+        searchPaths: [String]? = nil,
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> [String]
+    {
+        let homeDirectory = FileManager().homeDirectoryForCurrentUser
+        let managedRoot = self.gatewayLaunchRoot(
+            defaults: defaults,
+            bundleURL: bundleURL,
+            fileManager: fileManager)
+        let currentPathEntries = ProcessInfo.processInfo.environment["PATH"]?
+            .split(separator: ":").map(String.init) ?? []
+        let resolvedSearchPaths =
+            searchPaths ??
+            self.gatewayServiceSearchPaths(
+                home: homeDirectory,
+                current: currentPathEntries,
+                managedRoot: managedRoot,
+                bundleURL: bundleURL,
+                fileManager: fileManager)
+        let runtimeResult = self.runtimeResolution(searchPaths: resolvedSearchPaths)
+
+        if let managedRoot {
+            if let alisioPath = self.projectAlisioExecutable(projectRoot: managedRoot) {
+                return [alisioPath, subcommand] + extraArgs
+            }
+            if let entry = self.gatewayEntrypoint(in: managedRoot),
+               case let .success(runtime) = runtimeResult
+            {
+                return self.makeRuntimeCommand(
+                    runtime: runtime,
+                    entrypoint: entry,
+                    subcommand: subcommand,
+                    extraArgs: extraArgs)
+            }
+        }
+
+        if let alisioPath = self.alisioExecutable(searchPaths: resolvedSearchPaths) {
+            return [alisioPath, subcommand] + extraArgs
+        }
+
+        if let pnpm = self.findExecutable(named: "pnpm", searchPaths: resolvedSearchPaths) {
+            return [pnpm, "--silent", AlisioBrand.commandName, subcommand] + extraArgs
+        }
+
+        switch runtimeResult {
+        case let .success(runtime):
+            if let managedRoot, let entry = self.gatewayEntrypoint(in: managedRoot) {
+                return self.makeRuntimeCommand(
+                    runtime: runtime,
+                    entrypoint: entry,
+                    subcommand: subcommand,
+                    extraArgs: extraArgs)
+            }
+            let missingEntry = """
+            alisio entrypoint missing for gateway service management; install the CLI or configure a local runtime.
+            """
+            return self.errorCommand(with: missingEntry)
+        case let .failure(error):
+            return self.runtimeErrorCommand(error)
+        }
+    }
+
     // MARK: - SSH helpers
 
     private static func sshNodeCommand(subcommand: String, extraArgs: [String], settings: RemoteSettings) -> [String]? {
@@ -561,6 +651,36 @@ enum CommandResolver {
             options: options,
             remoteCommand: ["/bin/sh", "-c", scriptBody])
         return ["/usr/bin/ssh"] + args
+    }
+
+    private static func gatewayServiceSearchPaths(
+        home: URL,
+        current: [String],
+        managedRoot: URL?,
+        bundleURL: URL,
+        fileManager: FileManager = .default) -> [String]
+    {
+        var extras: [String] = []
+        if let bundledNodeBin = self.bundledNodeBinDir(bundleURL: bundleURL, fileManager: fileManager) {
+            extras.append(bundledNodeBin)
+        }
+        #if DEBUG
+        if let managedRoot {
+            extras.append(managedRoot.appendingPathComponent("node_modules/.bin").path)
+        }
+        #endif
+        let alisioPaths = self.alisioManagedPaths(home: home)
+        extras.append(contentsOf: alisioPaths)
+        extras.append(contentsOf: [
+            home.appendingPathComponent("Library/pnpm").path,
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ])
+        extras.append(contentsOf: self.nodeManagerBinPaths(home: home))
+        var seen = Set<String>()
+        return (extras + current).filter { seen.insert($0).inserted }
     }
 
     struct RemoteSettings {

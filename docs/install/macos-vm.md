@@ -13,8 +13,8 @@ title: "macOS VMs"
 ## Recommended default (most users)
 
 - **Small Linux VPS** for an always-on Gateway and low cost. See [VPS hosting](/vps).
-- **Dedicated hardware** (Mac mini or Linux box) if you want full control and a **residential IP** for browser automation. Many sites block data center IPs, so local browsing often works better.
-- **Hybrid:** keep the Gateway on a cheap VPS, and connect your Mac as a **node** when you need browser/UI automation. See [Nodes](/nodes) and [Gateway remote](/gateway/remote).
+- **Dedicated hardware** (Mac mini or Linux box) if you want full control and a **residential IP** for `computer use` or other UI automation. Many sites block data center IPs, so local browsing often works better.
+- **Hybrid:** keep the Gateway on a cheap VPS, and connect your Mac as a **node** when you need `computer use` or other UI automation. See [Nodes](/nodes) and [Gateway remote](/gateway/remote).
 
 Use a macOS VM when you specifically need macOS-only capabilities (iMessage/BlueBubbles) or want strict isolation from your daily Mac.
 

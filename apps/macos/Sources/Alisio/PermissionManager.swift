@@ -561,6 +561,7 @@ final class PermissionMonitor {
         if latest != self.status {
             self.status = latest
         }
+        PermissionRestartCoordinator.shared.reconcile(status: latest)
         self.lastCheck = Date()
 
         self.isChecking = false

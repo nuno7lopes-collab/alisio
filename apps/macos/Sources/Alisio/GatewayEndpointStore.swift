@@ -715,6 +715,7 @@ extension GatewayEndpointStore {
         }
         return url
     }
+
 }
 
 #if DEBUG

@@ -21,7 +21,6 @@ struct MenuContent: View {
     @State private var loadingMics = false
     @State private var micObserver = AudioInputDeviceObserver()
     @State private var micRefreshTask: Task<Void, Never>?
-    @State private var browserControlEnabled = true
     @AppStorage(cameraEnabledKey) private var cameraEnabled: Bool = false
     @AppStorage(appLogLevelKey) private var appLogLevelRaw: String = AppLogLevel.default.rawValue
     @AppStorage(debugFileLogEnabledKey) private var appFileLoggingEnabled: Bool = false
@@ -70,15 +69,6 @@ struct MenuContent: View {
                     self.statusLine(label: self.heartbeatStatus.label, color: self.heartbeatStatus.color)
                 }
             }
-            Toggle(
-                isOn: Binding(
-                    get: { self.browserControlEnabled },
-                    set: { enabled in
-                        self.browserControlEnabled = enabled
-                        Task { await self.saveBrowserControlEnabled(enabled) }
-                    })) {
-                Label("Browser Control", systemImage: "globe")
-            }
             Toggle(isOn: self.$cameraEnabled) {
                 Label("Allow Camera", systemImage: "camera")
             }
@@ -111,7 +101,7 @@ struct MenuContent: View {
                     await self.openDashboard()
                 }
             } label: {
-                Label("Open Workspace", systemImage: "gauge")
+                Label("Open Dashboard", systemImage: "gauge")
             }
             Button {
                 AlisioWindowManager.shared.showPreferredChat()
@@ -163,9 +153,6 @@ struct MenuContent: View {
         .onChange(of: self.state.voicePushToTalkEnabled) { _, enabled in
             VoicePushToTalkHotkey.shared.setEnabled(voiceWakeSupported && enabled)
         }
-        .task(id: self.state.connectionMode) {
-            await self.loadBrowserControlEnabled()
-        }
         .onAppear {
             MicRefreshSupport.startObserver(self.micObserver) {
                 MicRefreshSupport.schedule(refreshTask: &self.micRefreshTask) {
@@ -188,35 +175,6 @@ struct MenuContent: View {
             "Remote Alisio active"
         case .local:
             "Alisio active"
-        }
-    }
-
-    private func loadBrowserControlEnabled() async {
-        let root = await ConfigStore.load()
-        let browser = root["browser"] as? [String: Any]
-        let enabled = browser?["enabled"] as? Bool ?? true
-        await MainActor.run { self.browserControlEnabled = enabled }
-    }
-
-    private func saveBrowserControlEnabled(_ enabled: Bool) async {
-        let (success, _) = await MenuContent.buildAndSaveBrowserEnabled(enabled)
-
-        if !success {
-            await self.loadBrowserControlEnabled()
-        }
-    }
-
-    @MainActor
-    private static func buildAndSaveBrowserEnabled(_ enabled: Bool) async -> (Bool, ()) {
-        var root = await ConfigStore.load()
-        var browser = root["browser"] as? [String: Any] ?? [:]
-        browser["enabled"] = enabled
-        root["browser"] = browser
-        do {
-            try await ConfigStore.save(root)
-            return (true, ())
-        } catch {
-            return (false, ())
         }
     }
 
@@ -334,7 +292,7 @@ struct MenuContent: View {
             NSWorkspace.shared.open(url)
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Workspace unavailable"
+            alert.messageText = "Dashboard unavailable"
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }

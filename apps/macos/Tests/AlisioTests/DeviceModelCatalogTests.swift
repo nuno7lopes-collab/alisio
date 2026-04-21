@@ -36,6 +36,6 @@ struct DeviceModelCatalogTests {
     @Test
     func `presentation uses bundled mac model mappings`() {
         let presentation = DeviceModelCatalog.presentation(deviceFamily: "Mac", modelIdentifier: "Mac14,10")
-        #expect(presentation?.title?.isEmpty == false)
+        #expect(presentation?.title.isEmpty == false)
     }
 }

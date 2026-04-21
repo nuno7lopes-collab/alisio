@@ -30,7 +30,7 @@ struct SettingsRootView: View {
                     .tag(SettingsTab.general)
 
                 ChannelsSettings()
-                    .tabItem { Label("Channels", systemImage: "link") }
+                    .tabItem { Label("Apps", systemImage: "link") }
                     .tag(SettingsTab.channels)
 
                 VoiceWakeSettings(state: self.state, isActive: self.selectedTab == .voiceWake)
@@ -42,11 +42,11 @@ struct SettingsRootView: View {
                     .tag(SettingsTab.config)
 
                 InstancesSettings()
-                    .tabItem { Label("Instances", systemImage: "network") }
+                    .tabItem { Label("Connections", systemImage: "network") }
                     .tag(SettingsTab.instances)
 
                 SessionsSettings()
-                    .tabItem { Label("Sessions", systemImage: "clock.arrow.circlepath") }
+                    .tabItem { Label("Chat", systemImage: "clock.arrow.circlepath") }
                     .tag(SettingsTab.sessions)
 
                 CronSettings()
@@ -54,7 +54,7 @@ struct SettingsRootView: View {
                     .tag(SettingsTab.cron)
 
                 SkillsSettings(state: self.state)
-                    .tabItem { Label("Skills", systemImage: "sparkles") }
+                    .tabItem { Label("Capabilities", systemImage: "sparkles") }
                     .tag(SettingsTab.skills)
 
                 PermissionsSettings(
@@ -179,12 +179,12 @@ enum SettingsTab: CaseIterable {
     var title: String {
         switch self {
         case .general: "General"
-        case .channels: "Channels"
-        case .skills: "Skills"
-        case .sessions: "Sessions"
+        case .channels: "Apps"
+        case .skills: "Capabilities"
+        case .sessions: "Chat"
         case .cron: "Cron"
         case .config: "Config"
-        case .instances: "Instances"
+        case .instances: "Connections"
         case .voiceWake: "Voice Wake"
         case .permissions: "Permissions"
         case .debug: "Debug"

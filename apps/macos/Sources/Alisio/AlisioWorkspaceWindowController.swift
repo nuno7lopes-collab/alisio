@@ -42,6 +42,10 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         self.window?.isVisible ?? false
     }
 
+    func update(shellState: AlisioShellState, state: AppState = AppStateStore.shared) {
+        self.installRootView(shellState: shellState, state: state)
+    }
+
     func show(shellState: AlisioShellState, state: AppState = AppStateStore.shared) {
         self.installRootView(shellState: shellState, state: state)
         guard let window else { return }

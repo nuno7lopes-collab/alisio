@@ -14,11 +14,15 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
 
     func configure(state: AppState = AppStateStore.shared, updater: (any UpdaterProviding)?) {
         self.updater = updater
-        self.refreshVisibleSurface(state: state)
+        self.workspaceController?.update(shellState: self.shellState, state: state)
     }
 
     var activeSessionKey: String? {
         self.shellState.activeSessionKey
+    }
+
+    var hasVisibleWindow: Bool {
+        self.workspaceController?.isVisible == true
     }
 
     func show(route: AlisioShellState.Route) {
@@ -33,7 +37,10 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
 
     func showPreferredChat() {
         Task { @MainActor in
+            let fallbackSessionKey = self.activeSessionKey ?? "main"
+            self.showChat(sessionKey: fallbackSessionKey)
             let sessionKey = await AlisioWorkspaceManager.shared.preferredSessionKey()
+            guard sessionKey != fallbackSessionKey else { return }
             self.showChat(sessionKey: sessionKey)
         }
     }
@@ -78,13 +85,9 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
     }
 
     private func showWindow() {
-        self.refreshVisibleSurface(state: AppStateStore.shared)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
-    private func refreshVisibleSurface(state: AppState) {
         let controller = self.ensureWorkspaceController()
-        controller.show(shellState: self.shellState, state: state)
+        controller.show(shellState: self.shellState, state: AppStateStore.shared)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func ensureWorkspaceController() -> AlisioWorkspaceWindowController {

@@ -1,3 +1,4 @@
+import ConcurrencyExtras
 import Foundation
 
 import AlisioSupport
@@ -5,6 +6,8 @@ enum GatewayLaunchAgentManager {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.launchd")
     private static let disableLaunchAgentMarker = ".alisio/disable-launchagent"
     private static let legacyLaunchAgentLabels = ["ai.alisio.gateway"]
+    private static let installCommandTimeout: Double = 90
+    private static let sessionDisableOverride = LockIsolated(false)
     private static var currentLaunchAgentLabel: String { gatewayLaunchdLabel }
     private static var cleanupLaunchAgentLabels: [String] {
         [self.currentLaunchAgentLabel] + self.legacyLaunchAgentLabels
@@ -25,8 +28,15 @@ enum GatewayLaunchAgentManager {
     }
 
     static func isLaunchAgentWriteDisabled() -> Bool {
-        if FileManager().fileExists(atPath: self.disableLaunchAgentMarkerURL.path) { return true }
-        return false
+        let sessionDisabled = self.sessionDisableOverride.withValue { $0 }
+        let persistedDisabled = FileManager().fileExists(atPath: self.disableLaunchAgentMarkerURL.path)
+        return self.resolveLaunchAgentWriteDisabled(
+            sessionDisabled: sessionDisabled,
+            persistedDisabled: persistedDisabled)
+    }
+
+    static func setSessionLaunchAgentWriteDisabled(_ disabled: Bool) {
+        self.sessionDisableOverride.withValue { $0 = disabled }
     }
 
     static func setLaunchAgentWriteDisabled(_ disabled: Bool) -> String? {
@@ -79,7 +89,7 @@ enum GatewayLaunchAgentManager {
                 "\(port)",
                 "--runtime",
                 "node",
-            ])
+            ], timeout: self.installCommandTimeout)
         }
 
         self.logger.info("launchd disable requested via CLI")
@@ -198,11 +208,10 @@ extension GatewayLaunchAgentManager {
         timeout: Double,
         quiet: Bool) async -> CommandResult
     {
-        let command = CommandResolver.alisioCommand(
+        let command = CommandResolver.gatewayServiceCommand(
             subcommand: "gateway",
             extraArgs: self.withJsonFlag(args),
-            // Launchd management must always run locally, even if remote mode is configured.
-            configRoot: ["gateway": ["mode": "local"]])
+            defaults: UserDefaults.standard)
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = CommandResolver.preferredPaths().joined(separator: ":")
         let response = await ShellExecutor.runDetailed(command: command, cwd: nil, env: env, timeout: timeout)
@@ -241,4 +250,24 @@ extension GatewayLaunchAgentManager {
     private static func summarize(_ text: String) -> String? {
         TextSummarySupport.summarizeLastLine(text)
     }
+
+    private static func resolveLaunchAgentWriteDisabled(
+        sessionDisabled: Bool,
+        persistedDisabled: Bool) -> Bool
+    {
+        sessionDisabled || persistedDisabled
+    }
 }
+
+#if DEBUG
+extension GatewayLaunchAgentManager {
+    static func _testResolveLaunchAgentWriteDisabled(
+        sessionDisabled: Bool,
+        persistedDisabled: Bool) -> Bool
+    {
+        self.resolveLaunchAgentWriteDisabled(
+            sessionDisabled: sessionDisabled,
+            persistedDisabled: persistedDisabled)
+    }
+}
+#endif
