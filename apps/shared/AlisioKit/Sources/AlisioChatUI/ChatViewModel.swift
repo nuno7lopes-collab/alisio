@@ -12,6 +12,14 @@ import UIKit
 
 private let chatUILogger = Logger(subsystem: "ai.alisio", category: "AlisioChatUI")
 
+public enum AlisioChatConnectionPhase: String, Equatable, Sendable {
+    case bootstrapping
+    case loading
+    case reconnecting
+    case firstMessage
+    case ready
+}
+
 @MainActor
 @Observable
 public final class AlisioChatViewModel {
@@ -29,6 +37,12 @@ public final class AlisioChatViewModel {
     public var attachments: [AlisioPendingAttachment] = []
     public private(set) var healthOK: Bool = false
     public private(set) var pendingRunCount: Int = 0
+    public private(set) var hasLoadedHistory = false
+    public private(set) var isRecoveringConnection = false
+    public private(set) var lastBootstrapAt: Date?
+    public private(set) var lastHistoryRefreshAt: Date?
+    public private(set) var lastTransportEventAt: Date?
+    public private(set) var lastRecoveryAt: Date?
 
     public private(set) var sessionKey: String
     public private(set) var sessionId: String?
@@ -44,7 +58,10 @@ public final class AlisioChatViewModel {
     @ObservationIgnored
     private nonisolated(unsafe) var eventTask: Task<Void, Never>?
     private var pendingRuns = Set<String>() {
-        didSet { self.pendingRunCount = self.pendingRuns.count }
+        didSet { self.refreshPendingRunCount() }
+    }
+    private var dispatchingRunIDs = Set<String>() {
+        didSet { self.refreshPendingRunCount() }
     }
 
     @ObservationIgnored
@@ -61,8 +78,9 @@ public final class AlisioChatViewModel {
     private var nextThinkingSelectionRequestID: UInt64 = 0
     private var latestThinkingSelectionRequestIDsBySession: [String: UInt64] = [:]
     private var latestThinkingLevelsBySession: [String: String] = [:]
-    private var isCompacting = false
+    public private(set) var isCompacting = false
     private var lastCompactAt: Date?
+    private var lastOptimisticMessageTimestampMs: Double = 0
     private let compactCooldown: TimeInterval = 60
 
     private var pendingToolCallsById: [String: AlisioChatPendingToolCall] = [:] {
@@ -124,6 +142,14 @@ public final class AlisioChatViewModel {
         Task { await self.performAbort() }
     }
 
+    public func resetSession() {
+        Task { await self.performReset() }
+    }
+
+    public func compactSession() {
+        Task { await self.performCompact() }
+    }
+
     public func refreshSessions(limit: Int? = nil) {
         Task { await self.fetchSessions(limit: limit) }
     }
@@ -138,6 +164,42 @@ public final class AlisioChatViewModel {
 
     public func selectModel(_ selectionID: String) {
         Task { await self.performSelectModel(selectionID) }
+    }
+
+    public var currentSessionEntry: AlisioChatSessionEntry? {
+        self.sessions.first(where: { Self.matchesCurrentSessionKey(incoming: $0.key, current: self.sessionKey) })
+    }
+
+    public var currentSessionContextUsage: AlisioChatSessionContextUsage? {
+        self.currentSessionEntry.flatMap(AlisioChatSessionContextUsage.init(session:))
+    }
+
+    public var connectionPhase: AlisioChatConnectionPhase {
+        if !self.hasLoadedHistory && self.isLoading {
+            return .bootstrapping
+        }
+        if self.isLoading {
+            return .loading
+        }
+        if self.isRecoveringConnection || (!self.healthOK && self.hasLoadedHistory) {
+            return .reconnecting
+        }
+        if (self.isSending || self.pendingRunCount > 0),
+           !self.hasNonUserTranscriptContent,
+           !self.hasVisibleStreamingAssistantContent,
+           self.pendingToolCalls.isEmpty
+        {
+            return .firstMessage
+        }
+        return .ready
+    }
+
+    public var canResetSession: Bool {
+        !self.isLoading && !self.isSending && !self.isAborting
+    }
+
+    public var canCompactSession: Bool {
+        !self.isCompacting && !self.isLoading && !self.isSending && self.pendingRuns.isEmpty && !self.isAborting
     }
 
     public var sessionChoices: [AlisioChatSessionEntry] {
@@ -240,17 +302,24 @@ public final class AlisioChatViewModel {
                 previous: self.messages,
                 incoming: Self.decodeMessages(payload.messages ?? []))
             self.sessionId = payload.sessionId
+            self.hasLoadedHistory = true
+            self.lastBootstrapAt = Date()
+            self.lastHistoryRefreshAt = self.lastBootstrapAt
             if !self.prefersExplicitThinkingLevel,
                let level = Self.normalizedThinkingLevel(payload.thinkingLevel)
             {
                 self.thinkingLevel = level
             }
-            await self.pollHealthIfNeeded(force: true)
             await self.fetchSessions(limit: 50)
             await self.fetchModels()
+            await self.pollHealthIfNeeded(force: true)
             self.errorText = nil
+            self.isRecoveringConnection = false
         } catch {
             self.errorText = error.localizedDescription
+            if self.hasLoadedHistory {
+                self.markConnectionRecovering()
+            }
             chatUILogger.error("bootstrap failed \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -398,6 +467,12 @@ public final class AlisioChatViewModel {
             if let key = Self.messageIdentityKey(for: message),
                incomingIdentityKeys.contains(key)
             {
+                if let userKey = Self.userRefreshIdentityKey(for: message),
+                   let remaining = remainingIncomingUserRefreshCounts[userKey],
+                   remaining > 0
+                {
+                    remainingIncomingUserRefreshCounts[userKey] = remaining - 1
+                }
                 lastMatchedPreviousIndex = index
                 continue
             }
@@ -501,8 +576,6 @@ public final class AlisioChatViewModel {
         let runId = UUID().uuidString
         let messageText = trimmed.isEmpty && !self.attachments.isEmpty ? "See attached." : trimmed
         let thinkingLevel = self.thinkingLevel
-        self.pendingRuns.insert(runId)
-        self.armPendingRunTimeout(runId: runId)
         self.pendingToolCallsById = [:]
         self.streamingAssistantText = nil
 
@@ -546,7 +619,7 @@ public final class AlisioChatViewModel {
                 id: UUID(),
                 role: "user",
                 content: userContent,
-                timestamp: Date().timeIntervalSince1970 * 1000))
+                timestamp: self.nextOptimisticMessageTimestampMs()))
 
         // Clear input immediately for responsive UX (before network await)
         self.input = ""
@@ -554,18 +627,29 @@ public final class AlisioChatViewModel {
 
         do {
             await self.waitForPendingModelPatches(in: sessionKey)
-            let response = try await self.transport.sendMessage(
-                sessionKey: sessionKey,
-                message: messageText,
-                thinking: thinkingLevel,
-                idempotencyKey: runId,
-                attachments: encodedAttachments)
+            let sendTask = Task {
+                try await self.transport.sendMessage(
+                    sessionKey: sessionKey,
+                    message: messageText,
+                    thinking: thinkingLevel,
+                    idempotencyKey: runId,
+                    attachments: encodedAttachments)
+            }
+            // Give the transport a chance to register the outbound run before observers
+            // react to the optimistic pending state.
+            await Task.yield()
+            self.dispatchingRunIDs.insert(runId)
+            let response = try await sendTask.value
+            self.dispatchingRunIDs.remove(runId)
+            self.pendingRuns.insert(runId)
+            self.armPendingRunTimeout(runId: runId)
             if response.runId != runId {
                 self.clearPendingRun(runId)
                 self.pendingRuns.insert(response.runId)
                 self.armPendingRunTimeout(runId: response.runId)
             }
         } catch {
+            self.dispatchingRunIDs.remove(runId)
             self.clearPendingRun(runId)
             self.errorText = error.localizedDescription
             chatUILogger.error("chat.send failed \(error.localizedDescription, privacy: .public)")
@@ -945,15 +1029,25 @@ public final class AlisioChatViewModel {
         switch evt {
         case let .health(ok):
             self.healthOK = ok
+            self.lastTransportEventAt = Date()
+            if ok {
+                self.isRecoveringConnection = false
+            } else if self.hasLoadedHistory {
+                self.markConnectionRecovering()
+            }
         case .tick:
             Task { await self.pollHealthIfNeeded(force: false) }
         case let .chat(chat):
+            self.lastTransportEventAt = Date()
             self.handleChatEvent(chat)
         case let .agent(agent):
+            self.lastTransportEventAt = Date()
             self.handleAgentEvent(agent)
         case .seqGap:
+            self.lastTransportEventAt = Date()
             self.errorText = nil
             self.clearPendingRuns(reason: nil)
+            self.markConnectionRecovering()
             Task {
                 await self.refreshHistoryAfterRun()
                 await self.pollHealthIfNeeded(force: true)
@@ -1057,12 +1151,16 @@ public final class AlisioChatViewModel {
                 previous: self.messages,
                 incoming: Self.decodeMessages(payload.messages ?? []))
             self.sessionId = payload.sessionId
+            self.hasLoadedHistory = true
+            self.lastHistoryRefreshAt = Date()
             if !self.prefersExplicitThinkingLevel,
                let level = Self.normalizedThinkingLevel(payload.thinkingLevel)
             {
                 self.thinkingLevel = level
             }
+            self.isRecoveringConnection = false
         } catch {
+            self.markConnectionRecovering()
             chatUILogger.error("refresh history failed \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -1088,6 +1186,7 @@ public final class AlisioChatViewModel {
     }
 
     private func clearPendingRuns(reason: String?) {
+        self.dispatchingRunIDs.removeAll()
         for runId in self.pendingRuns {
             self.pendingRunTimeoutTasks[runId]?.cancel()
         }
@@ -1098,6 +1197,23 @@ public final class AlisioChatViewModel {
         }
     }
 
+    private var hasVisibleStreamingAssistantContent: Bool {
+        guard let text = self.streamingAssistantText else { return false }
+        return AssistantTextParser.hasVisibleContent(in: text, includeThinking: true)
+    }
+
+    private var hasNonUserTranscriptContent: Bool {
+        self.messages.contains { message in
+            let role = message.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return role != "user"
+        }
+    }
+
+    private func markConnectionRecovering() {
+        self.isRecoveringConnection = true
+        self.lastRecoveryAt = Date()
+    }
+
     private func pollHealthIfNeeded(force: Bool) async {
         if !force, let last = self.lastHealthPollAt, Date().timeIntervalSince(last) < 10 {
             return
@@ -1106,8 +1222,16 @@ public final class AlisioChatViewModel {
         do {
             let ok = try await self.transport.requestHealth(timeoutMs: 5000)
             self.healthOK = ok
+            if ok {
+                self.isRecoveringConnection = false
+            } else if self.hasLoadedHistory {
+                self.markConnectionRecovering()
+            }
         } catch {
             self.healthOK = false
+            if self.hasLoadedHistory {
+                self.markConnectionRecovering()
+            }
         }
     }
 
@@ -1177,4 +1301,97 @@ public final class AlisioChatViewModel {
         }
         return trimmed
     }
+
+    private func nextOptimisticMessageTimestampMs() -> Double {
+        let now = Date().timeIntervalSince1970 * 1000
+        let latestMessageTimestamp = self.messages.compactMap(\.timestamp).max() ?? 0
+        let floor = max(self.lastOptimisticMessageTimestampMs, latestMessageTimestamp)
+        let next = now > floor ? now : floor + 1
+        self.lastOptimisticMessageTimestampMs = next
+        return next
+    }
+
+    private func refreshPendingRunCount() {
+        self.pendingRunCount = self.pendingRuns.count + self.dispatchingRunIDs.count
+    }
 }
+
+#if DEBUG
+private struct PreviewChatTransport: AlisioChatTransport {
+    func requestHistory(sessionKey: String) async throws -> AlisioChatHistoryPayload {
+        AlisioChatHistoryPayload(sessionKey: sessionKey, sessionId: "preview-\(sessionKey)", messages: [], thinkingLevel: "low")
+    }
+
+    func listModels() async throws -> [AlisioChatModelChoice] { [] }
+
+    func sendMessage(
+        sessionKey _: String,
+        message _: String,
+        thinking _: String,
+        idempotencyKey: String,
+        attachments _: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse
+    {
+        AlisioChatSendResponse(runId: idempotencyKey, status: "accepted")
+    }
+
+    func abortRun(sessionKey _: String, runId _: String) async throws {}
+    func listSessions(limit _: Int?) async throws -> AlisioChatSessionsListResponse {
+        AlisioChatSessionsListResponse(ts: nil, path: nil, count: 0, defaults: nil, sessions: [])
+    }
+
+    func setSessionModel(sessionKey _: String, model _: String?) async throws {}
+    func setSessionThinking(sessionKey _: String, thinkingLevel _: String) async throws {}
+    func requestHealth(timeoutMs _: Int) async throws -> Bool { true }
+    func events() -> AsyncStream<AlisioChatTransportEvent> { AsyncStream { _ in } }
+}
+
+extension AlisioChatViewModel {
+    public static func preview(
+        sessionKey: String = "main",
+        sessionId: String? = "sess-preview",
+        messages: [AlisioChatMessage] = [],
+        sessions: [AlisioChatSessionEntry] = [],
+        modelChoices: [AlisioChatModelChoice] = [],
+        thinkingLevel: String = "low",
+        modelSelectionID: String = AlisioChatViewModel.defaultModelSelectionID,
+        healthOK: Bool = true,
+        isLoading: Bool = false,
+        isRecoveringConnection: Bool = false,
+        pendingRunCount: Int = 0,
+        streamingAssistantText: String? = nil,
+        pendingToolCalls: [AlisioChatPendingToolCall] = [],
+        errorText: String? = nil,
+        hasLoadedHistory: Bool = true,
+        lastBootstrapAt: Date? = Date(),
+        lastHistoryRefreshAt: Date? = Date(),
+        lastTransportEventAt: Date? = Date(),
+        lastRecoveryAt: Date? = nil) -> AlisioChatViewModel
+    {
+        let viewModel = AlisioChatViewModel(
+            sessionKey: sessionKey,
+            transport: PreviewChatTransport(),
+            initialThinkingLevel: thinkingLevel)
+        viewModel.messages = messages
+        viewModel.sessionId = sessionId
+        viewModel.sessions = sessions
+        viewModel.modelChoices = modelChoices
+        viewModel.thinkingLevel = thinkingLevel
+        viewModel.modelSelectionID = modelSelectionID
+        viewModel.healthOK = healthOK
+        viewModel.isLoading = isLoading
+        viewModel.isRecoveringConnection = isRecoveringConnection
+        viewModel.streamingAssistantText = streamingAssistantText
+        viewModel.errorText = errorText
+        viewModel.hasLoadedHistory = hasLoadedHistory
+        viewModel.lastBootstrapAt = lastBootstrapAt
+        viewModel.lastHistoryRefreshAt = lastHistoryRefreshAt
+        viewModel.lastTransportEventAt = lastTransportEventAt
+        viewModel.lastRecoveryAt = lastRecoveryAt
+        viewModel.sessionDefaults = AlisioChatSessionsDefaults(model: nil, contextTokens: nil, mainSessionKey: "main")
+        viewModel.pendingRuns = Set((0..<pendingRunCount).map { "preview-run-\($0)" })
+        viewModel.pendingToolCallsById = Dictionary(
+            uniqueKeysWithValues: pendingToolCalls.map { ($0.toolCallId, $0) })
+        return viewModel
+    }
+}
+#endif

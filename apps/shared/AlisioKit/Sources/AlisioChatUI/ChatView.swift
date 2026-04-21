@@ -34,6 +34,7 @@ public struct AlisioChatView: View {
     private let userAccent: Color?
     private let showsAssistantTrace: Bool
     private let assistantIdentity: AlisioChatAssistantIdentity
+    private let autoloadOnAppear: Bool
 
     private enum Layout {
         #if os(macOS)
@@ -120,7 +121,8 @@ public struct AlisioChatView: View {
         markdownVariant: ChatMarkdownVariant = .standard,
         assistantIdentity: AlisioChatAssistantIdentity = .init(),
         userAccent: Color? = nil,
-        showsAssistantTrace: Bool = false)
+        showsAssistantTrace: Bool = false,
+        autoloadOnAppear: Bool = true)
     {
         self._viewModel = State(initialValue: viewModel)
         self.showsSessionSwitcher = showsSessionSwitcher
@@ -129,6 +131,7 @@ public struct AlisioChatView: View {
         self.assistantIdentity = assistantIdentity
         self.userAccent = userAccent
         self.showsAssistantTrace = showsAssistantTrace
+        self.autoloadOnAppear = autoloadOnAppear
     }
 
     public var body: some View {
@@ -152,7 +155,10 @@ public struct AlisioChatView: View {
             .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear { self.viewModel.load() }
+        .onAppear {
+            guard self.autoloadOnAppear else { return }
+            self.viewModel.load()
+        }
         .sheet(isPresented: self.$showSessions) {
             if self.showsSessionSwitcher {
                 ChatSessionsSheet(viewModel: self.viewModel)

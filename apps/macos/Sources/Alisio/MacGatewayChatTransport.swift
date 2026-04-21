@@ -138,18 +138,18 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     }
 
     func resetSession(sessionKey: String) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.reset")
         try await SessionActions.resetSession(key: sessionKey)
     }
 
     func compactSession(sessionKey: String) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.compact")
         try await SessionActions.compactSession(key: sessionKey)
     }
 
     private func ensureLocalGatewayReadyIfNeeded(reason: String) async throws {
-        let mode = await MainActor.run { AppStateStore.shared.connectionMode }
-        guard mode == .local else { return }
         do {
-            try await GatewayProcessManager.shared.ensureLocalGatewayReady(timeout: 15)
+            try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: reason, timeout: 15)
         } catch {
             Self.logger.error(
                 "local gateway readiness failed before \(reason, privacy: .public): \(error.localizedDescription, privacy: .public)")

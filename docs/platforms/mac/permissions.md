@@ -32,6 +32,25 @@ grants, and prompts can disappear entirely until the stale entries are cleared.
 4. If the prompt still does not appear, reset TCC entries with `tccutil` and try again.
 5. Some permissions only reappear after a full macOS restart.
 
+## Restart-required states
+
+Screen Recording and Accessibility can land in an awkward intermediate state:
+System Settings shows them as granted, but the already-running Alisio process
+still cannot use them yet.
+
+When that happens, the local runtime should surface an explicit
+**restart required** state instead of downgrading the permission back to
+"missing" or waiting for a later helper failure. In practice:
+
+- Screen Recording granted but not yet visible to the process should block
+  observation as restart-required.
+- Accessibility granted but not yet visible to the process should block local
+  control as restart-required.
+- The macOS UI should offer a restart action immediately.
+
+This keeps the permission story honest across the native app, the local helper,
+and the shared Gateway session state.
+
 Example resets (replace bundle ID as needed):
 
 ```bash

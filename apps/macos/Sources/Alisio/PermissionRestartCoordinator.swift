@@ -10,9 +10,17 @@ final class PermissionRestartCoordinator {
 
     private(set) var capabilities: Set<Capability> = []
 
-    func markRequested(_ requested: [Capability], currentStatus: [Capability: Bool]) {
+    func markRequested(
+        _ requested: [Capability],
+        currentStatus: [Capability: Bool],
+        restartRequired: [Capability: Bool]? = nil)
+    {
         for capability in requested where capability.requiresHostRestartAfterGrant {
-            if currentStatus[capability] == true {
+            if self.shouldClearTrackedRestart(
+                capability: capability,
+                status: currentStatus,
+                restartRequired: restartRequired)
+            {
                 self.capabilities.remove(capability)
             } else {
                 self.capabilities.insert(capability)
@@ -20,14 +28,37 @@ final class PermissionRestartCoordinator {
         }
     }
 
-    func reconcile(status: [Capability: Bool]) {
-        for capability in Array(self.capabilities) where status[capability] == true {
+    func reconcile(
+        status: [Capability: Bool],
+        restartRequired: [Capability: Bool]? = nil)
+    {
+        for capability in Array(self.capabilities) where self.shouldClearTrackedRestart(
+            capability: capability,
+            status: status,
+            restartRequired: restartRequired)
+        {
             self.capabilities.remove(capability)
         }
     }
 
     func requiresRestart(for capability: Capability) -> Bool {
         self.capabilities.contains(capability)
+    }
+
+    private func shouldClearTrackedRestart(
+        capability: Capability,
+        status: [Capability: Bool],
+        restartRequired: [Capability: Bool]?) -> Bool
+    {
+        guard status[capability] == true else {
+            return false
+        }
+        guard let explicitRestartRequired = restartRequired?[capability] else {
+            // Preserve the tracked restart requirement until a higher-fidelity source
+            // explicitly proves the permission no longer needs a host restart.
+            return false
+        }
+        return explicitRestartRequired == false
     }
 }
 

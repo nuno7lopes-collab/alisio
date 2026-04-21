@@ -101,6 +101,10 @@ struct LowCoverageViewSmokeTests {
         VoiceWakeSettings.exerciseForTesting()
     }
 
+    @Test func `workspace root exercises native preview states`() {
+        AlisioWorkspaceRootView.exerciseForTesting()
+    }
+
     @Test func `debug settings exercises helpers`() async {
         await DebugSettings.exerciseForTesting()
     }

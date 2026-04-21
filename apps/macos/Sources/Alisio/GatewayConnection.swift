@@ -94,6 +94,8 @@ actor GatewayConnection {
         case devicePairApprove = "device.pair.approve"
         case devicePairReject = "device.pair.reject"
         case execApprovalResolve = "exec.approval.resolve"
+        case computerSessionGet = "computer.session.get"
+        case computerSessionUpdate = "computer.session.update"
         case cronList = "cron.list"
         case cronRuns = "cron.runs"
         case cronRun = "cron.run"
@@ -435,6 +437,13 @@ actor GatewayConnection {
         self.broadcast(push)
     }
 
+    private func ensureLocalGatewayReadyIfNeeded(reason: String, timeout: TimeInterval = 15) async throws {
+        // Injected websocket sessions are test-only and should not trigger the app-level
+        // local gateway manager.
+        guard self.sessionBox == nil else { return }
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: reason, timeout: timeout)
+    }
+
     private static func defaultConfigProvider() async throws -> Config {
         try await GatewayEndpointStore.shared.requireConfig()
     }
@@ -443,6 +452,87 @@ actor GatewayConnection {
 // MARK: - Typed gateway API
 
 extension GatewayConnection {
+    enum ComputerSessionCommand: String {
+        case start
+        case pause
+        case resume
+        case stop
+    }
+
+    enum ComputerSessionStatus: String, Codable {
+        case idle
+        case observing
+        case running
+        case paused
+        case blockedOnFocus = "blocked_on_focus"
+        case blockedOnApproval = "blocked_on_approval"
+        case blockedOnRuntime = "blocked_on_runtime"
+        case blockedOnPermissions = "blocked_on_permissions"
+        case blockedOnRestartRequired = "blocked_on_restart_required"
+        case error
+        case stopped
+    }
+
+    enum ComputerBlockingKind: String, Codable {
+        case blockedOnFocus = "blocked_on_focus"
+        case blockedOnApproval = "blocked_on_approval"
+        case blockedOnRuntime = "blocked_on_runtime"
+        case blockedOnPermissions = "blocked_on_permissions"
+        case blockedOnRestartRequired = "blocked_on_restart_required"
+    }
+
+    enum ComputerPermissionAccessState: String, Codable {
+        case unknown
+        case granted
+        case missing
+        case restartRequired = "restart_required"
+        case notSupported = "not_supported"
+    }
+
+    struct ComputerBlockingState: Codable, Equatable {
+        let kind: ComputerBlockingKind
+        let reasonCode: String
+        let summary: String
+        let at: Int?
+    }
+
+    struct ComputerPermissionSnapshot: Codable, Equatable {
+        let accessibility: Bool?
+        let screenRecording: Bool?
+        let observation: ComputerPermissionAccessState
+        let control: ComputerPermissionAccessState
+    }
+
+    struct ComputerRuntimeSessionSnapshot: Codable, Equatable {
+        let sessionKey: String
+        let state: MacNodeComputerSessionLifecycleState
+        let updatedAt: Int
+    }
+
+    struct ComputerRuntimeSnapshot: Codable, Equatable {
+        let connectionState: MacNodeComputerHelperConnectionState
+        let launchCount: Int
+        let helperProtocolVersion: Int?
+        let helperVersion: String?
+        let helperProcessId: Int?
+        let activeSession: ComputerRuntimeSessionSnapshot?
+        let lastError: MacNodeComputerHelperErrorPayload?
+    }
+
+    struct ComputerSessionSnapshot: Codable, Equatable {
+        let sessionKey: String
+        let status: ComputerSessionStatus
+        let blocking: ComputerBlockingState?
+        let permissions: ComputerPermissionSnapshot
+        let runtime: ComputerRuntimeSnapshot?
+        let lastError: String?
+    }
+
+    private struct ComputerSessionResponse: Decodable {
+        let sessionKey: String
+        let session: ComputerSessionSnapshot
+    }
+
     struct ConfigGetSnapshot: Decodable {
         struct SnapshotConfig: Decodable {
             struct Session: Decodable {
@@ -488,6 +578,7 @@ extension GatewayConnection {
 
     func setHeartbeatsEnabled(_ enabled: Bool) async -> Bool {
         do {
+            try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.setHeartbeats.rawValue)
             try await self.requestVoid(method: .setHeartbeats, params: ["enabled": AnyCodable(enabled)])
             return true
         } catch {
@@ -515,6 +606,7 @@ extension GatewayConnection {
         }
 
         do {
+            try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.agent.rawValue)
             try await self.requestVoid(method: .agent, params: params)
             return (true, nil)
         } catch {
@@ -545,6 +637,7 @@ extension GatewayConnection {
 
     func sendSystemEvent(_ params: [String: AnyCodable]) async {
         do {
+            try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.systemEvent.rawValue)
             try await self.requestVoid(method: .systemEvent, params: params)
         } catch {
             // Best-effort only.
@@ -640,6 +733,7 @@ extension GatewayConnection {
         limit: Int? = nil,
         timeoutMs: Int? = nil) async throws -> AlisioChatHistoryPayload
     {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.chatHistory.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         var params: [String: AnyCodable] = ["sessionKey": AnyCodable(resolvedKey)]
         if let limit { params["limit"] = AnyCodable(limit) }
@@ -658,6 +752,7 @@ extension GatewayConnection {
         attachments: [AlisioChatAttachmentPayload],
         timeoutMs: Int = 30000) async throws -> AlisioChatSendResponse
     {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.chatSend.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         var params: [String: AnyCodable] = [
             "sessionKey": AnyCodable(resolvedKey),
@@ -686,6 +781,7 @@ extension GatewayConnection {
     }
 
     func chatAbort(sessionKey: String, runId: String) async throws -> Bool {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.chatAbort.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         struct AbortResponse: Decodable { let ok: Bool?; let aborted: Bool? }
         let res: AbortResponse = try await self.requestDecoded(
@@ -761,10 +857,13 @@ extension GatewayConnection {
     }
 
     func cronStatus() async throws -> CronSchedulerStatus {
-        try await self.requestDecoded(method: .cronStatus)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronStatus.rawValue)
+        let status: CronSchedulerStatus = try await self.requestDecoded(method: .cronStatus)
+        return status
     }
 
     func cronList(includeDisabled: Bool = true) async throws -> [CronJob] {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronList.rawValue)
         let data = try await self.requestRaw(
             method: .cronList,
             params: ["includeDisabled": AnyCodable(includeDisabled)])
@@ -772,6 +871,7 @@ extension GatewayConnection {
     }
 
     func cronRuns(jobId: String, limit: Int = 200) async throws -> [CronRunLogEntry] {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronRuns.rawValue)
         let data = try await self.requestRaw(
             method: .cronRuns,
             params: ["id": AnyCodable(jobId), "limit": AnyCodable(limit)])
@@ -779,6 +879,7 @@ extension GatewayConnection {
     }
 
     func cronRun(jobId: String, force: Bool = true) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronRun.rawValue)
         try await self.requestVoid(
             method: .cronRun,
             params: [
@@ -789,17 +890,44 @@ extension GatewayConnection {
     }
 
     func cronRemove(jobId: String) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronRemove.rawValue)
         try await self.requestVoid(method: .cronRemove, params: ["id": AnyCodable(jobId)])
     }
 
     func cronUpdate(jobId: String, patch: [String: AnyCodable]) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronUpdate.rawValue)
         try await self.requestVoid(
             method: .cronUpdate,
             params: ["id": AnyCodable(jobId), "patch": AnyCodable(patch)])
     }
 
     func cronAdd(payload: [String: AnyCodable]) async throws {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronAdd.rawValue)
         try await self.requestVoid(method: .cronAdd, params: payload)
+    }
+
+    func computerSession(sessionKey: String) async throws -> ComputerSessionSnapshot {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.computerSessionGet.rawValue)
+        let resolvedKey = self.canonicalizeSessionKey(sessionKey)
+        let response: ComputerSessionResponse = try await self.requestDecoded(
+            method: .computerSessionGet,
+            params: ["sessionKey": AnyCodable(resolvedKey)])
+        return response.session
+    }
+
+    func computerSession(
+        sessionKey: String,
+        command: ComputerSessionCommand) async throws -> ComputerSessionSnapshot
+    {
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.computerSessionUpdate.rawValue)
+        let resolvedKey = self.canonicalizeSessionKey(sessionKey)
+        let response: ComputerSessionResponse = try await self.requestDecoded(
+            method: .computerSessionUpdate,
+            params: [
+                "sessionKey": AnyCodable(resolvedKey),
+                "command": AnyCodable(command.rawValue),
+            ])
+        return response.session
     }
 
     nonisolated static func decodeCronListResponse(_ data: Data) throws -> [CronJob] {

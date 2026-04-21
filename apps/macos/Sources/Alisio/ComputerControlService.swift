@@ -23,9 +23,17 @@ final class ComputerControlService {
     }
 
     func getPermissionState() -> MacNodeComputerPermissionPayload {
-        MacNodeComputerPermissionPayload(
-            accessibility: AXIsProcessTrusted(),
-            screenRecording: ScreenRecordingProbe.isAuthorized())
+        let accessibility = AXIsProcessTrusted()
+        let screenRecording = ScreenRecordingProbe.isAuthorized()
+        return MacNodeComputerPermissionPayload(
+            accessibility: accessibility,
+            screenRecording: screenRecording,
+            accessibilityRestartRequired: accessibility
+                ? PermissionRestartCoordinator.shared.requiresRestart(for: .accessibility)
+                : false,
+            screenRecordingRestartRequired: screenRecording
+                ? PermissionRestartCoordinator.shared.requiresRestart(for: .screenRecording)
+                : false)
     }
 
     func performActions(_ actions: [MacNodeComputerActionPayload]) async throws -> MacNodeComputerPerformActionsPayload {

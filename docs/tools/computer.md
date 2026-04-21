@@ -73,6 +73,12 @@ The native helper reuses the existing macOS permission flow:
 If a permission is missing, the Computer pane shows the missing capability and
 offers a native permission request path in the macOS app.
 
+If macOS has already recorded the grant but the running process still needs a
+restart to pick it up, the session should move into
+`blocked_on_restart_required` instead of pretending the permission is fully
+ready. The pane should show a restart action and an explicit summary instead
+of waiting for a later observe/action failure to reveal the truth.
+
 ## Approval modes
 
 The session supports four approval modes:
@@ -182,6 +188,8 @@ pretending the action is still active:
 - `blocked_on_focus`
 - `blocked_on_approval`
 - `blocked_on_runtime`
+- `blocked_on_permissions`
+- `blocked_on_restart_required`
 
 The timeline also records runtime-side concurrency events such as
 `session_arbitrated`, `focus_required`, `runtime_busy`, and
@@ -190,6 +198,10 @@ The timeline also records runtime-side concurrency events such as
 During helper startup or restart, `blocked_on_runtime` is the expected state.
 The runtime should expose an honest summary such as `computer helper cold start
 in progress` instead of a generic execution error.
+
+The native macOS pane should read that shared session state from
+`computer.session.get` / `computer.session.update` rather than reconstructing a
+separate local-only lifecycle model.
 
 ## Frame and coordinate accuracy
 

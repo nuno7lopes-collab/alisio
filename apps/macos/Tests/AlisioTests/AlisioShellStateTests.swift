@@ -46,5 +46,13 @@ struct AlisioShellStateTests {
         state.showSettings(tab: .instances)
         #expect(state.route == .organization)
         #expect(state.workspacePath() == "/connections")
+
+        state.showSettings(tab: .permissions)
+        #expect(state.route == .settings)
+        #expect(state.workspacePath() == "/settings?section=mac")
+
+        state.showSettings(tab: .sessions)
+        #expect(state.route == .chat)
+        #expect(state.workspacePath() == "/chat")
     }
 }

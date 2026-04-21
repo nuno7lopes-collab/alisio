@@ -74,12 +74,29 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
 }
 
 @MainActor
+struct AlisioWorkspaceChatEnvironment {
+    let makeChatViewModel: (String) -> AlisioChatViewModel
+    let makeComputerStore: (String) -> MacDesktopComputerStore
+    let autoloadChatOnAppear: Bool
+
+    static let live = Self(
+        makeChatViewModel: { sessionKey in
+            AlisioChatViewModel(sessionKey: sessionKey, transport: MacGatewayChatTransport())
+        },
+        makeComputerStore: { sessionKey in
+            MacDesktopComputerStore(sessionKey: sessionKey)
+        },
+        autoloadChatOnAppear: true)
+}
+
+@MainActor
 struct AlisioWorkspaceRootView: View {
     @Bindable var shellState: AlisioShellState
     @Bindable var state: AppState
 
     let presentation: AlisioWorkspacePresentation
     let updater: (any UpdaterProviding)?
+    let chatEnvironment: AlisioWorkspaceChatEnvironment
 
     @Environment(\.colorScheme) private var systemScheme
 
@@ -297,7 +314,8 @@ struct AlisioWorkspaceRootView: View {
                 sessionKey: self.resolvedSessionKey,
                 state: self.state,
                 palette: self.palette,
-                compact: compact)
+                compact: compact,
+                environment: self.chatEnvironment)
                 .id("chat-\(self.resolvedSessionKey)-\(compact ? "panel" : "window")-\(self.state.connectionMode.rawValue)")
         case .authentications:
             ChannelsSettings()
@@ -328,22 +346,27 @@ private struct WorkspaceChatStage: View {
     let sessionKey: String
     let palette: AlisioPalette
     let compact: Bool
+    let environment: AlisioWorkspaceChatEnvironment
 
     @State private var chatViewModel: AlisioChatViewModel
     @State private var computerStore: MacDesktopComputerStore
     @State private var inspectorVisible = false
     @State private var lastDismissedActivityID: String?
 
-    init(sessionKey: String, state: AppState, palette: AlisioPalette, compact: Bool) {
+    init(
+        sessionKey: String,
+        state: AppState,
+        palette: AlisioPalette,
+        compact: Bool,
+        environment: AlisioWorkspaceChatEnvironment = .live)
+    {
         self.state = state
         self.sessionKey = sessionKey
         self.palette = palette
         self.compact = compact
-        self._chatViewModel = State(
-            initialValue: AlisioChatViewModel(
-                sessionKey: sessionKey,
-                transport: MacGatewayChatTransport()))
-        self._computerStore = State(initialValue: MacDesktopComputerStore(sessionKey: sessionKey))
+        self.environment = environment
+        self._chatViewModel = State(initialValue: environment.makeChatViewModel(sessionKey))
+        self._computerStore = State(initialValue: environment.makeComputerStore(sessionKey))
     }
 
     var body: some View {
@@ -358,7 +381,10 @@ private struct WorkspaceChatStage: View {
                 WorkspaceStatusBanner(
                     title: status.title,
                     message: status.message,
-                    palette: self.palette)
+                    palette: self.palette,
+                    systemImage: status.systemImage,
+                    usesProgressView: status.usesProgressView,
+                    tint: status.tint)
                     .padding(.horizontal, self.compact ? 8 : 22)
             }
 
@@ -451,7 +477,8 @@ private struct WorkspaceChatStage: View {
             style: .alisio,
             assistantIdentity: .init(name: "Alisio"),
             userAccent: self.palette.accent,
-            showsAssistantTrace: true)
+            showsAssistantTrace: true,
+            autoloadOnAppear: self.environment.autoloadChatOnAppear)
             .padding(self.compact ? 8 : 22)
             .background(self.palette.stage)
     }
@@ -464,38 +491,67 @@ private struct WorkspaceChatStage: View {
         !self.compact
     }
 
-    private var bootstrapStatus: (title: String, message: String)? {
-        if self.chatViewModel.isLoading {
+    private var bootstrapStatus: (
+        title: String,
+        message: String,
+        systemImage: String?,
+        usesProgressView: Bool,
+        tint: Color?
+    )? {
+        if self.state.connectionMode == .unconfigured {
+            return (
+                "Preparing Alisio",
+                "The workspace is waiting for a configured runtime.",
+                "gearshape.2",
+                false,
+                self.palette.warning)
+        }
+
+        switch self.chatViewModel.connectionPhase {
+        case .bootstrapping:
             switch self.state.connectionMode {
             case .local:
                 return (
                     "Connecting to the local runtime",
-                    "Loading session history, health, and available models before the first turn.")
+                    "Loading session history, health, and available models before the first turn.",
+                    nil,
+                    true,
+                    self.palette.accent)
             case .remote:
                 return (
                     "Connecting to the remote runtime",
-                    "Loading session history over the current control connection before the first turn.")
+                    "Loading session history over the current control connection before the first turn.",
+                    nil,
+                    true,
+                    self.palette.accent)
             case .unconfigured:
-                return (
-                    "Preparing Alisio",
-                    "The workspace is waiting for a configured runtime.")
+                return nil
             }
-        }
-
-        let hasVisibleReply = self.chatViewModel.streamingAssistantText?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty == false
-        if self.chatViewModel.messages.isEmpty,
-           self.chatViewModel.pendingRunCount > 0,
-           !hasVisibleReply,
-           self.chatViewModel.pendingToolCalls.isEmpty
-        {
+        case .loading:
+            return (
+                "Refreshing the native session",
+                "Updating the local view of history, model choices, and session metadata.",
+                nil,
+                true,
+                self.palette.accent)
+        case .reconnecting:
+            let runtimeLabel = self.state.connectionMode == .local ? "local runtime" : "remote runtime"
+            return (
+                "Reconnecting to the \(runtimeLabel)",
+                "The workspace lost a live signal and is resyncing history before showing stale state as final.",
+                "arrow.trianglehead.2.clockwise.rotate.90",
+                false,
+                self.palette.warning)
+        case .firstMessage:
             return (
                 "Starting the first response",
-                "The first turn can take longer while the runtime warms up and tools attach to the session.")
+                "The first visible assistant turn can take longer while the runtime warms up and the session attaches its tools.",
+                nil,
+                true,
+                self.palette.accent)
+        case .ready:
+            return nil
         }
-
-        return nil
     }
 
     private var inspectorActivityID: String? {
@@ -581,6 +637,7 @@ private struct WorkspaceInspectorPane: View {
     @Bindable var state: AppState
     @Bindable var chatViewModel: AlisioChatViewModel
     @Bindable var computerStore: MacDesktopComputerStore
+    @Bindable private var gatewayProcessManager = GatewayProcessManager.shared
 
     let palette: AlisioPalette
     let sessionKey: String
@@ -597,12 +654,107 @@ private struct WorkspaceInspectorPane: View {
                 {
                     VStack(alignment: .leading, spacing: 8) {
                         self.metaRow("Session", self.sessionKey)
-                        self.metaRow("Runtime", self.state.connectionMode == .local ? "This Mac" : "Remote")
+                        self.metaRow("Name", self.currentSessionName)
+                        if let sessionId = self.chatViewModel.sessionId, !sessionId.isEmpty {
+                            self.metaRow("Run ID", sessionId)
+                        }
+                        self.metaRow("Runtime", self.runtimeLabel)
+                        self.metaRow("Surface", "Native macOS workspace")
                         if let lastToolLabel, !lastToolLabel.isEmpty {
                             self.metaRow("Last tool", lastToolLabel)
                         }
                         if let lastToolUpdatedAt {
                             self.metaRow("Updated", lastToolUpdatedAt.formatted(date: .omitted, time: .standard))
+                        }
+                    }
+                }
+
+                WorkspaceInspectorCard(
+                    title: "Identity",
+                    subtitle: self.identitySummary)
+                {
+                    VStack(alignment: .leading, spacing: 8) {
+                        self.metaRow("Assistant", "Alisio")
+                        self.metaRow("Operator", InstanceIdentity.displayName)
+                        if self.state.connectionMode == .remote {
+                            self.metaRow("Gateway", self.remoteGatewayLabel)
+                            if let sshIdentity = self.remoteIdentityLabel {
+                                self.metaRow("SSH key", sshIdentity)
+                            }
+                        } else {
+                            self.metaRow("Gateway", self.gatewayProcessManager.status.label)
+                        }
+                    }
+                }
+
+                WorkspaceInspectorCard(
+                    title: "Memory",
+                    subtitle: self.memorySummary)
+                {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if let contextUsage = self.chatViewModel.currentSessionContextUsage {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack(spacing: 8) {
+                                    Text("Context")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(self.palette.tertiaryText)
+                                    Spacer()
+                                    Text(self.contextUsageLabel(contextUsage))
+                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                        .foregroundStyle(self.palette.secondaryText)
+                                }
+                                ContextUsageBar(
+                                    usedTokens: contextUsage.totalTokens,
+                                    contextTokens: contextUsage.contextWindow,
+                                    width: nil)
+                                self.metaRow("Messages", "\(self.chatViewModel.messages.count)")
+                                self.metaRow("Thinking", self.currentThinkingLabel)
+                                if let model = self.currentModelLabel {
+                                    self.metaRow("Model", model)
+                                }
+                            }
+                        } else {
+                            Text("Context usage appears here once the gateway reports token counts for this session.")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(self.palette.secondaryText)
+                        }
+
+                        HStack(spacing: 10) {
+                            Button("Compact memory") {
+                                self.chatViewModel.compactSession()
+                            }
+                            .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                            .disabled(!self.chatViewModel.canCompactSession)
+
+                            Button("Reset chat") {
+                                self.chatViewModel.resetSession()
+                            }
+                            .buttonStyle(AlisioGhostButtonStyle(palette: self.palette, isDanger: true))
+                            .disabled(!self.chatViewModel.canResetSession)
+                        }
+                    }
+                }
+
+                WorkspaceInspectorCard(
+                    title: "Connection",
+                    subtitle: self.connectionSummary)
+                {
+                    VStack(alignment: .leading, spacing: 8) {
+                        self.metaRow("Phase", self.connectionPhaseTitle)
+                        self.metaRow("Health", self.chatViewModel.healthOK ? "Healthy" : "Degraded")
+                        if let lastHistoryRefreshAt = self.chatViewModel.lastHistoryRefreshAt {
+                            self.metaRow("Last sync", lastHistoryRefreshAt.formatted(date: .omitted, time: .standard))
+                        }
+                        if let lastTransportEventAt = self.chatViewModel.lastTransportEventAt {
+                            self.metaRow("Last event", lastTransportEventAt.formatted(date: .omitted, time: .standard))
+                        }
+                        if let lastRecoveryAt = self.chatViewModel.lastRecoveryAt {
+                            self.metaRow("Recovered", lastRecoveryAt.formatted(date: .omitted, time: .standard))
+                        }
+                        if self.state.connectionMode == .local {
+                            self.metaRow("Gateway", self.gatewayProcessManager.status.label)
+                        } else {
+                            self.metaRow("Gateway", self.remoteGatewayLabel)
                         }
                     }
                 }
@@ -619,6 +771,14 @@ private struct WorkspaceInspectorPane: View {
                                 Text(errorText)
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(self.palette.danger)
+                            } else if self.chatViewModel.connectionPhase == .reconnecting {
+                                Text("The workspace is resyncing after a dropped stream or failed health check.")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(self.palette.secondaryText)
+                            } else if self.chatViewModel.connectionPhase == .firstMessage {
+                                Text("The first visible assistant turn is still warming up.")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(self.palette.secondaryText)
                             } else if self.chatViewModel.pendingRunCount > 0 {
                                 Text("Waiting for the assistant, tools, or both to start producing output.")
                                     .font(.system(size: 12, weight: .medium))
@@ -706,7 +866,8 @@ private struct WorkspaceInspectorPane: View {
     }
 
     private var shouldShowRunStatus: Bool {
-        self.chatViewModel.pendingRunCount > 0 ||
+        self.chatViewModel.connectionPhase != .ready ||
+            self.chatViewModel.pendingRunCount > 0 ||
             !self.chatViewModel.pendingToolCalls.isEmpty ||
             ((self.chatViewModel.errorText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) == false)
     }
@@ -716,6 +877,18 @@ private struct WorkspaceInspectorPane: View {
            !errorText.isEmpty
         {
             return "Blocked"
+        }
+        if self.chatViewModel.connectionPhase == .reconnecting {
+            return "Reconnecting"
+        }
+        if self.chatViewModel.connectionPhase == .bootstrapping {
+            return "Bootstrapping"
+        }
+        if self.chatViewModel.connectionPhase == .loading {
+            return "Refreshing"
+        }
+        if self.chatViewModel.connectionPhase == .firstMessage {
+            return "First reply"
         }
         if !self.chatViewModel.pendingToolCalls.isEmpty {
             return "Tools running"
@@ -727,13 +900,113 @@ private struct WorkspaceInspectorPane: View {
     }
 
     private var sessionSummary: String {
+        if self.chatViewModel.connectionPhase == .reconnecting {
+            return "The native workspace is recovering the current session before it trusts live state again."
+        }
+        if self.chatViewModel.connectionPhase == .firstMessage {
+            return "The first visible assistant turn is still bootstrapping."
+        }
         if self.chatViewModel.pendingRunCount > 0 {
             return "The session is live and waiting for the next visible update."
         }
         if !self.chatViewModel.pendingToolCalls.isEmpty {
             return "Tool output is still in flight."
         }
-        return "This pane opens automatically when the runtime starts doing real work."
+        return "This pane keeps session, identity, memory, and runtime state visible while you work."
+    }
+
+    private var identitySummary: String {
+        self.state.connectionMode == .local
+            ? "Who owns the chat and which local runtime is serving it."
+            : "Who owns the chat and which remote runtime is attached over SSH."
+    }
+
+    private var memorySummary: String {
+        "Session context, model selection, and native memory controls."
+    }
+
+    private var connectionSummary: String {
+        switch self.chatViewModel.connectionPhase {
+        case .bootstrapping:
+            "Initial load before the workspace trusts the session."
+        case .loading:
+            "Refreshing native state from the gateway."
+        case .reconnecting:
+            "Live transport degraded; the workspace is resyncing."
+        case .firstMessage:
+            "The first reply is still warming up."
+        case .ready:
+            "Current health and recency of the native data plane."
+        }
+    }
+
+    private var currentSessionName: String {
+        let trimmed = self.chatViewModel.currentSessionEntry?.displayName?.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false ? trimmed : nil) ?? self.sessionKey
+    }
+
+    private var currentModelLabel: String? {
+        guard let entry = self.chatViewModel.currentSessionEntry else { return nil }
+        let provider = entry.modelProvider?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let model = entry.model?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !model.isEmpty else { return nil }
+        guard !provider.isEmpty else { return model }
+        return "\(provider)/\(model)"
+    }
+
+    private var currentThinkingLabel: String {
+        let entryLevel = self.chatViewModel.currentSessionEntry?.thinkingLevel?.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        let resolved = (entryLevel?.isEmpty == false ? entryLevel : nil) ?? self.chatViewModel.thinkingLevel
+        return resolved.capitalized
+    }
+
+    private var runtimeLabel: String {
+        switch self.state.connectionMode {
+        case .local:
+            "This Mac"
+        case .remote:
+            "Remote"
+        case .unconfigured:
+            "Unconfigured"
+        }
+    }
+
+    private var remoteGatewayLabel: String {
+        let target = self.state.remoteTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !target.isEmpty {
+            return target
+        }
+        let url = self.state.remoteUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        return url.isEmpty ? "Remote gateway" : url
+    }
+
+    private var remoteIdentityLabel: String? {
+        let trimmed = self.state.remoteIdentity.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return URL(fileURLWithPath: trimmed).lastPathComponent
+    }
+
+    private var connectionPhaseTitle: String {
+        switch self.chatViewModel.connectionPhase {
+        case .bootstrapping:
+            "Bootstrapping"
+        case .loading:
+            "Refreshing"
+        case .reconnecting:
+            "Reconnecting"
+        case .firstMessage:
+            "First reply"
+        case .ready:
+            "Ready"
+        }
+    }
+
+    private func contextUsageLabel(_ usage: AlisioChatSessionContextUsage) -> String {
+        let used = Self.formatCompactTokenCount(usage.totalTokens)
+        let total = usage.contextWindow > 0 ? Self.formatCompactTokenCount(usage.contextWindow) : "?"
+        return "\(used)/\(total)"
     }
 
     private func toolSummary(for toolCall: AlisioChatPendingToolCall) -> String {
@@ -793,6 +1066,13 @@ private struct WorkspaceInspectorPane: View {
         return date.formatted(date: .omitted, time: .standard)
     }
 
+    private static func formatCompactTokenCount(_ value: Int) -> String {
+        guard value >= 1000 else { return "\(value)" }
+        let thousands = Double(value) / 1000
+        let decimals = value >= 10_000 ? 0 : 1
+        return String(format: "%.\(decimals)fk", thousands)
+    }
+
     private func metaRow(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Text(label)
@@ -808,6 +1088,232 @@ private struct WorkspaceInspectorPane: View {
         }
     }
 }
+
+#if DEBUG
+@MainActor
+private extension AlisioWorkspaceChatEnvironment {
+    static func previewReadyLocal() -> Self {
+        let sessionKey = "main"
+        return Self(
+            makeChatViewModel: { _ in
+                AlisioChatViewModel.preview(
+                    sessionKey: sessionKey,
+                    sessionId: "sess-main",
+                    messages: Self.previewTranscript(),
+                    sessions: [Self.previewSessionEntry(key: sessionKey)],
+                    thinkingLevel: "medium",
+                    healthOK: true)
+            },
+            makeComputerStore: { _ in
+                MacDesktopComputerStore.preview(
+                    sessionKey: sessionKey,
+                    sessionState: .running,
+                    runtime: MacNodeComputerRuntimeHealthPayload(
+                        connectionState: .running,
+                        launchCount: 1,
+                        helper: nil,
+                        lastError: nil),
+                    lastUpdatedAt: Date())
+            },
+            autoloadChatOnAppear: false)
+    }
+
+    static func previewFirstReply() -> Self {
+        let sessionKey = "main"
+        return Self(
+            makeChatViewModel: { _ in
+                AlisioChatViewModel.preview(
+                    sessionKey: sessionKey,
+                    sessionId: "sess-main",
+                    messages: [Self.previewUserMessage()],
+                    sessions: [Self.previewSessionEntry(key: sessionKey)],
+                    thinkingLevel: "low",
+                    healthOK: true,
+                    pendingRunCount: 1)
+            },
+            makeComputerStore: { _ in
+                MacDesktopComputerStore.preview(sessionKey: sessionKey)
+            },
+            autoloadChatOnAppear: false)
+    }
+
+    static func previewRemoteReconnect() -> Self {
+        let sessionKey = "work"
+        return Self(
+            makeChatViewModel: { _ in
+                AlisioChatViewModel.preview(
+                    sessionKey: sessionKey,
+                    sessionId: "sess-work",
+                    messages: Self.previewTranscript(),
+                    sessions: [Self.previewSessionEntry(key: sessionKey, displayName: "work", provider: "openai")],
+                    thinkingLevel: "high",
+                    healthOK: false,
+                    isRecoveringConnection: true,
+                    lastHistoryRefreshAt: Date().addingTimeInterval(-50),
+                    lastTransportEventAt: Date().addingTimeInterval(-24),
+                    lastRecoveryAt: Date())
+            },
+            makeComputerStore: { _ in
+                MacDesktopComputerStore.preview(
+                    sessionKey: sessionKey,
+                    runtime: MacNodeComputerRuntimeHealthPayload(
+                        connectionState: .interrupted,
+                        launchCount: 0,
+                        helper: nil,
+                        lastError: nil))
+            },
+            autoloadChatOnAppear: false)
+    }
+
+    private static func previewTranscript() -> [AlisioChatMessage] {
+        [
+            self.previewUserMessage(),
+            AlisioChatMessage(
+                role: "assistant",
+                content: [
+                    AlisioChatMessageContent(
+                        type: "text",
+                        text: "O stage nativo está fechado e a pane direita mostra sessão, memória e ligação.",
+                        thinking: nil,
+                        thinkingSignature: nil,
+                        mimeType: nil,
+                        fileName: nil,
+                        content: nil),
+                ],
+                timestamp: Date().timeIntervalSince1970 * 1000),
+        ]
+    }
+
+    private static func previewUserMessage() -> AlisioChatMessage {
+        AlisioChatMessage(
+            role: "user",
+            content: [
+                AlisioChatMessageContent(
+                    type: "text",
+                    text: "Fecha a workspace nativa do macOS.",
+                    thinking: nil,
+                    thinkingSignature: nil,
+                    mimeType: nil,
+                    fileName: nil,
+                    content: nil),
+            ],
+            timestamp: Date().addingTimeInterval(-45).timeIntervalSince1970 * 1000)
+    }
+
+    private static func previewSessionEntry(
+        key: String,
+        displayName: String? = "Main",
+        provider: String? = "anthropic") -> AlisioChatSessionEntry
+    {
+        AlisioChatSessionEntry(
+            key: key,
+            kind: "direct",
+            displayName: displayName,
+            surface: "mac",
+            subject: nil,
+            room: nil,
+            space: nil,
+            updatedAt: Date().timeIntervalSince1970 * 1000,
+            sessionId: "sess-\(key)",
+            systemSent: false,
+            abortedLastRun: false,
+            thinkingLevel: "medium",
+            verboseLevel: "info",
+            inputTokens: 4200,
+            outputTokens: 1600,
+            totalTokens: 5800,
+            modelProvider: provider,
+            model: provider == "openai" ? "gpt-5.4" : "claude-opus-4-6",
+            contextTokens: 200_000)
+    }
+}
+
+struct AlisioWorkspaceRootView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            AlisioWorkspaceRootView(
+                shellState: self.workspaceState(sessionKey: "main"),
+                state: .preview,
+                presentation: .window,
+                updater: nil,
+                chatEnvironment: AlisioWorkspaceChatEnvironment.previewReadyLocal())
+                .previewDisplayName("Native Workspace · Ready")
+                .frame(width: 1360, height: 860)
+
+            AlisioWorkspaceRootView(
+                shellState: self.workspaceState(sessionKey: "main"),
+                state: .preview,
+                presentation: .window,
+                updater: nil,
+                chatEnvironment: AlisioWorkspaceChatEnvironment.previewFirstReply())
+                .previewDisplayName("Native Workspace · First Reply")
+                .frame(width: 1360, height: 860)
+
+            AlisioWorkspaceRootView(
+                shellState: self.remoteWorkspaceState(sessionKey: "work"),
+                state: self.remotePreviewState(),
+                presentation: .window,
+                updater: nil,
+                chatEnvironment: AlisioWorkspaceChatEnvironment.previewRemoteReconnect())
+                .previewDisplayName("Native Workspace · Remote Reconnect")
+                .frame(width: 1360, height: 860)
+        }
+    }
+
+    fileprivate static func workspaceState(sessionKey: String) -> AlisioShellState {
+        let state = AlisioShellState()
+        state.showChat(sessionKey: sessionKey)
+        return state
+    }
+
+    fileprivate static func remoteWorkspaceState(sessionKey: String) -> AlisioShellState {
+        let state = AlisioShellState()
+        state.showChat(sessionKey: sessionKey)
+        return state
+    }
+
+    fileprivate static func remotePreviewState() -> AppState {
+        let state = AppState.preview
+        state.connectionMode = .remote
+        state.remoteTarget = "ops@example.net"
+        state.remoteUrl = "wss://gateway.example.net"
+        state.remoteIdentity = "~/.ssh/workspace-prod"
+        return state
+    }
+}
+
+@MainActor
+extension AlisioWorkspaceRootView {
+    static func exerciseForTesting() {
+        let local = NSHostingView(
+            rootView: AlisioWorkspaceRootView(
+                shellState: AlisioWorkspaceRootView_Previews.workspaceState(sessionKey: "main"),
+                state: .preview,
+                presentation: .window,
+                updater: nil,
+                chatEnvironment: AlisioWorkspaceChatEnvironment.previewReadyLocal()))
+        _ = local.fittingSize
+
+        let firstReply = NSHostingView(
+            rootView: AlisioWorkspaceRootView(
+                shellState: AlisioWorkspaceRootView_Previews.workspaceState(sessionKey: "main"),
+                state: .preview,
+                presentation: .window,
+                updater: nil,
+                chatEnvironment: AlisioWorkspaceChatEnvironment.previewFirstReply()))
+        _ = firstReply.fittingSize
+
+        let remote = NSHostingView(
+            rootView: AlisioWorkspaceRootView(
+                shellState: AlisioWorkspaceRootView_Previews.remoteWorkspaceState(sessionKey: "work"),
+                state: AlisioWorkspaceRootView_Previews.remotePreviewState(),
+                presentation: .window,
+                updater: nil,
+                chatEnvironment: AlisioWorkspaceChatEnvironment.previewRemoteReconnect()))
+        _ = remote.fittingSize
+    }
+}
+#endif
 
 @MainActor
 private struct WorkspaceInspectorCard<Content: View>: View {
@@ -851,13 +1357,24 @@ private struct WorkspaceStatusBanner: View {
     let title: String
     let message: String
     let palette: AlisioPalette
+    let systemImage: String?
+    let usesProgressView: Bool
+    let tint: Color?
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            ProgressView()
-                .controlSize(.small)
-                .tint(self.palette.accent)
-                .padding(.top, 2)
+            Group {
+                if self.usesProgressView {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(self.tint ?? self.palette.accent)
+                } else if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(self.tint ?? self.palette.warning)
+                }
+            }
+            .padding(.top, 2)
             VStack(alignment: .leading, spacing: 4) {
                 Text(self.title)
                     .font(.system(size: 13, weight: .semibold))
@@ -925,7 +1442,7 @@ private struct DesktopComputerPane: View {
                     }
                 }
 
-                if self.store.needsObservationPermission || self.store.needsControlPermission {
+                if self.store.showsPermissionActions {
                     VStack(alignment: .leading, spacing: 10) {
                         if let restartHint = self.store.permissionRestartHint {
                             Button {
@@ -969,18 +1486,20 @@ private struct DesktopComputerPane: View {
                     if self.store.sessionState == .running {
                         Button("Pause") { self.store.pause() }
                             .buttonStyle(AlisioGhostButtonStyle(palette: self.palette))
+                            .disabled(self.store.isBusy)
                     } else if self.store.sessionState == .paused {
                         Button("Resume") { self.store.resume() }
                             .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                            .disabled(self.store.isBusy)
                     } else {
                         Button("Start") { self.store.start() }
                             .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
-                            .disabled(!self.store.canStartSession)
+                            .disabled(!self.store.canStartSession || self.store.isBusy)
                     }
 
                     Button("Stop") { self.store.stop() }
                         .buttonStyle(AlisioGhostButtonStyle(palette: self.palette, isDanger: true))
-                        .disabled(self.store.sessionState == .stopped)
+                        .disabled(self.store.sessionState == .stopped || self.store.isBusy)
                 }
             }
         }
@@ -1019,8 +1538,14 @@ private struct DesktopComputerPane: View {
     }
 
     private var emptyStateText: String {
+        if let blockingSummary = self.store.blockingSummary {
+            return blockingSummary
+        }
         if let errorText = self.store.errorText, !errorText.isEmpty {
             return errorText
+        }
+        if let restartHint = self.store.permissionRestartHint {
+            return restartHint
         }
         if self.store.needsObservationPermission {
             return "Grant Screen Recording to observe this Mac."
@@ -1033,6 +1558,9 @@ private struct DesktopComputerPane: View {
         case .stopped:
             if self.store.needsControlPermission {
                 return "Observation is ready. Grant Accessibility to allow local control actions."
+            }
+            if self.store.runtime.connectionState == .starting {
+                return "computer helper cold start in progress"
             }
             return "Computer session stopped."
         }

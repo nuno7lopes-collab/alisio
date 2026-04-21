@@ -135,8 +135,14 @@ private func sendMessageAndEmitFinal(
     text: String,
     sessionKey: String = "main") async throws -> String
 {
+    let previousRunId = await transport.lastSentRunId()
     await sendUserMessage(vm, text: text)
-    try await waitUntil("pending run starts") { await MainActor.run { vm.pendingRunCount == 1 } }
+    try await waitUntil("send dispatches a new run") {
+        let latestRunId = await transport.lastSentRunId()
+        guard let latestRunId else { return false }
+        return latestRunId != previousRunId
+    }
+    try await waitUntil("pending run starts") { await MainActor.run { vm.pendingRunCount >= 1 } }
 
     let runId = try #require(await transport.lastSentRunId())
     transport.emit(
@@ -147,6 +153,7 @@ private func sendMessageAndEmitFinal(
                 state: "final",
                 message: nil,
                 errorMessage: nil)))
+    try await waitUntil("pending run clears after final") { await MainActor.run { vm.pendingRunCount == 0 } }
     return runId
 }
 
@@ -1682,5 +1689,85 @@ Hello?
                     errorMessage: nil)))
 
         try await waitUntil("pending run clears") { await MainActor.run { vm.pendingRunCount == 0 } }
+    }
+
+    @Test func previewStateFlagsFirstMessagePhaseWhenOnlyUserTurnExists() async {
+        let vm = await MainActor.run {
+            AlisioChatViewModel.preview(
+                sessionKey: "main",
+                messages: [
+                    AlisioChatMessage(
+                        role: "user",
+                        content: [
+                            AlisioChatMessageContent(
+                                type: "text",
+                                text: "hello",
+                                thinking: nil,
+                                thinkingSignature: nil,
+                                mimeType: nil,
+                                fileName: nil,
+                                content: nil),
+                        ],
+                        timestamp: Date().timeIntervalSince1970 * 1000),
+                ],
+                sessions: [
+                    sessionEntry(
+                        key: "main",
+                        updatedAt: Date().timeIntervalSince1970 * 1000,
+                        model: "claude-opus-4-6"),
+                ],
+                healthOK: true,
+                pendingRunCount: 1)
+        }
+
+        #expect(await MainActor.run { vm.connectionPhase } == .firstMessage)
+    }
+
+    @Test func previewStateFlagsReconnectPhaseWhenHealthDrops() async {
+        let vm = await MainActor.run {
+            AlisioChatViewModel.preview(
+                sessionKey: "main",
+                messages: [],
+                healthOK: false,
+                isRecoveringConnection: true,
+                hasLoadedHistory: true)
+        }
+
+        #expect(await MainActor.run { vm.connectionPhase } == .reconnecting)
+    }
+
+    @Test func currentSessionEntryResolvesCanonicalMainAlias() async {
+        let vm = await MainActor.run {
+            AlisioChatViewModel.preview(
+                sessionKey: "main",
+                sessions: [
+                    AlisioChatSessionEntry(
+                        key: "agent:main:main",
+                        kind: nil,
+                        displayName: "Main Alias",
+                        surface: nil,
+                        subject: nil,
+                        room: nil,
+                        space: nil,
+                        updatedAt: Date().timeIntervalSince1970 * 1000,
+                        sessionId: "sess-main",
+                        systemSent: nil,
+                        abortedLastRun: nil,
+                        thinkingLevel: "low",
+                        verboseLevel: nil,
+                        inputTokens: 1200,
+                        outputTokens: 800,
+                        totalTokens: 2000,
+                        modelProvider: "openai",
+                        model: "gpt-5.4",
+                        contextTokens: 200_000),
+                ])
+        }
+
+        let entry = await MainActor.run { vm.currentSessionEntry }
+        let usage = await MainActor.run { vm.currentSessionContextUsage }
+        #expect(entry?.displayName == "Main Alias")
+        #expect(usage?.totalTokens == 2000)
+        #expect(usage?.contextWindow == 200_000)
     }
 }

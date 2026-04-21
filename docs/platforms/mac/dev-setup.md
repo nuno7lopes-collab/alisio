@@ -88,10 +88,11 @@ depend on rebuilding the full `.app` bundle:
 ```bash
 swift build --package-path apps/macos
 swift test --package-path apps/macos --filter LowCoverageViewSmokeTests
+swift test --package-path apps/shared/AlisioKit --filter ChatViewModelTests
 ```
 
 That path rebuilds the Swift packages, the native workspace host, and the
-smoke coverage for the workspace shell without repackaging the app bundle.
+shared native chat state without repackaging the app bundle.
 
 The workspace also exposes preview scenarios directly in Xcode via
 `AlisioWorkspaceRootView_Previews` for:

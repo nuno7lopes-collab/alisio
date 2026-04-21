@@ -99,7 +99,8 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
             shellState: shellState,
             state: state,
             presentation: self.presentation,
-            updater: self.updater)
+            updater: self.updater,
+            chatEnvironment: .live)
         let hostingController = NSHostingController(rootView: rootView)
         hostingController.view.wantsLayer = true
         hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor

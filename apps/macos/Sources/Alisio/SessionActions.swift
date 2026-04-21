@@ -8,6 +8,7 @@ enum SessionActions {
         thinking: String?? = nil,
         verbose: String?? = nil) async throws
     {
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.patch")
         var params: [String: AnyHashable] = ["key": AnyHashable(key)]
 
         if let thinking {
@@ -21,18 +22,21 @@ enum SessionActions {
     }
 
     static func resetSession(key: String) async throws {
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.reset")
         _ = try await ControlChannel.shared.request(
             method: "sessions.reset",
             params: ["key": AnyHashable(key)])
     }
 
     static func deleteSession(key: String) async throws {
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.delete")
         _ = try await ControlChannel.shared.request(
             method: "sessions.delete",
             params: ["key": AnyHashable(key), "deleteTranscript": AnyHashable(true)])
     }
 
     static func compactSession(key: String, maxLines: Int = 400) async throws {
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.compact")
         _ = try await ControlChannel.shared.request(
             method: "sessions.compact",
             params: ["key": AnyHashable(key), "maxLines": AnyHashable(maxLines)])

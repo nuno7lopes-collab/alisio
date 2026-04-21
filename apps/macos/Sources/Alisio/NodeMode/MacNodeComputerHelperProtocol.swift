@@ -61,6 +61,8 @@ enum MacNodeComputerSessionLifecycleState: String, Codable, Equatable, Sendable 
 struct MacNodeComputerPermissionPayload: Codable, Equatable, Sendable {
     var accessibility: Bool
     var screenRecording: Bool
+    var accessibilityRestartRequired: Bool? = nil
+    var screenRecordingRestartRequired: Bool? = nil
 }
 
 struct MacNodeComputerHelperSessionSummary: Codable, Equatable, Sendable {

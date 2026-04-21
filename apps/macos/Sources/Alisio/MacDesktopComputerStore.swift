@@ -6,6 +6,29 @@ import SwiftUI
 
 import AlisioIPC
 import AlisioSupport
+
+@MainActor
+protocol MacDesktopComputerSessionDriving: Sendable {
+    func getSession(_ sessionKey: String) async throws -> GatewayConnection.ComputerSessionSnapshot
+    func updateSession(
+        _ sessionKey: String,
+        command: GatewayConnection.ComputerSessionCommand) async throws -> GatewayConnection.ComputerSessionSnapshot
+}
+
+@MainActor
+final class GatewayMacDesktopComputerSessionDriver: MacDesktopComputerSessionDriving, @unchecked Sendable {
+    func getSession(_ sessionKey: String) async throws -> GatewayConnection.ComputerSessionSnapshot {
+        try await GatewayConnection.shared.computerSession(sessionKey: sessionKey)
+    }
+
+    func updateSession(
+        _ sessionKey: String,
+        command: GatewayConnection.ComputerSessionCommand) async throws -> GatewayConnection.ComputerSessionSnapshot
+    {
+        try await GatewayConnection.shared.computerSession(sessionKey: sessionKey, command: command)
+    }
+}
+
 @MainActor
 @Observable
 final class MacDesktopComputerStore {
@@ -14,6 +37,8 @@ final class MacDesktopComputerStore {
     let sessionKey: String
 
     private(set) var sessionState: MacNodeComputerSessionLifecycleState = .stopped
+    private(set) var sessionStatus: GatewayConnection.ComputerSessionStatus = .stopped
+    private(set) var blockingState: GatewayConnection.ComputerBlockingState?
     private(set) var permissions = MacNodeComputerPermissionPayload(
         accessibility: false,
         screenRecording: false)
@@ -33,6 +58,9 @@ final class MacDesktopComputerStore {
     private let services: any MacNodeRuntimeMainActorServices
 
     @ObservationIgnored
+    private let sessionDriver: any MacDesktopComputerSessionDriving
+
+    @ObservationIgnored
     private var refreshTask: Task<Void, Never>?
 
     @ObservationIgnored
@@ -40,10 +68,12 @@ final class MacDesktopComputerStore {
 
     init(
         sessionKey: String,
-        services: any MacNodeRuntimeMainActorServices = LiveMacNodeRuntimeMainActorServices.shared)
+        services: any MacNodeRuntimeMainActorServices = LiveMacNodeRuntimeMainActorServices.shared,
+        sessionDriver: any MacDesktopComputerSessionDriving = GatewayMacDesktopComputerSessionDriver())
     {
         self.sessionKey = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "main" : sessionKey
         self.services = services
+        self.sessionDriver = sessionDriver
     }
 
     deinit {
@@ -51,7 +81,7 @@ final class MacDesktopComputerStore {
     }
 
     var needsPermissionGuidance: Bool {
-        !self.permissions.accessibility || !self.permissions.screenRecording
+        self.showsPermissionActions
     }
 
     var needsObservationPermission: Bool {
@@ -62,25 +92,55 @@ final class MacDesktopComputerStore {
         !self.permissions.accessibility
     }
 
+    var showsPermissionActions: Bool {
+        self.permissionRestartHint != nil || self.needsObservationPermission || self.needsControlPermission
+    }
+
     var canStartSession: Bool {
-        self.permissions.screenRecording
+        self.permissions.screenRecording && self.permissions.screenRecordingRestartRequired != true
     }
 
     var shouldAutoPresentPane: Bool {
-        self.sessionState != .stopped || self.frameImage != nil || self.observation != nil || self.errorText != nil
+        self.sessionStatus != .stopped ||
+            self.frameImage != nil ||
+            self.observation != nil ||
+            self.errorText != nil ||
+            self.blockingSummary != nil
+    }
+
+    var blockingSummary: String? {
+        let trimmed = self.blockingState?.summary.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     var statusLabel: String {
+        if let blockingSummary {
+            return blockingSummary
+        }
         if let errorText, !errorText.isEmpty {
             return errorText
         }
-        switch self.sessionState {
-        case .running:
+        switch self.sessionStatus {
+        case .running, .observing:
             return "Running"
         case .paused:
             return "Paused"
+        case .idle:
+            return self.runtime.connectionState == .running ? "Ready" : "Idle"
+        case .error:
+            return "Computer unavailable"
         case .stopped:
             return "Stopped"
+        case .blockedOnFocus:
+            return "Foreground control required"
+        case .blockedOnApproval:
+            return "Waiting for approval"
+        case .blockedOnRuntime:
+            return "Runtime busy"
+        case .blockedOnPermissions:
+            return "Permission required"
+        case .blockedOnRestartRequired:
+            return "Restart required"
         }
     }
 
@@ -102,9 +162,10 @@ final class MacDesktopComputerStore {
         guard stopSession else { return }
         Task {
             do {
-                let payload = try await self.services.stopComputerSession(self.sessionKey)
+                let session = try await self.sessionDriver.updateSession(self.sessionKey, command: .stop)
                 await MainActor.run {
-                    self.applySession(payload)
+                    self.applySession(session)
+                    self.clearObservation()
                 }
             } catch {
                 await MainActor.run {
@@ -131,10 +192,12 @@ final class MacDesktopComputerStore {
                 self.permissions = refreshedPermissions
                 PermissionRestartCoordinator.shared.markRequested(
                     capabilities,
-                    currentStatus: Self.statusDictionary(from: refreshedPermissions))
-                self.permissionRestartHint = Self.resolvePermissionRestartHint(
-                    requestedCapabilities: capabilities,
-                    permissions: refreshedPermissions)
+                    currentStatus: Self.statusDictionary(from: refreshedPermissions),
+                    restartRequired: Self.restartDictionary(from: refreshedPermissions))
+                self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: refreshedPermissions)
+                    ?? Self.resolveRequestedPermissionRestartHint(
+                        requestedCapabilities: capabilities,
+                        permissions: refreshedPermissions)
                 if refreshedPermissions.accessibility || refreshedPermissions.screenRecording {
                     self.errorText = nil
                 }
@@ -144,54 +207,59 @@ final class MacDesktopComputerStore {
     }
 
     func pause() {
-        self.transition { services, sessionKey in
-            try await services.pauseComputerSession(sessionKey)
-        }
+        self.transition(.pause)
     }
 
     func resume() {
-        self.transition { services, sessionKey in
-            try await services.resumeComputerSession(sessionKey)
-        }
+        self.transition(.resume)
     }
 
     func stop() {
-        self.transition { services, sessionKey in
-            try await services.stopComputerSession(sessionKey)
-        }
+        self.transition(.stop)
     }
 
     func start() {
+        if self.permissions.screenRecordingRestartRequired == true {
+            self.errorText = "Restart Alisio to refresh Screen Recording access"
+            self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
+            return
+        }
         guard self.canStartSession else {
             self.errorText = "Screen Recording permission required"
-            self.permissionRestartHint = Self.resolvePermissionRestartHint(
+            self.permissionRestartHint = Self.resolveRequestedPermissionRestartHint(
                 requestedCapabilities: [.screenRecording],
                 permissions: self.permissions)
             return
         }
-        self.transition { services, sessionKey in
-            try await services.startComputerSession(sessionKey)
+        self.transition(.start)
+    }
+
+    private var shouldObserveFrames: Bool {
+        guard self.permissions.screenRecording, self.permissions.screenRecordingRestartRequired != true else {
+            return false
+        }
+        guard self.runtime.connectionState == .running else { return false }
+        switch self.sessionState {
+        case .running, .paused:
+            return true
+        case .stopped:
+            return false
         }
     }
 
     private func bootstrap() async {
-        await self.refreshRuntimeAndPermissions()
-        if self.sessionState != .stopped {
-            await self.refreshObservationFrame()
-        }
-    }
-
-    private func refreshObservation() async {
-        await self.refreshRuntimeAndPermissions()
-        guard self.sessionState != .stopped else { return }
+        await self.refreshSessionState()
+        guard self.shouldObserveFrames else { return }
         await self.refreshObservationFrame()
     }
 
-    private func transition(
-        _ action: @escaping @Sendable (
-            any MacNodeRuntimeMainActorServices,
-            String) async throws -> MacNodeComputerSessionPayload)
-    {
+    private func refreshObservation() async {
+        await self.refreshSessionState()
+        guard self.shouldObserveFrames else { return }
+        await self.refreshObservationFrame()
+    }
+
+    private func transition(_ command: GatewayConnection.ComputerSessionCommand) {
         guard !self.isBusy else { return }
         self.isBusy = true
         Task {
@@ -201,17 +269,15 @@ final class MacDesktopComputerStore {
                 }
             }
             do {
-                let session = try await action(self.services, self.sessionKey)
+                let session = try await self.sessionDriver.updateSession(self.sessionKey, command: command)
                 await MainActor.run {
                     self.applySession(session)
-                    if session.state == .stopped {
-                        self.observation = nil
-                        self.frameImage = nil
+                    if session.status == .stopped {
+                        self.clearObservation()
                     }
                 }
-                if session.state != .stopped {
-                    await self.refreshObservation()
-                }
+                guard command != .stop else { return }
+                await self.refreshObservation()
             } catch {
                 await MainActor.run {
                     self.handle(error: error)
@@ -220,32 +286,55 @@ final class MacDesktopComputerStore {
         }
     }
 
-    private func applySession(_ session: MacNodeComputerSessionPayload) {
-        self.sessionState = session.state
-        self.permissions = session.permissions
-        self.runtime = session.health
-        self.errorText = session.health.lastError?.message
-        if session.permissions.accessibility && session.permissions.screenRecording {
-            self.permissionRestartHint = nil
+    private func applySession(_ session: GatewayConnection.ComputerSessionSnapshot) {
+        self.sessionStatus = session.status
+        self.blockingState = session.blocking
+        self.permissions = Self.permissionPayload(from: session.permissions)
+        self.runtime = Self.runtimePayload(from: session.runtime)
+        self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
+        if self.blockingSummary != nil {
+            self.errorText = nil
+        } else if let lastError = session.lastError?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !lastError.isEmpty
+        {
+            self.errorText = lastError
+        } else {
+            self.errorText = session.runtime?.lastError?.message
         }
+        Self.reconcileRestartCoordinator(permissions: self.permissions)
+        self.syncSessionStateFromSession()
     }
 
     private func handle(error: Error) {
         self.runtime = self.runtimeWith(error: error, fallback: self.runtime)
         self.errorText = self.userFacingMessage(for: error)
-        if self.runtime.helper?.activeSession?.sessionId == self.sessionKey {
-            self.sessionState = self.runtime.helper?.activeSession?.state ?? self.sessionState
+        self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
+        if let helperSession = self.runtime.helper?.activeSession,
+           helperSession.sessionId == self.sessionKey
+        {
+            self.sessionState = helperSession.state
         } else if self.runtime.connectionState == .invalidated || self.runtime.connectionState == .disabled {
+            self.sessionStatus = .blockedOnRuntime
+            self.blockingState = self.blockingState ?? GatewayConnection.ComputerBlockingState(
+                kind: .blockedOnRuntime,
+                reasonCode: "runtime_unavailable",
+                summary: "computer helper unavailable",
+                at: Int(Date().timeIntervalSince1970 * 1000))
             self.sessionState = .stopped
+            self.clearObservation()
         }
     }
 
-    private func refreshRuntimeAndPermissions() async {
-        self.runtime = await self.services.computerHealth(sessionId: self.sessionKey)
-        self.permissions = await self.refreshPermissionState(fallback: self.permissions)
-        self.syncSessionStateFromRuntime()
-        if self.permissions.accessibility && self.permissions.screenRecording {
-            self.permissionRestartHint = nil
+    private func refreshSessionState() async {
+        do {
+            let session = try await self.sessionDriver.getSession(self.sessionKey)
+            await MainActor.run {
+                self.applySession(session)
+            }
+        } catch {
+            await MainActor.run {
+                self.handle(error: error)
+            }
         }
     }
 
@@ -256,12 +345,14 @@ final class MacDesktopComputerStore {
             self.frameImage = Self.decodeImage(from: payload.frame.dataUrl)
             self.lastUpdatedAt = Date()
             self.errorText = nil
-            self.permissionRestartHint = nil
+            if self.permissionRestartHint == nil {
+                self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
+            }
             if let helperSession = self.runtime.helper?.activeSession,
                helperSession.sessionId == self.sessionKey
             {
                 self.sessionState = helperSession.state
-            } else {
+            } else if self.sessionState == .stopped {
                 self.sessionState = .running
             }
         } catch {
@@ -273,14 +364,16 @@ final class MacDesktopComputerStore {
         fallback: MacNodeComputerPermissionPayload) async -> MacNodeComputerPermissionPayload
     {
         do {
-            return try await self.services.computerPermissionState()
+            let permissions = try await self.services.computerPermissionState()
+            Self.reconcileRestartCoordinator(permissions: permissions)
+            return permissions
         } catch {
             self.logger.error("computer permissions refresh failed \(error.localizedDescription, privacy: .public)")
             return fallback
         }
     }
 
-    private func syncSessionStateFromRuntime() {
+    private func syncSessionStateFromSession() {
         if let helperSession = self.runtime.helper?.activeSession,
            helperSession.sessionId == self.sessionKey
         {
@@ -288,19 +381,95 @@ final class MacDesktopComputerStore {
             return
         }
 
-        if self.runtime.connectionState == .invalidated || self.runtime.connectionState == .disabled {
+        switch self.sessionStatus {
+        case .paused:
+            self.sessionState = .paused
+        case .running, .observing, .blockedOnFocus, .blockedOnApproval:
+            self.sessionState = .running
+        case .idle, .blockedOnRuntime:
+            if self.runtime.connectionState != .running {
+                self.sessionState = .stopped
+            }
+        case .blockedOnPermissions, .blockedOnRestartRequired, .error, .stopped:
             self.sessionState = .stopped
-            self.observation = nil
-            self.frameImage = nil
-            return
         }
 
-        self.sessionState = .stopped
+        if self.sessionState == .stopped &&
+            (self.sessionStatus == .stopped ||
+                self.sessionStatus == .blockedOnPermissions ||
+                self.sessionStatus == .blockedOnRestartRequired ||
+                self.runtime.connectionState == .invalidated ||
+                self.runtime.connectionState == .disabled)
+        {
+            self.clearObservation()
+        }
+    }
+
+    private func clearObservation() {
         self.observation = nil
         self.frameImage = nil
     }
 
+    private static func permissionPayload(
+        from permissions: GatewayConnection.ComputerPermissionSnapshot) -> MacNodeComputerPermissionPayload
+    {
+        let accessibility = permissions.accessibility
+            ?? (permissions.control == .granted || permissions.control == .restartRequired)
+        let screenRecording = permissions.screenRecording
+            ?? (permissions.observation == .granted || permissions.observation == .restartRequired)
+        return MacNodeComputerPermissionPayload(
+            accessibility: accessibility,
+            screenRecording: screenRecording,
+            accessibilityRestartRequired: permissions.control == .restartRequired,
+            screenRecordingRestartRequired: permissions.observation == .restartRequired)
+    }
+
+    private static func runtimePayload(
+        from runtime: GatewayConnection.ComputerRuntimeSnapshot?) -> MacNodeComputerRuntimeHealthPayload
+    {
+        guard let runtime else {
+            return MacNodeComputerRuntimeHealthPayload(
+                connectionState: .idle,
+                launchCount: 0,
+                helper: nil,
+                lastError: nil)
+        }
+        return MacNodeComputerRuntimeHealthPayload(
+            connectionState: runtime.connectionState,
+            launchCount: runtime.launchCount,
+            helper: MacNodeComputerHelperHealthPayload(
+                protocolVersion: runtime.helperProtocolVersion ?? macNodeComputerHelperProtocolVersion,
+                helperVersion: runtime.helperVersion ?? "gateway",
+                processId: Int32(runtime.helperProcessId ?? 0),
+                activeSession: runtime.activeSession.map {
+                    MacNodeComputerHelperSessionSummary(
+                        sessionId: $0.sessionKey,
+                        state: $0.state,
+                        updatedAt: $0.updatedAt)
+                },
+                lastError: runtime.lastError),
+            lastError: runtime.lastError)
+    }
+
     private static func resolvePermissionRestartHint(
+        permissions: MacNodeComputerPermissionPayload) -> String?
+    {
+        let observationRestart = permissions.screenRecordingRestartRequired == true
+        let controlRestart = permissions.accessibilityRestartRequired == true
+        guard observationRestart || controlRestart else {
+            return nil
+        }
+
+        if observationRestart && controlRestart {
+            return "Screen Recording and Accessibility were granted, but macOS still requires an Alisio restart."
+        }
+        if observationRestart {
+            return "Screen Recording was granted, but macOS still requires an Alisio restart."
+        }
+        return "Accessibility was granted, but macOS still requires an Alisio restart."
+    }
+
+    private static func resolveRequestedPermissionRestartHint(
         requestedCapabilities: [Capability],
         permissions: MacNodeComputerPermissionPayload) -> String?
     {
@@ -383,4 +552,61 @@ final class MacDesktopComputerStore {
             .screenRecording: permissions.screenRecording,
         ]
     }
+
+    private static func restartDictionary(
+        from permissions: MacNodeComputerPermissionPayload) -> [Capability: Bool]
+    {
+        [
+            .accessibility: permissions.accessibilityRestartRequired == true,
+            .screenRecording: permissions.screenRecordingRestartRequired == true,
+        ]
+    }
+
+    private static func reconcileRestartCoordinator(permissions: MacNodeComputerPermissionPayload) {
+        PermissionRestartCoordinator.shared.reconcile(
+            status: self.statusDictionary(from: permissions),
+            restartRequired: self.restartDictionary(from: permissions))
+    }
 }
+
+#if DEBUG
+@MainActor
+extension MacDesktopComputerStore {
+    static func preview(
+        sessionKey: String = "main",
+        sessionState: MacNodeComputerSessionLifecycleState = .stopped,
+        permissions: MacNodeComputerPermissionPayload = MacNodeComputerPermissionPayload(
+            accessibility: true,
+            screenRecording: true),
+        runtime: MacNodeComputerRuntimeHealthPayload = MacNodeComputerRuntimeHealthPayload(
+            connectionState: .running,
+            launchCount: 1,
+            helper: nil,
+            lastError: nil),
+        observation: MacNodeComputerObservePayload? = nil,
+        frameImage: NSImage? = nil,
+        errorText: String? = nil,
+        lastUpdatedAt: Date? = nil,
+        permissionRestartHint: String? = nil) -> MacDesktopComputerStore
+    {
+        let store = MacDesktopComputerStore(sessionKey: sessionKey)
+        store.sessionState = sessionState
+        store.sessionStatus = switch sessionState {
+        case .running:
+            .running
+        case .paused:
+            .paused
+        case .stopped:
+            .stopped
+        }
+        store.permissions = permissions
+        store.runtime = runtime
+        store.observation = observation
+        store.frameImage = frameImage
+        store.errorText = errorText
+        store.lastUpdatedAt = lastUpdatedAt
+        store.permissionRestartHint = permissionRestartHint
+        return store
+    }
+}
+#endif

@@ -68,6 +68,82 @@ public struct AlisioChatSessionEntry: Codable, Identifiable, Sendable, Hashable 
     public let modelProvider: String?
     public let model: String?
     public let contextTokens: Int?
+
+    public init(
+        key: String,
+        kind: String?,
+        displayName: String?,
+        surface: String?,
+        subject: String?,
+        room: String?,
+        space: String?,
+        updatedAt: Double?,
+        sessionId: String?,
+        systemSent: Bool?,
+        abortedLastRun: Bool?,
+        thinkingLevel: String?,
+        verboseLevel: String?,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        totalTokens: Int?,
+        modelProvider: String?,
+        model: String?,
+        contextTokens: Int?)
+    {
+        self.key = key
+        self.kind = kind
+        self.displayName = displayName
+        self.surface = surface
+        self.subject = subject
+        self.room = room
+        self.space = space
+        self.updatedAt = updatedAt
+        self.sessionId = sessionId
+        self.systemSent = systemSent
+        self.abortedLastRun = abortedLastRun
+        self.thinkingLevel = thinkingLevel
+        self.verboseLevel = verboseLevel
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.totalTokens = totalTokens
+        self.modelProvider = modelProvider
+        self.model = model
+        self.contextTokens = contextTokens
+    }
+}
+
+public struct AlisioChatSessionContextUsage: Equatable, Sendable {
+    public let inputTokens: Int
+    public let outputTokens: Int
+    public let totalTokens: Int
+    public let contextWindow: Int
+
+    public init(inputTokens: Int, outputTokens: Int, totalTokens: Int, contextWindow: Int) {
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.totalTokens = totalTokens
+        self.contextWindow = contextWindow
+    }
+
+    public init?(session: AlisioChatSessionEntry) {
+        let input = max(0, session.inputTokens ?? 0)
+        let output = max(0, session.outputTokens ?? 0)
+        let total = max(0, session.totalTokens ?? (input + output))
+        let contextWindow = max(0, session.contextTokens ?? 0)
+        guard input > 0 || output > 0 || total > 0 || contextWindow > 0 else {
+            return nil
+        }
+        self.init(
+            inputTokens: input,
+            outputTokens: output,
+            totalTokens: total,
+            contextWindow: contextWindow)
+    }
+
+    public var percentUsed: Int? {
+        guard self.contextWindow > 0, self.totalTokens > 0 else { return nil }
+        return min(100, Int(round((Double(self.totalTokens) / Double(self.contextWindow)) * 100)))
+    }
 }
 
 public struct AlisioChatSessionsListResponse: Codable, Sendable {

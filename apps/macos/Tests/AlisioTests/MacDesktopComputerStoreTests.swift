@@ -11,10 +11,16 @@ struct MacDesktopComputerStoreTests {
     @Test func `activate tracks an existing local computer session and captures a frame`() async throws {
         let services = FakeMainActorServices(
             permissions: .init(accessibility: true, screenRecording: true),
-            health: Self.makeHealth(sessionId: "main", state: .running),
-            sessionState: .running,
             observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let store = MacDesktopComputerStore(sessionKey: "", services: services)
+        let sessionDriver = FakeComputerSessionDriver(
+            snapshot: Self.makeSessionSnapshot(
+                sessionId: "main",
+                status: .running,
+                lifecycleState: .running))
+        let store = MacDesktopComputerStore(
+            sessionKey: "",
+            services: services,
+            sessionDriver: sessionDriver)
 
         store.activate()
         defer { store.deactivate(stopSession: true) }
@@ -28,17 +34,25 @@ struct MacDesktopComputerStoreTests {
         #expect(store.observation?.context.activeApp?.name == "Finder")
         #expect(store.observation?.context.activeWindow?.title == "Desktop")
         #expect(store.needsPermissionGuidance == false)
-        #expect(services.startCalls == 0)
+        #expect(store.shouldAutoPresentPane == true)
+        #expect(store.statusLabel == "Running")
+        #expect(sessionDriver.commandCalls.isEmpty)
         #expect(services.observeCalls >= 1)
     }
 
     @Test func `activate does not auto-start a stopped session`() async throws {
         let services = FakeMainActorServices(
             permissions: .init(accessibility: true, screenRecording: true),
-            health: Self.makeHealth(sessionId: nil, state: nil),
-            sessionState: .running,
             observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let store = MacDesktopComputerStore(sessionKey: "main", services: services)
+        let sessionDriver = FakeComputerSessionDriver(
+            snapshot: Self.makeSessionSnapshot(
+                sessionId: "main",
+                status: .stopped,
+                lifecycleState: nil))
+        let store = MacDesktopComputerStore(
+            sessionKey: "main",
+            services: services,
+            sessionDriver: sessionDriver)
 
         store.activate()
         defer { store.deactivate(stopSession: true) }
@@ -49,17 +63,34 @@ struct MacDesktopComputerStoreTests {
 
         #expect(store.frameImage == nil)
         #expect(store.observation == nil)
-        #expect(services.startCalls == 0)
+        #expect(store.shouldAutoPresentPane == false)
+        #expect(sessionDriver.commandCalls.isEmpty)
         #expect(services.observeCalls == 0)
     }
 
     @Test func `start explicitly begins a stopped session once observation permission exists`() async throws {
         let services = FakeMainActorServices(
             permissions: .init(accessibility: true, screenRecording: true),
-            health: Self.makeHealth(sessionId: nil, state: nil),
-            sessionState: .running,
             observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let store = MacDesktopComputerStore(sessionKey: "main", services: services)
+        let sessionDriver = FakeComputerSessionDriver(
+            snapshot: Self.makeSessionSnapshot(
+                sessionId: "main",
+                status: .stopped,
+                lifecycleState: nil),
+            updatedSnapshots: [
+                .start: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .idle,
+                    lifecycleState: .running),
+                .stop: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .stopped,
+                    lifecycleState: nil),
+            ])
+        let store = MacDesktopComputerStore(
+            sessionKey: "main",
+            services: services,
+            sessionDriver: sessionDriver)
 
         store.activate()
         try await self.waitUntil("screen recording state to refresh") {
@@ -72,20 +103,31 @@ struct MacDesktopComputerStoreTests {
             store.frameImage != nil && store.sessionState == .running
         }
 
-        #expect(services.startCalls >= 1)
+        #expect(sessionDriver.commandCalls.contains(.start))
         #expect(services.observeCalls >= 1)
     }
 
     @Test func `activate surfaces permission guidance when observation is blocked`() async throws {
         let services = FakeMainActorServices(
             permissions: .init(accessibility: false, screenRecording: true),
-            health: Self.makeHealth(sessionId: "main", state: .running),
-            sessionState: .running,
             observationResult: .failure(NSError(
                 domain: "MacDesktopComputerStoreTests",
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "PERMISSION_MISSING: accessibility"])))
-        let store = MacDesktopComputerStore(sessionKey: "main", services: services)
+        let sessionDriver = FakeComputerSessionDriver(
+            snapshot: Self.makeSessionSnapshot(
+                sessionId: "main",
+                status: .running,
+                lifecycleState: .running,
+                permissions: .init(
+                    accessibility: false,
+                    screenRecording: true,
+                    observation: .granted,
+                    control: .missing)))
+        let store = MacDesktopComputerStore(
+            sessionKey: "main",
+            services: services,
+            sessionDriver: sessionDriver)
 
         store.activate()
         defer { store.deactivate(stopSession: true) }
@@ -96,8 +138,55 @@ struct MacDesktopComputerStoreTests {
 
         #expect(store.errorText == "Accessibility permission required")
         #expect(store.needsPermissionGuidance == true)
+        #expect(store.shouldAutoPresentPane == true)
+        #expect(store.statusLabel == "Accessibility permission required")
         #expect(store.runtime.lastError?.code == .permissionMissing)
         #expect(store.runtime.lastError?.permission == "accessibility")
+    }
+
+    @Test func `shared session restart required surfaces honest restart guidance`() async throws {
+        let services = FakeMainActorServices(
+            permissions: .init(
+                accessibility: true,
+                screenRecording: true,
+                accessibilityRestartRequired: true,
+                screenRecordingRestartRequired: true),
+            observationResult: .success(Self.makeObservation(sessionId: "main")))
+        let sessionDriver = FakeComputerSessionDriver(
+            snapshot: Self.makeSessionSnapshot(
+                sessionId: "main",
+                status: .blockedOnRestartRequired,
+                lifecycleState: nil,
+                permissions: .init(
+                    accessibility: true,
+                    screenRecording: true,
+                    observation: .restartRequired,
+                    control: .restartRequired),
+                blocking: .init(
+                    kind: .blockedOnRestartRequired,
+                    reasonCode: "observation_restart_required",
+                    summary: "Restart Alisio to pick up newly granted Screen Recording access.",
+                    at: 1)))
+        let store = MacDesktopComputerStore(
+            sessionKey: "main",
+            services: services,
+            sessionDriver: sessionDriver)
+
+        store.activate()
+        defer { store.deactivate(stopSession: true) }
+
+        try await self.waitUntil("restart hint to surface") {
+            store.permissionRestartHint != nil
+        }
+
+        #expect(store.canStartSession == false)
+        #expect(store.shouldAutoPresentPane == true)
+        #expect(store.blockingSummary == "Restart Alisio to pick up newly granted Screen Recording access.")
+        #expect(
+            store.permissionRestartHint ==
+                "Screen Recording and Accessibility were granted, but macOS still requires an Alisio restart.")
+        #expect(store.showsPermissionActions == true)
+        #expect(services.observeCalls == 0)
     }
 
     private func waitUntil(
@@ -154,20 +243,31 @@ struct MacDesktopComputerStoreTests {
                 capturedAt: now))
     }
 
-    private static func makeHealth(
-        sessionId: String?,
-        state: MacNodeComputerSessionLifecycleState?) -> MacNodeComputerRuntimeHealthPayload
+    private static func makeSessionSnapshot(
+        sessionId: String,
+        status: GatewayConnection.ComputerSessionStatus,
+        lifecycleState: MacNodeComputerSessionLifecycleState?,
+        permissions: GatewayConnection.ComputerPermissionSnapshot = .init(
+            accessibility: true,
+            screenRecording: true,
+            observation: .granted,
+            control: .granted),
+        blocking: GatewayConnection.ComputerBlockingState? = nil) -> GatewayConnection.ComputerSessionSnapshot
     {
-        MacNodeComputerRuntimeHealthPayload(
-            connectionState: .running,
-            launchCount: 1,
-            helper: .init(
-                protocolVersion: macNodeComputerHelperProtocolVersion,
+        GatewayConnection.ComputerSessionSnapshot(
+            sessionKey: sessionId,
+            status: status,
+            blocking: blocking,
+            permissions: permissions,
+            runtime: .init(
+                connectionState: .running,
+                launchCount: 1,
+                helperProtocolVersion: macNodeComputerHelperProtocolVersion,
                 helperVersion: "test",
-                processId: 42,
+                helperProcessId: 42,
                 activeSession: {
-                    guard let sessionId, let state else { return nil }
-                    return .init(sessionId: sessionId, state: state, updatedAt: 1)
+                    guard let lifecycleState else { return nil }
+                    return .init(sessionKey: sessionId, state: lifecycleState, updatedAt: 1)
                 }(),
                 lastError: nil),
             lastError: nil)
@@ -180,58 +280,16 @@ struct MacDesktopComputerStoreTests {
 @MainActor
 private final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unchecked Sendable {
     let permissions: MacNodeComputerPermissionPayload
-    let healthPayload: MacNodeComputerRuntimeHealthPayload
-    let sessionState: MacNodeComputerSessionLifecycleState
     let observationResult: Result<MacNodeComputerObservePayload, Error>
 
-    private(set) var startCalls = 0
-    private(set) var stopCalls = 0
     private(set) var observeCalls = 0
 
     init(
         permissions: MacNodeComputerPermissionPayload,
-        health: MacNodeComputerRuntimeHealthPayload,
-        sessionState: MacNodeComputerSessionLifecycleState,
         observationResult: Result<MacNodeComputerObservePayload, Error>)
     {
         self.permissions = permissions
-        self.healthPayload = health
-        self.sessionState = sessionState
         self.observationResult = observationResult
-    }
-
-    func startComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        self.startCalls += 1
-        return .init(
-            sessionId: sessionId,
-            state: self.sessionState,
-            permissions: self.permissions,
-            health: self.healthPayload)
-    }
-
-    func stopComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        self.stopCalls += 1
-        return .init(
-            sessionId: sessionId,
-            state: .stopped,
-            permissions: self.permissions,
-            health: self.healthPayload)
-    }
-
-    func pauseComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        .init(
-            sessionId: sessionId,
-            state: .paused,
-            permissions: self.permissions,
-            health: self.healthPayload)
-    }
-
-    func resumeComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        .init(
-            sessionId: sessionId,
-            state: .running,
-            permissions: self.permissions,
-            health: self.healthPayload)
     }
 
     func observeComputer(_ sessionId: String) async throws -> MacNodeComputerObservePayload {
@@ -255,11 +313,20 @@ private final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unc
     }
 
     func computerHealth(sessionId: String?) async -> MacNodeComputerRuntimeHealthPayload {
-        self.healthPayload
+        MacNodeComputerRuntimeHealthPayload(
+            connectionState: .running,
+            launchCount: 1,
+            helper: .init(
+                protocolVersion: macNodeComputerHelperProtocolVersion,
+                helperVersion: "test",
+                processId: 42,
+                activeSession: nil,
+                lastError: nil),
+            lastError: nil)
     }
 
     func killComputerHelper() async -> MacNodeComputerRuntimeHealthPayload {
-        self.healthPayload
+        await self.computerHealth(sessionId: nil)
     }
 
     func recordScreen(
@@ -290,5 +357,38 @@ private final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unc
         timeoutMs: Int?) async throws -> CLLocation
     {
         CLLocation(latitude: 0, longitude: 0)
+    }
+}
+
+@MainActor
+private final class FakeComputerSessionDriver: MacDesktopComputerSessionDriving, @unchecked Sendable {
+    private(set) var snapshot: GatewayConnection.ComputerSessionSnapshot
+    private let updatedSnapshots: [GatewayConnection.ComputerSessionCommand: GatewayConnection.ComputerSessionSnapshot]
+
+    private(set) var commandCalls: [GatewayConnection.ComputerSessionCommand] = []
+
+    init(
+        snapshot: GatewayConnection.ComputerSessionSnapshot,
+        updatedSnapshots: [GatewayConnection.ComputerSessionCommand: GatewayConnection.ComputerSessionSnapshot] = [:])
+    {
+        self.snapshot = snapshot
+        self.updatedSnapshots = updatedSnapshots
+    }
+
+    func getSession(_ sessionKey: String) async throws -> GatewayConnection.ComputerSessionSnapshot {
+        #expect(sessionKey.isEmpty == false)
+        return self.snapshot
+    }
+
+    func updateSession(
+        _ sessionKey: String,
+        command: GatewayConnection.ComputerSessionCommand) async throws -> GatewayConnection.ComputerSessionSnapshot
+    {
+        #expect(sessionKey.isEmpty == false)
+        self.commandCalls.append(command)
+        if let updated = self.updatedSnapshots[command] {
+            self.snapshot = updated
+        }
+        return self.snapshot
     }
 }
