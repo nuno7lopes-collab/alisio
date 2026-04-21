@@ -1,5 +1,5 @@
 ---
-summary: "Complete reference for CLI setup flow, auth/model setup, outputs, and internals"
+summary: "Complete reference for the CLI and shared-backend setup flow, auth/model setup, outputs, and internals"
 read_when:
   - You need detailed behavior for alisio onboard
   - You are debugging onboarding results or integrating onboarding clients
@@ -10,6 +10,7 @@ sidebarTitle: "CLI reference"
 # CLI Setup Reference
 
 This page is the full reference for `alisio onboard`.
+It documents the secondary CLI path for backend, operator, and non-macOS setup.
 For the short guide, see [Onboarding (CLI)](/start/wizard).
 
 ## What the wizard does
@@ -24,7 +25,7 @@ Local mode (default) walks you through:
 - Health check
 - Skills setup
 
-Remote mode configures this machine to connect to a gateway elsewhere.
+Remote mode configures this machine to connect to a backend elsewhere.
 It does not install or modify anything on the remote host.
 
 ## Local flow details
@@ -97,8 +98,7 @@ It does not install or modify anything on the remote host.
 </Steps>
 
 <Note>
-If no GUI is detected, the wizard prints SSH port-forward instructions for the legacy browser admin surface instead of opening a browser.
-If browser admin assets are missing, the wizard attempts to build them; fallback is `pnpm ui:build` (auto-installs UI deps).
+If no GUI is detected, the wizard stays on the CLI path and prints next-step commands for operator access instead of trying to open a browser surface.
 </Note>
 
 ## Remote mode details
@@ -280,7 +280,7 @@ Gateway wizard RPC:
 - `wizard.cancel`
 - `wizard.status`
 
-Clients (macOS app and the legacy browser surface) can render steps without re-implementing onboarding logic.
+Clients such as the macOS app can render steps without re-implementing onboarding logic.
 
 Signal setup behavior:
 

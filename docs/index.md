@@ -1,5 +1,5 @@
 ---
-summary: "Alisio is a desktop-first AI workspace that starts on macOS and extends across channels, devices, and servers."
+summary: "Alisio is an account-backed AI workspace that starts on macOS and extends across channels, devices, and a shared backend."
 read_when:
   - Introducing Alisio to newcomers
 title: "Alisio"
@@ -13,7 +13,7 @@ title: "Alisio"
 
 <p align="center">
   <strong>Desktop-first AI for your own computer.</strong><br />
-  Start on macOS, choose OpenAI, Local, or Server, then add channels, devices, and automations.
+  Start on macOS, sign in, choose OpenAI, Local, or Server, then add channels, devices, and automations around a shared backend.
 </p>
 
 <Columns>
@@ -21,7 +21,7 @@ title: "Alisio"
     What Alisio is, who it is for, and what the first sellable product looks like.
   </Card>
   <Card title="Getting Started" href="/start/getting-started" icon="rocket">
-    Install the macOS app, sign in, grant permissions, and choose your AI source.
+    Install the macOS app, sign in with your Alisio account, grant permissions, and choose your AI source.
   </Card>
   <Card title="macOS App" href="/platforms/macos" icon="monitor-smartphone">
     The primary product shell for setup, permissions, devices, and daily use.
@@ -32,11 +32,11 @@ title: "Alisio"
 
 Alisio is a personal AI workspace that runs on your own computer and expands outward from there.
 
-The desktop app is the center. Around it, you can add:
+The native macOS app is the center. Sign-in is required because the workspace is account-backed. Around it, you can add:
 
-- OpenAI accounts and API keys
+- your Alisio account plus OpenAI credentials when needed
 - local models on the machine you are using
-- OpenAI-compatible servers on other machines
+- a shared backend on this machine or another machine
 - channels such as WhatsApp, Telegram, Slack, Discord, and email
 - connectors, apps, and skills from a local marketplace on each computer
 - paired computers for camera, voice, screen, notifications, and automation
@@ -47,7 +47,7 @@ The desktop app is the center. Around it, you can add:
 flowchart LR
   A["Alisio on your Mac"] --> B["OpenAI"]
   A --> C["Local models"]
-  A --> D["Servers"]
+  A --> D["Shared backend"]
   A --> E["Channels"]
   A --> F["Connectors and apps"]
   A --> G["Paired devices"]
@@ -75,6 +75,6 @@ flowchart LR
     Durable context stored in your workspace.
   </Card>
   <Card title="Help" href="/help" icon="life-buoy">
-    Troubleshooting, environment details, and advanced setup paths.
+    Troubleshooting, environment details, and backend/operator setup paths.
   </Card>
 </Columns>

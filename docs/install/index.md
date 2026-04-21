@@ -1,5 +1,5 @@
 ---
-summary: "Install Alisio — installer script, npm/pnpm, from source, Docker, and more"
+summary: "Backend and CLI install paths for Alisio: installer script, npm/pnpm, source, Docker, and more"
 read_when:
   - You need an install method other than the Getting Started quickstart
   - You want to deploy to a cloud platform
@@ -9,9 +9,15 @@ title: "Install"
 
 # Install
 
-## Recommended: installer script
+If you want the main product path, do not start here.
 
-The fastest way to install. It detects your OS, installs Node if needed, installs Alisio, and launches onboarding.
+Start with [Getting Started](/start/getting-started): install the macOS app, sign in with your Alisio account, grant permissions, and choose your AI source.
+
+This page is for shared backend, CLI, server, container, and operator installs.
+
+## Recommended: installer script for backend and CLI setups
+
+The fastest way to install the shared backend and CLI runtime. It detects your OS, installs Node if needed, installs Alisio, and launches onboarding.
 
 <Tabs>
   <Tab title="macOS / Linux / WSL2">
@@ -46,7 +52,9 @@ For all flags and CI/automation options, see [Installer internals](/install/inst
 ## System requirements
 
 - **Node 24** (recommended) or Node 22.14+ — the installer script handles this automatically
-- **macOS, Linux, or Windows** — both native Windows and WSL2 are supported; WSL2 is more stable. See [Windows](/platforms/windows).
+- **macOS, Linux, or Windows/WSL2** for backend and CLI setups
+- **Primary product shell:** macOS app now
+- **Windows desktop frontend:** later; today use WSL2 or backend/CLI paths when you know why
 - `pnpm` is only needed if you build from source
 
 ## Alternative install methods
@@ -130,7 +138,7 @@ npm install -g github:alisio/alisio#main
 ```bash
 alisio --version      # confirm the CLI is available
 alisio doctor         # check for config issues
-alisio gateway status # verify the Gateway is running
+alisio gateway status # verify the shared backend is running
 ```
 
 ## Hosting and deployment

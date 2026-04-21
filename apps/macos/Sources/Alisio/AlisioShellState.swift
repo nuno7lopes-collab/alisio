@@ -2,50 +2,17 @@ import Foundation
 import Observation
 
 import AlisioSupport
-@MainActor
-@Observable
-final class AlisioOnboardingState {
-    enum Step: String, CaseIterable, Identifiable {
-        case welcome
-        case gateway
-        case setup
-        case permissions
-        case finish
-
-        var id: String { self.rawValue }
-    }
-
-    enum GatewayChoice: String, CaseIterable, Identifiable {
-        case local
-        case remote
-        case unconfigured
-
-        var id: String { self.rawValue }
-    }
-
-    var currentStep: Step = .welcome
-    var selectedGateway: GatewayChoice = .local
-    var permissionStates: [String: Bool] = [:]
-    var isWizardComplete = false
-    var isComplete = false
-
-    static func requiresCompletion() -> Bool {
-        false
-    }
-}
 
 @MainActor
 @Observable
 final class AlisioShellState {
     enum Route: String, CaseIterable, Identifiable {
         case onboarding
-        case home
         case chat
         case authentications
         case automations
         case agents
         case organization
-        case sessions
         case settings
 
         var id: String { self.rawValue }
@@ -53,39 +20,17 @@ final class AlisioShellState {
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         case workspace
-        case communications
-        case appearance
-        case automation
-        case infrastructure
-        case aiAgents
         case mac
         case debug
-        case logs
 
         var id: String { self.rawValue }
-
-        var queryValue: String? {
-            switch self {
-            case .workspace, .appearance:
-                return "general"
-            case .communications:
-                return "support"
-            case .automation, .aiAgents, .debug, .logs:
-                return "account"
-            case .infrastructure, .mac:
-                return "mac"
-            }
-        }
     }
-
-    let onboardingState = AlisioOnboardingState()
 
     var route: Route
     var activeSessionKey: String?
     var settingsSection: SettingsSection = .workspace
 
     init() {
-        self.onboardingState.isComplete = true
         self.route = .chat
     }
 
@@ -108,49 +53,11 @@ final class AlisioShellState {
         self.route = route
     }
 
-    var requiresOnboarding: Bool {
-        false
-    }
-
     func completeOnboarding(preferredSessionKey: String? = nil) {
-        self.onboardingState.currentStep = .finish
-        self.onboardingState.isComplete = true
         if let preferredSessionKey, !preferredSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.activeSessionKey = preferredSessionKey
         }
         self.route = .chat
-    }
-
-    func workspacePath() -> String {
-        switch self.route {
-        case .onboarding:
-            return "/setup"
-        case .home:
-            return "/chat"
-        case .chat:
-            if let activeSessionKey, !activeSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "/chat?session=\(Self.encodeQueryValue(activeSessionKey))"
-            }
-            return "/chat"
-        case .authentications:
-            return "/authentications"
-        case .automations:
-            return "/cron"
-        case .agents:
-            return "/capabilities"
-        case .organization:
-            return "/connections"
-        case .sessions:
-            if let activeSessionKey, !activeSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return "/chat?session=\(Self.encodeQueryValue(activeSessionKey))"
-            }
-            return "/chat"
-        case .settings:
-            if let section = self.settingsSection.queryValue, section != "general" {
-                return "/settings?section=\(Self.encodeQueryValue(section))"
-            }
-            return "/settings"
-        }
     }
 
     private static func mapSettings(_ tab: SettingsTab) -> (route: Route, section: SettingsSection?) {
@@ -176,9 +83,5 @@ final class AlisioShellState {
         case .about:
             (.settings, .workspace)
         }
-    }
-
-    private static func encodeQueryValue(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
     }
 }

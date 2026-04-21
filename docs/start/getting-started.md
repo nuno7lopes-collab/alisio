@@ -1,5 +1,5 @@
 ---
-summary: "Install Alisio on macOS, sign in, choose your AI source, and run the first workflow."
+summary: "Install Alisio on macOS, sign in with your account, choose your AI source, and run the first workflow."
 read_when:
   - First time setup from zero
   - You want the real desktop-first path
@@ -10,11 +10,12 @@ title: "Getting Started"
 
 The recommended path starts with the macOS app.
 
-You install Alisio, sign in, grant the permissions you want, choose how AI should run on that computer, and then connect the channels, apps, and other computers you care about.
+You install Alisio, sign in with your Alisio account, grant the permissions you want, choose how AI should run on that computer, and then connect the channels, apps, and other computers you care about.
 
 ## What You Need
 
 - **A Mac** for the primary desktop experience
+- **An Alisio account** because sign-in is required
 - **An OpenAI account** or **API key**, if you want hosted AI on day one
 - Optional: **a local model runtime** or **a private server** if you want Alisio to run outside OpenAI
 
@@ -25,7 +26,7 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
     Install **Alisio.app** and launch it.
 
     <Note>
-    Linux, Windows, and headless gateway installs use the dedicated install and CLI docs. Use those paths only when you are intentionally running Alisio without the Mac app.
+    The product path is macOS now. Windows follows later as a desktop frontend. Use the install and CLI docs only when you intentionally need backend, server, or operator setup outside the Mac app.
     </Note>
 
   </Step>
@@ -61,7 +62,7 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
 
     - **OpenAI**: fastest path, with OAuth or API key
     - **Local**: run a local model on this Mac
-    - **Server**: connect an OpenAI-compatible server you control
+    - **Server**: connect a shared OpenAI-compatible backend you control
 
     You can add more than one source later and choose fallbacks.
 
@@ -97,8 +98,8 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
   <Card title="Local models" href="/gateway/local-models" icon="cpu">
     Best when privacy, ownership, or low-latency local loops matter more.
   </Card>
-  <Card title="Servers" href="/gateway/local-models" icon="server">
-    Best when another machine should host an OpenAI-compatible runtime.
+  <Card title="Shared backend" href="/gateway/local-models" icon="server">
+    Best when another machine should host the runtime for this workspace.
   </Card>
 </Columns>
 
@@ -119,11 +120,11 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
   </Card>
 </Columns>
 
-<Accordion title="Advanced and non-macOS setups">
-  If you are deliberately running Alisio without the macOS app:
+<Accordion title="Secondary backend and operator paths">
+  If you are deliberately setting up Alisio outside the macOS product flow:
 
 - Use [Onboarding Overview](/start/onboarding-overview) to choose the right setup path.
 - Use [Onboarding (CLI)](/start/wizard) for terminal-led setup.
-- Use [Install](/install) for containers, servers, and hosted deployments.
+- Use [Install](/install) for shared backend, containers, servers, and hosted deployments.
 - Use [Environment](/help/environment) for advanced paths such as `ALISIO_HOME`, `ALISIO_STATE_DIR`, and `ALISIO_CONFIG_PATH`.
   </Accordion>

@@ -39,7 +39,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
 
     init(route: AlisioShellState.Route) {
         switch route {
-        case .chat, .home, .onboarding, .sessions:
+        case .chat, .onboarding:
             self = .chat
         case .authentications:
             self = .apps
@@ -115,19 +115,11 @@ struct AlisioWorkspaceRootView: View {
 
     private var settingsTab: SettingsTab {
         switch self.shellState.settingsSection {
-        case .workspace, .appearance:
+        case .workspace:
             .general
-        case .communications:
-            .channels
-        case .automation:
-            .cron
-        case .infrastructure:
-            .instances
-        case .aiAgents:
-            .skills
         case .mac:
             .permissions
-        case .debug, .logs:
+        case .debug:
             .debug
         }
     }
@@ -248,7 +240,7 @@ struct AlisioWorkspaceRootView: View {
                         .foregroundStyle(self.palette.secondaryText)
                 }
                 Spacer()
-                if self.shellState.route == .chat || self.shellState.route == .home {
+                if self.shellState.route == .chat {
                     AlisioChip(title: self.resolvedSessionKey, tint: self.palette.accent, palette: self.palette)
                 }
             }
@@ -267,7 +259,7 @@ struct AlisioWorkspaceRootView: View {
 
     private var stageTitle: String {
         switch self.shellState.route {
-        case .chat, .home, .sessions:
+        case .chat:
             "Chat"
         case .authentications:
             "Apps"
@@ -286,7 +278,7 @@ struct AlisioWorkspaceRootView: View {
 
     private var stageSubtitle: String {
         switch self.shellState.route {
-        case .chat, .home, .sessions:
+        case .chat:
             "Native chat, memory, and a real macOS inspector for computer use."
         case .authentications:
             "Configure connected apps and account surfaces."
@@ -307,9 +299,9 @@ struct AlisioWorkspaceRootView: View {
     private func workspaceContent(compact: Bool) -> some View {
         switch self.shellState.route {
         case .onboarding:
-            OnboardingView(state: self.state, shellOnboarding: self.shellState.onboardingState)
+            OnboardingView(state: self.state)
                 .padding(compact ? 14 : 24)
-        case .home, .chat, .sessions:
+        case .chat:
             WorkspaceChatStage(
                 sessionKey: self.resolvedSessionKey,
                 state: self.state,

@@ -1,5 +1,5 @@
 ---
-summary: "Choose between the desktop-first macOS flow and the secondary CLI/on-server setup paths."
+summary: "Choose between the native macOS product flow and the secondary CLI/shared-backend setup paths."
 read_when:
   - Choosing an onboarding path
   - Explaining setup options to a new user
@@ -11,19 +11,21 @@ sidebarTitle: "Onboarding Overview"
 
 Alisio has two setup paths.
 
-The default path is the macOS app. The CLI path is for operators, servers, and non-macOS environments.
+The default path is the macOS app. The CLI path is for shared backend, operators, servers, and non-macOS environments.
 
 ## Which Path Should I Use?
 
-|                       | macOS app onboarding           | CLI onboarding                 |
-| --------------------- | ------------------------------ | ------------------------------ |
-| **Recommended**       | Yes                            | Only when needed               |
-| **Best for**          | Daily desktop use on a Mac     | Servers, headless, automation  |
-| **What it optimizes** | Sign-in, permissions, AI setup | Control, scripting, operations |
-| **Primary surface**   | App UI                         | Terminal                       |
-| **Command**           | Launch the app                 | `alisio onboard`               |
+|                       | macOS app onboarding           | CLI onboarding                      |
+| --------------------- | ------------------------------ | ----------------------------------- |
+| **Recommended**       | Yes                            | Only when needed                    |
+| **Best for**          | Daily desktop use on a Mac     | Shared backend, servers, automation |
+| **What it optimizes** | Sign-in, permissions, AI setup | Control, scripting, operations      |
+| **Primary surface**   | App UI                         | Terminal                            |
+| **Command**           | Launch the app                 | `alisio onboard`                    |
 
 If you are setting up a Mac for daily use, start with **macOS app onboarding**.
+
+Windows desktop frontend follows later. Today, Windows is part of the backend and runtime story, not the main product onboarding path.
 
 ## What Onboarding Configures
 
@@ -54,8 +56,8 @@ Reference: [Onboarding (macOS App)](/start/onboarding)
 
 Use this when:
 
-- you are setting up Linux or Windows
-- you are running a remote or headless gateway
+- you are setting up Linux or Windows/WSL2
+- you are running a remote or headless shared backend
 - you need a scripted or operator-led flow
 
 Reference: [Onboarding (CLI)](/start/wizard)

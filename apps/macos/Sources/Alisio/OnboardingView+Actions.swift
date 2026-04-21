@@ -10,7 +10,6 @@ extension OnboardingView {
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
         GatewayDiscoveryPreferences.setPreferredStableID(nil)
-        self.syncShellOnboardingState()
     }
 
     func selectUnconfiguredGateway() {
@@ -19,7 +18,6 @@ extension OnboardingView {
         self.preferredGatewayID = nil
         self.showAdvancedConnection = false
         GatewayDiscoveryPreferences.setPreferredStableID(nil)
-        self.syncShellOnboardingState()
     }
 
     func selectRemoteGateway(_ gateway: GatewayDiscoveryModel.DiscoveredGateway) {
@@ -30,7 +28,6 @@ extension OnboardingView {
 
         self.state.connectionMode = .remote
         MacNodeModeCoordinator.shared.setPreferredGatewayStableID(gateway.stableID)
-        self.syncShellOnboardingState()
     }
 
     func openSettings(tab: SettingsTab) {
@@ -56,8 +53,6 @@ extension OnboardingView {
         UserDefaults.standard.set(true, forKey: onboardingSeenKey)
         UserDefaults.standard.set(currentOnboardingVersion, forKey: onboardingVersionKey)
         AppStateStore.shared.onboardingSeen = true
-        self.shellOnboarding?.isComplete = true
-        self.syncShellOnboardingState()
         AlisioWindowManager.shared.shellState.completeOnboarding()
         AlisioWindowManager.shared.showPreferredChat()
         OnboardingController.shared.close()

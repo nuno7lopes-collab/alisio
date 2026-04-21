@@ -1,5 +1,5 @@
 ---
-summary: "CLI onboarding: guided setup for gateway, workspace, channels, and skills"
+summary: "CLI onboarding: guided setup for the shared backend, workspace, channels, and skills"
 read_when:
   - Running or configuring CLI onboarding
   - Setting up a new machine
@@ -9,10 +9,10 @@ sidebarTitle: "Onboarding: CLI"
 
 # Onboarding (CLI)
 
-CLI onboarding is the **recommended** way to set up Alisio on macOS,
-Linux, or Windows (via WSL2; strongly recommended).
-It configures a local Gateway or a remote Gateway connection, plus channels, skills,
-and workspace defaults in one guided flow.
+CLI onboarding is the secondary setup path.
+Use it when you are intentionally configuring the shared backend, a server,
+Linux, or Windows via WSL2. For the product path on a Mac, start with the
+macOS app instead.
 
 ```bash
 alisio onboard
@@ -20,8 +20,6 @@ alisio onboard
 
 <Info>
 Fastest first chat from CLI onboarding: open the TUI with `alisio tui`.
-If you still need browser-based gateway admin, the legacy dashboard docs live at
-[Dashboard](/web/dashboard).
 </Info>
 
 To reconfigure later:
@@ -48,7 +46,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
 
 <Tabs>
   <Tab title="QuickStart (defaults)">
-    - Local gateway (loopback)
+    - Local backend (loopback)
     - Workspace default (or existing workspace)
     - Gateway port **40705**
     - Gateway auth **Token** (auto‑generated, even on loopback)
@@ -58,7 +56,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
     - Telegram + WhatsApp DMs default to **allowlist** (you'll be prompted for your phone number)
   </Tab>
   <Tab title="Advanced (full control)">
-    - Exposes every step (mode, workspace, gateway, channels, daemon, skills).
+    - Exposes every step (mode, workspace, backend, channels, daemon, skills).
   </Tab>
 </Tabs>
 
@@ -73,7 +71,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
    In non-interactive `ref` mode, the provider env var must be set; passing inline key flags without that env var fails fast.
    In interactive runs, choosing secret reference mode lets you point at either an environment variable or a configured provider ref (`file` or `exec`), with a fast preflight validation before saving.
 2. **Workspace** — Location for agent files (default `~/.alisio/workspace`). Seeds bootstrap files.
-3. **Gateway** — Port, bind address, auth mode, Tailscale exposure.
+3. **Backend** — Port, bind address, auth mode, Tailscale exposure.
    In interactive token mode, choose default plaintext token storage or opt into SecretRef.
    Non-interactive token SecretRef path: `--gateway-token-ref-env <ENV_VAR>`.
 4. **Channels** — WhatsApp, Telegram, Discord, Google Chat, Mattermost, Signal, BlueBubbles, or iMessage.
@@ -91,7 +89,7 @@ CLI `--reset` defaults to config, credentials, and sessions; use `--reset-scope 
 If the config is invalid or contains legacy keys, onboarding asks you to run `alisio doctor` first.
 </Note>
 
-**Remote mode** only configures the local client to connect to a Gateway elsewhere.
+**Remote mode** only configures the local client to connect to a backend elsewhere.
 It does **not** install or change anything on the remote host.
 
 ## Add another agent

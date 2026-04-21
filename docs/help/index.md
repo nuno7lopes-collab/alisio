@@ -12,8 +12,8 @@ If you want a quick “get unstuck” flow, start here:
 
 - **Troubleshooting:** [Start here](/help/troubleshooting)
 - **Install sanity (Node/npm/PATH):** [Install](/install/node#troubleshooting)
-- **Gateway issues:** [Gateway troubleshooting](/gateway/troubleshooting)
-- **Logs:** [Logging](/logging) and [Gateway logging](/gateway/logging)
+- **Shared backend issues:** [Gateway troubleshooting](/gateway/troubleshooting)
+- **Logs:** [Logging](/logging) and [backend logging](/gateway/logging)
 - **Repairs:** [Doctor](/gateway/doctor)
 
 If you’re looking for conceptual questions (not “something broke”):

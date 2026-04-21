@@ -1,5 +1,5 @@
 ---
-summary: "Windows truth: usable CLI paths today, desktop-host foundation now, Windows-native frontend later"
+summary: "Windows truth: usable backend and CLI paths today, Windows-native frontend later"
 read_when:
   - Running Alisio on Windows
   - Choosing between native Windows, WSL2, and the Windows desktop host foundation
@@ -24,7 +24,8 @@ They are **not** equivalent today.
 The current product story is simple:
 
 - **macOS is the primary desktop product today**
-- **Windows is being prepared in layers**
+- **Windows comes later as a desktop frontend**
+- **Windows shares the backend/runtime story now instead of defining the product shell**
 - **WSL2 remains the recommended full-runtime path on Windows right now**
 
 ## Recommended path

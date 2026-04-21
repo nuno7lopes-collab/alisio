@@ -1,5 +1,5 @@
 ---
-summary: "Product overview for Alisio: desktop-first positioning, use cases, and the minimum sellable product."
+summary: "Product overview for Alisio: native macOS positioning, shared backend model, and the minimum sellable product."
 read_when:
   - You need the product story in one page
   - You are aligning docs, onboarding, or messaging
@@ -11,13 +11,14 @@ sidebarTitle: "Product Overview"
 
 Alisio is a desktop-first AI workspace.
 
-The primary product is the macOS app. It gives one computer a coherent AI layer that can use OpenAI, local models, or private servers, then connect that AI to channels, other computers, connectors, and automations.
+The primary product is the macOS app. It gives one computer a coherent AI layer that can use OpenAI, local models, or a shared backend, then connect that AI to channels, other computers, connectors, and automations.
 
 ## The Short Version
 
 Alisio turns one computer into:
 
 - your AI front door
+- your signed-in account shell for that workspace
 - your local automation runtime
 - your control point for channels, connectors, and paired computers
 - your place to install skills, apps, and integrations
@@ -25,8 +26,11 @@ Alisio turns one computer into:
 ## Product Pillars
 
 - **Desktop-first**: the app is the main experience, not an afterthought for a gateway.
+- **Account-backed**: sign-in is required because the workspace is tied to a real product identity.
 - **macOS-first**: first-run quality, permissions, voice, notifications, and device control start on the Mac.
 - **OpenAI plus local**: hosted and local AI should coexist cleanly.
+- **Shared backend**: backend runtime can move without becoming the product UI.
+- **Windows later**: Windows shares backend work now, but the desktop product starts on macOS.
 - **Per-computer marketplace**: every computer has its own installable skills, apps, and integrations.
 - **Automation through real surfaces**: channels, connectors, schedules, and computers are practical automation inputs and outputs.
 
@@ -36,7 +40,7 @@ Alisio turns one computer into:
 flowchart TD
   A["Alisio app on macOS"] --> B["OpenAI"]
   A --> C["Local models on this computer"]
-  A --> D["OpenAI-compatible server"]
+  A --> D["Shared backend or server"]
   A --> E["Channels"]
   A --> F["Connectors and apps"]
   A --> G["Paired computers"]
@@ -51,7 +55,7 @@ flowchart TD
 
 ### Real estate
 
-- qualify inbound leads from WhatsApp and web forms
+- qualify inbound leads from WhatsApp, email, and shared inbox sources
 - summarize documents and property notes
 - schedule follow-ups and reminders
 - trigger automations from channels and connectors
@@ -76,16 +80,18 @@ The first minimum sellable version of Alisio should include:
 
 1. A polished macOS install and first-run flow with sign-in and permissions.
 2. AI source selection with three obvious choices: OpenAI, Local, and Server.
-3. A local marketplace per computer for skills, apps, and integrations.
-4. Computer-aware actions on the current Mac plus pairing for other computers.
-5. Channels and connectors as automation inputs and outputs.
-6. Durable workspace memory and simple operator-visible settings.
+3. A shared backend story that supports the app without replacing it as the product shell.
+4. A local marketplace per computer for skills, apps, and integrations.
+5. Computer-aware actions on the current Mac plus pairing for other computers.
+6. Channels and connectors as automation inputs and outputs.
+7. Durable workspace memory and simple operator-visible settings.
 
-If those six things feel coherent, Alisio is sellable.
+If those seven things feel coherent, Alisio is sellable.
 
 ## What The MSP Is Not
 
 - not a terminal-first product
+- not a web product
 - not a cloud-only assistant
 - not a generic wrapper around one model provider
 - not a shared global marketplace that ignores where things actually run

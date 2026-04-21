@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Alisio",
-  "description": "Alisio is a desktop-first AI workspace that starts on macOS, can use OpenAI plus local or private servers, and extends across channels, connectors, devices, and automations.",
+  "description": "Alisio is an account-backed, desktop-first AI workspace that starts on macOS, uses a shared backend, and extends across channels, connectors, devices, and automations.",
   "theme": "mint",
   "icons": {
     "library": "lucide"
@@ -350,7 +350,7 @@
     },
     {
       "source": "/control-ui",
-      "destination": "/web/control-ui"
+      "destination": "/cli/dashboard"
     },
     {
       "source": "/cron-jobs",
@@ -362,7 +362,7 @@
     },
     {
       "source": "/dashboard",
-      "destination": "/web/dashboard"
+      "destination": "/cli/dashboard"
     },
     {
       "source": "/device-models",
@@ -730,7 +730,7 @@
     },
     {
       "source": "/tui",
-      "destination": "/web/tui"
+      "destination": "/cli/tui"
     },
     {
       "source": "/typebox",
@@ -746,7 +746,27 @@
     },
     {
       "source": "/webchat",
-      "destination": "/web/webchat"
+      "destination": "/platforms/mac/webchat"
+    },
+    {
+      "source": "/web",
+      "destination": "/cli/dashboard"
+    },
+    {
+      "source": "/web/control-ui",
+      "destination": "/cli/dashboard"
+    },
+    {
+      "source": "/web/dashboard",
+      "destination": "/cli/dashboard"
+    },
+    {
+      "source": "/web/tui",
+      "destination": "/cli/tui"
+    },
+    {
+      "source": "/web/webchat",
+      "destination": "/platforms/mac/webchat"
     },
     {
       "source": "/webhook",
@@ -1219,7 +1239,7 @@
                 ]
               },
               {
-                "group": "macOS companion app",
+                "group": "macOS app internals",
                 "pages": [
                   "platforms/mac/dev-setup",
                   "platforms/mac/menu-bar",
@@ -1335,10 +1355,6 @@
                     "pages": ["nodes/talk", "nodes/voicewake", "nodes/location-command"]
                   }
                 ]
-              },
-              {
-                "group": "Legacy browser surfaces",
-                "pages": ["web/index", "web/control-ui", "web/dashboard", "web/webchat"]
               }
             ]
           },
@@ -1821,7 +1837,7 @@
                 ]
               },
               {
-                "group": "macOS 配套应用",
+                "group": "macOS app internals",
                 "pages": [
                   "zh-CN/platforms/mac/dev-setup",
                   "zh-CN/platforms/mac/menu-bar",
@@ -1912,16 +1928,6 @@
               {
                 "group": "安全",
                 "pages": ["zh-CN/security/formal-verification"]
-              },
-              {
-                "group": "Web 界面",
-                "pages": [
-                  "zh-CN/web/index",
-                  "zh-CN/web/control-ui",
-                  "zh-CN/web/dashboard",
-                  "zh-CN/web/webchat",
-                  "zh-CN/web/tui"
-                ]
               }
             ]
           },

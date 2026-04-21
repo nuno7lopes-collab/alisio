@@ -57,7 +57,6 @@ struct OnboardingView: View {
     @State var localGatewayProbe: LocalGatewayProbe?
     @Bindable var state: AppState
     var permissionMonitor: PermissionMonitor
-    var shellOnboarding: AlisioOnboardingState?
 
     static let windowWidth: CGFloat = 630
     static let windowHeight: CGFloat = 752 // ~+10% to fit full onboarding content
@@ -124,12 +123,10 @@ struct OnboardingView: View {
         permissionMonitor: PermissionMonitor = .shared,
         discoveryModel: GatewayDiscoveryModel = GatewayDiscoveryModel(
             localDisplayName: InstanceIdentity.displayName,
-            filterLocalGateways: false),
-        shellOnboarding: AlisioOnboardingState? = nil)
+            filterLocalGateways: false))
     {
         self.state = state
         self.permissionMonitor = permissionMonitor
         self._gatewayDiscovery = State(initialValue: discoveryModel)
-        self.shellOnboarding = shellOnboarding
     }
 }

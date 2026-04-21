@@ -1,8 +1,8 @@
 # Alisio
 
-Alisio is a desktop-first AI workspace for your own computer.
+Alisio is a native macOS AI workspace for your own computer.
 
-The product starts on macOS, not in a terminal. You install the app, sign in, grant macOS permissions, choose how AI should run on that machine, and then connect channels, apps, devices, and automations around it.
+The product starts in the macOS app, not in a browser and not in a terminal. You install the app, sign in with your Alisio account, grant macOS permissions, choose how AI should run on that machine, and then connect channels, apps, devices, and automations around a shared backend.
 
 Alisio can run with:
 
@@ -24,30 +24,34 @@ It can then:
 Recommended path:
 
 1. Install the macOS app.
-2. Sign in.
+2. Sign in with your Alisio account.
 3. Grant macOS permissions.
 4. Choose AI: OpenAI, Local, or Server.
 5. Connect channels, apps, and devices.
 6. Start your first automation.
 
-For Linux, Windows, headless gateway, and operator workflows, use the install and gateway docs.
+Windows follows later as a desktop frontend. For shared backend, Linux/WSL2, server, and operator workflows, use the install and gateway docs.
 
 ## What Alisio Is
 
-Alisio is not just a gateway and not just a chat bot.
+Alisio is not a web product and not just a gateway.
 
 It is a personal operating layer for AI on your computer:
 
 - the Mac app is the primary shell
+- sign-in is required because the workspace is account-backed
 - AI can be remote, local, or server-backed
+- the shared backend exists to support the app, channels, and automations
 - each computer has its own local marketplace and device capabilities
 - channels and connectors bring work into Alisio
 - automations push work back out through the same surfaces
 
 ## Core Product Shape
 
-- **Desktop-first**: the main experience starts in the macOS app.
+- **Native macOS first**: the main experience starts in the macOS app.
+- **Account-backed**: sign-in is part of the real product, not an optional extra.
 - **OpenAI plus local**: strong hosted models and private local/runtime models can coexist.
+- **Shared backend**: runtime can live locally or elsewhere without becoming the product shell.
 - **Per-computer marketplace**: skills, apps, and integrations are installed where they run.
 - **Device-aware automation**: actions can target the current Mac or another paired device.
 - **Channel-native workflows**: channels are not an afterthought; they are input and output surfaces for work.
@@ -65,7 +69,7 @@ It is a personal operating layer for AI on your computer:
 
 ## Advanced And Ops
 
-If you are running Alisio without the macOS app, or you are operating remote gateways, containers, or headless hosts, start from:
+If you are running Alisio without the macOS app, or you are operating the shared backend on remote hosts, containers, or headless systems, start from:
 
 - [https://docs.alisio.ai/install](https://docs.alisio.ai/install)
 - [https://docs.alisio.ai/start/wizard](https://docs.alisio.ai/start/wizard)
