@@ -2,10 +2,10 @@
 summary: "How the native macOS workspace talks to the gateway and how to debug it"
 read_when:
   - Debugging the native macOS workspace or its loopback port
-title: "Workspace (macOS)"
+title: "Native Workspace (macOS)"
 ---
 
-# Workspace (macOS app)
+# Native Workspace (macOS app)
 
 The macOS app uses a **native SwiftUI workspace** for the main product
 surface. Chat, navigation, settings, and the right inspector pane all live in
@@ -50,4 +50,4 @@ the selected agent, with a native session switcher for other sessions.
 ## Known limitations
 
 - The workspace is optimized for chat and native desktop control, not a browser
-  sandbox.
+  shell.

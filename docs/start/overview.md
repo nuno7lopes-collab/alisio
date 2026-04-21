@@ -18,7 +18,7 @@ The primary product is the macOS app. It gives one computer a coherent AI layer 
 Alisio turns one computer into:
 
 - your AI front door
-- your signed-in account shell for that workspace
+- your signed-in account home for that workspace
 - your local automation runtime
 - your control point for channels, connectors, and paired computers
 - your place to install skills, apps, and integrations
@@ -80,7 +80,7 @@ The first minimum sellable version of Alisio should include:
 
 1. A polished macOS install and first-run flow with sign-in and permissions.
 2. AI source selection with three obvious choices: OpenAI, Local, and Server.
-3. A shared backend story that supports the app without replacing it as the product shell.
+3. A shared backend story that supports the app without replacing it as the primary product surface.
 4. A local marketplace per computer for skills, apps, and integrations.
 5. Computer-aware actions on the current Mac plus pairing for other computers.
 6. Channels and connectors as automation inputs and outputs.

@@ -145,7 +145,7 @@ Gatewayの起動後、ブラウザでControl UIを開きます。
 ## ここから始める
 
 <Columns>
-  <Card title="ドキュメントハブ" href="/start/hubs" icon="book-open">
+  <Card title="ドキュメントハブ" href="/" icon="book-open">
     ユースケース別に整理されたすべてのドキュメントとガイド。
   </Card>
   <Card title="設定" href="/gateway/configuration" icon="settings">
@@ -160,7 +160,7 @@ Gatewayの起動後、ブラウザでControl UIを開きます。
   <Card title="ノード" href="/nodes" icon="smartphone">
     ペアリングとCanvas対応のiOSノード。
   </Card>
-  <Card title="ヘルプ" href="/help" icon="life-buoy">
+  <Card title="ヘルプ" href="/help/troubleshooting" icon="life-buoy">
     一般的な修正とトラブルシューティングのエントリーポイント。
   </Card>
 </Columns>

@@ -10,7 +10,7 @@ title: "macOS App"
 
 The macOS app is the primary Alisio product surface.
 
-It is not a thin companion to some other product. It is where Alisio starts, where sign-in happens, where permissions become real, and where one computer becomes an AI workspace.
+It is not a thin add-on to some other product. It is where Alisio starts, where sign-in happens, where permissions become real, and where one computer becomes an AI workspace.
 
 ## What The App Owns
 
@@ -25,7 +25,7 @@ It is not a thin companion to some other product. It is where Alisio starts, whe
 ## What The App Does Well
 
 - keeps setup visual and understandable
-- keeps account-backed state inside a native product shell
+- keeps account-backed state inside a native desktop surface
 - makes permission state visible
 - turns this Mac into a local automation runtime with real computer capabilities
 - gives Alisio a concrete desktop home instead of forcing a terminal-first or web-first mental model
@@ -59,7 +59,7 @@ That is why macOS permissions matter so much in the product.
 
 Even in remote mode, the Mac app still matters because it can expose local capabilities from this computer.
 
-Windows follows later as a desktop frontend. Today, the Mac app is the native product shell.
+Windows follows later as a desktop frontend. Today, the Mac app is the native product surface.
 
 ## Where State Lives
 

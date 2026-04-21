@@ -12,7 +12,7 @@ title: "Discovery and Transports"
 Alisio has two distinct problems that look similar on the surface:
 
 1. **Operator remote control**: the macOS menu bar app controlling a gateway running elsewhere.
-2. **Node pairing**: companion nodes finding a gateway and pairing securely.
+2. **Node pairing**: paired nodes finding a gateway and pairing securely.
 
 The design goal is to keep all network discovery/advertising in the **Node Gateway** (`alisio gateway`) and keep clients as consumers.
 

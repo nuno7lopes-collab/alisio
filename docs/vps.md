@@ -42,7 +42,7 @@ A community video walkthrough is available at
 - Secure default: keep the Gateway on loopback and access it via SSH tunnel or Tailscale Serve.
   If you bind to `lan` or `tailnet`, require `gateway.auth.token` or `gateway.auth.password`.
 
-Related pages: [Gateway remote access](/gateway/remote), [Platforms hub](/platforms).
+Related pages: [Gateway remote access](/gateway/remote), [Linux App](/platforms/linux), [Windows](/platforms/windows).
 
 ## Shared company agent on a VPS
 

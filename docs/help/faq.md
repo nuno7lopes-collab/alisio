@@ -487,7 +487,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     local screen/camera/canvas or run commands on your laptop while keeping the
     Gateway in the cloud.
 
-    Hub: [Platforms](/platforms). Remote access: [Gateway remote](/gateway/remote).
+    Platform docs: [macOS App](/platforms/macos), [Linux App](/platforms/linux), [Windows](/platforms/windows). Remote access: [Gateway remote](/gateway/remote).
     Computers: [Computers](/nodes), [Nodes CLI](/cli/nodes).
 
   </Accordion>

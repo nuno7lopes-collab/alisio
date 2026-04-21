@@ -53,7 +53,7 @@ For all flags and CI/automation options, see [Installer internals](/install/inst
 
 - **Node 24** (recommended) or Node 22.14+ — the installer script handles this automatically
 - **macOS, Linux, or Windows/WSL2** for backend and CLI setups
-- **Primary product shell:** macOS app now
+- **Primary product surface:** macOS app now
 - **Windows desktop frontend:** later; today use WSL2 or backend/CLI paths when you know why
 - `pnpm` is only needed if you build from source
 

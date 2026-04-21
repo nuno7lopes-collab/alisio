@@ -17,7 +17,7 @@ It can then:
 - install skills and app integrations from a local marketplace on each computer
 - automate work through connectors, channels, schedules, and device actions
 
-[Install Alisio](https://docs.alisio.ai/start/getting-started) · [Product Overview](https://docs.alisio.ai/start/overview) · [macOS App](https://docs.alisio.ai/platforms/macos) · [Local Models and Servers](https://docs.alisio.ai/gateway/local-models) · [Devices](https://docs.alisio.ai/nodes) · [Skills](https://docs.alisio.ai/tools/skills) · [Memory](https://docs.alisio.ai/concepts/memory) · [Vision](https://github.com/alisio/alisio/blob/main/VISION.md)
+[Install Alisio](https://docs.alisio.ai/start/getting-started) · [Product Overview](https://docs.alisio.ai/start/overview) · [macOS App](https://docs.alisio.ai/platforms/macos) · [Local Models and Servers](https://docs.alisio.ai/gateway/local-models) · [Computers](https://docs.alisio.ai/nodes) · [Skills](https://docs.alisio.ai/tools/skills) · [Memory](https://docs.alisio.ai/concepts/memory) · [Vision](https://github.com/alisio/alisio/blob/main/VISION.md)
 
 ## Install Alisio
 
@@ -38,7 +38,7 @@ Alisio is not a web product and not just a gateway.
 
 It is a personal operating layer for AI on your computer:
 
-- the Mac app is the primary shell
+- the Mac app is the primary desktop surface
 - sign-in is required because the workspace is account-backed
 - AI can be remote, local, or server-backed
 - the shared backend exists to support the app, channels, and automations
@@ -51,7 +51,7 @@ It is a personal operating layer for AI on your computer:
 - **Native macOS first**: the main experience starts in the macOS app.
 - **Account-backed**: sign-in is part of the real product, not an optional extra.
 - **OpenAI plus local**: strong hosted models and private local/runtime models can coexist.
-- **Shared backend**: runtime can live locally or elsewhere without becoming the product shell.
+- **Shared backend**: runtime can live locally or elsewhere without becoming the product surface.
 - **Per-computer marketplace**: skills, apps, and integrations are installed where they run.
 - **Device-aware automation**: actions can target the current Mac or another paired device.
 - **Channel-native workflows**: channels are not an afterthought; they are input and output surfaces for work.
@@ -63,7 +63,7 @@ It is a personal operating layer for AI on your computer:
 - macOS-first onboarding: [https://docs.alisio.ai/start/onboarding](https://docs.alisio.ai/start/onboarding)
 - AI sources and model selection: [https://docs.alisio.ai/concepts/model-providers](https://docs.alisio.ai/concepts/model-providers)
 - Local models and servers: [https://docs.alisio.ai/gateway/local-models](https://docs.alisio.ai/gateway/local-models)
-- Devices and device-local actions: [https://docs.alisio.ai/nodes](https://docs.alisio.ai/nodes)
+- Computers and local actions: [https://docs.alisio.ai/nodes](https://docs.alisio.ai/nodes)
 - Skills and local marketplace: [https://docs.alisio.ai/tools/skills](https://docs.alisio.ai/tools/skills)
 - Memory and durable context: [https://docs.alisio.ai/concepts/memory](https://docs.alisio.ai/concepts/memory)
 

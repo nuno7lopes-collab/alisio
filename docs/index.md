@@ -24,7 +24,7 @@ title: "Alisio"
     Install the macOS app, sign in with your Alisio account, grant permissions, and choose your AI source.
   </Card>
   <Card title="macOS App" href="/platforms/macos" icon="monitor-smartphone">
-    The primary product shell for setup, permissions, devices, and daily use.
+    The primary product surface for setup, permissions, devices, and daily use.
   </Card>
 </Columns>
 
@@ -50,7 +50,7 @@ flowchart LR
   A --> D["Shared backend"]
   A --> E["Channels"]
   A --> F["Connectors and apps"]
-  A --> G["Paired devices"]
+  A --> G["Paired computers"]
   F --> H["Automations"]
   E --> H
   G --> H
@@ -65,7 +65,7 @@ flowchart LR
   <Card title="AI Sources" href="/concepts/model-providers" icon="cpu">
     OpenAI, local runtimes, and OpenAI-compatible servers.
   </Card>
-  <Card title="Devices" href="/nodes" icon="smartphone">
+  <Card title="Computers" href="/nodes" icon="smartphone">
     Device-local actions, permissions, and pairing.
   </Card>
   <Card title="Skills" href="/tools/skills" icon="sparkles">
@@ -74,7 +74,7 @@ flowchart LR
   <Card title="Memory" href="/concepts/memory" icon="brain">
     Durable context stored in your workspace.
   </Card>
-  <Card title="Help" href="/help" icon="life-buoy">
+  <Card title="Help" href="/help/troubleshooting" icon="life-buoy">
     Troubleshooting, environment details, and backend/operator setup paths.
   </Card>
 </Columns>

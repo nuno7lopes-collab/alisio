@@ -87,7 +87,7 @@ depend on rebuilding the full `.app` bundle:
 
 ```bash
 swift build --package-path apps/macos
-swift test --package-path apps/macos --filter LowCoverageViewSmokeTests
+swift test --package-path apps/macos --filter AlisioWorkspaceWindowSmokeTests
 swift test --package-path apps/shared/AlisioKit --filter ChatViewModelTests
 ```
 

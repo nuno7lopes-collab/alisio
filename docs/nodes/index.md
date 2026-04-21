@@ -18,7 +18,7 @@ Alisio local capabilities on that machine.
 
 ## What A Computer Is
 
-A computer is a companion machine that can contribute local actions such as:
+A computer is a paired machine that can contribute local actions such as:
 
 - camera and media capture
 - microphone and speech
@@ -71,7 +71,7 @@ The important product rule is simple:
 
 ### macOS
 
-The Mac is the primary desktop shell and the richest device surface.
+The Mac is the primary desktop surface and the richest device surface.
 
 ### Remote helper machine
 

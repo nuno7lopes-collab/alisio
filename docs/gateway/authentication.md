@@ -62,7 +62,7 @@ alisio doctor
 If you’d rather not manage env vars yourself, onboarding can store
 API keys for daemon use: `alisio onboard`.
 
-See [Help](/help) for details on env inheritance (`env.shellEnv`,
+See [Environment](/help/environment) for details on env inheritance (`env.shellEnv`,
 `~/.alisio/.env`, systemd/launchd).
 
 ## Anthropic: setup-token (subscription auth)

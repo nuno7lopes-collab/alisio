@@ -397,6 +397,10 @@
       "destination": "/help/faq"
     },
     {
+      "source": "/help",
+      "destination": "/help/troubleshooting"
+    },
+    {
       "source": "/gateway-lock",
       "destination": "/gateway/gateway-lock"
     },
@@ -411,6 +415,14 @@
     {
       "source": "/start/quickstart",
       "destination": "/start/getting-started"
+    },
+    {
+      "source": "/start/hubs",
+      "destination": "/"
+    },
+    {
+      "source": "/start/docs-directory",
+      "destination": "/"
     },
     {
       "source": "/gmail-pubsub",
@@ -442,7 +454,7 @@
     },
     {
       "source": "/hubs",
-      "destination": "/start/hubs"
+      "destination": "/"
     },
     {
       "source": "/images",
@@ -1493,7 +1505,7 @@
             "groups": [
               {
                 "group": "Help",
-                "pages": ["help/index", "help/troubleshooting", "help/faq"]
+                "pages": ["help/troubleshooting", "help/faq"]
               },
               {
                 "group": "Community",
@@ -1521,10 +1533,6 @@
               {
                 "group": "Contributing",
                 "pages": ["ci"]
-              },
-              {
-                "group": "Docs meta",
-                "pages": ["start/hubs", "start/docs-directory"]
               }
             ]
           }

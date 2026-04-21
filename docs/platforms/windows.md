@@ -25,7 +25,7 @@ The current product story is simple:
 
 - **macOS is the primary desktop product today**
 - **Windows comes later as a desktop frontend**
-- **Windows shares the backend/runtime story now instead of defining the product shell**
+- **Windows shares the backend/runtime story now instead of defining the product surface**
 - **WSL2 remains the recommended full-runtime path on Windows right now**
 
 ## Recommended path
@@ -166,7 +166,7 @@ Current Windows recommendation:
 ## Microsoft stack choice
 
 The Windows host foundation intentionally follows Microsoft’s primary path for a
-native Windows desktop shell host:
+native Windows desktop host:
 
 - WinUI 3 / Windows App SDK:
   [https://learn.microsoft.com/windows/apps/winui/](https://learn.microsoft.com/windows/apps/winui/)
