@@ -365,8 +365,6 @@ describe("canonical memory store", () => {
         env: {
           ...process.env,
           ALISIO_STATE_DIR: test.stateDir,
-          ALISIO_MEMORY_SYNC_MODE: "off",
-          ALISIO_MEMORY_SYNC_RELAY_BASE_URL: "https://legacy-relay.example",
         },
       });
 

@@ -15,7 +15,7 @@
 
 - GAIA should serialize domain payloads into bytes, assign stable IDs, and append events in lamport order.
 - HERMES should provide encrypted payloads as `{ kind: "encrypted", ciphertext, nonce, aad? }` and manage transport plus key material outside the ledger.
-- Integrators can bypass the ledger entirely when `memory.ledger.enabled=false`; these packages do not read global config.
+- Integrators should treat the ledger as the canonical source of truth; these packages do not read global config.
 
 ## Safety invariants
 

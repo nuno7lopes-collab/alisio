@@ -30,7 +30,7 @@
 - A decriptação é sempre local.
 - E2EE é obrigatório; `memory.e2ee.required` documenta esse requisito e não introduz um fallback plaintext.
 - Se faltar `ProfileRootKey`, o estado correto é `blocked`, nunca plaintext fallback.
-- `canonical-store` lê config primeiro e env vars depois para `memory.sync.*`; env legacy continua suportado por compatibilidade durante a transição.
+- `canonical-store` lê apenas o contrato actual de `memory.sync.*`; as env vars legacy foram removidas da superfície pública.
 
 ## Chamada mínima para GAIA
 
@@ -80,8 +80,6 @@ await transport.pushEncryptedEvents(profileId, [
 
 ## Flags estáveis e rollout
 
-- `memory.ledger.enabled`
-- `memory.legacyMarkdownProjection.enabled`
 - `memory.crdt.pages.enabled`
 - `memory.e2ee.required`
 - `memory.sync.ui.enabled`
