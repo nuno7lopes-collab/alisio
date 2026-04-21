@@ -152,6 +152,64 @@ describe("computerHandlers", () => {
     });
   });
 
+  it("treats granted macOS permissions that still require restart as restart_required", async () => {
+    const sessionKey = "computer-session-restart-required";
+    computerSessionManager.ensureSession({
+      sessionKey,
+      nodeId: "mac-node-restart-required",
+    });
+    const invoke = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        payloadJSON: JSON.stringify({
+          connectionState: "running",
+          launchCount: 3,
+          helper: {
+            protocolVersion: 2,
+            helperVersion: "1.2.4",
+            processId: 5150,
+            activeSession: {
+              sessionId: sessionKey,
+              state: "stopped",
+              updatedAt: 321,
+            },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        payloadJSON: JSON.stringify({
+          accessibility: true,
+          accessibilityRestartRequired: true,
+          screenRecording: true,
+          screenRecordingRestartRequired: true,
+        }),
+      });
+    const opts = createOptions({ sessionKey }, invoke);
+
+    await computerHandlers["computer.session.get"](opts);
+
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
+    expect(responsePayload).toMatchObject({
+      sessionKey,
+      session: {
+        status: "blocked_on_restart_required",
+        blocking: {
+          kind: "blocked_on_restart_required",
+          reasonCode: "observation_restart_required",
+        },
+        permissions: {
+          accessibility: true,
+          screenRecording: true,
+          observation: "restart_required",
+          control: "restart_required",
+        },
+      },
+    });
+  });
+
   it("forwards pause to the node helper session command", async () => {
     const sessionKey = "computer-session-pause";
     computerSessionManager.ensureSession({

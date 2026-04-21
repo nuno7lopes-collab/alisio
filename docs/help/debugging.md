@@ -40,7 +40,7 @@ pnpm gateway:watch
 This maps to:
 
 ```bash
-node scripts/watch-node.mjs gateway run --force
+node scripts/watch-node.mjs gateway --force
 ```
 
 The watcher restarts on build-relevant files under `src/`, extension source files,

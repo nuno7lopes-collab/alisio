@@ -256,11 +256,21 @@ function readPermissionState(value: unknown): ComputerPermissionState | null {
   if (accessibility === null || screenRecording === null) {
     return null;
   }
+  const accessibilityRestartRequired = readBoolean(value.accessibilityRestartRequired) === true;
+  const screenRecordingRestartRequired = readBoolean(value.screenRecordingRestartRequired) === true;
   return {
     accessibility,
     screenRecording,
-    observation: screenRecording ? "granted" : "missing",
-    control: accessibility ? "granted" : "missing",
+    observation: screenRecording
+      ? screenRecordingRestartRequired
+        ? "restart_required"
+        : "granted"
+      : "missing",
+    control: accessibility
+      ? accessibilityRestartRequired
+        ? "restart_required"
+        : "granted"
+      : "missing",
   };
 }
 

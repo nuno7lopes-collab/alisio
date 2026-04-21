@@ -1883,17 +1883,19 @@ export class ComputerSessionManager {
     const runtimeMessage = runtimeError?.message ?? "";
     const runtimePermission = runtimeError?.permission?.trim().toLowerCase() || undefined;
     const screenRecordingRestartRequired =
-      runtimeError?.code === "PERMISSION_MISSING" &&
-      state.permissions.screenRecording === true &&
-      (runtimePermission === "screenrecording" ||
-        runtimePermission === "screen_recording" ||
-        runtimePermission === "screen-recording" ||
-        (!runtimePermission && isScreenRecordingPermissionMissing(runtimeMessage)));
+      state.permissions.observation === "restart_required" ||
+      (runtimeError?.code === "PERMISSION_MISSING" &&
+        state.permissions.screenRecording === true &&
+        (runtimePermission === "screenrecording" ||
+          runtimePermission === "screen_recording" ||
+          runtimePermission === "screen-recording" ||
+          (!runtimePermission && isScreenRecordingPermissionMissing(runtimeMessage))));
     const accessibilityRestartRequired =
-      runtimeError?.code === "PERMISSION_MISSING" &&
-      state.permissions.accessibility === true &&
-      (runtimePermission === "accessibility" ||
-        (!runtimePermission && isAccessibilityPermissionMissing(runtimeMessage)));
+      state.permissions.control === "restart_required" ||
+      (runtimeError?.code === "PERMISSION_MISSING" &&
+        state.permissions.accessibility === true &&
+        (runtimePermission === "accessibility" ||
+          (!runtimePermission && isAccessibilityPermissionMissing(runtimeMessage))));
     state.permissions = createPermissionState({
       ...state.permissions,
       observation: resolvePermissionAccessState({
