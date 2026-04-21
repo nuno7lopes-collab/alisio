@@ -194,12 +194,3 @@ private struct Badge: View {
             .clipShape(Capsule())
     }
 }
-
-#if DEBUG
-struct SessionsSettings_Previews: PreviewProvider {
-    static var previews: some View {
-        SessionsSettings(rows: SessionRow.previewRows, isPreview: true)
-            .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
-    }
-}
-#endif

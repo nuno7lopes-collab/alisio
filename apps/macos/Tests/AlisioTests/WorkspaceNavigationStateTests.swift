@@ -4,9 +4,9 @@ import AlisioSupport
 
 @Suite(.serialized)
 @MainActor
-struct AlisioShellStateTests {
+struct WorkspaceNavigationStateTests {
     @Test func `chat route stores a non empty session key`() {
-        let state = AlisioShellState()
+        let state = WorkspaceNavigationState()
         state.showChat(sessionKey: "team/main")
 
         #expect(state.route == .chat)
@@ -14,7 +14,7 @@ struct AlisioShellStateTests {
     }
 
     @Test func `chat route ignores blank session keys`() {
-        let state = AlisioShellState()
+        let state = WorkspaceNavigationState()
         state.showChat(sessionKey: "main")
         state.showChat(sessionKey: "   ")
 
@@ -23,21 +23,21 @@ struct AlisioShellStateTests {
     }
 
     @Test func `workspace starts on the native chat route`() {
-        let state = AlisioShellState()
+        let state = WorkspaceNavigationState()
 
         #expect(state.route == .chat)
         #expect(state.settingsSection == .workspace)
     }
 
     @Test func `onboarding route remains addressable`() {
-        let state = AlisioShellState()
+        let state = WorkspaceNavigationState()
         state.show(route: .onboarding)
 
         #expect(state.route == .onboarding)
     }
 
     @Test func `settings tabs map to native workspace sections`() {
-        let state = AlisioShellState()
+        let state = WorkspaceNavigationState()
 
         state.showSettings(tab: .skills)
         #expect(state.route == .agents)

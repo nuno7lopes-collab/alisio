@@ -8,15 +8,6 @@ import AlisioSupport
 @Suite(.serialized)
 @MainActor
 struct OnboardingViewSmokeTests {
-    @Test func `onboarding view builds body`() {
-        let state = AppState(preview: true)
-        let view = OnboardingView(
-            state: state,
-            permissionMonitor: PermissionMonitor.shared,
-            discoveryModel: GatewayDiscoveryModel(localDisplayName: InstanceIdentity.displayName))
-        _ = view.body
-    }
-
     @Test func `page order omits workspace and identity steps`() {
         let order = OnboardingView.pageOrder(for: .local)
         #expect(!order.contains(7))

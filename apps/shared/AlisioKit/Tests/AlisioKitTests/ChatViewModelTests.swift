@@ -520,7 +520,7 @@ extension TestChatTransportState {
         try await sendMessageAndEmitFinal(
             transport: transport,
             vm: vm,
-            text: "hello from mac webchat")
+            text: "hello from mac workspace")
 
         try await waitUntil("assistant history refreshes without dropping user message") {
             await MainActor.run {
@@ -528,7 +528,7 @@ extension TestChatTransportState {
                     (message.role, message.content.compactMap(\.text).joined(separator: "\n"))
                 }
                 return texts.contains(where: { $0.0 == "assistant" && $0.1 == "final answer" }) &&
-                    texts.contains(where: { $0.0 == "user" && $0.1 == "hello from mac webchat" })
+                    texts.contains(where: { $0.0 == "user" && $0.1 == "hello from mac workspace" })
             }
         }
     }
@@ -543,13 +543,13 @@ extension TestChatTransportState {
         try await sendMessageAndEmitFinal(
             transport: transport,
             vm: vm,
-            text: "hello from mac webchat")
+            text: "hello from mac workspace")
 
         try await waitUntil("empty refresh does not clear optimistic user message") {
             await MainActor.run {
                 vm.messages.contains { message in
                     message.role == "user" &&
-                        message.content.compactMap(\.text).joined(separator: "\n") == "hello from mac webchat"
+                        message.content.compactMap(\.text).joined(separator: "\n") == "hello from mac workspace"
                 }
             }
         }
@@ -564,7 +564,7 @@ extension TestChatTransportState {
             messages: [
                 chatTextMessage(
                     role: "user",
-                    text: "hello from mac webchat",
+                    text: "hello from mac workspace",
                     timestamp: now + 5_000),
                 chatTextMessage(
                     role: "assistant",
@@ -577,13 +577,13 @@ extension TestChatTransportState {
         try await sendMessageAndEmitFinal(
             transport: transport,
             vm: vm,
-            text: "hello from mac webchat")
+            text: "hello from mac workspace")
 
         try await waitUntil("canonical refresh keeps one user message") {
             await MainActor.run {
                 let userMessages = vm.messages.filter { message in
                     message.role == "user" &&
-                        message.content.compactMap(\.text).joined(separator: "\n") == "hello from mac webchat"
+                        message.content.compactMap(\.text).joined(separator: "\n") == "hello from mac workspace"
                 }
                 let hasAssistant = vm.messages.contains { message in
                     message.role == "assistant" &&

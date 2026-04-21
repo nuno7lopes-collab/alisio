@@ -53,7 +53,7 @@ final class AlisioWorkspaceManager {
                 if controller.isVisible {
                     controller.close()
                 } else {
-                    controller.show(shellState: self.panelShellState(sessionKey: sessionKey))
+                    controller.show(navigationState: self.panelNavigationState(sessionKey: sessionKey))
                 }
                 return
             }
@@ -68,7 +68,7 @@ final class AlisioWorkspaceManager {
         }
         self.panelController = controller
         self.panelSessionKey = sessionKey
-        controller.show(shellState: self.panelShellState(sessionKey: sessionKey))
+        controller.show(navigationState: self.panelNavigationState(sessionKey: sessionKey))
     }
 
     func closePanel() {
@@ -98,10 +98,10 @@ final class AlisioWorkspaceManager {
         // Keep panel controller cached so reopening doesn't re-bootstrap.
     }
 
-    private func panelShellState(sessionKey: String) -> AlisioShellState {
-        let shellState = AlisioShellState()
-        shellState.completeOnboarding(preferredSessionKey: sessionKey)
-        shellState.showChat(sessionKey: sessionKey)
-        return shellState
+    private func panelNavigationState(sessionKey: String) -> WorkspaceNavigationState {
+        let navigationState = WorkspaceNavigationState()
+        navigationState.completeOnboarding(preferredSessionKey: sessionKey)
+        navigationState.showChat(sessionKey: sessionKey)
+        return navigationState
     }
 }

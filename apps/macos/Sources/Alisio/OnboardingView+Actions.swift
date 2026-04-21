@@ -53,7 +53,7 @@ extension OnboardingView {
         UserDefaults.standard.set(true, forKey: onboardingSeenKey)
         UserDefaults.standard.set(currentOnboardingVersion, forKey: onboardingVersionKey)
         AppStateStore.shared.onboardingSeen = true
-        AlisioWindowManager.shared.shellState.completeOnboarding()
+        AlisioWindowManager.shared.navigationState.completeOnboarding()
         AlisioWindowManager.shared.showPreferredChat()
         OnboardingController.shared.close()
     }

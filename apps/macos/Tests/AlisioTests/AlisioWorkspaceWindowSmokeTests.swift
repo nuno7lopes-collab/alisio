@@ -10,9 +10,9 @@ import AlisioSupport
 struct AlisioWorkspaceWindowSmokeTests {
     @Test func `window controller show and close`() {
         let controller = AlisioWorkspaceWindowController(presentation: .window)
-        let shellState = AlisioShellState()
-        shellState.show(route: .chat)
-        controller.show(shellState: shellState, state: AppState(preview: true))
+        let navigationState = WorkspaceNavigationState()
+        navigationState.show(route: .chat)
+        controller.show(navigationState: navigationState, state: AppState(preview: true))
         let contentView = try? #require(controller.window?.contentViewController?.view)
         #expect(contentView != nil)
         if let contentView {
@@ -24,9 +24,9 @@ struct AlisioWorkspaceWindowSmokeTests {
     @Test func `panel controller present and close`() {
         let anchor = { NSRect(x: 200, y: 400, width: 40, height: 40) }
         let controller = AlisioWorkspaceWindowController(presentation: .panel(anchorProvider: anchor))
-        let shellState = AlisioShellState()
-        shellState.showChat(sessionKey: "main")
-        controller.show(shellState: shellState, state: AppState(preview: true))
+        let navigationState = WorkspaceNavigationState()
+        navigationState.showChat(sessionKey: "main")
+        controller.show(navigationState: navigationState, state: AppState(preview: true))
         let contentView = try? #require(controller.window?.contentViewController?.view)
         #expect(contentView != nil)
         if let contentView {

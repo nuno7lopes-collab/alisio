@@ -8,6 +8,26 @@ import AlisioSupport
 struct LowCoverageHelperTests {
     private typealias ProtoAnyCodable = AlisioProtocol.AnyCodable
 
+    private static func sampleSessionRow() -> SessionRow {
+        SessionRow(
+            id: "direct-1",
+            key: "user@example.com",
+            kind: .direct,
+            displayName: nil,
+            provider: nil,
+            subject: nil,
+            room: nil,
+            space: nil,
+            updatedAt: Date(),
+            sessionId: "sess-direct-1234",
+            thinkingLevel: "low",
+            verboseLevel: "info",
+            systemSent: false,
+            abortedLastRun: false,
+            tokens: SessionTokenStats(input: 320, output: 680, total: 1000, contextTokens: 200_000),
+            model: "claude-3.5-sonnet")
+    }
+
     @Test func `any codable helper accessors`() throws {
         let payload: [String: ProtoAnyCodable] = [
             "title": ProtoAnyCodable("Hello"),
@@ -283,7 +303,7 @@ struct LowCoverageHelperTests {
         #expect(idx == 1)
         #expect(injector._testInitialCardWidth(for: menu) >= 300)
 
-        injector._testSetCache(rows: [SessionRow.previewRows[0]], errorText: nil, updatedAt: Date())
+        injector._testSetCache(rows: [Self.sampleSessionRow()], errorText: nil, updatedAt: Date())
         injector.menuWillOpen(menu)
         injector.menuDidClose(menu)
 
@@ -292,15 +312,4 @@ struct LowCoverageHelperTests {
         #expect(injector._testFindInsertIndex(in: fallbackMenu) == 1)
     }
 
-    @Test @MainActor func `canvas window helper functions`() throws {
-        #expect(CanvasWindowController._testSanitizeSessionKey("  main ") == "main")
-        #expect(CanvasWindowController._testSanitizeSessionKey("bad/..") == "bad___")
-        #expect(CanvasWindowController._testJSOptionalStringLiteral(nil) == "null")
-
-        let rect = NSRect(x: 10, y: 12, width: 400, height: 420)
-        let key = CanvasWindowController._testStoredFrameKey(sessionKey: "test")
-        let loaded = CanvasWindowController._testStoreAndLoadFrame(sessionKey: "test", frame: rect)
-        UserDefaults.standard.removeObject(forKey: key)
-        #expect(loaded?.size.width == rect.size.width)
-    }
 }

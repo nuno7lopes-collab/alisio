@@ -5,7 +5,7 @@ import AlisioSupport
 final class AlisioWindowManager: NSObject, NSWindowDelegate {
     static let shared = AlisioWindowManager()
 
-    let shellState = AlisioShellState()
+    let navigationState = WorkspaceNavigationState()
 
     var onWindowVisibilityChanged: ((Bool) -> Void)?
 
@@ -14,24 +14,24 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
 
     func configure(state: AppState = AppStateStore.shared, updater: (any UpdaterProviding)?) {
         self.updater = updater
-        self.workspaceController?.update(shellState: self.shellState, state: state)
+        self.workspaceController?.update(navigationState: self.navigationState, state: state)
     }
 
     var activeSessionKey: String? {
-        self.shellState.activeSessionKey
+        self.navigationState.activeSessionKey
     }
 
     var hasVisibleWindow: Bool {
         self.workspaceController?.isVisible == true
     }
 
-    func show(route: AlisioShellState.Route) {
-        self.shellState.show(route: route)
+    func show(route: WorkspaceNavigationState.Route) {
+        self.navigationState.show(route: route)
         self.showWindow()
     }
 
     func showChat(sessionKey: String) {
-        self.shellState.showChat(sessionKey: sessionKey)
+        self.navigationState.showChat(sessionKey: sessionKey)
         self.showWindow()
     }
 
@@ -46,7 +46,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
     }
 
     func showSettings(tab: SettingsTab = .general) {
-        self.shellState.showSettings(tab: tab)
+        self.navigationState.showSettings(tab: tab)
         self.showWindow()
     }
 
@@ -86,7 +86,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
 
     private func showWindow() {
         let controller = self.ensureWorkspaceController()
-        controller.show(shellState: self.shellState, state: AppStateStore.shared)
+        controller.show(navigationState: self.navigationState, state: AppStateStore.shared)
         NSApp.activate(ignoringOtherApps: true)
     }
 

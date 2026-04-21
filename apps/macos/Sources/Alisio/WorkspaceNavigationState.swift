@@ -5,7 +5,7 @@ import AlisioSupport
 
 @MainActor
 @Observable
-final class AlisioShellState {
+final class WorkspaceNavigationState {
     enum Route: String, CaseIterable, Identifiable {
         case onboarding
         case chat

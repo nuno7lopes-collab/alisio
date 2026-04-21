@@ -707,43 +707,4 @@ struct VoiceWakeSettings_Previews: PreviewProvider {
     }
 }
 
-@MainActor
-extension VoiceWakeSettings {
-    static func exerciseForTesting() {
-        let state = AppState(preview: true)
-        state.swabbleEnabled = true
-        state.voicePushToTalkEnabled = true
-        state.swabbleTriggerWords = ["Claude", "Hey"]
-        state.voiceWakeLocaleID = "en_US"
-        state.voiceWakeAdditionalLocaleIDs = ["pt_PT"]
-
-        let view = VoiceWakeSettings(state: state, isActive: true)
-        view.availableMics = [AudioInputDevice(uid: "mic-1", name: "Built-in")]
-        view.availableLocales = [
-            Locale(identifier: "de_DE"),
-            Locale(identifier: "en_US"),
-            Locale(identifier: "pt_PT"),
-        ]
-        view.meterLevel = 0.42
-        view.meterError = "No input"
-        view.testState = .detected("ok")
-        view.isTesting = true
-        view.triggerEntries = [TriggerEntry(id: UUID(), value: "Claude")]
-
-        _ = view.body
-        _ = view.localePicker
-        _ = view.micPicker
-        _ = view.levelMeter
-        _ = view.triggerTable
-        _ = view.chimeSection
-
-        view.addWord()
-        if let entryId = view.triggerEntries.first?.id {
-            view.removeWord(id: entryId)
-        }
-        view.addAdditionalLocale()
-        view.updateAdditionalLocale(at: 0, to: "de_DE")
-        view.removeAdditionalLocale(at: 0)
-    }
-}
 #endif

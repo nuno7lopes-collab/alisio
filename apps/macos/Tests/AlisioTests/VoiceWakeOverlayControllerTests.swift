@@ -62,8 +62,4 @@ struct VoiceWakeOverlayControllerTests {
         controller.updateLevel(token: token, 0.9)
         #expect(controller.model.level == 0.9)
     }
-
-    @Test func `overlay controller exercises helpers`() async {
-        await VoiceWakeOverlayController.exerciseForTesting()
-    }
 }

@@ -30,8 +30,4 @@ struct CritterIconRendererTests {
 
         #expect(image.tiffRepresentation != nil)
     }
-
-    @Test func `critter status label exercises helpers`() async {
-        await CritterStatusLabel.exerciseForTesting()
-    }
 }

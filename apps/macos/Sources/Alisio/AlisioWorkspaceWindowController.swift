@@ -16,7 +16,7 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
     private let presentation: AlisioWorkspacePresentation
     private let updater: (any UpdaterProviding)?
     private var dismissMonitor: Any?
-    private var hostedShellStateID: ObjectIdentifier?
+    private var hostedNavigationStateID: ObjectIdentifier?
     private var hostedAppStateID: ObjectIdentifier?
 
     var onClosed: (() -> Void)?
@@ -42,12 +42,12 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         self.window?.isVisible ?? false
     }
 
-    func update(shellState: AlisioShellState, state: AppState = AppStateStore.shared) {
-        self.installRootView(shellState: shellState, state: state)
+    func update(navigationState: WorkspaceNavigationState, state: AppState = AppStateStore.shared) {
+        self.installRootView(navigationState: navigationState, state: state)
     }
 
-    func show(shellState: AlisioShellState, state: AppState = AppStateStore.shared) {
-        self.installRootView(shellState: shellState, state: state)
+    func show(navigationState: WorkspaceNavigationState, state: AppState = AppStateStore.shared) {
+        self.installRootView(navigationState: navigationState, state: state)
         guard let window else { return }
 
         switch self.presentation {
@@ -85,10 +85,10 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         self.removeDismissMonitor()
     }
 
-    private func installRootView(shellState: AlisioShellState, state: AppState) {
-        let shellStateID = ObjectIdentifier(shellState)
+    private func installRootView(navigationState: WorkspaceNavigationState, state: AppState) {
+        let navigationStateID = ObjectIdentifier(navigationState)
         let appStateID = ObjectIdentifier(state)
-        guard self.hostedShellStateID != shellStateID
+        guard self.hostedNavigationStateID != navigationStateID
             || self.hostedAppStateID != appStateID
             || self.window?.contentViewController == nil
         else {
@@ -96,7 +96,7 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         }
 
         let rootView = AlisioWorkspaceRootView(
-            shellState: shellState,
+            navigationState: navigationState,
             state: state,
             presentation: self.presentation,
             updater: self.updater,
@@ -105,7 +105,7 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         hostingController.view.wantsLayer = true
         hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
         self.window?.contentViewController = hostingController
-        self.hostedShellStateID = shellStateID
+        self.hostedNavigationStateID = navigationStateID
         self.hostedAppStateID = appStateID
     }
 

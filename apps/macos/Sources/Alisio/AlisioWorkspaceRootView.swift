@@ -37,7 +37,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
         }
     }
 
-    init(route: AlisioShellState.Route) {
+    init(route: WorkspaceNavigationState.Route) {
         switch route {
         case .chat, .onboarding:
             self = .chat
@@ -55,20 +55,20 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
     }
 
     @MainActor
-    func apply(to shellState: AlisioShellState) {
+    func apply(to navigationState: WorkspaceNavigationState) {
         switch self {
         case .chat:
-            shellState.showChat(sessionKey: shellState.activeSessionKey ?? "main")
+            navigationState.showChat(sessionKey: navigationState.activeSessionKey ?? "main")
         case .apps:
-            shellState.show(route: .authentications)
+            navigationState.show(route: .authentications)
         case .automations:
-            shellState.show(route: .automations)
+            navigationState.show(route: .automations)
         case .capabilities:
-            shellState.show(route: .agents)
+            navigationState.show(route: .agents)
         case .connections:
-            shellState.show(route: .organization)
+            navigationState.show(route: .organization)
         case .settings:
-            shellState.showSettings(tab: .general)
+            navigationState.showSettings(tab: .general)
         }
     }
 }
@@ -91,7 +91,7 @@ struct AlisioWorkspaceChatEnvironment {
 
 @MainActor
 struct AlisioWorkspaceRootView: View {
-    @Bindable var shellState: AlisioShellState
+    @Bindable var navigationState: WorkspaceNavigationState
     @Bindable var state: AppState
 
     let presentation: AlisioWorkspacePresentation
@@ -105,16 +105,16 @@ struct AlisioWorkspaceRootView: View {
     }
 
     private var currentSidebarItem: AlisioWorkspaceSidebarItem {
-        AlisioWorkspaceSidebarItem(route: self.shellState.route)
+        AlisioWorkspaceSidebarItem(route: self.navigationState.route)
     }
 
     private var resolvedSessionKey: String {
-        let trimmed = self.shellState.activeSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmed = self.navigationState.activeSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? "main" : trimmed
     }
 
     private var settingsTab: SettingsTab {
-        switch self.shellState.settingsSection {
+        switch self.navigationState.settingsSection {
         case .workspace:
             .general
         case .mac:
@@ -174,7 +174,7 @@ struct AlisioWorkspaceRootView: View {
             VStack(spacing: 8) {
                 ForEach(AlisioWorkspaceSidebarItem.allCases) { item in
                     Button {
-                        item.apply(to: self.shellState)
+                        item.apply(to: self.navigationState)
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: item.systemImage)
@@ -240,7 +240,7 @@ struct AlisioWorkspaceRootView: View {
                         .foregroundStyle(self.palette.secondaryText)
                 }
                 Spacer()
-                if self.shellState.route == .chat {
+                if self.navigationState.route == .chat {
                     AlisioChip(title: self.resolvedSessionKey, tint: self.palette.accent, palette: self.palette)
                 }
             }
@@ -258,7 +258,7 @@ struct AlisioWorkspaceRootView: View {
     }
 
     private var stageTitle: String {
-        switch self.shellState.route {
+        switch self.navigationState.route {
         case .chat:
             "Chat"
         case .authentications:
@@ -277,7 +277,7 @@ struct AlisioWorkspaceRootView: View {
     }
 
     private var stageSubtitle: String {
-        switch self.shellState.route {
+        switch self.navigationState.route {
         case .chat:
             "Native chat, memory, and a real macOS inspector for computer use."
         case .authentications:
@@ -297,7 +297,7 @@ struct AlisioWorkspaceRootView: View {
 
     @ViewBuilder
     private func workspaceContent(compact: Bool) -> some View {
-        switch self.shellState.route {
+        switch self.navigationState.route {
         case .onboarding:
             OnboardingView(state: self.state)
                 .padding(compact ? 14 : 24)
@@ -1224,7 +1224,7 @@ struct AlisioWorkspaceRootView_Previews: PreviewProvider {
     static var previews: some View {
         Group {
             AlisioWorkspaceRootView(
-                shellState: self.workspaceState(sessionKey: "main"),
+                navigationState: self.workspaceState(sessionKey: "main"),
                 state: .preview,
                 presentation: .window,
                 updater: nil,
@@ -1233,7 +1233,7 @@ struct AlisioWorkspaceRootView_Previews: PreviewProvider {
                 .frame(width: 1360, height: 860)
 
             AlisioWorkspaceRootView(
-                shellState: self.workspaceState(sessionKey: "main"),
+                navigationState: self.workspaceState(sessionKey: "main"),
                 state: .preview,
                 presentation: .window,
                 updater: nil,
@@ -1242,7 +1242,7 @@ struct AlisioWorkspaceRootView_Previews: PreviewProvider {
                 .frame(width: 1360, height: 860)
 
             AlisioWorkspaceRootView(
-                shellState: self.remoteWorkspaceState(sessionKey: "work"),
+                navigationState: self.remoteWorkspaceState(sessionKey: "work"),
                 state: self.remotePreviewState(),
                 presentation: .window,
                 updater: nil,
@@ -1252,14 +1252,14 @@ struct AlisioWorkspaceRootView_Previews: PreviewProvider {
         }
     }
 
-    fileprivate static func workspaceState(sessionKey: String) -> AlisioShellState {
-        let state = AlisioShellState()
+    fileprivate static func workspaceState(sessionKey: String) -> WorkspaceNavigationState {
+        let state = WorkspaceNavigationState()
         state.showChat(sessionKey: sessionKey)
         return state
     }
 
-    fileprivate static func remoteWorkspaceState(sessionKey: String) -> AlisioShellState {
-        let state = AlisioShellState()
+    fileprivate static func remoteWorkspaceState(sessionKey: String) -> WorkspaceNavigationState {
+        let state = WorkspaceNavigationState()
         state.showChat(sessionKey: sessionKey)
         return state
     }
@@ -1274,37 +1274,6 @@ struct AlisioWorkspaceRootView_Previews: PreviewProvider {
     }
 }
 
-@MainActor
-extension AlisioWorkspaceRootView {
-    static func exerciseForTesting() {
-        let local = NSHostingView(
-            rootView: AlisioWorkspaceRootView(
-                shellState: AlisioWorkspaceRootView_Previews.workspaceState(sessionKey: "main"),
-                state: .preview,
-                presentation: .window,
-                updater: nil,
-                chatEnvironment: AlisioWorkspaceChatEnvironment.previewReadyLocal()))
-        _ = local.fittingSize
-
-        let firstReply = NSHostingView(
-            rootView: AlisioWorkspaceRootView(
-                shellState: AlisioWorkspaceRootView_Previews.workspaceState(sessionKey: "main"),
-                state: .preview,
-                presentation: .window,
-                updater: nil,
-                chatEnvironment: AlisioWorkspaceChatEnvironment.previewFirstReply()))
-        _ = firstReply.fittingSize
-
-        let remote = NSHostingView(
-            rootView: AlisioWorkspaceRootView(
-                shellState: AlisioWorkspaceRootView_Previews.remoteWorkspaceState(sessionKey: "work"),
-                state: AlisioWorkspaceRootView_Previews.remotePreviewState(),
-                presentation: .window,
-                updater: nil,
-                chatEnvironment: AlisioWorkspaceChatEnvironment.previewRemoteReconnect()))
-        _ = remote.fittingSize
-    }
-}
 #endif
 
 @MainActor
