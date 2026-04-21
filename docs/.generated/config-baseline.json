@@ -42985,7 +42985,7 @@
         "storage"
       ],
       "label": "Enable CRDT Page Bodies",
-      "help": "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for emergency compatibility fallback.",
+      "help": "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for incident mitigation.",
       "hasChildren": false
     },
     {
@@ -43086,34 +43086,6 @@
       ],
       "label": "Memory Job Slice Budget (ms)",
       "help": "Sets the per-slice wall-clock budget for background memory jobs in milliseconds. Lower values reduce interference with foreground work; higher values let maintenance make more progress per idle window.",
-      "hasChildren": false
-    },
-    {
-      "path": "memory.ledger",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "storage"
-      ],
-      "label": "Memory Ledger",
-      "help": "Ledger-derived state controls for canonical memory. Keep this enabled in normal operation so local state is rebuilt from auditable events instead of trusting projections as source of truth.",
-      "hasChildren": true
-    },
-    {
-      "path": "memory.ledger.enabled",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "storage"
-      ],
-      "label": "Enable Ledger-Derived Rebuild",
-      "help": "Emergency fallback switch for the canonical memory pipeline. When false, Alisio skips ledger-derived rebuild and reads compatibility projections only; use this only for temporary rollback or incident mitigation.",
       "hasChildren": false
     },
     {
@@ -43699,7 +43671,7 @@
         "storage"
       ],
       "label": "Memory Sync Mode",
-      "help": "Selects the sync transport mode: \"off\" (default), \"cloud\", or \"direct\". Config values take precedence over legacy env vars.",
+      "help": "Selects the sync transport mode: \"off\" (default), \"cloud\", or \"direct\".",
       "hasChildren": false
     },
     {
@@ -43742,7 +43714,7 @@
         "storage"
       ],
       "label": "Memory Sync UI Enabled",
-      "help": "Enable the memory sync setup UI entrypoint (default: true). Set false for rollback while keeping backend support available.",
+      "help": "Enable the memory sync setup UI entrypoint (default: true). Set false when you want to hide sync setup surfaces while keeping backend support available.",
       "hasChildren": false
     },
     {

@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 describe("canonical memory store", () => {
-  it("migrates legacy markdown into ledger-derived state and materialized projections", async () => {
+  it("imports workspace markdown into ledger-derived state and materialized projections", async () => {
     const test = await createTestWorkspace("alisio-canonical-memory-migrate-");
     vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
 
@@ -202,48 +202,6 @@ describe("canonical memory store", () => {
           tags: ["project"],
         }),
       ]);
-    } finally {
-      await fs.rm(test.root, { recursive: true, force: true });
-    }
-  });
-
-  it("imports legacy compatibility markdown when the visible workspace is still empty", async () => {
-    const test = await createTestWorkspace("alisio-canonical-memory-compat-import-");
-    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
-
-    try {
-      const compatibilityRoot = path.join(test.stateDir, "workspace");
-      await fs.mkdir(path.join(compatibilityRoot, "memory"), { recursive: true });
-      await fs.writeFile(
-        path.join(compatibilityRoot, "MEMORY.md"),
-        "# Team Memory\n\nSee [[memory/alpha]].\n",
-        "utf8",
-      );
-      await fs.writeFile(
-        path.join(compatibilityRoot, "memory", "alpha.md"),
-        "# Alpha\n\nRecovered from the legacy mirror.\n",
-        "utf8",
-      );
-
-      const status = await syncCanonicalMemoryStore({
-        cfg: test.cfg,
-        agentId: "main",
-        workspaceDir: test.workspaceDir,
-        backend: "builtin",
-        env: process.env,
-      });
-
-      expect(status.state).toBe("ready");
-      expect(status.entities).toBe(2);
-      expect(status.projections).toBe(2);
-
-      const materializedRoot = await fs.readFile(path.join(test.workspaceDir, "MEMORY.md"), "utf8");
-      const materializedAlpha = await fs.readFile(
-        path.join(test.workspaceDir, "memory", "alpha.md"),
-        "utf8",
-      );
-      expect(materializedRoot).toContain("[[memory/alpha]]");
-      expect(materializedAlpha).toContain("Recovered from the legacy mirror.");
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });
     }
@@ -376,7 +334,7 @@ describe("canonical memory store", () => {
     }
   });
 
-  it("prefers config sync settings over legacy env vars", async () => {
+  it("uses configured sync settings even when removed sync env vars are present", async () => {
     const test = await createTestWorkspace("alisio-canonical-memory-sync-config-");
     vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
 
@@ -517,7 +475,6 @@ describe("canonical memory store", () => {
 
     try {
       const pageId = "page-alpha";
-      const compatibilityKind = `${["legacy", "markdown"].join("-")}:memory/alpha.md`;
       const initialState = createDocStateFromMarkdown("# Alpha\n\nOne.\n");
       const created = await memoryWriteEvent({
         cfg: test.cfg,
@@ -555,7 +512,7 @@ describe("canonical memory store", () => {
             type: "PROJECTION_SET",
             payload: {
               pageId,
-              kind: compatibilityKind,
+              kind: "md-path:memory/alpha.md",
             },
           },
         ],
@@ -598,13 +555,6 @@ describe("canonical memory store", () => {
              WHERE page_id = ? AND kind = ?`,
           )
           .get(pageId, "md-path:memory/alpha.md") as { markdown_body: string } | undefined;
-        const compatibilityProjection = db
-          .prepare(
-            `SELECT 1 AS found
-             FROM projections
-             WHERE page_id = ? AND kind = ?`,
-          )
-          .get(pageId, compatibilityKind) as { found?: number } | undefined;
         const eventTypes = withLedger(updated.status.profileId, test.stateDir, (ledger) =>
           listMemoryStateEventsSince({
             ledger,
@@ -613,7 +563,6 @@ describe("canonical memory store", () => {
         );
 
         expect(projection?.markdown_body).toContain("Two.");
-        expect(compatibilityProjection?.found).toBeUndefined();
         expect(eventTypes).toEqual([
           "PAGE_CREATED",
           "DOC_CRDT_SNAPSHOT",
@@ -639,7 +588,7 @@ describe("canonical memory store", () => {
     }
   });
 
-  it("materializes visible workspace projections without the legacy mirror", async () => {
+  it("materializes visible workspace projections only in the active workspace", async () => {
     const test = await createTestWorkspace("alisio-canonical-memory-workspace-only-");
     vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
 
@@ -688,7 +637,7 @@ describe("canonical memory store", () => {
             type: "PROJECTION_SET",
             payload: {
               pageId,
-              kind: `${["legacy", "markdown"].join("-")}:memory/alpha.md`,
+              kind: "md-path:memory/alpha.md",
             },
           },
         ],
@@ -788,74 +737,6 @@ describe("canonical memory store", () => {
       ).rejects.toMatchObject({
         code: "ENOENT",
       });
-    } finally {
-      await fs.rm(test.root, { recursive: true, force: true });
-    }
-  });
-
-  it("migrates stored compatibility projection kinds back to the canonical prefix", async () => {
-    const test = await createTestWorkspace("alisio-canonical-memory-projection-migrate-");
-    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
-
-    try {
-      const legacyPrefix = ["legacy", "markdown"].join("-");
-      await fs.writeFile(
-        path.join(test.workspaceDir, "MEMORY.md"),
-        "# Team Memory\n\nSee [[memory/alpha]].\n",
-        "utf8",
-      );
-      await fs.writeFile(
-        path.join(test.workspaceDir, "memory", "alpha.md"),
-        "---\naliases:\n  - Alpha Project\ntags:\n  - project\n---\n# Alpha\n\nAlpha line.\n",
-        "utf8",
-      );
-      const status = await syncCanonicalMemoryStore({
-        cfg: test.cfg,
-        agentId: "main",
-        workspaceDir: test.workspaceDir,
-        backend: "builtin",
-        env: process.env,
-      });
-      const db = openDb(status.path);
-      try {
-        db.prepare(
-          `UPDATE projections
-           SET kind = ?
-           WHERE kind = ?`,
-        ).run(`${legacyPrefix}:memory/alpha.md`, "md-path:memory/alpha.md");
-      } finally {
-        db.close();
-      }
-
-      const reopened = await syncCanonicalMemoryStore({
-        cfg: test.cfg,
-        agentId: "main",
-        workspaceDir: test.workspaceDir,
-        backend: "builtin",
-        env: process.env,
-      });
-      const reopenedDb = openDb(reopened.path);
-      try {
-        const projections = reopenedDb
-          .prepare(
-            `SELECT kind, markdown_body
-             FROM projections
-             ORDER BY kind ASC`,
-          )
-          .all() as Array<{ kind: string; markdown_body: string }>;
-
-        expect(projections).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({
-              kind: "md-path:memory/alpha.md",
-              markdown_body: expect.stringContaining("Alpha line."),
-            }),
-          ]),
-        );
-        expect(projections.map((row) => row.kind)).not.toContain(`${legacyPrefix}:memory/alpha.md`);
-      } finally {
-        reopenedDb.close();
-      }
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });
     }

@@ -112,12 +112,6 @@ const MemoryQmdSchema = z
   })
   .strict();
 
-const MemoryLedgerSchema = z
-  .object({
-    enabled: z.boolean().optional(),
-  })
-  .strict();
-
 const MemoryMarkdownProjectionSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -185,7 +179,6 @@ const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
-    ledger: MemoryLedgerSchema.optional(),
     markdownProjection: MemoryMarkdownProjectionSchema.optional(),
     crdt: MemoryCrdtSchema.optional(),
     e2ee: MemoryE2eeSchema.optional(),

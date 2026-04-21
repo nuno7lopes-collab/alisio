@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import {
-  requireNodeSqlite,
-  type MemorySearchManager,
-  type MemorySearchResult,
-} from "alisio/plugin-sdk/memory-core-host-engine-storage";
-import {
   buildSessionEntry,
   listSessionFilesForAgent,
   type SessionFileEntry,
 } from "alisio/plugin-sdk/memory-core-host-engine-qmd";
+import {
+  requireNodeSqlite,
+  type MemorySearchManager,
+  type MemorySearchResult,
+} from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import {
   jsonResult,
   loadOrCreateDeviceIdentity,
@@ -191,7 +191,7 @@ type DecoratedGaiaGraphMatch = GaiaDerivedGraphMatch &
 
 const textEncoder = new TextEncoder();
 const GAIA_LEDGER_STATE_KEY = "__alisioMemoryRetrievalLedgerState";
-const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+const MARKDOWN_PROJECTION_PREFIX = "md-path:";
 
 export function createMemorySearchTool(options: {
   config?: AlisioConfig;
@@ -1009,7 +1009,8 @@ async function buildTextSearchItems(params: {
   analysis: RecallQueryAnalysis;
 }): Promise<MemoryContextItem[]> {
   const stable = (
-    params.reader?.searchStableProjections(params.query, expandCandidateLimit(params.maxResults)) ?? []
+    params.reader?.searchStableProjections(params.query, expandCandidateLimit(params.maxResults)) ??
+    []
   ).map((record) =>
     projectionRecordToContextItem(record, {
       layer: "L3",
@@ -1034,15 +1035,14 @@ async function buildTextSearchItems(params: {
         }),
       )
     : [];
-  const transcripts =
-    params.analysis.includeSessionTranscripts
-      ? await buildSessionTranscriptItems({
-          agentId: params.agentId,
-          query: params.query,
-          limit: Math.max(2, Math.ceil(resolveSearchBudgetItems(params.maxResults) / 2)),
-          analysis: params.analysis,
-        })
-      : [];
+  const transcripts = params.analysis.includeSessionTranscripts
+    ? await buildSessionTranscriptItems({
+        agentId: params.agentId,
+        query: params.query,
+        limit: Math.max(2, Math.ceil(resolveSearchBudgetItems(params.maxResults) / 2)),
+        analysis: params.analysis,
+      })
+    : [];
   return [...stable, ...temporal, ...transcripts];
 }
 
@@ -1081,7 +1081,11 @@ function scoreSessionTranscriptEntry(params: {
   analysis: RecallQueryAnalysis;
 }): number {
   const dateStamp = new Date(params.entry.mtimeMs).toISOString().slice(0, 10);
-  const lexical = computeLexicalScore(params.query, [params.entry.content, params.entry.path, dateStamp]);
+  const lexical = computeLexicalScore(params.query, [
+    params.entry.content,
+    params.entry.path,
+    dateStamp,
+  ]);
   const dateMatch = params.analysis.targetDates.includes(dateStamp) ? 1 : 0;
   const temporalBoost = params.analysis.includeSessionTranscripts
     ? computeRecencyScore(params.entry.mtimeMs) * 0.58
@@ -1090,10 +1094,7 @@ function scoreSessionTranscriptEntry(params: {
   return clampScore(Math.max(lexical, dateMatch, temporalBoost, pendingBoost));
 }
 
-function resolveSessionRelevantLineIndex(
-  entry: SessionFileEntry,
-  query: string,
-): number {
+function resolveSessionRelevantLineIndex(entry: SessionFileEntry, query: string): number {
   const normalizedTerms = query
     .trim()
     .toLowerCase()
@@ -1551,11 +1552,7 @@ function projectionRecordToContextItem(
   const temporal = isTemporalMemoryRole(record.memoryRole);
   const reasonCodes = [
     record.memoryRole === "main" ? "main_memory" : undefined,
-    temporal
-      ? record.memoryRole === "backlog"
-        ? "backlog_pending"
-        : "temporal_note"
-      : undefined,
+    temporal ? (record.memoryRole === "backlog" ? "backlog_pending" : "temporal_note") : undefined,
     pinned ? "pinned" : undefined,
     lexical > 0 || temporal ? "exact_match" : params.layer === "L1" ? "recent" : undefined,
     !temporal && params.layer === "L1" ? "frequent_recall" : undefined,
@@ -1793,7 +1790,9 @@ function loadRecentEventRecords(
             memoryRole: resolveProjectionMemoryRole({
               projectionKind,
               slug:
-                typeof pageRow.slug === "string" ? pageRow.slug : (pageId ?? eventType.toLowerCase()),
+                typeof pageRow.slug === "string"
+                  ? pageRow.slug
+                  : (pageId ?? eventType.toLowerCase()),
             }),
           }
         : {}),
@@ -2036,16 +2035,16 @@ const TEMPORAL_PORTUGUESE_NUMBER_WORDS = new Map<string, number>([
 ]);
 
 function parseProjectionRelativePath(projectionKind: string): string | undefined {
-  for (const prefix of ["md-path:", LEGACY_PROJECTION_PREFIX]) {
-    if (projectionKind.startsWith(prefix)) {
-      return normalizeRelativePath(projectionKind.slice(prefix.length));
-    }
+  if (projectionKind.startsWith(MARKDOWN_PROJECTION_PREFIX)) {
+    return normalizeRelativePath(projectionKind.slice(MARKDOWN_PROJECTION_PREFIX.length));
   }
   return undefined;
 }
 
 function resolveProjectionDisplayPath(projectionKind: string, slug: string): string | undefined {
-  return parseProjectionRelativePath(projectionKind) ?? (slug.trim() ? `memory/${slug}.md` : undefined);
+  return (
+    parseProjectionRelativePath(projectionKind) ?? (slug.trim() ? `memory/${slug}.md` : undefined)
+  );
 }
 
 function resolveProjectionMemoryRole(params: {
@@ -2186,7 +2185,9 @@ function scoreTemporalProjectionRecord(params: {
 }): number {
   const lexical = scoreProjectionRecord(params.query, params.record);
   const relativePath = params.record.relativePath ?? params.record.displayPath ?? "";
-  const dateMatch = params.analysis.targetDates.some((dateStamp) => relativePath.includes(dateStamp))
+  const dateMatch = params.analysis.targetDates.some((dateStamp) =>
+    relativePath.includes(dateStamp),
+  )
     ? 1
     : 0;
   const backlogBoost =

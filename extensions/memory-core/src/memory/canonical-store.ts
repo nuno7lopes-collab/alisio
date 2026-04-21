@@ -84,10 +84,6 @@ type CanonicalSyncBlockedReason = NonNullable<MemorySyncAvailability["reason"]>;
 const CANONICAL_STORE_SYNC_MODE: CanonicalStoreSyncMode = "local-first";
 const CANONICAL_STORE_CLOUD_SYNC: CanonicalCloudSyncState = "unavailable";
 const MARKDOWN_PROJECTION_PREFIX = "md-path:";
-const MARKDOWN_PROJECTION_PREFIX_ALIASES = [
-  MARKDOWN_PROJECTION_PREFIX,
-  "legacy-markdown:",
-] as const;
 const LEDGER_EVENT_SCHEMA_VERSION = 1 as const;
 const DERIVED_STATE_MIGRATION_VERSION = 1;
 const CHECKPOINT_EVENT_INTERVAL = 50;
@@ -130,36 +126,13 @@ type ImportedFileRow = {
   updated_at_ms: number;
 };
 
-type ProjectedFileRootKind = "workspace" | "legacy";
+type ProjectedFileRootKind = "workspace";
 
 type ProjectedFileRow = {
   root_kind: ProjectedFileRootKind;
   relative_path: string;
   content_hash: string;
   updated_at_ms: number;
-};
-
-type LegacyEntityRow = {
-  entity_id: string;
-  title: string;
-  slug: string;
-  source_path: string;
-  metadata: string;
-};
-
-type LegacyRelationRow = {
-  from_entity_id: string;
-  to_entity_id: string | null;
-  target_locator: string | null;
-  relation_type: string;
-  ordinal: number;
-};
-
-type LegacyProjectionRow = {
-  entity_id: string;
-  relative_path: string;
-  frontmatter_json: string;
-  markdown_body: string;
 };
 
 type CanonicalStoreFeatureFlags = {
@@ -741,66 +714,11 @@ function resolveMarkdownProjectionKind(relativePath: string): string {
 }
 
 function parseMarkdownProjectionPath(kind: string): string | null {
-  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
-    if (!kind.startsWith(prefix)) {
-      continue;
-    }
-    const relativePath = kind.slice(prefix.length);
-    return relativePath ? normalizeDisplayPath(relativePath) : null;
+  if (!kind.startsWith(MARKDOWN_PROJECTION_PREFIX)) {
+    return null;
   }
-  return null;
-}
-
-function resolveMarkdownProjectionKindAliases(relativePath: string): [string, string] {
-  const normalizedPath = normalizeDisplayPath(relativePath);
-  return [
-    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[0]}${normalizedPath}`,
-    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[1]}${normalizedPath}`,
-  ];
-}
-
-function normalizeProjectionKind(kind: string): string {
-  const relativePath = parseMarkdownProjectionPath(kind);
-  return relativePath ? resolveMarkdownProjectionKind(relativePath) : kind;
-}
-
-function normalizeProjectionPayload<T>(payload: T): T {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return payload;
-  }
-  const record = payload as Record<string, unknown>;
-  const kind = typeof record.kind === "string" ? record.kind : "";
-  if (!kind) {
-    return payload;
-  }
-  const normalizedKind = normalizeProjectionKind(kind);
-  return normalizedKind === kind ? payload : ({ ...record, kind: normalizedKind } as T);
-}
-
-function normalizeProjectionDraft(draft: MemoryStateEventDraft): MemoryStateEventDraft {
-  if (draft.type !== "PROJECTION_SET") {
-    return draft;
-  }
-  const payload = normalizeProjectionPayload(draft.payload);
-  return payload === draft.payload ? draft : { ...draft, payload };
-}
-
-function normalizeProjectionEvent(
-  event: MemoryStateEventEnvelopePlain,
-): MemoryStateEventEnvelopePlain {
-  if (event.type !== "PROJECTION_SET") {
-    return event;
-  }
-  const payload = normalizeProjectionPayload(event.payload);
-  return payload === event.payload ? event : { ...event, payload };
-}
-
-function resolveWorkspaceProjectionRoot(workspaceDir: string): string {
-  return path.resolve(workspaceDir);
-}
-
-function resolveCompatibilityProjectionRoot(env: NodeJS.ProcessEnv): string {
-  return path.join(resolveStateDir(env), "workspace");
+  const relativePath = kind.slice(MARKDOWN_PROJECTION_PREFIX.length);
+  return relativePath ? normalizeDisplayPath(relativePath) : null;
 }
 
 function resolveProjectionPath(params: { rootDir: string; relativePath: string }): string {
@@ -831,20 +749,6 @@ function canonicalStoreTelemetry(
   });
 }
 
-function normalizeBooleanEnv(value: string | undefined, fallback: boolean): boolean {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) {
-    return fallback;
-  }
-  if (["1", "true", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "false", "no", "off"].includes(normalized)) {
-    return false;
-  }
-  return fallback;
-}
-
 function normalizeSyncMode(value: string | undefined): MemorySyncMode | undefined {
   switch (value?.trim().toLowerCase()) {
     case "cloud":
@@ -868,22 +772,11 @@ function resolveCanonicalSyncConfig(
         };
       }
     | undefined;
-  const configuredRelayBaseUrl = rawMemory?.sync?.relayBaseUrl?.trim() || undefined;
-  const legacyRelayBaseUrl = env.ALISIO_MEMORY_SYNC_RELAY_BASE_URL?.trim() || undefined;
-  const relayBaseUrl = configuredRelayBaseUrl ?? legacyRelayBaseUrl;
-  const configuredMode = normalizeSyncMode(rawMemory?.sync?.mode);
-  const legacyMode = normalizeSyncMode(env.ALISIO_MEMORY_SYNC_MODE);
-  const inferredMode =
-    configuredMode ??
-    legacyMode ??
-    (configuredRelayBaseUrl ? "off" : legacyRelayBaseUrl ? "cloud" : "off");
-  const enabled =
-    configuredMode !== undefined
-      ? inferredMode !== "off"
-      : normalizeBooleanEnv(env.ALISIO_MEMORY_SYNC_ENABLED, inferredMode !== "off");
+  const relayBaseUrl = rawMemory?.sync?.relayBaseUrl?.trim() || undefined;
+  const mode = normalizeSyncMode(rawMemory?.sync?.mode) ?? "off";
   return {
-    enabled,
-    mode: inferredMode,
+    enabled: mode !== "off",
+    mode,
     ...(relayBaseUrl ? { relayBaseUrl } : {}),
     ...(env.ALISIO_MEMORY_SYNC_PAIRING_CODE?.trim()
       ? { pairingCode: env.ALISIO_MEMORY_SYNC_PAIRING_CODE.trim() }
@@ -993,96 +886,6 @@ function hasColumn(db: DatabaseSync, table: string, column: string): boolean {
   return rows.some((row) => row.name === column);
 }
 
-function renameLegacyProjectionTableIfNeeded(db: DatabaseSync): void {
-  if (!hasTable(db, "projections")) {
-    return;
-  }
-  if (!hasColumn(db, "projections", "projection_id")) {
-    return;
-  }
-  if (hasTable(db, "legacy_projections_v0")) {
-    return;
-  }
-  db.exec(`ALTER TABLE projections RENAME TO legacy_projections_v0`);
-}
-
-function migrateMarkdownProjectionKindsIfNeeded(db: DatabaseSync): void {
-  if (!hasTable(db, "projections")) {
-    return;
-  }
-  const legacyRows = db
-    .prepare(
-      `SELECT page_id, kind, markdown_body, updated_at_ms
-       FROM projections
-       WHERE kind LIKE ?
-       ORDER BY updated_at_ms DESC, page_id ASC, kind ASC`,
-    )
-    .all(`${MARKDOWN_PROJECTION_PREFIX_ALIASES[1]}%`) as Array<{
-    page_id: string;
-    kind: string;
-    markdown_body: string;
-    updated_at_ms: number;
-  }>;
-  if (legacyRows.length === 0) {
-    return;
-  }
-  const readCanonicalRow = db.prepare(
-    `SELECT markdown_body, updated_at_ms
-     FROM projections
-     WHERE page_id = ? AND kind = ?
-     LIMIT 1`,
-  );
-  const renameKind = db.prepare(
-    `UPDATE projections
-     SET kind = ?
-     WHERE page_id = ? AND kind = ?`,
-  );
-  const updateCanonicalRow = db.prepare(
-    `UPDATE projections
-     SET markdown_body = ?, updated_at_ms = ?
-     WHERE page_id = ? AND kind = ?`,
-  );
-  const deleteLegacyRow = db.prepare(
-    `DELETE FROM projections
-     WHERE page_id = ? AND kind = ?`,
-  );
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    for (const row of legacyRows) {
-      const relativePath = parseMarkdownProjectionPath(row.kind);
-      if (!relativePath) {
-        continue;
-      }
-      const canonicalKind = resolveMarkdownProjectionKind(relativePath);
-      if (canonicalKind === row.kind) {
-        continue;
-      }
-      const existingCanonicalRow = readCanonicalRow.get(row.page_id, canonicalKind) as
-        | {
-            markdown_body: string;
-            updated_at_ms: number;
-          }
-        | undefined;
-      if (!existingCanonicalRow) {
-        renameKind.run(canonicalKind, row.page_id, row.kind);
-        continue;
-      }
-      const shouldPromoteLegacyRow =
-        row.updated_at_ms > existingCanonicalRow.updated_at_ms ||
-        (row.updated_at_ms === existingCanonicalRow.updated_at_ms &&
-          row.markdown_body.length > existingCanonicalRow.markdown_body.length);
-      if (shouldPromoteLegacyRow) {
-        updateCanonicalRow.run(row.markdown_body, row.updated_at_ms, row.page_id, canonicalKind);
-      }
-      deleteLegacyRow.run(row.page_id, row.kind);
-    }
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
-
 function ensureSyncStateColumn(db: DatabaseSync, column: string, definition: string): void {
   if (hasColumn(db, "sync_state", column)) {
     return;
@@ -1091,7 +894,6 @@ function ensureSyncStateColumn(db: DatabaseSync, column: string, definition: str
 }
 
 function ensureCanonicalStoreSchema(db: DatabaseSync): void {
-  renameLegacyProjectionTableIfNeeded(db);
   db.exec(`
     CREATE TABLE IF NOT EXISTS profiles (
       profile_id TEXT PRIMARY KEY,
@@ -1418,74 +1220,6 @@ function sanitizeAliases(params: {
   ]);
 }
 
-type LegacyCanonicalLedgerEventRow = {
-  event_id: string;
-  lamport: number | bigint;
-  actor_id: string;
-  event_type: MemoryStateEventEnvelopePlain["type"];
-  page_id: string | null;
-  source: string | null;
-  batch_id: string | null;
-  created_at_ms: number | bigint;
-  payload_json: string;
-};
-
-type LegacyCanonicalCheckpointRow = {
-  checkpoint_id: string;
-  lamport: number | bigint;
-  state_hash: string;
-  snapshot_json: string | null;
-  encrypted_snapshot: string | null;
-};
-
-function readLegacyCanonicalLedgerEvents(db: DatabaseSync): MemoryStateEventEnvelopePlain[] {
-  if (!hasTable(db, "ledger_events")) {
-    return [];
-  }
-  const rows = db
-    .prepare(
-      `SELECT event_id, lamport, actor_id, event_type, page_id, source, batch_id, created_at_ms, payload_json
-       FROM ledger_events
-       ORDER BY lamport ASC, event_id ASC`,
-    )
-    .all() as LegacyCanonicalLedgerEventRow[];
-  return rows.map((row) => ({
-    schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
-    eventId: row.event_id,
-    lamport: normalizeNumber(row.lamport),
-    actorId: row.actor_id,
-    createdAtMs: normalizeNumber(row.created_at_ms),
-    type: row.event_type,
-    payload: parseJsonRecord(row.payload_json) as never,
-    ...(row.page_id ? { pageId: row.page_id } : {}),
-    ...(row.source ? { source: row.source } : {}),
-    ...(row.batch_id ? { batchId: row.batch_id } : {}),
-  }));
-}
-
-function readLegacyCanonicalCheckpointRows(db: DatabaseSync): LegacyCanonicalCheckpointRow[] {
-  if (!hasTable(db, "checkpoints")) {
-    return [];
-  }
-  return db
-    .prepare(
-      `SELECT checkpoint_id, lamport, state_hash, snapshot_json, encrypted_snapshot
-       FROM checkpoints
-       ORDER BY lamport ASC, checkpoint_id ASC`,
-    )
-    .all() as LegacyCanonicalCheckpointRow[];
-}
-
-function hasLedgerStateEvents(ledger: MemoryLedger): boolean {
-  return (
-    listMemoryStateEventsSince({
-      ledger,
-      lamportExclusive: 0,
-      batchSize: 1,
-    }).length > 0
-  );
-}
-
 function toCanonicalCheckpointId(seed: string, createdAtMs: number): string {
   if (isCanonicalStableId(seed)) {
     return seed;
@@ -1524,62 +1258,6 @@ function normalizeCheckpointEvents(
   events: readonly MemoryStateEventEnvelopePlain[],
 ): MemoryStateEventEnvelopePlain[] {
   return events.map((event) => normalizeCheckpointEvent(event));
-}
-
-async function migrateLegacyCanonicalLedgerIfNeeded(params: CanonicalStoreContext): Promise<void> {
-  if (hasLedgerStateEvents(params.ledger)) {
-    return;
-  }
-  const legacyEvents = readLegacyCanonicalLedgerEvents(params.db);
-  if (legacyEvents.length === 0) {
-    return;
-  }
-  const normalizedLegacyEvents = normalizeCheckpointEvents(legacyEvents);
-  const reassignedEvents = assignMemoryStateLedgerEvents({
-    ledger: params.ledger,
-    drafts: normalizedLegacyEvents.map((event) => ({
-      actorId: event.actorId,
-      createdAtMs: event.createdAtMs,
-      eventId: event.eventId,
-      pageId: event.pageId,
-      source: event.source,
-      batchId: event.batchId,
-      type: event.type,
-      payload: event.payload,
-    })),
-  });
-  const lamportMap = new Map<number, number>();
-  normalizedLegacyEvents.forEach((event, index) => {
-    lamportMap.set(event.lamport, reassignedEvents[index]?.lamport ?? event.lamport);
-  });
-  appendMemoryStateEvents({
-    ledger: params.ledger,
-    profileId: params.ownerProfile.profileId,
-    events: reassignedEvents,
-  });
-  for (const checkpoint of readLegacyCanonicalCheckpointRows(params.db)) {
-    const checkpointId = toCanonicalCheckpointId(
-      `${checkpoint.checkpoint_id}:${checkpoint.state_hash}`,
-      normalizeNumber(checkpoint.lamport),
-    );
-    params.ledger.createCheckpoint(
-      checkpointId,
-      lamportMap.get(normalizeNumber(checkpoint.lamport)) ?? normalizeNumber(checkpoint.lamport),
-      checkpoint.state_hash,
-      {
-        ...(checkpoint.snapshot_json
-          ? {
-              plain: Buffer.from(checkpoint.snapshot_json, "utf8"),
-            }
-          : {}),
-        ...(checkpoint.encrypted_snapshot
-          ? {
-              cipher: Buffer.from(checkpoint.encrypted_snapshot, "utf8"),
-            }
-          : {}),
-      },
-    );
-  }
 }
 
 function readCurrentPageMarkdown(db: DatabaseSync, pageId: string): string {
@@ -1694,16 +1372,16 @@ function resolvePageIdForAlias(db: DatabaseSync, aliasKey: string): string | nul
 }
 
 function resolvePageIdForProjectionPath(db: DatabaseSync, relativePath: string): string | null {
-  const [canonicalKind, compatKind] = resolveMarkdownProjectionKindAliases(relativePath);
+  const canonicalKind = resolveMarkdownProjectionKind(relativePath);
   const row = db
     .prepare(
       `SELECT page_id
        FROM projections
-       WHERE kind IN (?, ?)
-       ORDER BY CASE WHEN kind = ? THEN 0 ELSE 1 END, page_id ASC
+       WHERE kind = ?
+       ORDER BY page_id ASC
        LIMIT 1`,
     )
-    .get(canonicalKind, compatKind, canonicalKind) as
+    .get(canonicalKind) as
     | {
         page_id: string;
       }
@@ -1757,9 +1435,6 @@ async function collectWorkspaceMarkdownPages(params: {
   workspaceDir: string;
   importedPageIdByPath: ReadonlyMap<string, string>;
   projectedFileRowsByPath?: ReadonlyMap<string, ProjectedFileRow>;
-  compatibilityRootDir?: string;
-  compatibilityProjectedFileRowsByPath?: ReadonlyMap<string, ProjectedFileRow>;
-  tombstonedPageIds?: ReadonlySet<string>;
   tombstonedPageIdByPath?: ReadonlyMap<string, string>;
 }): Promise<CanonicalImportedPage[]> {
   const collectPagesFromRoot = async (
@@ -1804,201 +1479,7 @@ async function collectWorkspaceMarkdownPages(params: {
     return pages.toSorted((left, right) => left.relativePath.localeCompare(right.relativePath));
   };
 
-  const workspacePages = await collectPagesFromRoot(
-    params.workspaceDir,
-    params.projectedFileRowsByPath,
-  );
-  const compatibilityRootDir = params.compatibilityRootDir?.trim();
-  if (!compatibilityRootDir) {
-    return workspacePages;
-  }
-  if (path.resolve(compatibilityRootDir) === path.resolve(params.workspaceDir)) {
-    return workspacePages;
-  }
-  const compatibilityPages = await collectPagesFromRoot(
-    compatibilityRootDir,
-    params.compatibilityProjectedFileRowsByPath,
-  );
-  if (compatibilityPages.length === 0) {
-    return workspacePages;
-  }
-  const mergedPages = new Map<string, CanonicalImportedPage>();
-  for (const page of compatibilityPages) {
-    mergedPages.set(page.relativePath, page);
-  }
-  for (const page of workspacePages) {
-    mergedPages.set(page.relativePath, page);
-  }
-  return Array.from(mergedPages.values()).toSorted((left, right) =>
-    left.relativePath.localeCompare(right.relativePath),
-  );
-}
-
-function renderLegacyProjectionMarkdown(params: {
-  frontmatterJson?: string;
-  markdownBody?: string;
-}): string {
-  const frontmatter = parseJsonRecord(params.frontmatterJson);
-  const body = params.markdownBody?.trimEnd() ?? "";
-  if (Object.keys(frontmatter).length === 0) {
-    return body ? `${body}\n` : "";
-  }
-  const lines = ["---"];
-  for (const [key, value] of Object.entries(frontmatter)) {
-    appendYamlField(lines, key, value);
-  }
-  lines.push("---", "");
-  if (body) {
-    lines.push(body);
-  }
-  return lines.join("\n").trimEnd().concat("\n");
-}
-
-function collectLegacyCanonicalPages(db: DatabaseSync): CanonicalImportedPage[] {
-  if (!hasTable(db, "entities") || !hasTable(db, "entity_aliases") || !hasTable(db, "relations")) {
-    return [];
-  }
-  const entityRows = db
-    .prepare(`SELECT entity_id, title, slug, source_path, metadata FROM entities`)
-    .all() as LegacyEntityRow[];
-  if (entityRows.length === 0) {
-    return [];
-  }
-  const aliasRows = db
-    .prepare(`SELECT alias_key, entity_id FROM entity_aliases ORDER BY alias_key ASC`)
-    .all() as Array<{ alias_key: string; entity_id: string }>;
-  const relationRows = db
-    .prepare(
-      `SELECT from_entity_id, to_entity_id, target_locator, relation_type, ordinal
-       FROM relations
-       ORDER BY from_entity_id ASC, ordinal ASC`,
-    )
-    .all() as LegacyRelationRow[];
-  const projectionTable = hasTable(db, "legacy_projections_v0")
-    ? "legacy_projections_v0"
-    : hasTable(db, "projections") && hasColumn(db, "projections", "projection_id")
-      ? "projections"
-      : null;
-  const projectionRows = projectionTable
-    ? (db
-        .prepare(
-          `SELECT entity_id, relative_path, frontmatter_json, markdown_body
-           FROM ${projectionTable}
-           ORDER BY relative_path ASC`,
-        )
-        .all() as LegacyProjectionRow[])
-    : [];
-  const projectionByEntityId = new Map<string, LegacyProjectionRow[]>();
-  for (const row of projectionRows) {
-    const entry = projectionByEntityId.get(row.entity_id) ?? [];
-    entry.push(row);
-    projectionByEntityId.set(row.entity_id, entry);
-  }
-  const aliasByEntityId = new Map<string, string[]>();
-  for (const row of aliasRows) {
-    const entry = aliasByEntityId.get(row.entity_id) ?? [];
-    entry.push(row.alias_key);
-    aliasByEntityId.set(row.entity_id, entry);
-  }
-  const entityPathById = new Map(entityRows.map((row) => [row.entity_id, row.source_path]));
-  const relationByEntityId = new Map<string, LegacyRelationRow[]>();
-  for (const row of relationRows) {
-    const entry = relationByEntityId.get(row.from_entity_id) ?? [];
-    entry.push(row);
-    relationByEntityId.set(row.from_entity_id, entry);
-  }
-  return entityRows.flatMap((entity) => {
-    const projection = projectionByEntityId.get(entity.entity_id)?.[0];
-    const relativePath = normalizeDisplayPath(
-      projection?.relative_path?.trim() || entity.source_path || `memory/${entity.slug}.md`,
-    );
-    const metadata = parseJsonRecord(entity.metadata);
-    const tags = Array.isArray(metadata.tags)
-      ? metadata.tags.filter((value): value is string => typeof value === "string")
-      : [];
-    const markdown = renderLegacyProjectionMarkdown({
-      frontmatterJson: projection?.frontmatter_json,
-      markdownBody: projection?.markdown_body ?? `# ${entity.title}\n`,
-    });
-    const parsed = extractFrontmatter(markdown);
-    const referencesFromMarkdown = [
-      ...parseWikiReferences(parsed.body),
-      ...parseMarkdownReferences(parsed.body, relativePath),
-    ];
-    const referencesFromRelations = (relationByEntityId.get(entity.entity_id) ?? []).map(
-      (relation) => ({
-        relationType: relation.relation_type || "references",
-        ordinal: relation.ordinal,
-        targetKey: normalizeReferenceKey(
-          relation.target_locator ??
-            entityPathById.get(relation.to_entity_id ?? "") ??
-            relation.to_entity_id ??
-            "",
-        ),
-      }),
-    );
-    return [
-      {
-        pageId: entity.entity_id,
-        title: entity.title,
-        slug: normalizeSlug(entity.slug || relativePath),
-        aliases: uniqueStrings([
-          ...sanitizeAliases({
-            title: entity.title,
-            slug: normalizeSlug(entity.slug || relativePath),
-            relativePath,
-            aliases: [],
-          }),
-          ...(aliasByEntityId.get(entity.entity_id) ?? []),
-        ]),
-        tags: uniqueStrings(tags),
-        relativePath,
-        markdown,
-        references: uniqueStrings(
-          [...referencesFromMarkdown, ...referencesFromRelations].map(
-            (reference) => `${reference.relationType}:${reference.ordinal}:${reference.targetKey}`,
-          ),
-        ).map((entry) => {
-          const [, ordinal, targetKey] = entry.split(":", 3);
-          return {
-            relationType: "references",
-            ordinal: Number(ordinal) || 0,
-            targetKey,
-          };
-        }),
-        updatedAtMs: Date.now(),
-        contentHash: hashText(markdown),
-      },
-    ];
-  });
-}
-
-function mergeImportedPages(
-  workspacePages: CanonicalImportedPage[],
-  legacyPages: CanonicalImportedPage[],
-): CanonicalImportedPage[] {
-  const byPath = new Map<string, CanonicalImportedPage>();
-  for (const legacyPage of legacyPages) {
-    byPath.set(legacyPage.relativePath, legacyPage);
-  }
-  for (const workspacePage of workspacePages) {
-    const existing = byPath.get(workspacePage.relativePath);
-    if (!existing) {
-      byPath.set(workspacePage.relativePath, workspacePage);
-      continue;
-    }
-    byPath.set(workspacePage.relativePath, {
-      ...workspacePage,
-      pageId: existing.pageId,
-      aliases: uniqueStrings([...existing.aliases, ...workspacePage.aliases]),
-      tags: uniqueStrings([...existing.tags, ...workspacePage.tags]),
-      references:
-        workspacePage.references.length > 0 ? workspacePage.references : existing.references,
-    });
-  }
-  return Array.from(byPath.values()).toSorted((left, right) =>
-    left.relativePath.localeCompare(right.relativePath),
-  );
+  return await collectPagesFromRoot(params.workspaceDir, params.projectedFileRowsByPath);
 }
 
 function buildReferenceLookup(params: {
@@ -2137,18 +1618,15 @@ function buildPageEventDrafts(params: {
     });
   }
   const projectionKind = resolveMarkdownProjectionKind(params.page.relativePath);
-  const [canonicalProjectionKind, compatProjectionKind] = resolveMarkdownProjectionKindAliases(
-    params.page.relativePath,
-  );
   const projectionExists = Boolean(
     params.db
       .prepare(
         `SELECT 1 AS found
          FROM projections
-         WHERE page_id = ? AND kind IN (?, ?)
+         WHERE page_id = ? AND kind = ?
          LIMIT 1`,
       )
-      .get(params.page.pageId, canonicalProjectionKind, compatProjectionKind) as
+      .get(params.page.pageId, projectionKind) as
       | {
           found?: number;
         }
@@ -2368,7 +1846,6 @@ async function createCheckpointIfNeeded(params: {
 
 function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger }): void {
   ensureCanonicalStoreSchema(params.db);
-  migrateMarkdownProjectionKindsIfNeeded(params.db);
   const latestCheckpoint = params.ledger.getLatestCheckpoint();
   const checkpointLamport = latestCheckpoint?.coveredUntilLamport ?? 0;
   if (latestCheckpoint?.payloadPlain) {
@@ -2390,7 +1867,6 @@ function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger 
           });
         }
       }
-      migrateMarkdownProjectionKindsIfNeeded(params.db);
       return;
     } catch (error) {
       log.warn(
@@ -2408,7 +1884,6 @@ function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger 
       events,
       migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
     });
-    migrateMarkdownProjectionKindsIfNeeded(params.db);
     return;
   }
   const meta = readMemoryStateMeta(params.db);
@@ -2417,303 +1892,6 @@ function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger 
     lastAppliedLamport: 0,
     ...(latestCheckpoint?.checkpointId ? { lastCheckpointId: latestCheckpoint.checkpointId } : {}),
   });
-}
-
-function hasCurrentDerivedState(db: DatabaseSync): boolean {
-  const row = db
-    .prepare(
-      `SELECT
-         (SELECT COUNT(*) FROM pages) AS pages_count,
-         (SELECT COUNT(*) FROM page_doc_state) AS doc_state_count,
-         (SELECT COUNT(*) FROM claims) AS claims_count,
-         (SELECT COUNT(*) FROM evidence) AS evidence_count,
-         (SELECT COUNT(*) FROM links) AS links_count,
-         (SELECT COUNT(*) FROM attachments) AS attachments_count,
-         (SELECT COUNT(*) FROM projections) AS projections_count,
-         (SELECT COUNT(*) FROM dashboards) AS dashboards_count`,
-    )
-    .get() as
-    | {
-        pages_count: number;
-        doc_state_count: number;
-        claims_count: number;
-        evidence_count: number;
-        links_count: number;
-        attachments_count: number;
-        projections_count: number;
-        dashboards_count: number;
-      }
-    | undefined;
-  return (
-    (row?.pages_count ?? 0) > 0 ||
-    (row?.doc_state_count ?? 0) > 0 ||
-    (row?.claims_count ?? 0) > 0 ||
-    (row?.evidence_count ?? 0) > 0 ||
-    (row?.links_count ?? 0) > 0 ||
-    (row?.attachments_count ?? 0) > 0 ||
-    (row?.projections_count ?? 0) > 0 ||
-    (row?.dashboards_count ?? 0) > 0
-  );
-}
-
-function buildGenesisDraftsFromCurrentDerivedState(params: {
-  db: DatabaseSync;
-  actorId: string;
-  batchId: string;
-}): MemoryStateEventDraft[] {
-  const drafts: MemoryStateEventDraft[] = [];
-  const pages = params.db
-    .prepare(
-      `SELECT page_id, title, slug, created_at_ms, updated_at_ms, tombstoned
-       FROM pages
-       ORDER BY page_id ASC`,
-    )
-    .all() as Array<{
-    page_id: string;
-    title: string;
-    slug: string;
-    created_at_ms: number;
-    updated_at_ms: number;
-    tombstoned: number;
-  }>;
-  for (const page of pages) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      pageId: page.page_id,
-      type: "PAGE_CREATED",
-      payload: {
-        pageId: page.page_id,
-        title: page.title,
-        slug: page.slug,
-        aliases: readCurrentPageAliases(params.db, page.page_id),
-        tags: readCurrentPageTags(params.db, page.page_id),
-        createdAtMs: page.created_at_ms,
-        updatedAtMs: page.updated_at_ms,
-      },
-    });
-    if (page.tombstoned === 1) {
-      drafts.push({
-        actorId: params.actorId,
-        batchId: params.batchId,
-        source: "legacy-canonical-state",
-        pageId: page.page_id,
-        type: "PAGE_TOMBSTONED",
-        payload: {
-          pageId: page.page_id,
-          tombstoned: true,
-          updatedAtMs: page.updated_at_ms,
-        },
-      });
-    }
-  }
-  const docStates = params.db
-    .prepare(
-      `SELECT page_id, yjs_state, updated_at_ms
-       FROM page_doc_state
-       ORDER BY page_id ASC`,
-    )
-    .all() as Array<{
-    page_id: string;
-    yjs_state: Uint8Array;
-    updated_at_ms: number;
-  }>;
-  for (const row of docStates) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      pageId: row.page_id,
-      createdAtMs: row.updated_at_ms,
-      type: "DOC_CRDT_SNAPSHOT",
-      payload: {
-        pageId: row.page_id,
-        yjsState: row.yjs_state,
-      },
-    });
-  }
-  const linkRows = params.db
-    .prepare(
-      `SELECT from_page_id, to_page_id, type, ordinal
-       FROM links
-       ORDER BY from_page_id ASC, ordinal ASC, to_page_id ASC, type ASC`,
-    )
-    .all() as Array<{
-    from_page_id: string;
-    to_page_id: string;
-    type: string;
-    ordinal: number;
-  }>;
-  const linksByPage = new Map<string, MemoryPageLink[]>();
-  for (const row of linkRows) {
-    const entry = linksByPage.get(row.from_page_id) ?? [];
-    entry.push({
-      toPageId: row.to_page_id,
-      type: row.type,
-      ordinal: row.ordinal,
-    });
-    linksByPage.set(row.from_page_id, entry);
-  }
-  for (const [pageId, links] of linksByPage) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      pageId,
-      type: "LINKS_REPLACED",
-      payload: {
-        pageId,
-        links,
-      },
-    });
-  }
-  const projections = params.db
-    .prepare(
-      `SELECT page_id, kind, markdown_body, updated_at_ms
-       FROM projections
-       ORDER BY page_id ASC, kind ASC`,
-    )
-    .all() as Array<{
-    page_id: string;
-    kind: string;
-    markdown_body: string;
-    updated_at_ms: number;
-  }>;
-  for (const row of projections) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      pageId: row.page_id,
-      createdAtMs: row.updated_at_ms,
-      type: "PROJECTION_SET",
-      payload: {
-        pageId: row.page_id,
-        kind: normalizeProjectionKind(row.kind),
-        markdownBody: row.markdown_body,
-      },
-    });
-  }
-  const claims = params.db
-    .prepare(
-      `SELECT claim_id, subject, predicate, object, confidence, status, updated_at_ms
-       FROM claims
-       ORDER BY claim_id ASC`,
-    )
-    .all() as Array<{
-    claim_id: string;
-    subject: string;
-    predicate: string;
-    object: string;
-    confidence: number;
-    status: string;
-    updated_at_ms: number;
-  }>;
-  for (const row of claims) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      createdAtMs: row.updated_at_ms,
-      type: "CLAIM_UPSERTED",
-      payload: {
-        claimId: row.claim_id,
-        subject: row.subject,
-        predicate: row.predicate,
-        object: row.object,
-        confidence: row.confidence,
-        status: row.status,
-        updatedAtMs: row.updated_at_ms,
-      },
-    });
-  }
-  const evidence = params.db
-    .prepare(
-      `SELECT evidence_id, claim_id, source_locator, quote, hash, created_at_ms
-       FROM evidence
-       ORDER BY evidence_id ASC`,
-    )
-    .all() as Array<{
-    evidence_id: string;
-    claim_id: string;
-    source_locator: string;
-    quote: string;
-    hash: string;
-    created_at_ms: number;
-  }>;
-  for (const row of evidence) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      createdAtMs: row.created_at_ms,
-      type: "EVIDENCE_ADDED",
-      payload: {
-        evidenceId: row.evidence_id,
-        claimId: row.claim_id,
-        sourceLocator: row.source_locator,
-        quote: row.quote,
-        hash: row.hash,
-        createdAtMs: row.created_at_ms,
-      },
-    });
-  }
-  const attachments = params.db
-    .prepare(
-      `SELECT blob_id, mime, bytes, sha256, created_at_ms
-       FROM attachments
-       ORDER BY blob_id ASC`,
-    )
-    .all() as Array<{
-    blob_id: string;
-    mime: string;
-    bytes: Uint8Array;
-    sha256: string;
-    created_at_ms: number;
-  }>;
-  for (const row of attachments) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      createdAtMs: row.created_at_ms,
-      type: "ATTACHMENT_ADDED",
-      payload: {
-        blobId: row.blob_id,
-        mime: row.mime,
-        bytes: row.bytes,
-        sha256: row.sha256,
-        createdAtMs: row.created_at_ms,
-      },
-    });
-  }
-  const dashboards = params.db
-    .prepare(
-      `SELECT kind, json, updated_at_ms
-       FROM dashboards
-       ORDER BY kind ASC`,
-    )
-    .all() as Array<{
-    kind: string;
-    json: string;
-    updated_at_ms: number;
-  }>;
-  for (const row of dashboards) {
-    drafts.push({
-      actorId: params.actorId,
-      batchId: params.batchId,
-      source: "legacy-canonical-state",
-      createdAtMs: row.updated_at_ms,
-      type: "DASHBOARD_SET",
-      payload: {
-        kind: row.kind,
-        json: parseJsonRecord(row.json),
-        updatedAtMs: row.updated_at_ms,
-      },
-    });
-  }
-  return drafts;
 }
 
 async function materializeMarkdownProjections(params: {
@@ -2744,13 +1922,9 @@ async function materializeMarkdownProjections(params: {
     expectedContentByPath.set(relativePath, row.markdown_body);
   }
 
-  const roots: Array<{ kind: ProjectedFileRootKind; rootDir: string }> = [];
-  if (params.flags.markdownProjectionEnabled) {
-    roots.push({
-      kind: "workspace",
-      rootDir: resolveWorkspaceProjectionRoot(params.workspaceDir),
-    });
-  }
+  const roots = params.flags.markdownProjectionEnabled
+    ? [{ kind: "workspace" as const, rootDir: path.resolve(params.workspaceDir) }]
+    : [];
 
   let written = 0;
   for (const root of roots) {
@@ -2819,9 +1993,9 @@ async function applyEventDrafts(params: {
   const events = normalizeCheckpointEvents(
     assignMemoryStateLedgerEvents({
       ledger: params.context.ledger,
-      drafts: params.drafts.map((draft) => normalizeProjectionDraft(draft)),
+      drafts: params.drafts,
     }),
-  ).map((event) => normalizeProjectionEvent(event));
+  );
   if (events.length === 0) {
     const status = buildReadyStatusFromContext(params.context);
     return {
@@ -2900,114 +2074,12 @@ async function applyEventDrafts(params: {
   };
 }
 
-async function migrateLegacyStateIfNeeded(params: CanonicalStoreContext): Promise<void> {
-  const latestLamport = hasLedgerStateEvents(params.ledger)
-    ? params.ledger.getStats().lastLamport
-    : 0;
-  const meta = readMemoryStateMeta(params.db);
-  if (latestLamport > 0 || meta.migrationVersion >= DERIVED_STATE_MIGRATION_VERSION) {
-    return;
-  }
-  const startedAt = Date.now();
-  if (hasCurrentDerivedState(params.db)) {
-    writeMemoryStateMeta(params.db, {
-      migrationVersion: meta.migrationVersion,
-      lastAppliedLamport: 0,
-    });
-    const batchId = `genesis-state:${computeMemoryStateHash(params.db).slice(0, 16)}`;
-    const drafts = buildGenesisDraftsFromCurrentDerivedState({
-      db: params.db,
-      actorId: "gaia-legacy-state",
-      batchId,
-    });
-    if (drafts.length > 0) {
-      await applyEventDrafts({
-        context: params,
-        drafts,
-        materializeMarkdown: false,
-      });
-    }
-    writeMemoryStateMeta(params.db, {
-      migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-      lastAppliedLamport: readMemoryStateMeta(params.db).lastAppliedLamport,
-      lastCheckpointId: readMemoryStateMeta(params.db).lastCheckpointId,
-    });
-    const pagesCount =
-      (
-        params.db.prepare(`SELECT COUNT(*) AS count FROM pages`).get() as
-          | {
-              count: number;
-            }
-          | undefined
-      )?.count ?? 0;
-    canonicalStoreTelemetry("migration_duration_ms", Date.now() - startedAt, {
-      pages: pagesCount,
-    });
-    return;
-  }
-  const importedRows = readImportedFileRows(params.db);
-  const workspacePages = await collectWorkspaceMarkdownPages({
-    workspaceDir: params.workspaceDir,
-    importedPageIdByPath: buildImportPageIdMap(importedRows),
-    compatibilityRootDir: resolveCompatibilityProjectionRoot(params.env),
-    compatibilityProjectedFileRowsByPath: readProjectedFileRows(params.db, "legacy"),
-    tombstonedPageIds: readTombstonedPageIds(params.db),
-    tombstonedPageIdByPath: readTombstonedProjectionPageIdsByPath(params.db),
-  });
-  const legacyPages = collectLegacyCanonicalPages(params.db);
-  const mergedPages = mergeImportedPages(workspacePages, legacyPages);
-  if (mergedPages.length === 0) {
-    writeMemoryStateMeta(params.db, {
-      migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-      lastAppliedLamport: 0,
-    });
-    return;
-  }
-  const lookupByAlias = buildReferenceLookup({
-    db: params.db,
-    importedPages: mergedPages,
-  });
-  const batchId = `genesis:${hashText(JSON.stringify(mergedPages.map((page) => page.relativePath))).slice(0, 16)}`;
-  const drafts = mergedPages.flatMap((page) =>
-    buildPageEventDrafts({
-      db: params.db,
-      page,
-      lookupByAlias,
-      actorId: "gaia-migration",
-      source: "genesis",
-      batchId,
-      crdtPagesEnabled: params.flags.crdtPagesEnabled,
-    }),
-  );
-  if (drafts.length > 0) {
-    await applyEventDrafts({
-      context: params,
-      drafts,
-      materializeMarkdown: false,
-    });
-  }
-  for (const page of workspacePages) {
-    updateImportedFileRow(params.db, page);
-  }
-  writeMemoryStateMeta(params.db, {
-    migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-    lastAppliedLamport: readMemoryStateMeta(params.db).lastAppliedLamport,
-    lastCheckpointId: readMemoryStateMeta(params.db).lastCheckpointId,
-  });
-  canonicalStoreTelemetry("migration_duration_ms", Date.now() - startedAt, {
-    pages: mergedPages.length,
-  });
-}
-
 async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void> {
   const importedRows = readImportedFileRows(params.db);
   const pages = await collectWorkspaceMarkdownPages({
     workspaceDir: params.workspaceDir,
     importedPageIdByPath: buildImportPageIdMap(importedRows),
     projectedFileRowsByPath: readProjectedFileRows(params.db, "workspace"),
-    compatibilityRootDir: resolveCompatibilityProjectionRoot(params.env),
-    compatibilityProjectedFileRowsByPath: readProjectedFileRows(params.db, "legacy"),
-    tombstonedPageIds: readTombstonedPageIds(params.db),
     tombstonedPageIdByPath: readTombstonedProjectionPageIdsByPath(params.db),
   });
   const lookupByAlias = buildReferenceLookup({
@@ -3082,12 +2154,10 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
 }
 
 async function initializeCanonicalLedgerState(context: CanonicalStoreContext): Promise<void> {
-  await migrateLegacyCanonicalLedgerIfNeeded(context);
   bootstrapDerivedState({
     db: context.db,
     ledger: context.ledger,
   });
-  await migrateLegacyStateIfNeeded(context);
 }
 
 function createInactiveSyncRuntime(
@@ -3475,23 +2545,7 @@ async function appendPulledEncryptedEvents(params: {
       payload: await decryptRelayEventToPlainPayload(params.context, event),
     })),
   );
-  const normalizedPayloads = decryptedPayloads.map(({ event, payload }) => {
-    if (!isLocalMemoryStateEventType(event.eventType)) {
-      return { event, payload };
-    }
-    const parsedEvent = deserializeMemoryStateLedgerEvent(payload, {
-      lamport: event.lamport,
-      eventType: event.eventType,
-      createdAtMs: event.createdAtMs,
-    });
-    if (!parsedEvent) {
-      return { event, payload };
-    }
-    const normalizedEvent = normalizeProjectionEvent(parsedEvent);
-    return normalizedEvent === parsedEvent
-      ? { event, payload }
-      : { event, payload: serializeMemoryStateLedgerEvent(normalizedEvent) };
-  });
+  const normalizedPayloads = decryptedPayloads;
   const lastAppliedBefore = readMemoryStateMeta(params.context.db).lastAppliedLamport;
   const appendResults = params.context.ledger.appendBatch(
     normalizedPayloads.map(({ event, payload }) => ({
@@ -3543,7 +2597,7 @@ async function appendPulledEncryptedEvents(params: {
     }
     applyEventToDerivedState({
       db: params.context.db,
-      event: normalizeProjectionEvent(plainEvent),
+      event: plainEvent,
       migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
     });
     appliedCount += 1;
@@ -3713,7 +2767,7 @@ async function initializeCanonicalSyncRuntime(context: CanonicalStoreContext): P
   let lastError: string | undefined;
   if (!profileRootKey && config.pairingCode) {
     if (!config.pairingPassphrase) {
-      lastError = "memory sync pairing code requires ALISIO_MEMORY_SYNC_PAIRING_PASSPHRASE";
+      lastError = "memory sync pairing code requires a pairing passphrase";
     } else {
       try {
         const imported = await importProfileKeyFromPairingCode({

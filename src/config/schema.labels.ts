@@ -385,8 +385,6 @@ export const FIELD_LABELS: Record<string, string> = {
   "memory.sync.relayBaseUrl": "Memory Sync Relay URL",
   "memory.sync.ui": "Memory Sync UI",
   "memory.sync.ui.enabled": "Memory Sync UI Enabled",
-  "memory.ledger": "Memory Ledger",
-  "memory.ledger.enabled": "Enable Ledger-Derived Rebuild",
   "memory.markdownProjection": "Memory Markdown Projection",
   "memory.markdownProjection.enabled": "Enable Workspace Markdown Projection",
   "memory.crdt": "Memory CRDT",

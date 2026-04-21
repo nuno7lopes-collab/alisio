@@ -10834,15 +10834,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
               },
             ],
           },
-          ledger: {
-            type: "object",
-            properties: {
-              enabled: {
-                type: "boolean",
-              },
-            },
-            additionalProperties: false,
-          },
           markdownProjection: {
             type: "object",
             properties: {
@@ -13665,7 +13656,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "memory.sync.mode": {
       label: "Memory Sync Mode",
-      help: 'Selects the sync transport mode: "off" (default), "cloud", or "direct". Config values take precedence over legacy env vars.',
+      help: 'Selects the sync transport mode: "off" (default), "cloud", or "direct".',
       tags: ["storage"],
     },
     "memory.sync.relayBaseUrl": {
@@ -13680,17 +13671,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "memory.sync.ui.enabled": {
       label: "Memory Sync UI Enabled",
-      help: "Enable the memory sync setup UI entrypoint (default: true). Set false for rollback while keeping backend support available.",
-      tags: ["storage"],
-    },
-    "memory.ledger": {
-      label: "Memory Ledger",
-      help: "Ledger-derived state controls for canonical memory. Keep this enabled in normal operation so local state is rebuilt from auditable events instead of trusting projections as source of truth.",
-      tags: ["storage"],
-    },
-    "memory.ledger.enabled": {
-      label: "Enable Ledger-Derived Rebuild",
-      help: "Emergency fallback switch for the canonical memory pipeline. When false, Alisio skips ledger-derived rebuild and reads compatibility projections only; use this only for temporary rollback or incident mitigation.",
+      help: "Enable the memory sync setup UI entrypoint (default: true). Set false when you want to hide sync setup surfaces while keeping backend support available.",
       tags: ["storage"],
     },
     "memory.markdownProjection": {
@@ -13715,7 +13696,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "memory.crdt.pages.enabled": {
       label: "Enable CRDT Page Bodies",
-      help: "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for emergency compatibility fallback.",
+      help: "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for incident mitigation.",
       tags: ["storage"],
     },
     "memory.jobs": {

@@ -135,7 +135,7 @@ type NativeMemoryFileDetail = NativeMemoryFileListEntry & {
   relatedPages: NativeMemoryFileLink[];
 };
 
-const MARKDOWN_PROJECTION_PREFIX_ALIASES = ["md-path:", "legacy-markdown:"] as const;
+const MARKDOWN_PROJECTION_PREFIX = "md-path:";
 const INLINE_TEXT_PREVIEW_MAX_CHARS = 24_000;
 const INLINE_BINARY_PREVIEW_MAX_BYTES = 1_500_000;
 
@@ -195,14 +195,11 @@ function normalizeDisplayPath(value: string): string {
 }
 
 function parseMarkdownProjectionPath(kind: string): string | null {
-  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
-    if (!kind.startsWith(prefix)) {
-      continue;
-    }
-    const relativePath = kind.slice(prefix.length);
-    return relativePath ? normalizeDisplayPath(relativePath) : null;
+  if (!kind.startsWith(MARKDOWN_PROJECTION_PREFIX)) {
+    return null;
   }
-  return null;
+  const relativePath = kind.slice(MARKDOWN_PROJECTION_PREFIX.length);
+  return relativePath ? normalizeDisplayPath(relativePath) : null;
 }
 
 function extensionForMediaType(mediaType: string): string {

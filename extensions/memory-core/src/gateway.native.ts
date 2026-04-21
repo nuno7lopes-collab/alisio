@@ -211,10 +211,6 @@ type AttachmentRow = {
 };
 
 const MARKDOWN_PROJECTION_PREFIX = "md-path:";
-const MARKDOWN_PROJECTION_PREFIX_ALIASES = [
-  MARKDOWN_PROJECTION_PREFIX,
-  "legacy-markdown:",
-] as const;
 
 function respondGatewayError(respond: GatewayRespond, code: string, message: string) {
   respond(false, undefined, { code, message });
@@ -265,22 +261,15 @@ function normalizeReferenceKey(value: string): string {
 }
 
 function parseMarkdownProjectionPath(kind: string): string | null {
-  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
-    if (!kind.startsWith(prefix)) {
-      continue;
-    }
-    const relativePath = kind.slice(prefix.length);
-    return relativePath ? normalizeDisplayPath(relativePath) : null;
+  if (!kind.startsWith(MARKDOWN_PROJECTION_PREFIX)) {
+    return null;
   }
-  return null;
+  const relativePath = kind.slice(MARKDOWN_PROJECTION_PREFIX.length);
+  return relativePath ? normalizeDisplayPath(relativePath) : null;
 }
 
-function resolveMarkdownProjectionKinds(relativePath: string): [string, string] {
-  const normalizedPath = normalizeDisplayPath(relativePath);
-  return [
-    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[0]}${normalizedPath}`,
-    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[1]}${normalizedPath}`,
-  ];
+function resolveMarkdownProjectionKind(relativePath: string): string {
+  return `${MARKDOWN_PROJECTION_PREFIX}${normalizeDisplayPath(relativePath)}`;
 }
 
 function extensionForMediaType(mediaType: string): string {
@@ -1643,15 +1632,15 @@ function candidatePagePath(params: {
 }
 
 function projectionExists(db: DatabaseSync, relativePath: string): boolean {
-  const [canonicalKind, compatKind] = resolveMarkdownProjectionKinds(relativePath);
+  const canonicalKind = resolveMarkdownProjectionKind(relativePath);
   const row = db
     .prepare(
       `SELECT 1 AS found
        FROM projections
-       WHERE kind IN (?, ?)
+       WHERE kind = ?
        LIMIT 1`,
     )
-    .get(canonicalKind, compatKind) as
+    .get(canonicalKind) as
     | {
         found?: number;
       }
@@ -1691,16 +1680,16 @@ function readPageIdentityByRelativePath(
   db: DatabaseSync,
   relativePath: string,
 ): PageIdentity | null {
-  const [canonicalKind, compatKind] = resolveMarkdownProjectionKinds(relativePath);
+  const canonicalKind = resolveMarkdownProjectionKind(relativePath);
   const row = db
     .prepare(
       `SELECT page_id
        FROM projections
-       WHERE kind IN (?, ?)
+       WHERE kind = ?
        ORDER BY updated_at_ms DESC
        LIMIT 1`,
     )
-    .get(canonicalKind, compatKind) as
+    .get(canonicalKind) as
     | {
         page_id: string;
       }

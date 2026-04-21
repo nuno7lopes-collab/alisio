@@ -8,7 +8,7 @@ import type {
   CanonicalMemoryStoreStatus,
 } from "./canonical-store.js";
 
-const MARKDOWN_PROJECTION_PREFIX_ALIASES = ["md-path:", "legacy-markdown:"] as const;
+const MARKDOWN_PROJECTION_PREFIX = "md-path:";
 const GLOBAL_GRAPH_DEFAULT_RELATION_LIMIT = 24;
 const GLOBAL_GRAPH_DEFAULT_NODE_LIMIT = 120;
 const GLOBAL_GRAPH_DEFAULT_EDGE_LIMIT = 240;
@@ -87,14 +87,11 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
 }
 
 function parseMarkdownProjectionPath(kind: string): string | null {
-  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
-    if (!kind.startsWith(prefix)) {
-      continue;
-    }
-    const relativePath = kind.slice(prefix.length).trim();
-    return relativePath ? relativePath.replace(/\\/g, "/").replace(/^\.?\//, "") : null;
+  if (!kind.startsWith(MARKDOWN_PROJECTION_PREFIX)) {
+    return null;
   }
-  return null;
+  const relativePath = kind.slice(MARKDOWN_PROJECTION_PREFIX.length).trim();
+  return relativePath ? relativePath.replace(/\\/g, "/").replace(/^\.?\//, "") : null;
 }
 
 function openCanonicalDb(status: CanonicalMemoryStoreStatus): DatabaseSync {

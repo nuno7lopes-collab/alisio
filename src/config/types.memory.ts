@@ -4,11 +4,6 @@ export type MemoryBackend = "builtin" | "qmd";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 export type MemoryQmdSearchMode = "query" | "search" | "vsearch";
 
-export type MemoryLedgerConfig = {
-  /** Emergency fallback: when false, skip ledger rebuild and read projections only. */
-  enabled?: boolean;
-};
-
 export type MemoryMarkdownProjectionConfig = {
   /** Keep canonical Markdown projections materialized in the active workspace directory. */
   enabled?: boolean;
@@ -62,7 +57,6 @@ export type MemoryJobsConfig = {
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
-  ledger?: MemoryLedgerConfig;
   markdownProjection?: MemoryMarkdownProjectionConfig;
   crdt?: MemoryCrdtConfig;
   e2ee?: MemoryE2eeConfig;

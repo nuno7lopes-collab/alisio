@@ -40,9 +40,6 @@ describe("config memory settings", () => {
           markdownProjection: {
             enabled: true,
           },
-          ledger: {
-            enabled: false,
-          },
           jobs: {
             enabled: true,
             maxSliceMs: 90,
@@ -62,9 +59,6 @@ describe("config memory settings", () => {
         expect(cfg.memory?.markdownProjection).toEqual({
           enabled: true,
         });
-        expect(cfg.memory?.ledger).toEqual({
-          enabled: false,
-        });
         expect(cfg.memory?.jobs).toEqual({
           enabled: true,
           maxSliceMs: 90,
@@ -79,6 +73,22 @@ describe("config memory settings", () => {
         });
       },
     );
+  });
+
+  it("rejects removed ledger-derived rebuild config", () => {
+    const result = validateConfigObject({
+      memory: {
+        ledger: {
+          enabled: false,
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) {
+      throw new Error("expected validation to fail");
+    }
+    expect(result.issues.length).toBeGreaterThan(0);
   });
 
   it("rejects removed legacy markdown projection config", () => {
