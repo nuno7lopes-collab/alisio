@@ -20,8 +20,10 @@ function createCfg(workspaceDir: string): AlisioConfig {
 
 describe("readPersonalContextSummary", () => {
   it("describes bootstrap, identity, main memory, operational memory, and session policy", async () => {
-    const workspaceDir = await makeTempWorkspace("alisio-personal-context-");
-    const cfg = createCfg(workspaceDir);
+    const workspaceRoot = await makeTempWorkspace("alisio-personal-context-");
+    const workspaceDir = path.join(workspaceRoot, "accounts", "user-1");
+    const cfg = createCfg(workspaceRoot);
+    await fs.mkdir(workspaceDir, { recursive: true });
     await ensureAgentWorkspace({ dir: workspaceDir, ensureBootstrapFiles: true });
     await writeWorkspaceFile({
       dir: workspaceDir,
@@ -55,10 +57,31 @@ describe("readPersonalContextSummary", () => {
       agentId: "main",
       workspaceDir,
       mainKey: "main",
+      accountId: "user-1",
     });
 
     expect(summary).toMatchObject({
       version: 1,
+      accountScope: {
+        scopeRoot: "account",
+        accountId: "user-1",
+        source: "account_id",
+        authenticated: true,
+        authRequired: true,
+        workspaceMode: "account_scoped",
+        workspaceRoot: "accounts/user-1",
+      },
+      deviceBinding: {
+        binding: "account_bound",
+        runtime: "local",
+        current: true,
+        accountId: "user-1",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
       bootstrap: {
         path: "BOOTSTRAP.md",
         state: "completed",

@@ -389,8 +389,6 @@ export const FIELD_LABELS: Record<string, string> = {
   "memory.ledger.enabled": "Enable Ledger-Derived Rebuild",
   "memory.markdownProjection": "Memory Markdown Projection",
   "memory.markdownProjection.enabled": "Enable Workspace Markdown Projection",
-  "memory.legacyMarkdownProjection": "Memory Legacy Markdown Projection",
-  "memory.legacyMarkdownProjection.enabled": "Enable Legacy Markdown Projection",
   "memory.crdt": "Memory CRDT",
   "memory.crdt.pages": "Memory CRDT Pages",
   "memory.crdt.pages.enabled": "Enable CRDT Page Bodies",

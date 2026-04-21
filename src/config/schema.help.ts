@@ -886,10 +886,6 @@ export const FIELD_HELP: Record<string, string> = {
     "Canonical Markdown projection controls for writing derived memory files into the active workspace directory. Keep this enabled so the files your agent and operator actually read stay aligned with the canonical store.",
   "memory.markdownProjection.enabled":
     "Writes canonical Markdown projections into the active workspace directory from derived state. Disable only for incident mitigation or when an external workflow owns the visible workspace files.",
-  "memory.legacyMarkdownProjection":
-    "Compatibility projection controls for mirroring derived Markdown files into the local state workspace. Keep this enabled while rollback or legacy tooling still depends on the state-dir mirror.",
-  "memory.legacyMarkdownProjection.enabled":
-    "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable this only when you intentionally want the visible workspace projection without the legacy state-dir mirror.",
   "memory.crdt":
     "CRDT controls for canonical page bodies. Keep CRDT page storage enabled so concurrent page edits converge through Yjs-backed derived state.",
   "memory.crdt.pages":

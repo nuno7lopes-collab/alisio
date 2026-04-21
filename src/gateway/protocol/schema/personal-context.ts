@@ -38,25 +38,16 @@ export const PersonalContextSessionRoleSchema = Type.Union([
 
 const AccountScopeRootSchema = Type.Literal(ALISIO_ACCOUNT_SCOPE_ROOT);
 
-export const PersonalContextCanonicalAccountIdSourceSchema = Type.Union([
-  Type.Literal("account_id"),
-  Type.Literal("account_user_id"),
-  Type.Literal("user_id"),
-  Type.Literal("email"),
-  Type.Literal("missing"),
-]);
+export const PersonalContextCanonicalAccountIdSourceSchema = Type.Literal("account_id");
 
-export const PersonalContextWorkspaceModeSchema = Type.Union([
-  Type.Literal("account_scoped"),
-  Type.Literal("legacy_unscoped"),
-]);
+export const PersonalContextWorkspaceModeSchema = Type.Literal("account_scoped");
 
 export const PersonalContextAccountScopeSchema = Type.Object(
   {
     scopeRoot: AccountScopeRootSchema,
-    accountId: Type.Optional(Type.String()),
+    accountId: NonEmptyString,
     source: PersonalContextCanonicalAccountIdSourceSchema,
-    authenticated: Type.Boolean(),
+    authenticated: Type.Literal(true),
     authRequired: Type.Literal(true),
     workspaceMode: PersonalContextWorkspaceModeSchema,
     workspaceRoot: NonEmptyString,
@@ -79,10 +70,10 @@ export const PersonalContextRuntimeResidencyContractSchema = Type.Object(
 
 export const PersonalContextDeviceBindingSchema = Type.Object(
   {
-    binding: Type.Union([Type.Literal("auth_required"), Type.Literal("account_bound")]),
+    binding: Type.Literal("account_bound"),
     runtime: Type.Literal("local"),
-    current: Type.Boolean(),
-    accountId: Type.Optional(Type.String()),
+    current: Type.Literal(true),
+    accountId: NonEmptyString,
     deviceId: Type.Optional(Type.String()),
     label: Type.Optional(Type.String()),
     platform: Type.Optional(Type.String()),

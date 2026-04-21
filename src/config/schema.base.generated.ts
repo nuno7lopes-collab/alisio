@@ -10852,15 +10852,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
             },
             additionalProperties: false,
           },
-          legacyMarkdownProjection: {
-            type: "object",
-            properties: {
-              enabled: {
-                type: "boolean",
-              },
-            },
-            additionalProperties: false,
-          },
           crdt: {
             type: "object",
             properties: {
@@ -13710,16 +13701,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "memory.markdownProjection.enabled": {
       label: "Enable Workspace Markdown Projection",
       help: "Writes canonical Markdown projections into the active workspace directory from derived state. Disable only for incident mitigation or when an external workflow owns the visible workspace files.",
-      tags: ["storage"],
-    },
-    "memory.legacyMarkdownProjection": {
-      label: "Memory Legacy Markdown Projection",
-      help: "Compatibility projection controls for mirroring derived Markdown files into the local state workspace. Keep this enabled while rollback or legacy tooling still depends on the state-dir mirror.",
-      tags: ["storage"],
-    },
-    "memory.legacyMarkdownProjection.enabled": {
-      label: "Enable Legacy Markdown Projection",
-      help: "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable this only when you intentionally want the visible workspace projection without the legacy state-dir mirror.",
       tags: ["storage"],
     },
     "memory.crdt": {

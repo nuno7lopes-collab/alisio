@@ -43117,34 +43117,6 @@
       "hasChildren": false
     },
     {
-      "path": "memory.legacyMarkdownProjection",
-      "kind": "core",
-      "type": "object",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "storage"
-      ],
-      "label": "Memory Legacy Markdown Projection",
-      "help": "Compatibility projection controls for mirroring derived Markdown files into the local state workspace. Keep this enabled while rollback or legacy tooling still depends on the state-dir mirror.",
-      "hasChildren": true
-    },
-    {
-      "path": "memory.legacyMarkdownProjection.enabled",
-      "kind": "core",
-      "type": "boolean",
-      "required": false,
-      "deprecated": false,
-      "sensitive": false,
-      "tags": [
-        "storage"
-      ],
-      "label": "Enable Legacy Markdown Projection",
-      "help": "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable this only when you intentionally want the visible workspace projection without the legacy state-dir mirror.",
-      "hasChildren": false
-    },
-    {
       "path": "memory.markdownProjection",
       "kind": "core",
       "type": "object",

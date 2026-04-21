@@ -164,7 +164,6 @@ type LegacyProjectionRow = {
 
 type CanonicalStoreFeatureFlags = {
   markdownProjectionEnabled: boolean;
-  legacyMarkdownProjectionEnabled: boolean;
   crdtPagesEnabled: boolean;
 };
 
@@ -809,18 +808,13 @@ function resolveProjectionPath(params: { rootDir: string; relativePath: string }
 }
 
 function shouldMaterializeAnyMarkdown(flags: CanonicalStoreFeatureFlags): boolean {
-  return flags.markdownProjectionEnabled || flags.legacyMarkdownProjectionEnabled;
+  return flags.markdownProjectionEnabled;
 }
 
 function readFeatureFlags(cfg: AlisioConfig): CanonicalStoreFeatureFlags {
   const rawMemory = cfg.memory;
   return {
-    markdownProjectionEnabled:
-      rawMemory?.markdownProjection?.enabled ??
-      rawMemory?.legacyMarkdownProjection?.enabled ??
-      true,
-    // Keep the legacy config path as the dedicated compatibility mirror toggle.
-    legacyMarkdownProjectionEnabled: rawMemory?.legacyMarkdownProjection?.enabled ?? true,
+    markdownProjectionEnabled: rawMemory?.markdownProjection?.enabled ?? true,
     crdtPagesEnabled: rawMemory?.crdt?.pages?.enabled ?? true,
   };
 }
@@ -2755,12 +2749,6 @@ async function materializeMarkdownProjections(params: {
     roots.push({
       kind: "workspace",
       rootDir: resolveWorkspaceProjectionRoot(params.workspaceDir),
-    });
-  }
-  if (params.flags.legacyMarkdownProjectionEnabled) {
-    roots.push({
-      kind: "legacy",
-      rootDir: resolveCompatibilityProjectionRoot(params.env),
     });
   }
 

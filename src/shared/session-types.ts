@@ -1,9 +1,7 @@
 import type { PersonWorkspaceSummary } from "../config/types.person.js";
 import type {
-  AccountDeviceBindingState,
   AlisioBackendSharedResource,
   AlisioLocalRuntimeResource,
-  CanonicalAccountIdSource,
 } from "./alisio-account-scope.js";
 import { ALISIO_ACCOUNT_SCOPE_ROOT } from "./alisio-account-scope.js";
 
@@ -43,11 +41,11 @@ export type GatewayPersonalContextSessionPolicy = {
 
 export type GatewayAccountScope = {
   scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
-  accountId?: string;
-  source: CanonicalAccountIdSource;
-  authenticated: boolean;
+  accountId: string;
+  source: "account_id";
+  authenticated: true;
   authRequired: true;
-  workspaceMode: "account_scoped" | "legacy_unscoped";
+  workspaceMode: "account_scoped";
   workspaceRoot: string;
 };
 
@@ -58,10 +56,10 @@ export type GatewayRuntimeResidencyContract = {
 };
 
 export type GatewayAccountDeviceBinding = {
-  binding: AccountDeviceBindingState;
+  binding: "account_bound";
   runtime: "local";
-  current: boolean;
-  accountId?: string;
+  current: true;
+  accountId: string;
   deviceId?: string;
   label?: string;
   platform?: string;

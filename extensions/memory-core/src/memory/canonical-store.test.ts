@@ -149,18 +149,18 @@ describe("canonical memory store", () => {
         path.join(test.workspaceDir, "memory", "alpha.md"),
         "utf8",
       );
-      const mirroredRoot = await fs.readFile(
-        path.join(test.stateDir, "workspace", "MEMORY.md"),
-        "utf8",
-      );
-      const mirroredAlpha = await fs.readFile(
-        path.join(test.stateDir, "workspace", "memory", "alpha.md"),
-        "utf8",
-      );
       expect(materializedRoot).toContain("[[memory/alpha]]");
       expect(materializedAlpha).toContain("Alpha line.");
-      expect(mirroredRoot).toContain("[[memory/alpha]]");
-      expect(mirroredAlpha).toContain("Alpha line.");
+      await expect(
+        fs.readFile(path.join(test.stateDir, "workspace", "MEMORY.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(
+        fs.readFile(path.join(test.stateDir, "workspace", "memory", "alpha.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
 
       const graph = queryCanonicalMemoryGraph({
         status,
@@ -628,18 +628,18 @@ describe("canonical memory store", () => {
         path.join(test.workspaceDir, "memory", "alpha.md"),
         "utf8",
       );
-      const mirroredAlpha = await fs.readFile(
-        path.join(test.stateDir, "workspace", "memory", "alpha.md"),
-        "utf8",
-      );
       expect(materializedAlpha).toContain("Two.");
-      expect(mirroredAlpha).toContain("Two.");
+      await expect(
+        fs.readFile(path.join(test.stateDir, "workspace", "memory", "alpha.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });
     }
   });
 
-  it("materializes visible workspace projections without the legacy mirror when disabled", async () => {
+  it("materializes visible workspace projections without the legacy mirror", async () => {
     const test = await createTestWorkspace("alisio-canonical-memory-workspace-only-");
     vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
 
@@ -651,9 +651,6 @@ describe("canonical memory store", () => {
           memory: {
             markdownProjection: {
               enabled: true,
-            },
-            legacyMarkdownProjection: {
-              enabled: false,
             },
           },
         } as AlisioConfig,
@@ -755,7 +752,11 @@ describe("canonical memory store", () => {
       });
 
       await fs.readFile(path.join(test.workspaceDir, "memory", "ephemeral.md"), "utf8");
-      await fs.readFile(path.join(test.stateDir, "workspace", "memory", "ephemeral.md"), "utf8");
+      await expect(
+        fs.readFile(path.join(test.stateDir, "workspace", "memory", "ephemeral.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
 
       await memoryWriteEvent({
         cfg: test.cfg,
@@ -969,12 +970,12 @@ describe("canonical memory store", () => {
         path.join(target.workspaceDir, "memory", "synced-page.md"),
         "utf8",
       );
-      const mirrored = await fs.readFile(
-        path.join(target.stateDir, "workspace", "memory", "synced-page.md"),
-        "utf8",
-      );
       expect(materialized).toContain("Ciphertext arrived.");
-      expect(mirrored).toContain("Ciphertext arrived.");
+      await expect(
+        fs.readFile(path.join(target.stateDir, "workspace", "memory", "synced-page.md"), "utf8"),
+      ).rejects.toMatchObject({
+        code: "ENOENT",
+      });
     } finally {
       vi.unstubAllEnvs();
       await fs.rm(source.root, { recursive: true, force: true });

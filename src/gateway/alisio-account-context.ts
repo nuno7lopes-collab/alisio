@@ -49,13 +49,16 @@ export async function loadAlisioGatewayAccountContext(): Promise<AlisioGatewayAc
 }
 
 export function buildGatewayPersonalContextScope(context: AlisioGatewayAccountContext): {
-  accountId?: string;
+  accountId: string;
   deviceId?: string;
   deviceLabel?: string;
   devicePlatform?: string;
 } {
+  if (!context.canonical.accountId) {
+    throw new Error("Authenticated app context requires canonical accountId");
+  }
   return {
-    ...(context.canonical.accountId ? { accountId: context.canonical.accountId } : {}),
+    accountId: context.canonical.accountId,
     ...(context.currentDevice?.id ? { deviceId: context.currentDevice.id } : {}),
     ...(context.currentDevice?.label ? { deviceLabel: context.currentDevice.label } : {}),
     ...(context.currentDevice?.platform ? { devicePlatform: context.currentDevice.platform } : {}),

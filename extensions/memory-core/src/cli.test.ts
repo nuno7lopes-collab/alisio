@@ -688,9 +688,6 @@ describe("memory cli", () => {
         markdownProjection: {
           enabled: true,
         },
-        legacyMarkdownProjection: {
-          enabled: false,
-        },
       },
     });
     mockManager({
@@ -706,11 +703,8 @@ describe("memory cli", () => {
     await runMemoryCli(["status"]);
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Workspace projections: enabled"));
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("Legacy mirror: disabled"));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Memory jobs: idle"));
-    expect(log).toHaveBeenCalledWith(
-      expect.stringContaining("auto-sleep on · slice 75ms"),
-    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("auto-sleep on · slice 75ms"));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Job activity: 2 slices · 0 records"));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("Jobs last run: completed"));
     expect(close).toHaveBeenCalled();
@@ -893,9 +887,6 @@ describe("memory cli", () => {
         markdownProjection: {
           enabled: true,
         },
-        legacyMarkdownProjection: {
-          enabled: true,
-        },
       },
     });
     mockManager({
@@ -916,9 +907,7 @@ describe("memory cli", () => {
     expect((payload[0] as Record<string, unknown>)?.agentId).toBe("main");
     expect((payload[0] as Record<string, unknown>)?.projectionStatus).toEqual({
       workspaceEnabled: true,
-      compatibilityEnabled: true,
       workspaceRoot: "/tmp/workspace-main",
-      compatibilityRoot: "/tmp/alisio-state/workspace",
     });
     expect(
       ((payload[0] as Record<string, unknown>)?.jobsStatus as Record<string, unknown>)?.flags,

@@ -9,11 +9,6 @@ export type MemoryLedgerConfig = {
   enabled?: boolean;
 };
 
-export type MemoryLegacyMarkdownProjectionConfig = {
-  /** Keep compatibility Markdown projections materialized in the local state workspace. */
-  enabled?: boolean;
-};
-
 export type MemoryMarkdownProjectionConfig = {
   /** Keep canonical Markdown projections materialized in the active workspace directory. */
   enabled?: boolean;
@@ -69,7 +64,6 @@ export type MemoryConfig = {
   citations?: MemoryCitationsMode;
   ledger?: MemoryLedgerConfig;
   markdownProjection?: MemoryMarkdownProjectionConfig;
-  legacyMarkdownProjection?: MemoryLegacyMarkdownProjectionConfig;
   crdt?: MemoryCrdtConfig;
   e2ee?: MemoryE2eeConfig;
   sync?: MemorySyncConfig;

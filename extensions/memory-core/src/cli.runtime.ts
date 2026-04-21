@@ -72,9 +72,7 @@ type LoadedMemoryCommandConfig = {
 
 type ProjectionStatusInfo = {
   workspaceEnabled: boolean;
-  compatibilityEnabled: boolean;
   workspaceRoot?: string;
-  compatibilityRoot?: string;
 };
 
 function getMemoryCommandSecretTargetIds(): Set<string> {
@@ -142,19 +140,13 @@ function resolveProjectionStatusInfo(
   workspaceDir?: string,
 ): ProjectionStatusInfo | undefined {
   const memory = cfg.memory;
-  const workspaceEnabled =
-    memory?.markdownProjection?.enabled ?? memory?.legacyMarkdownProjection?.enabled ?? true;
-  const compatibilityEnabled = memory?.legacyMarkdownProjection?.enabled ?? true;
-  if (!workspaceDir && !compatibilityEnabled) {
+  const workspaceEnabled = memory?.markdownProjection?.enabled ?? true;
+  if (!workspaceDir) {
     return undefined;
   }
   return {
     workspaceEnabled,
-    compatibilityEnabled,
     ...(workspaceDir ? { workspaceRoot: path.resolve(workspaceDir) } : {}),
-    ...(compatibilityEnabled
-      ? { compatibilityRoot: path.join(resolveStateDir(process.env, os.homedir), "workspace") }
-      : {}),
   };
 }
 
@@ -721,13 +713,6 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
           projectionStatus.workspaceEnabled ? theme.success : theme.warn,
           projectionStatus.workspaceEnabled ? "enabled" : "disabled",
         )}${projectionStatus.workspaceRoot ? ` ${muted(`(${shortenHomePath(projectionStatus.workspaceRoot)})`)}` : ""}`,
-      );
-      lines.push(
-        `${label("Legacy mirror")} ${colorize(
-          rich,
-          projectionStatus.compatibilityEnabled ? theme.success : theme.muted,
-          projectionStatus.compatibilityEnabled ? "enabled" : "disabled",
-        )}${projectionStatus.compatibilityRoot ? ` ${muted(`(${shortenHomePath(projectionStatus.compatibilityRoot)})`)}` : ""}`,
       );
     }
     if (canonicalStore) {
