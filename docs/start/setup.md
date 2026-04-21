@@ -17,7 +17,7 @@ For onboarding details, see [Onboarding (CLI)](/start/wizard).
 
 - **Tailoring lives outside the repo:** `~/.alisio/workspace` (workspace) + `~/.alisio/alisio.json` (config).
 - **Stable workflow:** install the macOS app; let it run the bundled Gateway.
-- **Bleeding edge workflow:** run the Gateway yourself via `pnpm gateway:watch`, then let the macOS app attach in Local mode.
+- **Bleeding edge workflow:** keep the macOS app bundle stable, run the Gateway yourself via `pnpm mac:dev:gateway`, and only rebuild the real `.app` bundle when you are validating signing, TCC, launchd, or packaging.
 
 ## Prereqs (from source)
 
@@ -77,34 +77,44 @@ If onboarding is not available in your build:
 
 ## Bleeding edge workflow (Gateway in a terminal)
 
-Goal: work on the TypeScript Gateway, get hot reload, keep the macOS app UI attached.
+Goal: iterate quickly on the TypeScript Gateway while keeping the native macOS app attached.
 
-### 0) (Optional) Run the macOS app from source too
+### 1) Create the local app bundle once
 
-If you also want the macOS app on the bleeding edge:
+If you have not created the local bundle yet, do it once:
 
 ```bash
-./scripts/restart-mac.sh
+pnpm mac:bundle:restart
 ```
 
-### 1) Start the dev Gateway
+After that, treat `pnpm mac:bundle:restart` as the heavy path, not the default edit loop.
+
+### 2) Start the dev Gateway
 
 ```bash
 pnpm install
-pnpm gateway:watch
+pnpm mac:dev:gateway
 ```
 
-`gateway:watch` runs the gateway in watch mode and reloads on relevant source,
+`pnpm mac:dev:gateway` wraps `gateway:watch`, which reloads on relevant source,
 config, and bundled-plugin metadata changes.
 
-### 2) Point the macOS app at your running Gateway
+### 3) Open the existing macOS app bundle
+
+```bash
+pnpm mac:dev:app
+```
+
+Use Xcode's Run/Debug flow instead when you are iterating on native SwiftUI or app-runtime behavior.
+
+### 4) Point the macOS app at your running Gateway
 
 In **Alisio.app**:
 
 - Connection Mode: **Local**
   The app will attach to the running gateway on the configured port.
 
-### 3) Verify
+### 5) Verify
 
 - In-app Gateway status should read **“Using existing gateway …”**
 - Or via CLI:
@@ -115,6 +125,8 @@ alisio health
 
 ### Common footguns
 
+- **Using the heavy path for every edit:** `pnpm mac:bundle:restart` rebuilds and repackages a real `.app` bundle. Use it only when you need signing, TCC, launchd, or packaging validation.
+- **No bundle to open:** if `pnpm mac:dev:app` fails, create `.run/Alisio.app` once with `pnpm mac:bundle:restart`.
 - **Wrong port:** Gateway WS defaults to `ws://127.0.0.1:40705`; keep app + CLI on the same port.
 - **Where state lives:**
   - Credentials: `~/.alisio/credentials/`
@@ -138,7 +150,7 @@ Use this when debugging auth or deciding what to back up:
 ## Updating (without wrecking your setup)
 
 - Keep `~/.alisio/workspace` and `~/.alisio/` as “your stuff”; don’t put personal prompts/config into the `alisio` repo.
-- Updating source: `git pull` + `pnpm install` (when lockfile changed) + keep using `pnpm gateway:watch`.
+- Updating source: `git pull` + `pnpm install` (when lockfile changed) + keep using `pnpm mac:dev:gateway`.
 
 ## Linux (systemd user service)
 
@@ -160,3 +172,4 @@ user service (no lingering needed). See [Gateway runbook](/gateway) for the syst
 - [Discord](/channels/discord) and [Telegram](/channels/telegram) (reply tags + replyToMode settings)
 - [Getting Started](/start/getting-started)
 - [macOS app](/platforms/macos) (gateway lifecycle)
+- [macOS Dev Setup](/platforms/macos/dev-setup)

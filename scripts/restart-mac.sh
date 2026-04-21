@@ -18,6 +18,29 @@ NO_SIGN=0
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+show_help() {
+  cat <<EOF
+Uso: $(basename "$0") [--wait] [--sign|--no-sign]
+
+Faz o ciclo pesado do macOS:
+  1. empacota um bundle real em ${DEV_APP_BUNDLE}
+  2. valida assinatura + estrutura do bundle
+  3. relança a app com esse bundle
+
+Usa este script quando precisas de validar bundle real, signing, TCC, launchd
+ou packaging. Não é o loop leve do dia a dia para iterar no frontend/runtime.
+
+Loop leve:
+  pnpm mac:dev:app
+  pnpm mac:dev:gateway
+
+Opções:
+  --wait, -w   espera se já existir outro restart em curso
+  --sign       usa a estratégia normal de signing do packager
+  --no-sign    força ad-hoc signing; permissões TCC não persistem
+  --help, -h   mostra esta ajuda
+EOF
+}
 
 validate_app_bundle() {
   local bundle_path="$1"
@@ -107,13 +130,10 @@ cleanup() {
 for arg in "$@"; do
   case "$arg" in
     --wait|-w) WAIT_FOR_LOCK=1 ;;
+    --sign) NO_SIGN=0 ;;
     --no-sign) NO_SIGN=1 ;;
-    --help|-h)
-      cat <<EOF
-Uso: $(basename "$0") [--wait] [--no-sign]
-EOF
-      exit 0
-      ;;
+    --help|-h) show_help; exit 0 ;;
+    *) fail "Opção desconhecida: $arg" ;;
   esac
 done
 
@@ -130,21 +150,18 @@ pkill -f "${APP_NAME}.app/Contents/MacOS/${APP_EXECUTABLE}" 2>/dev/null || true
 pkill -x "$APP_EXECUTABLE" 2>/dev/null || true
 launchctl bootout gui/"$UID"/"$(alisio_bundle_domain).mac" 2>/dev/null || true
 
-run_step "bundle canvas a2ui" bash -lc "cd '$ROOT_DIR' && pnpm canvas:a2ui:bundle"
-# Keep the bundled Control UI aligned with the checkout before packaging/relaunch.
-run_step "build control ui" bash -lc "cd '$ROOT_DIR' && pnpm ui:build"
-run_step "swift build" bash -lc "cd '$ROOT_DIR/apps/macos' && swift build -q --product '$PRODUCT'"
-
 if [[ "$NO_SIGN" == "1" ]]; then
   export ALLOW_ADHOC_SIGNING=1
   export SIGN_IDENTITY="-"
+  log "==> Signing mode: ad-hoc (--no-sign); permissões TCC não persistem"
 fi
 
 if [[ -z "$APP_BUNDLE" ]]; then
   APP_BUNDLE="$DEV_APP_BUNDLE"
 fi
 
-run_step "package app" bash -lc "cd '$ROOT_DIR' && SKIP_TSC=${SKIP_TSC:-1} MACOS_FINAL_APP_PATH='$APP_BUNDLE' bash '$ROOT_DIR/scripts/package-mac-app.sh'"
+log "==> Heavy macOS restart: package + relaunch de $APP_BUNDLE"
+run_step "package app" bash -lc "cd '$ROOT_DIR' && MACOS_FINAL_APP_PATH='$APP_BUNDLE' bash '$ROOT_DIR/scripts/package-mac-app.sh'"
 run_step "validate app bundle" validate_app_bundle "$APP_BUNDLE"
 
 run_step "open app" open_app_bundle "$APP_BUNDLE"

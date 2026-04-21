@@ -14,7 +14,7 @@ service via the external `alisio` CLI (no embedded runtime). This gives you
 reliable auto‑start at login and restart on crashes.
 
 Child‑process mode (Gateway spawned directly by the app) is **not in use** today.
-If you need tighter coupling to the UI, run the Gateway manually in a terminal.
+If you need a faster dev loop, run the Gateway manually in a terminal and let the app attach to it.
 
 ## Default behavior (launchd)
 
@@ -33,19 +33,36 @@ launchctl bootout gui/$UID/ai.alisio.gateway
 
 Replace the label with `ai.alisio.<profile>` when running a named profile.
 
-## Unsigned dev builds
+## Lightweight dev loop
 
-`scripts/restart-mac.sh --no-sign` is for fast local builds when you don’t have
-signing keys. To prevent launchd from pointing at an unsigned relay binary, it:
-
-- Writes `~/.alisio/disable-launchagent`.
-
-Signed runs of `scripts/restart-mac.sh` clear this override if the marker is
-present. To reset manually:
+For day-to-day development, let the app attach to a manually started Gateway:
 
 ```bash
-rm ~/.alisio/disable-launchagent
+pnpm mac:dev:gateway
+pnpm mac:dev:app
 ```
+
+Why this is the fast path:
+
+- the Gateway reloads in watch mode
+- the native app bundle stays stable at `.run/Alisio.app`
+- you avoid rebuilding and repackaging the app bundle on every edit
+
+If you are iterating on native UI or app-runtime behavior, use Xcode Run/Debug for the app side and keep the Gateway watch loop running separately.
+
+## Heavy bundle restart
+
+`pnpm mac:bundle:restart` is the heavy path. It packages a real `.app` bundle, validates it, and relaunches it.
+
+Use it when you need to validate:
+
+- launchd behavior
+- real bundle startup
+- signing and entitlements
+- TCC and permission prompts
+- packaging-adjacent smoke
+
+`pnpm mac:bundle:restart:no-sign` forces ad-hoc signing. That is acceptable for quick smoke, but it is the wrong path for permission and TCC debugging.
 
 ## Attach-only mode
 
@@ -53,6 +70,9 @@ To force the macOS app to **never install or manage launchd**, launch it with
 `--attach-only` (or `--no-launchd`). This sets `~/.alisio/disable-launchagent`,
 so the app only attaches to an already running Gateway. You can toggle the same
 behavior in Debug Settings.
+
+Use attach-only only when you explicitly want to prevent launchd side effects.
+It is not required for the normal lightweight loop because the app already prefers an existing Gateway on the configured port.
 
 ## Remote mode
 

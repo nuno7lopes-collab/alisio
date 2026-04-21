@@ -60,6 +60,43 @@ if [[ "$BUNDLE_ID" == *.debug || -z "$SPARKLE_FEED_URL" ]]; then
   AUTO_CHECKS=false
 fi
 
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  cat <<EOF
+Uso: $(basename "$0")
+
+Empacota um bundle macOS real em:
+  ${FINAL_APP_ROOT}
+
+Defaults relevantes:
+  BUILD_CONFIG=debug
+  MACOS_PACKAGE_MODE=debug
+  debug tenta usar um certificado real quando existir; sem certificado cai para ad-hoc
+
+Variáveis úteis:
+  MACOS_FINAL_APP_PATH=/caminho/Alisio.app
+  BUILD_CONFIG=debug|release
+  MACOS_PACKAGE_MODE=debug|release-placeholder
+  SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"
+  ALLOW_ADHOC_SIGNING=1
+  CODESIGN_TIMESTAMP=auto|on|off
+  DISABLE_LIBRARY_VALIDATION=1
+  SKIP_TEAM_ID_CHECK=1
+  SKIP_TSC=1
+  SKIP_UI_BUILD=1
+
+Notas:
+  - Usa scripts/restart-mac.sh quando quiseres empacotar para .run/Alisio.app e relançar.
+  - Para o loop leve, mantém o bundle actual aberto e usa pnpm mac:dev:gateway.
+EOF
+  exit 0
+fi
+
+if [[ $# -gt 0 ]]; then
+  echo "ERROR: scripts/package-mac-app.sh não aceita argumentos posicionais." >&2
+  echo "       Usa --help para ver as variáveis suportadas." >&2
+  exit 1
+fi
+
 if [[ -z "$PACKAGE_MODE" ]]; then
   if [[ "$BUILD_CONFIG" == "release" ]]; then
     PACKAGE_MODE="release-placeholder"

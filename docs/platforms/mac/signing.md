@@ -7,41 +7,99 @@ title: "macOS Signing"
 
 # mac signing (debug builds)
 
-This app is usually built from [`scripts/package-mac-app.sh`](https://github.com/alisio/alisio/blob/main/scripts/package-mac-app.sh), which now:
+There are two relevant signing entry points for macOS development:
 
-- sets a stable debug bundle identifier: `ai.alisio.mac.debug`
-- writes the Info.plist with that bundle id (override via `BUNDLE_ID=...`)
-- calls [`scripts/codesign-mac-app.sh`](https://github.com/alisio/alisio/blob/main/scripts/codesign-mac-app.sh) to sign the main binary and app bundle so macOS treats each rebuild as the same signed bundle and keeps TCC permissions (notifications, accessibility, screen recording, mic, speech). For stable permissions, use a real signing identity; ad-hoc is opt-in and fragile (see [macOS permissions](/platforms/mac/permissions)).
-- uses `CODESIGN_TIMESTAMP=auto` by default; it enables trusted timestamps for Developer ID signatures. Set `CODESIGN_TIMESTAMP=off` to skip timestamping (offline debug builds).
-- inject build metadata into Info.plist: `AlisioBuildTimestamp` (UTC) and `AlisioGitCommit` (short hash) so the About pane can show build, git, and debug/release channel.
-- **Packaging defaults to Node 24**: the script runs TS builds and the Control UI build. Node 22 LTS, currently `22.14+`, remains supported for compatibility.
-- reads `SIGN_IDENTITY` from the environment. Add `export SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"` (or your Developer ID Application cert) to your shell rc to always sign with your cert. Ad-hoc signing requires explicit opt-in via `ALLOW_ADHOC_SIGNING=1` or `SIGN_IDENTITY="-"` (not recommended for permission testing).
-- runs a Team ID audit after signing and fails if any Mach-O inside the app bundle is signed by a different Team ID. Set `SKIP_TEAM_ID_CHECK=1` to bypass.
+- `scripts/package-mac-app.sh` packages a real `.app` bundle
+- `scripts/restart-mac.sh` packages `.run/Alisio.app` and relaunches it
+
+Both paths call `scripts/codesign-mac-app.sh` and keep a stable debug bundle identifier, `ai.alisio.mac.debug`.
+
+## What the signing path does
+
+The packaging path:
+
+- writes the debug bundle identifier into `Info.plist` unless you override `BUNDLE_ID`
+- signs the app bundle and the embedded native binaries
+- preserves a stable bundle identity so macOS can keep TCC permissions when you use a real certificate
+- injects build metadata such as `AlisioBuildTimestamp` and `AlisioGitCommit`
+- audits Team ID consistency across Mach-O binaries inside the app bundle
+
+## Real signing vs. ad-hoc signing
+
+Debug packaging tries to use a real identity first:
+
+1. `Developer ID Application`
+2. `Apple Distribution`
+3. `Apple Development`
+4. the first available signing identity
+
+If none is available, debug packaging can fall back to ad-hoc signing.
+
+Ad-hoc signing is acceptable only for quick local smoke. It is **not** appropriate for:
+
+- TCC verification
+- permission troubleshooting
+- signing and entitlement validation
+- pre-release packaging sign-off
+
+If you care about permission persistence, rebuild with a real Apple Development or Developer ID certificate.
 
 ## Usage
 
 ```bash
-# from repo root
-scripts/package-mac-app.sh               # auto-selects identity; errors if none found
-SIGN_IDENTITY="Developer ID Application: Your Name" scripts/package-mac-app.sh   # real cert
-ALLOW_ADHOC_SIGNING=1 scripts/package-mac-app.sh    # ad-hoc (permissions will not stick)
-SIGN_IDENTITY="-" scripts/package-mac-app.sh        # explicit ad-hoc (same caveat)
-DISABLE_LIBRARY_VALIDATION=1 scripts/package-mac-app.sh   # dev-only Sparkle Team ID mismatch workaround
+scripts/package-mac-app.sh
+pnpm mac:bundle:restart
+pnpm mac:bundle:restart:no-sign
+SIGN_IDENTITY="Developer ID Application: Your Name" scripts/package-mac-app.sh
+SIGN_IDENTITY="Apple Development: Your Name (TEAMID)" scripts/package-mac-app.sh
+ALLOW_ADHOC_SIGNING=1 scripts/package-mac-app.sh
+SIGN_IDENTITY="-" scripts/package-mac-app.sh
 ```
 
-### Ad-hoc Signing Note
+## `--no-sign` and `SIGN_IDENTITY="-"`
 
-When signing with `SIGN_IDENTITY="-"` (ad-hoc), the script automatically disables the **Hardened Runtime** (`--options runtime`). This is necessary to prevent crashes when the app attempts to load embedded frameworks (like Sparkle) that do not share the same Team ID. Ad-hoc signatures also break TCC permission persistence; see [macOS permissions](/platforms/mac/permissions) for recovery steps.
+`pnpm mac:bundle:restart:no-sign` and `SIGN_IDENTITY="-"` both force ad-hoc signing.
 
-## Build metadata for About
+When signing ad-hoc:
 
-`package-mac-app.sh` stamps the bundle with:
+- Hardened Runtime is disabled automatically
+- TCC permission persistence breaks
+- permission prompts may disappear or reset between rebuilds
 
-- `AlisioBuildTimestamp`: ISO8601 UTC at package time
-- `AlisioGitCommit`: short git hash (or `unknown` if unavailable)
+Use this only for quick local smoke when you explicitly do not need stable permissions.
 
-The About tab reads these keys to show version, build date, git commit, and whether it’s a debug build (via `#if DEBUG`). Run the packager to refresh these values after code changes.
+## Useful environment flags
 
-## Why
+- `SIGN_IDENTITY="Apple Development: Your Name (TEAMID)"`
+- `ALLOW_ADHOC_SIGNING=1`
+- `CODESIGN_TIMESTAMP=auto|on|off`
+- `DISABLE_LIBRARY_VALIDATION=1`
+- `SKIP_TEAM_ID_CHECK=1`
+- `BUILD_CONFIG=release`
+- `MACOS_PACKAGE_MODE=release-placeholder`
 
-TCC permissions are tied to the bundle identifier _and_ code signature. Unsigned debug builds with changing UUIDs were causing macOS to forget grants after each rebuild. Signing the binaries and keeping a fixed bundle id/path (`dist/Alisio.app`) preserves the grants between builds. Ad-hoc signing remains a fragile local-only fallback.
+## Team ID audit
+
+After signing, the packager compares the Team ID on the app bundle with the Team ID on every candidate Mach-O inside the bundle.
+
+If any embedded binary is signed by a different Team ID, packaging fails.
+
+Skip the audit only when you are deliberately working around a local signing mismatch:
+
+```bash
+SKIP_TEAM_ID_CHECK=1 scripts/package-mac-app.sh
+```
+
+## Library validation workaround
+
+If Sparkle or another embedded framework fails local validation because of Team ID mismatch, you can opt in:
+
+```bash
+DISABLE_LIBRARY_VALIDATION=1 scripts/package-mac-app.sh
+```
+
+This is a local development escape hatch, not a release setting.
+
+## Why this matters
+
+TCC permissions are tied to both the bundle identifier and the code signature. A stable bundle path such as `.run/Alisio.app` or `dist/Alisio.app` is not enough on its own. If you change the signature by rebuilding ad-hoc, macOS can treat the app as a different binary and drop permissions.
