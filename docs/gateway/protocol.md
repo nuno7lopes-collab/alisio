@@ -215,6 +215,10 @@ The Gateway treats these as **claims** and enforces server-side allowlists.
 
 - If `ALISIO_GATEWAY_TOKEN` (or `--token`) is set, `connect.params.auth.token`
   must match or the socket is closed.
+- Product auth is separate from Gateway transport auth:
+  - Gateway transport auth decides whether the socket may connect.
+  - Product auth decides whether shared backend features may run.
+  - Desktop product use requires an authenticated Alisio account.
 - After pairing, the Gateway issues a **device token** scoped to the connection
   role + scopes. It is returned in `hello-ok.auth.deviceToken` and should be
   persisted by the client for future connects.
@@ -257,6 +261,26 @@ Common migration failures:
 | `device signature expired`  | `DEVICE_AUTH_SIGNATURE_EXPIRED`  | `device-signature-stale` | Signed timestamp is outside allowed skew.          |
 | `device identity mismatch`  | `DEVICE_AUTH_DEVICE_ID_MISMATCH` | `device-id-mismatch`     | `device.id` does not match public key fingerprint. |
 | `device public key invalid` | `DEVICE_AUTH_PUBLIC_KEY_INVALID` | `device-public-key`      | Public key format/canonicalization failed.         |
+
+## Account-rooted desktop contract
+
+The desktop product contract is rooted in `accountId`.
+
+- `alisio.account.get` returns the canonical account root plus:
+  - `canonical` for account/auth truth
+  - `deviceBinding` for the current local runtime device
+  - `runtimeContract` for backend-shared vs local-runtime residency
+- `alisio.bootstrap.get` repeats the same canonical root metadata so startup
+  flows do not infer it from local files.
+- `devices.list` now returns the same canonical `accountId` root, plus
+  `canonical`, `deviceBinding`, and `runtimeContract`, so device sharing does
+  not infer ownership from local pairing files.
+- `agent`, `agents.*`, `memory.*`, and `devices.*` reject signed-out product
+  use instead of silently falling back to local-install semantics.
+- `startupState` is a bootstrap convenience surface. It is not the source of
+  truth for account identity.
+- Local workspace files are not the source of truth for backend auth,
+  linked-device bindings, session indexes, or automations.
 
 Migration target:
 

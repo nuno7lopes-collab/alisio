@@ -126,6 +126,36 @@ const mocks = vi.hoisted(() => ({
       },
     },
   })),
+  loadAlisioGatewayAccountContext: vi.fn(async () => ({
+    account: {} as Record<string, unknown>,
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "user_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  })),
 }));
 
 vi.mock("../../config/config.js", () => ({
@@ -143,7 +173,13 @@ vi.mock("../../commands/agents.config.js", () => ({
 vi.mock("../../agents/agent-scope.js", () => ({
   listAgentIds: () => ["main"],
   resolveAgentDir: mocks.resolveAgentDir,
-  resolveAgentWorkspaceDir: mocks.resolveAgentWorkspaceDir,
+  resolveAgentWorkspaceDir: (
+    cfg: { agents?: { list?: Array<{ id: string; workspace?: string }> } },
+    agentId: string,
+  ) => {
+    const configured = cfg.agents?.list?.find((entry) => entry.id === agentId)?.workspace;
+    return configured ?? mocks.resolveAgentWorkspaceDir();
+  },
 }));
 
 vi.mock("../../agents/workspace.js", async () => {
@@ -172,6 +208,16 @@ vi.mock("../../utils.js", () => ({
 vi.mock("../session-utils.js", () => ({
   listAgentsForGateway: mocks.listAgentsForGateway,
 }));
+
+vi.mock("../alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("../alisio-account-context.js")>(
+    "../alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: mocks.loadAlisioGatewayAccountContext,
+  };
+});
 
 vi.mock("../../memory/personal-context.js", () => ({
   readPersonalContextSummary: mocks.readPersonalContextSummary,
@@ -366,6 +412,37 @@ beforeEach(() => {
       }) as unknown,
   );
   mocks.readPersonalContextSummary.mockClear();
+  mocks.loadAlisioGatewayAccountContext.mockReset();
+  mocks.loadAlisioGatewayAccountContext.mockResolvedValue({
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "user_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -474,7 +551,7 @@ describe("agents.create", () => {
 
     expect(mocks.appendFileWithinRoot).toHaveBeenCalledWith(
       expect.objectContaining({
-        rootDir: "/resolved/tmp/ws",
+        rootDir: "/resolved/tmp/ws/accounts/user-1",
         relativePath: "IDENTITY.md",
         data: expect.stringContaining("- Name: Plain Agent"),
         encoding: "utf8",
@@ -493,7 +570,7 @@ describe("agents.create", () => {
 
     expect(mocks.appendFileWithinRoot).toHaveBeenCalledWith(
       expect.objectContaining({
-        rootDir: "/resolved/tmp/ws",
+        rootDir: "/resolved/tmp/ws/accounts/user-1",
         relativePath: "IDENTITY.md",
         data: expect.stringMatching(/- Name: Fancy Agent[\s\S]*- Emoji: 🤖[\s\S]*- Avatar:/),
         encoding: "utf8",
@@ -502,7 +579,7 @@ describe("agents.create", () => {
   });
 
   it("rejects creating an agent when IDENTITY.md resolves outside the workspace", async () => {
-    const workspace = "/resolved/tmp/ws";
+    const workspace = "/resolved/tmp/ws/accounts/user-1";
     agentsTesting.setDepsForTests({
       resolveAgentWorkspaceFilePath: async ({ name }) => ({
         kind: "invalid",
@@ -560,7 +637,7 @@ describe("agents.list", () => {
             name: "Test Agent",
             avatar: "T",
           },
-          workspace: "/workspace/test-agent",
+          workspace: "/workspace/test-agent/accounts/user-1",
         },
       ],
     });
@@ -568,12 +645,14 @@ describe("agents.list", () => {
     const { respond, promise } = makeCall("agents.list", {});
     await promise;
 
-    expect(mocks.readPersonalContextSummary).toHaveBeenCalledWith({
-      cfg: mocks.loadConfigReturn,
-      agentId: "main",
-      workspaceDir: "/workspace/test-agent",
-      mainKey: "main",
-    });
+    expect(mocks.readPersonalContextSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cfg: mocks.loadConfigReturn,
+        agentId: "main",
+        workspaceDir: "/workspace/test-agent/accounts/user-1",
+        mainKey: "main",
+      }),
+    );
     expect(respond).toHaveBeenCalledWith(
       true,
       expect.objectContaining({
@@ -595,6 +674,49 @@ describe("agents.list", () => {
       }),
       undefined,
     );
+  });
+
+  it("rejects signed-out callers before exposing agent state", async () => {
+    mocks.loadAlisioGatewayAccountContext.mockResolvedValueOnce({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        source: "missing",
+        authenticated: false,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "auth_required",
+        runtime: "local",
+        current: true,
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
+
+    const { respond, promise } = makeCall("agents.list", {});
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: "Alisio account sign-in required before using the app.",
+      }),
+    );
+    expect(mocks.readPersonalContextSummary).not.toHaveBeenCalled();
   });
 });
 
@@ -658,7 +780,7 @@ describe("agents.update", () => {
 
     expect(mocks.appendFileWithinRoot).toHaveBeenCalledWith(
       expect.objectContaining({
-        rootDir: "/workspace/test-agent",
+        rootDir: "/workspace/test-agent/accounts/user-1",
         relativePath: "IDENTITY.md",
         data: "\n- Avatar: https://example.com/avatar.png\n",
         encoding: "utf8",
@@ -667,7 +789,7 @@ describe("agents.update", () => {
   });
 
   it("rejects updating an agent when IDENTITY.md resolves outside the workspace", async () => {
-    const workspace = "/workspace/test-agent";
+    const workspace = "/workspace/test-agent/accounts/user-1";
     agentsTesting.setDepsForTests({
       resolveAgentWorkspaceFilePath: async ({ name }) => ({
         kind: "invalid",
@@ -842,11 +964,17 @@ describe("agents.files.list memory scope", () => {
       },
     ]);
     const fileStats = new Map<string, import("node:fs").Stats>([
-      ["/workspace/test-agent/MEMORY.md", makeFileStat({ size: 20, mtimeMs: 4_000 })],
-      ["/workspace/test-agent/memory", makeDirectoryStat()],
-      ["/workspace/test-agent/memory/2026-04-05.md", makeFileStat({ size: 11, mtimeMs: 9_000 })],
       [
-        "/workspace/test-agent/memory/2026-04-03-ideas.md",
+        "/workspace/test-agent/accounts/user-1/MEMORY.md",
+        makeFileStat({ size: 20, mtimeMs: 4_000 }),
+      ],
+      ["/workspace/test-agent/accounts/user-1/memory", makeDirectoryStat()],
+      [
+        "/workspace/test-agent/accounts/user-1/memory/2026-04-05.md",
+        makeFileStat({ size: 11, mtimeMs: 9_000 }),
+      ],
+      [
+        "/workspace/test-agent/accounts/user-1/memory/2026-04-03-ideas.md",
         makeFileStat({ size: 14, mtimeMs: 7_000 }),
       ],
     ]);
@@ -895,7 +1023,7 @@ describe("agents.files.get/set symlink safety", () => {
   });
 
   function mockWorkspaceEscapeSymlink() {
-    const workspace = "/workspace/test-agent";
+    const workspace = "/workspace/test-agent/accounts/user-1";
     agentsTesting.setDepsForTests({
       resolveAgentWorkspaceFilePath: async ({ name }) => ({
         kind: "invalid",
@@ -920,7 +1048,7 @@ describe("agents.files.get/set symlink safety", () => {
   );
 
   it("allows in-workspace symlink reads and writes through symlink aliases", async () => {
-    const workspace = "/workspace/test-agent";
+    const workspace = "/workspace/test-agent/accounts/user-1";
     const target = path.resolve(workspace, "policies", "AGENTS.md");
     const targetStat = makeFileStat({ size: 7, mtimeMs: 1700, dev: 9, ino: 42 });
 
@@ -981,7 +1109,7 @@ describe("agents.files.get/set symlink safety", () => {
   });
 
   it("allows nested memory note reads and writes", async () => {
-    const workspace = "/workspace/test-agent";
+    const workspace = "/workspace/test-agent/accounts/user-1";
     const notePath = path.join(workspace, "memory", "2026-04-05.md");
     const noteStat = makeFileStat({ size: 12, mtimeMs: 2_400, dev: 9, ino: 43 });
 
@@ -1048,7 +1176,7 @@ describe("agents.files.get/set symlink safety", () => {
   });
 
   function mockHardlinkedWorkspaceAlias() {
-    const workspace = "/workspace/test-agent";
+    const workspace = "/workspace/test-agent/accounts/user-1";
     const candidate = path.resolve(workspace, "AGENTS.md");
     mocks.fsRealpath.mockImplementation(async (p: string) => {
       if (p === workspace) {
@@ -1102,7 +1230,7 @@ describe("agents.files.delete", () => {
   });
 
   it("deletes scoped memory notes", async () => {
-    const workspace = "/workspace/test-agent";
+    const workspace = "/workspace/test-agent/accounts/user-1";
     const notePath = path.join(workspace, "memory", "2026-04-05.md");
 
     agentsTesting.setDepsForTests({

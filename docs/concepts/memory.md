@@ -27,6 +27,18 @@ These layers are intentionally different:
 - **Retrieval layer**: search, note views, files views, graph views, and transcript recall.
 - **Canonical native store**: profile-scoped ledger-backed storage that syncs and rebuilds derived state.
 
+The product root is `accountId`.
+
+- Backend-shared truth owns auth/session state, linked-device bindings, session
+  indexes, and automations.
+- Local runtime truth owns `MEMORY.md`, `memory/`, `IDENTITY.md`, `SOUL.md`,
+  and `USER.md`.
+- Workspace files are local runtime surfaces. They do not replace backend auth
+  or account identity.
+- Product-facing memory RPC flows (`memory.status`, `memory.sync`, and E2EE
+  helpers) resolve against the authenticated account-scoped runtime path instead
+  of a single machine-wide workspace root.
+
 Main memory and operational memory are the human-facing product contract.
 Search, graph, and sync exist to support them.
 

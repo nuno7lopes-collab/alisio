@@ -6,7 +6,6 @@ import {
   storeProfileRootKey,
 } from "../../../packages/memory-crypto/src/index.js";
 import { listAgentIds } from "../../agents/agent-scope.js";
-import { resolveAgentWorkspaceDir } from "../../agents/agent-scope.js";
 import {
   resolveMemorySearchConfig,
   type ResolvedMemorySearchConfig,
@@ -24,6 +23,13 @@ import {
   resolveActiveMemoryBackendConfig,
 } from "../../plugins/memory-runtime.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
+import {
+  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
+  applyAccountScopedWorkspaceOverride,
+  buildGatewayPersonalContextScope,
+  loadAlisioGatewayAccountContext,
+  resolveAccountScopedWorkspaceForAgent,
+} from "../alisio-account-context.js";
 import {
   ErrorCodes,
   errorShape,
@@ -78,6 +84,24 @@ function resolveMemoryE2eeContext(params: Record<string, unknown>, respond: Resp
     stateDir: resolveStateDir(env),
     ownerProfile: resolveAlisioMemoryOwnerProfile(env),
   };
+}
+
+async function requireAuthenticatedAccountContext(respond: RespondFn) {
+  try {
+    const accountContext = await loadAlisioGatewayAccountContext();
+    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
+      );
+      return null;
+    }
+    return accountContext;
+  } catch (err) {
+    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    return null;
+  }
 }
 
 function logMemoryE2eeEvent(
@@ -445,14 +469,28 @@ export const memoryHandlers: GatewayRequestHandlers = {
     if (!context) {
       return;
     }
-    const personalContext = await readPersonalContextSummary({
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
+    const scopedCfg = applyAccountScopedWorkspaceOverride({
       cfg: context.cfg,
       agentId: context.agentId,
-      workspaceDir: resolveAgentWorkspaceDir(context.cfg, context.agentId),
-      mainKey: context.cfg.session?.mainKey,
+      accountId: accountContext.canonical.accountId,
+    });
+    const personalContext = await readPersonalContextSummary({
+      cfg: scopedCfg,
+      agentId: context.agentId,
+      workspaceDir: resolveAccountScopedWorkspaceForAgent({
+        cfg: context.cfg,
+        agentId: context.agentId,
+        accountId: accountContext.canonical.accountId,
+      }),
+      mainKey: scopedCfg.session?.mainKey,
+      ...buildGatewayPersonalContextScope(accountContext),
     });
 
-    const state = resolveMemoryStatusState(context.cfg, context.agentId);
+    const state = resolveMemoryStatusState(scopedCfg, context.agentId);
     if (state.configError || !state.enabled) {
       respond(
         true,
@@ -470,7 +508,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
     }
 
     const { manager, error } = await getActiveMemorySearchManager({
-      cfg: context.cfg,
+      cfg: scopedCfg,
       agentId: context.agentId,
       purpose: "status",
     });
@@ -511,6 +549,9 @@ export const memoryHandlers: GatewayRequestHandlers = {
         "memory.e2ee.setup",
         validateMemoryE2eeSetupParams.errors,
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
 
@@ -562,6 +603,9 @@ export const memoryHandlers: GatewayRequestHandlers = {
         "memory.e2ee.exportPairingCode",
         validateMemoryE2eeExportPairingCodeParams.errors,
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
 
@@ -632,6 +676,9 @@ export const memoryHandlers: GatewayRequestHandlers = {
         "memory.e2ee.importPairingCode",
         validateMemoryE2eeImportPairingCodeParams.errors,
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
 
@@ -705,8 +752,17 @@ export const memoryHandlers: GatewayRequestHandlers = {
     if (!context) {
       return;
     }
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
+    const scopedCfg = applyAccountScopedWorkspaceOverride({
+      cfg: context.cfg,
+      agentId: context.agentId,
+      accountId: accountContext.canonical.accountId,
+    });
 
-    const state = resolveMemoryStatusState(context.cfg, context.agentId);
+    const state = resolveMemoryStatusState(scopedCfg, context.agentId);
     if (state.configError) {
       respond(
         false,
@@ -721,7 +777,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
     }
 
     const { manager, error } = await getActiveMemorySearchManager({
-      cfg: context.cfg,
+      cfg: scopedCfg,
       agentId: context.agentId,
       purpose: "default",
     });

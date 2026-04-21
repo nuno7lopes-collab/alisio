@@ -12,6 +12,16 @@ Alisio supports OAuth and API keys for model providers. For always-on gateway
 hosts, API keys are usually the most predictable option. Subscription/OAuth
 flows are also supported when they match your provider account model.
 
+For the desktop product, provider auth is **not** the same thing as product
+auth:
+
+- Product use requires a signed-in Alisio account.
+- Backend-shared account auth/session state, linked-device bindings, session
+  indexes, and automations are account-scoped.
+- Local workspace files are not the source of truth for account auth.
+- Desktop RPC surfaces that drive real product use now require account auth as
+  well. That includes `agent`, `agents.*`, `memory.*`, and `devices.*`.
+
 See [/concepts/oauth](/concepts/oauth) for the full OAuth flow and storage
 layout.
 For SecretRef-based auth (`env`/`file`/`exec` providers), see [Secrets Management](/gateway/secrets).

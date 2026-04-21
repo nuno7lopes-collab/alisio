@@ -11,6 +11,11 @@ import {
   isCronSessionKey,
   isSubagentSessionKey,
 } from "../sessions/session-key-utils.js";
+import {
+  buildAccountWorkspaceScopeSegments,
+  isAccountScopedWorkspaceDir,
+  normalizeCanonicalAccountId,
+} from "../shared/alisio-account-scope.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveWorkspaceTemplateDir } from "./workspace-templates.js";
 
@@ -191,6 +196,21 @@ export type WorkspaceSetupSummary = {
   bootstrapSeededAt?: string;
   setupCompletedAt?: string;
 };
+
+export function resolveAccountScopedAgentWorkspaceDir(
+  baseDir: string,
+  accountId?: string | null,
+): string {
+  const resolvedBaseDir = resolveUserPath(baseDir);
+  const canonicalAccountId = normalizeCanonicalAccountId(accountId);
+  if (!canonicalAccountId) {
+    return resolvedBaseDir;
+  }
+  if (isAccountScopedWorkspaceDir(resolvedBaseDir, canonicalAccountId)) {
+    return resolvedBaseDir;
+  }
+  return path.join(resolvedBaseDir, ...buildAccountWorkspaceScopeSegments(canonicalAccountId));
+}
 
 /** Set of recognized bootstrap filenames for runtime validation */
 const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
@@ -435,6 +455,7 @@ async function ensureGitRepo(dir: string, isBrandNewWorkspace: boolean) {
 export async function ensureAgentWorkspace(params?: {
   dir?: string;
   ensureBootstrapFiles?: boolean;
+  accountId?: string;
 }): Promise<{
   dir: string;
   agentsPath?: string;
@@ -446,7 +467,7 @@ export async function ensureAgentWorkspace(params?: {
   bootstrapPath?: string;
 }> {
   const rawDir = params?.dir?.trim() ? params.dir.trim() : DEFAULT_AGENT_WORKSPACE_DIR;
-  const dir = resolveUserPath(rawDir);
+  const dir = resolveAccountScopedAgentWorkspaceDir(rawDir, params?.accountId);
   await fs.mkdir(dir, { recursive: true });
 
   if (!params?.ensureBootstrapFiles) {

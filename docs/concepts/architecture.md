@@ -22,6 +22,32 @@ title: "Gateway Architecture"
   - `/__alisio__/a2ui/` (A2UI host)
     It uses the same port as the Gateway (default `40705`).
 
+## Canonical product boundary
+
+- The canonical product root is **`accountId`**.
+- Desktop product flows are **authenticated by default**. Bootstrap can inspect
+  startup state without a signed-in account, but shared backend features do not
+  run until an authenticated account exists.
+- In the desktop product, gateway methods used for actual app operation also
+  require an authenticated account. In practice that includes `agent`,
+  `agents.*`, `memory.*`, and `devices.*` flows.
+- The shared backend is the source of truth for:
+  - account auth/session state
+  - linked-device bindings
+  - session indexes
+  - automations
+- The local desktop runtime is the source of truth for:
+  - `IDENTITY.md`
+  - `SOUL.md`
+  - `USER.md`
+  - `MEMORY.md`
+  - `memory/`
+- Local workspace files are not the source of truth for backend auth or device
+  binding. They are account-scoped local runtime surfaces.
+- The gateway derives live workspace paths from the authenticated `accountId`
+  at request time. The configured workspace root is only the local runtime
+  container, not the person identity root.
+
 ## Components and flows
 
 ### Gateway (daemon)
@@ -136,5 +162,7 @@ Details: [Gateway protocol](/gateway/protocol), [Pairing](/channels/pairing),
 ## Invariants
 
 - Exactly one Gateway controls a single Baileys session per host.
+- Shared backend state is account-scoped; local runtime state is account-scoped
+  but stored separately on each device.
 - Handshake is mandatory; any non‑JSON or non‑connect first frame is a hard close.
 - Events are not replayed; clients must refresh on gaps.

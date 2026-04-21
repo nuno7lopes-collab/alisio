@@ -4,6 +4,9 @@ import type { GatewayRequestHandlerOptions } from "./types.js";
 
 const {
   approveAlisioSharingRequestMock,
+  getAlisioSharingStateMock,
+  listDevicePairingMock,
+  loadAlisioGatewayAccountContextMock,
   removePairedDeviceMock,
   revokeAlisioSharingGrantMock,
   revokeDeviceTokenMock,
@@ -12,6 +15,62 @@ const {
     ok: true as const,
     requestId,
     grantId: "grant-1",
+  })),
+  getAlisioSharingStateMock: vi.fn(async () => ({
+    viewer: {
+      ownerKey: "user-1",
+      label: "Nuno",
+      ownerScope: "user",
+    },
+    planSupported: true,
+    policy: {
+      allowExternalUse: true,
+      editable: true,
+    },
+    devices: {
+      owned: [],
+      sharedWithMe: [],
+      available: [],
+    },
+    incomingRequests: [],
+    outgoingRequests: [],
+    approvals: [],
+    grants: [],
+    audit: [],
+  })),
+  listDevicePairingMock: vi.fn(async () => ({
+    pending: [],
+    paired: [],
+  })),
+  loadAlisioGatewayAccountContextMock: vi.fn(async () => ({
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "user_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
   })),
   removePairedDeviceMock: vi.fn(),
   revokeAlisioSharingGrantMock: vi.fn(async ({ grantId }: { grantId: string }) => ({
@@ -29,6 +88,7 @@ vi.mock("../../infra/alisio-store.js", async () => {
   return {
     ...actual,
     approveAlisioSharingRequest: approveAlisioSharingRequestMock,
+    getAlisioSharingState: getAlisioSharingStateMock,
     revokeAlisioSharingGrant: revokeAlisioSharingGrantMock,
   };
 });
@@ -39,8 +99,19 @@ vi.mock("../../infra/device-pairing.js", async () => {
   );
   return {
     ...actual,
+    listDevicePairing: listDevicePairingMock,
     removePairedDevice: removePairedDeviceMock,
     revokeDeviceToken: revokeDeviceTokenMock,
+  };
+});
+
+vi.mock("../alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("../alisio-account-context.js")>(
+    "../alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: loadAlisioGatewayAccountContextMock,
   };
 });
 
@@ -59,6 +130,9 @@ function createOptions(
       dedupe: new Map(),
       broadcast: vi.fn(),
       disconnectClientsForDevice: vi.fn(),
+      nodeRegistry: {
+        listConnected: vi.fn(() => []),
+      },
       logGateway: {
         debug: vi.fn(),
         error: vi.fn(),
@@ -73,6 +147,62 @@ function createOptions(
 describe("deviceHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listDevicePairingMock.mockResolvedValue({
+      pending: [],
+      paired: [],
+    });
+    getAlisioSharingStateMock.mockResolvedValue({
+      viewer: {
+        ownerKey: "user-1",
+        label: "Nuno",
+        ownerScope: "user",
+      },
+      planSupported: true,
+      policy: {
+        allowExternalUse: true,
+        editable: true,
+      },
+      devices: {
+        owned: [],
+        sharedWithMe: [],
+        available: [],
+      },
+      incomingRequests: [],
+      outgoingRequests: [],
+      approvals: [],
+      grants: [],
+      audit: [],
+    });
+    loadAlisioGatewayAccountContextMock.mockResolvedValue({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        accountId: "user-1",
+        source: "user_id",
+        authenticated: true,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "account_bound",
+        runtime: "local",
+        current: true,
+        accountId: "user-1",
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
   });
 
   it("disconnects active clients after removing a paired device", async () => {
@@ -174,6 +304,73 @@ describe("deviceHandlers", () => {
         reason: "share.approve",
       }),
       { dropIfSlow: true },
+    );
+  });
+
+  it("returns canonical account-root metadata for devices.list", async () => {
+    const opts = createOptions("devices.list", {});
+
+    await deviceHandlers["devices.list"](opts);
+
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        accountId: "user-1",
+        scopeRoot: "account",
+        authRequired: true,
+        canonical: expect.objectContaining({
+          accountId: "user-1",
+          authenticated: true,
+        }),
+        deviceBinding: expect.objectContaining({
+          binding: "account_bound",
+          accountId: "user-1",
+          deviceId: "device-1",
+        }),
+      }),
+      undefined,
+    );
+  });
+
+  it("rejects signed-out callers before exposing device state", async () => {
+    loadAlisioGatewayAccountContextMock.mockResolvedValueOnce({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        source: "missing",
+        authenticated: false,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "auth_required",
+        runtime: "local",
+        current: true,
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
+    const opts = createOptions("devices.list", {});
+
+    await deviceHandlers["devices.list"](opts);
+
+    expect(opts.respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: "Alisio account sign-in required before using the app.",
+      }),
     );
   });
 

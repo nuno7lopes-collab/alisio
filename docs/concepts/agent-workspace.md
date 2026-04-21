@@ -14,6 +14,16 @@ file tools and for workspace context. Keep it private and treat it as memory.
 This is separate from `~/.alisio/`, which stores config, credentials, and
 sessions.
 
+For authenticated desktop product flows, treat the configured workspace path as
+the shared local runtime root, not as a single global person root. When account
+scoping is active, the live per-account runtime sits under
+`accounts/<accountId>/` inside that root. The product root is still
+`accountId`, and backend auth, linked-device bindings, session indexes, and
+automations do not live in the workspace.
+
+Gateway request handlers resolve that account-scoped path at runtime. They do
+not treat the configured workspace root as the person identity itself.
+
 **Important:** the workspace is the **default cwd**, not a hard sandbox. Tools
 resolve relative paths against the workspace, but absolute paths can still reach
 elsewhere on the host unless sandboxing is enabled. If you need isolation, use
@@ -26,6 +36,8 @@ inside a sandbox workspace under `~/.alisio/sandboxes`, not your host workspace.
 - Default: `~/.alisio/workspace`
 - If `ALISIO_PROFILE` is set and not `"default"`, the default becomes
   `~/.alisio/workspace-<profile>`.
+- When account scoping is active, the signed-in local runtime uses
+  `accounts/<accountId>/` under that root.
 - Override in `~/.alisio/alisio.json`:
 
 ```json5
@@ -149,6 +161,9 @@ These live under `~/.alisio/` and should NOT be committed to the workspace repo:
 - `~/.alisio/credentials/` (OAuth tokens, API keys)
 - `~/.alisio/agents/<agentId>/sessions/` (session transcripts + metadata)
 - `~/.alisio/skills/` (managed skills)
+- backend-owned account auth/session state
+- linked-device bindings
+- automation records
 
 If you need to migrate sessions or config, copy them separately and keep them
 out of version control.

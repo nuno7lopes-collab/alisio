@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildBareSessionResetPrompt } from "../../auto-reply/reply/session-reset-prompt.js";
 import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../../shared/alisio-appearance.js";
 import { findTaskByRunId, resetTaskRegistryForTests } from "../../tasks/task-registry.js";
@@ -23,6 +23,45 @@ const mocks = vi.hoisted(() => ({
   getLatestSubagentRunByChildSessionKey: vi.fn(),
   replaceSubagentRunAfterSteer: vi.fn(),
   loadConfigReturn: {} as Record<string, unknown>,
+  loadAlisioGatewayAccountContext: vi.fn(async () => ({
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "user_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  })),
+  getAlisioAccountState: vi.fn(async () => ({
+    profile: {
+      agentName: "Nuno",
+    },
+    session: {
+      state: "signed_in",
+    },
+  })),
+  hasRestorableAlisioAccount: vi.fn(() => true),
 }));
 
 vi.mock("../session-utils.js", async () => {
@@ -74,6 +113,22 @@ vi.mock("../../agents/agent-scope.js", async () => {
   return {
     ...actual,
     listAgentIds: () => ["main"],
+    resolveAgentWorkspaceDir: () => "/workspace/main",
+  };
+});
+
+vi.mock("../../infra/alisio-store.js", () => ({
+  getAlisioAccountState: mocks.getAlisioAccountState,
+  hasRestorableAlisioAccount: mocks.hasRestorableAlisioAccount,
+}));
+
+vi.mock("../alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("../alisio-account-context.js")>(
+    "../alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: mocks.loadAlisioGatewayAccountContext,
   };
 });
 
@@ -317,6 +372,51 @@ async function invokeAgentIdentityGet(
 }
 
 describe("gateway agent handler", () => {
+  beforeEach(() => {
+    mocks.loadAlisioGatewayAccountContext.mockReset();
+    mocks.loadAlisioGatewayAccountContext.mockResolvedValue({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        accountId: "user-1",
+        source: "user_id",
+        authenticated: true,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "account_bound",
+        runtime: "local",
+        current: true,
+        accountId: "user-1",
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
+    mocks.getAlisioAccountState.mockReset();
+    mocks.getAlisioAccountState.mockResolvedValue({
+      profile: {
+        agentName: "Nuno",
+      },
+      session: {
+        state: "signed_in",
+      },
+    });
+    mocks.hasRestorableAlisioAccount.mockReset();
+    mocks.hasRestorableAlisioAccount.mockReturnValue(true);
+  });
+
   afterEach(() => {
     if (ORIGINAL_STATE_DIR === undefined) {
       delete process.env.ALISIO_STATE_DIR;
@@ -370,6 +470,68 @@ describe("gateway agent handler", () => {
     expect(mocks.updateSessionStore).toHaveBeenCalled();
     expect(capturedEntry).toBeDefined();
     expect(capturedEntry?.acp).toEqual(existingAcpMeta);
+  });
+
+  it("routes agent runs through the authenticated account workspace", async () => {
+    primeMainAgentRun();
+
+    await runMainAgent("Scoped workspace", "agent-scoped-workspace");
+
+    await waitForAssertion(() => expect(mocks.agentCommand).toHaveBeenCalled());
+    const call = readLastAgentCommandCall() as { workspaceDir?: string } | undefined;
+    expect(call?.workspaceDir).toBe("/workspace/main/accounts/user-1");
+  });
+
+  it("rejects signed-out callers before starting an agent run", async () => {
+    mocks.agentCommand.mockClear();
+    mocks.loadAlisioGatewayAccountContext.mockResolvedValueOnce({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        source: "missing",
+        authenticated: false,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "auth_required",
+        runtime: "local",
+        current: true,
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
+    const respond = vi.fn();
+
+    await invokeAgent(
+      {
+        message: "hello",
+        agentId: "main",
+        sessionKey: "agent:main:main",
+        idempotencyKey: "agent-signed-out",
+      },
+      { respond, reqId: "agent-signed-out" },
+    );
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: "Alisio account sign-in required before using the app.",
+      }),
+    );
+    expect(mocks.agentCommand).not.toHaveBeenCalled();
   });
 
   it("forwards provider and model overrides for admin-scoped callers", async () => {
@@ -842,7 +1004,7 @@ describe("gateway agent handler", () => {
     );
     await waitForAssertion(() => expect(mocks.agentCommand).toHaveBeenCalled());
     const spawnedCall = mocks.agentCommand.mock.calls.at(-1)?.[0] as { workspaceDir?: string };
-    expect(spawnedCall.workspaceDir).toBe("/tmp/inherited");
+    expect(spawnedCall.workspaceDir).toBe("/tmp/inherited/accounts/user-1");
   });
 
   it("keeps origin messageChannel as webchat while delivery channel uses last session channel", async () => {
@@ -1135,6 +1297,14 @@ describe("gateway agent handler", () => {
           2,
         ),
       );
+      mocks.getAlisioAccountState.mockResolvedValueOnce({
+        profile: {
+          agentName: "Muse",
+        },
+        session: {
+          state: "signed_in",
+        },
+      });
 
       const respond = await invokeAgentIdentityGet(
         {

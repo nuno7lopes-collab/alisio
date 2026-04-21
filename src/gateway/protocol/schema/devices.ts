@@ -1,5 +1,8 @@
 import { Type } from "@sinclair/typebox";
 import {
+  AlisioAccountDeviceBindingSchema,
+  AlisioCanonicalAccountSchema,
+  AlisioRuntimeResidencyContractSchema,
   AlisioSharingResourcePoliciesPatchSchema,
   AlisioSharingResourcePoliciesSchema,
   AlisioSharingStateSchema,
@@ -50,7 +53,18 @@ const DeviceShareDecisionSchema = Type.Union([Type.Literal("approved"), Type.Lit
 
 export const DevicesListParamsSchema = Type.Object({}, { additionalProperties: false });
 
-export const DevicesListResultSchema = AlisioSharingStateSchema;
+export const DevicesListResultSchema = Type.Object(
+  {
+    accountId: NonEmptyString,
+    scopeRoot: Type.Literal("account"),
+    authRequired: Type.Literal(true),
+    canonical: AlisioCanonicalAccountSchema,
+    deviceBinding: AlisioAccountDeviceBindingSchema,
+    runtimeContract: AlisioRuntimeResidencyContractSchema,
+    ...AlisioSharingStateSchema.properties,
+  },
+  { additionalProperties: false },
+);
 
 export const DevicesShareRequestParamsSchema = Type.Object(
   {

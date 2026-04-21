@@ -6,6 +6,7 @@ import {
   normalizeSpawnedRunMetadata,
   resolveIngressWorkspaceOverrideForSpawnedRun,
 } from "../../agents/spawned-context.js";
+import { resolveAccountScopedAgentWorkspaceDir } from "../../agents/workspace.js";
 import { buildBareSessionResetPrompt } from "../../auto-reply/reply/session-reset-prompt.js";
 import { agentCommandFromIngress } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
@@ -37,6 +38,11 @@ import {
   isGatewayMessageChannel,
   normalizeMessageChannel,
 } from "../../utils/message-channel.js";
+import {
+  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
+  loadAlisioGatewayAccountContext,
+  resolveAccountScopedWorkspaceForAgent,
+} from "../alisio-account-context.js";
 import { parseMessageWithAttachments } from "../chat-attachments.js";
 import { ADMIN_SCOPE } from "../method-scopes.js";
 import { GATEWAY_CLIENT_CAPS, hasGatewayClientCap } from "../protocol/client-info.js";
@@ -83,6 +89,26 @@ function resolveAllowModelOverrideFromClient(
 
 function resolveCanResetSessionFromClient(client: GatewayRequestHandlerOptions["client"]): boolean {
   return resolveSenderIsOwnerFromClient(client);
+}
+
+async function requireAuthenticatedAccountContext(
+  respond: GatewayRequestHandlerOptions["respond"],
+) {
+  try {
+    const accountContext = await loadAlisioGatewayAccountContext();
+    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
+      );
+      return null;
+    }
+    return accountContext;
+  } catch (err) {
+    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    return null;
+  }
 }
 
 async function runSessionResetFromAgent(params: {
@@ -332,6 +358,10 @@ export const agentHandlers: GatewayRequestHandlers = {
     const providerOverride = allowModelOverride ? request.provider : undefined;
     const modelOverride = allowModelOverride ? request.model : undefined;
     const cfg = loadConfig();
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const idem = request.idempotencyKey;
     const normalizedSpawned = normalizeSpawnedRunMetadata({
       groupId: request.groupId,
@@ -770,6 +800,18 @@ export const agentHandlers: GatewayRequestHandlers = {
     }
 
     const resolvedThreadId = explicitThreadId ?? deliveryPlan.resolvedThreadId;
+    const resolvedRunAgentId = resolvedSessionKey
+      ? resolveAgentIdFromSessionKey(resolvedSessionKey)
+      : (agentId ?? normalizeAgentId(resolveDefaultAgentId(cfg)));
+    const spawnedWorkspaceDir = resolveIngressWorkspaceOverrideForSpawnedRun({
+      spawnedBy: spawnedByValue,
+      workspaceDir: sessionEntry?.spawnedWorkspaceDir,
+    });
+    const workspaceDir = resolveAccountScopedWorkspaceForAgent({
+      cfg,
+      agentId: resolvedRunAgentId,
+      accountId: accountContext.canonical.accountId,
+    });
 
     dispatchAgentRunFromGateway({
       ingressOpts: {
@@ -806,11 +848,13 @@ export const agentHandlers: GatewayRequestHandlers = {
         extraSystemPrompt: request.extraSystemPrompt,
         internalEvents: request.internalEvents,
         inputProvenance,
-        // Internal-only: allow workspace override for spawned subagent runs.
-        workspaceDir: resolveIngressWorkspaceOverrideForSpawnedRun({
-          spawnedBy: spawnedByValue,
-          workspaceDir: sessionEntry?.spawnedWorkspaceDir,
-        }),
+        // Keep local runtime files rooted under the authenticated account scope.
+        workspaceDir: spawnedWorkspaceDir
+          ? resolveAccountScopedAgentWorkspaceDir(
+              spawnedWorkspaceDir,
+              accountContext.canonical.accountId,
+            )
+          : workspaceDir,
         senderIsOwner,
         allowModelOverride,
       },
@@ -865,11 +909,20 @@ export const agentHandlers: GatewayRequestHandlers = {
       agentId = resolved;
     }
     const cfg = loadConfig();
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const resolvedAgentId = agentId ?? normalizeAgentId(resolveDefaultAgentId(cfg));
     const account = await getAlisioAccountState().catch(() => null);
     const identity = resolveResolvedAgentIdentity({
       cfg,
       agentId: resolvedAgentId,
+      workspaceDir: resolveAccountScopedWorkspaceForAgent({
+        cfg,
+        agentId: resolvedAgentId,
+        accountId: accountContext.canonical.accountId,
+      }),
       includeAccountIdentity: true,
       accountProfile:
         account && hasRestorableAlisioAccount(account.profile, account.session)

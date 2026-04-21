@@ -497,6 +497,8 @@ export function buildAgentSystemPrompt(params: {
     "## Workspace",
     `Your working directory is: ${displayWorkspaceDir}`,
     workspaceGuidance,
+    "Backend-shared truth is account-scoped: auth state, linked-device bindings, session indexes, and automations live outside the local workspace.",
+    "Local workspace truth is runtime-scoped: IDENTITY.md, SOUL.md, USER.md, MEMORY.md, and memory/ are local runtime surfaces and must not be treated as the source of truth for backend auth or account state.",
     ...workspaceNotes,
     "",
     ...docsSection,

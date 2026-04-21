@@ -20,6 +20,38 @@ const exportPairingCode = vi.hoisted(() => vi.fn());
 const importProfileKeyFromPairingCode = vi.hoisted(() => vi.fn());
 const storeProfileRootKey = vi.hoisted(() => vi.fn());
 const logGatewayInfo = vi.hoisted(() => vi.fn());
+const loadAlisioGatewayAccountContext = vi.hoisted(() =>
+  vi.fn(async () => ({
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "user_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  })),
+);
 const readPersonalContextSummary = vi.hoisted(() =>
   vi.fn(async () => ({
     version: 1,
@@ -113,6 +145,7 @@ vi.mock("../../infra/alisio-memory-profile.js", () => ({
 vi.mock("../../agents/agent-scope.js", () => ({
   listAgentIds,
   resolveAgentWorkspaceDir: () => "/workspace/main",
+  resolveDefaultAgentId: () => "main",
 }));
 
 vi.mock("../../agents/memory-search.js", () => ({
@@ -127,6 +160,16 @@ vi.mock("../../plugins/memory-runtime.js", () => ({
 vi.mock("../../memory/personal-context.js", () => ({
   readPersonalContextSummary,
 }));
+
+vi.mock("../alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("../alisio-account-context.js")>(
+    "../alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext,
+  };
+});
 
 vi.mock("../../../packages/memory-crypto/src/index.js", () => ({
   exportPairingCode,
@@ -239,6 +282,37 @@ describe("memoryHandlers", () => {
     importProfileKeyFromPairingCode.mockReset();
     storeProfileRootKey.mockReset();
     logGatewayInfo.mockReset();
+    loadAlisioGatewayAccountContext.mockReset();
+    loadAlisioGatewayAccountContext.mockResolvedValue({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        accountId: "user-1",
+        source: "user_id",
+        authenticated: true,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "account_bound",
+        runtime: "local",
+        current: true,
+        accountId: "user-1",
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
     readPersonalContextSummary.mockReset();
     readPersonalContextSummary.mockResolvedValue({
       version: 1,
@@ -332,7 +406,7 @@ describe("memoryHandlers", () => {
           files: 3,
           chunks: 11,
           dirty: false,
-          workspaceDir: "/workspace/main",
+          workspaceDir: "/workspace/main/accounts/user-1",
           dbPath: "/tmp/memory.sqlite",
           sourceCounts: [
             { source: "memory", files: 2, chunks: 8 },
@@ -366,7 +440,7 @@ describe("memoryHandlers", () => {
               profileId: "local-main",
               profileSource: "local-profile",
               workspaceScope: "scope-main",
-              workspaceDir: "/workspace/main",
+              workspaceDir: "/workspace/main/accounts/user-1",
               backend: "builtin",
               entities: 3,
               relations: 2,
@@ -477,6 +551,48 @@ describe("memoryHandlers", () => {
     );
   });
 
+  it("rejects signed-out callers before reading memory state", async () => {
+    loadAlisioGatewayAccountContext.mockResolvedValueOnce({
+      account: {},
+      canonical: {
+        scopeRoot: "account",
+        source: "missing",
+        authenticated: false,
+        authRequired: true,
+      },
+      currentDevice: {
+        id: "device-1",
+        label: "Mac",
+        platform: "macos",
+        current: true,
+      },
+      deviceBinding: {
+        binding: "auth_required",
+        runtime: "local",
+        current: true,
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+    });
+
+    const respond = await invokeMemoryMethod("memory.status", { agentId: "main" });
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: "Alisio account sign-in required before using the app.",
+      }),
+    );
+    expect(readPersonalContextSummary).not.toHaveBeenCalled();
+  });
+
   it("runs a forced sync and returns refreshed status", async () => {
     const close = vi.fn().mockResolvedValue(undefined);
     const sync = vi.fn().mockResolvedValue(undefined);
@@ -490,7 +606,7 @@ describe("memoryHandlers", () => {
           files: 5,
           chunks: 22,
           dirty: false,
-          workspaceDir: "/workspace/main",
+          workspaceDir: "/workspace/main/accounts/user-1",
           dbPath: "/tmp/memory.sqlite",
           vector: {
             enabled: true,

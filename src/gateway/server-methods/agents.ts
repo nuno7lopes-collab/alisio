@@ -1,10 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import {
-  listAgentIds,
-  resolveAgentDir,
-  resolveAgentWorkspaceDir,
-} from "../../agents/agent-scope.js";
+import { listAgentIds, resolveAgentDir } from "../../agents/agent-scope.js";
 import {
   DEFAULT_AGENTS_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
@@ -45,6 +41,12 @@ import {
   normalizeMemoryFileName,
 } from "../../shared/memory-file-paths.js";
 import { resolveUserPath } from "../../utils.js";
+import {
+  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
+  buildGatewayPersonalContextScope,
+  loadAlisioGatewayAccountContext,
+  resolveAccountScopedWorkspaceForAgent,
+} from "../alisio-account-context.js";
 import {
   ErrorCodes,
   errorShape,
@@ -140,6 +142,7 @@ function resolveAgentWorkspaceFileOrRespondError(
   respond: RespondFn,
   options?: {
     allowMemoryNotes?: boolean;
+    accountId?: string;
   },
 ): {
   cfg: ReturnType<typeof loadConfig>;
@@ -158,12 +161,34 @@ function resolveAgentWorkspaceFileOrRespondError(
     return null;
   }
   const name = normalizeWorkspaceFileName(params.name);
-  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const workspaceDir = resolveAccountScopedWorkspaceForAgent({
+    cfg,
+    agentId,
+    accountId: options?.accountId,
+  });
   if (!isSupportedAgentWorkspaceFileName(name, { allowMemoryNotes: options?.allowMemoryNotes })) {
     respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, `unsupported file "${name}"`));
     return null;
   }
   return { cfg, agentId, workspaceDir, name };
+}
+
+async function requireAuthenticatedAccountContext(respond: RespondFn) {
+  try {
+    const accountContext = await loadAlisioGatewayAccountContext();
+    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
+      );
+      return null;
+    }
+    return accountContext;
+  } catch (err) {
+    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    return null;
+  }
 }
 
 type FileMeta = {
@@ -657,16 +682,26 @@ export const agentsHandlers: GatewayRequestHandlers = {
 
     const cfg = loadConfig();
     const result = listAgentsForGateway(cfg);
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const agents = await Promise.all(
       result.agents.map(async (agent) => {
-        const workspaceDir = agent.workspace ?? resolveAgentWorkspaceDir(cfg, agent.id);
+        const workspaceDir = resolveAccountScopedWorkspaceForAgent({
+          cfg,
+          agentId: agent.id,
+          accountId: accountContext.canonical.accountId,
+        });
         return {
           ...agent,
+          workspace: workspaceDir,
           personalContext: await readPersonalContextSummary({
             cfg,
             agentId: agent.id,
             workspaceDir,
             mainKey: result.mainKey,
+            ...buildGatewayPersonalContextScope(accountContext),
           }),
         };
       }),
@@ -696,6 +731,10 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const rawName = String(params.name ?? "").trim();
     const agentId = normalizeAgentId(rawName);
     if (agentId === DEFAULT_AGENT_ID) {
@@ -716,14 +755,25 @@ export const agentsHandlers: GatewayRequestHandlers = {
       return;
     }
 
-    const workspaceDir = resolveUserPath(String(params.workspace ?? "").trim());
+    const workspaceRootDir = resolveUserPath(String(params.workspace ?? "").trim());
+    const workspaceDir = resolveAccountScopedWorkspaceForAgent({
+      cfg: {
+        ...cfg,
+        agents: {
+          ...cfg.agents,
+          list: [...(cfg.agents?.list ?? []), { id: agentId, workspace: workspaceRootDir }],
+        },
+      },
+      agentId,
+      accountId: accountContext.canonical.accountId,
+    });
 
     // Resolve agentDir against the config we're about to persist (vs the pre-write config),
     // so subsequent resolutions can't disagree about the agent's directory.
     let nextConfig = applyAgentConfig(cfg, {
       agentId,
       name: rawName,
-      workspace: workspaceDir,
+      workspace: workspaceRootDir,
     });
     const agentDir = resolveAgentDir(nextConfig, agentId);
     nextConfig = applyAgentConfig(nextConfig, { agentId, agentDir });
@@ -777,13 +827,17 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const agentId = normalizeAgentId(String(params.agentId ?? ""));
     if (!isConfiguredAgent(cfg, agentId)) {
       respondAgentNotFound(respond, agentId);
       return;
     }
 
-    const workspaceDir =
+    const workspaceRootDir =
       typeof params.workspace === "string" && params.workspace.trim()
         ? resolveUserPath(params.workspace.trim())
         : undefined;
@@ -796,16 +850,29 @@ export const agentsHandlers: GatewayRequestHandlers = {
       ...(typeof params.name === "string" && params.name.trim()
         ? { name: params.name.trim() }
         : {}),
-      ...(workspaceDir ? { workspace: workspaceDir } : {}),
+      ...(workspaceRootDir ? { workspace: workspaceRootDir } : {}),
       ...(model ? { model } : {}),
     });
 
-    if (workspaceDir) {
+    if (workspaceRootDir) {
       const skipBootstrap = Boolean(nextConfig.agents?.defaults?.skipBootstrap);
-      await ensureAgentWorkspace({ dir: workspaceDir, ensureBootstrapFiles: !skipBootstrap });
+      await ensureAgentWorkspace({
+        dir: resolveAccountScopedWorkspaceForAgent({
+          cfg: nextConfig,
+          agentId,
+          accountId: accountContext.canonical.accountId,
+        }),
+        ensureBootstrapFiles: !skipBootstrap,
+      });
     }
 
-    const identityWorkspaceDir = avatar ? resolveAgentWorkspaceDir(nextConfig, agentId) : undefined;
+    const identityWorkspaceDir = avatar
+      ? resolveAccountScopedWorkspaceForAgent({
+          cfg: nextConfig,
+          agentId,
+          accountId: accountContext.canonical.accountId,
+        })
+      : undefined;
     if (
       identityWorkspaceDir &&
       !(await ensureWorkspaceFileReadyOrRespond({
@@ -845,6 +912,10 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const agentId = normalizeAgentId(String(params.agentId ?? ""));
     if (agentId === DEFAULT_AGENT_ID) {
       respond(
@@ -860,7 +931,11 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const deleteFiles = typeof params.deleteFiles === "boolean" ? params.deleteFiles : true;
-    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const workspaceDir = resolveAccountScopedWorkspaceForAgent({
+      cfg,
+      agentId,
+      accountId: accountContext.canonical.accountId,
+    });
     const agentDir = resolveAgentDir(cfg, agentId);
     const sessionsDir = resolveSessionTranscriptsDirForAgent(agentId);
 
@@ -892,12 +967,20 @@ export const agentsHandlers: GatewayRequestHandlers = {
       return;
     }
     const cfg = loadConfig();
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const agentId = resolveAgentIdOrError(String(params.agentId ?? ""), cfg);
     if (!agentId) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown agent id"));
       return;
     }
-    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const workspaceDir = resolveAccountScopedWorkspaceForAgent({
+      cfg,
+      agentId,
+      accountId: accountContext.canonical.accountId,
+    });
     let hideBootstrap = false;
     try {
       hideBootstrap = await agentsHandlerDeps.isWorkspaceSetupCompleted(workspaceDir);
@@ -913,8 +996,13 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondInvalidMethodParams(respond, "agents.files.get", validateAgentsFilesGetParams.errors);
       return;
     }
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, {
       allowMemoryNotes: true,
+      accountId: accountContext.canonical.accountId,
     });
     if (!resolved) {
       return;
@@ -966,8 +1054,13 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondInvalidMethodParams(respond, "agents.files.set", validateAgentsFilesSetParams.errors);
       return;
     }
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, {
       allowMemoryNotes: true,
+      accountId: accountContext.canonical.accountId,
     });
     if (!resolved) {
       return;
@@ -1033,8 +1126,13 @@ export const agentsHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, {
       allowMemoryNotes: true,
+      accountId: accountContext.canonical.accountId,
     });
     if (!resolved) {
       return;

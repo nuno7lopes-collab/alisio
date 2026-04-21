@@ -2,7 +2,6 @@ import { clearAlisioModelProviderSnapshotCache } from "../../infra/alisio-model-
 import {
   AlisioAccountValidationError,
   approveAlisioSharingRequest,
-  getAlisioAccountState,
   getAlisioSharingState,
   rejectAlisioSharingRequest,
   requestAlisioSharingAccess,
@@ -24,6 +23,10 @@ import {
 import { normalizeDeviceAuthScopes } from "../../shared/device-auth.js";
 import { resolveNodeComputerId, resolveNodeComputerLabel } from "../../shared/node-list-types.js";
 import { resolveMissingRequestedScope } from "../../shared/operator-scope-compat.js";
+import {
+  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
+  loadAlisioGatewayAccountContext,
+} from "../alisio-account-context.js";
 import { createKnownNodeCatalog, listKnownNodes } from "../node-catalog.js";
 import {
   ErrorCodes,
@@ -75,9 +78,8 @@ function logDeviceTokenRotationDenied(params: {
 
 async function loadSharingStateForContext(
   context: Parameters<GatewayRequestHandlers[string]>[0]["context"],
+  accountContext: Awaited<ReturnType<typeof loadAlisioGatewayAccountContext>>,
 ) {
-  const account = await getAlisioAccountState();
-  const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
   const pairing = await listDevicePairing();
   const catalog = createKnownNodeCatalog({
     pairedDevices: pairing.paired,
@@ -86,14 +88,14 @@ async function loadSharingStateForContext(
   const knownNodes = listKnownNodes(catalog);
   return await getAlisioSharingState({
     targets: [
-      ...(currentDevice
+      ...(accountContext.currentDevice
         ? [
             {
-              targetId: currentDevice.id,
-              computerId: currentDevice.id,
-              computerLabel: currentDevice.label,
-              label: currentDevice.label,
-              platform: currentDevice.platform,
+              targetId: accountContext.currentDevice.id,
+              computerId: accountContext.currentDevice.id,
+              computerLabel: accountContext.currentDevice.label,
+              label: accountContext.currentDevice.label,
+              platform: accountContext.currentDevice.platform,
               sourceKind: "current" as const,
               connected: true,
               current: true,
@@ -112,6 +114,26 @@ async function loadSharingStateForContext(
       })),
     ],
   });
+}
+
+async function requireAuthenticatedAccountContext(
+  respond: Parameters<GatewayRequestHandlers[string]>[0]["respond"],
+) {
+  try {
+    const accountContext = await loadAlisioGatewayAccountContext();
+    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
+      );
+      return null;
+    }
+    return accountContext;
+  } catch (err) {
+    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    return null;
+  }
 }
 
 function respondFromIdempotencyCache(params: {
@@ -173,6 +195,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
+      return;
+    }
     const list = await listDevicePairing();
     respond(
       true,
@@ -195,8 +220,22 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountContext = await requireAuthenticatedAccountContext(respond);
+    if (!accountContext) {
+      return;
+    }
     try {
-      const result = await loadSharingStateForContext(context);
+      const result = {
+        ...(accountContext.canonical.accountId
+          ? { accountId: accountContext.canonical.accountId }
+          : {}),
+        scopeRoot: accountContext.canonical.scopeRoot,
+        authRequired: true as const,
+        canonical: accountContext.canonical,
+        deviceBinding: accountContext.deviceBinding,
+        runtimeContract: accountContext.runtimeContract,
+        ...(await loadSharingStateForContext(context, accountContext)),
+      };
       if (!validateDevicesListResult(result)) {
         respond(
           false,
@@ -225,6 +264,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
     const requestParams = params as {
@@ -280,6 +322,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
     const requestParams = params as {
@@ -357,6 +402,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
+      return;
+    }
     const requestParams = params as {
       grantId?: string;
       idempotencyKey: string;
@@ -419,6 +467,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
+      return;
+    }
     const requestParams = params as {
       allowExternalUse?: boolean;
       resourcePolicies?: Record<string, string>;
@@ -478,6 +529,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
+      return;
+    }
     const { requestId } = params as { requestId: string };
     const callerScopes = Array.isArray(client?.connect?.scopes) ? client.connect.scopes : [];
     const approved = await approveDevicePairing(requestId, { callerScopes });
@@ -522,6 +576,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
+      return;
+    }
     const { requestId } = params as { requestId: string };
     const rejected = await rejectDevicePairing(requestId);
     if (!rejected) {
@@ -554,6 +611,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
+      return;
+    }
     const { deviceId } = params as { deviceId: string };
     const removed = await removePairedDevice(deviceId);
     if (!removed) {
@@ -578,6 +638,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
     const { deviceId, role, scopes } = params as {
@@ -667,6 +730,9 @@ export const deviceHandlers: GatewayRequestHandlers = {
           )}`,
         ),
       );
+      return;
+    }
+    if (!(await requireAuthenticatedAccountContext(respond))) {
       return;
     }
     const { deviceId, role } = params as { deviceId: string; role: string };
