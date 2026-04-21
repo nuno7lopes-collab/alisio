@@ -37,6 +37,74 @@ When debugging real providers/models (requires real creds):
 
 Tip: when you only need one failing case, prefer narrowing live tests via the allowlist env vars described below.
 
+## macOS native QA
+
+For the native macOS product, the highest-signal QA loop lives in
+`apps/macos/Tests/AlisioTests`. Keep this loop focused on startup, first-use,
+gateway readiness, reconnect, the native right inspector pane, permissions, and
+`computer use`. Do not treat web-only checks as coverage for the macOS app.
+
+### Scenario matrix
+
+| Scenario             | Automated coverage                                                                                           | Operational pass criteria                                                                                                     | Still manual today                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Startup / cold start | `GatewayProcessManagerTests`, `GatewayEndpointStoreTests`, `OnboardingViewSmokeTests`                        | Local mode reaches `running` or `attachedExisting` without stale auth failures; onboarding/setup smoke builds cleanly         | Packaged `Alisio.app` launch time, launchd wake from a signed bundle, first paint |
+| First message        | `GatewayConnectionControlTests`, `WebChatMainSessionKeyTests`, `AlisioShellStateTests`                       | First outbound request is non-empty, trimmed, uses the canonical main session, and carries timeout/idempotency metadata       | Native composer-to-transcript perceived latency in the packaged app               |
+| Gateway readiness    | `GatewayProcessManagerTests`, `GatewayConnectionControlTests`, `GatewayChannelConnectTests`                  | `health` or `status` RPC proves liveness; auth failures are surfaced explicitly instead of leaving a silent hang              | Version mismatch handling against a real installed runtime                        |
+| Reconnect            | `MacNodeComputerHelperClientTests`, `GatewayChannelShutdownTests`                                            | One interruption reconnects cleanly without losing the active computer session or spawning an endless reconnect loop          | Real network flap, sleep/wake, and SSH tunnel churn                               |
+| Right inspector pane | `MacDesktopComputerStoreTests`, `AlisioWorkspaceWindowSmokeTests`                                            | Session/runtime state opens the pane when there is activity, frame data, or a permission error, and stays closed when idle    | Docking, animation, sizing, and real user interaction timing                      |
+| Permissions          | `PermissionManagerTests`, `SettingsViewSmokeTests`, `MacDesktopComputerStoreTests`                           | Missing Accessibility/Screen Recording surfaces the right guidance, and the Permissions UI still builds in preview/smoke mode | Real TCC prompt appearance, denial flows, and System Settings round-trip          |
+| Restart-required     | `MacDesktopComputerStoreTests`                                                                               | After a blocked `computer use` start, the UI exposes a restart hint instead of silently failing                               | Confirming the hint clears after a real grant + relaunch                          |
+| Computer use         | `MacDesktopComputerStoreTests`, `MacNodeComputerHelperClientTests`, `MacNodeRuntimeTests`                    | Existing local sessions attach, refresh frames, surface permission errors, and recover after helper interruption              | Real input injection, frame freshness under load, and end-to-end capture latency  |
+| Main sessions        | `WebChatMainSessionKeyTests`, `WorkActivityStoreTests`, `MenuSessionsInjectorTests`, `AlisioShellStateTests` | Native workspace defaults resolve to the main session and main-session activity preempts secondary sessions in app state      | Cross-device session switching in a live signed build                             |
+
+### Targeted macOS smoke commands
+
+- `swift build --package-path apps/macos`
+- `swift test --package-path apps/macos --filter GatewayConnectionControlTests`
+- `swift test --package-path apps/macos --filter GatewayChannelConnectTests`
+- `swift test --package-path apps/macos --filter GatewayProcessManagerTests`
+- `swift test --package-path apps/macos --filter GatewayChannelShutdownTests`
+- `swift test --package-path apps/macos --filter MacDesktopComputerStoreTests`
+- `swift test --package-path apps/macos --filter MacNodeComputerHelperClientTests`
+- `swift test --package-path apps/macos --filter AlisioWorkspaceWindowSmokeTests`
+- `swift test --package-path apps/macos --filter SettingsViewSmokeTests`
+- `swift test --package-path apps/macos --filter PermissionManagerTests`
+- `swift test --package-path apps/macos --filter AlisioShellStateTests`
+- `swift test --package-path apps/macos --filter MenuSessionsInjectorTests`
+- `swift test --package-path apps/macos --filter WorkActivityStoreTests`
+- `swift test --package-path apps/macos --filter WebChatMainSessionKeyTests`
+
+### Perceived latency and hang checks
+
+Use these as operational validation criteria for the native macOS app:
+
+- Gateway readiness: current startup code waits about 5 seconds for the
+  readiness probe before treating startup as suspect. If the app stays in a
+  blank or reconnecting state longer than that while local mode is selected,
+  treat it as a gateway/runtime problem first.
+- First message: the native workspace should show bootstrap/loading state while
+  session history, health, and models load. A blank stage with no loading or
+  error state is a regression in the workspace/gateway boundary, not “just
+  slow”.
+- Computer use pane freshness: `MacDesktopComputerStore` refreshes frames about
+  every 900 ms. If the pane says the session is still running but the “Last
+  frame” timestamp stops advancing, treat it as a local runtime/helper stall.
+- Reconnect: a single helper interruption should restore the active session on
+  the next transport without making the user start a brand-new computer session.
+
+### Known manual coverage gaps
+
+These gaps remain manual today, but they do not block the macOS QA slice from
+going green:
+
+- There is no packaged-app UI automation seam in `AlisioTests` that measures
+  signed `Alisio.app` launch-to-first-paint or first-message latency.
+- TCC prompts and System Settings grant flows are still manual because the Swift
+  package tests cannot drive real macOS permission dialogs safely.
+- The right inspector pane has useful state-level coverage, but not layout or
+  animation coverage. We can assert when it should open, not how it animates.
+
 ## Test suites (what runs where)
 
 Think of the suites as “increasing realism” (and increasing flakiness/cost):

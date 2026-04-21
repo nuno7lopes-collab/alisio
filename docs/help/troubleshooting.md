@@ -34,6 +34,34 @@ Good output in one line:
 - `alisio channels status --probe` → channels report `connected` or `ready`.
 - `alisio logs --follow` → steady activity, no repeating fatal errors.
 
+## macOS native product triage
+
+When the active product surface is the native macOS app, split the problem by
+layer before changing code:
+
+| Symptom                                                                                                | Most likely layer                               | First checks                                                                                          | Deep pages                                                                                                         |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| App opens but the first message never progresses, or the stage stays blank                             | Native workspace shell versus gateway readiness | `alisio gateway status`, `alisio gateway probe`, `alisio logs --follow`                               | [/platforms/mac/webchat](/platforms/mac/webchat), [/platforms/mac/bundled-gateway](/platforms/mac/bundled-gateway) |
+| Menu bar stays on starting/reconnecting, or Local mode never becomes ready                             | Gateway runtime / launchd / version mismatch    | `alisio gateway status`, `alisio doctor`, inspect `/tmp/alisio/alisio-gateway.log`                    | [/platforms/mac/bundled-gateway](/platforms/mac/bundled-gateway), [/platforms/mac/health](/platforms/mac/health)   |
+| Chat works but `computer use` shows no frame, stale frame, or reconnect churn                          | Local runtime/helper, not the frontend shell    | `alisio nodes status`, `alisio nodes describe --node <id>`, `alisio logs --follow`                    | [/platforms/mac/webchat](/platforms/mac/webchat), [/nodes/troubleshooting](/nodes/troubleshooting)                 |
+| Accessibility or Screen Recording looks granted, but the app still asks again or says restart required | TCC/signing/permission persistence              | Re-check the app path/signature, then retry the permission recovery checklist                         | [/platforms/mac/permissions](/platforms/mac/permissions)                                                           |
+| The right inspector pane never appears even though the session is active                               | Native workspace state / inspector presentation | Confirm gateway is healthy first; then confirm the session has activity, a frame, or a surfaced error | [/platforms/mac/webchat](/platforms/mac/webchat)                                                                   |
+
+### How to distinguish the layer quickly
+
+- Frontend/workspace issue:
+  - `alisio gateway status` and `alisio gateway probe` are healthy, but the
+    native window is blank, stale, or the inspector pane never reacts.
+- Gateway issue:
+  - `alisio gateway status` is not `running`, `probe` fails, or logs show auth,
+    port, or launchd errors before the UI can load.
+- Permissions issue:
+  - Errors mention `PERMISSION_REQUIRED` or `PERMISSION_MISSING`, or the app
+    shows restart guidance after a grant.
+- Local runtime issue:
+  - Chat and gateway are healthy, but `computer use`, capture, or helper state
+    fail independently.
+
 ## Anthropic long context 429
 
 If you see:
