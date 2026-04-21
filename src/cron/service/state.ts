@@ -39,7 +39,9 @@ export type CronServiceDeps = {
   nowMs?: () => number;
   log: Logger;
   storePath: string;
+  configuredStorePath?: string;
   cronEnabled: boolean;
+  configuredCronEnabled?: boolean;
   /** CronConfig for session retention settings. */
   cronConfig?: CronConfig;
   /** Default agent id for jobs without an agent id. */

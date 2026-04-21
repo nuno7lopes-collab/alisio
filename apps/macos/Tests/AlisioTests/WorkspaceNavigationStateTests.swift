@@ -7,7 +7,7 @@ import AlisioSupport
 struct WorkspaceNavigationStateTests {
     @Test func `chat route stores a non empty session key`() {
         let state = WorkspaceNavigationState()
-        state.showChat(sessionKey: "team/main")
+        state.showChat(sessionKey: "  team/main  ")
 
         #expect(state.route == .chat)
         #expect(state.activeSessionKey == "team/main")
@@ -34,6 +34,16 @@ struct WorkspaceNavigationStateTests {
         state.show(route: .onboarding)
 
         #expect(state.route == .onboarding)
+    }
+
+    @Test func `complete onboarding stores trimmed preferred session`() {
+        let state = WorkspaceNavigationState()
+        state.show(route: .onboarding)
+
+        state.completeOnboarding(preferredSessionKey: "  agent:main:main  ")
+
+        #expect(state.route == .chat)
+        #expect(state.activeSessionKey == "agent:main:main")
     }
 
     @Test func `settings tabs map to native workspace sections`() {

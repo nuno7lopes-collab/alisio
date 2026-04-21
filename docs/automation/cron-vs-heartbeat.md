@@ -50,10 +50,10 @@ Heartbeats run in the **main session** at a regular interval (default: 30 min). 
 - **Natural timing**: Drifts slightly based on queue load, which is fine for most monitoring.
 - **No task record**: heartbeat turns stay in main-session history (see [Background Tasks](/automation/tasks)).
 
-On macOS local mode, heartbeat toggles and manual wake paths should first make
-sure the local gateway is actually up, so the first interaction fails with an
-explicit gateway-readiness error instead of silently disappearing into startup
-timing.
+On macOS local mode, heartbeat reads, toggles, and manual wake paths require
+the signed-in Alisio account and first make sure the local gateway is actually
+up. If the gateway is cold, offline, or restarting, the app surfaces the
+gateway-readiness or account error instead of showing a false success.
 
 ### Heartbeat example: HEARTBEAT.md checklist
 
@@ -114,9 +114,12 @@ per-job offset in a 0-5 minute window.
 - **One-shot support**: `--at` for precise future timestamps.
 - **Task tracking**: isolated jobs create [background task](/automation/tasks) records visible in `alisio tasks` and `alisio tasks audit`.
 
-On the native macOS app, cron management and manual runs should also preflight
-the local gateway before sending control RPCs. That keeps wake, run, add, and
-update flows predictable during cold start or after a local gateway restart.
+On the native macOS app, cron management and manual runs also require the
+signed-in Alisio account and preflight the local gateway before sending control
+RPCs. The default local cron store is account scoped under the Alisio data
+directory, so local jobs do not run from a signed-out or wrong-account gateway
+scope. That keeps list, wake, run, add, and update flows predictable during
+cold start or after a local gateway restart.
 
 ### Cron example: Daily morning briefing
 

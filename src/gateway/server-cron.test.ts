@@ -12,12 +12,14 @@ const {
   loadConfigMock,
   fetchWithSsrFGuardMock,
   runCronIsolatedAgentTurnMock,
+  loadAlisioGatewayAccountContextMock,
 } = vi.hoisted(() => ({
   enqueueSystemEventMock: vi.fn(),
   requestHeartbeatNowMock: vi.fn(),
   loadConfigMock: vi.fn(),
   fetchWithSsrFGuardMock: vi.fn(),
   runCronIsolatedAgentTurnMock: vi.fn(async () => ({ status: "ok" as const, summary: "ok" })),
+  loadAlisioGatewayAccountContextMock: vi.fn(),
 }));
 
 function enqueueSystemEvent(...args: unknown[]) {
@@ -57,7 +59,50 @@ vi.mock("../cron/isolated-agent.js", () => ({
   runCronIsolatedAgentTurn: runCronIsolatedAgentTurnMock,
 }));
 
+vi.mock("./alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("./alisio-account-context.js")>(
+    "./alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: loadAlisioGatewayAccountContextMock,
+  };
+});
+
 import { buildGatewayCronService } from "./server-cron.js";
+
+function createAccountContext(accountId = "user-1") {
+  return {
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId,
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId,
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  };
+}
 
 function createCronConfig(name: string): AlisioConfig {
   const tmpDir = path.join(os.tmpdir(), `${name}-${Date.now()}`);
@@ -78,13 +123,49 @@ describe("buildGatewayCronService", () => {
     loadConfigMock.mockClear();
     fetchWithSsrFGuardMock.mockClear();
     runCronIsolatedAgentTurnMock.mockClear();
+    loadAlisioGatewayAccountContextMock.mockReset();
+    loadAlisioGatewayAccountContextMock.mockResolvedValue(createAccountContext());
+  });
+
+  it("uses an account-scoped default cron store", async () => {
+    const prevSkipCron = process.env.ALISIO_SKIP_CRON;
+    process.env.ALISIO_SKIP_CRON = "0";
+    const cfg = {
+      session: {
+        mainKey: "main",
+      },
+    } as AlisioConfig;
+    loadConfigMock.mockReturnValue(cfg);
+    loadAlisioGatewayAccountContextMock.mockResolvedValueOnce(
+      createAccountContext("Person@Example.com"),
+    );
+
+    const state = await buildGatewayCronService({
+      cfg,
+      deps: {} as CliDeps,
+      broadcast: () => {},
+    });
+
+    try {
+      expect(path.normalize(state.storePath)).toContain(
+        path.normalize("accounts/person-example-com/cron/jobs.json"),
+      );
+      expect(state.cronEnabled).toBe(true);
+    } finally {
+      state.cron.stop();
+      if (prevSkipCron === undefined) {
+        delete process.env.ALISIO_SKIP_CRON;
+      } else {
+        process.env.ALISIO_SKIP_CRON = prevSkipCron;
+      }
+    }
   });
 
   it("routes main-target jobs to the scoped session for enqueue + wake", async () => {
     const cfg = createCronConfig("server-cron");
     loadConfigMock.mockReturnValue(cfg);
 
-    const state = buildGatewayCronService({
+    const state = await buildGatewayCronService({
       cfg,
       deps: {} as CliDeps,
       broadcast: () => {},
@@ -125,7 +206,7 @@ describe("buildGatewayCronService", () => {
       new SsrFBlockedError("Blocked: resolves to private/internal/special-use IP address"),
     );
 
-    const state = buildGatewayCronService({
+    const state = await buildGatewayCronService({
       cfg,
       deps: {} as CliDeps,
       broadcast: () => {},
@@ -175,7 +256,7 @@ describe("buildGatewayCronService", () => {
     } as AlisioConfig;
     loadConfigMock.mockReturnValue(cfg);
 
-    const state = buildGatewayCronService({
+    const state = await buildGatewayCronService({
       cfg,
       deps: {} as CliDeps,
       broadcast: () => {},

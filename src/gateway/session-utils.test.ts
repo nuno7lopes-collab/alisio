@@ -214,6 +214,31 @@ describe("gateway session utils", () => {
     expect(target.storePath).toBe(path.resolve(storeTemplate.replace("{agentId}", "ops")));
   });
 
+  test("resolveGatewaySessionStoreTarget scopes store paths by accountId", () => {
+    const storeTemplate = path.join(
+      os.tmpdir(),
+      "alisio-session-utils-account",
+      "{agentId}",
+      "sessions.json",
+    );
+    const cfg = {
+      session: { mainKey: "main", store: storeTemplate },
+      agents: { list: [{ id: "ops", default: true }] },
+    } as AlisioConfig;
+
+    const target = resolveGatewaySessionStoreTarget({
+      cfg,
+      key: "main",
+      accountId: "person@example.com",
+    });
+
+    expect(target.storePath).toBe(
+      path
+        .resolve(storeTemplate.replace("{agentId}", "ops"))
+        .replace(/sessions\.json$/, path.join("accounts", "person-example-com", "sessions.json")),
+    );
+  });
+
   test("resolveGatewaySessionStoreTarget includes legacy mixed-case store key", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "session-utils-case-"));
     const storePath = path.join(dir, "sessions.json");
@@ -424,6 +449,49 @@ describe("gateway session utils", () => {
         const loaded = loadSessionEntry("agent:main:main");
 
         expect(loaded.entry?.sessionId).toBe("sess-canonical-fresh");
+      });
+    } finally {
+      resetConfigRuntimeState();
+    }
+  });
+
+  test("loadSessionEntry reads account-scoped session stores when accountId is provided", async () => {
+    resetConfigRuntimeState();
+    try {
+      await withStateDirEnv("session-utils-account-scope-", async ({ stateDir }) => {
+        const sessionsDir = path.join(
+          stateDir,
+          "agents",
+          "main",
+          "sessions",
+          "accounts",
+          "person-example-com",
+        );
+        fs.mkdirSync(sessionsDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(sessionsDir, "sessions.json"),
+          JSON.stringify({
+            "agent:main:main": { sessionId: "sess-account-scoped", updatedAt: 42 },
+          }),
+          "utf8",
+        );
+        await writeConfigFile({
+          session: {
+            mainKey: "main",
+            store: path.join(stateDir, "agents", "{agentId}", "sessions", "sessions.json"),
+          },
+          agents: { list: [{ id: "main", default: true }] },
+        });
+        resetConfigRuntimeState();
+
+        const loaded = loadSessionEntry("agent:main:main", {
+          accountId: "person@example.com",
+        });
+
+        expect(loaded.entry?.sessionId).toBe("sess-account-scoped");
+        expect(loaded.storePath).toContain(
+          path.join("accounts", "person-example-com", "sessions.json"),
+        );
       });
     } finally {
       resetConfigRuntimeState();

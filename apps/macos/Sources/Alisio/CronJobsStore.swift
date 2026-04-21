@@ -36,6 +36,12 @@ final class CronJobsStore {
 
     func start() {
         guard !self.isPreview else { return }
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.jobs = []
+            self.runEntries = []
+            self.statusMessage = "Sign in to manage automations."
+            return
+        }
         guard self.eventTask == nil else { return }
         GatewayPushSubscription.restartTask(task: &self.eventTask) { [weak self] push in
             self?.handle(push: push)
@@ -63,6 +69,13 @@ final class CronJobsStore {
 
     func refreshJobs() async {
         guard !self.isLoadingJobs else { return }
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.jobs = []
+            self.runEntries = []
+            self.lastError = nil
+            self.statusMessage = "Sign in to manage automations."
+            return
+        }
         self.isLoadingJobs = true
         self.lastError = nil
         self.statusMessage = nil
@@ -86,6 +99,12 @@ final class CronJobsStore {
 
     func refreshRuns(jobId: String, limit: Int = 200) async {
         guard !self.isLoadingRuns else { return }
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.runEntries = []
+            self.lastError = nil
+            self.statusMessage = "Sign in to view automation runs."
+            return
+        }
         self.isLoadingRuns = true
         defer { self.isLoadingRuns = false }
 
@@ -98,6 +117,10 @@ final class CronJobsStore {
     }
 
     func runJob(id: String, force: Bool = true) async {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.lastError = "Sign in to run automations."
+            return
+        }
         do {
             try await GatewayConnection.shared.cronRun(jobId: id, force: force)
         } catch {
@@ -106,6 +129,10 @@ final class CronJobsStore {
     }
 
     func removeJob(id: String) async {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.lastError = "Sign in to delete automations."
+            return
+        }
         do {
             try await GatewayConnection.shared.cronRemove(jobId: id)
             await self.refreshJobs()
@@ -119,6 +146,10 @@ final class CronJobsStore {
     }
 
     func setJobEnabled(id: String, enabled: Bool) async {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.lastError = "Sign in to edit automations."
+            return
+        }
         do {
             try await GatewayConnection.shared.cronUpdate(
                 jobId: id,
@@ -133,6 +164,9 @@ final class CronJobsStore {
         id: String?,
         payload: [String: AnyCodable]) async throws
     {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            throw AlisioAccountRequiredError.signedOut
+        }
         if let id {
             try await GatewayConnection.shared.cronUpdate(jobId: id, patch: payload)
         } else {

@@ -106,15 +106,29 @@ bundle only for real launchd, signing, and permission validation.
 
 ## 5. Install the CLI
 
-The macOS app expects a global `alisio` CLI install to manage background tasks.
+Packaged macOS app bundles the Gateway runtime in
+`Contents/Resources/alisio-package` and should not need a global `alisio` CLI
+for Local mode. The LaunchAgent installed by the app should point at the bundle:
 
-**To install it (recommended):**
+```bash
+/usr/libexec/PlistBuddy \
+  -c 'Print :ProgramArguments:0' \
+  -c 'Print :ProgramArguments:1' \
+  ~/Library/LaunchAgents/ai.alisio.gateway.plist
+```
 
-1. Open the Alisio app.
-2. Go to the **General** settings tab.
-3. Click **"Install CLI"**.
+Expected shape:
 
-Alternatively, install it manually:
+```text
+.../Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node
+.../Alisio.app/Contents/Resources/alisio-package/alisio.mjs
+gateway
+run
+```
+
+The **Install CLI** button is only for the external fallback path used when a
+debug build intentionally omits the bundled runtime. In that case, install the
+matching package manually:
 
 ```bash
 npm install -g alisio@npm:alisio@<version>
@@ -174,14 +188,22 @@ If the app crashes when you try to allow **Speech Recognition** or **Microphone*
 
 ### Gateway stays on "Starting..." indefinitely
 
-If the gateway status stays on "Starting...", check if a zombie process is holding the port:
+If the gateway status stays on "Starting...", first verify that the packaged
+runtime starts and that launchd is using it:
 
 ```bash
-alisio gateway status
-alisio gateway stop
+.run/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node -p 'process.execPath'
+/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' ~/Library/LaunchAgents/ai.alisio.gateway.plist
+/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' ~/Library/LaunchAgents/ai.alisio.gateway.plist
+tail -n 120 ~/.alisio/logs/gateway.log
+tail -n 120 ~/.alisio/logs/gateway.err.log
+```
 
-# If you're not using a LaunchAgent (dev mode / manual runs), find the listener:
+Then check if another process is holding the configured port:
+
+```bash
 lsof -nP -iTCP:40705 -sTCP:LISTEN
 ```
 
-If a manual run is holding the port, stop that process (Ctrl+C). As a last resort, kill the PID you found above.
+If a manual run is holding the port, stop that process. As a last resort, kill
+the PID you found above.

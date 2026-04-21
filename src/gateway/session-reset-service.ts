@@ -259,16 +259,23 @@ export async function performGatewaySessionReset(params: {
   key: string;
   reason: "new" | "reset";
   commandSource: string;
+  accountId?: string | null;
 }): Promise<
   | { ok: true; key: string; entry: SessionEntry; previousSessionId?: string }
   | { ok: false; error: ReturnType<typeof errorShape> }
 > {
   const { cfg, target, storePath } = (() => {
     const cfg = loadConfig();
-    const target = resolveGatewaySessionStoreTarget({ cfg, key: params.key });
+    const target = resolveGatewaySessionStoreTarget({
+      cfg,
+      key: params.key,
+      accountId: params.accountId,
+    });
     return { cfg, target, storePath: target.storePath };
   })();
-  const { entry, legacyKey, canonicalKey } = loadSessionEntry(params.key);
+  const { entry, legacyKey, canonicalKey } = loadSessionEntry(params.key, {
+    accountId: params.accountId,
+  });
   const hadExistingEntry = Boolean(entry);
   const hookEvent = createInternalHookEvent(
     "command",
@@ -429,12 +436,15 @@ export async function performGatewaySessionRuntimeReset(params: {
   key: string;
   rotateTranscript?: boolean;
   commandSource: string;
+  accountId?: string | null;
 }): Promise<
   | { ok: true; key: string; entry?: SessionEntry; previousSessionId?: string }
   | { ok: false; error: ReturnType<typeof errorShape> }
 > {
   const cfg = loadConfig();
-  const { canonicalKey } = loadSessionEntry(params.key);
+  const { canonicalKey } = loadSessionEntry(params.key, {
+    accountId: params.accountId,
+  });
   const sessionKey = canonicalKey ?? params.key;
   const runtimeReset = await resetConfiguredBindingTargetInPlace({
     cfg,
@@ -458,10 +468,13 @@ export async function performGatewaySessionRuntimeReset(params: {
       key: sessionKey,
       reason: "reset",
       commandSource: params.commandSource,
+      accountId: params.accountId,
     });
   }
 
-  const refreshed = loadSessionEntry(sessionKey);
+  const refreshed = loadSessionEntry(sessionKey, {
+    accountId: params.accountId,
+  });
   return {
     ok: true,
     key: refreshed.canonicalKey,

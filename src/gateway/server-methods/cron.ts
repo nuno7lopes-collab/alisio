@@ -19,10 +19,45 @@ import {
   validateCronUpdateParams,
   validateWakeParams,
 } from "../protocol/index.js";
-import type { GatewayRequestHandlers } from "./types.js";
+import { resolveGatewayCronRuntimeScope } from "../server-cron.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
+import type { GatewayRequestContext, GatewayRequestHandlers, RespondFn } from "./types.js";
+
+async function requireCronAutomationScope(opts: {
+  respond: RespondFn;
+  context: GatewayRequestContext;
+}) {
+  const accountContext = await requireAuthenticatedAppAccount(opts.respond);
+  if (!accountContext) {
+    return null;
+  }
+  const accountId = accountContext.canonical.accountId;
+  if (!accountId) {
+    return null;
+  }
+  const runtimeScope = resolveGatewayCronRuntimeScope({
+    configuredStorePath: opts.context.cron.getConfiguredStorePath(),
+    configuredCronEnabled: opts.context.cron.getConfiguredCronEnabled(),
+    accountId,
+  });
+  try {
+    await opts.context.cron.setRuntimeScope({
+      storePath: runtimeScope.storePath,
+      cronEnabled: runtimeScope.cronEnabled,
+    });
+  } catch (err) {
+    opts.respond(
+      false,
+      undefined,
+      errorShape(ErrorCodes.UNAVAILABLE, `failed to select cron account scope: ${String(err)}`),
+    );
+    return null;
+  }
+  return { accountContext, storePath: runtimeScope.storePath };
+}
 
 export const cronHandlers: GatewayRequestHandlers = {
-  wake: ({ params, respond, context }) => {
+  wake: async ({ params, respond, context }) => {
     if (!validateWakeParams(params)) {
       respond(
         false,
@@ -32,6 +67,10 @@ export const cronHandlers: GatewayRequestHandlers = {
           `invalid wake params: ${formatValidationErrors(validateWakeParams.errors)}`,
         ),
       );
+      return;
+    }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
       return;
     }
     const p = params as {
@@ -51,6 +90,10 @@ export const cronHandlers: GatewayRequestHandlers = {
           `invalid cron.list params: ${formatValidationErrors(validateCronListParams.errors)}`,
         ),
       );
+      return;
+    }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
       return;
     }
     const p = params as {
@@ -85,6 +128,10 @@ export const cronHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
+      return;
+    }
     const status = await context.cron.status();
     respond(true, status, undefined);
   },
@@ -106,6 +153,10 @@ export const cronHandlers: GatewayRequestHandlers = {
           `invalid cron.add params: ${formatValidationErrors(validateCronAddParams.errors)}`,
         ),
       );
+      return;
+    }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
       return;
     }
     const jobCreate = normalized as unknown as CronJobCreate;
@@ -137,6 +188,10 @@ export const cronHandlers: GatewayRequestHandlers = {
           `invalid cron.update params: ${formatValidationErrors(validateCronUpdateParams.errors)}`,
         ),
       );
+      return;
+    }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
       return;
     }
     const p = candidate as {
@@ -181,6 +236,10 @@ export const cronHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
+      return;
+    }
     const p = params as { id?: string; jobId?: string };
     const jobId = p.id ?? p.jobId;
     if (!jobId) {
@@ -209,6 +268,10 @@ export const cronHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
+      return;
+    }
     const p = params as { id?: string; jobId?: string; mode?: "due" | "force" };
     const jobId = p.id ?? p.jobId;
     if (!jobId) {
@@ -232,6 +295,10 @@ export const cronHandlers: GatewayRequestHandlers = {
           `invalid cron.runs params: ${formatValidationErrors(validateCronRunsParams.errors)}`,
         ),
       );
+      return;
+    }
+    const accountScope = await requireCronAutomationScope({ respond, context });
+    if (!accountScope) {
       return;
     }
     const p = params as {
@@ -266,7 +333,7 @@ export const cronHandlers: GatewayRequestHandlers = {
           .map((job) => [job.id, job.name]),
       );
       const page = await readCronRunLogEntriesPageAll({
-        storePath: context.cronStorePath,
+        storePath: context.cron.getStorePath(),
         limit: p.limit,
         offset: p.offset,
         statuses: p.statuses,
@@ -283,7 +350,7 @@ export const cronHandlers: GatewayRequestHandlers = {
     let logPath: string;
     try {
       logPath = resolveCronRunLogPath({
-        storePath: context.cronStorePath,
+        storePath: context.cron.getStorePath(),
         jobId: jobId as string,
       });
     } catch {

@@ -49,6 +49,7 @@ import {
   ALISIO_LOCAL_MODEL_BACKEND,
   findAlisioLocalModelCatalogEntry,
 } from "../../shared/alisio-local-models.js";
+import { loadAlisioGatewayAccountContext } from "../alisio-account-context.js";
 import {
   canonicalizeAlisioAccountResult,
   canonicalizeAlisioBootstrapResult,
@@ -115,8 +116,9 @@ import {
   validateAlisioOrganizationGetParams,
   validateAlisioOrganizationSetParams,
 } from "../protocol/index.js";
+import { resolveGatewayCronRuntimeScope } from "../server-cron.js";
 import { formatError } from "../server-utils.js";
-import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
+import type { GatewayRequestContext, GatewayRequestHandlers, RespondFn } from "./types.js";
 
 type LocalModelOperationEvent = {
   targetId: string;
@@ -128,6 +130,24 @@ type LocalModelOperationEvent = {
   totalSize?: number;
   message?: string;
 };
+
+async function syncCronRuntimeScopeToAccount(context: GatewayRequestContext) {
+  try {
+    const accountContext = await loadAlisioGatewayAccountContext();
+    const runtimeScope = resolveGatewayCronRuntimeScope({
+      configuredStorePath: context.cron.getConfiguredStorePath(),
+      configuredCronEnabled: context.cron.getConfiguredCronEnabled(),
+      accountId: accountContext.canonical.authenticated
+        ? accountContext.canonical.accountId
+        : undefined,
+    });
+    await context.cron.setRuntimeScope(runtimeScope);
+  } catch (err) {
+    context.logGateway.warn(
+      `cron: failed to sync account scope after auth change: ${formatError(err)}`,
+    );
+  }
+}
 
 type RuntimeSetupState = Awaited<ReturnType<typeof loadAlisioRuntimeSetupStateWithTimeout>>;
 type StoredBootstrapState = Awaited<ReturnType<typeof loadStoredAlisioBootstrapState>>;
@@ -261,9 +281,7 @@ function broadcastLocalModelOperation(
   context.broadcast(GATEWAY_EVENT_ALISIO_MODELS_OPERATION, payload, { dropIfSlow: true });
 }
 
-async function requireAuthenticatedAlisioAccount(
-  respond: (ok: boolean, payload?: unknown, error?: unknown) => void,
-) {
+async function requireAuthenticatedAlisioAccount(respond: RespondFn) {
   const account = await getAlisioAccountState();
   if (!isAlisioAccountAuthenticated(account)) {
     respond(
@@ -416,7 +434,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
     }
   },
-  "alisio.account.completeEmailLinkAuth": async ({ params, respond }) => {
+  "alisio.account.completeEmailLinkAuth": async ({ params, respond, context }) => {
     if (!validateAlisioAccountEmailLinkAuthCompleteParams(params)) {
       respond(
         false,
@@ -431,19 +449,17 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      respond(
-        true,
-        await completeAlisioAccountEmailLinkAuth(
-          {
-            accessToken: params.accessToken,
-            refreshToken: params.refreshToken,
-            expiresIn: params.expiresIn,
-            tokenType: params.tokenType,
-          },
-          process.env,
-        ),
-        undefined,
+      const result = await completeAlisioAccountEmailLinkAuth(
+        {
+          accessToken: params.accessToken,
+          refreshToken: params.refreshToken,
+          expiresIn: params.expiresIn,
+          tokenType: params.tokenType,
+        },
+        process.env,
       );
+      await syncCronRuntimeScopeToAccount(context);
+      respond(true, result, undefined);
     } catch (err) {
       if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
@@ -459,7 +475,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
     }
   },
-  "alisio.account.verifyEmailAuth": async ({ params, respond }) => {
+  "alisio.account.verifyEmailAuth": async ({ params, respond, context }) => {
     if (!validateAlisioAccountEmailAuthVerifyParams(params)) {
       respond(
         false,
@@ -474,17 +490,15 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      respond(
-        true,
-        await verifyAlisioAccountEmailAuth(
-          {
-            email: params.email,
-            code: params.code,
-          },
-          process.env,
-        ),
-        undefined,
+      const result = await verifyAlisioAccountEmailAuth(
+        {
+          email: params.email,
+          code: params.code,
+        },
+        process.env,
       );
+      await syncCronRuntimeScopeToAccount(context);
+      respond(true, result, undefined);
     } catch (err) {
       if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
@@ -742,7 +756,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
     }
   },
-  "alisio.account.signUp": async ({ params, respond }) => {
+  "alisio.account.signUp": async ({ params, respond, context }) => {
     if (!validateAlisioAccountSignUpParams(params)) {
       respond(
         false,
@@ -757,18 +771,16 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      respond(
-        true,
-        await signUpAlisioAccount(
-          {
-            email: params.email,
-            password: params.password,
-            ...(typeof params.callbackUrl === "string" ? { callbackUrl: params.callbackUrl } : {}),
-          },
-          process.env,
-        ),
-        undefined,
+      const result = await signUpAlisioAccount(
+        {
+          email: params.email,
+          password: params.password,
+          ...(typeof params.callbackUrl === "string" ? { callbackUrl: params.callbackUrl } : {}),
+        },
+        process.env,
       );
+      await syncCronRuntimeScopeToAccount(context);
+      respond(true, result, undefined);
     } catch (err) {
       if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
@@ -781,7 +793,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
     }
   },
-  "alisio.account.signIn": async ({ params, respond }) => {
+  "alisio.account.signIn": async ({ params, respond, context }) => {
     if (!validateAlisioAccountSignInParams(params)) {
       respond(
         false,
@@ -796,17 +808,15 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      respond(
-        true,
-        await signInAlisioAccount(
-          {
-            email: params.email,
-            password: params.password,
-          },
-          process.env,
-        ),
-        undefined,
+      const result = await signInAlisioAccount(
+        {
+          email: params.email,
+          password: params.password,
+        },
+        process.env,
       );
+      await syncCronRuntimeScopeToAccount(context);
+      respond(true, result, undefined);
     } catch (err) {
       if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
@@ -844,6 +854,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       } else {
         await clearDeviceBootstrapTokens();
       }
+      await syncCronRuntimeScopeToAccount(context);
       respond(true, result, undefined);
       if (deviceId) {
         setTimeout(() => {

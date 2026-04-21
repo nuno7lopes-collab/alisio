@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { computerSessionManager } from "../../computer/session-manager.js";
+const requireAuthenticatedAppAccountMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    canonical: {
+      authenticated: true,
+      accountId: "acct-test",
+    },
+  })),
+);
+
+vi.mock("./account-required.js", () => ({
+  requireAuthenticatedAppAccount: requireAuthenticatedAppAccountMock,
+}));
+
 import { computerHandlers } from "./computer.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
@@ -30,6 +43,12 @@ function createOptions(
 describe("computerHandlers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requireAuthenticatedAppAccountMock.mockResolvedValue({
+      canonical: {
+        authenticated: true,
+        accountId: "acct-test",
+      },
+    });
   });
 
   it("syncs helper runtime and permissions on session get", async () => {
@@ -210,6 +229,60 @@ describe("computerHandlers", () => {
     });
   });
 
+  it("does not hide restart_required when session start returns helper permissions", async () => {
+    const sessionKey = "computer-session-start-restart-required";
+    computerSessionManager.ensureSession({
+      sessionKey,
+      nodeId: "mac-node-start-restart-required",
+    });
+    const invoke = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      payloadJSON: JSON.stringify({
+        sessionId: sessionKey,
+        state: "running",
+        permissions: {
+          accessibility: true,
+          screenRecording: true,
+          screenRecordingRestartRequired: true,
+        },
+        health: {
+          connectionState: "running",
+          launchCount: 1,
+          helper: {
+            protocolVersion: 2,
+            helperVersion: "dev",
+            processId: 502,
+            activeSession: {
+              sessionId: sessionKey,
+              state: "running",
+              updatedAt: 789,
+            },
+          },
+        },
+      }),
+    });
+    const opts = createOptions({ sessionKey, command: "start" }, invoke);
+
+    await computerHandlers["computer.session.update"](opts);
+
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
+    expect(responsePayload).toMatchObject({
+      sessionKey,
+      session: {
+        status: "blocked_on_restart_required",
+        blocking: {
+          kind: "blocked_on_restart_required",
+          reasonCode: "observation_restart_required",
+        },
+        permissions: {
+          screenRecording: true,
+          observation: "restart_required",
+        },
+      },
+    });
+  });
+
   it("forwards pause to the node helper session command", async () => {
     const sessionKey = "computer-session-pause";
     computerSessionManager.ensureSession({
@@ -376,6 +449,45 @@ describe("computerHandlers", () => {
           deny: {
             apps: ["1password"],
           },
+        },
+      },
+    });
+  });
+
+  it("accepts explicit permission access-state patches through session.update", async () => {
+    const sessionKey = "computer-session-permission-access-patch";
+    computerSessionManager.ensureSession({
+      sessionKey,
+      nodeId: "mac-node-permission-patch",
+    });
+    const opts = createOptions(
+      {
+        sessionKey,
+        permissions: {
+          accessibility: true,
+          screenRecording: true,
+          observation: "restart_required",
+          control: "granted",
+        },
+      },
+      vi.fn(),
+    );
+
+    await computerHandlers["computer.session.update"](opts);
+
+    const responsePayload = (opts.respond as unknown as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1];
+    expect(responsePayload).toMatchObject({
+      sessionKey,
+      session: {
+        status: "blocked_on_restart_required",
+        blocking: {
+          kind: "blocked_on_restart_required",
+          reasonCode: "observation_restart_required",
+        },
+        permissions: {
+          observation: "restart_required",
+          control: "granted",
         },
       },
     });

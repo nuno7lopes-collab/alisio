@@ -43,7 +43,7 @@ import AlisioSupport
         #expect(settings.target == "alice@example.com")
     }
 
-    @Test func `gateway entrypoint prefers dist over bin`() throws {
+    @Test func `gateway entrypoint prefers bin over dist`() throws {
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let dist = tmp.appendingPathComponent("dist/index.js")
@@ -54,7 +54,7 @@ import AlisioSupport
         FileManager().createFile(atPath: bin.path, contents: Data())
 
         let entry = CommandResolver.gatewayEntrypoint(in: tmp)
-        #expect(entry == dist.path)
+        #expect(entry == bin.path)
     }
 
     @Test func `log locator picks newest log file`() throws {

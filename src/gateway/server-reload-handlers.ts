@@ -79,7 +79,7 @@ export function createGatewayReloadHandlers(params: {
 
     if (plan.restartCron) {
       state.cronState.cron.stop();
-      nextState.cronState = buildGatewayCronService({
+      nextState.cronState = await buildGatewayCronService({
         cfg: nextConfig,
         deps: params.deps,
         broadcast: params.broadcast,

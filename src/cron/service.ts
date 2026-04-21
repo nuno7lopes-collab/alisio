@@ -18,6 +18,22 @@ export class CronService {
     ops.stop(this.state);
   }
 
+  getStorePath() {
+    return this.state.deps.storePath;
+  }
+
+  getConfiguredStorePath() {
+    return this.state.deps.configuredStorePath;
+  }
+
+  getConfiguredCronEnabled() {
+    return this.state.deps.configuredCronEnabled ?? this.state.deps.cronEnabled;
+  }
+
+  async setRuntimeScope(opts: { storePath: string; cronEnabled: boolean }) {
+    return await ops.setRuntimeScope(this.state, opts);
+  }
+
   async status() {
     return await ops.status(this.state);
   }

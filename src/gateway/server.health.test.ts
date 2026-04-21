@@ -1,10 +1,22 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { emitAgentEvent } from "../infra/agent-events.js";
 import { emitHeartbeatEvent } from "../infra/heartbeat-events.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { startGatewayServerHarness, type GatewayServerHarness } from "./server.e2e-ws-harness.js";
 import { installGatewayTestHooks, onceMessage } from "./test-helpers.js";
+
+const loadAlisioGatewayAccountContextMock = vi.hoisted(() => vi.fn());
+
+vi.mock("./alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("./alisio-account-context.js")>(
+    "./alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: loadAlisioGatewayAccountContextMock,
+  };
+});
 
 installGatewayTestHooks({ scope: "suite" });
 const HEALTH_E2E_TIMEOUT_MS = 20_000;
@@ -15,10 +27,64 @@ const CLI_PRESENCE_TIMEOUT_MS = 3_000;
 
 let harness: GatewayServerHarness;
 
+function createAccountContext(accountId = "user-1") {
+  return {
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId,
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId,
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  };
+}
+
+function createSignedOutAccountContext() {
+  return {
+    ...createAccountContext(),
+    canonical: {
+      scopeRoot: "account",
+      source: "missing",
+      authenticated: false,
+      authRequired: true,
+    },
+    deviceBinding: {
+      binding: "auth_required",
+      runtime: "local",
+      current: true,
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+  };
+}
+
 type GatewayFrame = {
   type?: string;
   id?: string;
   ok?: boolean;
+  error?: { message?: string };
   event?: string;
   payload?: Record<string, unknown> | null;
   seq?: number;
@@ -27,6 +93,11 @@ type GatewayFrame = {
 
 beforeAll(async () => {
   harness = await startGatewayServerHarness();
+});
+
+beforeEach(() => {
+  loadAlisioGatewayAccountContextMock.mockReset();
+  loadAlisioGatewayAccountContextMock.mockResolvedValue(createAccountContext());
 });
 
 afterAll(async () => {
@@ -119,6 +190,43 @@ describe("gateway server health/presence", () => {
     );
     expect(toggle.ok).toBe(true);
     expect((toggle.payload as { enabled?: boolean } | undefined)?.enabled).toBe(false);
+
+    ws.close();
+  });
+
+  test("requires an authenticated account to read or toggle heartbeats", async () => {
+    loadAlisioGatewayAccountContextMock.mockResolvedValue(createSignedOutAccountContext());
+
+    const { ws } = await harness.openClient();
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "hb-last-signed-out",
+        method: "last-heartbeat",
+      }),
+    );
+    const last = await onceMessage<GatewayFrame>(
+      ws,
+      (o) => o.type === "res" && o.id === "hb-last-signed-out",
+    );
+    expect(last.ok).toBe(false);
+    expect(last.error?.message ?? "").toContain("Alisio account sign-in required");
+
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "hb-toggle-signed-out",
+        method: "set-heartbeats",
+        params: { enabled: false },
+      }),
+    );
+    const toggle = await onceMessage<GatewayFrame>(
+      ws,
+      (o) => o.type === "res" && o.id === "hb-toggle-signed-out",
+    );
+    expect(toggle.ok).toBe(false);
+    expect(toggle.error?.message ?? "").toContain("Alisio account sign-in required");
 
     ws.close();
   });

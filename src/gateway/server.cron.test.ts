@@ -23,6 +23,7 @@ const fetchWithSsrFGuardMock = vi.hoisted(() =>
     release: async () => {},
   })),
 );
+const loadAlisioGatewayAccountContextMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../infra/net/fetch-guard.js", () => ({
   fetchWithSsrFGuard: (...args: unknown[]) =>
@@ -35,11 +36,74 @@ vi.mock("../infra/net/fetch-guard.js", () => ({
     )(...args),
 }));
 
+vi.mock("./alisio-account-context.js", async () => {
+  const actual = await vi.importActual<typeof import("./alisio-account-context.js")>(
+    "./alisio-account-context.js",
+  );
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: loadAlisioGatewayAccountContextMock,
+  };
+});
+
 installGatewayTestHooks({ scope: "suite" });
 const CRON_WAIT_TIMEOUT_MS = 3_000;
 const EMPTY_CRON_STORE_CONTENT = JSON.stringify({ version: 1, jobs: [] });
 let cronSuiteTempRootPromise: Promise<string> | null = null;
 let cronSuiteCaseId = 0;
+
+function createAccountContext(accountId = "user-1") {
+  return {
+    account: {},
+    canonical: {
+      scopeRoot: "account",
+      accountId,
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+    },
+    currentDevice: {
+      id: "device-1",
+      label: "Mac",
+      platform: "macos",
+      current: true,
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId,
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+  };
+}
+
+function createSignedOutAccountContext() {
+  return {
+    ...createAccountContext(),
+    canonical: {
+      scopeRoot: "account",
+      source: "missing",
+      authenticated: false,
+      authRequired: true,
+    },
+    deviceBinding: {
+      binding: "auth_required",
+      runtime: "local",
+      current: true,
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+  };
+}
 
 async function getCronSuiteTempRoot(): Promise<string> {
   if (!cronSuiteTempRootPromise) {
@@ -232,6 +296,28 @@ describe("gateway server cron", () => {
   beforeEach(() => {
     // Keep polling helpers deterministic even if other tests left fake timers enabled.
     vi.useRealTimers();
+    loadAlisioGatewayAccountContextMock.mockReset();
+    loadAlisioGatewayAccountContextMock.mockResolvedValue(createAccountContext());
+  });
+
+  test("requires an authenticated account for cron RPCs", async () => {
+    const { prevSkipCron } = await setupCronTestRun({
+      tempPrefix: "alisio-gw-cron-auth-",
+      cronEnabled: true,
+    });
+    loadAlisioGatewayAccountContextMock.mockResolvedValue(createSignedOutAccountContext());
+
+    const { server, ws } = await startServerWithClient();
+    await connectOk(ws);
+
+    try {
+      const response = await rpcReq(ws, "cron.list", { includeDisabled: true });
+
+      expect(response.ok).toBe(false);
+      expect(response.error?.message).toContain("Alisio account sign-in required");
+    } finally {
+      await cleanupCronTestRun({ ws, server, prevSkipCron });
+    }
   });
 
   test("handles cron CRUD, normalization, and patch semantics", { timeout: 20_000 }, async () => {

@@ -57,6 +57,14 @@ function createThemePreferences(language: "en" | "pt-PT" | "es", themeMode: Alis
   };
 }
 
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends readonly unknown[]
+    ? T[K]
+    : T[K] extends object
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
 function createState(overrides: Partial<AlisioState> = {}): AlisioState {
   return {
     client: null,
@@ -127,12 +135,47 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
 }
 
 function createBootstrapSnapshot(
-  overrides: Partial<NonNullable<AlisioState["alisioBootstrap"]>> = {},
+  overrides: DeepPartial<NonNullable<AlisioState["alisioBootstrap"]>> = {},
 ): NonNullable<AlisioState["alisioBootstrap"]> {
   return {
+    accountId: "user-1",
+    scopeRoot: "account",
+    authRequired: true,
+    connectionRequired: false,
+    wizardRequired: false,
+    wizardRunning: false,
+    providerReady: false,
+    accountReady: false,
+    startupState: "signed_out",
+    organizationState: { mode: "none" },
+    connectorSummary: {
+      total: 0,
+      ready: 0,
+      connected: 0,
+      needsReconnect: 0,
+      inReview: 0,
+      unavailable: 0,
+      available: 0,
+    },
+    nextStep: "account",
     account: {
+      accountId: "user-1",
+      scopeRoot: "account",
+      canonical: {
+        scopeRoot: "account",
+        accountId: "user-1",
+        source: "account_id",
+        authenticated: false,
+        authRequired: true,
+      },
       profile: {
+        accountId: "user-1",
+        username: "nuno",
+        displayName: "Nuno",
         email: "",
+        avatarLabel: "N",
+        joinedAt: "2026-04-01T00:00:00.000Z",
+        plan: "free",
       },
       preferences: {
         ...createThemePreferences("en", "system"),
@@ -140,12 +183,29 @@ function createBootstrapSnapshot(
       session: {
         state: "signed_out",
         profileCompleted: false,
+        authRequired: true,
+        authenticated: false,
+        accountId: "user-1",
       },
       devices: [],
       cloud: {
         backend: "supabase",
         available: true,
         missingEnvVars: [],
+      },
+      deviceBinding: {
+        binding: "account_bound",
+        runtime: "local",
+        current: true,
+        accountId: "user-1",
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
       },
     },
     ai: {
@@ -155,16 +215,31 @@ function createBootstrapSnapshot(
     organization: { mode: "none" },
     connectors: { catalog: [], authorizations: [], summary: [] },
     wizard: { running: false, sessionId: null },
+    models: { total: 0, defaultProvider: "openai", providers: [] },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
     ...overrides,
   } as unknown as NonNullable<AlisioState["alisioBootstrap"]>;
 }
 
 function createAvailableAccount(): NonNullable<AlisioState["alisioAccount"]> {
-  return createBootstrapSnapshot().account as NonNullable<AlisioState["alisioAccount"]>;
+  return createBootstrapSnapshot().account;
 }
 
 function createDoctorSummary(
-  bootstrapOverrides: Partial<NonNullable<AlisioState["alisioBootstrap"]>> = {},
+  bootstrapOverrides: DeepPartial<NonNullable<AlisioState["alisioBootstrap"]>> = {},
 ) {
   return {
     bootstrap: createBootstrapSnapshot(bootstrapOverrides),

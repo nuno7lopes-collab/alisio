@@ -3,7 +3,21 @@ import Testing
 import AlisioSupport
 @testable import Alisio
 
+@Suite(.serialized)
 struct SessionDataTests {
+    @Test @MainActor func `session loader requires signed in account`() async {
+        await TestIsolation.withAccountStore {
+            do {
+                _ = try await SessionLoader.loadSnapshot(limit: 1)
+                Issue.record("Expected signed-out session load to throw")
+            } catch let error as AlisioAccountRequiredError {
+                #expect(error == .signedOut)
+            } catch {
+                Issue.record("Unexpected error type: \(error.localizedDescription)")
+            }
+        }
+    }
+
     @Test func `session kind from key detects common kinds`() {
         #expect(SessionKind.from(key: "global") == .global)
         #expect(SessionKind.from(key: "discord:group:engineering") == .group)

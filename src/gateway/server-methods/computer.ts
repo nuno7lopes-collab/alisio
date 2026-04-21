@@ -4,6 +4,7 @@ import type {
   ComputerActionType,
   ComputerApprovalMode,
   ComputerBackendKind,
+  ComputerPermissionAccessState,
   ComputerPermissionState,
   ComputerRuntimeConnectionState,
   ComputerRuntimeErrorCode,
@@ -12,6 +13,7 @@ import type {
   ComputerSessionPolicyPatch,
 } from "../../computer/types.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import { safeParseJson } from "./nodes.helpers.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
@@ -49,6 +51,14 @@ function resolvePermissionPatch(value: unknown): Partial<ComputerPermissionState
   if (typeof record.screenRecording === "boolean") {
     patch.screenRecording = record.screenRecording;
   }
+  const observation = readPermissionAccessState(record.observation);
+  if (observation) {
+    patch.observation = observation;
+  }
+  const control = readPermissionAccessState(record.control);
+  if (control) {
+    patch.control = control;
+  }
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -62,6 +72,19 @@ function readString(value: unknown): string | null {
 
 function readBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
+}
+
+function readPermissionAccessState(value: unknown): ComputerPermissionAccessState | null {
+  switch (value) {
+    case "unknown":
+    case "granted":
+    case "missing":
+    case "restart_required":
+    case "not_supported":
+      return value;
+    default:
+      return null;
+  }
 }
 
 function readNumber(value: unknown): number | null {
@@ -426,6 +449,9 @@ async function refreshRuntimeState(params: {
 
 export const computerHandlers: GatewayRequestHandlers = {
   "computer.session.get": async ({ params, respond, context }) => {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const sessionKey = resolveSessionKey(params);
     const requestedBackend = params.backend === undefined ? null : readBackendKind(params.backend);
     if (params.backend !== undefined && !requestedBackend) {
@@ -459,6 +485,9 @@ export const computerHandlers: GatewayRequestHandlers = {
   },
 
   "computer.session.update": async ({ params, respond, context }) => {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const sessionKey = resolveSessionKey(params);
     const requestedBackend = params.backend === undefined ? null : readBackendKind(params.backend);
     if (params.backend !== undefined && !requestedBackend) {
@@ -696,6 +725,9 @@ export const computerHandlers: GatewayRequestHandlers = {
   },
 
   "computer.session.export": async ({ params, respond }) => {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const sessionKey = resolveSessionKey(params);
     try {
       const sessionExport = computerSessionManager.exportSession(sessionKey);
@@ -714,6 +746,9 @@ export const computerHandlers: GatewayRequestHandlers = {
   },
 
   "computer.session.approve": async ({ params, respond }) => {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const sessionKey = resolveSessionKey(params);
     const requestId = typeof params.requestId === "string" ? params.requestId.trim() : "";
     const decision =

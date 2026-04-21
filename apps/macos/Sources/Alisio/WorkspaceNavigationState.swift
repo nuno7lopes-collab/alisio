@@ -36,8 +36,9 @@ final class WorkspaceNavigationState {
 
     func showChat(sessionKey: String?) {
         self.route = .chat
-        if let sessionKey, !sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            self.activeSessionKey = sessionKey
+        let trimmed = sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty {
+            self.activeSessionKey = trimmed
         }
     }
 
@@ -54,8 +55,9 @@ final class WorkspaceNavigationState {
     }
 
     func completeOnboarding(preferredSessionKey: String? = nil) {
-        if let preferredSessionKey, !preferredSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            self.activeSessionKey = preferredSessionKey
+        let trimmed = preferredSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty {
+            self.activeSessionKey = trimmed
         }
         self.route = .chat
     }

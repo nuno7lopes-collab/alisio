@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import AlisioIPC
 
 import AlisioSupport
@@ -74,7 +75,13 @@ enum ShellExecutor {
                 group.addTask { await waitTask.value }
                 group.addTask {
                     try? await Task.sleep(nanoseconds: nanos)
-                    if process.isRunning { process.terminate() }
+                    if process.isRunning {
+                        process.terminate()
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                    }
+                    if process.isRunning {
+                        Darwin.kill(process.processIdentifier, SIGKILL)
+                    }
                     _ = await waitTask.value // drain pipes after termination
                     return ShellResult(
                         stdout: "",

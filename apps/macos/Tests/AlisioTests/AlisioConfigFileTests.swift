@@ -92,8 +92,6 @@ struct AlisioConfigFileTests {
         await TestIsolation.withEnvValues([
             "ALISIO_CONFIG_PATH": nil,
             "ALISIO_STATE_DIR": dir,
-            "ALISIO_CONFIG_PATH": nil,
-            "ALISIO_STATE_DIR": nil,
         ]) {
             #expect(AlisioConfigFile.stateDirURL().path == dir)
             #expect(AlisioConfigFile.url().path == "\(dir)/alisio.json")
@@ -109,8 +107,8 @@ struct AlisioConfigFileTests {
         await TestIsolation.withEnvValues([
             "ALISIO_CONFIG_PATH": nil,
             "ALISIO_STATE_DIR": nil,
-            "ALISIO_CONFIG_PATH": "\(legacyDir)/alisio.json",
-            "ALISIO_STATE_DIR": legacyDir,
+            "CLAWDBOT_CONFIG_PATH": "\(legacyDir)/alisio.json",
+            "CLAWDBOT_STATE_DIR": legacyDir,
         ]) {
             #expect(AlisioConfigFile.stateDirURL().path != legacyDir)
             #expect(AlisioConfigFile.url().path != "\(legacyDir)/alisio.json")

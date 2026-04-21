@@ -9,6 +9,7 @@ import { enqueueSystemEvent, isSystemEventContextChanged } from "../../infra/sys
 import { listSystemPresence, updateSystemPresence } from "../../infra/system-presence.js";
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import { broadcastPresenceSnapshot } from "../server/presence-events.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
 export const systemHandlers: GatewayRequestHandlers = {
@@ -23,10 +24,14 @@ export const systemHandlers: GatewayRequestHandlers = {
       undefined,
     );
   },
-  "last-heartbeat": ({ respond }) => {
+  "last-heartbeat": async ({ respond }) => {
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     respond(true, getLastHeartbeatEvent(), undefined);
   },
-  "set-heartbeats": ({ params, respond }) => {
+  "set-heartbeats": async ({ params, respond }) => {
     const enabled = params.enabled;
     if (typeof enabled !== "boolean") {
       respond(
@@ -37,6 +42,10 @@ export const systemHandlers: GatewayRequestHandlers = {
           "invalid set-heartbeats params: enabled (boolean) required",
         ),
       );
+      return;
+    }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
       return;
     }
     setHeartbeatsEnabled(enabled);

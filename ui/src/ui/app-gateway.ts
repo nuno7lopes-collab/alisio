@@ -997,7 +997,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
       host.notifyBrowserPaneActivity?.(computerPaneActivitySessionKey, "computer");
     }
     if (browserPaneActivitySessionKey) {
-      host.notifyBrowserPaneActivity?.(browserPaneActivitySessionKey, "browser");
+      host.notifyBrowserPaneActivity?.(browserPaneActivitySessionKey, "preview");
     }
     handleAgentEvent(
       host as unknown as Parameters<typeof handleAgentEvent>[0],

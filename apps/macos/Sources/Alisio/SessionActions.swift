@@ -8,6 +8,7 @@ enum SessionActions {
         thinking: String?? = nil,
         verbose: String?? = nil) async throws
     {
+        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.patch")
         try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.patch")
         var params: [String: AnyHashable] = ["key": AnyHashable(key)]
 
@@ -22,6 +23,7 @@ enum SessionActions {
     }
 
     static func resetSession(key: String) async throws {
+        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.reset")
         try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.reset")
         _ = try await ControlChannel.shared.request(
             method: "sessions.reset",
@@ -29,6 +31,7 @@ enum SessionActions {
     }
 
     static func deleteSession(key: String) async throws {
+        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.delete")
         try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.delete")
         _ = try await ControlChannel.shared.request(
             method: "sessions.delete",
@@ -36,6 +39,7 @@ enum SessionActions {
     }
 
     static func compactSession(key: String, maxLines: Int = 400) async throws {
+        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.compact")
         try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.compact")
         _ = try await ControlChannel.shared.request(
             method: "sessions.compact",

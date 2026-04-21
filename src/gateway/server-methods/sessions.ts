@@ -77,6 +77,7 @@ import {
 } from "../session-utils.js";
 import { applySessionsPatchToStore } from "../sessions-patch.js";
 import { resolveSessionKeyFromResolveParams } from "../sessions-resolve.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import { publishAlisioDynamicModelProvidersForContext } from "./alisio.js";
 import { chatHandlers } from "./chat.js";
 import type {
@@ -105,9 +106,9 @@ function requireSessionKey(key: unknown, respond: RespondFn): string | null {
   return normalized;
 }
 
-function resolveGatewaySessionTargetFromKey(key: string) {
+function resolveGatewaySessionTargetFromKey(key: string, accountId?: string | null) {
   const cfg = loadConfig();
-  const target = resolveGatewaySessionStoreTarget({ cfg, key });
+  const target = resolveGatewaySessionStoreTarget({ cfg, key, accountId });
   return { cfg, target, storePath: target.storePath };
 }
 
@@ -159,13 +160,16 @@ function emitSessionsChanged(
     reason: string;
     compacted?: boolean;
     lifecycle?: ConversationLifecycleEvent;
+    accountId?: string | null;
   },
 ) {
   const connIds = context.getSessionEventSubscriberConnIds();
   if (connIds.size === 0) {
     return;
   }
-  const sessionRow = payload.sessionKey ? loadGatewaySessionRow(payload.sessionKey) : null;
+  const sessionRow = payload.sessionKey
+    ? loadGatewaySessionRow(payload.sessionKey, { accountId: payload.accountId })
+    : null;
   const lifecycle = payload.lifecycle
     ? {
         ...payload.lifecycle,
@@ -345,6 +349,7 @@ export async function createGatewaySessionEntry(params: {
   extraSystemPrompt?: string | null;
   parentSessionKey?: string | null;
   conversationMode?: CreatedSessionConversationMode;
+  accountId?: string | null;
 }) {
   const cfg = loadConfig();
   const requestedKey =
@@ -370,7 +375,9 @@ export async function createGatewaySessionEntry(params: {
       : undefined;
   let canonicalParentSessionKey: string | undefined;
   if (parentSessionKey) {
-    const parent = loadSessionEntry(parentSessionKey);
+    const parent = loadSessionEntry(parentSessionKey, {
+      accountId: params.accountId,
+    });
     if (!parent.entry?.sessionId) {
       throw new Error(`unknown parent session: ${parentSessionKey}`);
     }
@@ -381,7 +388,11 @@ export async function createGatewaySessionEntry(params: {
   if (shouldRefreshDynamicCatalogForModel(params.model)) {
     await publishAlisioDynamicModelProvidersForContext(params.context, { force: true });
   }
-  const target = resolveGatewaySessionStoreTarget({ cfg, key });
+  const target = resolveGatewaySessionStoreTarget({
+    cfg,
+    key,
+    accountId: params.accountId,
+  });
   const targetAgentId = resolveAgentIdFromSessionKey(target.canonicalKey);
   const conversationMode =
     params.conversationMode ?? (canonicalParentSessionKey ? "child" : "root");
@@ -644,6 +655,7 @@ async function handleSessionSend(params: {
   client: GatewayClient | null;
   isWebchatConnect: GatewayRequestHandlerOptions["isWebchatConnect"];
   interruptIfActive: boolean;
+  accountId?: string | null;
 }) {
   if (
     !assertValidParams(params.params, validateSessionsSendParams, params.method, params.respond)
@@ -655,7 +667,9 @@ async function handleSessionSend(params: {
   if (!key) {
     return;
   }
-  const { entry, canonicalKey, storePath } = loadSessionEntry(key);
+  const { entry, canonicalKey, storePath } = loadSessionEntry(key, {
+    accountId: params.accountId,
+  });
   if (!entry?.sessionId) {
     params.respond(
       false,
@@ -752,17 +766,23 @@ async function handleSessionSend(params: {
     emitSessionsChanged(params.context, {
       sessionKey: canonicalKey,
       reason: interruptedActiveRun ? "steer" : "send",
+      accountId: params.accountId,
     });
   }
 }
 export const sessionsHandlers: GatewayRequestHandlers = {
-  "sessions.list": ({ params, respond }) => {
+  "sessions.list": async ({ params, respond }) => {
     if (!assertValidParams(params, validateSessionsListParams, "sessions.list", respond)) {
+      return;
+    }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
       return;
     }
     const p = params;
     const cfg = loadConfig();
-    const { storePath, store } = loadCombinedSessionStoreForGateway(cfg);
+    const accountId = accountContext.canonical.accountId;
+    const { storePath, store } = loadCombinedSessionStoreForGateway(cfg, { accountId });
     const result = listSessionsFromStore({
       cfg,
       storePath,
@@ -771,21 +791,27 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     });
     respond(true, result, undefined);
   },
-  "sessions.subscribe": ({ client, context, respond }) => {
+  "sessions.subscribe": async ({ client, context, respond }) => {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const connId = client?.connId?.trim();
     if (connId) {
       context.subscribeSessionEvents(connId);
     }
     respond(true, { subscribed: Boolean(connId) }, undefined);
   },
-  "sessions.unsubscribe": ({ client, context, respond }) => {
+  "sessions.unsubscribe": async ({ client, context, respond }) => {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const connId = client?.connId?.trim();
     if (connId) {
       context.unsubscribeSessionEvents(connId);
     }
     respond(true, { subscribed: false }, undefined);
   },
-  "sessions.messages.subscribe": ({ params, client, context, respond }) => {
+  "sessions.messages.subscribe": async ({ params, client, context, respond }) => {
     if (
       !assertValidParams(
         params,
@@ -796,12 +822,18 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     ) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const connId = client?.connId?.trim();
     const key = requireSessionKey((params as { key?: unknown }).key, respond);
     if (!key) {
       return;
     }
-    const { canonicalKey } = loadSessionEntry(key);
+    const { canonicalKey } = loadSessionEntry(key, {
+      accountId: accountContext.canonical.accountId,
+    });
     if (connId) {
       context.subscribeSessionMessageEvents(connId, canonicalKey);
       respond(true, { subscribed: true, key: canonicalKey }, undefined);
@@ -809,7 +841,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     }
     respond(true, { subscribed: false, key: canonicalKey }, undefined);
   },
-  "sessions.messages.unsubscribe": ({ params, client, context, respond }) => {
+  "sessions.messages.unsubscribe": async ({ params, client, context, respond }) => {
     if (
       !assertValidParams(
         params,
@@ -820,22 +852,33 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     ) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const connId = client?.connId?.trim();
     const key = requireSessionKey((params as { key?: unknown }).key, respond);
     if (!key) {
       return;
     }
-    const { canonicalKey } = loadSessionEntry(key);
+    const { canonicalKey } = loadSessionEntry(key, {
+      accountId: accountContext.canonical.accountId,
+    });
     if (connId) {
       context.unsubscribeSessionMessageEvents(connId, canonicalKey);
     }
     respond(true, { subscribed: false, key: canonicalKey }, undefined);
   },
-  "sessions.preview": ({ params, respond }) => {
+  "sessions.preview": async ({ params, respond }) => {
     if (!assertValidParams(params, validateSessionsPreviewParams, "sessions.preview", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const keysRaw = Array.isArray(p.keys) ? p.keys : [];
     const keys = keysRaw
       .map((key) => String(key ?? "").trim())
@@ -859,7 +902,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     for (const key of keys) {
       try {
-        const storeTarget = resolveGatewaySessionStoreTarget({ cfg, key, scanLegacyKeys: false });
+        const storeTarget = resolveGatewaySessionStoreTarget({
+          cfg,
+          key,
+          scanLegacyKeys: false,
+          accountId,
+        });
         const store =
           storeCache.get(storeTarget.storePath) ?? loadSessionStore(storeTarget.storePath);
         storeCache.set(storeTarget.storePath, store);
@@ -867,6 +915,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
           cfg,
           key,
           store,
+          accountId,
         });
         const entry = resolveFreshestSessionEntryFromStoreKeys(store, target.storeKeys);
         if (!entry?.sessionId) {
@@ -897,6 +946,9 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateSessionsResolveParams, "sessions.resolve", respond)) {
       return;
     }
+    if (!(await requireAuthenticatedAppAccount(respond))) {
+      return;
+    }
     const p = params;
     const cfg = loadConfig();
 
@@ -911,7 +963,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateSessionsCreateParams, "sessions.create", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const initialMessage = resolveOptionalInitialSessionMessage(p);
     let created;
     try {
@@ -922,6 +979,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         label: typeof p.label === "string" ? p.label : undefined,
         model: typeof p.model === "string" ? p.model : undefined,
         parentSessionKey: typeof p.parentSessionKey === "string" ? p.parentSessionKey : undefined,
+        accountId,
         conversationMode:
           typeof p.task === "string" && p.task.trim().length > 0
             ? "task"
@@ -979,6 +1037,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     emitSessionsChanged(context, {
       sessionKey: created.key,
       reason: "create",
+      accountId,
       lifecycle: {
         kind: "conversation.created",
         conversationId: created.key,
@@ -989,10 +1048,15 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       emitSessionsChanged(context, {
         sessionKey: created.key,
         reason: "send",
+        accountId,
       });
     }
   },
   "sessions.send": async ({ req, params, respond, context, client, isWebchatConnect }) => {
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     await handleSessionSend({
       method: "sessions.send",
       req,
@@ -1002,9 +1066,14 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       client,
       isWebchatConnect,
       interruptIfActive: false,
+      accountId: accountContext.canonical.accountId,
     });
   },
   "sessions.steer": async ({ req, params, respond, context, client, isWebchatConnect }) => {
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     await handleSessionSend({
       method: "sessions.steer",
       req,
@@ -1014,18 +1083,24 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       client,
       isWebchatConnect,
       interruptIfActive: true,
+      accountId: accountContext.canonical.accountId,
     });
   },
   "sessions.abort": async ({ req, params, respond, context, client, isWebchatConnect }) => {
     if (!assertValidParams(params, validateSessionsAbortParams, "sessions.abort", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey(p.key, respond);
     if (!key) {
       return;
     }
-    const { canonicalKey } = loadSessionEntry(key);
+    const { canonicalKey } = loadSessionEntry(key, { accountId });
     const abortSessionKey = resolveAbortSessionKey({
       context,
       requestedKey: key,
@@ -1072,6 +1147,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       emitSessionsChanged(context, {
         sessionKey: canonicalKey,
         reason: "abort",
+        accountId,
       });
     }
   },
@@ -1079,7 +1155,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateSessionsPatchParams, "sessions.patch", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey(p.key, respond);
     if (!key) {
       return;
@@ -1092,7 +1173,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       await publishAlisioDynamicModelProvidersForContext(context, { force: true });
     }
 
-    const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key);
+    const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key, accountId);
     const applied = await updateSessionStore(storePath, async (store) => {
       const { primaryKey } = migrateAndPruneGatewaySessionStoreKey({ cfg, key, store });
       return await applySessionsPatchToStore({
@@ -1142,13 +1223,19 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     emitSessionsChanged(context, {
       sessionKey: target.canonicalKey,
       reason: "patch",
+      accountId,
     });
   },
   "sessions.reset": async ({ params, respond, context }) => {
     if (!assertValidParams(params, validateSessionsResetParams, "sessions.reset", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey(p.key, respond);
     if (!key) {
       return;
@@ -1159,6 +1246,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       key,
       reason,
       commandSource: "gateway:sessions.reset",
+      accountId,
     });
     if (!result.ok) {
       respond(false, undefined, result.error);
@@ -1168,6 +1256,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     emitSessionsChanged(context, {
       sessionKey: result.key,
       reason,
+      accountId,
       lifecycle: {
         kind: "transcript.rotated",
         conversationId: result.key,
@@ -1187,6 +1276,11 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     ) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey((params as { key?: unknown }).key, respond);
     if (!key) {
       return;
@@ -1196,6 +1290,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       key,
       rotateTranscript,
       commandSource: "gateway:sessions.runtime.reset",
+      accountId,
     });
     if (!result.ok) {
       respond(false, undefined, result.error);
@@ -1205,6 +1300,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     emitSessionsChanged(context, {
       sessionKey: result.key,
       reason: rotateTranscript ? "runtime-reset+reset" : "runtime-reset",
+      accountId,
       lifecycle: rotateTranscript
         ? {
             kind: "transcript.rotated",
@@ -1222,7 +1318,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateSessionsDeleteParams, "sessions.delete", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey(p.key, respond);
     if (!key) {
       return;
@@ -1231,7 +1332,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       return;
     }
 
-    const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key);
+    const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key, accountId);
     const mainKey = resolveMainSessionKey(cfg);
     if (target.canonicalKey === mainKey) {
       respond(
@@ -1244,7 +1345,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
 
     const deleteTranscript = typeof p.deleteTranscript === "boolean" ? p.deleteTranscript : true;
 
-    const { entry, legacyKey, canonicalKey } = loadSessionEntry(key);
+    const { entry, legacyKey, canonicalKey } = loadSessionEntry(key, { accountId });
     const mutationCleanupError = await cleanupSessionBeforeMutation({
       cfg,
       key,
@@ -1292,11 +1393,17 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       emitSessionsChanged(context, {
         sessionKey: target.canonicalKey,
         reason: "delete",
+        accountId,
       });
     }
   },
-  "sessions.get": ({ params, respond }) => {
+  "sessions.get": async ({ params, respond }) => {
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey(p.key ?? p.sessionKey, respond);
     if (!key) {
       return;
@@ -1306,7 +1413,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         ? Math.max(1, Math.floor(p.limit))
         : 200;
 
-    const { target, storePath } = resolveGatewaySessionTargetFromKey(key);
+    const { target, storePath } = resolveGatewaySessionTargetFromKey(key, accountId);
     const store = loadSessionStore(storePath);
     const entry = resolveFreshestSessionEntryFromStoreKeys(store, target.storeKeys);
     if (!entry?.sessionId) {
@@ -1321,7 +1428,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateSessionsCompactParams, "sessions.compact", respond)) {
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
     const p = params;
+    const accountId = accountContext.canonical.accountId;
     const key = requireSessionKey(p.key, respond);
     if (!key) {
       return;
@@ -1332,7 +1444,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
         ? Math.max(1, Math.floor(p.maxLines))
         : 400;
 
-    const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key);
+    const { cfg, target, storePath } = resolveGatewaySessionTargetFromKey(key, accountId);
     // Lock + read in a short critical section; transcript work happens outside.
     const compactTarget = await updateSessionStore(storePath, (store) => {
       const { entry, primaryKey } = migrateAndPruneGatewaySessionStoreKey({ cfg, key, store });
@@ -1422,6 +1534,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
       sessionKey: target.canonicalKey,
       reason: "compact",
       compacted: true,
+      accountId,
     });
   },
 };

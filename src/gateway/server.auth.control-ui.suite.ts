@@ -88,7 +88,7 @@ export function registerControlUiAndPairingSuite(): void {
   };
 
   const expectAdminRpcOk = async (ws: WebSocket) => {
-    const admin = await rpcReq(ws, "set-heartbeats", { enabled: false });
+    const admin = await rpcReq(ws, "system-event", { text: "auth suite admin probe" });
     expect(admin.ok).toBe(true);
   };
 
@@ -101,7 +101,7 @@ export function registerControlUiAndPairingSuite(): void {
   };
 
   const expectAdminRpcDenied = async (ws: WebSocket) => {
-    const admin = await rpcReq(ws, "set-heartbeats", { enabled: false });
+    const admin = await rpcReq(ws, "system-event", { text: "auth suite admin probe" });
     expect(admin.ok).toBe(false);
     expect(admin.error?.message).toBe("missing scope: operator.admin");
   };
@@ -450,8 +450,8 @@ export function registerControlUiAndPairingSuite(): void {
         const health = await rpcReq(ws, "health");
         expect(health.ok).toBe(true);
 
-        const talk = await rpcReq(ws, "chat.history", { sessionKey: "main", limit: 1 });
-        expect(talk.ok).toBe(true);
+        const presence = await rpcReq(ws, "system-presence");
+        expect(presence.ok).toBe(true);
         ws.close();
       });
     } finally {

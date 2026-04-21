@@ -24,10 +24,13 @@ enum VoiceWakeForwarder {
     }
 
     enum VoiceWakeForwardError: LocalizedError, Equatable {
+        case accountRequired
         case rpcFailed(String)
 
         var errorDescription: String? {
             switch self {
+            case .accountRequired:
+                "Sign in to your Alisio account before using Voice Wake."
             case let .rpcFailed(message): message
             }
         }
@@ -46,6 +49,12 @@ enum VoiceWakeForwarder {
         transcript: String,
         options: ForwardOptions = ForwardOptions()) async -> Result<Void, VoiceWakeForwardError>
     {
+        do {
+            _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "voicewake.forward")
+        } catch {
+            self.logger.error("voice wake forward blocked: account required")
+            return .failure(.accountRequired)
+        }
         let payload = Self.prefixedTranscript(transcript)
         let deliver = options.channel.shouldDeliver(options.deliver)
         let result = await GatewayConnection.shared.sendAgent(GatewayAgentInvocation(

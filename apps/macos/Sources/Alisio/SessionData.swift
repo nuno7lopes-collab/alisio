@@ -203,6 +203,9 @@ enum SessionLoader {
         includeGlobal: Bool = true,
         includeUnknown: Bool = true) async throws -> SessionStoreSnapshot
     {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            throw AlisioAccountRequiredError.signedOut
+        }
         var params: [String: AnyHashable] = [
             "includeGlobal": AnyHashable(includeGlobal),
             "includeUnknown": AnyHashable(includeUnknown),

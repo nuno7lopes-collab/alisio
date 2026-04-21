@@ -488,6 +488,7 @@ describe("gateway agent handler", () => {
       account: {},
       canonical: {
         scopeRoot: "account",
+        accountId: "user-1",
         source: "missing",
         authenticated: false,
         authRequired: true,
@@ -502,6 +503,7 @@ describe("gateway agent handler", () => {
         binding: "auth_required",
         runtime: "local",
         current: true,
+        accountId: "user-1",
         deviceId: "device-1",
         label: "Mac",
         platform: "macos",

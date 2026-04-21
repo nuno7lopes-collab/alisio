@@ -1,10 +1,14 @@
+import path from "node:path";
 import { resolveDefaultAgentId, resolveAgentWorkspaceDir } from "../agents/agent-scope.js";
 import { resolveAccountScopedAgentWorkspaceDir } from "../agents/workspace.js";
 import type { AlisioConfig } from "../config/config.js";
 import { getAlisioAccountState, type AlisioAccountState } from "../infra/alisio-store.js";
 import {
+  buildAccountWorkspaceScopeSegments,
   buildAccountDeviceBinding,
   buildAlisioDataResidencyContract,
+  isAccountScopedWorkspaceDir,
+  normalizeCanonicalAccountId,
 } from "../shared/alisio-account-scope.js";
 import { resolveAlisioCanonicalAccountScope } from "./alisio-contract.js";
 
@@ -87,6 +91,26 @@ export function resolveAccountScopedWorkspaceForAgent(params: {
   return resolveAccountScopedAgentWorkspaceDir(
     resolveAgentWorkspaceDir(params.cfg, params.agentId),
     params.accountId,
+  );
+}
+
+export function resolveAccountScopedSessionStorePath(
+  storePath: string,
+  accountId?: string | null,
+): string {
+  const resolvedStorePath = path.resolve(storePath);
+  const canonicalAccountId = normalizeCanonicalAccountId(accountId);
+  if (!canonicalAccountId) {
+    return resolvedStorePath;
+  }
+  const storeDir = path.dirname(resolvedStorePath);
+  if (isAccountScopedWorkspaceDir(storeDir, canonicalAccountId)) {
+    return resolvedStorePath;
+  }
+  return path.join(
+    storeDir,
+    ...buildAccountWorkspaceScopeSegments(canonicalAccountId),
+    path.basename(resolvedStorePath),
   );
 }
 

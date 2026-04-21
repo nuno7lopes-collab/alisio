@@ -209,6 +209,11 @@ sign_if_exists() {
   fi
 }
 
+is_bundled_node_runtime_binary() {
+  local target="$1"
+  [[ "$target" == */tools/node/bin/node ]]
+}
+
 assert_signed() {
   local target="$1"
   if ! codesign -dv --verbose=4 "$target" >/dev/null 2>&1; then
@@ -320,7 +325,12 @@ if [[ -d "$RESOURCE_ROOT" ]]; then
   echo "Signing embedded native resources"
   while IFS= read -r -d '' f; do
     if /usr/bin/file "$f" | /usr/bin/grep -q "Mach-O"; then
-      sign_plain_item "$f"
+      if is_bundled_node_runtime_binary "$f"; then
+        echo "Signing runtime binary: $f"
+        sign_item "$f" "$ENT_TMP_RUNTIME"
+      else
+        sign_plain_item "$f"
+      fi
     fi
   done < <(for_each_native_candidate "$RESOURCE_ROOT")
 fi

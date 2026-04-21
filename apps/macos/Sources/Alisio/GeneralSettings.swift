@@ -28,6 +28,8 @@ struct GeneralSettings: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
+                    AlisioAccountStatusCard()
+
                     SettingsToggleRow(
                         title: "Alisio active",
                         subtitle: "Pause to stop the Alisio gateway; no messages will be processed.",

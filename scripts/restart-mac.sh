@@ -6,10 +6,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/alisio-branding.sh"
 
 APP_NAME="$(alisio_app_name)"
+PACKAGE_DIR_NAME="$(alisio_package_dir_name)"
 PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
 APP_EXECUTABLE="${APP_EXECUTABLE:-${ALISIO_MAC_EXECUTABLE:-$PRODUCT}}"
 APP_BUNDLE="${ALISIO_APP_BUNDLE:-${APP_BUNDLE:-}}"
 DEV_APP_BUNDLE="$ROOT_DIR/.run/${APP_NAME}.app"
+GATEWAY_LAUNCH_AGENT_LABEL="${ALISIO_LAUNCHD_LABEL:-ai.alisio.gateway}"
 LOG_PATH="${ALISIO_RESTART_LOG:-/tmp/alisio-restart.log}"
 LOCK_KEY="$(printf '%s' "$ROOT_DIR" | shasum -a 256 | cut -c1-8)"
 LOCK_DIR="${TMPDIR:-/tmp}/alisio-restart-${LOCK_KEY}"
@@ -44,10 +46,20 @@ EOF
 
 validate_app_bundle() {
   local bundle_path="$1"
+  local package_root="$bundle_path/Contents/Resources/$PACKAGE_DIR_NAME"
+  local bundled_node="$package_root/tools/node/bin/node"
   [[ -d "$bundle_path" ]] || fail "App bundle não encontrado em $bundle_path."
   [[ -f "$bundle_path/Contents/Info.plist" ]] || fail "App bundle sem Info.plist em $bundle_path."
   [[ -x "$bundle_path/Contents/MacOS/$APP_EXECUTABLE" ]] \
     || fail "App bundle sem executável em $bundle_path/Contents/MacOS/$APP_EXECUTABLE."
+  [[ -f "$package_root/package.json" ]] \
+    || fail "Bundle sem runtime empacotado em $package_root/package.json."
+  [[ -f "$package_root/alisio.mjs" || -f "$package_root/dist/index.js" ]] \
+    || fail "Bundle sem entrypoint do runtime em $package_root."
+  if [[ -x "$bundled_node" ]]; then
+    "$bundled_node" -p 'process.execPath' >/dev/null \
+      || fail "Node embutida não arranca em $bundled_node."
+  fi
   /usr/bin/codesign -dv --verbose=2 "$bundle_path" >/dev/null 2>&1 \
     || fail "Assinatura inválida para $bundle_path."
 }
@@ -92,7 +104,9 @@ APPLESCRIPT
 
 open_app_bundle() {
   local bundle_path="$1"
-  open "$bundle_path" --args --chat || fail "Falha ao abrir $bundle_path."
+  # Force a fresh app instance so the heavy-loop smoke exercises the rebuilt bundle,
+  # instead of reactivating an already-running Alisio from another path.
+  open -n "$bundle_path" --args --chat || fail "Falha ao abrir $bundle_path."
   wait_for_app_process "$bundle_path"
   wait_for_app_window
 }
@@ -149,6 +163,7 @@ acquire_lock
 pkill -f "${APP_NAME}.app/Contents/MacOS/${APP_EXECUTABLE}" 2>/dev/null || true
 pkill -x "$APP_EXECUTABLE" 2>/dev/null || true
 launchctl bootout gui/"$UID"/"$(alisio_bundle_domain).mac" 2>/dev/null || true
+launchctl bootout gui/"$UID"/"$GATEWAY_LAUNCH_AGENT_LABEL" 2>/dev/null || true
 
 if [[ "$NO_SIGN" == "1" ]]; then
   export ALLOW_ADHOC_SIGNING=1

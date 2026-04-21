@@ -161,7 +161,8 @@ private func emitAssistantText(
     transport: TestChatTransport,
     runId: String,
     text: String,
-    seq: Int = 1)
+    seq: Int = 1,
+    sessionKey: String? = nil)
 {
     transport.emit(
         .agent(
@@ -170,13 +171,15 @@ private func emitAssistantText(
                 seq: seq,
                 stream: "assistant",
                 ts: Int(Date().timeIntervalSince1970 * 1000),
-                data: ["text": AnyCodable(text)])))
+                data: ["text": AnyCodable(text)],
+                sessionKey: sessionKey)))
 }
 
 private func emitToolStart(
     transport: TestChatTransport,
     runId: String,
-    seq: Int = 2)
+    seq: Int = 2,
+    sessionKey: String? = nil)
 {
     transport.emit(
         .agent(
@@ -190,7 +193,8 @@ private func emitToolStart(
                     "name": AnyCodable("demo"),
                     "toolCallId": AnyCodable("t1"),
                     "args": AnyCodable(["x": 1]),
-                ])))
+                ],
+                sessionKey: sessionKey)))
 }
 
 private func emitExternalFinal(
@@ -500,6 +504,40 @@ extension TestChatTransportState {
         }
         #expect(await MainActor.run { vm.streamingAssistantText } == nil)
         #expect(await MainActor.run { vm.pendingToolCalls.isEmpty })
+    }
+
+    @Test func streamsAgentEventsForPendingChatRunIdWithSessionKey() async throws {
+        let history = historyPayload(sessionId: "sess-main")
+        let (transport, vm) = await makeViewModel(historyResponses: [history, history])
+        try await loadAndWaitBootstrap(vm: vm, sessionId: "sess-main")
+        await sendUserMessage(vm)
+
+        try await waitUntil("chat run dispatched") {
+            await transport.lastSentRunId() != nil
+        }
+        let runId = try #require(await transport.lastSentRunId())
+
+        emitAssistantText(
+            transport: transport,
+            runId: "other-run",
+            text: "wrong session",
+            sessionKey: "agent:main:other")
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await MainActor.run { vm.streamingAssistantText } == nil)
+
+        emitAssistantText(
+            transport: transport,
+            runId: runId,
+            text: "streaming from chat run",
+            sessionKey: "agent:main:main")
+        try await waitUntil("assistant event accepted for pending chat run") {
+            await MainActor.run { vm.streamingAssistantText == "streaming from chat run" }
+        }
+
+        emitToolStart(transport: transport, runId: runId, sessionKey: "agent:main:main")
+        try await waitUntil("tool event accepted for pending chat run") {
+            await MainActor.run { vm.pendingToolCalls.count == 1 }
+        }
     }
 
     @Test func keepsOptimisticUserMessageWhenFinalRefreshReturnsOnlyAssistantHistory() async throws {
@@ -1715,6 +1753,36 @@ Hello?
                         key: "main",
                         updatedAt: Date().timeIntervalSince1970 * 1000,
                         model: "claude-opus-4-6"),
+                ],
+                healthOK: true,
+                pendingRunCount: 1)
+        }
+
+        #expect(await MainActor.run { vm.connectionPhase } == .firstMessage)
+    }
+
+    @Test func previewStateKeepsFirstMessagePhaseWhenOnlyEmptyAssistantPlaceholderExists() async {
+        let vm = await MainActor.run {
+            AlisioChatViewModel.preview(
+                sessionKey: "main",
+                messages: [
+                    AlisioChatMessage(
+                        role: "user",
+                        content: [
+                            AlisioChatMessageContent(
+                                type: "text",
+                                text: "hello",
+                                thinking: nil,
+                                thinkingSignature: nil,
+                                mimeType: nil,
+                                fileName: nil,
+                                content: nil),
+                        ],
+                        timestamp: 1),
+                    AlisioChatMessage(
+                        role: "assistant",
+                        content: [],
+                        timestamp: 2),
                 ],
                 healthOK: true,
                 pendingRunCount: 1)

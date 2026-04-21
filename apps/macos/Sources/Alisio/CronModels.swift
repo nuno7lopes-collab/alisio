@@ -218,8 +218,13 @@ struct CronJobState: Codable, Equatable {
     var runningAtMs: Int?
     var lastRunAtMs: Int?
     var lastStatus: String?
+    var lastRunStatus: String?
     var lastError: String?
     var lastDurationMs: Int?
+
+    var displayStatus: String? {
+        self.lastRunStatus ?? self.lastStatus
+    }
 }
 
 struct CronJob: Identifiable, Codable, Equatable {
@@ -398,6 +403,10 @@ struct CronRunLogEntry: Codable, Identifiable {
     let status: String?
     let error: String?
     let summary: String?
+    let deliveryStatus: String?
+    let deliveryError: String?
+    let sessionId: String?
+    let sessionKey: String?
     let runAtMs: Int?
     let durationMs: Int?
     let nextRunAtMs: Int?

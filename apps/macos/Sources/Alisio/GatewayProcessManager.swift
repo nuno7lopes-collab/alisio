@@ -338,18 +338,85 @@ final class GatewayProcessManager {
         let message = ns.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = message.lowercased()
         if self.isGatewayAuthFailure(error) {
-            return """
+            return self.formatReadinessFailure(code: "readiness:auth", message: """
             Gateway on port \(port) rejected auth. Set gateway.auth.token to match the running gateway \
             (or clear it on the gateway) and retry.
-            """
+            """)
         }
         if lower.contains("protocol mismatch") {
-            return "Gateway on port \(port) is incompatible (protocol mismatch). Update the app/gateway."
+            return self.formatReadinessFailure(
+                code: "readiness:protocol",
+                message: "Gateway on port \(port) is incompatible (protocol mismatch). Update the app/gateway.")
         }
         if lower.contains("unexpected response") || lower.contains("invalid response") {
-            return "Port \(port) returned non-gateway data; another process is using it."
+            return self.formatReadinessFailure(
+                code: "readiness:non-gateway",
+                message: "Port \(port) returned non-gateway data; another process is using it.")
         }
         return nil
+    }
+
+    private func recordReadinessFailure(_ error: Error, port: Int) {
+        self.lastFailureReason =
+            self.describeGatewayReadinessFailure(error, port: port)
+                ?? self.describeTransientGatewayReadinessFailure(error, port: port)
+    }
+
+    private func describeTransientGatewayReadinessFailure(_ error: Error, port: Int) -> String {
+        let ns = error as NSError
+        let rawMessage = ns.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = rawMessage.isEmpty ? "unknown gateway error" : rawMessage
+        if ns.domain == URLError.errorDomain {
+            let code = URLError.Code(rawValue: ns.code)
+            switch code {
+            case .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .notConnectedToInternet:
+                return self.formatReadinessFailure(
+                    code: "readiness:connect",
+                    message: "Gateway on port \(port) is not reachable yet: \(message)")
+            case .networkConnectionLost:
+                return self.formatReadinessFailure(
+                    code: "readiness:reconnect",
+                    message: "Gateway connection dropped during readiness check: \(message)")
+            case .timedOut:
+                return self.formatReadinessFailure(
+                    code: "readiness:timeout",
+                    message: "Gateway on port \(port) did not answer the readiness probe in time: \(message)")
+            default:
+                break
+            }
+        }
+        if message.lowercased().contains("gateway request timed out") {
+            return self.formatReadinessFailure(
+                code: "readiness:timeout",
+                message: "Gateway on port \(port) accepted the socket but did not answer the readiness probe.")
+        }
+        return self.formatReadinessFailure(
+            code: "readiness:probe",
+            message: "Gateway readiness probe failed on port \(port): \(message)")
+    }
+
+    private func managedGatewayStartupTimeoutReason(port: Int) -> String {
+        let latest = self.lastFailureReason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+        let logs = GatewayLaunchAgentManager.launchdGatewayLogPath()
+        if let latest {
+            return self.formatReadinessFailure(
+                code: "launchd:start-timeout",
+                message: "Gateway did not become ready on port \(port). Last readiness error: \(latest). Logs: \(logs)")
+        }
+        return self.formatReadinessFailure(
+            code: "launchd:start-timeout",
+            message: "Gateway did not become ready on port \(port). Logs: \(logs)")
+    }
+
+    private func formatReadinessFailure(code: String, message: String) -> String {
+        let normalized = message
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return "[\(code)] \(normalized)"
     }
 
     private func isGatewayAuthFailure(_ error: Error) -> Bool {
@@ -408,9 +475,11 @@ final class GatewayProcessManager {
             return
         }
 
-        self.status = .failed("Gateway did not start in time")
-        self.lastFailureReason = "launchd start timeout"
-        self.logger.warning("gateway start timed out after restart attempt")
+        let timeoutReason = self.managedGatewayStartupTimeoutReason(port: port)
+        self.status = .failed(timeoutReason)
+        self.lastFailureReason = timeoutReason
+        self.appendLog("[gateway] \(timeoutReason)\n")
+        self.logger.warning("gateway start timed out after restart attempt reason=\(timeoutReason)")
     }
 
     private func appendLog(_ chunk: String) {
@@ -437,7 +506,14 @@ final class GatewayProcessManager {
         Task { await ControlChannel.shared.configure() }
     }
 
-    func ensureLocalGatewayReady(timeout: TimeInterval = 12) async throws {
+    func ensureLocalGatewayReady(reason: String? = nil, timeout: TimeInterval = 12) async throws {
+        let requestReason = reason?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+        if let requestReason {
+            self.appendLog("[gateway] ensuring readiness for \(requestReason)\n")
+            self.logger.debug("gateway readiness requested reason=\(requestReason)")
+        }
         self.setActive(true)
         if await self.waitForGatewayReady(timeout: timeout) {
             return
@@ -446,13 +522,15 @@ final class GatewayProcessManager {
             return
         }
 
-        let reason = self.localGatewayReadinessFailureReason()
-        self.appendLog("[gateway] readiness ensure failed: \(reason)\n")
-        self.logger.warning("gateway readiness ensure failed reason=\(reason)")
+        let failure = self.localGatewayReadinessFailureReason()
+        let message = requestReason.map { "\(failure) (while preparing \($0))" } ?? failure
+        self.lastFailureReason = message
+        self.appendLog("[gateway] readiness ensure failed: \(message)\n")
+        self.logger.warning("gateway readiness ensure failed reason=\(message)")
         throw NSError(
             domain: "Gateway",
             code: 1,
-            userInfo: [NSLocalizedDescriptionKey: reason])
+            userInfo: [NSLocalizedDescriptionKey: message])
     }
 
     func waitForGatewayReady(timeout: TimeInterval = 6) async -> Bool {
@@ -465,9 +543,7 @@ final class GatewayProcessManager {
                 self.clearLastFailure()
                 return true
             } catch {
-                if let reason = self.describeGatewayReadinessFailure(error, port: port) {
-                    self.lastFailureReason = reason
-                }
+                self.recordReadinessFailure(error, port: port)
                 try? await Task.sleep(nanoseconds: 300_000_000)
             }
         }
@@ -557,6 +633,7 @@ final class GatewayProcessManager {
                 self.refreshLog()
                 return true
             } catch {
+                self.recordReadinessFailure(error, port: port)
                 try? await Task.sleep(nanoseconds: 400_000_000)
             }
         }

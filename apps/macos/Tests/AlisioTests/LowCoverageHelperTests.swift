@@ -74,7 +74,15 @@ struct LowCoverageHelperTests {
     }
 
     @Test func `shell executor times out`() async {
-        let result = await ShellExecutor.runDetailed(command: ["/bin/sleep", "1"], cwd: nil, env: nil, timeout: 0.05)
+        let script = """
+        trap '' TERM
+        sleep 5
+        """
+        let result = await ShellExecutor.runDetailed(
+            command: ["/bin/sh", "-c", script],
+            cwd: nil,
+            env: nil,
+            timeout: 0.2)
         #expect(result.timedOut == true)
     }
 

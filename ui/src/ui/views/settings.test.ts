@@ -7,7 +7,17 @@ import { renderSettingsHub } from "./settings.ts";
 
 function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["account"]> {
   return {
+    accountId: "user-1",
+    scopeRoot: "account",
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+    },
     profile: {
+      accountId: "user-1",
       username: "nuno",
       displayName: "Nuno",
       email: "nuno@example.com",
@@ -24,6 +34,9 @@ function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["a
     session: {
       state: "signed_in",
       profileCompleted: true,
+      authRequired: true,
+      authenticated: true,
+      accountId: "user-1",
     },
     devices: [
       {
@@ -33,12 +46,29 @@ function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["a
         current: true,
         status: "active",
         lastSeenAt: "2026-04-05T10:00:00.000Z",
+        accountId: "user-1",
+        binding: "account_bound",
+        runtime: "local",
       },
     ],
     cloud: {
       backend: "supabase",
       available: true,
       missingEnvVars: [],
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Nuno's Mac",
+      platform: "macOS",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"] as const,
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"] as const,
     },
   };
 }

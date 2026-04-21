@@ -3,10 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
-import {
-  emitAgentEvent,
-  registerAgentRunContext,
-} from "../infra/agent-events.js";
+import { emitAgentEvent, registerAgentRunContext } from "../infra/agent-events.js";
 import { saveMediaBuffer } from "../media/store.js";
 import { extractFirstTextBlock } from "../shared/chat-message-content.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
@@ -24,6 +21,58 @@ import {
 import { agentCommand } from "./test-helpers.mocks.js";
 import { installConnectedControlUiServerSuite } from "./test-with-server.js";
 
+vi.mock("./alisio-account-context.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./alisio-account-context.js")>();
+  const account = {
+    profile: {
+      userId: "test-account",
+      username: "test",
+      displayName: "Test User",
+      email: "test@example.com",
+      avatarLabel: "T",
+      joinedAt: "2026-01-01T00:00:00.000Z",
+      plan: "free",
+    },
+    preferences: {
+      language: "en",
+      themeFamily: "mood",
+      themeMode: "system",
+      themeAccents: {
+        mood: "#F0B56F",
+        noir: "#8B5CF6",
+        matte: "#B47840",
+      },
+    },
+    session: {
+      state: "signed_in",
+      profileCompleted: true,
+      signedInAt: "2026-01-01T00:00:00.000Z",
+    },
+    devices: [
+      {
+        id: "test-device",
+        label: "Test Mac",
+        platform: "macOS",
+        current: true,
+        status: "active",
+        lastSeenAt: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+    cloud: {
+      backend: "supabase",
+      available: false,
+      missingEnvVars: [],
+    },
+  } satisfies Parameters<typeof actual.buildAlisioGatewayAccountContext>[0];
+
+  return {
+    ...actual,
+    loadAlisioGatewayAccountContext: vi.fn(async () =>
+      actual.buildAlisioGatewayAccountContext(account),
+    ),
+  };
+});
+
 installGatewayTestHooks({ scope: "suite" });
 const CHAT_RESPONSE_TIMEOUT_MS = 4_000;
 
@@ -34,6 +83,10 @@ installConnectedControlUiServerSuite((started) => {
   ws = started.ws;
   port = started.port;
 });
+
+const TEST_ACCOUNT_ID = "test-account";
+const resolveAccountScopedSessionStorePath = (dir: string) =>
+  path.join(dir, "accounts", TEST_ACCOUNT_ID, "sessions.json");
 
 const PNG_1X1_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/woAAn8B9FD5fHAAAAAASUVORK5CYII=";
@@ -98,7 +151,8 @@ describe("gateway server chat", () => {
   const withMainSessionStore = async <T>(run: (dir: string) => Promise<T>): Promise<T> => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-"));
     try {
-      testState.sessionStorePath = path.join(dir, "sessions.json");
+      const storePath = resolveAccountScopedSessionStorePath(dir);
+      testState.sessionStorePath = storePath;
       await writeSessionStore({
         entries: {
           main: {
@@ -107,7 +161,7 @@ describe("gateway server chat", () => {
           },
         },
       });
-      return await run(dir);
+      return await run(path.dirname(storePath));
     } finally {
       testState.sessionStorePath = undefined;
       await fs.rm(dir, { recursive: true, force: true });
@@ -200,7 +254,7 @@ describe("gateway server chat", () => {
 
   test("sessions.send accepts dashboard messages for existing sessions", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-sessions-send-"));
-    testState.sessionStorePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = resolveAccountScopedSessionStorePath(dir);
     try {
       await writeSessionStore({
         entries: {
@@ -227,7 +281,7 @@ describe("gateway server chat", () => {
 
   test("sessions.steer accepts dashboard follow-up messages for existing sessions", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-sessions-steer-"));
-    testState.sessionStorePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = resolveAccountScopedSessionStorePath(dir);
     try {
       await writeSessionStore({
         entries: {
@@ -254,7 +308,7 @@ describe("gateway server chat", () => {
 
   test("sessions.abort stops active dashboard runs", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-sessions-abort-"));
-    testState.sessionStorePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = resolveAccountScopedSessionStorePath(dir);
     try {
       await writeSessionStore({
         entries: {
@@ -400,7 +454,7 @@ describe("gateway server chat", () => {
 
       const sendPolicyDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-"));
       tempDirs.push(sendPolicyDir);
-      testState.sessionStorePath = path.join(sendPolicyDir, "sessions.json");
+      testState.sessionStorePath = resolveAccountScopedSessionStorePath(sendPolicyDir);
       testState.sessionConfig = {
         sendPolicy: {
           default: "allow",
@@ -439,7 +493,7 @@ describe("gateway server chat", () => {
 
       const agentBlockedDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-"));
       tempDirs.push(agentBlockedDir);
-      testState.sessionStorePath = path.join(agentBlockedDir, "sessions.json");
+      testState.sessionStorePath = resolveAccountScopedSessionStorePath(agentBlockedDir);
       testState.sessionConfig = {
         sendPolicy: {
           default: "allow",
@@ -535,7 +589,7 @@ describe("gateway server chat", () => {
 
       const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-"));
       tempDirs.push(historyDir);
-      testState.sessionStorePath = path.join(historyDir, "sessions.json");
+      testState.sessionStorePath = resolveAccountScopedSessionStorePath(historyDir);
       await writeSessionStore({
         entries: {
           main: {
@@ -557,7 +611,11 @@ describe("gateway server chat", () => {
           }),
         );
       }
-      await fs.writeFile(path.join(historyDir, "sess-main.jsonl"), lines.join("\n"), "utf-8");
+      await fs.writeFile(
+        path.join(path.dirname(testState.sessionStorePath), "sess-main.jsonl"),
+        lines.join("\n"),
+        "utf-8",
+      );
 
       const defaultRes = await rpcReq<{ messages?: unknown[] }>(ws, "chat.history", {
         sessionKey: "main",
@@ -659,7 +717,7 @@ describe("gateway server chat", () => {
         message: "/context list",
         idempotencyKey: "idem-command-1",
       });
-      expect(res.ok).toBe(true);
+      expect(res.ok, JSON.stringify(res)).toBe(true);
       await eventPromise;
       expect(spy.mock.calls.length).toBe(callsBefore);
     });
@@ -952,7 +1010,7 @@ describe("gateway server chat", () => {
     });
 
     try {
-      testState.sessionStorePath = path.join(dir, "sessions.json");
+      testState.sessionStorePath = resolveAccountScopedSessionStorePath(dir);
       await writeSessionStore({
         entries: {
           main: {
@@ -1070,7 +1128,7 @@ describe("gateway server chat", () => {
 
   test("agent events include sessionKey and agent.wait covers lifecycle flows", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-"));
-    testState.sessionStorePath = path.join(dir, "sessions.json");
+    testState.sessionStorePath = resolveAccountScopedSessionStorePath(dir);
     await writeSessionStore({
       entries: {
         main: {

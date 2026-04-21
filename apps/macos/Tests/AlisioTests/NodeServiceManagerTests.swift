@@ -11,7 +11,7 @@ import AlisioSupport
         try makeExecutableForTests(at: alisioPath)
 
         let currentPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
-        try await TestIsolation.withIsolatedState(
+        await TestIsolation.withIsolatedState(
             env: ["PATH": [binDir.path, currentPath].joined(separator: ":")],
             defaults: ["alisio.gatewayProjectRootPath": nil])
         {

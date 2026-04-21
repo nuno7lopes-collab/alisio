@@ -118,19 +118,19 @@ final class LiveMacNodeRuntimeMainActorServices: MacNodeRuntimeMainActorServices
     private let locationService = MacNodeLocationService()
 
     func startComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        try await self.computerHelper.startSession(sessionId)
+        self.withCurrentComputerPermissions(try await self.computerHelper.startSession(sessionId))
     }
 
     func stopComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        try await self.computerHelper.stopSession(sessionId)
+        self.withCurrentComputerPermissions(try await self.computerHelper.stopSession(sessionId))
     }
 
     func pauseComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        try await self.computerHelper.pauseSession(sessionId)
+        self.withCurrentComputerPermissions(try await self.computerHelper.pauseSession(sessionId))
     }
 
     func resumeComputerSession(_ sessionId: String) async throws -> MacNodeComputerSessionPayload {
-        try await self.computerHelper.resumeSession(sessionId)
+        self.withCurrentComputerPermissions(try await self.computerHelper.resumeSession(sessionId))
     }
 
     func observeComputer(_ sessionId: String) async throws -> MacNodeComputerObservePayload {
@@ -149,7 +149,7 @@ final class LiveMacNodeRuntimeMainActorServices: MacNodeRuntimeMainActorServices
     }
 
     func computerPermissionState() async throws -> MacNodeComputerPermissionPayload {
-        try await self.computerHelper.getPermissionState()
+        ComputerControlService.currentPermissionState()
     }
 
     func computerHealth(sessionId: String?) async -> MacNodeComputerRuntimeHealthPayload {
@@ -158,6 +158,14 @@ final class LiveMacNodeRuntimeMainActorServices: MacNodeRuntimeMainActorServices
 
     func killComputerHelper() async -> MacNodeComputerRuntimeHealthPayload {
         await self.computerHelper.kill()
+    }
+
+    private func withCurrentComputerPermissions(
+        _ payload: MacNodeComputerSessionPayload) -> MacNodeComputerSessionPayload
+    {
+        var updated = payload
+        updated.permissions = ComputerControlService.currentPermissionState()
+        return updated
     }
 
     func recordScreen(

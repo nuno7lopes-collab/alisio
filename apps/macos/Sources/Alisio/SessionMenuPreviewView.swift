@@ -231,6 +231,7 @@ enum SessionMenuPreviewLoader {
     static func prewarm(sessionKeys: [String], maxItems: Int) async {
         let keys = self.uniqueKeys(sessionKeys)
         guard !keys.isEmpty else { return }
+        guard await AlisioAccountStore.shared.isAuthenticated else { return }
         do {
             let payload = try await self.requestPreview(keys: keys, maxItems: maxItems)
             await self.cache(payload: payload, maxItems: maxItems)
@@ -244,6 +245,9 @@ enum SessionMenuPreviewLoader {
     }
 
     static func load(sessionKey: String, maxItems: Int) async -> SessionMenuPreviewSnapshot {
+        guard await AlisioAccountStore.shared.isAuthenticated else {
+            return SessionMenuPreviewSnapshot(items: [], status: .error("Sign in required"))
+        }
         if let cached = await SessionPreviewCache.shared.cachedSnapshot(
             for: sessionKey,
             maxAge: cacheMaxAgeSeconds)

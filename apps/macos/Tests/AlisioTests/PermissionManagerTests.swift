@@ -25,6 +25,51 @@ struct PermissionManagerTests {
         #expect(ensured.keys.count == caps.count)
     }
 
+    @Test func `restart coordinator keeps screen recording restart required until explicit clear`() async {
+        PermissionRestartCoordinator.shared.reconcile(
+            status: [.screenRecording: true],
+            restartRequired: [.screenRecording: false])
+        defer {
+            PermissionRestartCoordinator.shared.reconcile(
+                status: [.screenRecording: true],
+                restartRequired: [.screenRecording: false])
+        }
+
+        PermissionRestartCoordinator.shared.markRequested(
+            [.screenRecording],
+            currentStatus: [.screenRecording: true])
+
+        #expect(PermissionRestartCoordinator.shared.requiresRestart(for: .screenRecording))
+
+        PermissionRestartCoordinator.shared.reconcile(status: [.screenRecording: true])
+
+        #expect(PermissionRestartCoordinator.shared.requiresRestart(for: .screenRecording))
+
+        PermissionRestartCoordinator.shared.reconcile(
+            status: [.screenRecording: true],
+            restartRequired: [.screenRecording: false])
+
+        #expect(!PermissionRestartCoordinator.shared.requiresRestart(for: .screenRecording))
+    }
+
+    @Test func `restart coordinator tracks accessibility only after requested grants`() async {
+        PermissionRestartCoordinator.shared.reconcile(
+            status: [.accessibility: true],
+            restartRequired: [.accessibility: false])
+        defer {
+            PermissionRestartCoordinator.shared.reconcile(
+                status: [.accessibility: true],
+                restartRequired: [.accessibility: false])
+        }
+
+        PermissionRestartCoordinator.shared.markRequested(
+            [.accessibility],
+            currentStatus: [.accessibility: false],
+            restartRequired: [.accessibility: false])
+
+        #expect(PermissionRestartCoordinator.shared.requiresRestart(for: .accessibility))
+    }
+
     @Test func `location status matches authorization always`() async {
         let status = CLLocationManager().authorizationStatus
         let results = await PermissionManager.status([.location])

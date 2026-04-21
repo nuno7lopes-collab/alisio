@@ -9,184 +9,253 @@ import AlisioSupport
 @MainActor
 struct MacDesktopComputerStoreTests {
     @Test func `activate tracks an existing local computer session and captures a frame`() async throws {
-        let services = FakeMainActorServices(
-            permissions: .init(accessibility: true, screenRecording: true),
-            observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let sessionDriver = FakeComputerSessionDriver(
-            snapshot: Self.makeSessionSnapshot(
-                sessionId: "main",
-                status: .running,
-                lifecycleState: .running))
-        let store = MacDesktopComputerStore(
-            sessionKey: "",
-            services: services,
-            sessionDriver: sessionDriver)
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(accessibility: true, screenRecording: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .running,
+                    lifecycleState: .running))
+            let store = MacDesktopComputerStore(
+                sessionKey: "",
+                services: services,
+                sessionDriver: sessionDriver)
 
-        store.activate()
-        defer { store.deactivate(stopSession: true) }
+            store.activate()
+            defer { store.deactivate(stopSession: true) }
 
-        try await self.waitUntil("frame image to load") {
-            store.frameImage != nil && store.sessionState == .running && store.lastUpdatedAt != nil
+            try await self.waitUntil("frame image to load") {
+                store.frameImage != nil && store.sessionState == .running && store.lastUpdatedAt != nil
+            }
+
+            #expect(store.sessionKey == "main")
+            #expect(store.frameImage != nil)
+            #expect(store.observation?.context.activeApp?.name == "Finder")
+            #expect(store.observation?.context.activeWindow?.title == "Desktop")
+            #expect(store.needsPermissionGuidance == false)
+            #expect(store.shouldAutoPresentPane == true)
+            #expect(store.statusLabel == "Running")
+            #expect(sessionDriver.commandCalls.isEmpty)
+            #expect(services.observeCalls >= 1)
         }
-
-        #expect(store.sessionKey == "main")
-        #expect(store.frameImage != nil)
-        #expect(store.observation?.context.activeApp?.name == "Finder")
-        #expect(store.observation?.context.activeWindow?.title == "Desktop")
-        #expect(store.needsPermissionGuidance == false)
-        #expect(store.shouldAutoPresentPane == true)
-        #expect(store.statusLabel == "Running")
-        #expect(sessionDriver.commandCalls.isEmpty)
-        #expect(services.observeCalls >= 1)
     }
 
     @Test func `activate does not auto-start a stopped session`() async throws {
-        let services = FakeMainActorServices(
-            permissions: .init(accessibility: true, screenRecording: true),
-            observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let sessionDriver = FakeComputerSessionDriver(
-            snapshot: Self.makeSessionSnapshot(
-                sessionId: "main",
-                status: .stopped,
-                lifecycleState: nil))
-        let store = MacDesktopComputerStore(
-            sessionKey: "main",
-            services: services,
-            sessionDriver: sessionDriver)
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(accessibility: true, screenRecording: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .stopped,
+                    lifecycleState: nil))
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
 
-        store.activate()
-        defer { store.deactivate(stopSession: true) }
+            store.activate()
+            defer { store.deactivate(stopSession: true) }
 
-        try await self.waitUntil("initial runtime sync") {
-            store.sessionState == .stopped
+            try await self.waitUntil("initial runtime sync") {
+                store.sessionState == .stopped
+            }
+
+            #expect(store.frameImage == nil)
+            #expect(store.observation == nil)
+            #expect(store.shouldAutoPresentPane == false)
+            #expect(sessionDriver.commandCalls.isEmpty)
+            #expect(services.observeCalls == 0)
         }
-
-        #expect(store.frameImage == nil)
-        #expect(store.observation == nil)
-        #expect(store.shouldAutoPresentPane == false)
-        #expect(sessionDriver.commandCalls.isEmpty)
-        #expect(services.observeCalls == 0)
     }
 
     @Test func `start explicitly begins a stopped session once observation permission exists`() async throws {
-        let services = FakeMainActorServices(
-            permissions: .init(accessibility: true, screenRecording: true),
-            observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let sessionDriver = FakeComputerSessionDriver(
-            snapshot: Self.makeSessionSnapshot(
-                sessionId: "main",
-                status: .stopped,
-                lifecycleState: nil),
-            updatedSnapshots: [
-                .start: Self.makeSessionSnapshot(
-                    sessionId: "main",
-                    status: .idle,
-                    lifecycleState: .running),
-                .stop: Self.makeSessionSnapshot(
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(accessibility: true, screenRecording: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
                     sessionId: "main",
                     status: .stopped,
                     lifecycleState: nil),
-            ])
-        let store = MacDesktopComputerStore(
-            sessionKey: "main",
-            services: services,
-            sessionDriver: sessionDriver)
+                updatedSnapshots: [
+                    .start: Self.makeSessionSnapshot(
+                        sessionId: "main",
+                        status: .idle,
+                        lifecycleState: .running),
+                    .stop: Self.makeSessionSnapshot(
+                        sessionId: "main",
+                        status: .stopped,
+                        lifecycleState: nil),
+                ])
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
 
-        store.activate()
-        try await self.waitUntil("screen recording state to refresh") {
-            store.canStartSession
+            store.activate()
+            try await self.waitUntil("screen recording state to refresh") {
+                store.canStartSession
+            }
+            store.start()
+            defer { store.deactivate(stopSession: true) }
+
+            try await self.waitUntil("session start to capture frame") {
+                store.frameImage != nil && store.sessionState == .running
+            }
+
+            #expect(sessionDriver.commandCalls.contains(.start))
+            #expect(services.observeCalls >= 1)
         }
-        store.start()
-        defer { store.deactivate(stopSession: true) }
-
-        try await self.waitUntil("session start to capture frame") {
-            store.frameImage != nil && store.sessionState == .running
-        }
-
-        #expect(sessionDriver.commandCalls.contains(.start))
-        #expect(services.observeCalls >= 1)
     }
 
-    @Test func `activate surfaces permission guidance when observation is blocked`() async throws {
-        let services = FakeMainActorServices(
-            permissions: .init(accessibility: false, screenRecording: true),
-            observationResult: .failure(NSError(
-                domain: "MacDesktopComputerStoreTests",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "PERMISSION_MISSING: accessibility"])))
-        let sessionDriver = FakeComputerSessionDriver(
-            snapshot: Self.makeSessionSnapshot(
-                sessionId: "main",
-                status: .running,
-                lifecycleState: .running,
+    @Test func `start surfaces restart required from shared session and does not observe`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
                 permissions: .init(
-                    accessibility: false,
+                    accessibility: true,
                     screenRecording: true,
-                    observation: .granted,
-                    control: .missing)))
-        let store = MacDesktopComputerStore(
-            sessionKey: "main",
-            services: services,
-            sessionDriver: sessionDriver)
-
-        store.activate()
-        defer { store.deactivate(stopSession: true) }
-
-        try await self.waitUntil("permission error to surface") {
-            store.errorText == "Accessibility permission required"
-        }
-
-        #expect(store.errorText == "Accessibility permission required")
-        #expect(store.needsPermissionGuidance == true)
-        #expect(store.shouldAutoPresentPane == true)
-        #expect(store.statusLabel == "Accessibility permission required")
-        #expect(store.runtime.lastError?.code == .permissionMissing)
-        #expect(store.runtime.lastError?.permission == "accessibility")
-    }
-
-    @Test func `shared session restart required surfaces honest restart guidance`() async throws {
-        let services = FakeMainActorServices(
-            permissions: .init(
-                accessibility: true,
-                screenRecording: true,
-                accessibilityRestartRequired: true,
-                screenRecordingRestartRequired: true),
-            observationResult: .success(Self.makeObservation(sessionId: "main")))
-        let sessionDriver = FakeComputerSessionDriver(
-            snapshot: Self.makeSessionSnapshot(
+                    screenRecordingRestartRequired: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let blockedSnapshot = Self.makeSessionSnapshot(
                 sessionId: "main",
                 status: .blockedOnRestartRequired,
-                lifecycleState: nil,
+                lifecycleState: .running,
                 permissions: .init(
                     accessibility: true,
                     screenRecording: true,
                     observation: .restartRequired,
-                    control: .restartRequired),
+                    control: .granted),
                 blocking: .init(
                     kind: .blockedOnRestartRequired,
                     reasonCode: "observation_restart_required",
-                    summary: "Restart Alisio to pick up newly granted Screen Recording access.",
-                    at: 1)))
-        let store = MacDesktopComputerStore(
-            sessionKey: "main",
-            services: services,
-            sessionDriver: sessionDriver)
+                    summary: "Screen recording permission was granted but the runtime still needs a restart.",
+                    at: 1))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .stopped,
+                    lifecycleState: nil),
+                updatedSnapshots: [
+                    .start: blockedSnapshot,
+                    .stop: Self.makeSessionSnapshot(
+                        sessionId: "main",
+                        status: .stopped,
+                        lifecycleState: nil),
+                ])
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
 
-        store.activate()
-        defer { store.deactivate(stopSession: true) }
+            store.activate()
+            try await self.waitUntil("stopped session with permissions to be loaded") {
+                store.sessionState == .stopped && store.canStartSession
+            }
+            store.start()
+            defer { store.deactivate(stopSession: true) }
 
-        try await self.waitUntil("restart hint to surface") {
-            store.permissionRestartHint != nil
+            try await self.waitUntil("restart required state to surface") {
+                store.sessionStatus == .blockedOnRestartRequired && store.permissionRestartHint != nil
+            }
+
+            #expect(sessionDriver.commandCalls.contains(.start))
+            #expect(store.canStartSession == false)
+            #expect(store.statusLabel == "Screen recording permission was granted but the runtime still needs a restart.")
+            #expect(store.permissionRestartHint == "Screen Recording was granted, but macOS still requires an Alisio restart.")
+            #expect(store.frameImage == nil)
+            #expect(services.observeCalls == 0)
         }
+    }
 
-        #expect(store.canStartSession == false)
-        #expect(store.shouldAutoPresentPane == true)
-        #expect(store.blockingSummary == "Restart Alisio to pick up newly granted Screen Recording access.")
-        #expect(
-            store.permissionRestartHint ==
-                "Screen Recording and Accessibility were granted, but macOS still requires an Alisio restart.")
-        #expect(store.showsPermissionActions == true)
-        #expect(services.observeCalls == 0)
+    @Test func `activate surfaces permission guidance when observation is blocked`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(accessibility: false, screenRecording: true),
+                observationResult: .failure(NSError(
+                    domain: "MacDesktopComputerStoreTests",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "PERMISSION_MISSING: accessibility"])))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .running,
+                    lifecycleState: .running,
+                    permissions: .init(
+                        accessibility: false,
+                        screenRecording: true,
+                        observation: .granted,
+                        control: .missing)))
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
+
+            store.activate()
+            defer { store.deactivate(stopSession: true) }
+
+            try await self.waitUntil("permission error to surface") {
+                store.errorText == "Accessibility permission required"
+            }
+
+            #expect(store.errorText == "Accessibility permission required")
+            #expect(store.needsPermissionGuidance == true)
+            #expect(store.shouldAutoPresentPane == true)
+            #expect(store.statusLabel == "Accessibility permission required")
+            #expect(store.runtime.lastError?.code == .permissionMissing)
+            #expect(store.runtime.lastError?.permission == "accessibility")
+        }
+    }
+
+    @Test func `shared session restart required surfaces honest restart guidance`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(
+                    accessibility: true,
+                    screenRecording: true,
+                    accessibilityRestartRequired: true,
+                    screenRecordingRestartRequired: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .blockedOnRestartRequired,
+                    lifecycleState: nil,
+                    permissions: .init(
+                        accessibility: true,
+                        screenRecording: true,
+                        observation: .restartRequired,
+                        control: .restartRequired),
+                    blocking: .init(
+                        kind: .blockedOnRestartRequired,
+                        reasonCode: "observation_restart_required",
+                        summary: "Restart Alisio to pick up newly granted Screen Recording access.",
+                        at: 1)))
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
+
+            store.activate()
+            defer { store.deactivate(stopSession: true) }
+
+            try await self.waitUntil("restart hint to surface") {
+                store.permissionRestartHint != nil
+            }
+
+            #expect(store.canStartSession == false)
+            #expect(store.shouldAutoPresentPane == true)
+            #expect(store.blockingSummary == "Restart Alisio to pick up newly granted Screen Recording access.")
+            #expect(
+                store.permissionRestartHint ==
+                    "Screen Recording and Accessibility were granted, but macOS still requires an Alisio restart.")
+            #expect(store.showsPermissionActions == true)
+            #expect(services.observeCalls == 0)
+        }
     }
 
     private func waitUntil(

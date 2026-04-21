@@ -185,7 +185,7 @@ public final class AlisioChatViewModel {
             return .reconnecting
         }
         if (self.isSending || self.pendingRunCount > 0),
-           !self.hasNonUserTranscriptContent,
+           !self.hasVisibleNonUserTranscriptContent,
            !self.hasVisibleStreamingAssistantContent,
            self.pendingToolCalls.isEmpty
         {
@@ -276,7 +276,11 @@ public final class AlisioChatViewModel {
 
     public var canSend: Bool {
         let trimmed = self.input.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !self.isSending && self.pendingRunCount == 0 && (!trimmed.isEmpty || !self.attachments.isEmpty)
+        return self.healthOK &&
+            !self.isLoading &&
+            !self.isSending &&
+            self.pendingRunCount == 0 &&
+            (!trimmed.isEmpty || !self.attachments.isEmpty)
     }
 
     // MARK: - Internals
@@ -1115,7 +1119,7 @@ public final class AlisioChatViewModel {
     }
 
     private func handleAgentEvent(_ evt: AlisioAgentEventPayload) {
-        if let sessionId, evt.runId != sessionId {
+        guard self.acceptsAgentEvent(evt) else {
             return
         }
 
@@ -1142,6 +1146,20 @@ public final class AlisioChatViewModel {
         default:
             break
         }
+    }
+
+    private func acceptsAgentEvent(_ evt: AlisioAgentEventPayload) -> Bool {
+        let isKnownRun = self.pendingRuns.contains(evt.runId) ||
+            self.dispatchingRunIDs.contains(evt.runId) ||
+            evt.runId == self.sessionId
+
+        if let eventSessionKey = evt.sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !eventSessionKey.isEmpty
+        {
+            return Self.matchesCurrentSessionKey(incoming: eventSessionKey, current: self.sessionKey) || isKnownRun
+        }
+
+        return isKnownRun
     }
 
     private func refreshHistoryAfterRun() async {
@@ -1202,10 +1220,27 @@ public final class AlisioChatViewModel {
         return AssistantTextParser.hasVisibleContent(in: text, includeThinking: true)
     }
 
-    private var hasNonUserTranscriptContent: Bool {
+    private var hasVisibleNonUserTranscriptContent: Bool {
         self.messages.contains { message in
             let role = message.role.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return role != "user"
+            return role != "user" && Self.hasVisibleTranscriptContent(message)
+        }
+    }
+
+    private static func hasVisibleTranscriptContent(_ message: AlisioChatMessage) -> Bool {
+        message.content.contains { content in
+            let kind = (content.type ?? "text").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            switch kind {
+            case "", "text":
+                guard let text = content.text else { return false }
+                return AssistantTextParser.hasVisibleContent(in: text, includeThinking: true)
+            case "file", "attachment", "toolcall", "tool_call", "tooluse", "tool_use":
+                return true
+            case "toolresult", "tool_result":
+                return !(content.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            default:
+                return content.name != nil || content.arguments != nil
+            }
         }
     }
 

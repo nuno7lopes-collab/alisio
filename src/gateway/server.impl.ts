@@ -873,7 +873,7 @@ export async function startGatewayServer(
   };
   applyGatewayLaneConcurrency(cfgAtStart);
 
-  let cronState = buildGatewayCronService({
+  let cronState = await buildGatewayCronService({
     cfg: cfgAtStart,
     deps,
     broadcast,

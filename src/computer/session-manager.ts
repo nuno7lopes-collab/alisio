@@ -981,6 +981,7 @@ export class ComputerSessionManager {
         ...this.stepEventLink(state.activeStep),
       });
     }
+    this.reconcilePassiveTruth(state);
     return cloneState(state);
   }
 

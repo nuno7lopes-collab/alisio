@@ -110,8 +110,8 @@ describe("runCronIsolatedAgentTurn sandbox config preserved", () => {
       dangerouslyAllowExternalBindSources: true,
     });
     expect(resolvedSandbox.browser).toMatchObject({
-      enabled: true,
-      image: "ghcr.io/alisio/browser:custom",
+      enabled: false,
+      image: "alisio-sandbox-browser:bookworm-slim",
       autoStart: false,
     });
     expect(resolvedSandbox.prune).toMatchObject({

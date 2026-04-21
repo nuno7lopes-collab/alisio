@@ -3,49 +3,51 @@ import Testing
 import AlisioSupport
 @testable import AlisioDiscovery
 
+@Suite(.serialized)
 struct WideAreaGatewayDiscoveryTests {
-    @Test func `discovers beacon from tailnet dns sd fallback`() {
-        setenv("ALISIO_WIDE_AREA_DOMAIN", "alisio.internal", 1)
-        let statusJson = """
-        {
-          "Self": { "TailscaleIPs": ["100.69.232.64"] },
-          "Peer": {
-            "peer-1": { "TailscaleIPs": ["100.123.224.76"] }
-          }
-        }
-        """
+    @Test func `discovers beacon from tailnet dns sd fallback`() async {
+        await TestIsolation.withEnvValues(["ALISIO_WIDE_AREA_DOMAIN": "alisio.internal"]) {
+            let statusJson = """
+            {
+              "Self": { "TailscaleIPs": ["100.69.232.64"] },
+              "Peer": {
+                "peer-1": { "TailscaleIPs": ["100.123.224.76"] }
+              }
+            }
+            """
 
-        let context = WideAreaGatewayDiscovery.DiscoveryContext(
-            tailscaleStatus: { statusJson },
-            dig: { args, _ in
-                let recordType = args.last ?? ""
-                let nameserver = args.first(where: { $0.hasPrefix("@") }) ?? ""
-                if recordType == "PTR" {
-                    if nameserver == "@100.123.224.76" {
-                        return "steipetacstudio-gateway._alisio-gw._tcp.alisio.internal.\n"
+            let context = WideAreaGatewayDiscovery.DiscoveryContext(
+                tailscaleStatus: { statusJson },
+                dig: { args, _ in
+                    let recordType = args.last ?? ""
+                    let nameserver = args.first(where: { $0.hasPrefix("@") }) ?? ""
+                    if recordType == "PTR" {
+                        if nameserver == "@100.123.224.76" {
+                            return "steipetacstudio-gateway._alisio-gw._tcp.alisio.internal.\n"
+                        }
+                        return ""
+                    }
+                    if recordType == "SRV" {
+                        return "0 0 40705 steipetacstudio.alisio.internal."
+                    }
+                    if recordType == "TXT" {
+                        return "\"displayName=Peter\\226\\128\\153s Mac Studio (Alisio)\" \"gatewayPort=40705\" \"tailnetDns=peters-mac-studio-1.sheep-coho.ts.net\" \"cliPath=/Users/steipete/alisio/src/entry.ts\""
                     }
                     return ""
-                }
-                if recordType == "SRV" {
-                    return "0 0 40705 steipetacstudio.alisio.internal."
-                }
-                if recordType == "TXT" {
-                    return "\"displayName=Peter\\226\\128\\153s Mac Studio (Alisio)\" \"gatewayPort=40705\" \"tailnetDns=peters-mac-studio-1.sheep-coho.ts.net\" \"cliPath=/Users/steipete/alisio/src/entry.ts\""
-                }
-                return ""
-            })
+                })
 
-        let beacons = WideAreaGatewayDiscovery.discover(
-            timeoutSeconds: 2.0,
-            context: context)
+            let beacons = WideAreaGatewayDiscovery.discover(
+                timeoutSeconds: 2.0,
+                context: context)
 
-        #expect(beacons.count == 1)
-        let beacon = beacons[0]
-        let expectedDisplay = "Peter\u{2019}s Mac Studio (Alisio)"
-        #expect(beacon.displayName == expectedDisplay)
-        #expect(beacon.port == 40705)
-        #expect(beacon.gatewayPort == 40705)
-        #expect(beacon.tailnetDns == "peters-mac-studio-1.sheep-coho.ts.net")
-        #expect(beacon.cliPath == "/Users/steipete/alisio/src/entry.ts")
+            #expect(beacons.count == 1)
+            let beacon = beacons[0]
+            let expectedDisplay = "Peter\u{2019}s Mac Studio (Alisio)"
+            #expect(beacon.displayName == expectedDisplay)
+            #expect(beacon.port == 40705)
+            #expect(beacon.gatewayPort == 40705)
+            #expect(beacon.tailnetDns == "peters-mac-studio-1.sheep-coho.ts.net")
+            #expect(beacon.cliPath == "/Users/steipete/alisio/src/entry.ts")
+        }
     }
 }

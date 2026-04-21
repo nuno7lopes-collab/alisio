@@ -103,6 +103,7 @@ actor GatewayConnection {
         case cronUpdate = "cron.update"
         case cronAdd = "cron.add"
         case cronStatus = "cron.status"
+        case alisioAccountGet = "alisio.account.get"
     }
 
     private let configProvider: @Sendable () async throws -> Config
@@ -575,15 +576,19 @@ extension GatewayConnection {
         }
     }
 
-    func setHeartbeatsEnabled(_ enabled: Bool) async -> Bool {
+    func setHeartbeatsEnabledResult(_ enabled: Bool) async -> (ok: Bool, error: String?) {
         do {
             try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.setHeartbeats.rawValue)
             try await self.requestVoid(method: .setHeartbeats, params: ["enabled": AnyCodable(enabled)])
-            return true
+            return (true, nil)
         } catch {
             gatewayConnectionLogger.error("setHeartbeatsEnabled failed \(error.localizedDescription, privacy: .public)")
-            return false
+            return (false, error.localizedDescription)
         }
+    }
+
+    func setHeartbeatsEnabled(_ enabled: Bool) async -> Bool {
+        (await self.setHeartbeatsEnabledResult(enabled)).ok
     }
 
     func sendAgent(_ invocation: GatewayAgentInvocation) async -> (ok: Bool, error: String?) {
@@ -605,7 +610,11 @@ extension GatewayConnection {
         }
 
         do {
-            try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.agent.rawValue)
+            try await self.requireAuthenticatedAccount(reason: Method.agent.rawValue)
+            let readinessTimeout = min(max(TimeInterval(invocation.timeoutSeconds ?? 15), 15), 45)
+            try await self.ensureLocalGatewayReadyIfNeeded(
+                reason: Method.agent.rawValue,
+                timeout: readinessTimeout)
             try await self.requestVoid(method: .agent, params: params)
             return (true, nil)
         } catch {
@@ -665,6 +674,16 @@ extension GatewayConnection {
         }
     }
 
+    // MARK: - Account
+
+    func accountSnapshot() async throws -> AlisioAccountSnapshot {
+        try await self.requestDecoded(method: .alisioAccountGet)
+    }
+
+    private func requireAuthenticatedAccount(reason: String) async throws {
+        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
+    }
+
     // MARK: - Skills
 
     func skillsStatus() async throws -> SkillsStatusReport {
@@ -709,6 +728,7 @@ extension GatewayConnection {
         maxChars: Int? = nil,
         timeoutMs: Int? = nil) async throws -> AlisioSessionsPreviewPayload
     {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsPreview.rawValue)
         let resolvedKeys = keys
             .map { self.canonicalizeSessionKey($0) }
             .filter { !$0.isEmpty }
@@ -732,6 +752,7 @@ extension GatewayConnection {
         limit: Int? = nil,
         timeoutMs: Int? = nil) async throws -> AlisioChatHistoryPayload
     {
+        try await self.requireAuthenticatedAccount(reason: Method.chatHistory.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.chatHistory.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         var params: [String: AnyCodable] = ["sessionKey": AnyCodable(resolvedKey)]
@@ -751,11 +772,22 @@ extension GatewayConnection {
         attachments: [AlisioChatAttachmentPayload],
         timeoutMs: Int = 30000) async throws -> AlisioChatSendResponse
     {
-        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.chatSend.rawValue)
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else {
+            throw NSError(
+                domain: "Gateway",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "message empty"])
+        }
+        try await self.requireAuthenticatedAccount(reason: Method.chatSend.rawValue)
+        let readinessTimeout = min(max(TimeInterval(timeoutMs) / 1000, 15), 45)
+        try await self.ensureLocalGatewayReadyIfNeeded(
+            reason: Method.chatSend.rawValue,
+            timeout: readinessTimeout)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         var params: [String: AnyCodable] = [
             "sessionKey": AnyCodable(resolvedKey),
-            "message": AnyCodable(message),
+            "message": AnyCodable(trimmedMessage),
             "thinking": AnyCodable(thinking),
             "idempotencyKey": AnyCodable(idempotencyKey),
             "timeoutMs": AnyCodable(timeoutMs),
@@ -780,6 +812,7 @@ extension GatewayConnection {
     }
 
     func chatAbort(sessionKey: String, runId: String) async throws -> Bool {
+        try await self.requireAuthenticatedAccount(reason: Method.chatAbort.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.chatAbort.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         struct AbortResponse: Decodable { let ok: Bool?; let aborted: Bool? }
@@ -856,12 +889,14 @@ extension GatewayConnection {
     }
 
     func cronStatus() async throws -> CronSchedulerStatus {
+        try await self.requireAuthenticatedAccount(reason: Method.cronStatus.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronStatus.rawValue)
         let status: CronSchedulerStatus = try await self.requestDecoded(method: .cronStatus)
         return status
     }
 
     func cronList(includeDisabled: Bool = true) async throws -> [CronJob] {
+        try await self.requireAuthenticatedAccount(reason: Method.cronList.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronList.rawValue)
         let data = try await self.requestRaw(
             method: .cronList,
@@ -870,6 +905,7 @@ extension GatewayConnection {
     }
 
     func cronRuns(jobId: String, limit: Int = 200) async throws -> [CronRunLogEntry] {
+        try await self.requireAuthenticatedAccount(reason: Method.cronRuns.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronRuns.rawValue)
         let data = try await self.requestRaw(
             method: .cronRuns,
@@ -878,6 +914,7 @@ extension GatewayConnection {
     }
 
     func cronRun(jobId: String, force: Bool = true) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.cronRun.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronRun.rawValue)
         try await self.requestVoid(
             method: .cronRun,
@@ -889,11 +926,13 @@ extension GatewayConnection {
     }
 
     func cronRemove(jobId: String) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.cronRemove.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronRemove.rawValue)
         try await self.requestVoid(method: .cronRemove, params: ["id": AnyCodable(jobId)])
     }
 
     func cronUpdate(jobId: String, patch: [String: AnyCodable]) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.cronUpdate.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronUpdate.rawValue)
         try await self.requestVoid(
             method: .cronUpdate,
@@ -901,11 +940,13 @@ extension GatewayConnection {
     }
 
     func cronAdd(payload: [String: AnyCodable]) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.cronAdd.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronAdd.rawValue)
         try await self.requestVoid(method: .cronAdd, params: payload)
     }
 
     func computerSession(sessionKey: String) async throws -> ComputerSessionSnapshot {
+        try await self.requireAuthenticatedAccount(reason: Method.computerSessionGet.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.computerSessionGet.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         let response: ComputerSessionResponse = try await self.requestDecoded(
@@ -918,6 +959,7 @@ extension GatewayConnection {
         sessionKey: String,
         command: ComputerSessionCommand) async throws -> ComputerSessionSnapshot
     {
+        try await self.requireAuthenticatedAccount(reason: Method.computerSessionUpdate.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.computerSessionUpdate.rawValue)
         let resolvedKey = self.canonicalizeSessionKey(sessionKey)
         let response: ComputerSessionResponse = try await self.requestDecoded(

@@ -41,6 +41,7 @@ import {
   isWebchatClient,
   normalizeMessageChannel,
 } from "../../utils/message-channel.js";
+import { applyAccountScopedWorkspaceOverride } from "../alisio-account-context.js";
 import {
   abortChatRunById,
   type ChatAbortControllerEntry,
@@ -81,6 +82,7 @@ import {
   resolveSessionModelRef,
 } from "../session-utils.js";
 import { formatForLog } from "../ws-log.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
 import { setGatewayDedupeEntry } from "./agent-wait-dedupe.js";
 import { publishAlisioDynamicModelProvidersForContext } from "./alisio.js";
@@ -1474,12 +1476,15 @@ function collectSessionAbortPartials(params: {
 function persistAbortedPartials(params: {
   context: Pick<GatewayRequestContext, "logGateway">;
   sessionKey: string;
+  accountId?: string | null;
   snapshots: AbortedPartialSnapshot[];
 }) {
   if (params.snapshots.length === 0) {
     return;
   }
-  const { storePath, entry } = loadSessionEntry(params.sessionKey);
+  const { storePath, entry } = loadSessionEntry(params.sessionKey, {
+    accountId: params.accountId,
+  });
   for (const snapshot of params.snapshots) {
     const sessionId = entry?.sessionId ?? snapshot.sessionId ?? snapshot.runId;
     const appended = appendAssistantTranscriptMessage({
@@ -1617,6 +1622,7 @@ function abortChatRunsForSessionKeyWithPartials(params: {
   context: GatewayRequestContext;
   ops: ChatAbortOps;
   sessionKey: string;
+  accountId?: string | null;
   abortOrigin: AbortOrigin;
   stopReason?: string;
   requester: ChatAbortRequester;
@@ -1656,6 +1662,7 @@ function abortChatRunsForSessionKeyWithPartials(params: {
     persistAbortedPartials({
       context: params.context,
       sessionKey: params.sessionKey,
+      accountId: params.accountId,
       snapshots,
     });
   }
@@ -1749,11 +1756,16 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
+    const accountId = accountContext.canonical.accountId;
     const { sessionKey, limit } = params as {
       sessionKey: string;
       limit?: number;
     };
-    const { cfg, storePath, entry } = loadSessionEntry(sessionKey);
+    const { cfg, storePath, entry } = loadSessionEntry(sessionKey, { accountId });
     const sessionId = entry?.sessionId;
     const sessionAgentId = resolveSessionAgentId({ sessionKey, config: cfg });
     const resolvedSessionModel = resolveSessionModelRef(cfg, entry, sessionAgentId, sessionKey);
@@ -1818,7 +1830,7 @@ export const chatHandlers: GatewayRequestHandlers = {
       verboseLevel,
     });
   },
-  "chat.abort": ({ params, respond, context, client }) => {
+  "chat.abort": async ({ params, respond, context, client }) => {
     if (!validateChatAbortParams(params)) {
       respond(
         false,
@@ -1830,6 +1842,11 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
+    const accountId = accountContext.canonical.accountId;
     const { sessionKey: rawSessionKey, runId } = params as {
       sessionKey: string;
       runId?: string;
@@ -1843,6 +1860,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         context,
         ops,
         sessionKey: rawSessionKey,
+        accountId,
         abortOrigin: "rpc",
         stopReason: "rpc",
         requester,
@@ -1883,6 +1901,7 @@ export const chatHandlers: GatewayRequestHandlers = {
       persistAbortedPartials({
         context,
         sessionKey: rawSessionKey,
+        accountId,
         snapshots: [
           {
             runId,
@@ -1911,6 +1930,11 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
+    const accountId = accountContext.canonical.accountId;
     const p = params as {
       sessionKey: string;
       message: string;
@@ -2008,7 +2032,7 @@ export const chatHandlers: GatewayRequestHandlers = {
       }
     }
     const rawSessionKey = p.sessionKey;
-    const loadedSession = loadSessionEntry(rawSessionKey);
+    const loadedSession = loadSessionEntry(rawSessionKey, { accountId });
     let cfg = loadedSession.cfg;
     const { entry, canonicalKey: sessionKey } = loadedSession;
     const storedExtraSystemPrompt =
@@ -2022,6 +2046,11 @@ export const chatHandlers: GatewayRequestHandlers = {
     const resolvedEntryAgentId = resolveSessionAgentId({
       sessionKey,
       config: cfg,
+    });
+    cfg = applyAccountScopedWorkspaceOverride({
+      cfg,
+      agentId: resolvedEntryAgentId,
+      accountId: accountContext.canonical.accountId,
     });
     const resolvedSessionModel = resolveSessionModelRef(
       cfg,
@@ -2065,6 +2094,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         context,
         ops: createChatAbortOps(context),
         sessionKey: rawSessionKey,
+        accountId,
         abortOrigin: "stop-command",
         stopReason: "stop",
         requester: resolveChatAbortRequester(client),
@@ -2228,7 +2258,9 @@ export const chatHandlers: GatewayRequestHandlers = {
           return;
         }
         userTranscriptUpdatePromise = (async () => {
-          const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(sessionKey);
+          const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(sessionKey, {
+            accountId,
+          });
           const resolvedSessionId = latestEntry?.sessionId ?? entry?.sessionId;
           if (!resolvedSessionId) {
             return;
@@ -2263,7 +2295,9 @@ export const chatHandlers: GatewayRequestHandlers = {
         if (transcriptMediaRewriteDone) {
           return;
         }
-        const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(sessionKey);
+        const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(sessionKey, {
+          accountId,
+        });
         const resolvedSessionId = latestEntry?.sessionId ?? entry?.sessionId;
         if (!resolvedSessionId) {
           return;
@@ -2381,8 +2415,10 @@ export const chatHandlers: GatewayRequestHandlers = {
                 .trim();
               let message: Record<string, unknown> | undefined;
               if (combinedReply) {
-                const { storePath: latestStorePath, entry: latestEntry } =
-                  loadSessionEntry(sessionKey);
+                const { storePath: latestStorePath, entry: latestEntry } = loadSessionEntry(
+                  sessionKey,
+                  { accountId },
+                );
                 const sessionId = latestEntry?.sessionId ?? entry?.sessionId ?? clientRunId;
                 const appended = appendAssistantTranscriptMessage({
                   message: combinedReply,
@@ -2534,6 +2570,11 @@ export const chatHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
+      return;
+    }
+    const accountId = accountContext.canonical.accountId;
     const p = params as {
       sessionKey: string;
       message: string;
@@ -2542,7 +2583,14 @@ export const chatHandlers: GatewayRequestHandlers = {
 
     // Load session to find transcript file
     const rawSessionKey = p.sessionKey;
-    const { cfg, storePath, entry, canonicalKey: sessionKey } = loadSessionEntry(rawSessionKey);
+    const {
+      cfg,
+      storePath,
+      entry,
+      canonicalKey: sessionKey,
+    } = loadSessionEntry(rawSessionKey, {
+      accountId,
+    });
     const sessionId = entry?.sessionId;
     if (!sessionId || !storePath) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "session not found"));

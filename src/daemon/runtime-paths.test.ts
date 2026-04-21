@@ -92,30 +92,10 @@ describe("resolvePreferredNodePath", () => {
     });
   });
 
-  it("prefers a supported system node over the bundled macOS app node", async () => {
+  it("keeps the bundled macOS app node even when a supported system node exists", async () => {
     mockNodePathPresent(darwinNode);
 
-    const execFile = vi.fn().mockResolvedValue({ stdout: "22.14.0\n", stderr: "" });
-
-    const result = await resolvePreferredNodePath({
-      env: {},
-      runtime: "node",
-      platform: "darwin",
-      execFile,
-      execPath: bundledMacNode,
-    });
-
-    expect(result).toBe(darwinNode);
-    expect(execFile).toHaveBeenCalledTimes(1);
-    expect(execFile).toHaveBeenCalledWith(darwinNode, ["-p", "process.versions.node"], {
-      encoding: "utf8",
-    });
-  });
-
-  it("keeps the bundled macOS app node when no supported system node exists", async () => {
-    fsMocks.access.mockRejectedValue(new Error("missing"));
-
-    const execFile = vi.fn();
+    const execFile = vi.fn().mockResolvedValue({ stdout: "24.11.0\n", stderr: "" });
 
     const result = await resolvePreferredNodePath({
       env: {},
@@ -126,7 +106,30 @@ describe("resolvePreferredNodePath", () => {
     });
 
     expect(result).toBe(bundledMacNode);
-    expect(execFile).not.toHaveBeenCalled();
+    expect(execFile).toHaveBeenCalledTimes(1);
+    expect(execFile).toHaveBeenCalledWith(bundledMacNode, ["-p", "process.versions.node"], {
+      encoding: "utf8",
+    });
+  });
+
+  it("falls back to system node when the bundled macOS app node is not runnable", async () => {
+    mockNodePathPresent(darwinNode);
+
+    const execFile = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("not runnable"))
+      .mockResolvedValueOnce({ stdout: "22.14.0\n", stderr: "" });
+
+    const result = await resolvePreferredNodePath({
+      env: {},
+      runtime: "node",
+      platform: "darwin",
+      execFile,
+      execPath: bundledMacNode,
+    });
+
+    expect(result).toBe(darwinNode);
+    expect(execFile).toHaveBeenCalledTimes(2);
   });
 
   it("uses system node when it meets the minimum version", async () => {

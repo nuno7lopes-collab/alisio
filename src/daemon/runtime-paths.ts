@@ -179,17 +179,12 @@ export async function resolvePreferredNodePath(params: {
   const platform = params.platform ?? process.platform;
   const currentExecPath = params.execPath ?? process.execPath;
   if (currentExecPath && isNodeExecPath(currentExecPath, platform)) {
-    if (isBundledMacAppNodePath(currentExecPath, platform)) {
-      const systemNode = await resolveSystemNodeInfo(params);
-      if (systemNode?.supported) {
-        return systemNode.path;
-      }
-      return currentExecPath;
-    }
-
     const execFileImpl = params.execFile ?? execFileAsync;
     const version = await resolveNodeVersion(currentExecPath, execFileImpl);
     if (isSupportedNodeVersion(version)) {
+      if (isBundledMacAppNodePath(currentExecPath, platform)) {
+        return currentExecPath;
+      }
       return resolveStableNodePath(currentExecPath);
     }
   }

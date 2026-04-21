@@ -337,6 +337,7 @@ describe("deviceHandlers", () => {
       account: {},
       canonical: {
         scopeRoot: "account",
+        accountId: "user-1",
         source: "missing",
         authenticated: false,
         authRequired: true,
@@ -351,6 +352,7 @@ describe("deviceHandlers", () => {
         binding: "auth_required",
         runtime: "local",
         current: true,
+        accountId: "user-1",
         deviceId: "device-1",
         label: "Mac",
         platform: "macos",

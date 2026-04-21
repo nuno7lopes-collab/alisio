@@ -111,6 +111,29 @@ private final class SequentialTransportFactory: @unchecked Sendable {
     }
 }
 
+private final class CountingTransportFactory: @unchecked Sendable {
+    private let transport: TestMacNodeComputerHelperTransport
+    private let lock = NSLock()
+    private var count = 0
+
+    init(_ transport: TestMacNodeComputerHelperTransport) {
+        self.transport = transport
+    }
+
+    func next() throws -> any MacNodeComputerHelperTransport {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        self.count += 1
+        return self.transport
+    }
+
+    func snapshot() -> Int {
+        self.lock.lock()
+        defer { self.lock.unlock() }
+        return self.count
+    }
+}
+
 private func makeHelperHealthPayload(
     protocolVersion: Int = macNodeComputerHelperProtocolVersion,
     pid: Int32,
@@ -273,5 +296,82 @@ struct MacNodeComputerHelperClientTests {
         let secondMethods = await secondTransport.sentMethods()
         #expect(firstMethods == [.health, .startSession])
         #expect(secondMethods == [.health, .startSession, .captureFrame])
+    }
+
+    @Test func `client coalesces concurrent startup into one helper process`() async {
+        let transport = TestMacNodeComputerHelperTransport(pid: 9201)
+        transport.sendHandler = { request, transport in
+            if request.method == .health {
+                Task {
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                    transport.emitPayload(id: request.id, payload: makeHelperHealthPayload(pid: 9201))
+                }
+            }
+        }
+        let factory = CountingTransportFactory(transport)
+        let client = MacNodeComputerHelperClient(transportFactory: { try factory.next() })
+
+        async let firstHealth = client.health(sessionId: nil)
+        async let secondHealth = client.health(sessionId: nil)
+        let results = await (firstHealth, secondHealth)
+
+        #expect(results.0.connectionState == .running)
+        #expect(results.1.connectionState == .running)
+        #expect(factory.snapshot() == 1)
+    }
+
+    @Test func `client restores paused sessions after reconnect`() async throws {
+        let firstTransport = TestMacNodeComputerHelperTransport(pid: 9301)
+        firstTransport.sendHandler = { request, transport in
+            switch request.method {
+            case .health:
+                transport.emitPayload(id: request.id, payload: makeHelperHealthPayload(pid: 9301))
+            case .startSession:
+                transport.emitPayload(
+                    id: request.id,
+                    payload: makeHelperSessionPayload(sessionId: "main", state: .running, pid: 9301))
+            case .pauseSession:
+                transport.emitPayload(
+                    id: request.id,
+                    payload: makeHelperSessionPayload(sessionId: "main", state: .paused, pid: 9301))
+            default:
+                break
+            }
+        }
+
+        let secondTransport = TestMacNodeComputerHelperTransport(pid: 9302)
+        secondTransport.sendHandler = { request, transport in
+            switch request.method {
+            case .health:
+                transport.emitPayload(id: request.id, payload: makeHelperHealthPayload(pid: 9302))
+            case .startSession:
+                transport.emitPayload(
+                    id: request.id,
+                    payload: makeHelperSessionPayload(sessionId: "main", state: .running, pid: 9302))
+            case .pauseSession:
+                transport.emitPayload(
+                    id: request.id,
+                    payload: makeHelperSessionPayload(sessionId: "main", state: .paused, pid: 9302))
+            case .getContext:
+                transport.emitPayload(id: request.id, payload: makeObservePayload(capturedAt: 333).context)
+            default:
+                break
+            }
+        }
+
+        let factory = SequentialTransportFactory([firstTransport, secondTransport])
+        let client = MacNodeComputerHelperClient(transportFactory: { try factory.next() })
+
+        _ = try await client.startSession("main")
+        let paused = try await client.pauseSession("main")
+        #expect(paused.state == .paused)
+
+        firstTransport.exit(status: 9)
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        _ = try await client.getContext(sessionId: "main")
+
+        let secondMethods = await secondTransport.sentMethods()
+        #expect(secondMethods == [.health, .startSession, .pauseSession, .getContext])
     }
 }

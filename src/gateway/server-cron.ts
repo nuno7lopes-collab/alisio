@@ -1,3 +1,4 @@
+import path from "node:path";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import type { CliDeps } from "../cli/deps.js";
 import { createOutboundSendDeps } from "../cli/outbound-send-deps.js";
@@ -29,6 +30,12 @@ import { enqueueSystemEvent } from "../infra/system-events.js";
 import { getChildLogger } from "../logging.js";
 import { normalizeAgentId, toAgentStoreSessionKey } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
+import {
+  buildAccountWorkspaceScopeSegments,
+  normalizeCanonicalAccountId,
+} from "../shared/alisio-account-scope.js";
+import { resolveConfigDir } from "../utils.js";
+import { loadAlisioGatewayAccountContext } from "./alisio-account-context.js";
 
 export type GatewayCronState = {
   cron: CronService;
@@ -37,6 +44,48 @@ export type GatewayCronState = {
 };
 
 const CRON_WEBHOOK_TIMEOUT_MS = 10_000;
+
+export function resolveGatewayCronStorePath(params: {
+  configuredStorePath?: string;
+  accountId?: string | null;
+}) {
+  if (params.configuredStorePath?.trim()) {
+    return resolveCronStorePath(params.configuredStorePath);
+  }
+  const accountId = normalizeCanonicalAccountId(params.accountId) ?? "auth-required";
+  return path.join(
+    resolveConfigDir(),
+    ...buildAccountWorkspaceScopeSegments(accountId),
+    "cron",
+    "jobs.json",
+  );
+}
+
+export function resolveGatewayCronRuntimeScope(params: {
+  configuredStorePath?: string;
+  configuredCronEnabled: boolean;
+  accountId?: string | null;
+}) {
+  const accountId = normalizeCanonicalAccountId(params.accountId);
+  return {
+    storePath: resolveGatewayCronStorePath({
+      configuredStorePath: params.configuredStorePath,
+      accountId,
+    }),
+    cronEnabled: params.configuredCronEnabled && typeof accountId === "string",
+  };
+}
+
+async function loadAuthenticatedCronAccountId(): Promise<string | undefined> {
+  try {
+    const accountContext = await loadAlisioGatewayAccountContext();
+    return accountContext.canonical.authenticated
+      ? normalizeCanonicalAccountId(accountContext.canonical.accountId)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function trimToOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") {
@@ -141,16 +190,20 @@ async function postCronWebhook(params: {
   }
 }
 
-export function buildGatewayCronService(params: {
+export async function buildGatewayCronService(params: {
   cfg: ReturnType<typeof loadConfig>;
   deps: CliDeps;
   broadcast: (event: string, payload: unknown, opts?: { dropIfSlow?: boolean }) => void;
-}): GatewayCronState {
+}): Promise<GatewayCronState> {
   const cronLogger = getChildLogger({ module: "cron" });
-  const storePath = resolveCronStorePath(params.cfg.cron?.store);
-  const cronEnabled =
-    process.env.ALISIO_SKIP_CRON !== "1" &&
-    params.cfg.cron?.enabled !== false;
+  const configuredCronEnabled =
+    process.env.ALISIO_SKIP_CRON !== "1" && params.cfg.cron?.enabled !== false;
+  const accountId = await loadAuthenticatedCronAccountId();
+  const runtimeScope = resolveGatewayCronRuntimeScope({
+    configuredStorePath: params.cfg.cron?.store,
+    configuredCronEnabled,
+    accountId,
+  });
 
   const resolveCronAgent = (requested?: string | null) => {
     const runtimeConfig = loadConfig();
@@ -231,8 +284,10 @@ export function buildGatewayCronService(params: {
   const warnedLegacyWebhookJobs = new Set<string>();
 
   const cron = new CronService({
-    storePath,
-    cronEnabled,
+    storePath: runtimeScope.storePath,
+    configuredStorePath: params.cfg.cron?.store,
+    cronEnabled: runtimeScope.cronEnabled,
+    configuredCronEnabled,
     cronConfig: params.cfg.cron,
     defaultAgentId,
     resolveSessionStorePath,
@@ -363,7 +418,7 @@ export function buildGatewayCronService(params: {
         deps: createOutboundSendDeps(params.deps),
       });
     },
-    log: getChildLogger({ module: "cron", storePath }),
+    log: getChildLogger({ module: "cron", storePath: runtimeScope.storePath }),
     onEvent: (evt) => {
       params.broadcast("cron", evt, { dropIfSlow: true });
       if (evt.action === "finished") {
@@ -478,7 +533,7 @@ export function buildGatewayCronService(params: {
         }
 
         const logPath = resolveCronRunLogPath({
-          storePath,
+          storePath: cron.getStorePath(),
           jobId: evt.jobId,
         });
         void appendCronRunLog(
@@ -510,5 +565,5 @@ export function buildGatewayCronService(params: {
     },
   });
 
-  return { cron, storePath, cronEnabled };
+  return { cron, storePath: runtimeScope.storePath, cronEnabled: runtimeScope.cronEnabled };
 }

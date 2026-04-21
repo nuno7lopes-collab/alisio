@@ -1,6 +1,7 @@
 import Foundation
 
 import AlisioSupport
+@testable import Alisio
 actor TestIsolationLock {
     static let shared = TestIsolationLock()
 
@@ -103,6 +104,35 @@ enum TestIsolation {
         _ body: () async throws -> T) async rethrows -> T
     {
         try await self.withIsolatedState(env: [:], defaults: values, body)
+    }
+
+    static func withAccountStore<T>(
+        snapshot: AlisioAccountSnapshot? = nil,
+        _ body: () async throws -> T) async rethrows -> T
+    {
+        try await self.withIsolatedState {
+            AlisioAccountStore.shared.clear()
+            if let snapshot {
+                AlisioAccountStore.shared.apply(snapshot)
+            }
+            defer { AlisioAccountStore.shared.clear() }
+            return try await body()
+        }
+    }
+
+    static func withSignedInAccount<T>(
+        accountId: String = "acct-test",
+        _ body: () async throws -> T) async rethrows -> T
+    {
+        try await self.withAccountStore(
+            snapshot: AlisioAccountSnapshot(
+                accountId: accountId,
+                canonical: .init(authenticated: true, accountId: accountId, source: "test"),
+                profile: nil,
+                session: .init(state: "signed_in", authenticated: true, accountId: accountId),
+                devices: [],
+                deviceBinding: nil),
+            body)
     }
 
     nonisolated static func tempConfigPath() -> String {

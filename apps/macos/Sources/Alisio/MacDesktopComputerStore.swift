@@ -145,6 +145,12 @@ final class MacDesktopComputerStore {
     }
 
     func activate() {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.errorText = "Sign in to use computer control."
+            self.sessionStatus = .blockedOnRuntime
+            self.sessionState = .stopped
+            return
+        }
         guard self.refreshTask == nil else { return }
         self.refreshTask = Task { [weak self] in
             guard let self else { return }
@@ -219,6 +225,10 @@ final class MacDesktopComputerStore {
     }
 
     func start() {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.errorText = "Sign in to use computer control."
+            return
+        }
         if self.permissions.screenRecordingRestartRequired == true {
             self.errorText = "Restart Alisio to refresh Screen Recording access"
             self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
@@ -248,18 +258,30 @@ final class MacDesktopComputerStore {
     }
 
     private func bootstrap() async {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.errorText = "Sign in to use computer control."
+            return
+        }
         await self.refreshSessionState()
         guard self.shouldObserveFrames else { return }
         await self.refreshObservationFrame()
     }
 
     private func refreshObservation() async {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.errorText = "Sign in to use computer control."
+            return
+        }
         await self.refreshSessionState()
         guard self.shouldObserveFrames else { return }
         await self.refreshObservationFrame()
     }
 
     private func transition(_ command: GatewayConnection.ComputerSessionCommand) {
+        guard AlisioAccountStore.shared.isAuthenticated else {
+            self.errorText = "Sign in to use computer control."
+            return
+        }
         guard !self.isBusy else { return }
         self.isBusy = true
         Task {

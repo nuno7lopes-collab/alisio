@@ -9,6 +9,20 @@ final class ComputerControlService {
     private let jpegCompression: CGFloat = 0.72
     private let frameMaxAgeMs = MacNodeComputerActionEngine.defaultFrameMaxAgeMs
 
+    static func currentPermissionState() -> MacNodeComputerPermissionPayload {
+        let accessibility = AXIsProcessTrusted()
+        let screenRecording = ScreenRecordingProbe.isAuthorized()
+        return MacNodeComputerPermissionPayload(
+            accessibility: accessibility,
+            screenRecording: screenRecording,
+            accessibilityRestartRequired: accessibility
+                ? PermissionRestartCoordinator.shared.requiresRestart(for: .accessibility)
+                : false,
+            screenRecordingRestartRequired: screenRecording
+                ? PermissionRestartCoordinator.shared.requiresRestart(for: .screenRecording)
+                : false)
+    }
+
     func captureFrame() async throws -> MacNodeComputerObservePayload {
         try self.ensureScreenRecording()
         let snapshot = try await self.captureSnapshot()
@@ -23,17 +37,7 @@ final class ComputerControlService {
     }
 
     func getPermissionState() -> MacNodeComputerPermissionPayload {
-        let accessibility = AXIsProcessTrusted()
-        let screenRecording = ScreenRecordingProbe.isAuthorized()
-        return MacNodeComputerPermissionPayload(
-            accessibility: accessibility,
-            screenRecording: screenRecording,
-            accessibilityRestartRequired: accessibility
-                ? PermissionRestartCoordinator.shared.requiresRestart(for: .accessibility)
-                : false,
-            screenRecordingRestartRequired: screenRecording
-                ? PermissionRestartCoordinator.shared.requiresRestart(for: .screenRecording)
-                : false)
+        Self.currentPermissionState()
     }
 
     func performActions(_ actions: [MacNodeComputerActionPayload]) async throws -> MacNodeComputerPerformActionsPayload {

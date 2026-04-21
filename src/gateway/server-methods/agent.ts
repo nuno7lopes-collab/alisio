@@ -114,6 +114,7 @@ async function requireAuthenticatedAccountContext(
 async function runSessionResetFromAgent(params: {
   key: string;
   reason: "new" | "reset";
+  accountId?: string | null;
 }): Promise<
   | { ok: true; key: string; sessionId?: string }
   | { ok: false; error: ReturnType<typeof errorShape> }
@@ -122,6 +123,7 @@ async function runSessionResetFromAgent(params: {
     key: params.key,
     reason: params.reason,
     commandSource: "gateway:agent",
+    accountId: params.accountId,
   });
   if (!result.ok) {
     return result;
@@ -138,13 +140,15 @@ function emitSessionsChanged(
     GatewayRequestHandlerOptions["context"],
     "broadcastToConnIds" | "getSessionEventSubscriberConnIds"
   >,
-  payload: { sessionKey?: string; reason: string },
+  payload: { sessionKey?: string; reason: string; accountId?: string | null },
 ) {
   const connIds = context.getSessionEventSubscriberConnIds();
   if (connIds.size === 0) {
     return;
   }
-  const sessionRow = payload.sessionKey ? loadGatewaySessionRow(payload.sessionKey) : null;
+  const sessionRow = payload.sessionKey
+    ? loadGatewaySessionRow(payload.sessionKey, { accountId: payload.accountId })
+    : null;
   context.broadcastToConnIds(
     "sessions.changed",
     {
@@ -497,6 +501,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       const resetResult = await runSessionResetFromAgent({
         key: requestedSessionKey,
         reason: resetReason,
+        accountId: accountContext.canonical.accountId,
       });
       if (!resetResult.ok) {
         respond(false, undefined, resetResult.error);
@@ -526,7 +531,9 @@ export const agentHandlers: GatewayRequestHandlers = {
     }
 
     if (requestedSessionKey) {
-      const { cfg, storePath, entry, canonicalKey } = loadSessionEntry(requestedSessionKey);
+      const { cfg, storePath, entry, canonicalKey } = loadSessionEntry(requestedSessionKey, {
+        accountId: accountContext.canonical.accountId,
+      });
       cfgForAgent = cfg;
       isNewSession = !entry;
       const now = Date.now();
@@ -539,7 +546,9 @@ export const agentHandlers: GatewayRequestHandlers = {
         | undefined;
       if (spawnedByValue && (!resolvedGroupId || !resolvedGroupChannel || !resolvedGroupSpace)) {
         try {
-          const parentEntry = loadSessionEntry(spawnedByValue)?.entry;
+          const parentEntry = loadSessionEntry(spawnedByValue, {
+            accountId: accountContext.canonical.accountId,
+          })?.entry;
           inheritedGroup = {
             groupId: parentEntry?.groupId,
             groupChannel: parentEntry?.groupChannel,
@@ -790,12 +799,14 @@ export const agentHandlers: GatewayRequestHandlers = {
       emitSessionsChanged(context, {
         sessionKey: resolvedSessionKey,
         reason: "create",
+        accountId: accountContext.canonical.accountId,
       });
     }
     if (resolvedSessionKey) {
       emitSessionsChanged(context, {
         sessionKey: resolvedSessionKey,
         reason: "send",
+        accountId: accountContext.canonical.accountId,
       });
     }
 

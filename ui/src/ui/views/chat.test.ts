@@ -287,21 +287,6 @@ function createWorkspaceComputerSession(
         reason:
           "Control uses real macOS Accessibility input and may move focus, cursor, or global input.",
       },
-      {
-        kind: "background_safe_control",
-        available: false,
-        exposure: "hidden",
-        reasonCode: "local_mac_background_safe_control_unavailable",
-        reason:
-          "Local macOS control is not background-safe because it still depends on real foreground input.",
-      },
-      {
-        kind: "future_virtualized_control",
-        available: false,
-        exposure: "hidden",
-        reasonCode: "local_mac_virtualized_control_unavailable",
-        reason: "No virtualized desktop target exists in the current local-mac runtime.",
-      },
     ],
     approvedApps: ["com.apple.safari"],
     policy: {

@@ -45,13 +45,13 @@ struct NixModeStableSuiteTests {
         #expect(!resolved)
     }
 
-    @Test func `ignores legacy alisio nix env`() throws {
+    @Test func `resolves nix mode from alisio env`() throws {
         let standard = try #require(UserDefaults(suiteName: "NixModeStableSuiteTests.\(UUID().uuidString)"))
         let resolved = ProcessInfo.resolveNixMode(
             environment: ["ALISIO_NIX_MODE": "1"],
             standard: standard,
             stableSuites: [],
             isAppBundle: true)
-        #expect(!resolved)
+        #expect(resolved)
     }
 }

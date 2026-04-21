@@ -51,6 +51,7 @@ import { deriveSessionChatType, isCronRunSessionKey } from "../sessions/session-
 import { stripEnvelope, stripMessageIdHints } from "../shared/chat-envelope.js";
 import { normalizeSessionDeliveryFields } from "../utils/delivery-context.js";
 import { estimateUsageCost, resolveModelCostConfig } from "../utils/usage-format.js";
+import { resolveAccountScopedSessionStorePath } from "./alisio-account-context.js";
 import {
   readLatestSessionUsageFromTranscript,
   readSessionTitleFieldsFromTranscript,
@@ -364,7 +365,11 @@ function resolveTranscriptUsageFallback(params: {
   };
 }
 
-export function loadSessionEntry(sessionKey: string) {
+type GatewaySessionAccountScopeOptions = {
+  accountId?: string | null;
+};
+
+export function loadSessionEntry(sessionKey: string, options?: GatewaySessionAccountScopeOptions) {
   const cfg = loadConfig();
   const canonicalKey = resolveSessionStoreKey({ cfg, sessionKey });
   const agentId = resolveSessionStoreAgentId(cfg, canonicalKey);
@@ -373,11 +378,13 @@ export function loadSessionEntry(sessionKey: string) {
     key: sessionKey.trim(),
     canonicalKey,
     agentId,
+    accountId: options?.accountId,
   });
   const target = resolveGatewaySessionStoreTarget({
     cfg,
     key: sessionKey.trim(),
     store,
+    accountId: options?.accountId,
   });
   const freshestMatch = resolveFreshestSessionStoreMatchFromStoreKeys(store, target.storeKeys);
   const legacyKey = freshestMatch?.key !== canonicalKey ? freshestMatch?.key : undefined;
@@ -840,6 +847,7 @@ function resolveGatewaySessionStoreLookup(params: {
   key: string;
   canonicalKey: string;
   agentId: string;
+  accountId?: string | null;
   initialStore?: Record<string, SessionEntry>;
 }): {
   storePath: string;
@@ -852,8 +860,11 @@ function resolveGatewaySessionStoreLookup(params: {
     agentId: params.agentId,
     storePath: resolveStorePath(params.cfg.session?.store, { agentId: params.agentId }),
   };
-  let selectedStorePath = fallback.storePath;
-  let selectedStore = params.initialStore ?? loadSessionStore(fallback.storePath);
+  let selectedStorePath = resolveAccountScopedSessionStorePath(
+    fallback.storePath,
+    params.accountId,
+  );
+  let selectedStore = params.initialStore ?? loadSessionStore(selectedStorePath);
   let selectedMatch = findFreshestStoreMatch(selectedStore, ...scanTargets);
   let selectedUpdatedAt = selectedMatch?.entry.updatedAt ?? Number.NEGATIVE_INFINITY;
 
@@ -862,7 +873,11 @@ function resolveGatewaySessionStoreLookup(params: {
     if (!candidate) {
       continue;
     }
-    const store = loadSessionStore(candidate.storePath);
+    const candidateStorePath = resolveAccountScopedSessionStorePath(
+      candidate.storePath,
+      params.accountId,
+    );
+    const store = loadSessionStore(candidateStorePath);
     const match = findFreshestStoreMatch(store, ...scanTargets);
     if (!match) {
       continue;
@@ -871,7 +886,7 @@ function resolveGatewaySessionStoreLookup(params: {
     // Mirror combined-store merge behavior so follow-up mutations target the
     // same backing store that won the listing merge when ids collide.
     if (!selectedMatch || updatedAt >= selectedUpdatedAt) {
-      selectedStorePath = candidate.storePath;
+      selectedStorePath = candidateStorePath;
       selectedStore = store;
       selectedMatch = match;
       selectedUpdatedAt = updatedAt;
@@ -888,6 +903,7 @@ function resolveGatewaySessionStoreLookup(params: {
 export function resolveGatewaySessionStoreTarget(params: {
   cfg: AlisioConfig;
   key: string;
+  accountId?: string | null;
   scanLegacyKeys?: boolean;
   store?: Record<string, SessionEntry>;
 }): {
@@ -907,6 +923,7 @@ export function resolveGatewaySessionStoreTarget(params: {
     key,
     canonicalKey,
     agentId,
+    accountId: params.accountId,
     initialStore: params.store,
   });
 
@@ -973,13 +990,19 @@ function mergeSessionEntryIntoCombined(params: {
   }
 }
 
-export function loadCombinedSessionStoreForGateway(cfg: AlisioConfig): {
+export function loadCombinedSessionStoreForGateway(
+  cfg: AlisioConfig,
+  options?: GatewaySessionAccountScopeOptions,
+): {
   storePath: string;
   store: Record<string, SessionEntry>;
 } {
   const storeConfig = cfg.session?.store;
   if (storeConfig && !isStorePathTemplate(storeConfig)) {
-    const storePath = resolveStorePath(storeConfig);
+    const storePath = resolveAccountScopedSessionStorePath(
+      resolveStorePath(storeConfig),
+      options?.accountId,
+    );
     const defaultAgentId = normalizeAgentId(resolveDefaultAgentId(cfg));
     const store = loadSessionStore(storePath);
     const combined: Record<string, SessionEntry> = {};
@@ -1000,7 +1023,7 @@ export function loadCombinedSessionStoreForGateway(cfg: AlisioConfig): {
   const combined: Record<string, SessionEntry> = {};
   for (const target of targets) {
     const agentId = target.agentId;
-    const storePath = target.storePath;
+    const storePath = resolveAccountScopedSessionStorePath(target.storePath, options?.accountId);
     const store = loadSessionStore(storePath);
     for (const [key, entry] of Object.entries(store)) {
       const canonicalKey = canonicalizeSessionKeyForAgent(agentId, key);
@@ -1016,7 +1039,13 @@ export function loadCombinedSessionStoreForGateway(cfg: AlisioConfig): {
 
   const storePath =
     typeof storeConfig === "string" && storeConfig.trim() ? storeConfig.trim() : "(multiple)";
-  return { storePath, store: combined };
+  return {
+    storePath:
+      storePath === "(multiple)"
+        ? storePath
+        : resolveAccountScopedSessionStorePath(storePath, options?.accountId),
+    store: combined,
+  };
 }
 
 export function getSessionDefaults(cfg: AlisioConfig): GatewaySessionsDefaults {
@@ -1369,9 +1398,16 @@ export function buildGatewaySessionRow(params: {
 
 export function loadGatewaySessionRow(
   sessionKey: string,
-  options?: { includeDerivedTitles?: boolean; includeLastMessage?: boolean; now?: number },
+  options?: {
+    includeDerivedTitles?: boolean;
+    includeLastMessage?: boolean;
+    now?: number;
+    accountId?: string | null;
+  },
 ): GatewaySessionRow | null {
-  const { cfg, storePath, store, entry, canonicalKey } = loadSessionEntry(sessionKey);
+  const { cfg, storePath, store, entry, canonicalKey } = loadSessionEntry(sessionKey, {
+    accountId: options?.accountId,
+  });
   if (!entry) {
     return null;
   }

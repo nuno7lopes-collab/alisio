@@ -275,7 +275,24 @@ public struct AlisioAgentEventPayload: Codable, Sendable, Identifiable {
     public let seq: Int?
     public let stream: String
     public let ts: Int?
+    public let sessionKey: String?
     public let data: [String: AnyCodable]
+
+    public init(
+        runId: String,
+        seq: Int?,
+        stream: String,
+        ts: Int?,
+        data: [String: AnyCodable],
+        sessionKey: String? = nil)
+    {
+        self.runId = runId
+        self.seq = seq
+        self.stream = stream
+        self.ts = ts
+        self.data = data
+        self.sessionKey = sessionKey
+    }
 }
 
 public struct AlisioChatPendingToolCall: Identifiable, Hashable, Sendable {

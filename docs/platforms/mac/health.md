@@ -26,9 +26,24 @@ How to see whether the linked channel is healthy from the menu bar app.
 
 ## How the probe works
 
-- App runs `alisio health --json` via `ShellExecutor` every ~60s and on demand. The probe loads creds and reports status without sending messages.
+- The packaged app probes the local Gateway over the native websocket control
+  connection. It tries the `health` RPC first and accepts a successful `status`
+  RPC as liveness while the Gateway is still finishing startup.
 - Cache the last good snapshot and the last error separately to avoid flicker; show the timestamp of each.
+- The native `chat.send` path runs a single local Gateway preflight before the
+  RPC, with a slightly longer readiness window for cold starts, so first-message
+  failures should surface as Gateway readiness errors instead of hanging.
 
 ## When in doubt
 
-- You can still use the CLI flow in [Gateway health](/gateway/health) (`alisio status`, `alisio status --deep`, `alisio health --json`) and tail `/tmp/alisio/alisio-*.log` for `web-heartbeat` / `web-reconnect`.
+- Verify the packaged LaunchAgent and logs:
+
+  ```bash
+  /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' ~/Library/LaunchAgents/ai.alisio.gateway.plist
+  /usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' ~/Library/LaunchAgents/ai.alisio.gateway.plist
+  launchctl print gui/$UID/ai.alisio.gateway | sed -n '1,120p'
+  tail -n 120 ~/.alisio/logs/gateway.log
+  tail -n 120 ~/.alisio/logs/gateway.err.log
+  ```
+
+- You can still use the CLI flow in [Gateway health](/gateway/health) (`alisio status`, `alisio status --deep`, `alisio health --json`) for fallback CLI installs.

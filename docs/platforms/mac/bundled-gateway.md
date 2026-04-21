@@ -20,9 +20,27 @@ install when the bundled runtime is intentionally skipped.
 ## Local mode in release builds
 
 - `Alisio.app` carries the Gateway package in `Contents/Resources/alisio-package`
-- release packaging should also embed a compatible Node runtime (`>=22.16.0`)
-- launchd starts the bundled runtime for Local mode
+- release packaging embeds a compatible Node runtime (`>=22.16.0`) in
+  `Contents/Resources/alisio-package/tools/node/bin/node`
+- launchd starts the bundled Node plus the bundled `alisio.mjs` entrypoint for
+  Local mode
 - if a compatible local Gateway is already listening on the configured port, the app attaches to it instead of starting a duplicate
+
+The real packaged LaunchAgent should look like this:
+
+```text
+ProgramArguments = (
+  ".../Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node",
+  ".../Alisio.app/Contents/Resources/alisio-package/alisio.mjs",
+  "gateway",
+  "run",
+  "--port",
+  "40705"
+)
+```
+
+If it points at a checkout path such as `src/entry.ts`, `pnpm`, or a repo-local
+`node_modules/.bin/alisio`, rebuild the app bundle and reinstall the LaunchAgent.
 
 ## External CLI fallback (debug / development only)
 
@@ -60,7 +78,28 @@ Behavior:
 
 Logging:
 
-- launchd stdout/err: `/tmp/alisio/alisio-gateway.log`
+- launchd stdout/err: `~/.alisio/logs/gateway.log` and `~/.alisio/logs/gateway.err.log`
+
+## Local automations
+
+In Local mode, the macOS app manages cron jobs and heartbeat settings through
+the local Gateway control RPCs. Those actions require the signed-in Alisio
+account. The app preflights the local Gateway before list, add, update,
+enable/disable, manual run, heartbeat read, and heartbeat toggle calls, then
+surfaces the real account or gateway error if the runtime is cold, offline, or
+restarting.
+
+The native first-message path (`chat.send`) also preflights the local Gateway
+before issuing the RPC and uses a longer readiness window for cold starts, so
+the user sees a readiness failure instead of a silent hang when the bundled
+runtime is still booting.
+
+The default cron store is account scoped under the Alisio data directory:
+`accounts/<account>/cron/jobs.json`. A signed-out Gateway uses an auth-required
+scope with the scheduler disabled, so stored jobs from a previous account do not
+continue running after sign-out.
+
+See [Cron vs Heartbeat](/automation/cron-vs-heartbeat) for the scheduling model.
 
 ## Version compatibility
 
@@ -68,6 +107,36 @@ The macOS app checks the gateway version against its own version.
 
 - bundled release builds should stay in lockstep automatically
 - if you are using the external CLI fallback, update the global CLI to match the app version
+
+## Smoke check (packaged app flow)
+
+Use the heavy restart path when validating the real bundle:
+
+```bash
+pnpm mac:bundle:restart
+```
+
+The restart script packages `.run/Alisio.app`, validates the signature and
+bundled runtime, opens the app, and waits for the main window.
+
+Manual checks:
+
+```bash
+.run/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node -p 'process.execPath'
+/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' ~/Library/LaunchAgents/ai.alisio.gateway.plist
+/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' ~/Library/LaunchAgents/ai.alisio.gateway.plist
+launchctl print gui/$UID/ai.alisio.gateway | sed -n '1,120p'
+tail -n 120 ~/.alisio/logs/gateway.log
+tail -n 120 ~/.alisio/logs/gateway.err.log
+```
+
+Health over the bundled package:
+
+```bash
+.run/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node \
+  .run/Alisio.app/Contents/Resources/alisio-package/alisio.mjs \
+  gateway call health --timeout 10000
+```
 
 ## Smoke check (fallback CLI flow)
 
@@ -82,5 +151,5 @@ alisio gateway run --port 18999 --bind loopback
 Then:
 
 ```bash
-alisio gateway call health --url ws://127.0.0.1:18999 --timeout 3000
+ALISIO_GATEWAY_PORT=18999 alisio gateway call health --timeout 10000
 ```

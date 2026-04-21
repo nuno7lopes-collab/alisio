@@ -22,8 +22,27 @@ struct ControlAgentEvent: Codable, Identifiable {
     let seq: Int
     let stream: String
     let ts: Double
+    let sessionKey: String?
     let data: [String: AlisioProtocol.AnyCodable]
     let summary: String?
+
+    init(
+        runId: String,
+        seq: Int,
+        stream: String,
+        ts: Double,
+        data: [String: AlisioProtocol.AnyCodable],
+        summary: String?,
+        sessionKey: String? = nil)
+    {
+        self.runId = runId
+        self.seq = seq
+        self.stream = stream
+        self.ts = ts
+        self.data = data
+        self.summary = summary
+        self.sessionKey = sessionKey
+    }
 }
 
 enum ControlChannelError: Error, LocalizedError {
@@ -132,6 +151,7 @@ final class ControlChannel {
         self.state = .disconnected
         self.lastPingMs = nil
         self.authSourceLabel = nil
+        AlisioAccountStore.shared.clear()
     }
 
     func health(timeout: TimeInterval? = nil) async throws -> Data {
@@ -322,6 +342,7 @@ final class ControlChannel {
                 userInfo: [NSLocalizedDescriptionKey: "gateway health not ok"])
         }
         await self.refreshAuthSourceLabel()
+        await AlisioAccountStore.shared.refresh(reason: "control-channel-connected")
     }
 
     private func refreshAuthSourceLabel() async {
@@ -386,7 +407,9 @@ final class ControlChannel {
     private func routeWorkActivity(from event: ControlAgentEvent) {
         // We currently treat VoiceWake as the "main" session for UI purposes.
         // In the future, the gateway can include a sessionKey to distinguish runs.
-        let sessionKey = (event.data["sessionKey"]?.value as? String) ?? "main"
+        let sessionKey = event.sessionKey ??
+            (event.data["sessionKey"]?.value as? String) ??
+            "main"
 
         switch event.stream.lowercased() {
         case "job":

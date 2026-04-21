@@ -24,7 +24,7 @@ extension CronSettings {
                 if let agentId = job.agentId, !agentId.isEmpty {
                     StatusPill(text: "agent \(agentId)", tint: .secondary)
                 }
-                if let status = job.state.lastStatus {
+                if let status = job.state.displayStatus {
                     StatusPill(text: status, tint: status == "ok" ? .green : .orange)
                 }
             }
@@ -120,7 +120,7 @@ extension CronSettings {
                     Text("—").foregroundStyle(.secondary)
                 }
             }
-            if let status = job.state.lastStatus {
+            if let status = job.state.displayStatus {
                 LabeledContent("Last status") { Text(status) }
             }
             if let err = job.state.lastError, !err.isEmpty {
@@ -178,6 +178,11 @@ extension CronSettings {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 StatusPill(text: entry.status ?? "unknown", tint: self.statusTint(entry.status))
+                if let deliveryStatus = entry.deliveryStatus, !deliveryStatus.isEmpty {
+                    StatusPill(
+                        text: deliveryStatus,
+                        tint: deliveryStatus == "delivered" ? .green : .secondary)
+                }
                 Text(entry.date.formatted(date: .abbreviated, time: .standard))
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -197,6 +202,13 @@ extension CronSettings {
             }
             if let error = entry.error, !error.isEmpty {
                 Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+            }
+            if let deliveryError = entry.deliveryError, !deliveryError.isEmpty {
+                Text(deliveryError)
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .textSelection(.enabled)

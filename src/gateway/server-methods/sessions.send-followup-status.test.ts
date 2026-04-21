@@ -8,6 +8,18 @@ const loadGatewaySessionRowMock = vi.fn();
 const getLatestSubagentRunByChildSessionKeyMock = vi.fn();
 const replaceSubagentRunAfterSteerMock = vi.fn();
 const chatSendMock = vi.fn();
+const requireAuthenticatedAppAccountMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    canonical: {
+      authenticated: true,
+      accountId: "acct-test",
+    },
+  })),
+);
+
+vi.mock("./account-required.js", () => ({
+  requireAuthenticatedAppAccount: requireAuthenticatedAppAccountMock,
+}));
 
 vi.mock("../session-utils.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../session-utils.js")>();
@@ -48,6 +60,12 @@ describe("sessions.send completed subagent follow-up status", () => {
     getLatestSubagentRunByChildSessionKeyMock.mockReset();
     replaceSubagentRunAfterSteerMock.mockReset();
     chatSendMock.mockReset();
+    requireAuthenticatedAppAccountMock.mockResolvedValue({
+      canonical: {
+        authenticated: true,
+        accountId: "acct-test",
+      },
+    });
   });
 
   it("reactivates completed subagent sessions before broadcasting sessions.changed", async () => {

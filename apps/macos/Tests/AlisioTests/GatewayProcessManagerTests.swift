@@ -37,7 +37,7 @@ struct GatewayProcessManagerTests {
             configProvider: { (url: url, token: nil, password: nil) },
             sessionBox: WebSocketSessionBox(session: session))
 
-        let manager = GatewayProcessManager.shared
+        let manager = GatewayProcessManager()
         manager.setTestingConnection(connection)
         manager.setTestingDesiredActive(true)
         manager.setTestingLastFailureReason("health failed")
@@ -74,7 +74,7 @@ struct GatewayProcessManagerTests {
             configProvider: { (url: url, token: nil, password: nil) },
             sessionBox: WebSocketSessionBox(session: session))
 
-        let manager = GatewayProcessManager.shared
+        let manager = GatewayProcessManager()
         manager.setTestingConnection(connection)
         manager.setTestingDesiredActive(true)
         manager.setTestingLastFailureReason(nil)
@@ -87,6 +87,34 @@ struct GatewayProcessManagerTests {
         let ready = await manager.waitForGatewayReady(timeout: 0.15)
         #expect(!ready)
         #expect(manager.lastFailureReason?.contains("rejected auth") == true)
+    }
+
+    @Test func `records connection failure code during readiness waits`() async throws {
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    receiveHook: { _, _ in
+                        throw URLError(.cannotConnectToHost)
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+
+        let manager = GatewayProcessManager()
+        manager.setTestingConnection(connection)
+        manager.setTestingDesiredActive(true)
+        manager.setTestingLastFailureReason(nil)
+        defer {
+            manager.setTestingConnection(nil)
+            manager.setTestingDesiredActive(false)
+            manager.setTestingLastFailureReason(nil)
+        }
+
+        let ready = await manager.waitForGatewayReady(timeout: 0.15)
+        #expect(!ready)
+        #expect(manager.lastFailureReason?.contains("[readiness:connect]") == true)
     }
 
     @Test func `attaches to existing gateway without spawning launchd`() async throws {
@@ -153,7 +181,7 @@ struct GatewayProcessManagerTests {
                 command: "alisio-gateway",
                 executablePath: "/tmp/alisio-gateway")
 
-            let manager = GatewayProcessManager.shared
+            let manager = GatewayProcessManager()
             manager.clearLog()
             await PortGuardian.shared.setTestingDescriptor(descriptor, forPort: port)
             manager.setTestingConnection(connection)
@@ -245,7 +273,7 @@ struct GatewayProcessManagerTests {
                 command: "alisio-gateway",
                 executablePath: "/tmp/alisio-gateway")
 
-            let manager = GatewayProcessManager.shared
+            let manager = GatewayProcessManager()
             manager.clearLog()
             await PortGuardian.shared.setTestingDescriptor(descriptor, forPort: port)
             manager.setTestingConnection(connection)
@@ -341,7 +369,7 @@ struct GatewayProcessManagerTests {
                 command: "alisio-gateway",
                 executablePath: "/tmp/alisio-gateway")
 
-            let manager = GatewayProcessManager.shared
+            let manager = GatewayProcessManager()
             manager.clearLog()
             await PortGuardian.shared.setTestingDescriptor(descriptor, forPort: port)
             manager.setTestingConnection(connection)

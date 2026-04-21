@@ -5,6 +5,7 @@ import SwiftUI
 import AlisioSupport
 struct SettingsRootView: View {
     @Bindable var state: AppState
+    @Bindable private var accountStore = AlisioAccountStore.shared
     private let permissionMonitor = PermissionMonitor.shared
     @State private var monitoringPermissions = false
     @State private var selectedTab: SettingsTab = .general
@@ -29,11 +30,15 @@ struct SettingsRootView: View {
                     .tabItem { Label("General", systemImage: "gearshape") }
                     .tag(SettingsTab.general)
 
-                ChannelsSettings()
+                self.accountProtectedSettingsContent(for: .channels) {
+                    ChannelsSettings()
+                }
                     .tabItem { Label("Apps", systemImage: "link") }
                     .tag(SettingsTab.channels)
 
-                VoiceWakeSettings(state: self.state, isActive: self.selectedTab == .voiceWake)
+                self.accountProtectedSettingsContent(for: .voiceWake) {
+                    VoiceWakeSettings(state: self.state, isActive: self.selectedTab == .voiceWake)
+                }
                     .tabItem { Label("Voice Wake", systemImage: "waveform.circle") }
                     .tag(SettingsTab.voiceWake)
 
@@ -41,19 +46,27 @@ struct SettingsRootView: View {
                     .tabItem { Label("Config", systemImage: "slider.horizontal.3") }
                     .tag(SettingsTab.config)
 
-                InstancesSettings()
+                self.accountProtectedSettingsContent(for: .instances) {
+                    InstancesSettings()
+                }
                     .tabItem { Label("Connections", systemImage: "network") }
                     .tag(SettingsTab.instances)
 
-                SessionsSettings()
+                self.accountProtectedSettingsContent(for: .sessions) {
+                    SessionsSettings()
+                }
                     .tabItem { Label("Chat", systemImage: "clock.arrow.circlepath") }
                     .tag(SettingsTab.sessions)
 
-                CronSettings()
+                self.accountProtectedSettingsContent(for: .cron) {
+                    CronSettings()
+                }
                     .tabItem { Label("Cron", systemImage: "calendar") }
                     .tag(SettingsTab.cron)
 
-                SkillsSettings(state: self.state)
+                self.accountProtectedSettingsContent(for: .skills) {
+                    SkillsSettings(state: self.state)
+                }
                     .tabItem { Label("Capabilities", systemImage: "sparkles") }
                     .tag(SettingsTab.skills)
 
@@ -108,6 +121,7 @@ struct SettingsRootView: View {
         .task {
             guard !self.isPreview else { return }
             await self.refreshPerms()
+            await self.accountStore.refresh(reason: "settings-root")
         }
         .task(id: self.state.connectionMode) {
             guard !self.isPreview else { return }
@@ -143,6 +157,21 @@ struct SettingsRootView: View {
         .padding(.horizontal, 10)
         .background(Color.gray.opacity(0.12))
         .cornerRadius(10)
+    }
+
+    @ViewBuilder
+    private func accountProtectedSettingsContent<Content: View>(
+        for tab: SettingsTab,
+        @ViewBuilder content: () -> Content) -> some View
+    {
+        if self.accountStore.isAuthenticated {
+            content()
+        } else {
+            AlisioAccountRequiredView(
+                store: self.accountStore,
+                title: "\(tab.title) requires an Alisio account",
+                message: "This section is disabled until the app can bind it to the signed-in account.")
+        }
     }
 
     private func validTab(for requested: SettingsTab) -> SettingsTab {

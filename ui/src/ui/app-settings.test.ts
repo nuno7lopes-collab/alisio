@@ -176,8 +176,25 @@ const createHost = (tab: Tab): SettingsHost => ({
 function createBootstrapAccount(): NonNullable<
   import("./types.ts").AlisioBootstrapState["account"]
 > {
+  const runtimeContract: NonNullable<
+    import("./types.ts").AlisioBootstrapState["account"]
+  >["runtimeContract"] = {
+    scopeRoot: "account",
+    backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+    localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+  };
   return {
+    accountId: "user-1",
+    scopeRoot: "account",
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+    },
     profile: {
+      accountId: "user-1",
       username: "nuno",
       displayName: "Nuno",
       email: "nuno@example.com",
@@ -194,6 +211,9 @@ function createBootstrapAccount(): NonNullable<
     session: {
       state: "signed_in" as const,
       profileCompleted: true,
+      authRequired: true,
+      authenticated: true,
+      accountId: "user-1",
     },
     devices: [],
     cloud: {
@@ -201,13 +221,27 @@ function createBootstrapAccount(): NonNullable<
       available: true,
       missingEnvVars: [],
     },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract,
   };
 }
 
 function createBootstrapState(
   overrides: Partial<import("./types.ts").AlisioBootstrapState> = {},
 ): import("./types.ts").AlisioBootstrapState {
+  const account = createBootstrapAccount();
   return {
+    accountId: "user-1",
+    scopeRoot: "account",
+    authRequired: true,
     connectionRequired: false,
     wizardRequired: false,
     wizardRunning: false,
@@ -225,7 +259,7 @@ function createBootstrapState(
       available: 0,
     },
     nextStep: "ready",
-    account: createBootstrapAccount(),
+    account,
     ai: {
       provider: "openai",
       status: "connected",
@@ -246,6 +280,8 @@ function createBootstrapState(
     },
     wizard: { running: false, sessionId: null },
     models: { total: 0, defaultProvider: "openai", providers: [] },
+    deviceBinding: account.deviceBinding,
+    runtimeContract: account.runtimeContract,
     ...overrides,
   };
 }
@@ -636,71 +672,25 @@ describe("applySettingsFromUrl", () => {
     const { history } = setTestWindowUrl("https://control.example/setup");
     const host = createHost("setup");
     host.connected = true;
-    host.alisioBootstrap = {
-      connectionRequired: false,
+    host.alisioBootstrap = createBootstrapState({
       wizardRequired: true,
-      wizardRunning: false,
       providerReady: false,
       accountReady: false,
       startupState: "needs_profile",
-      organizationState: { mode: "none" },
-      connectorSummary: {
-        total: 0,
-        ready: 0,
-        connected: 0,
-        needsReconnect: 0,
-        inReview: 0,
-        unavailable: 0,
-        available: 0,
-      },
       nextStep: "account",
       account: {
+        ...createBootstrapAccount(),
         profile: {
-          username: "nuno",
-          displayName: "Nuno",
+          ...createBootstrapAccount().profile,
           email: "nuno@alisio.local",
-          avatarLabel: "N",
-          joinedAt: "2026-04-01T00:00:00.000Z",
-          plan: "free",
-        },
-        preferences: {
-          language: "pt-PT",
-          themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
-          themeMode: "dark",
-          themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
-        },
-        session: {
-          state: "signed_in",
-          profileCompleted: true,
-        },
-        devices: [],
-        cloud: {
-          backend: "supabase",
-          available: true,
-          missingEnvVars: [],
         },
       },
       ai: {
         provider: "openai",
         status: "disconnected",
       },
-      organization: { mode: "none" },
-      connectors: {
-        catalog: [],
-        authorizations: [],
-        summary: {
-          total: 0,
-          ready: 0,
-          connected: 0,
-          needsReconnect: 0,
-          inReview: 0,
-          unavailable: 0,
-          available: 0,
-        },
-      },
-      wizard: { running: false, sessionId: null },
       models: { total: 0, defaultProvider: "anthropic", providers: [] },
-    };
+    });
 
     syncUrlWithTab(host, "setup", true);
 
@@ -728,43 +718,7 @@ describe("applySettingsFromUrl", () => {
     const host = createHost("setup");
     host.connected = true;
     host.setupStep = "runtime";
-    host.alisioBootstrap = {
-      connectionRequired: false,
-      wizardRequired: false,
-      wizardRunning: false,
-      providerReady: true,
-      accountReady: true,
-      startupState: "ready",
-      organizationState: { mode: "none" },
-      connectorSummary: {
-        total: 0,
-        ready: 0,
-        connected: 0,
-        needsReconnect: 0,
-        inReview: 0,
-        unavailable: 0,
-        available: 0,
-      },
-      nextStep: "ready",
-      account: createBootstrapAccount(),
-      ai: { provider: "openai", status: "connected" },
-      connectors: {
-        catalog: [],
-        authorizations: [],
-        summary: {
-          total: 0,
-          ready: 0,
-          connected: 0,
-          needsReconnect: 0,
-          inReview: 0,
-          unavailable: 0,
-          available: 0,
-        },
-      },
-      wizard: { running: false, sessionId: null },
-      models: { total: 0, defaultProvider: "openai", providers: [] },
-      organization: { mode: "none" },
-    };
+    host.alisioBootstrap = createBootstrapState();
 
     syncUrlWithTab(host, "setup", true);
 
@@ -930,14 +884,7 @@ describe("applySettingsFromUrl", () => {
     const refreshPromise = module.refreshActiveTab({
       tab: "connections",
     } as never);
-    let settled = false;
-    void refreshPromise.then(() => {
-      settled = true;
-    });
-    await Promise.resolve();
-    await Promise.resolve();
-
-    expect(settled).toBe(true);
+    await refreshPromise;
     expect(loadNodesMock).toHaveBeenCalledOnce();
     expect(loadDevicesMock).toHaveBeenCalledOnce();
     expect(loadAlisioSharingMock).toHaveBeenCalledOnce();

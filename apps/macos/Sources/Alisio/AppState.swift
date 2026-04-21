@@ -14,6 +14,8 @@ final class AppState {
     private var configWatcher: ConfigFileWatcher?
     private var suppressVoiceWakeGlobalSync = false
     private var voiceWakeGlobalSyncTask: Task<Void, Never>?
+    private var suppressHeartbeatsGatewaySync = false
+    private var heartbeatGatewaySyncTask: Task<Void, Never>?
 
     private func ifNotPreview(_ action: () -> Void) {
         guard !self.isPreview else { return }
@@ -165,11 +167,34 @@ final class AppState {
     var earBoostActive: Bool = false
     var blinkTick: Int = 0
     var sendCelebrationTick: Int = 0
+    var heartbeatToggleError: String?
     var heartbeatsEnabled: Bool {
         didSet {
             self.ifNotPreview {
                 UserDefaults.standard.set(self.heartbeatsEnabled, forKey: heartbeatsEnabledKey)
-                Task { _ = await GatewayConnection.shared.setHeartbeatsEnabled(self.heartbeatsEnabled) }
+                guard !self.suppressHeartbeatsGatewaySync else { return }
+                let requested = self.heartbeatsEnabled
+                let previous = oldValue
+                self.heartbeatToggleError = nil
+                self.heartbeatGatewaySyncTask?.cancel()
+                self.heartbeatGatewaySyncTask = Task { [weak self] in
+                    let result = await GatewayConnection.shared.setHeartbeatsEnabledResult(requested)
+                    await MainActor.run {
+                        guard let self, !Task.isCancelled else { return }
+                        if result.ok {
+                            if self.heartbeatsEnabled == requested {
+                                self.heartbeatToggleError = nil
+                            }
+                            return
+                        }
+                        guard self.heartbeatsEnabled == requested else { return }
+                        self.suppressHeartbeatsGatewaySync = true
+                        self.heartbeatsEnabled = previous
+                        self.suppressHeartbeatsGatewaySync = false
+                        UserDefaults.standard.set(previous, forKey: heartbeatsEnabledKey)
+                        self.heartbeatToggleError = result.error ?? "Failed to update heartbeat setting."
+                    }
+                }
             }
         }
     }

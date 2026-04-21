@@ -132,10 +132,24 @@ struct CronModelsTests {
                 runningAtMs: nil,
                 lastRunAtMs: 1_700_000_050_000,
                 lastStatus: nil,
+                lastRunStatus: nil,
                 lastError: nil,
                 lastDurationMs: nil))
         #expect(job.nextRunDate == Date(timeIntervalSince1970: 1_700_000_000))
         #expect(job.lastRunDate == Date(timeIntervalSince1970: 1_700_000_050))
+    }
+
+    @Test func `cron job state prefers last run status`() {
+        let state = CronJobState(
+            nextRunAtMs: nil,
+            runningAtMs: nil,
+            lastRunAtMs: nil,
+            lastStatus: "ok",
+            lastRunStatus: "error",
+            lastError: nil,
+            lastDurationMs: nil)
+
+        #expect(state.displayStatus == "error")
     }
 
     @Test func `decode cron list response skips malformed jobs`() throws {

@@ -330,7 +330,11 @@ struct MenuContent: View {
     }
 
     private var heartbeatStatus: (label: String, color: Color) {
-        if case .degraded = self.controlChannel.state {
+        if let error = self.state.heartbeatToggleError,
+           !error.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            return ("Heartbeat error: \(error)", .red)
+        } else if case .degraded = self.controlChannel.state {
             return ("Control channel disconnected", .red)
         } else if let evt = self.heartbeatStore.lastEvent {
             let ageText = age(from: Date(timeIntervalSince1970: evt.ts / 1000))

@@ -792,6 +792,11 @@ if [[ ! -x "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME" ]]; then
   echo "ERROR: bundle final sem executável em $APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME." >&2
   exit 1
 fi
+FINAL_BUNDLED_NODE="$APP_ROOT/Contents/Resources/${PACKAGE_DIR_NAME}/tools/node/bin/node"
+if [[ -x "$FINAL_BUNDLED_NODE" ]] && ! validate_bundled_node_runtime "$FINAL_BUNDLED_NODE"; then
+  echo "ERROR: bundled Node runtime failed after final codesign: $FINAL_BUNDLED_NODE." >&2
+  exit 1
+fi
 mkdir -p "$(dirname "$FINAL_APP_ROOT")"
 rm -rf "$FINAL_APP_ROOT"
 mv "$APP_ROOT" "$FINAL_APP_ROOT"

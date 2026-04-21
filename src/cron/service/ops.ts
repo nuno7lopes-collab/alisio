@@ -148,6 +148,44 @@ export function stop(state: CronServiceState) {
   stopTimer(state);
 }
 
+export async function setRuntimeScope(
+  state: CronServiceState,
+  opts: {
+    storePath: string;
+    cronEnabled: boolean;
+  },
+) {
+  let changed = false;
+  const shouldStart = await locked(state, async () => {
+    changed =
+      state.deps.storePath !== opts.storePath || state.deps.cronEnabled !== opts.cronEnabled;
+    if (!changed) {
+      return false;
+    }
+    stopTimer(state);
+    state.deps.storePath = opts.storePath;
+    state.deps.cronEnabled = opts.cronEnabled;
+    state.store = null;
+    state.storeLoadedAtMs = null;
+    state.storeFileMtimeMs = null;
+    state.warnedDisabled = false;
+    state.deps.log.info(
+      {
+        storePath: opts.storePath,
+        enabled: opts.cronEnabled,
+      },
+      "cron: runtime scope selected",
+    );
+    return opts.cronEnabled;
+  });
+
+  if (shouldStart) {
+    await start(state);
+  }
+
+  return { changed } as const;
+}
+
 export async function status(state: CronServiceState) {
   return await locked(state, async () => {
     await ensureLoadedForRead(state);

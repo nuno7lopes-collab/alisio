@@ -854,15 +854,10 @@ function renderComputerSurface(props: BrowserPaneProps, session: ComputerSession
     activeRuntimeSession && activeRuntimeSession.sessionKey !== session.sessionKey
       ? activeRuntimeSession.sessionKey
       : null;
-  const foregroundControl =
-    capabilities.some(
-      (entry) =>
-        entry.kind === "foreground_control" && entry.available && entry.exposure === "exposed",
-    ) &&
-    !capabilities.some(
-      (entry) =>
-        entry.kind === "background_safe_control" && entry.available && entry.exposure === "exposed",
-    );
+  const foregroundControl = capabilities.some(
+    (entry) =>
+      entry.kind === "foreground_control" && entry.available && entry.exposure === "exposed",
+  );
   const observeOnlyOnly =
     capabilities.some(
       (entry) => entry.kind === "observe_only" && entry.available && entry.exposure === "exposed",

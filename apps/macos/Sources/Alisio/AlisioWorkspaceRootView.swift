@@ -93,6 +93,7 @@ struct AlisioWorkspaceChatEnvironment {
 struct AlisioWorkspaceRootView: View {
     @Bindable var navigationState: WorkspaceNavigationState
     @Bindable var state: AppState
+    @Bindable private var accountStore = AlisioAccountStore.shared
 
     let presentation: AlisioWorkspacePresentation
     let updater: (any UpdaterProviding)?
@@ -133,6 +134,9 @@ struct AlisioWorkspaceRootView: View {
             }
         }
         .background(self.palette.canvas.ignoresSafeArea())
+        .task(id: self.state.connectionMode) {
+            await self.accountStore.refresh(reason: "workspace-root")
+        }
     }
 
     private var windowBody: some View {
@@ -199,6 +203,7 @@ struct AlisioWorkspaceRootView: View {
                                             lineWidth: 1)))
                     }
                     .buttonStyle(.plain)
+                    .disabled(self.requiresSignedInAccount(item) && !self.accountStore.isAuthenticated)
                 }
             }
 
@@ -206,8 +211,8 @@ struct AlisioWorkspaceRootView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 AlisioChip(
-                    title: self.state.connectionMode == .local ? "Local runtime" : "Remote runtime",
-                    tint: self.state.connectionMode == .local ? self.palette.success : self.palette.warning,
+                    title: self.accountStore.isAuthenticated ? "Signed in" : "Sign in required",
+                    tint: self.accountStore.isAuthenticated ? self.palette.success : self.palette.warning,
                     palette: self.palette)
                 Text(self.resolvedSessionKey)
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
@@ -226,6 +231,15 @@ struct AlisioWorkspaceRootView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 24)
         .background(self.palette.sidebar)
+    }
+
+    private func requiresSignedInAccount(_ item: AlisioWorkspaceSidebarItem) -> Bool {
+        switch item {
+        case .chat, .apps, .automations, .capabilities, .connections:
+            true
+        case .settings:
+            false
+        }
     }
 
     private var stage: some View {
@@ -302,30 +316,59 @@ struct AlisioWorkspaceRootView: View {
             OnboardingView(state: self.state)
                 .padding(compact ? 14 : 24)
         case .chat:
-            WorkspaceChatStage(
-                sessionKey: self.resolvedSessionKey,
-                state: self.state,
-                palette: self.palette,
-                compact: compact,
-                environment: self.chatEnvironment)
-                .id("chat-\(self.resolvedSessionKey)-\(compact ? "panel" : "window")-\(self.state.connectionMode.rawValue)")
+            if self.accountStore.isAuthenticated {
+                WorkspaceChatStage(
+                    sessionKey: self.resolvedSessionKey,
+                    state: self.state,
+                    palette: self.palette,
+                    compact: compact,
+                    environment: self.chatEnvironment)
+                    .id("chat-\(self.resolvedSessionKey)-\(compact ? "panel" : "window")-\(self.state.connectionMode.rawValue)")
+            } else {
+                self.accountRequiredStage(compact: compact)
+            }
         case .authentications:
-            ChannelsSettings()
-                .padding(compact ? 14 : 24)
+            if self.accountStore.isAuthenticated {
+                ChannelsSettings()
+                    .padding(compact ? 14 : 24)
+            } else {
+                self.accountRequiredStage(compact: compact)
+            }
         case .automations:
-            CronSettings()
-                .padding(compact ? 14 : 24)
+            if self.accountStore.isAuthenticated {
+                CronSettings()
+                    .padding(compact ? 14 : 24)
+            } else {
+                self.accountRequiredStage(compact: compact)
+            }
         case .agents:
-            SkillsSettings(state: self.state)
-                .padding(compact ? 14 : 24)
+            if self.accountStore.isAuthenticated {
+                SkillsSettings(state: self.state)
+                    .padding(compact ? 14 : 24)
+            } else {
+                self.accountRequiredStage(compact: compact)
+            }
         case .organization:
-            InstancesSettings()
-                .padding(compact ? 14 : 24)
+            if self.accountStore.isAuthenticated {
+                InstancesSettings()
+                    .padding(compact ? 14 : 24)
+            } else {
+                self.accountRequiredStage(compact: compact)
+            }
         case .settings:
             SettingsRootView(state: self.state, updater: self.updater, initialTab: self.settingsTab)
                 .id("settings-\(self.settingsTab.title)")
                 .padding(compact ? 14 : 24)
         }
+    }
+
+    private func accountRequiredStage(compact: Bool) -> some View {
+        VStack(alignment: .leading) {
+            AlisioAccountRequiredView(store: self.accountStore)
+            Spacer(minLength: 0)
+        }
+        .padding(compact ? 14 : 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -391,8 +434,8 @@ private struct WorkspaceChatStage: View {
                             palette: self.palette,
                             sessionKey: self.sessionKey,
                             recentEvents: self.recentEvents,
-                            lastToolLabel: self.activityStore.lastToolLabel,
-                            lastToolUpdatedAt: self.activityStore.lastToolUpdatedAt)
+                            lastToolLabel: self.currentSessionToolActivity?.label,
+                            lastToolUpdatedAt: self.currentSessionToolActivity?.lastUpdate)
                             .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
                     }
                 } else {
@@ -557,8 +600,8 @@ private struct WorkspaceChatStage: View {
             parts.append("pending-tools:\(ids):\(Int(startedAt))")
         }
 
-        if let lastToolUpdatedAt = self.activityStore.lastToolUpdatedAt {
-            parts.append("activity:\(Int(lastToolUpdatedAt.timeIntervalSince1970 * 1000))")
+        if let activity = self.currentSessionActivity {
+            parts.append("activity:\(activity.sessionKey):\(activity.label):\(Int(activity.lastUpdate.timeIntervalSince1970 * 1000))")
         }
 
         if let lastUpdatedAt = self.computerStore.lastUpdatedAt {
@@ -595,8 +638,23 @@ private struct WorkspaceChatStage: View {
         }.prefix(8))
     }
 
+    private var currentSessionActivity: WorkActivityStore.Activity? {
+        guard let activity = self.activityStore.current else { return nil }
+        guard self.matchesCurrentSession(sessionKey: activity.sessionKey) else { return nil }
+        return activity
+    }
+
+    private var currentSessionToolActivity: WorkActivityStore.Activity? {
+        guard let activity = self.currentSessionActivity else { return nil }
+        guard case .tool = activity.kind else { return nil }
+        return activity
+    }
+
     private func matchesCurrentSession(event: ControlAgentEvent) -> Bool {
-        let raw = event.data["sessionKey"]?.value as? String
+        self.matchesCurrentSession(sessionKey: event.sessionKey ?? (event.data["sessionKey"]?.value as? String))
+    }
+
+    private func matchesCurrentSession(sessionKey raw: String?) -> Bool {
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if trimmed.isEmpty {
             return self.sessionKey == "main" || self.sessionKey == "agent:main:main"

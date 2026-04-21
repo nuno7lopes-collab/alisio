@@ -112,6 +112,7 @@ actor MacNodeComputerHelperClient {
     private var responseTask: Task<Void, Never>?
     private var stderrTask: Task<Void, Never>?
     private var pending: [String: CheckedContinuation<MacNodeComputerHelperResponseEnvelope, Error>] = [:]
+    private var connectionWaiters: [CheckedContinuation<Void, Error>] = []
     private var desiredSessions: [String: MacNodeComputerSessionLifecycleState] = [:]
 
     private(set) var connectionState: MacNodeComputerHelperConnectionState = .idle
@@ -279,15 +280,25 @@ actor MacNodeComputerHelperClient {
         if self.transport != nil, self.connectionState == .running {
             return
         }
+        if self.connectionState == .starting {
+            try await self.waitForConnection()
+            if self.transport != nil, self.connectionState == .running {
+                return
+            }
+            throw self.lastError ?? MacNodeComputerHelperErrorPayload(
+                code: .helperUnavailable,
+                message: "computer helper startup did not complete",
+                retryable: true)
+        }
 
         self.connectionState = .starting
-        let created = try self.transportFactory()
-        self.transport = created
-        self.launchCount += 1
-        self.logger.info("computer helper launch pid=\(created.pid, privacy: .public) count=\(self.launchCount, privacy: .public)")
-        self.attachTransport(created)
-
         do {
+            let created = try self.transportFactory()
+            self.transport = created
+            self.launchCount += 1
+            self.logger.info("computer helper launch pid=\(created.pid, privacy: .public) count=\(self.launchCount, privacy: .public)")
+            self.attachTransport(created)
+
             let helper: MacNodeComputerHelperHealthPayload = try await self.requestUsingExisting(
                 method: .health,
                 payload: MacNodeComputerHealthQueryParams(sessionId: nil))
@@ -302,6 +313,7 @@ actor MacNodeComputerHelperClient {
             try await self.restoreDesiredSessions()
             self.connectionState = .running
             self.lastError = nil
+            self.finishConnectionWaiters(with: .success(()))
             self.logger.info("computer helper connected pid=\(helper.processId, privacy: .public)")
         } catch let error as MacNodeComputerHelperErrorPayload {
             await self.handleInvalidation(error, terminateTransport: true)
@@ -435,6 +447,7 @@ actor MacNodeComputerHelperClient {
         self.lastError = error
         self.connectionState = .interrupted
         self.finishPending(with: error)
+        self.finishConnectionWaiters(with: .failure(error))
         self.clearTransport(terminate: false)
     }
 
@@ -446,6 +459,7 @@ actor MacNodeComputerHelperClient {
         self.lastError = error
         self.connectionState = .invalidated
         self.finishPending(with: error)
+        self.finishConnectionWaiters(with: .failure(error))
         self.clearTransport(terminate: terminateTransport)
     }
 
@@ -465,6 +479,25 @@ actor MacNodeComputerHelperClient {
         self.pending.removeAll()
         for continuation in pending.values {
             continuation.resume(throwing: error)
+        }
+    }
+
+    private func waitForConnection() async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            self.connectionWaiters.append(continuation)
+        }
+    }
+
+    private func finishConnectionWaiters(with result: Result<Void, Error>) {
+        let waiters = self.connectionWaiters
+        self.connectionWaiters.removeAll()
+        for waiter in waiters {
+            switch result {
+            case .success:
+                waiter.resume()
+            case let .failure(error):
+                waiter.resume(throwing: error)
+            }
         }
     }
 

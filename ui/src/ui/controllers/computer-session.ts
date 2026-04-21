@@ -139,7 +139,6 @@ function readActionType(value: unknown): ComputerActionType | null {
     case "reveal_path":
     case "open_path":
     case "open_app":
-    case "app_focus":
       return value;
     default:
       return null;
@@ -217,8 +216,6 @@ function readCapabilityKind(value: unknown): ComputerCapabilityKind | null {
   switch (value) {
     case "observe_only":
     case "foreground_control":
-    case "background_safe_control":
-    case "future_virtualized_control":
       return value;
     default:
       return null;
@@ -229,8 +226,6 @@ function readCapabilityReasonCode(value: unknown): ComputerCapabilityReasonCode 
   switch (value) {
     case "local_mac_observe_supported":
     case "local_mac_foreground_control_supported":
-    case "local_mac_background_safe_control_unavailable":
-    case "local_mac_virtualized_control_unavailable":
     case "web_runtime_unavailable":
     case "windows_local_runtime_unavailable":
     case "remote_node_runtime_unavailable":

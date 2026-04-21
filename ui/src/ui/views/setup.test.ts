@@ -12,8 +12,23 @@ import { renderSetup } from "./setup.ts";
 type SetupRenderProps = Parameters<typeof renderSetup>[0];
 
 function createBootstrapAccount(): NonNullable<AlisioBootstrapState["account"]> {
+  const runtimeContract: NonNullable<AlisioBootstrapState["account"]>["runtimeContract"] = {
+    scopeRoot: "account",
+    backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+    localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+  };
   return {
+    accountId: "user-1",
+    scopeRoot: "account",
+    canonical: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+    },
     profile: {
+      accountId: "user-1",
       username: "nuno",
       displayName: "Nuno",
       email: "nuno@example.com",
@@ -30,6 +45,9 @@ function createBootstrapAccount(): NonNullable<AlisioBootstrapState["account"]> 
     session: {
       state: "signed_in" as const,
       profileCompleted: true,
+      authRequired: true,
+      authenticated: true,
+      accountId: "user-1",
     },
     devices: [],
     cloud: {
@@ -37,11 +55,25 @@ function createBootstrapAccount(): NonNullable<AlisioBootstrapState["account"]> 
       available: true,
       missingEnvVars: [],
     },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
+    runtimeContract,
   };
 }
 
 function createReadyBootstrap(overrides: Partial<AlisioBootstrapState> = {}): AlisioBootstrapState {
+  const account = createBootstrapAccount();
   return {
+    accountId: "user-1",
+    scopeRoot: "account",
+    authRequired: true,
     connectionRequired: false,
     wizardRequired: false,
     wizardRunning: false,
@@ -59,7 +91,7 @@ function createReadyBootstrap(overrides: Partial<AlisioBootstrapState> = {}): Al
       available: 0,
     },
     nextStep: "ready",
-    account: createBootstrapAccount(),
+    account,
     ai: {
       provider: "openai",
       status: "connected",
@@ -80,6 +112,8 @@ function createReadyBootstrap(overrides: Partial<AlisioBootstrapState> = {}): Al
     },
     wizard: { running: false, sessionId: null },
     models: { total: 0, defaultProvider: "openai", providers: [] },
+    deviceBinding: account.deviceBinding,
+    runtimeContract: account.runtimeContract,
     ...overrides,
   };
 }
@@ -510,30 +544,11 @@ describe("setup view", () => {
       renderSetup(
         createSetupProps({
           account: {
-            profile: {
-              username: "nuno",
-              displayName: "Nuno",
-              email: "nuno@example.com",
-              avatarLabel: "N",
-              joinedAt: "2026-04-01T00:00:00.000Z",
-              plan: "free",
-            },
-            preferences: {
-              language: "pt-PT",
-              themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
-              themeMode: "dark",
-              themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
-            },
+            ...createBootstrapAccount(),
             session: {
-              state: "signed_in",
+              ...createBootstrapAccount().session,
               profileCompleted: false,
               backend: "supabase",
-            },
-            devices: [],
-            cloud: {
-              backend: "supabase",
-              available: true,
-              missingEnvVars: [],
             },
           },
         }),
@@ -585,30 +600,10 @@ describe("setup view", () => {
         createSetupProps({
           passwordResetRequired: true,
           account: {
-            profile: {
-              username: "nuno",
-              displayName: "Nuno",
-              email: "nuno@example.com",
-              avatarLabel: "N",
-              joinedAt: "2026-04-01T00:00:00.000Z",
-              plan: "free",
-            },
-            preferences: {
-              language: "pt-PT",
-              themeFamily: DEFAULT_THEME_SELECTION.themeFamily,
-              themeMode: "dark",
-              themeAccents: DEFAULT_THEME_SELECTION.themeAccents,
-            },
+            ...createBootstrapAccount(),
             session: {
-              state: "signed_in",
-              profileCompleted: true,
+              ...createBootstrapAccount().session,
               backend: "supabase",
-            },
-            devices: [],
-            cloud: {
-              backend: "supabase",
-              available: true,
-              missingEnvVars: [],
             },
           },
         }),

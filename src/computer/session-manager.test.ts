@@ -157,6 +157,26 @@ describe("ComputerSessionManager", () => {
     });
   });
 
+  it("does not let status updates clear restart-required permission blocking", () => {
+    const manager = createManager();
+    manager.setPermissions("main", {
+      screenRecording: true,
+      observation: "restart_required",
+    });
+
+    const session = manager.setStatus("main", "idle", "session started");
+
+    expect(session.status).toBe("blocked_on_restart_required");
+    expect(session.blocking).toMatchObject({
+      kind: "blocked_on_restart_required",
+      reasonCode: "observation_restart_required",
+    });
+    expect(session.permissions).toMatchObject({
+      screenRecording: true,
+      observation: "restart_required",
+    });
+  });
+
   it("hides local computer control on web and windows-local backends", () => {
     const manager = new ComputerSessionManager();
 
