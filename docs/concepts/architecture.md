@@ -11,7 +11,7 @@ title: "Gateway Architecture"
 
 - A single long‑lived **Gateway** owns all messaging surfaces (WhatsApp via
   Baileys, Telegram via grammY, Slack, Discord, Signal, iMessage, WebChat).
-- Control-plane clients (macOS app, CLI, web UI, automations) connect to the
+- Control-plane clients (macOS app, CLI, Control UI, automations) connect to the
   Gateway over **WebSocket** on the configured bind host (default
   `127.0.0.1:40705`).
 - **Computers (nodes)** (macOS/headless) also connect over **WebSocket**, but
@@ -57,7 +57,7 @@ title: "Gateway Architecture"
 - Validates inbound frames against JSON Schema.
 - Emits events like `agent`, `chat`, `presence`, `health`, `heartbeat`, `cron`.
 
-### Clients (mac app / CLI / web admin)
+### Clients (mac app / CLI / Control UI)
 
 - One WS connection per client.
 - Send requests (`health`, `status`, `send`, `agent`, `system-presence`).

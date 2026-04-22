@@ -70,6 +70,7 @@ describe("resolveSessionKeyFromResolveParams", () => {
     await expect(
       resolveSessionKeyFromResolveParams({
         cfg: {},
+        accountId: "acct-1",
         p: { key: canonicalKey, spawnedBy: "controller-1" },
       }),
     ).resolves.toEqual({
@@ -78,6 +79,11 @@ describe("resolveSessionKeyFromResolveParams", () => {
         code: ErrorCodes.INVALID_REQUEST,
         message: `No session found: ${canonicalKey}`,
       },
+    });
+    expect(hoisted.resolveGatewaySessionStoreTargetMock).toHaveBeenCalledWith({
+      cfg: {},
+      key: canonicalKey,
+      accountId: "acct-1",
     });
   });
 
@@ -93,6 +99,7 @@ describe("resolveSessionKeyFromResolveParams", () => {
     await expect(
       resolveSessionKeyFromResolveParams({
         cfg: {},
+        accountId: "acct-1",
         p: { key: canonicalKey, spawnedBy: "controller-1" },
       }),
     ).resolves.toEqual({
@@ -101,6 +108,12 @@ describe("resolveSessionKeyFromResolveParams", () => {
     });
 
     expect(hoisted.updateSessionStoreMock).toHaveBeenCalledWith(storePath, expect.any(Function));
+    expect(hoisted.migrateAndPruneGatewaySessionStoreKeyMock).toHaveBeenCalledWith({
+      cfg: {},
+      key: canonicalKey,
+      store,
+      accountId: "acct-1",
+    });
     expect(hoisted.listSessionsFromStoreMock).toHaveBeenCalledWith({
       cfg: {},
       storePath,

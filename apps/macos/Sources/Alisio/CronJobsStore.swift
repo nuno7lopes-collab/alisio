@@ -34,14 +34,14 @@ final class CronJobsStore {
         self.isPreview = isPreview
     }
 
+    private enum AccountGate {
+        case authenticated
+        case signedOut
+        case unavailable(String)
+    }
+
     func start() {
         guard !self.isPreview else { return }
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            self.jobs = []
-            self.runEntries = []
-            self.statusMessage = "Sign in to manage automations."
-            return
-        }
         guard self.eventTask == nil else { return }
         GatewayPushSubscription.restartTask(task: &self.eventTask) { [weak self] push in
             self?.handle(push: push)
@@ -69,11 +69,18 @@ final class CronJobsStore {
 
     func refreshJobs() async {
         guard !self.isLoadingJobs else { return }
-        guard AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: "cron.list") {
+        case .authenticated:
+            break
+        case .signedOut:
             self.jobs = []
             self.runEntries = []
             self.lastError = nil
             self.statusMessage = "Sign in to manage automations."
+            return
+        case let .unavailable(message):
+            self.lastError = message
+            self.statusMessage = nil
             return
         }
         self.isLoadingJobs = true
@@ -99,10 +106,17 @@ final class CronJobsStore {
 
     func refreshRuns(jobId: String, limit: Int = 200) async {
         guard !self.isLoadingRuns else { return }
-        guard AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: "cron.runs") {
+        case .authenticated:
+            break
+        case .signedOut:
             self.runEntries = []
             self.lastError = nil
             self.statusMessage = "Sign in to view automation runs."
+            return
+        case let .unavailable(message):
+            self.lastError = message
+            self.statusMessage = nil
             return
         }
         self.isLoadingRuns = true
@@ -117,8 +131,14 @@ final class CronJobsStore {
     }
 
     func runJob(id: String, force: Bool = true) async {
-        guard AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: "cron.run") {
+        case .authenticated:
+            break
+        case .signedOut:
             self.lastError = "Sign in to run automations."
+            return
+        case let .unavailable(message):
+            self.lastError = message
             return
         }
         do {
@@ -129,8 +149,14 @@ final class CronJobsStore {
     }
 
     func removeJob(id: String) async {
-        guard AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: "cron.remove") {
+        case .authenticated:
+            break
+        case .signedOut:
             self.lastError = "Sign in to delete automations."
+            return
+        case let .unavailable(message):
+            self.lastError = message
             return
         }
         do {
@@ -146,8 +172,14 @@ final class CronJobsStore {
     }
 
     func setJobEnabled(id: String, enabled: Bool) async {
-        guard AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: "cron.update") {
+        case .authenticated:
+            break
+        case .signedOut:
             self.lastError = "Sign in to edit automations."
+            return
+        case let .unavailable(message):
+            self.lastError = message
             return
         }
         do {
@@ -164,8 +196,13 @@ final class CronJobsStore {
         id: String?,
         payload: [String: AnyCodable]) async throws
     {
-        guard AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: id == nil ? "cron.add" : "cron.update") {
+        case .authenticated:
+            break
+        case .signedOut:
             throw AlisioAccountRequiredError.signedOut
+        case let .unavailable(message):
+            throw AlisioAccountRequiredError.unavailable(message)
         }
         if let id {
             try await GatewayConnection.shared.cronUpdate(jobId: id, patch: payload)
@@ -214,6 +251,22 @@ final class CronJobsStore {
             guard let self else { return }
             try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
             await self.refreshRuns(jobId: jobId)
+        }
+    }
+
+    private func accountGate(reason: String) async -> AccountGate {
+        do {
+            _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
+            return .authenticated
+        } catch let error as AlisioAccountRequiredError {
+            switch error {
+            case .signedOut:
+                return .signedOut
+            case let .unavailable(message):
+                return .unavailable(message)
+            }
+        } catch {
+            return .unavailable(error.localizedDescription)
         }
     }
 

@@ -90,10 +90,9 @@ final class GatewayProcessManager {
         }
         let enabled = await GatewayLaunchAgentManager.isLoaded()
         guard !enabled else { return }
-        let bundlePath = Bundle.main.bundleURL.path
         let port = GatewayEnvironment.gatewayPort()
         self.appendLog("[gateway] auto-enabling launchd gateway service on port \(port)\n")
-        let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
+        let err = await GatewayLaunchAgentManager.set(enabled: true, port: port)
         if let err {
             self.appendLog("[gateway] launchd auto-enable failed: \(err)\n")
         }
@@ -136,11 +135,9 @@ final class GatewayProcessManager {
         if CommandResolver.connectionModeIsRemote() {
             return
         }
-        let bundlePath = Bundle.main.bundleURL.path
         Task {
             _ = await GatewayLaunchAgentManager.set(
                 enabled: false,
-                bundlePath: bundlePath,
                 port: GatewayEnvironment.gatewayPort())
         }
     }
@@ -246,17 +243,7 @@ final class GatewayProcessManager {
     }
 
     private func probeGatewayLiveness(timeoutMs: Int) async throws -> HealthSnapshot? {
-        do {
-            let data = try await self.connection.requestRaw(
-                method: .health,
-                timeoutMs: Double(timeoutMs))
-            return decodeHealthSnapshot(from: data)
-        } catch {
-            _ = try await self.connection.requestRaw(
-                method: .status,
-                timeoutMs: Double(timeoutMs))
-            return nil
-        }
+        try await self.connection.livenessSnapshot(timeoutMs: timeoutMs)
     }
 
     private func incompatibleExistingGatewayReason(port: Int) async -> String? {
@@ -431,15 +418,15 @@ final class GatewayProcessManager {
 
     private func enableLaunchdGateway() async {
         self.existingGatewayDetails = nil
-        let resolution = await Task.detached(priority: .utility) {
-            GatewayEnvironment.resolveGatewayCommand()
+        let environmentStatus = await Task.detached(priority: .utility) {
+            GatewayEnvironment.check()
         }.value
-        await MainActor.run { self.environmentStatus = resolution.status }
-        guard resolution.command != nil else {
+        await MainActor.run { self.environmentStatus = environmentStatus }
+        guard case .ok = environmentStatus.kind else {
             await MainActor.run {
-                self.status = .failed(resolution.status.message)
+                self.status = .failed(environmentStatus.message)
             }
-            self.logger.error("gateway command resolve failed: \(resolution.status.message)")
+            self.logger.error("gateway environment check failed: \(environmentStatus.message)")
             return
         }
 
@@ -452,11 +439,10 @@ final class GatewayProcessManager {
             return
         }
 
-        let bundlePath = Bundle.main.bundleURL.path
         let port = GatewayEnvironment.gatewayPort()
         self.appendLog("[gateway] enabling launchd gateway service on port \(port)\n")
         self.logger.info("gateway enabling launchd port=\(port)")
-        let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
+        let err = await GatewayLaunchAgentManager.set(enabled: true, port: port)
         if let err {
             self.status = .failed(err)
             self.lastFailureReason = err
@@ -470,7 +456,7 @@ final class GatewayProcessManager {
 
         self.appendLog("[gateway] launchd install timed out; forcing supervised restart\n")
         self.logger.warning("gateway launchd install timed out; forcing supervised restart")
-        await GatewayLaunchAgentManager.kickstart()
+        await GatewayLaunchAgentManager.restart()
         if await self.waitForManagedGatewayStartup(port: port, timeout: 8, reason: "launchd restart") {
             return
         }
@@ -581,7 +567,7 @@ final class GatewayProcessManager {
             return
         }
         #endif
-        await GatewayLaunchAgentManager.kickstart()
+        await GatewayLaunchAgentManager.restart()
     }
 
     private func localGatewayReadinessFailureReason() -> String {

@@ -135,6 +135,20 @@ enum TestIsolation {
             body)
     }
 
+    static func withSignedOutAccount<T>(
+        _ body: () async throws -> T) async rethrows -> T
+    {
+        try await self.withAccountStore(
+            snapshot: AlisioAccountSnapshot(
+                accountId: nil,
+                canonical: .init(authenticated: false, accountId: nil, source: "test"),
+                profile: nil,
+                session: .init(state: "signed_out", authenticated: false, accountId: nil),
+                devices: [],
+                deviceBinding: nil),
+            body)
+    }
+
     nonisolated static func tempConfigPath() -> String {
         FileManager().temporaryDirectory
             .appendingPathComponent("alisio-test-config-\(UUID().uuidString).json")

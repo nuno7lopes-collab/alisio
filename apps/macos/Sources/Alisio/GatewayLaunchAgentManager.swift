@@ -5,13 +5,9 @@ import AlisioSupport
 enum GatewayLaunchAgentManager {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.launchd")
     private static let disableLaunchAgentMarker = ".alisio/disable-launchagent"
-    private static let legacyLaunchAgentLabels = ["ai.alisio.gateway"]
     private static let installCommandTimeout: Double = 90
     private static let sessionDisableOverride = LockIsolated(false)
     private static var currentLaunchAgentLabel: String { gatewayLaunchdLabel }
-    private static var cleanupLaunchAgentLabels: [String] {
-        [self.currentLaunchAgentLabel] + self.legacyLaunchAgentLabels
-    }
 
     private static var disableLaunchAgentMarkerURL: URL {
         FileManager().homeDirectoryForCurrentUser
@@ -69,8 +65,7 @@ enum GatewayLaunchAgentManager {
         (await self.loadedLaunchAgentLabels()).contains(self.currentLaunchAgentLabel)
     }
 
-    static func set(enabled: Bool, bundlePath: String, port: Int) async -> String? {
-        _ = bundlePath
+    static func set(enabled: Bool, port: Int) async -> String? {
         guard !CommandResolver.connectionModeIsRemote() else {
             self.logger.info("launchd change skipped (remote mode)")
             return nil
@@ -93,30 +88,13 @@ enum GatewayLaunchAgentManager {
         }
 
         self.logger.info("launchd disable requested via CLI")
-        let daemonError = await self.runDaemonCommand(["uninstall"])
-        let cleanupErrors = await self.cleanupCompatibilityLaunchAgents()
-        if daemonError == nil, cleanupErrors.isEmpty {
-            return nil
-        }
-
-        return ([daemonError] + cleanupErrors)
-            .compactMap { $0 }
-            .joined(separator: "; ")
+        return await self.runDaemonCommand(["uninstall"])
     }
 
-    static func kickstart() async {
-        let loadedLabels = await self.loadedLaunchAgentLabels()
-        guard !loadedLabels.isEmpty else {
-            _ = await self.runDaemonCommand(["restart"], timeout: 20)
-            return
-        }
-
-        for label in loadedLabels {
-            let result = await Launchctl.run(["kickstart", "-k", "gui/\(getuid())/\(label)"])
-            if result.status != 0 {
-                let detail = self.summarize(result.output) ?? "exit \(result.status)"
-                self.logger.error("launchd kickstart failed label=\(label, privacy: .public) detail=\(detail, privacy: .public)")
-            }
+    static func restart() async {
+        self.logger.info("launchd restart requested via CLI")
+        if let error = await self.runDaemonCommand(["restart"], timeout: 20) {
+            self.logger.error("launchd restart failed detail=\(error, privacy: .public)")
         }
     }
 
@@ -153,38 +131,8 @@ extension GatewayLaunchAgentManager {
         return loaded
     }
 
-    private static func cleanupCompatibilityLaunchAgents() async -> [String] {
-        var errors: [String] = []
-        let listedLabels = await Launchctl.listedLabels()
-        for label in self.cleanupLaunchAgentLabels {
-            let printResult = await Launchctl.run(["print", "gui/\(getuid())/\(label)"])
-            let isLoaded = printResult.status == 0 || listedLabels.contains(label)
-            guard isLoaded else { continue }
-            let bootoutResult = await Launchctl.run(["bootout", "gui/\(getuid())/\(label)"])
-            if bootoutResult.status != 0 {
-                let output = bootoutResult.output.lowercased()
-                if !output.contains("could not find service") && !output.contains("service not found") {
-                    let detail = self.summarize(bootoutResult.output) ?? "exit \(bootoutResult.status)"
-                    errors.append("launchctl bootout \(label): \(detail)")
-                }
-            }
-        }
-
-        for url in self.cleanupLaunchAgentLabels.map({ self.plistURL(for: $0) })
-        where FileManager().fileExists(atPath: url.path) {
-            do {
-                try FileManager().removeItem(at: url)
-            } catch {
-                errors.append("remove \(url.lastPathComponent): \(error.localizedDescription)")
-            }
-        }
-
-        return errors
-    }
-
     private struct CommandResult {
         let success: Bool
-        let payload: Data?
         let message: String?
     }
 
@@ -218,15 +166,13 @@ extension GatewayLaunchAgentManager {
         let parsed = self.parseDaemonJson(from: response.stdout) ?? self.parseDaemonJson(from: response.stderr)
         let ok = parsed?.object["ok"] as? Bool
         let message = (parsed?.object["error"] as? String) ?? (parsed?.object["message"] as? String)
-        let payload = parsed?.text.data(using: .utf8)
-            ?? (response.stdout.isEmpty ? response.stderr : response.stdout).data(using: .utf8)
         let success = ok ?? response.success
         if success {
-            return CommandResult(success: true, payload: payload, message: nil)
+            return CommandResult(success: true, message: nil)
         }
 
         if quiet {
-            return CommandResult(success: false, payload: payload, message: message)
+            return CommandResult(success: false, message: message)
         }
 
         let detail = message ?? self.summarize(response.stderr) ?? self.summarize(response.stdout)
@@ -234,7 +180,7 @@ extension GatewayLaunchAgentManager {
         let fullMessage = detail.map { "Gateway daemon command failed (\(exit)): \($0)" }
             ?? "Gateway daemon command failed (\(exit))"
         self.logger.error("\(fullMessage, privacy: .public)")
-        return CommandResult(success: false, payload: payload, message: detail)
+        return CommandResult(success: false, message: detail)
     }
 
     private static func withJsonFlag(_ args: [String]) -> [String] {

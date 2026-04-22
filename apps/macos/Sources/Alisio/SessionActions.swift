@@ -5,45 +5,25 @@ import AlisioSupport
 enum SessionActions {
     static func patchSession(
         key: String,
-        thinking: String?? = nil,
-        verbose: String?? = nil) async throws
+        thinking: GatewayConnection.SessionPatchValue<String> = .unchanged,
+        verbose: GatewayConnection.SessionPatchValue<String> = .unchanged) async throws
     {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.patch")
-        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.patch")
-        var params: [String: AnyHashable] = ["key": AnyHashable(key)]
-
-        if let thinking {
-            params["thinkingLevel"] = thinking.map(AnyHashable.init) ?? AnyHashable(NSNull())
-        }
-        if let verbose {
-            params["verboseLevel"] = verbose.map(AnyHashable.init) ?? AnyHashable(NSNull())
-        }
-
-        _ = try await ControlChannel.shared.request(method: "sessions.patch", params: params)
+        try await GatewayConnection.shared.sessionsPatch(
+            key: key,
+            thinkingLevel: thinking,
+            verboseLevel: verbose)
     }
 
     static func resetSession(key: String) async throws {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.reset")
-        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.reset")
-        _ = try await ControlChannel.shared.request(
-            method: "sessions.reset",
-            params: ["key": AnyHashable(key)])
+        try await GatewayConnection.shared.sessionsReset(key: key)
     }
 
     static func deleteSession(key: String) async throws {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.delete")
-        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.delete")
-        _ = try await ControlChannel.shared.request(
-            method: "sessions.delete",
-            params: ["key": AnyHashable(key), "deleteTranscript": AnyHashable(true)])
+        try await GatewayConnection.shared.sessionsDelete(key: key)
     }
 
     static func compactSession(key: String, maxLines: Int = 400) async throws {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.compact")
-        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: "sessions.compact")
-        _ = try await ControlChannel.shared.request(
-            method: "sessions.compact",
-            params: ["key": AnyHashable(key), "maxLines": AnyHashable(maxLines)])
+        try await GatewayConnection.shared.sessionsCompact(key: key, maxLines: maxLines)
     }
 
     @MainActor

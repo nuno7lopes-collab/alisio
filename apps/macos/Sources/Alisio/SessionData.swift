@@ -1,39 +1,8 @@
 import Foundation
 import SwiftUI
 
+import AlisioChatUI
 import AlisioSupport
-struct GatewaySessionDefaultsRecord: Codable {
-    let model: String?
-    let contextTokens: Int?
-}
-
-struct GatewaySessionEntryRecord: Codable {
-    let key: String
-    let displayName: String?
-    let provider: String?
-    let subject: String?
-    let room: String?
-    let space: String?
-    let updatedAt: Double?
-    let sessionId: String?
-    let systemSent: Bool?
-    let abortedLastRun: Bool?
-    let thinkingLevel: String?
-    let verboseLevel: String?
-    let inputTokens: Int?
-    let outputTokens: Int?
-    let totalTokens: Int?
-    let model: String?
-    let contextTokens: Int?
-}
-
-struct GatewaySessionsListResponse: Codable {
-    let ts: Double?
-    let path: String
-    let count: Int
-    let defaults: GatewaySessionDefaultsRecord?
-    let sessions: [GatewaySessionEntryRecord]
-}
 
 struct SessionTokenStats {
     let input: Int
@@ -72,7 +41,6 @@ struct SessionRow: Identifiable {
     let key: String
     let kind: SessionKind
     let displayName: String?
-    let provider: String?
     let subject: String?
     let room: String?
     let space: String?
@@ -146,27 +114,6 @@ struct ModelChoice: Identifiable, Hashable, Codable {
     let contextWindow: Int?
 }
 
-extension String? {
-    var isNilOrEmpty: Bool {
-        switch self {
-        case .none: true
-        case let .some(value): value.isEmpty
-        }
-    }
-}
-
-extension [String] {
-    fileprivate func dedupedPreserveOrder() -> [String] {
-        var seen = Set<String>()
-        var result: [String] = []
-        for item in self where !seen.contains(item) {
-            seen.insert(item)
-            result.append(item)
-        }
-        return result
-    }
-}
-
 enum SessionLoadError: LocalizedError {
     case gatewayUnavailable(String)
     case decodeFailed(String)
@@ -203,40 +150,35 @@ enum SessionLoader {
         includeGlobal: Bool = true,
         includeUnknown: Bool = true) async throws -> SessionStoreSnapshot
     {
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            throw AlisioAccountRequiredError.signedOut
-        }
-        var params: [String: AnyHashable] = [
-            "includeGlobal": AnyHashable(includeGlobal),
-            "includeUnknown": AnyHashable(includeUnknown),
-        ]
-        if let activeMinutes { params["activeMinutes"] = AnyHashable(activeMinutes) }
-        if let limit { params["limit"] = AnyHashable(limit) }
-
-        let data: Data
+        let payload: AlisioChatSessionsListResponse
         do {
-            data = try await ControlChannel.shared.request(method: "sessions.list", params: params)
+            payload = try await GatewayConnection.shared.sessionsList(
+                includeGlobal: includeGlobal,
+                includeUnknown: includeUnknown,
+                activeMinutes: activeMinutes,
+                limit: limit)
+        } catch let error as AlisioAccountRequiredError {
+            throw error
         } catch {
-            let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            if msg.localizedCaseInsensitiveContains("unknown method: sessions.list") {
+            if let response = error as? GatewayResponseError,
+               response.code == ErrorCode.invalidRequest.rawValue,
+               response.message.localizedCaseInsensitiveContains("unknown method: sessions.list")
+            {
                 throw SessionLoadError.gatewayUnavailable(
                     "Gateway is too old (missing sessions.list). Restart/update the gateway.")
             }
+            if error is GatewayDecodingError {
+                throw SessionLoadError.decodeFailed(error.localizedDescription)
+            }
+            let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             throw SessionLoadError.gatewayUnavailable(msg)
         }
 
-        let decoded: GatewaySessionsListResponse
-        do {
-            decoded = try JSONDecoder().decode(GatewaySessionsListResponse.self, from: data)
-        } catch {
-            throw SessionLoadError.decodeFailed(error.localizedDescription)
-        }
-
         let defaults = SessionDefaults(
-            model: decoded.defaults?.model ?? self.fallbackModel,
-            contextTokens: decoded.defaults?.contextTokens ?? self.fallbackContextTokens)
+            model: payload.defaults?.model ?? self.fallbackModel,
+            contextTokens: payload.defaults?.contextTokens ?? self.fallbackContextTokens)
 
-        let rows = decoded.sessions.map { entry -> SessionRow in
+        let rows = payload.sessions.map { entry -> SessionRow in
             let updated = entry.updatedAt.map { Date(timeIntervalSince1970: $0 / 1000) }
             let input = entry.inputTokens ?? 0
             let output = entry.outputTokens ?? 0
@@ -249,7 +191,6 @@ enum SessionLoader {
                 key: entry.key,
                 kind: SessionKind.from(key: entry.key),
                 displayName: entry.displayName,
-                provider: entry.provider,
                 subject: entry.subject,
                 room: entry.room,
                 space: entry.space,
@@ -267,11 +208,7 @@ enum SessionLoader {
                 model: model)
         }.sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
 
-        return SessionStoreSnapshot(storePath: decoded.path, defaults: defaults, rows: rows)
-    }
-
-    static func loadRows() async throws -> [SessionRow] {
-        try await self.loadSnapshot().rows
+        return SessionStoreSnapshot(storePath: payload.path ?? self.defaultStorePath, defaults: defaults, rows: rows)
     }
 
     private static func standardize(_ path: String) -> String {

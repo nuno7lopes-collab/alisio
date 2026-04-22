@@ -8,6 +8,38 @@ import AlisioSupport
 @Suite(.serialized)
 @MainActor
 struct MacDesktopComputerStoreTests {
+    @Test func `activate blocks computer control when account is signed out`() async throws {
+        try await TestIsolation.withSignedOutAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(accessibility: true, screenRecording: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .running,
+                    lifecycleState: .running))
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
+
+            store.activate()
+            defer { store.deactivate() }
+
+            try await self.waitUntil("signed-out computer gate") {
+                store.errorText == "Sign in to use computer control."
+            }
+
+            #expect(store.sessionStatus == .blockedOnRuntime)
+            #expect(store.sessionState == .stopped)
+            #expect(store.frameImage == nil)
+            #expect(store.observation == nil)
+            #expect(store.errorText == "Sign in to use computer control.")
+            #expect(services.observeCalls == 0)
+            #expect(sessionDriver.commandCalls.isEmpty)
+        }
+    }
+
     @Test func `activate tracks an existing local computer session and captures a frame`() async throws {
         try await TestIsolation.withSignedInAccount {
             let services = FakeMainActorServices(

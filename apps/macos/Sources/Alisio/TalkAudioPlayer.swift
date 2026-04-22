@@ -146,10 +146,30 @@ final class TalkAudioPlayer: NSObject, @preconcurrency AVAudioPlayerDelegate {
             if Task.isCancelled { return }
 
             guard self.playback === playback else { return }
-            guard self.player?.isPlaying == true else { return }
+            guard self.player?.isPlaying == true else {
+                // AVAudioPlayer occasionally stops without delivering the delegate callback
+                // under test/runtime teardown. Synthesize a final result instead of hanging.
+                self.logger.error("talk audio player stopped without delegate callback")
+                self.finish(playback: playback, result: self.currentStoppedPlaybackResult())
+                return
+            }
             self.logger.error("talk audio player watchdog fired")
             self.finish(playback: playback, result: TalkPlaybackResult(finished: false, interruptedAt: nil))
         })
+    }
+
+    private func currentStoppedPlaybackResult() -> TalkPlaybackResult {
+        let currentTime = self.player?.currentTime
+        let duration = self.player?.duration ?? 0
+        let reachedEnd: Bool
+        if let currentTime, duration.isFinite, duration > 0 {
+            reachedEnd = currentTime + 0.05 >= duration
+        } else {
+            reachedEnd = false
+        }
+        return TalkPlaybackResult(
+            finished: reachedEnd,
+            interruptedAt: reachedEnd ? nil : currentTime)
     }
 }
 

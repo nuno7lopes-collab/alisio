@@ -33,6 +33,13 @@ final class GatewayMacDesktopComputerSessionDriver: MacDesktopComputerSessionDri
 @Observable
 final class MacDesktopComputerStore {
     private static let refreshIntervalNanoseconds: UInt64 = 900_000_000
+    private static let signedOutMessage = "Sign in to use computer control."
+
+    private enum AccountGate {
+        case authenticated
+        case signedOut
+        case unavailable(String)
+    }
 
     let sessionKey: String
 
@@ -145,12 +152,6 @@ final class MacDesktopComputerStore {
     }
 
     func activate() {
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            self.errorText = "Sign in to use computer control."
-            self.sessionStatus = .blockedOnRuntime
-            self.sessionState = .stopped
-            return
-        }
         guard self.refreshTask == nil else { return }
         self.refreshTask = Task { [weak self] in
             guard let self else { return }
@@ -225,23 +226,24 @@ final class MacDesktopComputerStore {
     }
 
     func start() {
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            self.errorText = "Sign in to use computer control."
-            return
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let gate = await self.accountGate(reason: GatewayConnection.Method.computerSessionUpdate.rawValue)
+            guard self.applyAccountGate(gate, signedOutMessage: Self.signedOutMessage) else { return }
+            if self.permissions.screenRecordingRestartRequired == true {
+                self.errorText = "Restart Alisio to refresh Screen Recording access"
+                self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
+                return
+            }
+            guard self.canStartSession else {
+                self.errorText = "Screen Recording permission required"
+                self.permissionRestartHint = Self.resolveRequestedPermissionRestartHint(
+                    requestedCapabilities: [.screenRecording],
+                    permissions: self.permissions)
+                return
+            }
+            self.runTransition(.start)
         }
-        if self.permissions.screenRecordingRestartRequired == true {
-            self.errorText = "Restart Alisio to refresh Screen Recording access"
-            self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
-            return
-        }
-        guard self.canStartSession else {
-            self.errorText = "Screen Recording permission required"
-            self.permissionRestartHint = Self.resolveRequestedPermissionRestartHint(
-                requestedCapabilities: [.screenRecording],
-                permissions: self.permissions)
-            return
-        }
-        self.transition(.start)
     }
 
     private var shouldObserveFrames: Bool {
@@ -258,30 +260,31 @@ final class MacDesktopComputerStore {
     }
 
     private func bootstrap() async {
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            self.errorText = "Sign in to use computer control."
-            return
-        }
+        let gate = await self.accountGate(reason: GatewayConnection.Method.computerSessionGet.rawValue)
+        guard self.applyAccountGate(gate, signedOutMessage: Self.signedOutMessage) else { return }
         await self.refreshSessionState()
         guard self.shouldObserveFrames else { return }
         await self.refreshObservationFrame()
     }
 
     private func refreshObservation() async {
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            self.errorText = "Sign in to use computer control."
-            return
-        }
+        let gate = await self.accountGate(reason: GatewayConnection.Method.computerSessionGet.rawValue)
+        guard self.applyAccountGate(gate, signedOutMessage: Self.signedOutMessage) else { return }
         await self.refreshSessionState()
         guard self.shouldObserveFrames else { return }
         await self.refreshObservationFrame()
     }
 
     private func transition(_ command: GatewayConnection.ComputerSessionCommand) {
-        guard AlisioAccountStore.shared.isAuthenticated else {
-            self.errorText = "Sign in to use computer control."
-            return
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let gate = await self.accountGate(reason: GatewayConnection.Method.computerSessionUpdate.rawValue)
+            guard self.applyAccountGate(gate, signedOutMessage: Self.signedOutMessage) else { return }
+            self.runTransition(command)
         }
+    }
+
+    private func runTransition(_ command: GatewayConnection.ComputerSessionCommand) {
         guard !self.isBusy else { return }
         self.isBusy = true
         Task {
@@ -547,6 +550,56 @@ final class MacDesktopComputerStore {
             launchCount: fallback.launchCount,
             helper: fallback.helper,
             lastError: helperError)
+    }
+
+    private func accountGate(reason: String) async -> AccountGate {
+        do {
+            _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
+            return .authenticated
+        } catch let error as AlisioAccountRequiredError {
+            switch error {
+            case .signedOut:
+                return .signedOut
+            case let .unavailable(message):
+                return .unavailable(message)
+            }
+        } catch {
+            return .unavailable(error.localizedDescription)
+        }
+    }
+
+    private func applyAccountGate(_ gate: AccountGate, signedOutMessage: String) -> Bool {
+        switch gate {
+        case .authenticated:
+            return true
+        case .signedOut:
+            self.applyAccountUnavailableState(message: signedOutMessage, retryable: false)
+            return false
+        case let .unavailable(message):
+            self.applyAccountUnavailableState(message: message, retryable: true)
+            return false
+        }
+    }
+
+    private func applyAccountUnavailableState(message: String, retryable: Bool) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolved = trimmed.isEmpty ? "Computer unavailable" : trimmed
+        self.errorText = resolved
+        self.sessionStatus = .blockedOnRuntime
+        self.sessionState = .stopped
+        self.blockingState = nil
+        self.permissionRestartHint = Self.resolvePermissionRestartHint(permissions: self.permissions)
+        self.clearObservation()
+        self.runtime = MacNodeComputerRuntimeHealthPayload(
+            connectionState: retryable ? .invalidated : .idle,
+            launchCount: self.runtime.launchCount,
+            helper: self.runtime.helper,
+            lastError: retryable
+                ? MacNodeComputerHelperErrorPayload(
+                    code: .helperUnavailable,
+                    message: resolved,
+                    retryable: true)
+                : nil)
     }
 
     private func userFacingMessage(for error: Error) -> String {

@@ -195,6 +195,10 @@ final class AlisioAccountStore {
             return snapshot
         }
 
+        if self.hasConfirmedSignedOutSnapshot {
+            throw AlisioAccountRequiredError.signedOut
+        }
+
         await self.refresh(reason: reason)
         if let snapshot, snapshot.isAuthenticated {
             return snapshot
@@ -204,6 +208,13 @@ final class AlisioAccountStore {
             throw AlisioAccountRequiredError.unavailable(lastError)
         }
         throw AlisioAccountRequiredError.signedOut
+    }
+
+    private var hasConfirmedSignedOutSnapshot: Bool {
+        guard let snapshot, !snapshot.isAuthenticated else { return false }
+        guard self.lastRefreshAt != nil else { return false }
+        let trimmedError = self.lastError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmedError.isEmpty
     }
 }
 

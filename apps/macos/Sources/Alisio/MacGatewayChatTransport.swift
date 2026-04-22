@@ -55,31 +55,22 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     }
 
     func listSessions(limit: Int?) async throws -> AlisioChatSessionsListResponse {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.list")
-        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.list")
-        var params: [String: AnyHashable] = [
-            "includeGlobal": AnyHashable(true),
-            "includeUnknown": AnyHashable(false),
-        ]
-        if let limit {
-            params["limit"] = AnyHashable(limit)
-        }
-        let data = try await ControlChannel.shared.request(method: "sessions.list", params: params)
-        return try JSONDecoder().decode(AlisioChatSessionsListResponse.self, from: data)
+        try await GatewayConnection.shared.sessionsList(
+            includeGlobal: true,
+            includeUnknown: false,
+            limit: limit)
     }
 
     func setSessionModel(sessionKey: String, model: String?) async throws {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.patch:model")
-        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.patch:model")
-        var params: [String: AnyHashable] = ["key": AnyHashable(sessionKey)]
-        params["model"] = model.map(AnyHashable.init) ?? AnyHashable(NSNull())
-        _ = try await ControlChannel.shared.request(method: "sessions.patch", params: params)
+        try await GatewayConnection.shared.sessionsPatch(
+            key: sessionKey,
+            model: model.map(GatewayConnection.SessionPatchValue.set) ?? .clear)
     }
 
     func setSessionThinking(sessionKey: String, thinkingLevel: String) async throws {
-        _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: "sessions.patch:thinking")
-        try await self.ensureLocalGatewayReadyIfNeeded(reason: "sessions.patch:thinking")
-        try await SessionActions.patchSession(key: sessionKey, thinking: .some(thinkingLevel))
+        try await GatewayConnection.shared.sessionsPatch(
+            key: sessionKey,
+            thinkingLevel: .set(thinkingLevel))
     }
 
     func requestHealth(timeoutMs: Int) async throws -> Bool {

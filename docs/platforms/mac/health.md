@@ -45,5 +45,3 @@ How to see whether the linked channel is healthy from the menu bar app.
   tail -n 120 ~/.alisio/logs/gateway.log
   tail -n 120 ~/.alisio/logs/gateway.err.log
   ```
-
-- You can still use the CLI flow in [Gateway health](/gateway/health) (`alisio status`, `alisio status --deep`, `alisio health --json`) for fallback CLI installs.

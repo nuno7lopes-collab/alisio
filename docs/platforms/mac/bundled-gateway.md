@@ -14,8 +14,8 @@ package and manage a per-user launchd service for Local mode. The app still
 prefers attaching to an already-running compatible Gateway when it finds one,
 but a consumer install should not require a separate CLI or Node install.
 
-Debug or development builds can still fall back to an external `alisio` CLI
-install when the bundled runtime is intentionally skipped.
+If you intentionally build without the bundled runtime during development, use
+the dev setup flow to point the app at a local checkout or CLI install.
 
 ## Local mode in release builds
 
@@ -57,7 +57,7 @@ The macOS app's **Install CLI** button exists for this fallback path.
 
 Label:
 
-- `ai.alisio.gateway` (or `ai.alisio.<profile>`; legacy `com.alisio.*` may remain)
+- `ai.alisio.gateway`
 
 Plist location (per‑user):
 
@@ -136,20 +136,4 @@ Health over the bundled package:
 .run/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node \
   .run/Alisio.app/Contents/Resources/alisio-package/alisio.mjs \
   gateway call health --timeout 10000
-```
-
-## Smoke check (fallback CLI flow)
-
-```bash
-alisio --version
-
-ALISIO_SKIP_CHANNELS=1 \
-ALISIO_SKIP_CANVAS_HOST=1 \
-alisio gateway run --port 18999 --bind loopback
-```
-
-Then:
-
-```bash
-ALISIO_GATEWAY_PORT=18999 alisio gateway call health --timeout 10000
 ```

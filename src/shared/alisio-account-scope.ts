@@ -19,12 +19,7 @@ export const ALISIO_LOCAL_RUNTIME_RESOURCES = [
 export type AlisioBackendSharedResource = (typeof ALISIO_BACKEND_SHARED_RESOURCES)[number];
 export type AlisioLocalRuntimeResource = (typeof ALISIO_LOCAL_RUNTIME_RESOURCES)[number];
 
-export type CanonicalAccountIdSource =
-  | "account_id"
-  | "account_user_id"
-  | "user_id"
-  | "email"
-  | "missing";
+export type CanonicalAccountIdSource = "account_id" | "missing";
 
 export type CanonicalAccountScope = {
   scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
@@ -80,20 +75,20 @@ export function resolveCanonicalAccountScope(params: {
     };
   }
 
-  const candidates: Array<{ source: CanonicalAccountIdSource; value?: string }> = [
-    { source: "account_id", value: normalizeCandidate(params.accountId) },
-    { source: "account_user_id", value: normalizeCandidate(params.accountUserId) },
-    { source: "user_id", value: normalizeCandidate(params.userId) },
-    { source: "email", value: normalizeCandidate(params.email) },
+  const candidates = [
+    normalizeCandidate(params.accountId),
+    normalizeCandidate(params.accountUserId),
+    normalizeCandidate(params.userId),
+    normalizeCandidate(params.email),
   ];
 
-  const resolved = candidates.find((candidate) => candidate.value);
+  const resolved = candidates.find(Boolean);
   return {
     scopeRoot: ALISIO_ACCOUNT_SCOPE_ROOT,
-    source: resolved?.source ?? "missing",
+    source: resolved ? "account_id" : "missing",
     authenticated: true,
     authRequired: true,
-    ...(resolved?.value ? { accountId: resolved.value } : {}),
+    ...(resolved ? { accountId: resolved } : {}),
   };
 }
 

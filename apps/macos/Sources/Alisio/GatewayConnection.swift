@@ -1,6 +1,7 @@
 import Foundation
 import OSLog
 
+import AlisioChatUI
 import AlisioSupport
 private let gatewayConnectionLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.connection")
 
@@ -88,6 +89,11 @@ actor GatewayConnection {
         case skillsUpdate = "skills.update"
         case voicewakeGet = "voicewake.get"
         case voicewakeSet = "voicewake.set"
+        case sessionsList = "sessions.list"
+        case sessionsPatch = "sessions.patch"
+        case sessionsReset = "sessions.reset"
+        case sessionsDelete = "sessions.delete"
+        case sessionsCompact = "sessions.compact"
         case nodePairApprove = "node.pair.approve"
         case nodePairReject = "node.pair.reject"
         case devicePairList = "device.pair.list"
@@ -180,6 +186,7 @@ actor GatewayConnection {
         do {
             return try await client.request(method: method, params: params, timeoutMs: timeoutMs)
         } catch {
+            await self.refreshAccountStateIfNeeded(after: error, reason: method)
             if error is GatewayResponseError || error is GatewayDecodingError {
                 throw error
             }
@@ -445,14 +452,33 @@ actor GatewayConnection {
         try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: reason, timeout: timeout)
     }
 
+    private func refreshAccountStateIfNeeded(after error: Error, reason: String) async {
+        guard Self.isAccountRequiredGatewayError(error) else { return }
+        await AlisioAccountStore.shared.refresh(reason: reason)
+    }
+
     private static func defaultConfigProvider() async throws -> Config {
         try await GatewayEndpointStore.shared.requireConfig()
+    }
+
+    private static func isAccountRequiredGatewayError(_ error: Error) -> Bool {
+        guard let response = error as? GatewayResponseError else { return false }
+        guard response.code == ErrorCode.invalidRequest.rawValue else { return false }
+        let normalized = response.message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.contains("account") else { return false }
+        return normalized.contains("sign-in required") || normalized.contains("sign in required")
     }
 }
 
 // MARK: - Typed gateway API
 
 extension GatewayConnection {
+    enum SessionPatchValue<Value: Sendable>: Sendable {
+        case unchanged
+        case set(Value)
+        case clear
+    }
+
     enum ComputerSessionCommand: String {
         case start
         case pause
@@ -660,18 +686,22 @@ extension GatewayConnection {
         throw GatewayDecodingError(method: Method.health.rawValue, message: "failed to decode health snapshot")
     }
 
-    func healthOK(timeoutMs: Int = 8000) async throws -> Bool {
+    func livenessSnapshot(timeoutMs: Int = 8000) async throws -> HealthSnapshot? {
         do {
-            let data = try await self.requestRaw(method: .health, timeoutMs: Double(timeoutMs))
-            return (try? self.decoder.decode(AlisioGatewayHealthOK.self, from: data))?.ok ?? true
+            return try await self.healthSnapshot(timeoutMs: Double(timeoutMs))
         } catch {
             // Some gateway builds can serve the control UI and websocket correctly while the
             // dedicated `health` RPC is still unavailable or timing out during startup/restart.
-            // Treat a successful `status` RPC as sufficient liveness for the ControlChannel so
-            // the shell does not flap into Offline/Reconnecting while the gateway is otherwise usable.
+            // Treat a successful `status` RPC as sufficient liveness while preserving the
+            // richer health snapshot when it is available.
             _ = try await self.requestRaw(method: .status, timeoutMs: Double(timeoutMs))
-            return true
+            return nil
         }
+    }
+
+    func healthOK(timeoutMs: Int = 8000) async throws -> Bool {
+        _ = try await self.livenessSnapshot(timeoutMs: timeoutMs)
+        return true
     }
 
     // MARK: - Account
@@ -721,6 +751,100 @@ extension GatewayConnection {
     }
 
     // MARK: - Sessions
+
+    func sessionsList(
+        includeGlobal: Bool = true,
+        includeUnknown: Bool = false,
+        activeMinutes: Int? = nil,
+        limit: Int? = nil) async throws -> AlisioChatSessionsListResponse
+    {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsList.rawValue)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsList.rawValue)
+        var params: [String: AnyCodable] = [
+            "includeGlobal": AnyCodable(includeGlobal),
+            "includeUnknown": AnyCodable(includeUnknown),
+        ]
+        if let activeMinutes {
+            params["activeMinutes"] = AnyCodable(activeMinutes)
+        }
+        if let limit {
+            params["limit"] = AnyCodable(limit)
+        }
+        return try await self.requestDecoded(method: .sessionsList, params: params)
+    }
+
+    func sessionsPatch(
+        key: String,
+        model: SessionPatchValue<String> = .unchanged,
+        thinkingLevel: SessionPatchValue<String> = .unchanged,
+        verboseLevel: SessionPatchValue<String> = .unchanged) async throws
+    {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsPatch.rawValue)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsPatch.rawValue)
+
+        let resolvedKey = self.canonicalizeSessionKey(key)
+        var params: [String: AnyCodable] = ["key": AnyCodable(resolvedKey)]
+
+        switch model {
+        case .unchanged:
+            break
+        case let .set(value):
+            params["model"] = AnyCodable(value)
+        case .clear:
+            params["model"] = AnyCodable(NSNull())
+        }
+
+        switch thinkingLevel {
+        case .unchanged:
+            break
+        case let .set(value):
+            params["thinkingLevel"] = AnyCodable(value)
+        case .clear:
+            params["thinkingLevel"] = AnyCodable(NSNull())
+        }
+
+        switch verboseLevel {
+        case .unchanged:
+            break
+        case let .set(value):
+            params["verboseLevel"] = AnyCodable(value)
+        case .clear:
+            params["verboseLevel"] = AnyCodable(NSNull())
+        }
+
+        try await self.requestVoid(method: .sessionsPatch, params: params)
+    }
+
+    func sessionsReset(key: String) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsReset.rawValue)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsReset.rawValue)
+        let resolvedKey = self.canonicalizeSessionKey(key)
+        try await self.requestVoid(method: .sessionsReset, params: ["key": AnyCodable(resolvedKey)])
+    }
+
+    func sessionsDelete(key: String, deleteTranscript: Bool = true) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsDelete.rawValue)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsDelete.rawValue)
+        let resolvedKey = self.canonicalizeSessionKey(key)
+        try await self.requestVoid(
+            method: .sessionsDelete,
+            params: [
+                "key": AnyCodable(resolvedKey),
+                "deleteTranscript": AnyCodable(deleteTranscript),
+            ])
+    }
+
+    func sessionsCompact(key: String, maxLines: Int = 400) async throws {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsCompact.rawValue)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsCompact.rawValue)
+        let resolvedKey = self.canonicalizeSessionKey(key)
+        try await self.requestVoid(
+            method: .sessionsCompact,
+            params: [
+                "key": AnyCodable(resolvedKey),
+                "maxLines": AnyCodable(maxLines),
+            ])
+    }
 
     func sessionsPreview(
         keys: [String],

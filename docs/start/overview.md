@@ -30,7 +30,7 @@ Alisio turns one computer into:
 - **macOS-first**: first-run quality, permissions, voice, notifications, and device control start on the Mac.
 - **OpenAI plus local**: hosted and local AI should coexist cleanly.
 - **Shared backend**: backend runtime can move without becoming the product UI.
-- **Windows later**: Windows shares backend work now, but the desktop product starts on macOS.
+- **Windows native frontend**: Windows now has a native app for setup, settings, and shared-backend chat, while macOS remains the most complete local-desktop surface.
 - **Per-computer marketplace**: every computer has its own installable skills, apps, and integrations.
 - **Automation through real surfaces**: channels, connectors, schedules, and computers are practical automation inputs and outputs.
 

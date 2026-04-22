@@ -6,7 +6,7 @@ import AlisioSupport
 @Suite(.serialized)
 struct SessionMenuPreviewTests {
     @Test @MainActor func `loader reports sign in required when signed out`() async {
-        await TestIsolation.withAccountStore {
+        await TestIsolation.withSignedOutAccount {
             await SessionPreviewCache.shared._testReset()
 
             let loaded = await SessionMenuPreviewLoader.load(sessionKey: "main", maxItems: 10)

@@ -131,7 +131,7 @@ const mocks = vi.hoisted(() => ({
     canonical: {
       scopeRoot: "account",
       accountId: "user-1",
-      source: "user_id",
+      source: "account_id",
       authenticated: true,
       authRequired: true,
     },
@@ -418,7 +418,7 @@ beforeEach(() => {
     canonical: {
       scopeRoot: "account",
       accountId: "user-1",
-      source: "user_id",
+      source: "account_id",
       authenticated: true,
       authRequired: true,
     },

@@ -38,11 +38,7 @@ import {
   isGatewayMessageChannel,
   normalizeMessageChannel,
 } from "../../utils/message-channel.js";
-import {
-  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
-  loadAlisioGatewayAccountContext,
-  resolveAccountScopedWorkspaceForAgent,
-} from "../alisio-account-context.js";
+import { resolveAccountScopedWorkspaceForAgent } from "../alisio-account-context.js";
 import { parseMessageWithAttachments } from "../chat-attachments.js";
 import { ADMIN_SCOPE } from "../method-scopes.js";
 import { GATEWAY_CLIENT_CAPS, hasGatewayClientCap } from "../protocol/client-info.js";
@@ -63,6 +59,7 @@ import {
   migrateAndPruneGatewaySessionStoreKey,
 } from "../session-utils.js";
 import { formatForLog } from "../ws-log.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import { waitForAgentJob } from "./agent-job.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
 import {
@@ -89,26 +86,6 @@ function resolveAllowModelOverrideFromClient(
 
 function resolveCanResetSessionFromClient(client: GatewayRequestHandlerOptions["client"]): boolean {
   return resolveSenderIsOwnerFromClient(client);
-}
-
-async function requireAuthenticatedAccountContext(
-  respond: GatewayRequestHandlerOptions["respond"],
-) {
-  try {
-    const accountContext = await loadAlisioGatewayAccountContext();
-    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
-      respond(
-        false,
-        undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
-      );
-      return null;
-    }
-    return accountContext;
-  } catch (err) {
-    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
-    return null;
-  }
 }
 
 async function runSessionResetFromAgent(params: {
@@ -362,7 +339,7 @@ export const agentHandlers: GatewayRequestHandlers = {
     const providerOverride = allowModelOverride ? request.provider : undefined;
     const modelOverride = allowModelOverride ? request.model : undefined;
     const cfg = loadConfig();
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -920,7 +897,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       agentId = resolved;
     }
     const cfg = loadConfig();
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }

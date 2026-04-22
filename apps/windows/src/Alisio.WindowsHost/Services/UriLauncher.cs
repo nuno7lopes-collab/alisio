@@ -32,10 +32,13 @@ public sealed class UriLauncher
         }
 
         await _logger.WriteAsync($"open explorer path={fullPath}");
+        var arguments = File.Exists(fullPath)
+            ? $"/select,\"{fullPath}\""
+            : $"\"{fullPath}\"";
         Process.Start(new ProcessStartInfo
         {
             FileName = "explorer.exe",
-            Arguments = $"\"{fullPath}\"",
+            Arguments = arguments,
             UseShellExecute = true,
         });
     }

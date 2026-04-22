@@ -42,9 +42,7 @@ import {
 } from "../../shared/memory-file-paths.js";
 import { resolveUserPath } from "../../utils.js";
 import {
-  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
   buildGatewayPersonalContextScope,
-  loadAlisioGatewayAccountContext,
   resolveAccountScopedWorkspaceForAgent,
 } from "../alisio-account-context.js";
 import {
@@ -61,6 +59,7 @@ import {
   validateAgentsUpdateParams,
 } from "../protocol/index.js";
 import { listAgentsForGateway } from "../session-utils.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 
 const BOOTSTRAP_FILE_NAMES = [
@@ -171,24 +170,6 @@ function resolveAgentWorkspaceFileOrRespondError(
     return null;
   }
   return { cfg, agentId, workspaceDir, name };
-}
-
-async function requireAuthenticatedAccountContext(respond: RespondFn) {
-  try {
-    const accountContext = await loadAlisioGatewayAccountContext();
-    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
-      respond(
-        false,
-        undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
-      );
-      return null;
-    }
-    return accountContext;
-  } catch (err) {
-    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
-    return null;
-  }
 }
 
 type FileMeta = {
@@ -682,7 +663,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
 
     const cfg = loadConfig();
     const result = listAgentsForGateway(cfg);
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -731,7 +712,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -827,7 +808,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -912,7 +893,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
 
     const cfg = loadConfig();
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -967,7 +948,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       return;
     }
     const cfg = loadConfig();
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -996,7 +977,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondInvalidMethodParams(respond, "agents.files.get", validateAgentsFilesGetParams.errors);
       return;
     }
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -1054,7 +1035,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondInvalidMethodParams(respond, "agents.files.set", validateAgentsFilesSetParams.errors);
       return;
     }
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -1126,7 +1107,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }

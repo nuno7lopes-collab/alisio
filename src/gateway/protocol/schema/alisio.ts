@@ -90,9 +90,6 @@ const AccountPlanSchema = Type.Union(ALISIO_PLAN_VALUES.map((entry) => Type.Lite
 const AccountScopeRootSchema = Type.Literal(ALISIO_ACCOUNT_SCOPE_ROOT);
 const CanonicalAccountIdSourceSchema = Type.Union([
   Type.Literal("account_id"),
-  Type.Literal("account_user_id"),
-  Type.Literal("user_id"),
-  Type.Literal("email"),
   Type.Literal("missing"),
 ]);
 const AccountDeviceBindingStateSchema = Type.Union([

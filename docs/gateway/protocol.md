@@ -10,7 +10,7 @@ title: "Gateway Protocol"
 # Gateway protocol (WebSocket)
 
 The Gateway WS protocol is the **single control plane + node transport** for
-Alisio. All clients (CLI, web UI, macOS app, desktop nodes, headless
+Alisio. All clients (CLI, Control UI, macOS app, desktop nodes, headless
 nodes) connect over WebSocket and declare their **role** + **scope** at
 handshake time.
 

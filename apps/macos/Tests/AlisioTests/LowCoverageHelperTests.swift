@@ -14,7 +14,6 @@ struct LowCoverageHelperTests {
             key: "user@example.com",
             kind: .direct,
             displayName: nil,
-            provider: nil,
             subject: nil,
             room: nil,
             space: nil,

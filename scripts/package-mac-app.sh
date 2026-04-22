@@ -7,17 +7,12 @@ source "$ROOT_DIR/scripts/lib/alisio-branding.sh"
 
 APP_NAME="$(alisio_app_name)"
 APP_SLUG="$(alisio_app_slug)"
-LEGACY_SLUG="$(alisio_legacy_slug)"
-LEGACY_ENTRYPOINT="$(alisio_legacy_entrypoint)"
 PACKAGE_DIR_NAME="$(alisio_package_dir_name)"
 CURRENT_SHARED_KIT_BUNDLE_NAME="AlisioKit_AlisioKit.bundle"
 
 BUILD_ROOT="$ROOT_DIR/apps/macos/.build"
 PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
 BUNDLE_ID="${BUNDLE_ID:-$(alisio_macos_debug_bundle_id)}"
-BUNDLE_ID_LOWER="$(printf '%s' "$BUNDLE_ID" | tr '[:upper:]' '[:lower:]')"
-APP_SLUG_LOWER="$(printf '%s' "$APP_SLUG" | tr '[:upper:]' '[:lower:]')"
-LEGACY_SLUG_LOWER="$(printf '%s' "$LEGACY_SLUG" | tr '[:upper:]' '[:lower:]')"
 PKG_VERSION="$(cd "$ROOT_DIR" && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")"
 if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
   BUILD_TS="$(date -u -r "$SOURCE_DATE_EPOCH" +"%Y-%m-%dT%H:%M:%SZ")"
@@ -129,10 +124,6 @@ case "$PACKAGE_MODE" in
     ;;
 esac
 
-if [[ "$LEGACY_SLUG_LOWER" != "$APP_SLUG_LOWER" && "$BUNDLE_ID_LOWER" == *"$LEGACY_SLUG_LOWER"* ]]; then
-  echo "ERROR: BUNDLE_ID must not contain legacy branding ($LEGACY_SLUG): $BUNDLE_ID" >&2
-  exit 1
-fi
 if [[ "$BUNDLE_ID" != "$(alisio_bundle_domain)."* ]]; then
   echo "ERROR: BUNDLE_ID must use the $(alisio_bundle_domain).* namespace: $BUNDLE_ID" >&2
   exit 1
@@ -691,8 +682,6 @@ BUNDLED_NODE_RESOLVED="$(resolve_bundled_node_source || true)"
 ENTRYPOINT_SOURCE=""
 if [[ -f "$ROOT_DIR/${APP_SLUG}.mjs" ]]; then
   ENTRYPOINT_SOURCE="$ROOT_DIR/${APP_SLUG}.mjs"
-elif [[ -f "$ROOT_DIR/${LEGACY_ENTRYPOINT}" ]]; then
-  ENTRYPOINT_SOURCE="$ROOT_DIR/${LEGACY_ENTRYPOINT}"
 fi
 rm -rf "$BUNDLED_PACKAGE_DEST"
 mkdir -p "$BUNDLED_PACKAGE_STAGE"

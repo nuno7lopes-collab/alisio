@@ -59,7 +59,7 @@ That is why macOS permissions matter so much in the product.
 
 Even in remote mode, the Mac app still matters because it can expose local capabilities from this computer.
 
-Windows follows later as a desktop frontend. Today, the Mac app is the native product surface.
+Windows now has its own native frontend for setup, settings, and shared-backend chat, but macOS remains the most complete local-desktop surface.
 
 ## Where State Lives
 

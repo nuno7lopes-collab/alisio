@@ -68,12 +68,6 @@ enum CommandResolver {
         {
             return url
         }
-        let fallbacks = [
-            homeDirectory.appendingPathComponent("Projects/\(AlisioBrand.projectRootDirectoryName)"),
-        ]
-        for fallback in fallbacks where fileManager.fileExists(atPath: fallback.path) {
-            return fallback
-        }
         return homeDirectory
     }
 
@@ -519,10 +513,6 @@ enum CommandResolver {
 
         if let alisioPath = self.alisioExecutable(searchPaths: resolvedSearchPaths) {
             return [alisioPath, subcommand] + extraArgs
-        }
-
-        if let pnpm = self.findExecutable(named: "pnpm", searchPaths: resolvedSearchPaths) {
-            return [pnpm, "--silent", AlisioBrand.commandName, subcommand] + extraArgs
         }
 
         switch runtimeResult {

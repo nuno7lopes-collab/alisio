@@ -6,7 +6,7 @@ import AlisioSupport
 @Suite(.serialized)
 struct SessionDataTests {
     @Test @MainActor func `session loader requires signed in account`() async {
-        await TestIsolation.withAccountStore {
+        await TestIsolation.withSignedOutAccount {
             do {
                 _ = try await SessionLoader.loadSnapshot(limit: 1)
                 Issue.record("Expected signed-out session load to throw")
@@ -42,7 +42,6 @@ struct SessionDataTests {
             key: "user@example.com",
             kind: .direct,
             displayName: nil,
-            provider: nil,
             subject: nil,
             room: nil,
             space: nil,

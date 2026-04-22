@@ -19,18 +19,6 @@ function resolveCurrentDevice(account: AlisioAccountState) {
   return account.devices.find((device) => device.current) ?? account.devices[0];
 }
 
-function normalizeGatewayCanonicalAccountScope(
-  canonical: ReturnType<typeof resolveAlisioCanonicalAccountScope>,
-) {
-  if (!canonical.authenticated || !canonical.accountId) {
-    return canonical;
-  }
-  return {
-    ...canonical,
-    source: "account_id" as const,
-  };
-}
-
 export type AlisioGatewayAccountContext = {
   account: AlisioAccountState;
   canonical: ReturnType<typeof resolveAlisioCanonicalAccountScope>;
@@ -42,9 +30,7 @@ export type AlisioGatewayAccountContext = {
 export function buildAlisioGatewayAccountContext(
   account: AlisioAccountState,
 ): AlisioGatewayAccountContext {
-  const canonical = normalizeGatewayCanonicalAccountScope(
-    resolveAlisioCanonicalAccountScope(account),
-  );
+  const canonical = resolveAlisioCanonicalAccountScope(account);
   const currentDevice = resolveCurrentDevice(account);
   return {
     account,

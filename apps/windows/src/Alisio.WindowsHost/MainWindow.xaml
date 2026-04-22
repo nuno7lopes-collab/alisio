@@ -4,77 +4,376 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     mc:Ignorable="d"
     Title="Alisio for Windows">
-    <Grid x:Name="RootGrid" Loaded="RootGrid_Loaded">
+    <Grid x:Name="RootGrid" Loaded="RootGrid_Loaded" Background="#FFF4F8FC">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Padding="16" ColumnSpacing="12">
+        <Grid Padding="24,20,24,12" ColumnSpacing="16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Spacing="4">
-                <TextBlock FontSize="28" FontWeight="SemiBold" Text="Alisio Windows Host" />
-                <TextBlock
-                    x:Name="StatusTextBlock"
-                    MaxWidth="760"
-                    Opacity="0.75"
-                    TextWrapping="WrapWholeWords" />
+            <StackPanel MaxWidth="920" Spacing="8">
+                <TextBlock FontSize="30" FontWeight="SemiBold" Text="Alisio for Windows" />
+
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Border
+                        x:Name="HeaderStateBadgeBorder"
+                        Padding="10,4"
+                        CornerRadius="999"
+                        Background="#FFE2E8F0">
+                        <TextBlock
+                            x:Name="HeaderStateBadgeTextBlock"
+                            FontWeight="SemiBold"
+                            Foreground="#FF0F172A"
+                            Text="Loading" />
+                    </Border>
+
+                    <TextBlock
+                        x:Name="HeaderSummaryTextBlock"
+                        VerticalAlignment="Center"
+                        Foreground="#FF475569"
+                        TextWrapping="Wrap" />
+                </StackPanel>
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <ToggleSwitch
-                    x:Name="ExperimentalBridgeToggle"
-                    Header="Experimental compatibility bridge"
-                    Toggled="ExperimentalBridgeToggle_Toggled" />
-                <Button Click="NativeSettingsButton_Click" Content="Native settings" />
-                <Button Click="OpenLogsButton_Click" Content="Open logs" />
-                <Button Click="ReloadShellButton_Click" Content="Reload shell" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                <Button x:Name="RefreshButton" Click="RefreshButton_Click" Content="Refresh" />
+                <Button Click="OpenLogsButton_Click" Content="Logs" />
+                <Button Click="OpenWindowsSettingsButton_Click" Content="Windows settings" />
             </StackPanel>
         </Grid>
 
         <Border
             x:Name="BannerBorder"
             Grid.Row="1"
-            Margin="16,0,16,12"
+            Margin="24,0,24,16"
             Padding="12"
-            BorderBrush="#FF94A3B8"
+            BorderBrush="#FFCBD5E1"
             BorderThickness="1"
+            CornerRadius="12"
             Background="#FFF8FAFC"
             Visibility="Collapsed">
-            <TextBlock x:Name="BannerTextBlock" TextWrapping="WrapWholeWords" />
+            <TextBlock
+                x:Name="BannerTextBlock"
+                Foreground="#FF334155"
+                TextWrapping="Wrap" />
         </Border>
 
-        <Grid Grid.Row="2" Margin="16,0,16,16">
+        <Grid Grid.Row="2" Margin="24,0,24,24" ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
             <Border
-                x:Name="EmptyStateBorder"
-                Padding="24"
-                BorderBrush="#FFD1D5DB"
+                Padding="18"
+                BorderBrush="#FFE2E8F0"
                 BorderThickness="1"
-                Background="#FFF8FAFC"
-                CornerRadius="12"
-                Visibility="Collapsed">
-                <StackPanel MaxWidth="760" Spacing="12">
-                    <TextBlock FontSize="24" FontWeight="SemiBold" Text="Shell assets not found" />
+                CornerRadius="22"
+                Background="White">
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="Workspace" />
+                        <TextBlock
+                            Foreground="#FF64748B"
+                            Text="Native session browsing against the real gateway and on-disk state."
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Margin="0,4,0,0" Spacing="8">
+                        <Button x:Name="ChatPaneButton" Click="ChatPaneButton_Click" Content="Chat" />
+                        <Button x:Name="WorkspacePaneButton" Click="WorkspacePaneButton_Click" Content="Workspace" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Margin="0,6,0,0" Spacing="8">
+                        <TextBlock FontWeight="SemiBold" Text="Sessions" />
+                        <TextBox
+                            x:Name="SessionFilterTextBox"
+                            PlaceholderText="Filter sessions"
+                            TextChanged="SessionFilterTextBox_TextChanged" />
+                    </StackPanel>
+
+                    <ScrollViewer
+                        Grid.Row="3"
+                        Margin="0,4,0,0"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="SessionListStackPanel" Spacing="8" />
+                    </ScrollViewer>
+
                     <TextBlock
-                        x:Name="EmptyStateTextBlock"
-                        Opacity="0.8"
-                        TextWrapping="WrapWholeWords" />
-                    <TextBlock
-                        Opacity="0.8"
-                        Text="Build the current shell assets with `pnpm ui:build`, or stage them with `apps/windows/scripts/stage-shell.ps1`."
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                        x:Name="RailStatusTextBlock"
+                        Grid.Row="4"
+                        Foreground="#FF64748B"
+                        TextWrapping="Wrap" />
+                </Grid>
             </Border>
 
-            <controls:WebView2 x:Name="ShellWebView" Visibility="Collapsed" />
+            <Grid Grid.Column="1">
+                <Grid x:Name="ChatPane">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border
+                        Padding="18"
+                        BorderBrush="#FFE2E8F0"
+                        BorderThickness="1"
+                        CornerRadius="22"
+                        Background="White">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Spacing="8">
+                                <TextBlock
+                                    x:Name="SelectedSessionTitleTextBlock"
+                                    FontSize="24"
+                                    FontWeight="SemiBold"
+                                    Text="Session" />
+                                <TextBlock
+                                    x:Name="SelectedSessionStatusTextBlock"
+                                    Foreground="#FF0F172A"
+                                    FontWeight="SemiBold"
+                                    TextWrapping="Wrap" />
+                                <TextBlock
+                                    x:Name="SelectedSessionMetaTextBlock"
+                                    Foreground="#FF64748B"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                                <Button x:Name="OpenTranscriptButton" Click="OpenTranscriptButton_Click" Content="Open transcript" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border
+                        Grid.Row="1"
+                        Margin="0,16,0,0"
+                        Padding="18"
+                        BorderBrush="#FFE2E8F0"
+                        BorderThickness="1"
+                        CornerRadius="22"
+                        Background="White">
+                        <ScrollViewer
+                            x:Name="ConversationScrollViewer"
+                            HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="ConversationStackPanel" Spacing="12" />
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+
+                <Grid x:Name="WorkspacePane" Visibility="Collapsed">
+                    <ScrollViewer
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16" RowSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border
+                                    Padding="18"
+                                    BorderBrush="#FFE2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="22"
+                                    Background="White">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="State" />
+                                        <TextBlock
+                                            x:Name="WorkspaceStateTitleTextBlock"
+                                            FontSize="18"
+                                            FontWeight="SemiBold"
+                                            Text="Loading" />
+                                        <TextBlock
+                                            x:Name="WorkspaceStateTextBlock"
+                                            Foreground="#FF475569"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Grid.Column="1"
+                                    Padding="18"
+                                    BorderBrush="#FFE2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="22"
+                                    Background="White">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="Gateway and runtime" />
+                                        <TextBlock
+                                            x:Name="GatewayDetailsTextBlock"
+                                            FontFamily="Consolas"
+                                            Foreground="#FF334155"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Grid ColumnSpacing="16" RowSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border
+                                    Padding="18"
+                                    BorderBrush="#FFE2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="22"
+                                    Background="White">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="Workspace paths" />
+                                        <TextBlock
+                                            x:Name="WorkspacePathsTextBlock"
+                                            FontFamily="Consolas"
+                                            Foreground="#FF334155"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Grid.Column="1"
+                                    Padding="18"
+                                    BorderBrush="#FFE2E8F0"
+                                    BorderThickness="1"
+                                    CornerRadius="22"
+                                    Background="White">
+                                    <StackPanel Spacing="10">
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Text="Session stores" />
+                                        <TextBlock
+                                            x:Name="SessionStoresTextBlock"
+                                            FontFamily="Consolas"
+                                            Foreground="#FF334155"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Border
+                                Padding="18"
+                                BorderBrush="#FFE2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="22"
+                                Background="White">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Capabilities" />
+                                    <TextBlock
+                                        x:Name="CapabilitiesTextBlock"
+                                        Foreground="#FF475569"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border
+                                Padding="18"
+                                BorderBrush="#FFE2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="22"
+                                Background="White">
+                                <StackPanel Spacing="10">
+                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Caveats" />
+                                    <TextBlock
+                                        x:Name="CaveatsTextBlock"
+                                        Foreground="#FF475569"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border
+                                Padding="18"
+                                BorderBrush="#FFE2E8F0"
+                                BorderThickness="1"
+                                CornerRadius="22"
+                                Background="White">
+                                <StackPanel Spacing="12">
+                                    <TextBlock FontSize="20" FontWeight="SemiBold" Text="Actions" />
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="OpenWorkspaceButton" Click="OpenWorkspaceButton_Click" Content="Open workspace" />
+                                        <Button x:Name="OpenConfigButton" Click="OpenConfigButton_Click" Content="Open config" />
+                                        <Button x:Name="OpenSessionsFolderButton" Click="OpenSessionsFolderButton_Click" Content="Open sessions folder" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Click="OpenNotificationsSettingsButton_Click" Content="Notifications" />
+                                        <Button Click="OpenMicrophoneSettingsButton_Click" Content="Microphone" />
+                                        <Button Click="OpenCameraSettingsButton_Click" Content="Camera" />
+                                    </StackPanel>
+
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Click="OpenLocationSettingsButton_Click" Content="Location" />
+                                        <Button Click="OpenSpeechSettingsButton_Click" Content="Speech" />
+                                        <Button Click="OpenScreenRecordingSettingsButton_Click" Content="Screen recording" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+
+                <Border
+                    x:Name="FatalStateBorder"
+                    Margin="0,0,0,16"
+                    Padding="18"
+                    BorderBrush="#FFFDA4AF"
+                    BorderThickness="1"
+                    CornerRadius="20"
+                    Background="#FFFEF2F2"
+                    VerticalAlignment="Top"
+                    Visibility="Collapsed">
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            x:Name="FatalStateTitleTextBlock"
+                            FontSize="22"
+                            FontWeight="SemiBold"
+                            Text="Windows workspace unavailable" />
+                        <TextBlock
+                            x:Name="FatalStateBodyTextBlock"
+                            Foreground="#FF7F1D1D"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    x:Name="LoadingOverlayBorder"
+                    Background="#CCFFFFFF"
+                    CornerRadius="24"
+                    Visibility="Collapsed">
+                    <StackPanel
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="10">
+                        <ProgressRing Width="28" Height="28" IsActive="True" />
+                        <TextBlock
+                            x:Name="LoadingTextBlock"
+                            Foreground="#FF334155"
+                            Text="Loading Windows workspace" />
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

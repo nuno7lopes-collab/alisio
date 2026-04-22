@@ -946,13 +946,18 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateSessionsResolveParams, "sessions.resolve", respond)) {
       return;
     }
-    if (!(await requireAuthenticatedAppAccount(respond))) {
+    const accountContext = await requireAuthenticatedAppAccount(respond);
+    if (!accountContext) {
       return;
     }
     const p = params;
     const cfg = loadConfig();
 
-    const resolved = await resolveSessionKeyFromResolveParams({ cfg, p });
+    const resolved = await resolveSessionKeyFromResolveParams({
+      cfg,
+      p,
+      accountId: accountContext.canonical.accountId,
+    });
     if (!resolved.ok) {
       respond(false, undefined, resolved.error);
       return;

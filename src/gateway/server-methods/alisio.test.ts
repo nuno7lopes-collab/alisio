@@ -340,7 +340,7 @@ describe("alisio gateway methods", () => {
         scopeRoot: "account",
         canonical: {
           accountId: "user-1",
-          source: "user_id",
+          source: "account_id",
           authenticated: true,
           authRequired: true,
         },

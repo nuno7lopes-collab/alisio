@@ -987,7 +987,9 @@ extension MenuSessionsInjector {
         let value = dict["value"] as? String
         Task {
             do {
-                try await SessionActions.patchSession(key: key, thinking: .some(value))
+                try await SessionActions.patchSession(
+                    key: key,
+                    thinking: value.map(GatewayConnection.SessionPatchValue.set) ?? .clear)
                 await self.refreshCache(force: true)
             } catch {
                 await MainActor.run {
@@ -1005,7 +1007,9 @@ extension MenuSessionsInjector {
         let value = dict["value"] as? String
         Task {
             do {
-                try await SessionActions.patchSession(key: key, verbose: .some(value))
+                try await SessionActions.patchSession(
+                    key: key,
+                    verbose: value.map(GatewayConnection.SessionPatchValue.set) ?? .clear)
                 await self.refreshCache(force: true)
             } catch {
                 await MainActor.run {

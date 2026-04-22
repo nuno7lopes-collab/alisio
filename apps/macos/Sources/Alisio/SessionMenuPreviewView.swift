@@ -222,6 +222,12 @@ enum SessionMenuPreviewLoader {
     private static let cacheMaxAgeSeconds: TimeInterval = 30
     private static let previewMaxChars = 240
 
+    private enum AccountGate: Equatable {
+        case authenticated
+        case signedOut
+        case unavailable
+    }
+
     private struct PreviewTimeoutError: LocalizedError {
         var errorDescription: String? {
             "preview timeout"
@@ -231,7 +237,7 @@ enum SessionMenuPreviewLoader {
     static func prewarm(sessionKeys: [String], maxItems: Int) async {
         let keys = self.uniqueKeys(sessionKeys)
         guard !keys.isEmpty else { return }
-        guard await AlisioAccountStore.shared.isAuthenticated else { return }
+        guard await self.accountGate(reason: "sessions.preview") == .authenticated else { return }
         do {
             let payload = try await self.requestPreview(keys: keys, maxItems: maxItems)
             await self.cache(payload: payload, maxItems: maxItems)
@@ -245,8 +251,16 @@ enum SessionMenuPreviewLoader {
     }
 
     static func load(sessionKey: String, maxItems: Int) async -> SessionMenuPreviewSnapshot {
-        guard await AlisioAccountStore.shared.isAuthenticated else {
+        switch await self.accountGate(reason: "sessions.preview") {
+        case .authenticated:
+            break
+        case .signedOut:
             return SessionMenuPreviewSnapshot(items: [], status: .error("Sign in required"))
+        case .unavailable:
+            if let fallback = await SessionPreviewCache.shared.lastSnapshot(for: sessionKey) {
+                return fallback
+            }
+            return SessionMenuPreviewSnapshot(items: [], status: .error("Preview unavailable"))
         }
         if let cached = await SessionPreviewCache.shared.cachedSnapshot(
             for: sessionKey,
@@ -354,6 +368,22 @@ enum SessionMenuPreviewLoader {
         for entry in payload.previews {
             let snapshot = self.snapshot(from: entry, maxItems: maxItems)
             await SessionPreviewCache.shared.store(snapshot: snapshot, for: entry.key)
+        }
+    }
+
+    private static func accountGate(reason: String) async -> AccountGate {
+        do {
+            _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
+            return .authenticated
+        } catch let error as AlisioAccountRequiredError {
+            switch error {
+            case .signedOut:
+                return .signedOut
+            case .unavailable:
+                return .unavailable
+            }
+        } catch {
+            return .unavailable
         }
     }
 

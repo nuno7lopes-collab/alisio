@@ -198,6 +198,21 @@ import AlisioSupport
         #expect(first == tmp.appendingPathComponent("node_modules/.bin").path)
     }
 
+    @Test func `project root no longer falls back to ~/Projects checkout`() throws {
+        let defaults = self.makeDefaults()
+        let home = try makeTempDirForTests()
+        let checkout = home.appendingPathComponent("Projects/alisio")
+        try FileManager().createDirectory(at: checkout, withIntermediateDirectories: true)
+
+        let resolved = CommandResolver.projectRoot(
+            defaults: defaults,
+            bundleURL: home.appendingPathComponent("Alisio.app", isDirectory: true),
+            fileManager: FileManager(),
+            homeDirectory: home)
+
+        #expect(resolved.path == home.path)
+    }
+
     @Test func `prefers bundled repo root over stale stored project root`() throws {
         let defaults = self.makeDefaults()
         let stale = try makeTempDirForTests()

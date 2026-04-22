@@ -6,9 +6,14 @@ IDENTITY="${SIGN_IDENTITY:-}"
 TIMESTAMP_MODE="${CODESIGN_TIMESTAMP:-auto}"
 DISABLE_LIBRARY_VALIDATION="${DISABLE_LIBRARY_VALIDATION:-0}"
 SKIP_TEAM_ID_CHECK="${SKIP_TEAM_ID_CHECK:-0}"
-ENT_TMP_BASE=$(mktemp -t alisio-entitlements-base.XXXXXX)
 ENT_TMP_APP_BASE=$(mktemp -t alisio-entitlements-app-base.XXXXXX)
 ENT_TMP_RUNTIME=$(mktemp -t alisio-entitlements-runtime.XXXXXX)
+
+cleanup_temp_entitlements() {
+  rm -f "$ENT_TMP_APP_BASE" "$ENT_TMP_RUNTIME"
+}
+
+trap cleanup_temp_entitlements EXIT
 
 if [[ "${APP_BUNDLE}" == "--help" || "${APP_BUNDLE}" == "-h" ]]; then
   cat <<'HELP'
@@ -134,21 +139,6 @@ if [[ "$IDENTITY" != "-" ]]; then
   options_args=("--options" "runtime")
 fi
 timestamp_args=("$timestamp_arg")
-
-cat > "$ENT_TMP_BASE" <<'PLIST'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.automation.apple-events</key>
-    <true/>
-    <key>com.apple.security.device.audio-input</key>
-    <true/>
-    <key>com.apple.security.device.camera</key>
-    <true/>
-</dict>
-</plist>
-PLIST
 
 cat > "$ENT_TMP_APP_BASE" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -344,5 +334,4 @@ assert_signed "$APP_BUNDLE"
 
 verify_team_ids
 
-rm -f "$ENT_TMP_BASE" "$ENT_TMP_APP_BASE" "$ENT_TMP_RUNTIME"
 echo "Codesign complete for $APP_BUNDLE"

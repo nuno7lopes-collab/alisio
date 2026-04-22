@@ -1,14 +1,12 @@
 namespace Alisio.WindowsHost.Models;
 
 public sealed record HostCapabilities(
-    bool SharedShellHost,
-    bool HostBridgeBase,
-    bool ExperimentalShellBridgeInjection,
-    bool NativeSettingsWindow,
+    bool NativeWorkspaceNavigation,
+    bool SessionTranscriptBrowsing,
+    bool RuntimeReconnect,
     bool OpenExternal,
     bool RevealLogs,
-    bool FilePickers,
+    bool RevealWorkspace,
+    bool OpenWindowsSettings,
     bool LocalComputer,
-    bool LaunchAtLogin,
-    bool VoiceWake,
-    bool DeviceIdentityBridge);
+    bool MessageCompose);

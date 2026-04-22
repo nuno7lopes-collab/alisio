@@ -11,10 +11,9 @@ title: "Platforms"
 Alisio core is written in TypeScript. **Node is the recommended runtime**.
 Bun is not recommended for the Gateway (WhatsApp/Telegram bugs).
 
-The primary desktop app is macOS-first today. Windows and Linux are supported
-as gateway/runtime hosts, and the Gateway is fully supported today. Native
-Windows desktop host work is in progress; until then, the recommended Windows
-path is WSL2.
+The primary desktop app is still macOS-first, but Windows now has a native
+desktop frontend for setup, settings, and chat against the shared backend.
+Linux remains a gateway/runtime host path rather than a native desktop app.
 
 ## Choose your OS
 

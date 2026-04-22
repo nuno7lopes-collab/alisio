@@ -74,6 +74,10 @@
     "target": "引导（macOS 应用）"
   },
   {
+    "source": "Onboarding Overview",
+    "target": "引导概览"
+  },
+  {
     "source": "Product Overview",
     "target": "产品概览"
   },
@@ -128,6 +132,10 @@
   {
     "source": "Getting started",
     "target": "入门指南"
+  },
+  {
+    "source": "Windows Desktop Host",
+    "target": "Windows 桌面宿主"
   },
   {
     "source": "Quick start",

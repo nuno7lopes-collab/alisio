@@ -53,8 +53,9 @@ function isResolvedSessionKeyVisible(params: {
 export async function resolveSessionKeyFromResolveParams(params: {
   cfg: AlisioConfig;
   p: SessionsResolveParams;
+  accountId?: string | null;
 }): Promise<SessionsResolveResult> {
-  const { cfg, p } = params;
+  const { cfg, p, accountId } = params;
 
   const key = typeof p.key === "string" ? p.key.trim() : "";
   const hasKey = key.length > 0;
@@ -79,7 +80,7 @@ export async function resolveSessionKeyFromResolveParams(params: {
   }
 
   if (hasKey) {
-    const target = resolveGatewaySessionStoreTarget({ cfg, key });
+    const target = resolveGatewaySessionStoreTarget({ cfg, key, accountId });
     const store = loadSessionStore(target.storePath);
     if (store[target.canonicalKey]) {
       if (
@@ -100,7 +101,12 @@ export async function resolveSessionKeyFromResolveParams(params: {
       return noSessionFoundResult(key);
     }
     await updateSessionStore(target.storePath, (s) => {
-      const { primaryKey } = migrateAndPruneGatewaySessionStoreKey({ cfg, key, store: s });
+      const { primaryKey } = migrateAndPruneGatewaySessionStoreKey({
+        cfg,
+        key,
+        store: s,
+        accountId,
+      });
       if (!s[primaryKey] && s[legacyKey]) {
         s[primaryKey] = s[legacyKey];
       }
@@ -120,7 +126,7 @@ export async function resolveSessionKeyFromResolveParams(params: {
   }
 
   if (hasSessionId) {
-    const { storePath, store } = loadCombinedSessionStoreForGateway(cfg);
+    const { storePath, store } = loadCombinedSessionStoreForGateway(cfg, { accountId });
     const list = listSessionsFromStore({
       cfg,
       storePath,
@@ -162,7 +168,7 @@ export async function resolveSessionKeyFromResolveParams(params: {
     };
   }
 
-  const { storePath, store } = loadCombinedSessionStoreForGateway(cfg);
+  const { storePath, store } = loadCombinedSessionStoreForGateway(cfg, { accountId });
   const list = listSessionsFromStore({
     cfg,
     storePath,

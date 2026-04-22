@@ -1,157 +1,82 @@
 ---
-summary: "Windows desktop-host foundation: WinUI 3, WebView2, compatibility shell bridging, and honest host gating"
+summary: "Windows desktop host architecture: native WinUI workspace, honest runtime state, and shared gateway truth."
 read_when:
-  - Understanding the Windows desktop-host architecture
-  - Working on the Windows desktop-host foundation
-  - Checking why the Windows bridge is opt-in instead of default-on
+  - Understanding how the Windows workspace boots
+  - Working on Windows chat, sessions, navigation, or loading states
+  - Verifying Windows product behavior against the shared backend
 title: "Windows Desktop Host"
 ---
 
 # Windows Desktop Host
 
-This page documents the current **Windows desktop-host foundation** under
-`apps/windows`.
+The Windows desktop host is the native frontend under `apps/windows`.
 
-It exists to host the current compatibility shell on Windows without pretending
-that Windows already has macOS-equivalent native runtime features or a finished
-Windows-native frontend.
+Its job is narrow and explicit:
 
-Windows follows the same backend contract as macOS:
+- render a native workspace instead of embedding the web product as the main UI
+- show the real runtime and gateway state without pretending disconnected state is live chat
+- browse the real session stores and JSONL transcripts on disk
+- avoid a second Windows-only auth, routing, or account model
 
-- the product root is `accountId`
-- product auth is mandatory
-- backend-shared state stays in the shared backend
-- `IDENTITY.md`, `SOUL.md`, `USER.md`, `MEMORY.md`, and `memory/` stay local to
-  the Windows runtime
+## Core Shape
 
-## Stack
+The Windows host is a **WinUI 3** app on **Windows App SDK 1.8.6**.
 
-The foundation uses Microsoft’s primary native desktop stack:
+One window matters:
 
-- **WinUI 3**
-- **Windows App SDK**
-- **WebView2**
+- `MainWindow`: native workspace shell with chat/session browsing and workspace state
 
-Official references:
+The window owns:
 
-- [https://learn.microsoft.com/windows/apps/winui/](https://learn.microsoft.com/windows/apps/winui/)
-- [https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads)
-- [https://learn.microsoft.com/microsoft-edge/webview2/get-started/winui](https://learn.microsoft.com/microsoft-edge/webview2/get-started/winui)
+- left-rail navigation between chat and workspace views
+- refresh, reconnect, loading, and error handling
+- native session list rendering from discovered `sessions.json` stores
+- native transcript rendering from persisted JSONL files
+- native launchers for logs, workspace/config paths, and Windows settings pages
 
-## Shell loading
+## Source Of Truth
 
-The host resolves compatibility shell assets from one of two places:
+Windows still does not invent product state from ad hoc local heuristics.
 
-- `ui/dist` in a repo checkout
-- staged shell assets copied into the Windows app folder
+It resolves:
 
-WebView2 serves those local assets through a virtual host mapping instead of
-pretending they are raw local files.
+- runtime availability from the real `alisio` CLI
+- gateway health from `alisio gateway health --json`
+- canonical bootstrap and account state from `alisio.bootstrap.get`
+- gateway config from `config.get`
+- workspace and session-store layout from `~/.alisio/alisio.json` plus discovered disk state
 
-Relevant Microsoft API:
+That keeps Windows aligned with the same shared backend contract used elsewhere in the product while still exposing honest local recovery when only stored transcripts are available.
 
-- [https://learn.microsoft.com/dotnet/api/microsoft.web.webview2.core.corewebview2.setvirtualhostnametofoldermapping](https://learn.microsoft.com/dotnet/api/microsoft.web.webview2.core.corewebview2.setvirtualhostnametofoldermapping)
+## Product Gating
 
-## Bridge base
+Windows applies these rules:
 
-The host includes a real WebView2 request/response bridge base using:
+- if the runtime is missing, Windows does not fake setup, chat, or reconnect state
+- if the gateway is down but session stores exist, Windows renders local transcript history as read-only state
+- if the gateway is up but bootstrap is not ready, Windows says so explicitly instead of claiming ready chat
+- only a ready bootstrap produces a live-connected workspace state
 
-- document-start script injection
-- `chrome.webview.postMessage(...)`
-- native `WebMessageReceived`
-- native `PostWebMessageAsJson(...)`
+This is the important cut from earlier Windows experiments: the app no longer exposes a fake usable-enough product surface while the canonical contract is incomplete.
 
-Relevant Microsoft APIs:
+## Native Workspace Model
 
-- [https://learn.microsoft.com/dotnet/api/microsoft.web.webview2.core.corewebview2.webmessagereceived](https://learn.microsoft.com/dotnet/api/microsoft.web.webview2.core.corewebview2.webmessagereceived)
-- [https://learn.microsoft.com/dotnet/api/microsoft.web.webview2.core.corewebview2.postwebmessageasjson](https://learn.microsoft.com/dotnet/api/microsoft.web.webview2.core.corewebview2.postwebmessageasjson)
+The native workspace intentionally has two panes:
 
-The native dispatcher already handles Windows-host operations such as:
+- `Chat`: session list plus transcript rendering for the selected stored session
+- `Workspace`: runtime, gateway, config, capability, and path truth for the current Windows environment
 
-- host state
-- opening the native settings window
-- revealing logs
-- opening external links
-- file and folder pickers
+Current deliberate cuts:
 
-## Compatibility bridge
+- no embedded browser shell as the main product surface
+- no duplicate settings window
+- no native message compose yet
+- no Windows local `computer` parity claim
 
-The current shell bridge still exposes a compatibility verb,
-`getShellState`, because the temporary shell assets still ask for that payload.
-That compatibility adapter is deliberate. It is not the final Windows contract.
+## Build
 
-## Why the shell bridge is off by default
+Use the Windows solution under `apps/windows`:
 
-The current compatibility shell still hardcodes some **macOS-native shell**
-presentation and behavior.
-
-If the Windows host injected `window.alisioHost` by default today, the shell
-would expose UI that reads as macOS-specific even though the Windows runtime
-behind it does not exist yet.
-
-That would be misleading.
-
-So the Windows host takes the stricter path:
-
-- the bridge implementation is real
-- the native settings window is real
-- the shell bridge injection is **experimental and opt-in**
-- the default path stays honest until the shell contract becomes
-  platform-neutral
-
-## Capability truth
-
-Current Windows desktop-host truth:
-
-- temporary shell host: yes
-- native settings window: yes
-- native logs reveal: yes
-- native external handoff: yes
-- native file/folder pickers: yes
-- shell bridge injection: experimental
-- local `computer`: no
-- background-safe control: no
-- launch at login: no
-- voice wake: no
-- managed host device identity bridge: no
-
-## Release note
-
-Treat this surface as a **host foundation**, not as completed product parity or
-the final Windows frontend direction.
-
-It is suitable for:
-
-- compatibility-shell convergence work
-- native Windows host integration
-- internal preview validation
-
-It is not yet suitable for:
-
-- claiming Windows local `computer`
-- claiming background-safe control
-- claiming feature parity with the macOS desktop app
-
-## External handoff and native pages
-
-The host opens external URLs outside the WebView2 shell instead of trapping
-them inside the app.
-
-It also uses Windows `ms-settings:` URIs for OS-native pages such as
-microphone, camera, location, notifications, speech, and graphics-capture
-privacy.
-
-Relevant Microsoft reference:
-
-- [https://learn.microsoft.com/windows/apps/develop/launch/launch-settings](https://learn.microsoft.com/windows/apps/develop/launch/launch-settings)
-
-## File access hooks
-
-The current host foundation includes native file and folder pickers.
-
-Relevant Microsoft interop reference:
-
-- [https://learn.microsoft.com/windows/apps/develop/files/using-file-folder-pickers](https://learn.microsoft.com/windows/apps/develop/files/using-file-folder-pickers)
-
-These hooks are deliberately limited to explicit picker flows. They do **not**
-pretend that Windows already has a local `computer` action runtime.
+```powershell
+dotnet build apps/windows/Alisio.WindowsHost.sln
+```

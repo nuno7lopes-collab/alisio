@@ -24,10 +24,8 @@ import {
 } from "../../plugins/memory-runtime.js";
 import { normalizeAgentId } from "../../routing/session-key.js";
 import {
-  ALISIO_APP_AUTH_REQUIRED_MESSAGE,
   applyAccountScopedWorkspaceOverride,
   buildGatewayPersonalContextScope,
-  loadAlisioGatewayAccountContext,
   resolveAccountScopedWorkspaceForAgent,
 } from "../alisio-account-context.js";
 import {
@@ -44,6 +42,7 @@ import {
   validateMemorySyncParams,
 } from "../protocol/index.js";
 import { formatError } from "../server-utils.js";
+import { requireAuthenticatedAppAccount } from "./account-required.js";
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 
 function respondInvalidMethodParams(
@@ -84,24 +83,6 @@ function resolveMemoryE2eeContext(params: Record<string, unknown>, respond: Resp
     stateDir: resolveStateDir(env),
     ownerProfile: resolveAlisioMemoryOwnerProfile(env),
   };
-}
-
-async function requireAuthenticatedAccountContext(respond: RespondFn) {
-  try {
-    const accountContext = await loadAlisioGatewayAccountContext();
-    if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
-      respond(
-        false,
-        undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, ALISIO_APP_AUTH_REQUIRED_MESSAGE),
-      );
-      return null;
-    }
-    return accountContext;
-  } catch (err) {
-    respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
-    return null;
-  }
 }
 
 function logMemoryE2eeEvent(
@@ -469,7 +450,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
     if (!context) {
       return;
     }
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }
@@ -551,7 +532,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (!(await requireAuthenticatedAccountContext(respond))) {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
       return;
     }
 
@@ -605,7 +586,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (!(await requireAuthenticatedAccountContext(respond))) {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
       return;
     }
 
@@ -678,7 +659,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    if (!(await requireAuthenticatedAccountContext(respond))) {
+    if (!(await requireAuthenticatedAppAccount(respond))) {
       return;
     }
 
@@ -752,7 +733,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
     if (!context) {
       return;
     }
-    const accountContext = await requireAuthenticatedAccountContext(respond);
+    const accountContext = await requireAuthenticatedAppAccount(respond);
     if (!accountContext) {
       return;
     }

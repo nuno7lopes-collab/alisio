@@ -44,7 +44,7 @@ describe("shared/alisio-account-scope", () => {
     ).toEqual({
       scopeRoot: ALISIO_ACCOUNT_SCOPE_ROOT,
       accountId: "user-1",
-      source: "user_id",
+      source: "account_id",
       authenticated: true,
       authRequired: true,
     });

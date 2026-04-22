@@ -358,7 +358,7 @@ struct TailscaleIntegrationSection: View {
 
     private func restartGatewayIfNeeded() {
         guard self.connectionMode == .local, !self.isPaused else { return }
-        Task { await GatewayLaunchAgentManager.kickstart() }
+        Task { await GatewayLaunchAgentManager.restart() }
     }
 
     private func startStatusTimer() {

@@ -497,11 +497,13 @@ export function migrateAndPruneGatewaySessionStoreKey(params: {
   cfg: ReturnType<typeof loadConfig>;
   key: string;
   store: Record<string, SessionEntry>;
+  accountId?: string | null;
 }) {
   const target = resolveGatewaySessionStoreTarget({
     cfg: params.cfg,
     key: params.key,
     store: params.store,
+    accountId: params.accountId,
   });
   const primaryKey = target.canonicalKey;
   const freshestMatch = resolveFreshestSessionStoreMatchFromStoreKeys(

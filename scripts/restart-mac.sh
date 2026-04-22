@@ -11,7 +11,6 @@ PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
 APP_EXECUTABLE="${APP_EXECUTABLE:-${ALISIO_MAC_EXECUTABLE:-$PRODUCT}}"
 APP_BUNDLE="${ALISIO_APP_BUNDLE:-${APP_BUNDLE:-}}"
 DEV_APP_BUNDLE="$ROOT_DIR/.run/${APP_NAME}.app"
-GATEWAY_LAUNCH_AGENT_LABEL="${ALISIO_LAUNCHD_LABEL:-ai.alisio.gateway}"
 LOG_PATH="${ALISIO_RESTART_LOG:-/tmp/alisio-restart.log}"
 LOCK_KEY="$(printf '%s' "$ROOT_DIR" | shasum -a 256 | cut -c1-8)"
 LOCK_DIR="${TMPDIR:-/tmp}/alisio-restart-${LOCK_KEY}"
@@ -20,6 +19,19 @@ NO_SIGN=0
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+gateway_launch_agent_label() {
+  local profile="${ALISIO_PROFILE:-}"
+  local profile_lower=""
+  profile="$(printf '%s' "$profile" | xargs)"
+  profile_lower="$(printf '%s' "$profile" | tr '[:upper:]' '[:lower:]')"
+  if [[ -z "$profile" || "$profile_lower" == "default" ]]; then
+    printf '%s\n' "ai.alisio.gateway"
+    return
+  fi
+  printf 'ai.alisio.%s\n' "$profile"
+}
+
 show_help() {
   cat <<EOF
 Uso: $(basename "$0") [--wait] [--sign|--no-sign]
@@ -159,6 +171,8 @@ exec > >(tee "$LOG_PATH") 2>&1
 
 export PATH="${ROOT_DIR}/node_modules/.bin:${PATH}"
 acquire_lock
+
+GATEWAY_LAUNCH_AGENT_LABEL="$(gateway_launch_agent_label)"
 
 pkill -f "${APP_NAME}.app/Contents/MacOS/${APP_EXECUTABLE}" 2>/dev/null || true
 pkill -x "$APP_EXECUTABLE" 2>/dev/null || true

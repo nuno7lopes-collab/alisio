@@ -1,350 +1,121 @@
 ---
-summary: "Windows truth: usable backend and CLI paths today, Windows-native frontend later"
+summary: "Windows: native desktop workspace with honest gateway state, session browsing, and shared-backend auth."
 read_when:
   - Running Alisio on Windows
-  - Choosing between native Windows, WSL2, and the Windows desktop host foundation
-  - Checking what the Windows host app does and does not do
+  - Choosing between the Windows app, the native CLI, and WSL2
+  - Checking what the Windows frontend does and does not claim
 title: "Windows"
 ---
 
 # Windows
 
-As of **April 21, 2026**, Windows support is real, but it is still a
-**preparation track**, not a finished desktop product.
+Windows now has a native desktop workspace for Alisio.
 
-Treat these as separate surfaces:
+That workspace is account-rooted and gateway-backed:
 
-- **Native Windows CLI**
-- **WSL2 runtime**
-- **Windows desktop host app**
-- **Future Windows local `computer` runtime**
+- signed-out or not-ready Windows stays explicit about setup state
+- stored sessions and transcripts render natively from the real session stores
+- live readiness still comes from the canonical bootstrap state
+- account and runtime state use the same backend truth as the rest of the product
 
-They are **not** equivalent today.
+Windows still does **not** claim macOS local `computer` parity.
 
-The current product story is simple:
+If you need the fullest Linux-first runtime path on a Windows machine, keep using **WSL2**. If you want the native desktop product surface for workspace state, session browsing, account state, and honest reconnect/setup handling, use the **Windows app**.
 
-- **macOS is the primary desktop product today**
-- **Windows comes later as a desktop frontend**
-- **Windows shares the backend/runtime story now instead of defining the product surface**
-- **WSL2 remains the recommended full-runtime path on Windows right now**
+## Product Truth On Windows
 
-## Recommended path
+The Windows app does not invent its own auth or device model.
 
-If you want the fullest Alisio runtime on a Windows machine today, use
-**WSL2**. That keeps the CLI, Gateway, and Linux-first tooling on the path we
-already exercise most heavily.
+It reads the real Alisio runtime and Gateway contract:
 
-- [Getting Started](/start/getting-started) inside WSL2
-- [Gateway](/gateway)
-- Microsoft WSL install guide:
-  [https://learn.microsoft.com/windows/wsl/install](https://learn.microsoft.com/windows/wsl/install)
+- runtime availability comes from the actual `alisio` CLI
+- startup gating comes from `alisio.bootstrap.get`
+- account truth comes from the canonical account-rooted contract
+- device binding stays attached to the current local runtime device
+- product settings stay behind the same shared backend auth state
 
-## What exists today
+That means Windows does not silently fall back to a local-only product mode when the user is signed out.
+
+## Choose The Right Surface
+
+### Windows app
+
+Use this when you want the native desktop frontend on Windows.
+
+Current behavior:
+
+- native WinUI 3 frontend
+- native workspace and chat/session navigation
+- native session-store and transcript browsing
+- honest loading, reconnect, setup-required, and error states
+- native log/state-folder reveal and Windows settings launchers
+
+Current non-goals:
+
+- no local `computer` runtime parity
+- no claim of macOS permission parity
+- no voice wake or launch-at-login product surface
+- no second auth model separate from the Gateway
+- no native message compose yet
 
 ### Native Windows CLI
 
-Native Windows already supports real CLI and Gateway flows.
+Use this when you want terminal-led setup or operator flows on Windows.
 
-What works well today:
+Current truth:
 
-- website installer via `install.ps1`
-- local CLI commands such as `alisio --version`, `alisio doctor`, and `alisio plugins list --json`
-- native Windows Gateway install flows, including Scheduled Tasks first and a
-  per-user Startup-folder fallback when task creation is denied
-- local agent/provider smoke such as:
+- real and supported
+- works separately from the Windows app
+- good for scripting, diagnostics, and gateway operations
+
+### WSL2
+
+Use this when you want the most battle-tested runtime path on Windows.
+
+Current truth:
+
+- best compatibility path for Linux-first tooling
+- strongest fit for runtime-heavy and service-oriented workflows
+- still the right answer when you specifically need the fuller Linux runtime story
+
+## What The Windows App Does
+
+- renders the real runtime and gateway state instead of a compatibility dashboard
+- keeps signed-out and setup-required state honest
+- shows persisted sessions and transcripts directly from the real stores on disk
+- reconnects against the canonical gateway contract instead of inventing a local-only mode
+- keeps account and device-binding state rooted in the shared backend contract
+
+## What The Windows App Does Not Do
+
+- it does not claim a Windows local `computer` implementation
+- it does not claim background-safe desktop control
+- it does not pretend stored transcripts are a live connected chat
+- it does not offer native message compose yet
+- it does not replace the native CLI
+- it does not replace WSL2 for Linux-first runtime workflows
+
+If you are looking for local-computer control, read [Computer](/tools/computer). That surface remains intentionally macOS-first.
+
+## Build From Source
+
+The Windows app lives under `apps/windows`.
+
+Typical source build:
 
 ```powershell
-alisio agent --local --agent main --thinking low -m "Reply with exactly WINDOWS-HATCH-OK."
-```
-
-Native Windows is **not** the same thing as the Windows desktop host app. The
-CLI can work even if the host app is not built or installed.
-
-### WSL2 runtime
-
-WSL2 remains the recommended Windows path for the full runtime story:
-
-- Linux package/tool compatibility
-- Gateway service install via systemd
-- the most battle-tested path for local runtime workflows on Windows
-
-If you are deciding between native Windows and WSL2 for day-to-day operation,
-pick **WSL2** unless you specifically need native Windows behavior.
-
-### Windows desktop host app
-
-This repo now contains a **real Windows desktop-host foundation** in
-`apps/windows`.
-
-What this foundation is:
-
-- a native **WinUI 3** desktop app on **Windows App SDK 1.8.6**
-- a **WebView2** host for the current compatibility shell assets
-- a native settings window that tells the truth about Windows capability state
-- native log-folder reveal
-- native external-link handoff
-- native file and folder pickers
-- a real WebView2 request/response bridge base for later Windows-native UI work
-
-What this foundation is **not**:
-
-- not a shipped parity app matching the macOS app
-- not a replacement for WSL2
-- not a Windows local `computer` runtime
-- not background-safe desktop control
-- not voice wake, launch-at-login, or a Windows-native permission bridge
-- not the final Windows frontend direction
-
-For the host architecture details, see
-[Windows Desktop Host](/architecture/windows-desktop-host).
-
-## Capability truth
-
-### 1) Windows desktop host app
-
-This is the current native desktop-host foundation in `apps/windows`.
-
-Current truth:
-
-- temporary shell hosting: available
-- WebView2 bridge base: available
-- shell bridge injection: **experimental and off by default**
-- native settings/logs/external/file pickers: available
-- local `computer`: **not available**
-
-Why bridge injection is off by default:
-
-- the current compatibility shell still hardcodes some macOS-native presentation
-- enabling that bridge by default on Windows would surface misleading UI
-- the host therefore keeps the bridge implementation real, but the shell wiring
-  honest and opt-in until the shell contract becomes platform-neutral
-
-### 2) Native Windows CLI
-
-This is the normal `alisio` binary path on Windows.
-
-Current truth:
-
-- real and usable
-- separate from the desktop host app
-- can run without WinUI 3 or WebView2 app work
-
-### 3) WSL2
-
-This is the recommended Windows runtime path.
-
-Current truth:
-
-- best compatibility path on Windows
-- best fit for Gateway service + Linux-first tooling
-- still the safest recommendation if you want the most complete experience
-
-### 4) Future Windows local `computer`
-
-This does **not** exist yet.
-
-Current truth:
-
-- there is no Windows runtime equivalent today to the local macOS `computer`
-  stack
-- the Windows host app therefore does **not** advertise local `computer`
-- there is no claim of background-safe control or local GUI action parity
-
-If you are looking specifically for local host-computer control, read
-[Computer](/tools/computer). That page is currently macOS-specific on purpose.
-
-## Release recommendation
-
-Current Windows recommendation:
-
-- **GO** for a desktop-host foundation branch or internal preview
-- **GO WITH LIMITATIONS** only if the release message is explicit that Windows
-  ships a host foundation, not a finished Windows frontend and not
-  local-computer parity
-- **NO-GO** for any claim that Windows already matches macOS local `computer`
-
-## Microsoft stack choice
-
-The Windows host foundation intentionally follows Microsoft’s primary path for a
-native Windows desktop host:
-
-- WinUI 3 / Windows App SDK:
-  [https://learn.microsoft.com/windows/apps/winui/](https://learn.microsoft.com/windows/apps/winui/)
-- latest Windows App SDK stable downloads:
-  [https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads)
-- WebView2 in WinUI 3:
-  [https://learn.microsoft.com/microsoft-edge/webview2/get-started/winui](https://learn.microsoft.com/microsoft-edge/webview2/get-started/winui)
-
-The host currently loads compatibility shell assets from either:
-
-- `ui/dist` in a repo checkout
-- staged shell assets inside the Windows app folder
-
-## Build the Windows host from source
-
-The Windows host lives under `apps/windows`.
-
-Typical source flow:
-
-```powershell
-pnpm ui:build
-powershell -ExecutionPolicy Bypass -File apps/windows/scripts/stage-shell.ps1
 powershell -ExecutionPolicy Bypass -File apps/windows/scripts/build.ps1
 ```
 
-The staging step is optional if you are running from a repo checkout and the app
-can resolve `ui/dist` directly.
-
-## Native Windows caveats
-
-Native Windows CLI and Gateway caveats still apply:
-
-- `alisio onboard --non-interactive` still expects a reachable local gateway
-  unless you pass `--skip-health`
-- `alisio onboard --non-interactive --install-daemon` and
-  `alisio gateway install` try Scheduled Tasks first
-- when Scheduled Task creation is denied, Alisio falls back to a per-user
-  Startup-folder login item
-- Scheduled Tasks remain preferred when available because they provide better
-  supervisor status
-
-If you want the native CLI only, without gateway service install:
+If you have the Windows toolchain installed, you can also build the solution directly:
 
 ```powershell
-alisio onboard --non-interactive --skip-health
-alisio gateway run
+dotnet build apps/windows/Alisio.WindowsHost.sln
 ```
 
-If you do want managed startup on native Windows:
+## Related Pages
 
-```powershell
-alisio gateway install
-alisio gateway status --json
-```
-
-## Gateway
-
+- [Getting Started](/start/getting-started)
+- [Onboarding Overview](/start/onboarding-overview)
+- [Windows Desktop Host](/architecture/windows-desktop-host)
 - [Gateway](/gateway)
-- [Gateway configuration](/gateway/configuration)
-
-## Gateway service install
-
-Inside WSL2:
-
-```bash
-alisio onboard --install-daemon
-```
-
-Or:
-
-```bash
-alisio gateway install
-```
-
-Or:
-
-```bash
-alisio configure
-```
-
-Select **Gateway service** when prompted.
-
-Repair or migrate:
-
-```bash
-alisio doctor
-```
-
-## Gateway auto-start before Windows login
-
-If you want the WSL2 Gateway path to come up before Windows sign-in, keep the
-full boot chain in mind:
-
-1. Keep the Linux user service alive without login:
-
-```bash
-sudo loginctl enable-linger "$(whoami)"
-```
-
-2. Install the Alisio gateway user service:
-
-```bash
-alisio gateway install
-```
-
-3. Wake WSL at Windows boot from an elevated PowerShell:
-
-```powershell
-schtasks /create /tn "WSL Boot" /tr "wsl.exe -d Ubuntu --exec /bin/true" /sc onstart /ru SYSTEM
-```
-
-Replace `Ubuntu` with your distro from:
-
-```powershell
-wsl --list --verbose
-```
-
-## Advanced: expose WSL services over LAN
-
-WSL2 has its own virtual network. If another machine needs to reach a service
-running inside WSL, forward a Windows port to the current WSL IP.
-
-Example, in elevated PowerShell:
-
-```powershell
-$Distro = "Ubuntu-24.04"
-$ListenPort = 2222
-$TargetPort = 22
-
-$WslIp = (wsl -d $Distro -- hostname -I).Trim().Split(" ")[0]
-if (-not $WslIp) { throw "WSL IP not found." }
-
-netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=$ListenPort `
-  connectaddress=$WslIp connectport=$TargetPort
-```
-
-Allow the port through Windows Firewall:
-
-```powershell
-New-NetFirewallRule -DisplayName "WSL SSH $ListenPort" -Direction Inbound `
-  -Protocol TCP -LocalPort $ListenPort -Action Allow
-```
-
-Refresh the rule after WSL restarts because the WSL IP can change.
-
-## WSL2 install notes
-
-Open PowerShell as Administrator:
-
-```powershell
-wsl --install
-# Or pick a distro explicitly:
-wsl --list --online
-wsl --install -d Ubuntu-24.04
-```
-
-Then enable systemd inside WSL:
-
-```bash
-sudo tee /etc/wsl.conf >/dev/null <<'EOF'
-[boot]
-systemd=true
-EOF
-```
-
-Restart WSL:
-
-```powershell
-wsl --shutdown
-```
-
-Then continue with the normal Linux install flow inside WSL:
-
-```bash
-git clone https://github.com/alisio/alisio.git
-cd alisio
-pnpm install
-pnpm ui:build
-pnpm build
-alisio onboard
-```

@@ -92,4 +92,16 @@ struct GatewayEnvironmentTests {
         #expect(label == "(bundled app runtime)")
         #expect(missingMessage == "Bundled Alisio runtime missing from app package; rebuild the app.")
     }
+
+    @Test func `configured local cli uses local labels and remediation`() throws {
+        let localRoot = try makeTempDirForTests()
+        let label = GatewayEnvironment.gatewayLocationLabel(
+            gatewayBinary: localRoot.appendingPathComponent("node_modules/.bin/alisio").path,
+            projectRoot: localRoot,
+            projectEntrypoint: nil)
+        let missingMessage = GatewayEnvironment.missingGatewayMessage(projectRoot: localRoot)
+
+        #expect(label == "(local CLI)")
+        #expect(missingMessage == "Configured local Alisio runtime missing entrypoint or local CLI.")
+    }
 }

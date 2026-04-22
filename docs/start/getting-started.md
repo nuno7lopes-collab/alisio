@@ -26,7 +26,7 @@ You install Alisio, sign in with your Alisio account, grant the permissions you 
     Install **Alisio.app** and launch it.
 
     <Note>
-    The product path is macOS now. Windows follows later as a desktop frontend. Use the install and CLI docs only when you intentionally need backend, server, or operator setup outside the Mac app.
+    macOS is still the most complete desktop path, but Windows now has a native frontend for setup, settings, and chat. Use the install and CLI docs when you intentionally need backend, server, or operator setup outside the native apps.
     </Note>
 
   </Step>

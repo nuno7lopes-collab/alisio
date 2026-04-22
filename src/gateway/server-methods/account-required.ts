@@ -6,9 +6,17 @@ import {
 import { ErrorCodes, errorShape } from "../protocol/index.js";
 import type { RespondFn } from "./types.js";
 
+export type AuthenticatedAppAccountContext = Omit<AlisioGatewayAccountContext, "canonical"> & {
+  canonical: AlisioGatewayAccountContext["canonical"] & {
+    authenticated: true;
+    accountId: string;
+    source: "account_id";
+  };
+};
+
 export async function requireAuthenticatedAppAccount(
   respond: RespondFn,
-): Promise<AlisioGatewayAccountContext | null> {
+): Promise<AuthenticatedAppAccountContext | null> {
   try {
     const accountContext = await loadAlisioGatewayAccountContext();
     if (!accountContext.canonical.authenticated || !accountContext.canonical.accountId) {
@@ -19,7 +27,7 @@ export async function requireAuthenticatedAppAccount(
       );
       return null;
     }
-    return accountContext;
+    return accountContext as AuthenticatedAppAccountContext;
   } catch (err) {
     respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
     return null;
