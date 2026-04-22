@@ -59,14 +59,16 @@ final class DeepLinkHandler {
             deepLinkLogger.debug("ignored url \(url.absoluteString, privacy: .public)")
             return
         }
-        guard !AppStateStore.shared.isPaused else {
-            self.presentAlert(title: "Alisio is paused", message: "Unpause Alisio to run agent actions.")
-            return
-        }
 
         switch route {
         case let .agent(link):
+            guard !AppStateStore.shared.isPaused else {
+                self.presentAlert(title: "Alisio is paused", message: "Unpause Alisio to run agent actions.")
+                return
+            }
             await self.handleAgent(link: link, originalURL: url)
+        case let .accountAuth(link):
+            await self.handleAccountAuth(link)
         case .gateway:
             break
         }
@@ -139,6 +141,14 @@ final class DeepLinkHandler {
     }
 
     // MARK: - Auth
+
+    private func handleAccountAuth(_ link: AccountAuthDeepLink) async {
+        do {
+            _ = try await AlisioAccountStore.shared.handleAuthDeepLink(link)
+        } catch {
+            self.presentAlert(title: "Account sign-in failed", message: error.localizedDescription)
+        }
+    }
 
     static func currentKey() -> String {
         self.expectedKey()

@@ -72,6 +72,31 @@ private func gatewayResponseData(id: String, payloadJSON: String) -> Data {
         """.utf8)
 }
 
+private func gatewayCanonicalAccountPayloadJSON(authMethod: String) -> String {
+    """
+    {
+      "accountId": "acct-1",
+      "canonical": {
+        "authenticated": true,
+        "accountId": "acct-1",
+        "source": "account_id"
+      },
+      "profile": {
+        "userId": "user-1",
+        "email": "nuno@example.com",
+        "displayName": "Nuno Lopes"
+      },
+      "session": {
+        "state": "signed_in",
+        "authenticated": true,
+        "accountId": "acct-1",
+        "authMethod": "\(authMethod)"
+      },
+      "devices": []
+    }
+    """
+}
+
 private actor CapturedGatewayFrameStore {
     private var lastFrame: Data?
 
@@ -179,6 +204,216 @@ private func makeTestGatewayConnection() -> GatewayConnection {
             #expect(params["timeout"] as? Int == 45)
             #expect(params["idempotencyKey"] as? String == "qa-first-message")
         }
+    }
+
+    @Test func `begin account email auth forwards native callback url`() async throws {
+        let captured = CapturedGatewayFrameStore()
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    sendHook: { task, message, sendIndex in
+                        guard sendIndex > 0 else { return }
+                        guard let frame = gatewayRequestData(from: message) else { return }
+                        await captured.record(frame)
+                        guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                        task.emitReceiveSuccess(.data(gatewayResponseData(
+                            id: id,
+                            payloadJSON: #"{"ok":true,"email":"nuno@example.com","message":"Check your email."}"#)))
+                    },
+                    receiveHook: { task, receiveIndex in
+                        if receiveIndex == 0 {
+                            return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                        }
+                        let id = task.snapshotConnectRequestID() ?? "connect"
+                        return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+
+        let challenge = try await connection.beginAccountEmailAuth(email: "  Nuno@Example.com  ")
+
+        #expect(challenge.method == .email)
+        #expect(challenge.email == "nuno@example.com")
+        #expect(challenge.supportsMagicLink)
+        #expect(challenge.supportsManualCode)
+        let frameData = try #require(await captured.snapshot())
+        let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+        #expect(frame["method"] as? String == GatewayConnection.Method.alisioAccountBeginEmailAuth.rawValue)
+        let params = try #require(frame["params"] as? [String: Any])
+        #expect(params["email"] as? String == "Nuno@Example.com")
+        #expect(params["callbackUrl"] as? String == GatewayConnection.accountAuthCallbackURL.absoluteString)
+    }
+
+    @Test func `verify account email auth forwards code and decodes snapshot`() async throws {
+        let captured = CapturedGatewayFrameStore()
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    sendHook: { task, message, sendIndex in
+                        guard sendIndex > 0 else { return }
+                        guard let frame = gatewayRequestData(from: message) else { return }
+                        await captured.record(frame)
+                        guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                        task.emitReceiveSuccess(.data(gatewayResponseData(
+                            id: id,
+                            payloadJSON: gatewayCanonicalAccountPayloadJSON(authMethod: "email"))))
+                    },
+                    receiveHook: { task, receiveIndex in
+                        if receiveIndex == 0 {
+                            return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                        }
+                        let id = task.snapshotConnectRequestID() ?? "connect"
+                        return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+
+        let snapshot = try await connection.verifyAccountEmailAuth(
+            email: "  nuno@example.com  ",
+            code: " 123456 ")
+
+        #expect(snapshot.isAuthenticated)
+        #expect(snapshot.session?.authMethod == .email)
+        let frameData = try #require(await captured.snapshot())
+        let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+        #expect(frame["method"] as? String == GatewayConnection.Method.alisioAccountVerifyEmailAuth.rawValue)
+        let params = try #require(frame["params"] as? [String: Any])
+        #expect(params["email"] as? String == "nuno@example.com")
+        #expect(params["code"] as? String == "123456")
+    }
+
+    @Test func `complete account email link forwards tokens and decodes snapshot`() async throws {
+        let captured = CapturedGatewayFrameStore()
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    sendHook: { task, message, sendIndex in
+                        guard sendIndex > 0 else { return }
+                        guard let frame = gatewayRequestData(from: message) else { return }
+                        await captured.record(frame)
+                        guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                        task.emitReceiveSuccess(.data(gatewayResponseData(
+                            id: id,
+                            payloadJSON: gatewayCanonicalAccountPayloadJSON(authMethod: "email"))))
+                    },
+                    receiveHook: { task, receiveIndex in
+                        if receiveIndex == 0 {
+                            return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                        }
+                        let id = task.snapshotConnectRequestID() ?? "connect"
+                        return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+
+        let snapshot = try await connection.completeAccountEmailLinkAuth(
+            .init(
+                accessToken: "access-token",
+                refreshToken: "refresh-token",
+                expiresIn: 3600,
+                tokenType: "bearer"))
+
+        #expect(snapshot.isAuthenticated)
+        #expect(snapshot.session?.authMethod == .email)
+        let frameData = try #require(await captured.snapshot())
+        let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+        #expect(frame["method"] as? String == GatewayConnection.Method.alisioAccountCompleteEmailLinkAuth.rawValue)
+        let params = try #require(frame["params"] as? [String: Any])
+        #expect(params["accessToken"] as? String == "access-token")
+        #expect(params["refreshToken"] as? String == "refresh-token")
+        #expect(params["expiresIn"] as? Int == 3600)
+        #expect(params["tokenType"] as? String == "bearer")
+    }
+
+    @Test func `begin account google auth forwards native callback url`() async throws {
+        let captured = CapturedGatewayFrameStore()
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    sendHook: { task, message, sendIndex in
+                        guard sendIndex > 0 else { return }
+                        guard let frame = gatewayRequestData(from: message) else { return }
+                        await captured.record(frame)
+                        guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                        task.emitReceiveSuccess(.data(gatewayResponseData(
+                            id: id,
+                            payloadJSON: #"{"setupUrl":"https://example.com/google-auth"}"#)))
+                    },
+                    receiveHook: { task, receiveIndex in
+                        if receiveIndex == 0 {
+                            return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                        }
+                        let id = task.snapshotConnectRequestID() ?? "connect"
+                        return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+
+        let request = try await connection.beginAccountGoogleAuth()
+
+        #expect(request.method == .google)
+        #expect(request.setupURL.absoluteString == "https://example.com/google-auth")
+        let frameData = try #require(await captured.snapshot())
+        let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+        #expect(frame["method"] as? String == GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue)
+        let params = try #require(frame["params"] as? [String: Any])
+        #expect(params["callbackUrl"] as? String == GatewayConnection.accountAuthCallbackURL.absoluteString)
+    }
+
+    @Test func `complete account google auth forwards callback payload and decodes snapshot`() async throws {
+        let captured = CapturedGatewayFrameStore()
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    sendHook: { task, message, sendIndex in
+                        guard sendIndex > 0 else { return }
+                        guard let frame = gatewayRequestData(from: message) else { return }
+                        await captured.record(frame)
+                        guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                        task.emitReceiveSuccess(.data(gatewayResponseData(
+                            id: id,
+                            payloadJSON: gatewayCanonicalAccountPayloadJSON(authMethod: "google"))))
+                    },
+                    receiveHook: { task, receiveIndex in
+                        if receiveIndex == 0 {
+                            return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                        }
+                        let id = task.snapshotConnectRequestID() ?? "connect"
+                        return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+
+        let snapshot = try await connection.completeAccountGoogleAuth(
+            .init(
+                stateToken: "state-1",
+                code: "google-code",
+                error: nil,
+                errorDescription: nil))
+
+        #expect(snapshot.isAuthenticated)
+        #expect(snapshot.session?.authMethod == .google)
+        let frameData = try #require(await captured.snapshot())
+        let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+        #expect(frame["method"] as? String == GatewayConnection.Method.alisioAccountCompleteGoogleAuth.rawValue)
+        let params = try #require(frame["params"] as? [String: Any])
+        #expect(params["stateToken"] as? String == "state-1")
+        #expect(params["code"] as? String == "google-code")
     }
 
     @Test @MainActor func `chat send request trims payload and forwards timeout plus attachments`() async throws {

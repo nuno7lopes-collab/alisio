@@ -110,6 +110,12 @@ actor GatewayConnection {
         case cronAdd = "cron.add"
         case cronStatus = "cron.status"
         case alisioAccountGet = "alisio.account.get"
+        case alisioAccountBeginEmailAuth = "alisio.account.beginEmailAuth"
+        case alisioAccountVerifyEmailAuth = "alisio.account.verifyEmailAuth"
+        case alisioAccountCompleteEmailLinkAuth = "alisio.account.completeEmailLinkAuth"
+        case alisioAccountBeginGoogleAuth = "alisio.account.beginGoogleAuth"
+        case alisioAccountCompleteGoogleAuth = "alisio.account.completeGoogleAuth"
+        case alisioAccountCompleteProfile = "alisio.account.completeProfile"
     }
 
     private let configProvider: @Sendable () async throws -> Config
@@ -473,6 +479,14 @@ actor GatewayConnection {
 // MARK: - Typed gateway API
 
 extension GatewayConnection {
+    private struct AccountEmailAuthBeginResponse: Decodable {
+        let email: String
+    }
+
+    private struct AccountGoogleAuthBeginResponse: Decodable {
+        let setupUrl: String
+    }
+
     enum SessionPatchValue<Value: Sendable>: Sendable {
         case unchanged
         case set(Value)
@@ -571,6 +585,8 @@ extension GatewayConnection {
 
         let config: SnapshotConfig?
     }
+
+    nonisolated static let accountAuthCallbackURL = URL(string: "alisio://auth/account/callback")!
 
     static func mainSessionKey(fromConfigGetData data: Data) throws -> String {
         let snapshot = try JSONDecoder().decode(ConfigGetSnapshot.self, from: data)
@@ -710,8 +726,160 @@ extension GatewayConnection {
         try await self.requestDecoded(method: .alisioAccountGet)
     }
 
+    func beginAccountEmailAuth(email: String) async throws -> AlisioEmailAuthChallenge {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let response: AccountEmailAuthBeginResponse = try await self.requestDecoded(
+            method: .alisioAccountBeginEmailAuth,
+            params: [
+                "email": AnyCodable(trimmedEmail),
+                "callbackUrl": AnyCodable(Self.accountAuthCallbackURL.absoluteString),
+            ])
+        return AlisioEmailAuthChallenge(email: response.email)
+    }
+
+    func verifyAccountEmailAuth(email: String, code: String) async throws -> AlisioAccountSnapshot {
+        try await self.requestDecoded(
+            method: .alisioAccountVerifyEmailAuth,
+            params: [
+                "email": AnyCodable(email.trimmingCharacters(in: .whitespacesAndNewlines)),
+                "code": AnyCodable(code.trimmingCharacters(in: .whitespacesAndNewlines)),
+            ])
+    }
+
+    func completeAccountEmailLinkAuth(
+        _ link: AccountEmailLinkDeepLink) async throws -> AlisioAccountSnapshot
+    {
+        var params: [String: AnyCodable] = [
+            "accessToken": AnyCodable(link.accessToken),
+        ]
+        if let refreshToken = link.refreshToken {
+            params["refreshToken"] = AnyCodable(refreshToken)
+        }
+        if let expiresIn = link.expiresIn {
+            params["expiresIn"] = AnyCodable(expiresIn)
+        }
+        if let tokenType = link.tokenType {
+            params["tokenType"] = AnyCodable(tokenType)
+        }
+        return try await self.requestDecoded(
+            method: .alisioAccountCompleteEmailLinkAuth,
+            params: params)
+    }
+
+    func beginAccountGoogleAuth() async throws -> AlisioGoogleAuthRequest {
+        let response: AccountGoogleAuthBeginResponse = try await self.requestDecoded(
+            method: .alisioAccountBeginGoogleAuth,
+            params: [
+                "callbackUrl": AnyCodable(Self.accountAuthCallbackURL.absoluteString),
+            ])
+        guard let setupURL = URL(string: response.setupUrl) else {
+            throw GatewayDecodingError(
+                method: Method.alisioAccountBeginGoogleAuth.rawValue,
+                message: "invalid Google auth setup URL")
+        }
+        return AlisioGoogleAuthRequest(setupURL: setupURL)
+    }
+
+    func completeAccountGoogleAuth(
+        _ callback: AccountGoogleAuthCallbackDeepLink) async throws -> AlisioAccountSnapshot
+    {
+        var params: [String: AnyCodable] = [:]
+        if let stateToken = callback.stateToken {
+            params["stateToken"] = AnyCodable(stateToken)
+        }
+        if let code = callback.code {
+            params["code"] = AnyCodable(code)
+        }
+        if let error = callback.error {
+            params["error"] = AnyCodable(error)
+        }
+        if let errorDescription = callback.errorDescription {
+            params["errorDescription"] = AnyCodable(errorDescription)
+        }
+        return try await self.requestDecoded(
+            method: .alisioAccountCompleteGoogleAuth,
+            params: params)
+    }
+
+    func completeAccountProfile(
+        _ submission: EntryFlowProfileSubmission) async throws -> AlisioAccountSnapshot
+    {
+        let formatter = ISO8601DateFormatter()
+        let username = Self.deriveAccountUsername(
+            displayName: submission.displayName,
+            email: submission.email)
+        let params: [String: AnyCodable] = [
+            "username": AnyCodable(username),
+            "displayName": AnyCodable(submission.displayName.trimmingCharacters(in: .whitespacesAndNewlines)),
+            "email": AnyCodable(submission.email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()),
+            "avatarLabel": AnyCodable(Self.deriveAvatarLabel(displayName: submission.displayName, username: username)),
+            "termsAcceptedAt": AnyCodable(formatter.string(from: submission.termsAcceptedAt)),
+        ]
+        return try await self.requestDecoded(
+            method: .alisioAccountCompleteProfile,
+            params: params)
+    }
+
     private func requireAuthenticatedAccount(reason: String) async throws {
         _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
+    }
+
+    private static func deriveAccountUsername(displayName: String, email: String) -> String {
+        let candidates = [
+            displayName,
+            email.split(separator: "@").first.map(String.init) ?? "",
+            "alisio",
+        ]
+        for candidate in candidates {
+            let normalized = Self.sanitizeAccountUsername(candidate)
+            if normalized.count >= 4 {
+                return String(normalized.prefix(15))
+            }
+        }
+        let fallback = Self.sanitizeAccountUsername("alisio.user")
+        return String(fallback.prefix(15))
+    }
+
+    private static func deriveAvatarLabel(displayName: String, username: String) -> String {
+        let primary = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let scalar = primary.unicodeScalars.first(where: CharacterSet.letters.contains) {
+            return String(scalar).uppercased()
+        }
+        if let scalar = username.unicodeScalars.first(where: CharacterSet.alphanumerics.contains) {
+            return String(scalar).uppercased()
+        }
+        return "A"
+    }
+
+    private static func sanitizeAccountUsername(_ value: String) -> String {
+        var scalars: [UnicodeScalar] = []
+        var lastWasSeparator = false
+        for scalar in value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().unicodeScalars {
+            if CharacterSet.alphanumerics.contains(scalar) {
+                scalars.append(scalar)
+                lastWasSeparator = false
+                continue
+            }
+            if scalar == "." || scalar == "_" {
+                if !lastWasSeparator && !scalars.isEmpty {
+                    scalars.append(scalar)
+                    lastWasSeparator = true
+                }
+                continue
+            }
+            if !lastWasSeparator && !scalars.isEmpty {
+                scalars.append(".")
+                lastWasSeparator = true
+            }
+        }
+        while let last = scalars.last, last == "." || last == "_" {
+            scalars.removeLast()
+        }
+        let normalized = String(String.UnicodeScalarView(scalars))
+        if normalized.count >= 4 {
+            return normalized
+        }
+        return (normalized + "alisio").prefix(6).description
     }
 
     // MARK: - Skills

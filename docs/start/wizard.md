@@ -121,5 +121,5 @@ For the deeper technical reference, including RPC details, see
 
 - CLI command reference: [`alisio onboard`](/cli/onboard)
 - Onboarding overview: [Onboarding Overview](/start/onboarding-overview)
-- macOS app onboarding: [Onboarding](/start/onboarding)
+- macOS app setup: [macOS App Setup](/start/onboarding)
 - Agent first-run ritual: [Agent Bootstrapping](/start/bootstrapping)

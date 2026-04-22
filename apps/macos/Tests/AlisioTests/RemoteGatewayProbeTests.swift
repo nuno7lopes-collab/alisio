@@ -3,7 +3,7 @@ import AlisioSupport
 @testable import Alisio
 
 @MainActor
-struct OnboardingRemoteAuthPromptTests {
+struct RemoteGatewayProbeTests {
     @Test func `auth detail codes map to remote auth issues`() {
         let tokenMissing = GatewayConnectAuthError(
             message: "token missing",
@@ -57,54 +57,6 @@ struct OnboardingRemoteAuthPromptTests {
         #expect(RemoteGatewayAuthIssue(error: notConfigured) == .passwordRequired)
     }
 
-    @Test func `token field visibility follows onboarding rules`() {
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: nil) == false)
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: true,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: nil))
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "secret",
-            remoteTokenUnsupported: false,
-            authIssue: nil))
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: true,
-            authIssue: nil))
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: .tokenRequired))
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: .tokenMismatch))
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: .gatewayTokenNotConfigured) == false)
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: .setupCodeExpired) == false)
-        #expect(OnboardingView.shouldShowRemoteTokenField(
-            showAdvancedConnection: false,
-            remoteToken: "",
-            remoteTokenUnsupported: false,
-            authIssue: .pairingRequired) == false)
-    }
-
     @Test func `pairing required copy points users to pair approve`() {
         let issue = RemoteGatewayAuthIssue.pairingRequired
 
@@ -128,12 +80,5 @@ struct OnboardingRemoteAuthPromptTests {
         #expect(sharedToken.detail == nil)
         #expect(noAuth.title == "Remote gateway ready")
         #expect(noAuth.detail == nil)
-    }
-
-    @Test func `transient probe mode restore does not clear probe feedback`() {
-        #expect(OnboardingView.shouldResetRemoteProbeFeedback(for: .local, suppressReset: false))
-        #expect(OnboardingView.shouldResetRemoteProbeFeedback(for: .unconfigured, suppressReset: false))
-        #expect(OnboardingView.shouldResetRemoteProbeFeedback(for: .remote, suppressReset: false) == false)
-        #expect(OnboardingView.shouldResetRemoteProbeFeedback(for: .local, suppressReset: true) == false)
     }
 }

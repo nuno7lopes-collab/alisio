@@ -2,7 +2,51 @@ import Foundation
 
 public enum DeepLinkRoute: Sendable, Equatable {
     case agent(AgentDeepLink)
+    case accountAuth(AccountAuthDeepLink)
     case gateway(GatewayConnectDeepLink)
+}
+
+public enum AccountAuthDeepLink: Sendable, Equatable {
+    case emailLink(AccountEmailLinkDeepLink)
+    case googleCallback(AccountGoogleAuthCallbackDeepLink)
+}
+
+public struct AccountEmailLinkDeepLink: Codable, Sendable, Equatable {
+    public let accessToken: String
+    public let refreshToken: String?
+    public let expiresIn: Int?
+    public let tokenType: String?
+
+    public init(
+        accessToken: String,
+        refreshToken: String?,
+        expiresIn: Int?,
+        tokenType: String?)
+    {
+        self.accessToken = accessToken
+        self.refreshToken = refreshToken
+        self.expiresIn = expiresIn
+        self.tokenType = tokenType
+    }
+}
+
+public struct AccountGoogleAuthCallbackDeepLink: Codable, Sendable, Equatable {
+    public let stateToken: String?
+    public let code: String?
+    public let error: String?
+    public let errorDescription: String?
+
+    public init(
+        stateToken: String?,
+        code: String?,
+        error: String?,
+        errorDescription: String?)
+    {
+        self.stateToken = stateToken
+        self.code = code
+        self.error = error
+        self.errorDescription = errorDescription
+    }
 }
 
 public struct GatewayConnectDeepLink: Codable, Sendable, Equatable {
@@ -107,11 +151,7 @@ public enum DeepLinkParser {
         }
         guard let host = url.host?.lowercased(), !host.isEmpty else { return nil }
         guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-
-        let query = (comps.queryItems ?? []).reduce(into: [String: String]()) { dict, item in
-            guard let value = item.value else { return }
-            dict[item.name] = value
-        }
+        let query = self.parameters(from: comps)
 
         switch host {
         case "agent":
@@ -132,6 +172,47 @@ public enum DeepLinkParser {
                     channel: query["channel"],
                     timeoutSeconds: timeoutSeconds,
                     key: query["key"]))
+
+        case "auth":
+            guard comps.path == "/account/callback" else {
+                return nil
+            }
+            if let accessToken = query["access_token"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !accessToken.isEmpty
+            {
+                let refreshToken = query["refresh_token"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let tokenType = query["token_type"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let expiresIn = query["expires_in"].flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil }
+                return .accountAuth(
+                    .emailLink(
+                        .init(
+                            accessToken: accessToken,
+                            refreshToken: refreshToken?.isEmpty == false ? refreshToken : nil,
+                            expiresIn: expiresIn,
+                            tokenType: tokenType?.isEmpty == false ? tokenType : nil)))
+            }
+
+            let provider = query["provider"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let stateToken = query["account_state"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let code = query["code"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let error = query["error"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let errorDescription = query["error_description"]?.trimmingCharacters(
+                in: .whitespacesAndNewlines)
+            let hasGoogleCallbackPayload =
+                provider == "google" ||
+                stateToken?.isEmpty == false ||
+                code?.isEmpty == false ||
+                error?.isEmpty == false
+            guard hasGoogleCallbackPayload else {
+                return nil
+            }
+            return .accountAuth(
+                .googleCallback(
+                    .init(
+                        stateToken: stateToken?.isEmpty == false ? stateToken : nil,
+                        code: code?.isEmpty == false ? code : nil,
+                        error: error?.isEmpty == false ? error : nil,
+                        errorDescription: errorDescription?.isEmpty == false ? errorDescription : nil)))
 
         case "gateway":
             guard let hostParam = query["host"],
@@ -156,5 +237,23 @@ public enum DeepLinkParser {
         default:
             return nil
         }
+    }
+
+    private static func parameters(from components: URLComponents) -> [String: String] {
+        var query: [String: String] = [:]
+        for item in components.queryItems ?? [] {
+            guard let value = item.value else { continue }
+            query[item.name] = value
+        }
+        guard let fragment = components.fragment, !fragment.isEmpty,
+              let fragmentComponents = URLComponents(string: "scheme://host?\(fragment)")
+        else {
+            return query
+        }
+        for item in fragmentComponents.queryItems ?? [] {
+            guard let value = item.value else { continue }
+            query[item.name] = value
+        }
+        return query
     }
 }

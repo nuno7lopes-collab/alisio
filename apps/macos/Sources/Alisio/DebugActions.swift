@@ -218,7 +218,7 @@ enum DebugActions {
 
     @MainActor
     static func openSetup() {
-        AlisioWindowManager.shared.show(route: .onboarding)
+        AlisioWindowManager.shared.showSetup()
     }
 
     @MainActor

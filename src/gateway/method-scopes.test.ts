@@ -35,6 +35,7 @@ describe("method scope resolution", () => {
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
     ["alisio.account.completeEmailLinkAuth", ["operator.write"]],
+    ["alisio.account.completeGoogleAuth", ["operator.write"]],
     ["alisio.account.changeEmail", ["operator.write"]],
     ["alisio.account.requestRecoveryEmail", ["operator.write"]],
     ["alisio.account.updatePassword", ["operator.write"]],
@@ -90,6 +91,7 @@ describe("operator scope authorization", () => {
     ["alisio.models.install", ["operator.write"], { allowed: true }],
     ["alisio.models.uninstall", ["operator.write"], { allowed: true }],
     ["alisio.account.completeEmailLinkAuth", ["operator.write"], { allowed: true }],
+    ["alisio.account.completeGoogleAuth", ["operator.write"], { allowed: true }],
     ["alisio.account.changeEmail", ["operator.write"], { allowed: true }],
     ["alisio.account.signUp", ["operator.write"], { allowed: true }],
     ["alisio.account.signIn", ["operator.write"], { allowed: true }],
@@ -174,6 +176,7 @@ describe("plugin approval method registration", () => {
   it("lists the public recovery-email method and hides the legacy password-reset alias", () => {
     const methods = listGatewayMethods();
     expect(methods).toContain("alisio.account.completeEmailLinkAuth");
+    expect(methods).toContain("alisio.account.completeGoogleAuth");
     expect(methods).toContain("alisio.account.changeEmail");
     expect(methods).toContain("alisio.account.requestRecoveryEmail");
     expect(methods).toContain("alisio.account.signUp");

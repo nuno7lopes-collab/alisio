@@ -1,5 +1,5 @@
 ---
-summary: "Alisio on macOS: the primary app experience for setup, permissions, AI, computers, and daily use."
+summary: "Alisio on macOS: the primary app experience for account entry, runtime settings, permissions, and daily use."
 read_when:
   - Explaining the macOS product surface
   - Documenting permissions, computer actions, or local setup on a Mac
@@ -10,21 +10,23 @@ title: "macOS App"
 
 The macOS app is the primary Alisio product surface.
 
-It is not a thin add-on to some other product. It is where Alisio starts, where sign-in happens, where permissions become real, and where one computer becomes an AI workspace.
+It is not a thin add-on to some other product. It is where Alisio starts,
+where sign-in happens, where permissions become real, and where one computer
+becomes an AI workspace.
 
 ## What The App Owns
 
-- first-run setup
+- account entry
 - account sign-in
 - macOS permissions
-- OpenAI, Local, and Server AI setup
+- runtime configuration in Settings
 - shared backend selection when runtime lives elsewhere
 - local computer capabilities on this Mac
 - connector, app, and skill installs from the local marketplace
 
 ## What The App Does Well
 
-- keeps setup visual and understandable
+- keeps runtime setup visual and understandable
 - keeps account-backed state inside a native desktop surface
 - makes permission state visible
 - turns this Mac into a local automation runtime with real computer capabilities
@@ -86,7 +88,7 @@ But for the product story, the Mac app comes first.
 ## Related Pages
 
 - [Getting Started](/start/getting-started)
-- [Onboarding (macOS App)](/start/onboarding)
+- [macOS App Setup](/start/onboarding)
 - [Product Overview](/start/overview)
 - [Local Models and Servers](/gateway/local-models)
 - [Computers](/nodes)

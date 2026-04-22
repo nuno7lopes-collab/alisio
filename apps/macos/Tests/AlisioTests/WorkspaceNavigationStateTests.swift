@@ -29,21 +29,8 @@ struct WorkspaceNavigationStateTests {
         #expect(state.settingsSection == .workspace)
     }
 
-    @Test func `onboarding route remains addressable`() {
-        let state = WorkspaceNavigationState()
-        state.show(route: .onboarding)
-
-        #expect(state.route == .onboarding)
-    }
-
-    @Test func `complete onboarding stores trimmed preferred session`() {
-        let state = WorkspaceNavigationState()
-        state.show(route: .onboarding)
-
-        state.completeOnboarding(preferredSessionKey: "  agent:main:main  ")
-
-        #expect(state.route == .chat)
-        #expect(state.activeSessionKey == "agent:main:main")
+    @Test func `workspace routes no longer expose onboarding`() {
+        #expect(WorkspaceNavigationState.Route.allCases.map(\.rawValue).contains("onboarding") == false)
     }
 
     @Test func `settings tabs map to native workspace sections`() {

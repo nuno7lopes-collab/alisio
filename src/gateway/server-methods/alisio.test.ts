@@ -28,11 +28,120 @@ const { scheduleGatewaySigusr1RestartMock, startAlisioDeveloperRebuildMock } = v
 }));
 
 const {
+  beginAlisioAccountEmailAuthMock,
+  verifyAlisioAccountEmailAuthMock,
+  completeAlisioAccountEmailLinkAuthMock,
+  beginAlisioAccountGoogleAuthMock,
+  completeAlisioAccountGoogleAuthFromCallbackMock,
   changeAlisioAccountEmailMock,
   requestAlisioAccountRecoveryEmailMock,
   signOutAlisioAccountMock,
   updateAlisioAccountPasswordMock,
 } = vi.hoisted(() => ({
+  beginAlisioAccountEmailAuthMock: vi.fn(async () => ({
+    ok: true as const,
+    email: "nuno@example.com",
+    message: "Check your email for the Alisio sign-in link.",
+  })),
+  verifyAlisioAccountEmailAuthMock: vi.fn(async () => ({
+    profile: {
+      userId: "user-1",
+      username: "nuno",
+      displayName: "Nuno Lopes",
+      email: "nuno@example.com",
+      avatarLabel: "N",
+      joinedAt: "2026-04-04T15:00:00.000Z",
+      plan: "free",
+      backend: "supabase" as const,
+    },
+    preferences: {
+      language: "pt-PT" as const,
+      themeFamily: DEFAULT_THEME_FAMILY,
+      themeMode: "dark" as const,
+      themeAccents: DEFAULT_THEME_ACCENTS,
+    },
+    session: {
+      state: "signed_in" as const,
+      profileCompleted: true,
+      authenticated: true,
+      authMethod: "email" as const,
+      signedInAt: "2026-04-04T15:00:00.000Z",
+      backend: "supabase" as const,
+    },
+    devices: [],
+    cloud: {
+      backend: "supabase" as const,
+      available: true,
+      missingEnvVars: [],
+    },
+  })),
+  completeAlisioAccountEmailLinkAuthMock: vi.fn(async () => ({
+    profile: {
+      userId: "user-1",
+      username: "nuno",
+      displayName: "Nuno Lopes",
+      email: "nuno@example.com",
+      avatarLabel: "N",
+      joinedAt: "2026-04-04T15:00:00.000Z",
+      plan: "free",
+      backend: "supabase" as const,
+    },
+    preferences: {
+      language: "pt-PT" as const,
+      themeFamily: DEFAULT_THEME_FAMILY,
+      themeMode: "dark" as const,
+      themeAccents: DEFAULT_THEME_ACCENTS,
+    },
+    session: {
+      state: "signed_in" as const,
+      profileCompleted: true,
+      authenticated: true,
+      authMethod: "email" as const,
+      signedInAt: "2026-04-04T15:00:00.000Z",
+      backend: "supabase" as const,
+    },
+    devices: [],
+    cloud: {
+      backend: "supabase" as const,
+      available: true,
+      missingEnvVars: [],
+    },
+  })),
+  beginAlisioAccountGoogleAuthMock: vi.fn(async () => ({
+    setupUrl: "https://example.com/google-auth",
+  })),
+  completeAlisioAccountGoogleAuthFromCallbackMock: vi.fn(async () => ({
+    profile: {
+      userId: "user-1",
+      username: "nuno",
+      displayName: "Nuno Lopes",
+      email: "nuno@example.com",
+      avatarLabel: "N",
+      joinedAt: "2026-04-04T15:00:00.000Z",
+      plan: "free",
+      backend: "supabase" as const,
+    },
+    preferences: {
+      language: "pt-PT" as const,
+      themeFamily: DEFAULT_THEME_FAMILY,
+      themeMode: "dark" as const,
+      themeAccents: DEFAULT_THEME_ACCENTS,
+    },
+    session: {
+      state: "signed_in" as const,
+      profileCompleted: true,
+      authenticated: true,
+      authMethod: "google" as const,
+      signedInAt: "2026-04-04T15:00:00.000Z",
+      backend: "supabase" as const,
+    },
+    devices: [],
+    cloud: {
+      backend: "supabase" as const,
+      available: true,
+      missingEnvVars: [],
+    },
+  })),
   changeAlisioAccountEmailMock: vi.fn(async () => ({
     ok: true as const,
     message: "Check your new email inbox to confirm the change.",
@@ -125,6 +234,11 @@ vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../infra/alisio-store.js")>();
   return {
     ...actual,
+    beginAlisioAccountEmailAuth: beginAlisioAccountEmailAuthMock,
+    verifyAlisioAccountEmailAuth: verifyAlisioAccountEmailAuthMock,
+    completeAlisioAccountEmailLinkAuth: completeAlisioAccountEmailLinkAuthMock,
+    beginAlisioAccountGoogleAuth: beginAlisioAccountGoogleAuthMock,
+    completeAlisioAccountGoogleAuthFromCallback: completeAlisioAccountGoogleAuthFromCallbackMock,
     changeAlisioAccountEmail: changeAlisioAccountEmailMock,
     requestAlisioAccountRecoveryEmail: requestAlisioAccountRecoveryEmailMock,
     signOutAlisioAccount: signOutAlisioAccountMock,
@@ -157,6 +271,11 @@ function makeContext(params?: {
     loadGatewayModelCatalog: params?.loadGatewayModelCatalog ?? vi.fn(async () => []),
     findRunningWizard: () => null,
     broadcast: vi.fn(),
+    cron: {
+      getConfiguredStorePath: () => null,
+      getConfiguredCronEnabled: () => false,
+      setRuntimeScope: vi.fn(async () => undefined),
+    },
     nodeRegistry: params?.nodeRegistry ?? new NodeRegistry(),
   } as unknown as GatewayRequestContext;
 }
@@ -714,6 +833,189 @@ describe("alisio gateway methods", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.ok).toBe(false);
+  });
+
+  it("starts account email auth with the native callback url", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.beginEmailAuth"]({
+      params: {
+        email: "nuno@example.com",
+        callbackUrl: "alisio://auth/account/callback",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.beginEmailAuth", params: {}, id: 11 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(beginAlisioAccountEmailAuthMock).toHaveBeenCalledWith(
+      {
+        email: "nuno@example.com",
+        callbackUrl: "alisio://auth/account/callback",
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      ok: true,
+      email: "nuno@example.com",
+    });
+  });
+
+  it("verifies account email auth and returns the canonical account snapshot", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.verifyEmailAuth"]({
+      params: {
+        email: "nuno@example.com",
+        code: "123456",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.verifyEmailAuth", params: {}, id: 12 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(verifyAlisioAccountEmailAuthMock).toHaveBeenCalledWith(
+      {
+        email: "nuno@example.com",
+        code: "123456",
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      accountId: "user-1",
+      canonical: {
+        authenticated: true,
+        accountId: "user-1",
+        source: "account_id",
+      },
+      session: {
+        state: "signed_in",
+        authenticated: true,
+        authMethod: "email",
+      },
+    });
+  });
+
+  it("completes an email magic link and returns the canonical account snapshot", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.completeEmailLinkAuth"]({
+      params: {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresIn: 3600,
+        tokenType: "bearer",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.completeEmailLinkAuth", params: {}, id: 13 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(completeAlisioAccountEmailLinkAuthMock).toHaveBeenCalledWith(
+      {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresIn: 3600,
+        tokenType: "bearer",
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      accountId: "user-1",
+      canonical: {
+        authenticated: true,
+        source: "account_id",
+      },
+      session: {
+        state: "signed_in",
+        authenticated: true,
+        authMethod: "email",
+      },
+    });
+  });
+
+  it("starts account google auth with the native callback url", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.beginGoogleAuth"]({
+      params: {
+        callbackUrl: "alisio://auth/account/callback",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.beginGoogleAuth", params: {}, id: 14 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(beginAlisioAccountGoogleAuthMock).toHaveBeenCalledWith(
+      {
+        callbackUrl: "alisio://auth/account/callback",
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      setupUrl: "https://example.com/google-auth",
+    });
+  });
+
+  it("completes account google auth and returns the canonical account snapshot", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.completeGoogleAuth"]({
+      params: {
+        stateToken: "state-1",
+        code: "google-code",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.completeGoogleAuth", params: {}, id: 18 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(completeAlisioAccountGoogleAuthFromCallbackMock).toHaveBeenCalledWith(
+      {
+        stateToken: "state-1",
+        code: "google-code",
+        error: undefined,
+        errorDescription: undefined,
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      accountId: "user-1",
+      canonical: {
+        authenticated: true,
+        source: "account_id",
+      },
+      session: {
+        state: "signed_in",
+        authenticated: true,
+        authMethod: "google",
+      },
+    });
   });
 
   it("starts account recovery with a product-facing success result", async () => {

@@ -14,6 +14,7 @@ import { loadAlisioRuntimeSetupStateWithTimeout } from "../../infra/alisio-runti
 import {
   beginAlisioAccountEmailAuth,
   completeAlisioAccountEmailLinkAuth,
+  completeAlisioAccountGoogleAuthFromCallback,
   beginAlisioAccountGoogleAuth,
   AlisioAccountValidationError,
   beginAlisioConnectorSetup,
@@ -70,6 +71,7 @@ import {
   validateAlisioAccountEmailAuthVerifyParams,
   validateAlisioAccountGoogleAuthBeginParams,
   validateAlisioAccountGoogleAuthBeginResult,
+  validateAlisioAccountGoogleAuthCompleteParams,
   validateAlisioAccountPasswordUpdateParams,
   validateAlisioAccountPasswordUpdateResult,
   validateAlisioAccountRecoveryEmailParams,
@@ -449,15 +451,30 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      const result = await completeAlisioAccountEmailLinkAuth(
-        {
-          accessToken: params.accessToken,
-          refreshToken: params.refreshToken,
-          expiresIn: params.expiresIn,
-          tokenType: params.tokenType,
-        },
-        process.env,
+      const result = canonicalizeAlisioAccountResult(
+        await completeAlisioAccountEmailLinkAuth(
+          {
+            accessToken: params.accessToken,
+            refreshToken: params.refreshToken,
+            expiresIn: params.expiresIn,
+            tokenType: params.tokenType,
+          },
+          process.env,
+        ),
       );
+      if (!validateAlisioAccountResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.account.completeEmailLinkAuth result: ${formatValidationErrors(
+              validateAlisioAccountResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
       await syncCronRuntimeScopeToAccount(context);
       respond(true, result, undefined);
     } catch (err) {
@@ -490,13 +507,28 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      const result = await verifyAlisioAccountEmailAuth(
-        {
-          email: params.email,
-          code: params.code,
-        },
-        process.env,
+      const result = canonicalizeAlisioAccountResult(
+        await verifyAlisioAccountEmailAuth(
+          {
+            email: params.email,
+            code: params.code,
+          },
+          process.env,
+        ),
       );
+      if (!validateAlisioAccountResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.account.verifyEmailAuth result: ${formatValidationErrors(
+              validateAlisioAccountResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
       await syncCronRuntimeScopeToAccount(context);
       respond(true, result, undefined);
     } catch (err) {
@@ -555,6 +587,62 @@ export const alisioHandlers: GatewayRequestHandlers = {
         errorShape(
           ErrorCodes.UNAVAILABLE,
           `failed to begin Alisio Google auth: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.account.completeGoogleAuth": async ({ params, respond, context }) => {
+    if (!validateAlisioAccountGoogleAuthCompleteParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.account.completeGoogleAuth params: ${formatValidationErrors(
+            validateAlisioAccountGoogleAuthCompleteParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = canonicalizeAlisioAccountResult(
+        await completeAlisioAccountGoogleAuthFromCallback(
+          {
+            stateToken: params.stateToken,
+            code: params.code,
+            error: params.error,
+            errorDescription: params.errorDescription,
+          },
+          process.env,
+        ),
+      );
+      if (!validateAlisioAccountResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.account.completeGoogleAuth result: ${formatValidationErrors(
+              validateAlisioAccountResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      await syncCronRuntimeScopeToAccount(context);
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to complete Alisio Google auth: ${formatError(err)}`,
         ),
       );
     }

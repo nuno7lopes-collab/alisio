@@ -8,6 +8,7 @@ const BASE_METHODS = [
   "alisio.account.completeEmailLinkAuth",
   "alisio.account.verifyEmailAuth",
   "alisio.account.beginGoogleAuth",
+  "alisio.account.completeGoogleAuth",
   "alisio.account.changeEmail",
   "alisio.account.requestRecoveryEmail",
   "alisio.account.signUp",

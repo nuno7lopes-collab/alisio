@@ -4915,9 +4915,9 @@ function normalizeAlisioAccountCallbackUrl(
       `Alisio needs a valid callback URL to finish ${purpose}.`,
     );
   }
-  if (!/^https?:$/.test(callback.protocol)) {
+  if (!/^(https?:|alisio:)$/.test(callback.protocol)) {
     throw new AlisioAccountValidationError(
-      `Alisio needs an http or https callback URL to finish ${purpose}.`,
+      `Alisio needs an http, https, or alisio callback URL to finish ${purpose}.`,
     );
   }
   return callback.toString();

@@ -16,6 +16,7 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
     private let presentation: AlisioWorkspacePresentation
     private let updater: (any UpdaterProviding)?
     private var dismissMonitor: Any?
+    private var hostedRootStateID: ObjectIdentifier?
     private var hostedNavigationStateID: ObjectIdentifier?
     private var hostedAppStateID: ObjectIdentifier?
 
@@ -42,12 +43,20 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         self.window?.isVisible ?? false
     }
 
-    func update(navigationState: WorkspaceNavigationState, state: AppState = AppStateStore.shared) {
-        self.installRootView(navigationState: navigationState, state: state)
+    func update(
+        rootState: AlisioAppRootState,
+        navigationState: WorkspaceNavigationState,
+        state: AppState = AppStateStore.shared)
+    {
+        self.installRootView(rootState: rootState, navigationState: navigationState, state: state)
     }
 
-    func show(navigationState: WorkspaceNavigationState, state: AppState = AppStateStore.shared) {
-        self.installRootView(navigationState: navigationState, state: state)
+    func show(
+        rootState: AlisioAppRootState,
+        navigationState: WorkspaceNavigationState,
+        state: AppState = AppStateStore.shared)
+    {
+        self.installRootView(rootState: rootState, navigationState: navigationState, state: state)
         guard let window else { return }
 
         switch self.presentation {
@@ -85,17 +94,20 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         self.removeDismissMonitor()
     }
 
-    private func installRootView(navigationState: WorkspaceNavigationState, state: AppState) {
+    private func installRootView(rootState: AlisioAppRootState, navigationState: WorkspaceNavigationState, state: AppState) {
+        let rootStateID = ObjectIdentifier(rootState)
         let navigationStateID = ObjectIdentifier(navigationState)
         let appStateID = ObjectIdentifier(state)
-        guard self.hostedNavigationStateID != navigationStateID
+        guard self.hostedRootStateID != rootStateID
+            || self.hostedNavigationStateID != navigationStateID
             || self.hostedAppStateID != appStateID
             || self.window?.contentViewController == nil
         else {
             return
         }
 
-        let rootView = AlisioWorkspaceRootView(
+        let rootView = AlisioAppRootView(
+            rootState: rootState,
             navigationState: navigationState,
             state: state,
             presentation: self.presentation,
@@ -105,6 +117,7 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         hostingController.view.wantsLayer = true
         hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
         self.window?.contentViewController = hostingController
+        self.hostedRootStateID = rootStateID
         self.hostedNavigationStateID = navigationStateID
         self.hostedAppStateID = appStateID
     }

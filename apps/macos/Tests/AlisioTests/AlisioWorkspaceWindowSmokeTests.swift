@@ -10,29 +10,39 @@ import AlisioSupport
 struct AlisioWorkspaceWindowSmokeTests {
     @Test func `window controller show and close`() {
         let controller = AlisioWorkspaceWindowController(presentation: .window)
+        let rootState = AlisioAppRootState()
         let navigationState = WorkspaceNavigationState()
         navigationState.show(route: .chat)
-        controller.show(navigationState: navigationState, state: AppState(preview: true))
+        let appState = AppState(preview: true)
+        appState.onboardingSeen = true
+        AlisioAccountStore.shared.apply(Self.authenticatedSnapshot())
+        controller.show(rootState: rootState, navigationState: navigationState, state: appState)
         let contentView = try? #require(controller.window?.contentViewController?.view)
         #expect(contentView != nil)
         if let contentView {
             #expect(Self.containsWKWebView(in: contentView) == false)
         }
         controller.close()
+        AlisioAccountStore.shared.clear()
     }
 
     @Test func `panel controller present and close`() {
         let anchor = { NSRect(x: 200, y: 400, width: 40, height: 40) }
         let controller = AlisioWorkspaceWindowController(presentation: .panel(anchorProvider: anchor))
+        let rootState = AlisioAppRootState()
         let navigationState = WorkspaceNavigationState()
         navigationState.showChat(sessionKey: "main")
-        controller.show(navigationState: navigationState, state: AppState(preview: true))
+        let appState = AppState(preview: true)
+        appState.onboardingSeen = true
+        AlisioAccountStore.shared.apply(Self.authenticatedSnapshot())
+        controller.show(rootState: rootState, navigationState: navigationState, state: appState)
         let contentView = try? #require(controller.window?.contentViewController?.view)
         #expect(contentView != nil)
         if let contentView {
             #expect(Self.containsWKWebView(in: contentView) == false)
         }
         controller.close()
+        AlisioAccountStore.shared.clear()
     }
 
     private static func containsWKWebView(in view: NSView) -> Bool {
@@ -40,5 +50,15 @@ struct AlisioWorkspaceWindowSmokeTests {
             return true
         }
         return view.subviews.contains { containsWKWebView(in: $0) }
+    }
+
+    private static func authenticatedSnapshot() -> AlisioAccountSnapshot {
+        AlisioAccountSnapshot(
+            accountId: "acct-test",
+            canonical: .init(authenticated: true, accountId: "acct-test", source: .accountId),
+            profile: .init(userId: "user-test", username: "nuno", displayName: "Nuno", email: "nuno@example.com"),
+            session: .init(state: .signedIn, authenticated: true, accountId: "acct-test", authMethod: nil),
+            devices: [],
+            deviceBinding: nil)
     }
 }

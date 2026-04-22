@@ -53,7 +53,9 @@ final class AlisioWorkspaceManager {
                 if controller.isVisible {
                     controller.close()
                 } else {
-                    controller.show(navigationState: self.panelNavigationState(sessionKey: sessionKey))
+                    controller.show(
+                        rootState: AlisioWindowManager.shared.rootState,
+                        navigationState: self.panelNavigationState(sessionKey: sessionKey))
                 }
                 return
             }
@@ -68,7 +70,9 @@ final class AlisioWorkspaceManager {
         }
         self.panelController = controller
         self.panelSessionKey = sessionKey
-        controller.show(navigationState: self.panelNavigationState(sessionKey: sessionKey))
+        controller.show(
+            rootState: AlisioWindowManager.shared.rootState,
+            navigationState: self.panelNavigationState(sessionKey: sessionKey))
     }
 
     func closePanel() {
@@ -100,7 +104,6 @@ final class AlisioWorkspaceManager {
 
     private func panelNavigationState(sessionKey: String) -> WorkspaceNavigationState {
         let navigationState = WorkspaceNavigationState()
-        navigationState.completeOnboarding(preferredSessionKey: sessionKey)
         navigationState.showChat(sessionKey: sessionKey)
         return navigationState
     }

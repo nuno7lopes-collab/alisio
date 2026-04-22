@@ -127,9 +127,9 @@ enum TestIsolation {
         try await self.withAccountStore(
             snapshot: AlisioAccountSnapshot(
                 accountId: accountId,
-                canonical: .init(authenticated: true, accountId: accountId, source: "test"),
+                canonical: .init(authenticated: true, accountId: accountId, source: .accountId),
                 profile: nil,
-                session: .init(state: "signed_in", authenticated: true, accountId: accountId),
+                session: .init(state: .signedIn, authenticated: true, accountId: accountId, authMethod: nil),
                 devices: [],
                 deviceBinding: nil),
             body)
@@ -141,9 +141,9 @@ enum TestIsolation {
         try await self.withAccountStore(
             snapshot: AlisioAccountSnapshot(
                 accountId: nil,
-                canonical: .init(authenticated: false, accountId: nil, source: "test"),
+                canonical: .init(authenticated: false, accountId: nil, source: .missing),
                 profile: nil,
-                session: .init(state: "signed_out", authenticated: false, accountId: nil),
+                session: .init(state: .signedOut, authenticated: false, accountId: nil, authMethod: nil),
                 devices: [],
                 deviceBinding: nil),
             body)

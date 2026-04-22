@@ -15,7 +15,7 @@ Interactive onboarding for local or remote Gateway setup.
 - Onboarding overview: [Onboarding Overview](/start/onboarding-overview)
 - CLI onboarding reference: [CLI Setup Reference](/start/wizard-cli-reference)
 - CLI automation: [CLI Automation](/start/wizard-cli-automation)
-- macOS onboarding: [Onboarding (macOS App)](/start/onboarding)
+- macOS app setup: [macOS App Setup](/start/onboarding)
 
 ## Examples
 

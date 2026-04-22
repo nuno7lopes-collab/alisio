@@ -124,6 +124,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "alisio.account.verifyEmailAuth",
     "alisio.account.beginGoogleAuth",
     "alisio.account.completeEmailLinkAuth",
+    "alisio.account.completeGoogleAuth",
     "alisio.account.changeEmail",
     "alisio.account.requestRecoveryEmail",
     "alisio.account.updatePassword",

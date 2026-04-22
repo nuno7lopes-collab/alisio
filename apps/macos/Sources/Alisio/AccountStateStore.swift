@@ -20,11 +20,60 @@ enum AlisioAccountRequiredError: LocalizedError, Equatable {
     }
 }
 
+enum AlisioCanonicalAccountSource: String, Decodable, Equatable {
+    case accountId = "account_id"
+    case missing
+}
+
+enum AlisioAccountAuthMethod: String, Codable, Equatable, Sendable {
+    case email
+    case google
+}
+
+enum AlisioAccountSessionState: String, Decodable, Equatable {
+    case signedOut = "signed_out"
+    case signedIn = "signed_in"
+}
+
+struct AlisioEmailAuthChallenge: Equatable, Sendable {
+    let method: AlisioAccountAuthMethod
+    let email: String
+    let supportsMagicLink: Bool
+    let supportsManualCode: Bool
+
+    init(
+        method: AlisioAccountAuthMethod = .email,
+        email: String,
+        supportsMagicLink: Bool = true,
+        supportsManualCode: Bool = true)
+    {
+        self.method = method
+        self.email = email
+        self.supportsMagicLink = supportsMagicLink
+        self.supportsManualCode = supportsManualCode
+    }
+}
+
+struct AlisioGoogleAuthRequest: Equatable, Sendable {
+    let method: AlisioAccountAuthMethod
+    let setupURL: URL
+
+    init(method: AlisioAccountAuthMethod = .google, setupURL: URL) {
+        self.method = method
+        self.setupURL = setupURL
+    }
+}
+
+struct AlisioAccountAuthCompletion: Equatable, Sendable {
+    let method: AlisioAccountAuthMethod
+    let snapshot: AlisioAccountSnapshot
+}
+
 struct AlisioAccountSnapshot: Decodable, Equatable {
     struct Canonical: Decodable, Equatable {
         let authenticated: Bool?
         let accountId: String?
-        let source: String?
+        let source: AlisioCanonicalAccountSource?
     }
 
     struct Profile: Decodable, Equatable {
@@ -32,12 +81,43 @@ struct AlisioAccountSnapshot: Decodable, Equatable {
         let username: String?
         let displayName: String?
         let email: String?
+        let plan: String?
+
+        init(
+            userId: String?,
+            username: String?,
+            displayName: String?,
+            email: String?,
+            plan: String? = nil)
+        {
+            self.userId = userId
+            self.username = username
+            self.displayName = displayName
+            self.email = email
+            self.plan = plan
+        }
     }
 
     struct Session: Decodable, Equatable {
-        let state: String?
+        let state: AlisioAccountSessionState?
         let authenticated: Bool?
         let accountId: String?
+        let profileCompleted: Bool?
+        let authMethod: AlisioAccountAuthMethod?
+
+        init(
+            state: AlisioAccountSessionState?,
+            authenticated: Bool?,
+            accountId: String?,
+            profileCompleted: Bool? = nil,
+            authMethod: AlisioAccountAuthMethod?)
+        {
+            self.state = state
+            self.authenticated = authenticated
+            self.accountId = accountId
+            self.profileCompleted = profileCompleted
+            self.authMethod = authMethod
+        }
     }
 
     struct Device: Decodable, Equatable, Identifiable {
@@ -77,7 +157,7 @@ struct AlisioAccountSnapshot: Decodable, Equatable {
 
     var isAuthenticated: Bool {
         let canonicalAuth = self.canonical?.authenticated == true
-        let sessionAuth = self.session?.authenticated == true || self.session?.state == "signed_in"
+        let sessionAuth = self.session?.authenticated == true || self.session?.state == .signedIn
         return (canonicalAuth || sessionAuth) && self.resolvedAccountId != nil
     }
 
@@ -128,9 +208,15 @@ final class AlisioAccountStore {
     private(set) var isLoading = false
     private(set) var lastError: String?
     private(set) var lastRefreshAt: Date?
+    private(set) var lastAuthCompletion: AlisioAccountAuthCompletion?
+    private(set) var lastAuthCompletionEventID: UUID?
 
     var isAuthenticated: Bool {
         self.snapshot?.isAuthenticated == true
+    }
+
+    var profileCompleted: Bool {
+        self.snapshot?.session?.profileCompleted == true
     }
 
     var accountId: String? {
@@ -169,6 +255,8 @@ final class AlisioAccountStore {
         self.lastError = nil
         self.lastRefreshAt = nil
         self.isLoading = false
+        self.lastAuthCompletion = nil
+        self.lastAuthCompletionEventID = nil
     }
 
     func apply(_ snapshot: AlisioAccountSnapshot) {
@@ -187,6 +275,64 @@ final class AlisioAccountStore {
         } catch {
             self.lastError = error.localizedDescription
             self.lastRefreshAt = Date()
+        }
+    }
+
+    func beginEmailAuth(email: String) async throws -> AlisioEmailAuthChallenge {
+        try await self.runAccountOperation {
+            try await GatewayConnection.shared.beginAccountEmailAuth(email: email)
+        }
+    }
+
+    func verifyEmailAuth(email: String, code: String) async throws -> AlisioAccountAuthCompletion {
+        try await self.runAccountOperation {
+            let snapshot = try await GatewayConnection.shared.verifyAccountEmailAuth(email: email, code: code)
+            self.apply(snapshot)
+            return AlisioAccountAuthCompletion(method: .email, snapshot: snapshot)
+        }
+    }
+
+    func completeEmailLinkAuth(_ link: AccountEmailLinkDeepLink) async throws -> AlisioAccountAuthCompletion {
+        try await self.runAccountOperation {
+            let snapshot = try await GatewayConnection.shared.completeAccountEmailLinkAuth(link)
+            self.apply(snapshot)
+            let completion = AlisioAccountAuthCompletion(method: .email, snapshot: snapshot)
+            self.publishAuthCompletion(completion)
+            return completion
+        }
+    }
+
+    func beginGoogleAuth() async throws -> AlisioGoogleAuthRequest {
+        try await self.runAccountOperation {
+            try await GatewayConnection.shared.beginAccountGoogleAuth()
+        }
+    }
+
+    func completeGoogleAuth(
+        _ callback: AccountGoogleAuthCallbackDeepLink) async throws -> AlisioAccountAuthCompletion
+    {
+        try await self.runAccountOperation {
+            let snapshot = try await GatewayConnection.shared.completeAccountGoogleAuth(callback)
+            self.apply(snapshot)
+            let completion = AlisioAccountAuthCompletion(method: .google, snapshot: snapshot)
+            self.publishAuthCompletion(completion)
+            return completion
+        }
+    }
+
+    func completeProfile(_ submission: EntryFlowProfileSubmission) async throws {
+        try await self.runAccountOperation {
+            let snapshot = try await GatewayConnection.shared.completeAccountProfile(submission)
+            self.apply(snapshot)
+        }
+    }
+
+    func handleAuthDeepLink(_ link: AccountAuthDeepLink) async throws -> AlisioAccountAuthCompletion {
+        switch link {
+        case let .emailLink(emailLink):
+            return try await self.completeEmailLinkAuth(emailLink)
+        case let .googleCallback(callback):
+            return try await self.completeGoogleAuth(callback)
         }
     }
 
@@ -215,6 +361,31 @@ final class AlisioAccountStore {
         guard self.lastRefreshAt != nil else { return false }
         let trimmedError = self.lastError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmedError.isEmpty
+    }
+
+    func takeLastAuthCompletion() -> AlisioAccountAuthCompletion? {
+        let completion = self.lastAuthCompletion
+        self.lastAuthCompletion = nil
+        self.lastAuthCompletionEventID = nil
+        return completion
+    }
+
+    private func runAccountOperation<T>(_ operation: () async throws -> T) async throws -> T {
+        self.isLoading = true
+        defer { self.isLoading = false }
+        do {
+            let result = try await operation()
+            self.lastError = nil
+            return result
+        } catch {
+            self.lastError = error.localizedDescription
+            throw error
+        }
+    }
+
+    private func publishAuthCompletion(_ completion: AlisioAccountAuthCompletion) {
+        self.lastAuthCompletion = completion
+        self.lastAuthCompletionEventID = UUID()
     }
 }
 

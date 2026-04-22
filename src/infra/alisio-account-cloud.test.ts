@@ -177,7 +177,7 @@ describe("alisio-account-cloud", () => {
       );
       expect(parseJsonBody(init?.body)).toEqual({
         email: "owner@example.com",
-        create_user: true,
+        create_user: false,
       });
       return new Response(JSON.stringify({}), { status: 200 });
     });

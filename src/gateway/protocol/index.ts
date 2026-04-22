@@ -81,6 +81,8 @@ import {
   AlisioAccountGoogleAuthBeginParamsSchema,
   type AlisioAccountGoogleAuthBeginResult,
   AlisioAccountGoogleAuthBeginResultSchema,
+  type AlisioAccountGoogleAuthCompleteParams,
+  AlisioAccountGoogleAuthCompleteParamsSchema,
   type AlisioAccountPasswordUpdateParams,
   AlisioAccountPasswordUpdateParamsSchema,
   type AlisioAccountPasswordUpdateResult,
@@ -776,6 +778,8 @@ export const validateAlisioAccountGoogleAuthBeginParams =
   ajv.compile<AlisioAccountGoogleAuthBeginParams>(AlisioAccountGoogleAuthBeginParamsSchema);
 export const validateAlisioAccountGoogleAuthBeginResult =
   ajv.compile<AlisioAccountGoogleAuthBeginResult>(AlisioAccountGoogleAuthBeginResultSchema);
+export const validateAlisioAccountGoogleAuthCompleteParams =
+  ajv.compile<AlisioAccountGoogleAuthCompleteParams>(AlisioAccountGoogleAuthCompleteParamsSchema);
 export const validateAlisioAccountPasswordUpdateParams =
   ajv.compile<AlisioAccountPasswordUpdateParams>(AlisioAccountPasswordUpdateParamsSchema);
 export const validateAlisioAccountPasswordUpdateResult =
@@ -1388,6 +1392,7 @@ export {
   AlisioAccountEmailAuthVerifyParamsSchema,
   AlisioAccountGoogleAuthBeginParamsSchema,
   AlisioAccountGoogleAuthBeginResultSchema,
+  AlisioAccountGoogleAuthCompleteParamsSchema,
   AlisioAccountCompleteProfileParamsSchema,
   AlisioAccountResultSchema,
   AlisioAccountUpdateParamsSchema,
@@ -1712,6 +1717,7 @@ export type {
   AlisioAccountEmailAuthVerifyParams,
   AlisioAccountGoogleAuthBeginParams,
   AlisioAccountGoogleAuthBeginResult,
+  AlisioAccountGoogleAuthCompleteParams,
   AlisioAccountPasswordUpdateParams,
   AlisioAccountPasswordUpdateResult,
   AlisioAccountSignUpParams,

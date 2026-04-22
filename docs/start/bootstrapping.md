@@ -37,5 +37,5 @@ host (for example, `user@gateway-host:~/.alisio/workspace`).
 
 ## Related docs
 
-- macOS app onboarding: [Onboarding](/start/onboarding)
+- macOS app setup: [macOS App Setup](/start/onboarding)
 - Workspace layout: [Agent workspace](/concepts/agent-workspace)

@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 import AlisioSupport
 @testable import Alisio
@@ -73,5 +74,33 @@ struct DeepLinkAgentPolicyTests {
         let res = DeepLinkAgentPolicy.effectiveDelivery(link: link, allowUnattended: true)
         #expect(res.deliver == false)
         #expect(res.channel == .webchat)
+    }
+
+    @Test func `parser resolves email magic link callback from fragment`() {
+        let url = URL(
+            string: "alisio://auth/account/callback#access_token=access-token&refresh_token=refresh-token&expires_in=3600&token_type=bearer")!
+
+        #expect(
+            DeepLinkParser.parse(url) == .accountAuth(
+                .emailLink(
+                    .init(
+                        accessToken: "access-token",
+                        refreshToken: "refresh-token",
+                        expiresIn: 3600,
+                        tokenType: "bearer"))))
+    }
+
+    @Test func `parser resolves google auth callback from query`() {
+        let url = URL(
+            string: "alisio://auth/account/callback?provider=google&account_state=state-1&code=google-code")!
+
+        #expect(
+            DeepLinkParser.parse(url) == .accountAuth(
+                .googleCallback(
+                    .init(
+                        stateToken: "state-1",
+                        code: "google-code",
+                        error: nil,
+                        errorDescription: nil))))
     }
 }

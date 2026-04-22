@@ -71,6 +71,8 @@ export type AlisioAccountEmailLinkAuthCompleteParams =
 export type AlisioAccountEmailAuthVerifyParams = SchemaType<"AlisioAccountEmailAuthVerifyParams">;
 export type AlisioAccountGoogleAuthBeginParams = SchemaType<"AlisioAccountGoogleAuthBeginParams">;
 export type AlisioAccountGoogleAuthBeginResult = SchemaType<"AlisioAccountGoogleAuthBeginResult">;
+export type AlisioAccountGoogleAuthCompleteParams =
+  SchemaType<"AlisioAccountGoogleAuthCompleteParams">;
 export type AlisioAccountPasswordUpdateParams = SchemaType<"AlisioAccountPasswordUpdateParams">;
 export type AlisioAccountPasswordUpdateResult = SchemaType<"AlisioAccountPasswordUpdateResult">;
 export type AlisioAccountSignUpParams = SchemaType<"AlisioAccountSignUpParams">;

@@ -1,104 +1,52 @@
 ---
-summary: "First-run setup flow for the Alisio macOS app."
+summary: "Setup surfaces for the Alisio macOS app after account entry."
 read_when:
-  - Documenting the macOS onboarding experience
-  - Aligning setup copy with the product flow
-title: "Onboarding (macOS App)"
-sidebarTitle: "Onboarding: macOS App"
+  - Documenting the macOS setup experience
+  - Aligning setup copy with the current product flow
+title: "macOS App Setup"
+sidebarTitle: "macOS App Setup"
 ---
 
-# Onboarding (macOS App)
+# macOS App Setup
 
-This page describes the desktop-first setup flow.
+The macOS app no longer treats a dedicated multi-step onboarding wizard as the
+main entry story.
 
-The job of onboarding is simple: make one Mac ready to run Alisio with the right account, permissions, AI source, channels, connectors, and device capabilities.
+After account entry, setup for this Mac happens through the native app surface
+and Settings.
 
 For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 
-<Steps>
-  <Step title="Welcome">
-    On first launch, the app explains what Alisio is going to configure on this Mac:
+## Recommended Path
 
-    - your account
-    - the AI source for this computer
-    - permissions and device capabilities
-    - channels, apps, and connectors
+1. Finish account entry in the app.
+2. Open **Settings → General** and choose where the runtime lives:
+   - **Local** when this Mac should run Alisio itself
+   - **Remote** when this Mac should attach to another host
+   - **Not configured** when you want to enter the workspace first and decide later
+3. Open **Settings → Permissions** and enable only the macOS capabilities this
+   Mac should expose.
+4. Enter the workspace and finish product-specific setup there:
+   - **Apps** for connected app surfaces
+   - **Capabilities** for skills and agent behavior
+   - **Connections** for local infrastructure and linked systems
 
-  </Step>
+## Where Setup Lives
 
-  <Step title="Choose where this workspace lives">
-    Decide whether this Mac is the primary local workspace or whether it should connect to a remote workspace that already exists elsewhere.
-
-    Local is the normal desktop path.
-
-  </Step>
-
-  <Step title="Sign in">
-    Sign in so the app can unlock account-level features such as:
-
-    - OpenAI connection
-    - connector setup
-    - local marketplace installs
-    - device identity for this computer
-
-  </Step>
-
-  <Step title="Grant macOS permissions">
-    <Frame caption="Permissions are the product boundary on macOS.">
-      <img src="/assets/macos-onboarding/05-permissions.png" alt="Alisio macOS permissions step" />
-    </Frame>
-
-    The app can request:
-
-    - Notifications
-    - Accessibility
-    - Screen Recording
-    - Microphone
-    - Speech Recognition
-    - Camera
-    - Location
-    - Automation
-
-  </Step>
-
-  <Step title="Pick the AI source for this Mac">
-    Choose the first runtime:
-
-    - **OpenAI** through OAuth or API key
-    - **Local** for models on this machine
-    - **Server** for OpenAI-compatible endpoints
-
-    These can coexist later. The first choice just gets the machine into a working state quickly.
-
-  </Step>
-
-  <Step title="Connect apps, channels, and computers">
-    Add the surfaces that matter for this computer:
-
-    - channels for inbound and outbound work
-    - connectors and apps for automation
-    - paired computers that extend capture, voice, and local actions
-
-  </Step>
-
-  <Step title="Finish in a ready state">
-    The setup is done when this Mac can:
-
-    - chat
-    - run the chosen AI source
-    - expose the approved computer permissions
-    - install at least one skill or integration
-    - create or receive one real workflow
-
-  </Step>
-</Steps>
+| Task                      | Surface                             | Notes                                                                     |
+| ------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
+| Account entry             | App entry flow                      | Required before the workspace unlocks                                     |
+| Runtime location          | Settings → General                  | Local runtime health, remote endpoint, and CLI install state              |
+| macOS permissions         | Settings → Permissions              | Accessibility, Screen Recording, microphone, location, and related access |
+| Apps and connectors       | Workspace / Settings → Apps         | Configure product surfaces after sign-in                                  |
+| Skills and agent behavior | Workspace / Settings → Capabilities | Review bundled and installed capabilities                                 |
 
 ## Product Notes
 
-- The macOS app is the primary product surface.
-- The CLI remains available for operator, server, and non-macOS workflows.
-- Permissions should stay explicit and reversible.
-- OpenAI, Local, and Server are all first-class options in the product story.
+- The workspace is the main product surface after account entry.
+- Runtime setup on macOS is now a Settings concern, not a standalone wizard.
+- Use [Onboarding (CLI)](/start/wizard) when you need headless, remote, or
+  operator-led setup.
 
 ## Related Pages
 

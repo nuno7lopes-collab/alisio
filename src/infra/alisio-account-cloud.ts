@@ -730,7 +730,7 @@ export async function beginAlisioCloudAccountEmailAuth(params: {
       },
       body: JSON.stringify({
         email,
-        create_user: true,
+        create_user: false,
       }),
     },
     fetchImpl,

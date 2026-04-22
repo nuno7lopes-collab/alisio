@@ -7,7 +7,6 @@ import AlisioSupport
 @Observable
 final class WorkspaceNavigationState {
     enum Route: String, CaseIterable, Identifiable {
-        case onboarding
         case chat
         case authentications
         case automations
@@ -52,14 +51,6 @@ final class WorkspaceNavigationState {
 
     func show(route: Route) {
         self.route = route
-    }
-
-    func completeOnboarding(preferredSessionKey: String? = nil) {
-        let trimmed = preferredSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !trimmed.isEmpty {
-            self.activeSessionKey = trimmed
-        }
-        self.route = .chat
     }
 
     private static func mapSettings(_ tab: SettingsTab) -> (route: Route, section: SettingsSection?) {

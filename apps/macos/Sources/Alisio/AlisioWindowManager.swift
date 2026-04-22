@@ -5,6 +5,7 @@ import AlisioSupport
 final class AlisioWindowManager: NSObject, NSWindowDelegate {
     static let shared = AlisioWindowManager()
 
+    let rootState = AlisioAppRootState()
     let navigationState = WorkspaceNavigationState()
 
     var onWindowVisibilityChanged: ((Bool) -> Void)?
@@ -14,7 +15,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
 
     func configure(state: AppState = AppStateStore.shared, updater: (any UpdaterProviding)?) {
         self.updater = updater
-        self.workspaceController?.update(navigationState: self.navigationState, state: state)
+        self.workspaceController?.update(rootState: self.rootState, navigationState: self.navigationState, state: state)
     }
 
     var activeSessionKey: String? {
@@ -26,12 +27,24 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
     }
 
     func show(route: WorkspaceNavigationState.Route) {
+        self.rootState.showWorkspace()
         self.navigationState.show(route: route)
         self.showWindow()
     }
 
     func showChat(sessionKey: String) {
+        self.rootState.showWorkspace()
         self.navigationState.showChat(sessionKey: sessionKey)
+        self.showWindow()
+    }
+
+    func showEntryFlow() {
+        self.rootState.showEntryFlow()
+        self.showWindow()
+    }
+
+    func showSetup() {
+        self.rootState.showSetup()
         self.showWindow()
     }
 
@@ -46,6 +59,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
     }
 
     func showSettings(tab: SettingsTab = .general) {
+        self.rootState.showWorkspace()
         self.navigationState.showSettings(tab: tab)
         self.showWindow()
     }
@@ -86,7 +100,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
 
     private func showWindow() {
         let controller = self.ensureWorkspaceController()
-        controller.show(navigationState: self.navigationState, state: AppStateStore.shared)
+        controller.show(rootState: self.rootState, navigationState: self.navigationState, state: AppStateStore.shared)
         NSApp.activate(ignoringOtherApps: true)
     }
 

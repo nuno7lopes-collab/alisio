@@ -608,6 +608,15 @@ export const AlisioAccountGoogleAuthBeginResultSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+export const AlisioAccountGoogleAuthCompleteParamsSchema = Type.Object(
+  {
+    stateToken: Type.Optional(Type.String()),
+    code: Type.Optional(Type.String()),
+    error: Type.Optional(Type.String()),
+    errorDescription: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
 
 export const AlisioAccountSignUpParamsSchema = Type.Object(
   {
