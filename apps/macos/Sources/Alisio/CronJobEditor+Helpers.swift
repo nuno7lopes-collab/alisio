@@ -133,7 +133,7 @@ extension CronJobEditor {
             throw NSError(
                 domain: "Cron",
                 code: 0,
-                userInfo: [NSLocalizedDescriptionKey: "Name is required."])
+                userInfo: [NSLocalizedDescriptionKey: "The name is required."])
         }
         return name
     }
@@ -147,7 +147,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid every duration (use 10m, 1h, 1d)."])
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid interval. Use values such as 10m, 1h, or 1d."])
             }
             return ["kind": "every", "everyMs": ms]
         case .cron:
@@ -156,7 +156,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Cron expression is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The cron expression is required."])
             }
             let tz = self.trimmed(self.cronTz)
             if tz.isEmpty {
@@ -184,7 +184,7 @@ extension CronJobEditor {
                 code: 0,
                 userInfo: [
                     NSLocalizedDescriptionKey:
-                        "Main session jobs require systemEvent payloads (switch Session target to isolated).",
+                        "The main session only accepts chat notes. Switch the session target to isolated to run an agent task.",
                 ])
         }
 
@@ -192,7 +192,7 @@ extension CronJobEditor {
             throw NSError(
                 domain: "Cron",
                 code: 0,
-                userInfo: [NSLocalizedDescriptionKey: "Isolated jobs require agentTurn payloads."])
+                userInfo: [NSLocalizedDescriptionKey: "Isolated sessions require an agent task."])
         }
     }
 
@@ -202,7 +202,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "System event text is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The chat note is required."])
             }
         }
         if payload["kind"] as? String == "agentTurn" {
@@ -210,7 +210,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Agent message is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The agent instruction is required."])
             }
         }
     }

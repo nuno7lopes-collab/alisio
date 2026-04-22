@@ -42,7 +42,7 @@ final class PeekabooBridgeHostCoordinator {
         await host.stop()
         self.host = nil
         self.services = nil
-        self.logger.info("PeekabooBridge host stopped")
+        self.logger.debug("peekaboo bridge host stopped")
     }
 
     private func startIfNeeded() async {
@@ -72,7 +72,7 @@ final class PeekabooBridgeHostCoordinator {
 
         await host.start()
         self.logger
-            .info("PeekabooBridge host started at \(Self.alisioSocketPath, privacy: .public)")
+            .debug("peekaboo bridge host started at \(Self.alisioSocketPath, privacy: .public)")
     }
 
     private static func currentTeamID() -> String? {

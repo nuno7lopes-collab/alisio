@@ -7,6 +7,7 @@ import AlisioSupport
 final class GatewayProcessManager {
     static let shared = GatewayProcessManager()
     private let readinessProbeTimeoutMs = 5000
+    private let attachProbeTimeoutMs = 1500
 
     enum Status: Equatable {
         case stopped
@@ -199,7 +200,7 @@ final class GatewayProcessManager {
 
         for attempt in 0..<(hasListener ? 3 : 1) {
             do {
-                let snap = try await self.probeGatewayLiveness(timeoutMs: self.readinessProbeTimeoutMs)
+                let snap = try await self.probeGatewayLiveness(timeoutMs: self.attachProbeTimeoutMs)
                 if let incompatibleReason = await self.incompatibleExistingGatewayReason(port: port) {
                     self.existingGatewayDetails = instanceText
                     self.status = .starting
@@ -524,8 +525,9 @@ final class GatewayProcessManager {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !self.desiredActive { return false }
+            guard let probeTimeoutMs = self.probeTimeoutMs(until: deadline) else { break }
             do {
-                _ = try await self.probeGatewayLiveness(timeoutMs: self.readinessProbeTimeoutMs)
+                _ = try await self.probeGatewayLiveness(timeoutMs: probeTimeoutMs)
                 self.clearLastFailure()
                 return true
             } catch {
@@ -608,8 +610,9 @@ final class GatewayProcessManager {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if !self.desiredActive { return false }
+            guard let probeTimeoutMs = self.probeTimeoutMs(until: deadline) else { break }
             do {
-                _ = try await self.probeGatewayLiveness(timeoutMs: self.readinessProbeTimeoutMs)
+                _ = try await self.probeGatewayLiveness(timeoutMs: probeTimeoutMs)
                 let instance = await PortGuardian.shared.describe(port: port)
                 let details = instance.map { "pid \($0.pid)" }
                 self.clearLastFailure()
@@ -624,6 +627,15 @@ final class GatewayProcessManager {
             }
         }
         return false
+    }
+
+    private func probeTimeoutMs(until deadline: Date) -> Int? {
+        let remainingMs = Int(deadline.timeIntervalSinceNow * 1000)
+        guard remainingMs > 0 else { return nil }
+        if remainingMs < 250 {
+            return remainingMs
+        }
+        return min(self.readinessProbeTimeoutMs, remainingMs)
     }
 
     func clearLog() {

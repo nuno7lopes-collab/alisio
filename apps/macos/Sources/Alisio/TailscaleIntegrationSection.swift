@@ -46,6 +46,7 @@ struct TailscaleIntegrationSection: View {
     @State private var statusMessage: String?
     @State private var validationMessage: String?
     @State private var statusTimer: Timer?
+    @State private var isRefreshingStatus = false
 
     init(connectionMode: AppState.ConnectionMode, isPaused: Bool) {
         self.connectionMode = connectionMode
@@ -65,7 +66,7 @@ struct TailscaleIntegrationSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tailscale (dashboard access)")
+            Text("Tailnet access")
                 .font(.callout.weight(.semibold))
 
             self.statusRow
@@ -109,7 +110,7 @@ struct TailscaleIntegrationSection: View {
             guard !self.hasLoaded else { return }
             await self.loadConfig()
             self.hasLoaded = true
-            await self.effectiveService.checkTailscaleStatus()
+            await self.refreshStatus()
             self.startStatusTimer()
         }
         .onDisappear {
@@ -131,21 +132,30 @@ struct TailscaleIntegrationSection: View {
             Text(self.statusText)
                 .font(.callout)
             Spacer()
-            Button("Refresh") {
-                Task { await self.effectiveService.checkTailscaleStatus() }
+            Button {
+                Task { await self.refreshStatus() }
+            } label: {
+                if self.isRefreshingStatus {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Text("Refresh")
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .disabled(self.isRefreshingStatus)
         }
     }
 
     private var statusColor: Color {
+        if !self.hasLoaded || self.isRefreshingStatus { return .secondary }
         if !self.effectiveService.isInstalled { return .yellow }
         if self.effectiveService.isRunning { return .green }
         return .orange
     }
 
     private var statusText: String {
+        if !self.hasLoaded || self.isRefreshingStatus { return "Checking Tailscale status…" }
         if !self.effectiveService.isInstalled { return "Tailscale is not installed" }
         if self.effectiveService.isRunning { return "Tailscale is installed and running" }
         return "Tailscale is installed but not running"
@@ -184,7 +194,7 @@ struct TailscaleIntegrationSection: View {
         if let host = self.effectiveService.tailscaleHostname {
             let url = "https://\(host)/ui/"
             HStack(spacing: 8) {
-                Text("Dashboard URL:")
+                Text("Tailnet URL:")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if let link = URL(string: url) {
@@ -367,13 +377,20 @@ struct TailscaleIntegrationSection: View {
             return
         }
         self.statusTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
-            Task { await self.effectiveService.checkTailscaleStatus() }
+            Task { await self.refreshStatus() }
         }
     }
 
     private func stopStatusTimer() {
         self.statusTimer?.invalidate()
         self.statusTimer = nil
+    }
+
+    private func refreshStatus() async {
+        guard !self.isRefreshingStatus else { return }
+        self.isRefreshingStatus = true
+        defer { self.isRefreshingStatus = false }
+        await self.effectiveService.checkTailscaleStatus()
     }
 }
 

@@ -40,7 +40,10 @@ struct SessionRow: Identifiable {
     let id: String
     let key: String
     let kind: SessionKind
+    let labelOverride: String?
     let displayName: String?
+    let derivedTitle: String?
+    let lastMessagePreview: String?
     let subject: String?
     let room: String?
     let space: String?
@@ -58,7 +61,19 @@ struct SessionRow: Identifiable {
     }
 
     var label: String {
-        self.displayName ?? self.key
+        self.derivedTitle ?? self.displayName ?? self.labelOverride ?? self.key
+    }
+
+    var previewText: String? {
+        let trimmedPreview = self.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedPreview, !trimmedPreview.isEmpty {
+            return trimmedPreview
+        }
+        let trimmedSubject = self.subject?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedSubject, !trimmedSubject.isEmpty {
+            return trimmedSubject
+        }
+        return nil
     }
 
     var flagLabels: [String] {
@@ -148,7 +163,8 @@ enum SessionLoader {
         activeMinutes: Int? = nil,
         limit: Int? = nil,
         includeGlobal: Bool = true,
-        includeUnknown: Bool = true) async throws -> SessionStoreSnapshot
+        includeUnknown: Bool = true,
+        search: String? = nil) async throws -> SessionStoreSnapshot
     {
         let payload: AlisioChatSessionsListResponse
         do {
@@ -156,7 +172,10 @@ enum SessionLoader {
                 includeGlobal: includeGlobal,
                 includeUnknown: includeUnknown,
                 activeMinutes: activeMinutes,
-                limit: limit)
+                search: search,
+                limit: limit,
+                includeDerivedTitles: true,
+                includeLastMessage: true)
         } catch let error as AlisioAccountRequiredError {
             throw error
         } catch {
@@ -190,7 +209,10 @@ enum SessionLoader {
                 id: entry.key,
                 key: entry.key,
                 kind: SessionKind.from(key: entry.key),
+                labelOverride: entry.label,
                 displayName: entry.displayName,
+                derivedTitle: entry.derivedTitle,
+                lastMessagePreview: entry.lastMessagePreview,
                 subject: entry.subject,
                 room: entry.room,
                 space: entry.space,

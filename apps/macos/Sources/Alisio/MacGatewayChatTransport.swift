@@ -51,14 +51,33 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     }
 
     func abortRun(sessionKey: String, runId: String) async throws {
-        _ = try await GatewayConnection.shared.chatAbort(sessionKey: sessionKey, runId: runId)
+        let aborted = try await GatewayConnection.shared.chatAbort(sessionKey: sessionKey, runId: runId)
+        guard aborted else {
+            throw NSError(
+                domain: "MacGatewayChatTransport",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "reply not running"])
+        }
     }
 
-    func listSessions(limit: Int?) async throws -> AlisioChatSessionsListResponse {
+    func listSessions(query: AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse {
         try await GatewayConnection.shared.sessionsList(
-            includeGlobal: true,
-            includeUnknown: false,
-            limit: limit)
+            includeGlobal: query.includeGlobal,
+            includeUnknown: query.includeUnknown,
+            search: query.search,
+            limit: query.limit,
+            includeDerivedTitles: query.includeDerivedTitles,
+            includeLastMessage: query.includeLastMessage,
+            agentId: query.agentId)
+    }
+
+    func createSession(request: AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse {
+        try await SessionActions.createSession(
+            parentSessionKey: request.parentSessionKey,
+            agentId: request.agentId,
+            label: request.label,
+            model: request.model,
+            initialMessage: request.initialMessage)
     }
 
     func setSessionModel(sessionKey: String, model: String?) async throws {

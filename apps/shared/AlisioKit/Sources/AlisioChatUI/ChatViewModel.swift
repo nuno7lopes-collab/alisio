@@ -23,6 +23,15 @@ public enum AlisioChatConnectionPhase: String, Equatable, Sendable {
 @MainActor
 @Observable
 public final class AlisioChatViewModel {
+    private struct CachedSessionState {
+        let messages: [AlisioChatMessage]
+        let sessionId: String?
+        let hasLoadedHistory: Bool
+        let thinkingLevel: String
+        let lastBootstrapAt: Date?
+        let lastHistoryRefreshAt: Date?
+    }
+
     public static let defaultModelSelectionID = "__default__"
 
     public private(set) var messages: [AlisioChatMessage] = []
@@ -49,6 +58,9 @@ public final class AlisioChatViewModel {
     public private(set) var streamingAssistantText: String?
     public private(set) var pendingToolCalls: [AlisioChatPendingToolCall] = []
     public private(set) var sessions: [AlisioChatSessionEntry] = []
+    public private(set) var isRefreshingSessions = false
+    public private(set) var isCreatingSession = false
+    public private(set) var sessionListErrorText: String?
     private let transport: any AlisioChatTransport
     private var sessionDefaults: AlisioChatSessionsDefaults?
     private let prefersExplicitThinkingLevel: Bool
@@ -78,6 +90,13 @@ public final class AlisioChatViewModel {
     private var nextThinkingSelectionRequestID: UInt64 = 0
     private var latestThinkingSelectionRequestIDsBySession: [String: UInt64] = [:]
     private var latestThinkingLevelsBySession: [String: String] = [:]
+    private var cachedStatesBySession: [String: CachedSessionState] = [:]
+    private var draftInputsBySession: [String: String] = [:]
+    private var draftAttachmentsBySession: [String: [AlisioPendingAttachment]] = [:]
+    private var nextBootstrapRequestID: UInt64 = 0
+    private var activeBootstrapRequestID: UInt64 = 0
+    private var nextSessionsRequestID: UInt64 = 0
+    private var activeSessionsRequestID: UInt64 = 0
     public private(set) var isCompacting = false
     private var lastCompactAt: Date?
     private var lastOptimisticMessageTimestampMs: Double = 0
@@ -150,16 +169,30 @@ public final class AlisioChatViewModel {
         Task { await self.performCompact() }
     }
 
-    public func refreshSessions(limit: Int? = nil) {
-        Task { await self.fetchSessions(limit: limit) }
+    public func refreshSessions(search: String? = nil, limit: Int? = nil) {
+        let trimmedSearch = search?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = AlisioChatSessionsQuery(
+            limit: limit,
+            search: trimmedSearch?.isEmpty == false ? trimmedSearch : nil,
+            includeGlobal: true,
+            includeUnknown: false,
+            includeDerivedTitles: true,
+            includeLastMessage: true)
+        Task { await self.fetchSessions(query: query) }
     }
 
     public func switchSession(to sessionKey: String) {
         Task { await self.performSwitchSession(to: sessionKey) }
     }
 
+    public func newChat() {
+        Task { await self.performNewChat() }
+    }
+
     public func selectThinkingLevel(_ level: String) {
-        Task { await self.performSelectThinkingLevel(level) }
+        self.nextThinkingSelectionRequestID &+= 1
+        let requestID = self.nextThinkingSelectionRequestID
+        Task { await self.performSelectThinkingLevel(level, requestID: requestID) }
     }
 
     public func selectModel(_ selectionID: String) {
@@ -202,38 +235,53 @@ public final class AlisioChatViewModel {
         !self.isCompacting && !self.isLoading && !self.isSending && self.pendingRuns.isEmpty && !self.isAborting
     }
 
+    public var canSwitchSessions: Bool {
+        !self.isLoading && !self.isSending && self.pendingRuns.isEmpty && !self.isAborting && !self.isCreatingSession
+    }
+
+    public var canCreateSession: Bool {
+        self.canSwitchSessions && !self.isCompacting
+    }
+
     public var sessionChoices: [AlisioChatSessionEntry] {
-        let now = Date().timeIntervalSince1970 * 1000
-        let cutoff = now - (24 * 60 * 60 * 1000)
         let sorted = self.sessions.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
         let mainSessionKey = self.resolvedMainSessionKey
 
         var result: [AlisioChatSessionEntry] = []
         var included = Set<String>()
 
-        // Always show the resolved main session first, even if it hasn't been updated recently.
-        if let main = sorted.first(where: { $0.key == mainSessionKey }) {
-            result.append(main)
-            included.insert(main.key)
+        func identity(for key: String) -> String {
+            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if Self.matchesCurrentSessionKey(incoming: trimmed, current: "main") ||
+                Self.matchesCurrentSessionKey(incoming: trimmed, current: "agent:main:main")
+            {
+                return "__main__"
+            }
+            return trimmed
+        }
+
+        func append(_ entry: AlisioChatSessionEntry) {
+            let id = identity(for: entry.key)
+            guard !included.contains(id) else { return }
+            guard entry.key == self.sessionKey || !Self.isHiddenInternalSession(entry.key) else { return }
+            result.append(entry)
+            included.insert(id)
+        }
+
+        if let main = sorted.first(where: { Self.matchesCurrentSessionKey(incoming: $0.key, current: mainSessionKey) }) {
+            append(main)
         } else {
-            result.append(self.placeholderSession(key: mainSessionKey))
-            included.insert(mainSessionKey)
+            append(self.placeholderSession(key: mainSessionKey))
+        }
+
+        if let current = sorted.first(where: { Self.matchesCurrentSessionKey(incoming: $0.key, current: self.sessionKey) }) {
+            append(current)
+        } else {
+            append(self.placeholderSession(key: self.sessionKey))
         }
 
         for entry in sorted {
-            guard !included.contains(entry.key) else { continue }
-            guard entry.key == self.sessionKey || !Self.isHiddenInternalSession(entry.key) else { continue }
-            guard (entry.updatedAt ?? 0) >= cutoff else { continue }
-            result.append(entry)
-            included.insert(entry.key)
-        }
-
-        if !included.contains(self.sessionKey) {
-            if let current = sorted.first(where: { $0.key == self.sessionKey }) {
-                result.append(current)
-            } else {
-                result.append(self.placeholderSession(key: self.sessionKey))
-            }
+            append(entry)
         }
 
         return result
@@ -262,6 +310,58 @@ public final class AlisioChatViewModel {
         return "Default: \(self.modelLabel(for: defaultModelID))"
     }
 
+    public func sessionTitle(for session: AlisioChatSessionEntry) -> String {
+        let candidates = [
+            session.derivedTitle,
+            session.displayName,
+            session.label,
+            session.subject,
+            session.key,
+        ]
+        for candidate in candidates {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return session.key
+    }
+
+    public func sessionPreviewText(for session: AlisioChatSessionEntry) -> String? {
+        let preview = session.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !preview.isEmpty {
+            return preview
+        }
+        let subject = session.subject?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !subject.isEmpty {
+            return subject
+        }
+        return nil
+    }
+
+    public func sessionSearchText(for session: AlisioChatSessionEntry) -> String {
+        [
+            session.derivedTitle,
+            session.displayName,
+            session.label,
+            session.subject,
+            session.sessionId,
+            session.key,
+            session.lastMessagePreview,
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+    }
+
+    public func isCurrentSession(_ session: AlisioChatSessionEntry) -> Bool {
+        Self.matchesCurrentSessionKey(incoming: session.key, current: self.sessionKey)
+    }
+
+    public func isMainSession(_ session: AlisioChatSessionEntry) -> Bool {
+        Self.matchesCurrentSessionKey(incoming: session.key, current: self.resolvedMainSessionKey)
+    }
+
     public func addAttachments(urls: [URL]) {
         Task { await self.loadAttachments(urls: urls) }
     }
@@ -285,25 +385,50 @@ public final class AlisioChatViewModel {
 
     // MARK: - Internals
 
-    private func bootstrap() async {
+    private var defaultSessionsQuery: AlisioChatSessionsQuery {
+        AlisioChatSessionsQuery(
+            limit: 200,
+            includeGlobal: true,
+            includeUnknown: false,
+            includeDerivedTitles: true,
+            includeLastMessage: true)
+    }
+
+    private func bootstrap(sessionKey targetSessionKey: String? = nil) async {
+        let targetSessionKey = targetSessionKey ?? self.sessionKey
+        let previousMessages = self.cachedStatesBySession[targetSessionKey]?.messages ?? self.messages
+        self.nextBootstrapRequestID &+= 1
+        let requestID = self.nextBootstrapRequestID
+        self.activeBootstrapRequestID = requestID
+        let sessionsRequestID = self.beginSessionsRequest()
         self.isLoading = true
         self.errorText = nil
-        self.healthOK = false
         self.clearPendingRuns(reason: nil)
         self.pendingToolCallsById = [:]
         self.streamingAssistantText = nil
-        self.sessionId = nil
-        defer { self.isLoading = false }
+        self.healthOK = false
+        defer {
+            if self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) {
+                self.isLoading = false
+            }
+        }
         do {
+            async let sessionsResult = try? self.transport.listSessions(query: self.defaultSessionsQuery)
+            async let modelsResult = try? self.transport.listModels()
+            async let healthResult = try? self.transport.requestHealth(timeoutMs: 5000)
+
             do {
-                try await self.transport.setActiveSessionKey(self.sessionKey)
+                try await self.transport.setActiveSessionKey(targetSessionKey)
             } catch {
                 // Best-effort only; history/send/health still work without push events.
             }
 
-            let payload = try await self.transport.requestHistory(sessionKey: self.sessionKey)
+            let payload = try await self.transport.requestHistory(sessionKey: targetSessionKey)
+            guard self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) else {
+                return
+            }
             self.messages = Self.reconcileMessageIDs(
-                previous: self.messages,
+                previous: previousMessages,
                 incoming: Self.decodeMessages(payload.messages ?? []))
             self.sessionId = payload.sessionId
             self.hasLoadedHistory = true
@@ -314,13 +439,36 @@ public final class AlisioChatViewModel {
             {
                 self.thinkingLevel = level
             }
-            await self.fetchSessions(limit: 50)
-            await self.fetchModels()
-            await self.pollHealthIfNeeded(force: true)
+            self.cacheLoadedState(for: targetSessionKey)
+
+            if let sessions = await sessionsResult,
+               self.shouldApplySessionsRequestResponse(requestID: sessionsRequestID),
+               self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey)
+            {
+                self.applySessionsResponse(sessions)
+            }
+            if let models = await modelsResult,
+               self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey)
+            {
+                self.modelChoices = models
+                self.syncSelectedModel()
+            }
+            if let ok = await healthResult,
+               self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey)
+            {
+                self.healthOK = ok
+            } else if self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) {
+                self.healthOK = false
+            }
             self.errorText = nil
             self.isRecoveringConnection = false
         } catch {
-            self.errorText = error.localizedDescription
+            guard self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) else {
+                return
+            }
+            self.errorText = self.presentableErrorMessage(
+                for: error,
+                fallback: "This chat could not be loaded.")
             if self.hasLoadedHistory {
                 self.markConnectionRecovering()
             }
@@ -549,29 +697,15 @@ public final class AlisioChatViewModel {
         return "\(message.role)|\(timestamp)|\(text)"
     }
 
-    private static let resetTriggers: Set<String> = ["/new", "/reset", "/clear"]
-    private static let compactTriggers: Set<String> = ["/compact"]
-
     private func performSend() async {
         guard !self.isSending else { return }
         let trimmed = self.input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !self.attachments.isEmpty else { return }
 
-        if Self.resetTriggers.contains(trimmed.lowercased()) {
-            self.input = ""
-            await self.performReset()
-            return
-        }
-        if Self.compactTriggers.contains(trimmed.lowercased()) {
-            self.input = ""
-            await self.performCompact()
-            return
-        }
-
         let sessionKey = self.sessionKey
 
         guard self.healthOK else {
-            self.errorText = "Gateway health not OK; cannot send"
+            self.errorText = "The chat is still connecting. Try again in a moment."
             return
         }
 
@@ -655,7 +789,9 @@ public final class AlisioChatViewModel {
         } catch {
             self.dispatchingRunIDs.remove(runId)
             self.clearPendingRun(runId)
-            self.errorText = error.localizedDescription
+            self.errorText = self.presentableErrorMessage(
+                for: error,
+                fallback: "Your message could not be sent. Try again.")
             chatUILogger.error("chat.send failed \(error.localizedDescription, privacy: .public)")
         }
 
@@ -663,49 +799,249 @@ public final class AlisioChatViewModel {
     }
 
     private func performAbort() async {
-        guard !self.pendingRuns.isEmpty else { return }
+        let activeRunIDs = Array(self.pendingRuns.union(self.dispatchingRunIDs)).sorted()
+        guard !activeRunIDs.isEmpty else {
+            self.errorText = "There is no active reply to stop."
+            return
+        }
         guard !self.isAborting else { return }
         self.isAborting = true
         defer { self.isAborting = false }
 
-        let runIds = Array(self.pendingRuns)
-        for runId in runIds {
+        var abortedAnyRun = false
+        for runId in activeRunIDs {
             do {
                 try await self.transport.abortRun(sessionKey: self.sessionKey, runId: runId)
+                abortedAnyRun = true
             } catch {
-                // Best-effort.
+                chatUILogger.error("chat.abort failed \(error.localizedDescription, privacy: .public)")
             }
         }
-    }
-
-    private func fetchSessions(limit: Int?) async {
-        do {
-            let res = try await self.transport.listSessions(limit: limit)
-            self.sessions = res.sessions
-            self.sessionDefaults = res.defaults
-            self.syncSelectedModel()
-        } catch {
-            // Best-effort.
+        if !abortedAnyRun {
+            self.errorText = "The reply could not be stopped. Try again."
+        } else {
+            self.errorText = nil
         }
     }
 
-    private func fetchModels() async {
+    private func performNewChat() async {
+        guard self.canCreateSession else {
+            self.errorText = self.pendingRuns.isEmpty
+                ? "Wait for the current work to finish before starting a new chat."
+                : "Stop the current reply before starting a new chat."
+            return
+        }
+
+        self.cacheCurrentSessionState()
+        self.isCreatingSession = true
+        self.errorText = nil
+        defer { self.isCreatingSession = false }
+
+        let request = AlisioChatSessionCreateRequest(
+            parentSessionKey: self.parentSessionKeyForNewChat,
+            agentId: self.agentIDForNewChat,
+            model: self.modelRef(forSelectionID: self.modelSelectionID),
+            initialMessage: nil)
+
         do {
-            self.modelChoices = try await self.transport.listModels()
-            self.syncSelectedModel()
+            let created = try await self.transport.createSession(request: request)
+            let newKey = created.key.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !newKey.isEmpty else {
+                self.errorText = "A new chat could not be created."
+                return
+            }
+            if let entry = created.entry {
+                self.upsertSessionEntry(entry)
+            } else {
+                self.upsertSessionEntry(self.placeholderSession(key: newKey))
+            }
+            self.cachedStatesBySession[newKey] = CachedSessionState(
+                messages: [],
+                sessionId: created.sessionId,
+                hasLoadedHistory: true,
+                thinkingLevel: self.thinkingLevel,
+                lastBootstrapAt: nil,
+                lastHistoryRefreshAt: nil)
+            self.draftInputsBySession[newKey] = ""
+            self.draftAttachmentsBySession[newKey] = []
+            await self.activateSession(newKey)
         } catch {
-            // Best-effort.
+            self.errorText = self.presentableErrorMessage(
+                for: error,
+                fallback: "A new chat could not be created.")
+        }
+    }
+
+    private func fetchSessions(query: AlisioChatSessionsQuery) async {
+        let requestID = self.beginSessionsRequest()
+        self.isRefreshingSessions = true
+        self.sessionListErrorText = nil
+        defer {
+            if self.shouldApplySessionsRequestResponse(requestID: requestID) {
+                self.isRefreshingSessions = false
+            }
+        }
+        do {
+            let res = try await self.transport.listSessions(query: query)
+            guard self.shouldApplySessionsRequestResponse(requestID: requestID) else { return }
+            self.applySessionsResponse(res)
+        } catch {
+            guard self.shouldApplySessionsRequestResponse(requestID: requestID) else { return }
+            self.sessionListErrorText = self.presentableErrorMessage(
+                for: error,
+                fallback: "Chats are unavailable right now.")
         }
     }
 
     private func performSwitchSession(to sessionKey: String) async {
         let next = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !next.isEmpty else { return }
-        guard next != self.sessionKey else { return }
+        guard !Self.matchesCurrentSessionKey(incoming: next, current: self.sessionKey) else { return }
+        guard self.canSwitchSessions else {
+            self.errorText = self.pendingRuns.isEmpty
+                ? "Wait for the current work to finish before switching chats."
+                : "Stop the current reply before switching chats."
+            return
+        }
+        await self.activateSession(next)
+    }
+
+    private func activateSession(_ nextSessionKey: String) async {
+        let next = nextSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !next.isEmpty else { return }
+        let previous = self.sessionKey
+        if previous != next {
+            self.cacheCurrentSessionState()
+        }
         self.sessionKey = next
         self.onSessionKeyChanged?(next)
-        self.modelSelectionID = Self.defaultModelSelectionID
-        await self.bootstrap()
+        self.errorText = nil
+        self.streamingAssistantText = nil
+        self.pendingToolCallsById = [:]
+        self.clearPendingRuns(reason: nil)
+        self.restoreCachedState(for: next)
+        self.syncSelectedModel()
+        await self.bootstrap(sessionKey: next)
+    }
+
+    private func cacheCurrentSessionState() {
+        self.cacheDraft(for: self.sessionKey)
+        self.cacheLoadedState(for: self.sessionKey)
+    }
+
+    private func cacheDraft(for sessionKey: String) {
+        self.draftInputsBySession[sessionKey] = self.input
+        self.draftAttachmentsBySession[sessionKey] = self.attachments
+    }
+
+    private func restoreCachedState(for sessionKey: String) {
+        self.input = self.draftInputsBySession[sessionKey] ?? ""
+        self.attachments = self.draftAttachmentsBySession[sessionKey] ?? []
+
+        guard let cached = self.cachedStatesBySession[sessionKey] else {
+            self.messages = []
+            self.sessionId = nil
+            self.hasLoadedHistory = false
+            self.lastBootstrapAt = nil
+            self.lastHistoryRefreshAt = nil
+            if !self.prefersExplicitThinkingLevel {
+                self.thinkingLevel = self.lastKnownThinkingLevel(for: sessionKey) ?? "off"
+            }
+            return
+        }
+
+        self.messages = cached.messages
+        self.sessionId = cached.sessionId
+        self.hasLoadedHistory = cached.hasLoadedHistory
+        self.lastBootstrapAt = cached.lastBootstrapAt
+        self.lastHistoryRefreshAt = cached.lastHistoryRefreshAt
+        if !self.prefersExplicitThinkingLevel {
+            self.thinkingLevel = cached.thinkingLevel
+        }
+    }
+
+    private func cacheLoadedState(for sessionKey: String) {
+        self.cachedStatesBySession[sessionKey] = CachedSessionState(
+            messages: self.messages,
+            sessionId: self.sessionId,
+            hasLoadedHistory: self.hasLoadedHistory,
+            thinkingLevel: self.thinkingLevel,
+            lastBootstrapAt: self.lastBootstrapAt,
+            lastHistoryRefreshAt: self.lastHistoryRefreshAt)
+    }
+
+    private func shouldApplyBootstrapResponse(requestID: UInt64, sessionKey: String) -> Bool {
+        requestID == self.activeBootstrapRequestID &&
+            Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey)
+    }
+
+    private func beginSessionsRequest() -> UInt64 {
+        self.nextSessionsRequestID &+= 1
+        self.activeSessionsRequestID = self.nextSessionsRequestID
+        return self.activeSessionsRequestID
+    }
+
+    private func shouldApplySessionsRequestResponse(requestID: UInt64) -> Bool {
+        requestID == self.activeSessionsRequestID
+    }
+
+    private func applySessionsResponse(_ response: AlisioChatSessionsListResponse) {
+        self.sessions = response.sessions
+        self.sessionDefaults = response.defaults
+        self.syncSelectedModel()
+    }
+
+    private func upsertSessionEntry(_ entry: AlisioChatSessionEntry) {
+        if let index = self.sessions.firstIndex(where: {
+            Self.matchesCurrentSessionKey(incoming: $0.key, current: entry.key)
+        }) {
+            self.sessions[index] = entry
+            return
+        }
+        self.sessions.append(entry)
+    }
+
+    private func lastKnownThinkingLevel(for sessionKey: String) -> String? {
+        if let cached = self.cachedStatesBySession[sessionKey]?.thinkingLevel {
+            return cached
+        }
+        if let latest = self.latestThinkingLevelsBySession[sessionKey] {
+            return latest
+        }
+        if let level = self.sessions.first(where: {
+            Self.matchesCurrentSessionKey(incoming: $0.key, current: sessionKey)
+        })?.thinkingLevel {
+            return Self.normalizedThinkingLevel(level)
+        }
+        return nil
+    }
+
+    private var parentSessionKeyForNewChat: String? {
+        let trimmed = self.sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var agentIDForNewChat: String? {
+        let candidates = [
+            self.currentSessionEntry?.key,
+            self.sessionKey,
+            self.resolvedMainSessionKey,
+        ]
+        for candidate in candidates {
+            if let agentID = Self.agentID(fromSessionKey: candidate) {
+                return agentID
+            }
+        }
+        return nil
+    }
+
+    private static func agentID(fromSessionKey raw: String?) -> String? {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard trimmed.hasPrefix("agent:") else { return nil }
+        let parts = trimmed.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count >= 3 else { return nil }
+        let agentID = String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return agentID.isEmpty ? nil : agentID
     }
 
     private func performReset() async {
@@ -716,7 +1052,9 @@ public final class AlisioChatViewModel {
         do {
             try await self.transport.resetSession(sessionKey: self.sessionKey)
         } catch {
-            self.errorText = error.localizedDescription
+            self.errorText = self.presentableErrorMessage(
+                for: error,
+                fallback: "This chat could not be reset.")
             chatUILogger.error("session reset failed \(error.localizedDescription, privacy: .public)")
             return
         }
@@ -760,15 +1098,13 @@ public final class AlisioChatViewModel {
         await self.bootstrap()
     }
 
-    private func performSelectThinkingLevel(_ level: String) async {
+    private func performSelectThinkingLevel(_ level: String, requestID: UInt64) async {
         let next = Self.normalizedThinkingLevel(level) ?? "off"
         guard next != self.thinkingLevel else { return }
 
         let sessionKey = self.sessionKey
         self.thinkingLevel = next
         self.onThinkingLevelChanged?(next)
-        self.nextThinkingSelectionRequestID &+= 1
-        let requestID = self.nextThinkingSelectionRequestID
         self.latestThinkingSelectionRequestIDsBySession[sessionKey] = requestID
         self.latestThinkingLevelsBySession[sessionKey] = next
 
@@ -829,7 +1165,9 @@ public final class AlisioChatViewModel {
             }
             guard sessionKey == self.sessionKey else { return }
             self.modelSelectionID = previous
-            self.errorText = error.localizedDescription
+            self.errorText = self.presentableErrorMessage(
+                for: error,
+                fallback: "That model could not be selected.")
             chatUILogger.error("sessions.patch(model) failed \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -862,7 +1200,10 @@ public final class AlisioChatViewModel {
         AlisioChatSessionEntry(
             key: key,
             kind: nil,
+            label: nil,
             displayName: nil,
+            derivedTitle: nil,
+            lastMessagePreview: nil,
             surface: nil,
             subject: nil,
             room: nil,
@@ -882,7 +1223,9 @@ public final class AlisioChatViewModel {
     }
 
     private func syncSelectedModel() {
-        let currentSession = self.sessions.first(where: { $0.key == self.sessionKey })
+        let currentSession = self.sessions.first(where: {
+            Self.matchesCurrentSessionKey(incoming: $0.key, current: self.sessionKey)
+        })
         let explicitModelID = self.normalizedModelSelectionID(
             currentSession?.model,
             provider: currentSession?.modelProvider)
@@ -978,12 +1321,17 @@ public final class AlisioChatViewModel {
         sessionKey: String,
         syncSelection: Bool)
     {
-        if let index = self.sessions.firstIndex(where: { $0.key == sessionKey }) {
+        if let index = self.sessions.firstIndex(where: {
+            Self.matchesCurrentSessionKey(incoming: $0.key, current: sessionKey)
+        }) {
             let current = self.sessions[index]
             self.sessions[index] = AlisioChatSessionEntry(
                 key: current.key,
                 kind: current.kind,
+                label: current.label,
                 displayName: current.displayName,
+                derivedTitle: current.derivedTitle,
+                lastMessagePreview: current.lastMessagePreview,
                 surface: current.surface,
                 subject: current.subject,
                 room: current.room,
@@ -1006,7 +1354,10 @@ public final class AlisioChatViewModel {
                 AlisioChatSessionEntry(
                     key: placeholder.key,
                     kind: placeholder.kind,
+                    label: placeholder.label,
                     displayName: placeholder.displayName,
+                    derivedTitle: placeholder.derivedTitle,
+                    lastMessagePreview: placeholder.lastMessagePreview,
                     surface: placeholder.surface,
                     subject: placeholder.subject,
                     room: placeholder.room,
@@ -1052,8 +1403,9 @@ public final class AlisioChatViewModel {
             self.errorText = nil
             self.clearPendingRuns(reason: nil)
             self.markConnectionRecovering()
+            let sessionKey = self.sessionKey
             Task {
-                await self.refreshHistoryAfterRun()
+                await self.refreshHistoryAfterRun(sessionKey: sessionKey)
                 await self.pollHealthIfNeeded(force: true)
             }
         }
@@ -1078,7 +1430,8 @@ public final class AlisioChatViewModel {
             case "final", "aborted", "error":
                 self.streamingAssistantText = nil
                 self.pendingToolCallsById = [:]
-                Task { await self.refreshHistoryAfterRun() }
+                let refreshSessionKey = chat.sessionKey ?? self.sessionKey
+                Task { await self.refreshHistoryAfterRun(sessionKey: refreshSessionKey) }
             default:
                 break
             }
@@ -1097,7 +1450,8 @@ public final class AlisioChatViewModel {
             }
             self.pendingToolCallsById = [:]
             self.streamingAssistantText = nil
-            Task { await self.refreshHistoryAfterRun() }
+            let refreshSessionKey = chat.sessionKey ?? self.sessionKey
+            Task { await self.refreshHistoryAfterRun(sessionKey: refreshSessionKey) }
         default:
             break
         }
@@ -1162,21 +1516,43 @@ public final class AlisioChatViewModel {
         return isKnownRun
     }
 
-    private func refreshHistoryAfterRun() async {
+    private func refreshHistoryAfterRun(sessionKey rawSessionKey: String) async {
+        let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionKey.isEmpty else { return }
+        let previousMessages = if Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey) {
+            self.messages
+        } else {
+            self.cachedStatesBySession[sessionKey]?.messages ?? []
+        }
         do {
-            let payload = try await self.transport.requestHistory(sessionKey: self.sessionKey)
-            self.messages = Self.reconcileRunRefreshMessages(
-                previous: self.messages,
+            let payload = try await self.transport.requestHistory(sessionKey: sessionKey)
+            let refreshedMessages = Self.reconcileRunRefreshMessages(
+                previous: previousMessages,
                 incoming: Self.decodeMessages(payload.messages ?? []))
-            self.sessionId = payload.sessionId
-            self.hasLoadedHistory = true
-            self.lastHistoryRefreshAt = Date()
-            if !self.prefersExplicitThinkingLevel,
-               let level = Self.normalizedThinkingLevel(payload.thinkingLevel)
-            {
-                self.thinkingLevel = level
+
+            if Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey) {
+                self.messages = refreshedMessages
+                self.sessionId = payload.sessionId
+                self.hasLoadedHistory = true
+                self.lastHistoryRefreshAt = Date()
+                if !self.prefersExplicitThinkingLevel,
+                   let level = Self.normalizedThinkingLevel(payload.thinkingLevel)
+                {
+                    self.thinkingLevel = level
+                }
+                self.cacheLoadedState(for: self.sessionKey)
+                self.isRecoveringConnection = false
+            } else {
+                let cachedThinkingLevel = self.cachedStatesBySession[sessionKey]?.thinkingLevel ??
+                    self.lastKnownThinkingLevel(for: sessionKey) ?? "off"
+                self.cachedStatesBySession[sessionKey] = CachedSessionState(
+                    messages: refreshedMessages,
+                    sessionId: payload.sessionId,
+                    hasLoadedHistory: true,
+                    thinkingLevel: cachedThinkingLevel,
+                    lastBootstrapAt: self.cachedStatesBySession[sessionKey]?.lastBootstrapAt,
+                    lastHistoryRefreshAt: Date())
             }
-            self.isRecoveringConnection = false
         } catch {
             self.markConnectionRecovering()
             chatUILogger.error("refresh history failed \(error.localizedDescription, privacy: .public)")
@@ -1249,6 +1625,30 @@ public final class AlisioChatViewModel {
         self.lastRecoveryAt = Date()
     }
 
+    private func presentableErrorMessage(for error: Error, fallback: String) -> String {
+        let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return fallback }
+
+        let lower = message.lowercased()
+        if lower.contains("sign in required") || lower.contains("sign-in required") {
+            return "Sign in to use chat."
+        }
+        if lower.contains("socket") ||
+            lower.contains("not connected") ||
+            lower.contains("cannot connect") ||
+            lower.contains("network")
+        {
+            return "The chat could not reach the runtime. Try again."
+        }
+        if lower.contains("timed out") || lower.contains("timeout") {
+            return "The request timed out. Try again."
+        }
+        if lower.contains("message empty") {
+            return "Type a message before sending."
+        }
+        return fallback
+    }
+
     private func pollHealthIfNeeded(force: Bool) async {
         if !force, let last = self.lastHealthPollAt, Date().timeIntervalSince(last) < 10 {
             return
@@ -1280,7 +1680,11 @@ public final class AlisioChatViewModel {
                     fileName: url.lastPathComponent,
                     mimeType: Self.mimeType(for: url) ?? "application/octet-stream")
             } catch {
-                await MainActor.run { self.errorText = error.localizedDescription }
+                await MainActor.run {
+                    self.errorText = self.presentableErrorMessage(
+                        for: error,
+                        fallback: "That attachment could not be loaded.")
+                }
             }
         }
     }
@@ -1370,8 +1774,16 @@ private struct PreviewChatTransport: AlisioChatTransport {
     }
 
     func abortRun(sessionKey _: String, runId _: String) async throws {}
-    func listSessions(limit _: Int?) async throws -> AlisioChatSessionsListResponse {
+    func listSessions(query _: AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse {
         AlisioChatSessionsListResponse(ts: nil, path: nil, count: 0, defaults: nil, sessions: [])
+    }
+
+    func createSession(request _: AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse {
+        AlisioChatSessionCreateResponse(
+            ok: true,
+            key: "agent:main:dashboard:preview",
+            sessionId: "preview-session",
+            entry: nil)
     }
 
     func setSessionModel(sessionKey _: String, model _: String?) async throws {}

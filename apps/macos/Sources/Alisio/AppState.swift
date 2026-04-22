@@ -44,9 +44,9 @@ final class AppState {
         }
     }
 
-    var onboardingSeen: Bool {
+    var macSetupCompleted: Bool {
         didSet {
-            self.ifNotPreview { UserDefaults.standard.set(self.onboardingSeen, forKey: onboardingSeenKey) }
+            self.ifNotPreview { UserDefaults.standard.set(self.macSetupCompleted, forKey: macSetupCompletedKey) }
         }
     }
 
@@ -202,6 +202,9 @@ final class AppState {
     var connectionMode: ConnectionMode {
         didSet {
             self.ifNotPreview { UserDefaults.standard.set(self.connectionMode.rawValue, forKey: connectionModeKey) }
+            if !self.isInitializing, oldValue != self.connectionMode {
+                self.markMacSetupNeedsReview()
+            }
             self.syncGatewayConfigIfNeeded()
         }
     }
@@ -260,6 +263,10 @@ final class AppState {
     private(set) var remoteTokenDirty = false
     private(set) var remoteTokenUnsupported = false
 
+    var requiresMacSetup: Bool {
+        self.connectionMode == .unconfigured || !self.macSetupCompleted
+    }
+
     var remoteIdentity: String {
         didSet { self.ifNotPreview { UserDefaults.standard.set(self.remoteIdentity, forKey: remoteIdentityKey) } }
     }
@@ -277,10 +284,10 @@ final class AppState {
     init(preview: Bool = false) {
         let isPreview = preview || ProcessInfo.processInfo.isRunningTests
         self.isPreview = isPreview
-        let onboardingSeen = UserDefaults.standard.bool(forKey: onboardingSeenKey)
+        let macSetupCompleted = UserDefaults.standard.bool(forKey: macSetupCompletedKey)
         self.isPaused = UserDefaults.standard.bool(forKey: pauseDefaultsKey)
         self.launchAtLogin = false
-        self.onboardingSeen = onboardingSeen
+        self.macSetupCompleted = macSetupCompleted
         self.debugPaneEnabled = UserDefaults.standard.bool(forKey: debugPaneEnabledKey)
         let savedVoiceWake = UserDefaults.standard.bool(forKey: swabbleEnabledKey)
         self.swabbleEnabled = voiceWakeSupported ? savedVoiceWake : false
@@ -753,6 +760,15 @@ final class AppState {
         self.isWorking = working
     }
 
+    func completeMacSetup() {
+        self.macSetupCompleted = true
+    }
+
+    func markMacSetupNeedsReview() {
+        guard self.macSetupCompleted else { return }
+        self.macSetupCompleted = false
+    }
+
     // MARK: - Chime persistence
 
     private static func loadChime(key: String, fallback: VoiceWakeChime) -> VoiceWakeChime {
@@ -774,7 +790,7 @@ extension AppState {
         let state = AppState(preview: true)
         state.isPaused = false
         state.launchAtLogin = true
-        state.onboardingSeen = true
+        state.macSetupCompleted = true
         state.debugPaneEnabled = true
         state.swabbleEnabled = true
         state.swabbleTriggerWords = ["Claude", "Computer", "Jarvis"]

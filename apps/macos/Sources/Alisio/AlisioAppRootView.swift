@@ -37,7 +37,7 @@ final class AlisioAppRootState {
 }
 
 @MainActor
-private enum AlisioAppVisibleSurface {
+enum AlisioAppVisibleSurface {
     case loading
     case entryFlow
     case setup
@@ -97,19 +97,13 @@ struct AlisioAppRootView: View {
     }
 
     private var visibleSurface: AlisioAppVisibleSurface {
-        if self.needsInitialAccountRefresh {
-            return .loading
-        }
-        if self.rootState.prefersEntryFlow {
-            return .entryFlow
-        }
-        if !self.accountStore.isAuthenticated || !self.accountStore.profileCompleted {
-            return .entryFlow
-        }
-        if self.rootState.prefersSetup || !self.state.onboardingSeen {
-            return .setup
-        }
-        return .workspace
+        Self.resolveVisibleSurface(
+            needsInitialAccountRefresh: self.needsInitialAccountRefresh,
+            prefersEntryFlow: self.rootState.prefersEntryFlow,
+            isAuthenticated: self.accountStore.isAuthenticated,
+            profileCompleted: self.accountStore.profileCompleted,
+            prefersSetup: self.rootState.prefersSetup,
+            requiresMacSetup: self.state.requiresMacSetup)
     }
 
     private var accountRefreshKey: String {
@@ -124,6 +118,29 @@ struct AlisioAppRootView: View {
     private func refreshAccount(reason: String) async {
         guard !self.isPreview, !self.isRunningTests else { return }
         await self.accountStore.refresh(reason: reason)
+    }
+
+    static func resolveVisibleSurface(
+        needsInitialAccountRefresh: Bool,
+        prefersEntryFlow: Bool,
+        isAuthenticated: Bool,
+        profileCompleted: Bool,
+        prefersSetup: Bool,
+        requiresMacSetup: Bool) -> AlisioAppVisibleSurface
+    {
+        if needsInitialAccountRefresh {
+            return .loading
+        }
+        if prefersEntryFlow {
+            return .entryFlow
+        }
+        if !isAuthenticated || !profileCompleted {
+            return .entryFlow
+        }
+        if prefersSetup || requiresMacSetup {
+            return .setup
+        }
+        return .workspace
     }
 }
 
@@ -163,7 +180,7 @@ private struct AlisioEntryFlowRootView: View {
                 AlisioEntryFlowHostView(rootState: self.rootState, state: self.state)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .setup:
-                OnboardingView(state: self.state)
+                MacSetupView(state: self.state)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -187,7 +204,7 @@ private struct AlisioEntryFlowRootView: View {
                 }
             }
 
-            Button("Open setup") {
+            Button("Open Mac setup") {
                 AlisioWindowManager.shared.showSetup()
             }
             .buttonStyle(.borderedProminent)
@@ -232,7 +249,7 @@ private struct AlisioEntryFlowRootView: View {
         case .entryFlow:
             "Sign in required"
         case .setup:
-            "Setup required"
+            "Mac setup required"
         }
     }
 
@@ -243,7 +260,7 @@ private struct AlisioEntryFlowRootView: View {
         case .entryFlow:
             "Finish sign-in or account creation in the main window before using the panel."
         case .setup:
-            "Finish the entry flow in the main window before using chat and workspace tools."
+            "Finish Mac setup in the main window before using chat and workspace tools."
         }
     }
 }
@@ -260,10 +277,10 @@ private struct AlisioEntryFlowHostView: View {
             model: self.model,
             legalLinks: EntryFlowLegalLinks(),
             onContinue: {
-                if self.state.onboardingSeen {
-                    self.rootState.showWorkspace()
-                } else {
+                if self.state.requiresMacSetup {
                     self.rootState.showSetup()
+                } else {
+                    self.rootState.showWorkspace()
                 }
             })
             .task {

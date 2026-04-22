@@ -81,6 +81,7 @@ actor GatewayConnection {
         case channelsLogout = "channels.logout"
         case modelsList = "models.list"
         case chatHistory = "chat.history"
+        case sessionsCreate = "sessions.create"
         case sessionsPreview = "sessions.preview"
         case chatSend = "chat.send"
         case chatAbort = "chat.abort"
@@ -924,7 +925,11 @@ extension GatewayConnection {
         includeGlobal: Bool = true,
         includeUnknown: Bool = false,
         activeMinutes: Int? = nil,
-        limit: Int? = nil) async throws -> AlisioChatSessionsListResponse
+        search: String? = nil,
+        limit: Int? = nil,
+        includeDerivedTitles: Bool = false,
+        includeLastMessage: Bool = false,
+        agentId: String? = nil) async throws -> AlisioChatSessionsListResponse
     {
         try await self.requireAuthenticatedAccount(reason: Method.sessionsList.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsList.rawValue)
@@ -935,10 +940,74 @@ extension GatewayConnection {
         if let activeMinutes {
             params["activeMinutes"] = AnyCodable(activeMinutes)
         }
+        if let search {
+            let trimmed = search.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["search"] = AnyCodable(trimmed)
+            }
+        }
         if let limit {
             params["limit"] = AnyCodable(limit)
         }
+        if includeDerivedTitles {
+            params["includeDerivedTitles"] = AnyCodable(true)
+        }
+        if includeLastMessage {
+            params["includeLastMessage"] = AnyCodable(true)
+        }
+        if let agentId {
+            let trimmed = agentId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["agentId"] = AnyCodable(trimmed)
+            }
+        }
         return try await self.requestDecoded(method: .sessionsList, params: params)
+    }
+
+    func sessionsCreate(
+        parentSessionKey: String? = nil,
+        agentId: String? = nil,
+        label: String? = nil,
+        model: String? = nil,
+        task: String? = nil) async throws -> AlisioChatSessionCreateResponse
+    {
+        try await self.requireAuthenticatedAccount(reason: Method.sessionsCreate.rawValue)
+        try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.sessionsCreate.rawValue)
+
+        var params: [String: AnyCodable] = [:]
+
+        if let parentSessionKey {
+            let trimmed = parentSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["parentSessionKey"] = AnyCodable(self.canonicalizeSessionKey(trimmed))
+            }
+        }
+        if let agentId {
+            let trimmed = agentId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["agentId"] = AnyCodable(trimmed)
+            }
+        }
+        if let label {
+            let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["label"] = AnyCodable(trimmed)
+            }
+        }
+        if let model {
+            let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["model"] = AnyCodable(trimmed)
+            }
+        }
+        if let task {
+            let trimmed = task.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["task"] = AnyCodable(trimmed)
+            }
+        }
+
+        return try await self.requestDecoded(method: .sessionsCreate, params: params)
     }
 
     func sessionsPatch(

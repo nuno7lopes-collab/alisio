@@ -31,8 +31,6 @@ final class AlisioWorkspaceManager {
     private var panelSessionKey: String?
     private var cachedPreferredSessionKey: String?
 
-    var onPanelVisibilityChanged: ((Bool) -> Void)?
-
     var activeSessionKey: String? {
         self.panelSessionKey ?? AlisioWindowManager.shared.activeSessionKey
     }
@@ -62,12 +60,6 @@ final class AlisioWorkspaceManager {
         }
 
         let controller = AlisioWorkspaceWindowController(presentation: .panel(anchorProvider: anchorProvider))
-        controller.onClosed = { [weak self] in
-            self?.panelHidden()
-        }
-        controller.onVisibilityChanged = { [weak self] visible in
-            self?.onPanelVisibilityChanged?(visible)
-        }
         self.panelController = controller
         self.panelSessionKey = sessionKey
         controller.show(
@@ -95,11 +87,6 @@ final class AlisioWorkspaceManager {
 
     func close() {
         self.resetTunnels()
-    }
-
-    private func panelHidden() {
-        self.onPanelVisibilityChanged?(false)
-        // Keep panel controller cached so reopening doesn't re-bootstrap.
     }
 
     private func panelNavigationState(sessionKey: String) -> WorkspaceNavigationState {

@@ -778,7 +778,7 @@ private final class ExecApprovalsSocketServer: @unchecked Sendable {
             try? ExecApprovalsSocketPathGuard.removeExistingSocket(at: self.socketPath)
             return -1
         }
-        self.logger.info("exec approvals socket listening at \(self.socketPath, privacy: .public)")
+        self.logger.debug("exec approvals socket listening at \(self.socketPath, privacy: .public)")
         return fd
     }
 

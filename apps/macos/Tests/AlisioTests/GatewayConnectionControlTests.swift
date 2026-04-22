@@ -477,6 +477,55 @@ private func makeTestGatewayConnection() -> GatewayConnection {
         }
     }
 
+    @Test @MainActor func `sessions create request forwards canonical new chat fields`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let captured = CapturedGatewayFrameStore()
+            let session = GatewayTestWebSocketSession(
+                taskFactory: {
+                    GatewayTestWebSocketTask(
+                        sendHook: { task, message, sendIndex in
+                            guard sendIndex > 0 else { return }
+                            guard let frame = gatewayRequestData(from: message) else { return }
+                            await captured.record(frame)
+                            guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                            task.emitReceiveSuccess(.data(gatewayResponseData(
+                                id: id,
+                                payloadJSON: #"{"ok":true,"key":"agent:main:dashboard:new-chat","sessionId":"sess-new","runStarted":false}"#)))
+                        },
+                        receiveHook: { task, receiveIndex in
+                            if receiveIndex == 0 {
+                                return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                            }
+                            let id = task.snapshotConnectRequestID() ?? "connect"
+                            return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                        })
+                })
+            let url = try #require(URL(string: "ws://example.invalid"))
+            let connection = GatewayConnection(
+                configProvider: { (url: url, token: nil, password: nil) },
+                sessionBox: WebSocketSessionBox(session: session))
+
+            let response = try await connection.sessionsCreate(
+                parentSessionKey: "  main  ",
+                agentId: " main ",
+                label: "  Native Chat  ",
+                model: "  openai/gpt-5.4  ",
+                task: "  hello from create  ")
+
+            #expect(response.key == "agent:main:dashboard:new-chat")
+            #expect(response.sessionId == "sess-new")
+            let frameData = try #require(await captured.snapshot())
+            let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+            #expect(frame["method"] as? String == GatewayConnection.Method.sessionsCreate.rawValue)
+            let params = try #require(frame["params"] as? [String: Any])
+            #expect(params["parentSessionKey"] as? String == "main")
+            #expect(params["agentId"] as? String == "main")
+            #expect(params["label"] as? String == "Native Chat")
+            #expect(params["model"] as? String == "openai/gpt-5.4")
+            #expect(params["task"] as? String == "hello from create")
+        }
+    }
+
     @Test func `chat send rejects empty trimmed message`() async throws {
         let connection = makeTestGatewayConnection()
 

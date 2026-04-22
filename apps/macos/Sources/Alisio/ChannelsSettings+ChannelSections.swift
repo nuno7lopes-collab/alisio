@@ -11,26 +11,22 @@ extension ChannelsSettings {
         }
     }
 
-    func channelHeaderActions(_ channel: ChannelItem) -> some View {
+    @ViewBuilder
+    func detailHeaderActions(for app: AppIntegrationGroup) -> some View {
         HStack(spacing: 8) {
-            if channel.id == "whatsapp" {
-                Button("Logout") {
-                    Task { await self.store.logoutWhatsApp() }
-                }
-                .buttonStyle(.bordered)
-                .disabled(self.store.whatsappBusy)
+            if let primaryCapability = app.primaryCapability {
+                self.capabilityActionButton(primaryCapability)
             }
 
-            if channel.id == "telegram" {
-                Button("Logout") {
-                    Task { await self.store.logoutTelegram() }
+            if let docsURL = app.docsURL {
+                Button("Guide") {
+                    self.openExternalURL(docsURL)
                 }
                 .buttonStyle(.bordered)
-                .disabled(self.store.telegramBusy)
             }
 
             Button {
-                Task { await self.store.refresh(probe: true) }
+                Task { await self.store.refresh() }
             } label: {
                 if self.store.isRefreshing {
                     ProgressView().controlSize(.small)
@@ -44,95 +40,138 @@ extension ChannelsSettings {
         .controlSize(.small)
     }
 
-    var whatsAppSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            self.formSection("Linking") {
-                if let message = self.store.whatsappLoginMessage {
-                    Text(message)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+    func overviewSection(_ app: AppIntegrationGroup) -> some View {
+        self.formSection("Overview") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(app.summary)
+                    .font(.callout)
+
+                if let account = self.accountText(label: app.accountLabel, email: app.accountEmail) {
+                    LabeledContent("Account", value: account)
                 }
 
-                if let qr = self.store.whatsappLoginQrDataUrl, let image = self.qrImage(from: qr) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .interpolation(.none)
-                        .frame(width: 180, height: 180)
-                        .cornerRadius(8)
-                }
+                LabeledContent("Provider", value: app.providerLabel)
+                LabeledContent("Status", value: app.status.label)
 
-                HStack(spacing: 12) {
-                    Button {
-                        Task { await self.store.startWhatsAppLogin(force: false) }
-                    } label: {
-                        if self.store.whatsappBusy {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Text("Show QR")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(self.store.whatsappBusy)
-
-                    Button("Relink") {
-                        Task { await self.store.startWhatsAppLogin(force: true) }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(self.store.whatsappBusy)
+                if !app.chips.isEmpty {
+                    self.chipRow(app.chips)
                 }
-                .font(.caption)
             }
-
-            self.configEditorSection(channelId: "whatsapp")
         }
     }
 
-    func genericChannelSection(_ channel: ChannelItem) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            self.configEditorSection(channelId: channel.id)
-        }
-    }
-
-    @ViewBuilder
-    private func configEditorSection(channelId: String) -> some View {
-        self.formSection("Configuration") {
-            ChannelConfigForm(store: self.store, channelId: channelId)
-        }
-
-        self.configStatusMessage
-
-        HStack(spacing: 12) {
-            Button {
-                Task { await self.store.saveConfigDraft() }
-            } label: {
-                if self.store.isSavingConfig {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Text("Save")
+    func capabilitiesSection(_ app: AppIntegrationGroup) -> some View {
+        self.formSection(app.capabilities.count > 1 ? "Access Levels" : "Access") {
+            ForEach(app.capabilities) { capability in
+                self.capabilityRow(capability)
+                if capability.id != app.capabilities.last?.id {
+                    Divider()
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(self.store.isSavingConfig || !self.store.configDirty)
-
-            Button("Reload") {
-                Task { await self.store.reloadConfigDraft() }
-            }
-            .buttonStyle(.bordered)
-            .disabled(self.store.isSavingConfig)
-
-            Spacer()
         }
-        .font(.caption)
     }
 
-    @ViewBuilder
-    var configStatusMessage: some View {
-        if let status = self.store.configStatus {
-            Text(status)
+    func helpSection(_ app: AppIntegrationGroup, docsURL: URL) -> some View {
+        self.formSection("Help") {
+            Text("Need setup details for \(app.title)? Open the provider guide in your browser.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Open setup guide") {
+                self.openExternalURL(docsURL)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
+    }
+
+    private func capabilityRow(_ capability: AppIntegrationCapability) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(capability.title)
+                        .font(.headline)
+                    self.statusBadge(
+                        capability.status.label,
+                        color: self.capabilityTint(capability.status))
+                }
+
+                Text(capability.subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(self.capabilityDetailLine(capability))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            self.capabilityActionButton(capability)
+        }
+    }
+
+    @ViewBuilder
+    private func capabilityActionButton(_ capability: AppIntegrationCapability) -> some View {
+        if capability.status == .connected {
+            Button {
+                Task { await self.store.performAction(for: capability) }
+            } label: {
+                self.capabilityActionLabel(for: capability)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(self.store.connectorIsBusy(capability.id))
+        } else {
+            Button {
+                Task { await self.store.performAction(for: capability) }
+            } label: {
+                self.capabilityActionLabel(for: capability)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(self.store.connectorIsBusy(capability.id))
+        }
+    }
+
+    @ViewBuilder
+    private func capabilityActionLabel(for capability: AppIntegrationCapability) -> some View {
+        if self.store.connectorIsBusy(capability.id) {
+            ProgressView().controlSize(.small)
+        } else {
+            switch capability.status {
+            case .connected, .needsReconnect:
+                Text(capability.status.actionTitle)
+            case .setupRequired, .ready:
+                Text(capability.connectLabel)
+            }
+        }
+    }
+
+    private func chipRow(_ chips: [String]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                ForEach(chips, id: \.self) { chip in
+                    self.chip(chip)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(chips, id: \.self) { chip in
+                    self.chip(chip)
+                }
+            }
+        }
+    }
+
+    private func chip(_ text: String) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.12))
+            .foregroundStyle(.secondary)
+            .clipShape(Capsule())
     }
 }

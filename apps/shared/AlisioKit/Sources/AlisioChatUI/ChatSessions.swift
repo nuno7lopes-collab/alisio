@@ -48,7 +48,10 @@ public struct AlisioChatSessionEntry: Codable, Identifiable, Sendable, Hashable 
 
     public let key: String
     public let kind: String?
+    public let label: String?
     public let displayName: String?
+    public let derivedTitle: String?
+    public let lastMessagePreview: String?
     public let surface: String?
     public let subject: String?
     public let room: String?
@@ -72,7 +75,10 @@ public struct AlisioChatSessionEntry: Codable, Identifiable, Sendable, Hashable 
     public init(
         key: String,
         kind: String?,
+        label: String? = nil,
         displayName: String?,
+        derivedTitle: String? = nil,
+        lastMessagePreview: String? = nil,
         surface: String?,
         subject: String?,
         room: String?,
@@ -92,7 +98,10 @@ public struct AlisioChatSessionEntry: Codable, Identifiable, Sendable, Hashable 
     {
         self.key = key
         self.kind = kind
+        self.label = label
         self.displayName = displayName
+        self.derivedTitle = derivedTitle
+        self.lastMessagePreview = lastMessagePreview
         self.surface = surface
         self.subject = subject
         self.room = room
@@ -109,6 +118,84 @@ public struct AlisioChatSessionEntry: Codable, Identifiable, Sendable, Hashable 
         self.modelProvider = modelProvider
         self.model = model
         self.contextTokens = contextTokens
+    }
+}
+
+public struct AlisioChatSessionsQuery: Sendable, Equatable {
+    public let limit: Int?
+    public let search: String?
+    public let includeGlobal: Bool
+    public let includeUnknown: Bool
+    public let includeDerivedTitles: Bool
+    public let includeLastMessage: Bool
+    public let agentId: String?
+
+    public init(
+        limit: Int? = nil,
+        search: String? = nil,
+        includeGlobal: Bool = true,
+        includeUnknown: Bool = false,
+        includeDerivedTitles: Bool = false,
+        includeLastMessage: Bool = false,
+        agentId: String? = nil)
+    {
+        self.limit = limit
+        self.search = search
+        self.includeGlobal = includeGlobal
+        self.includeUnknown = includeUnknown
+        self.includeDerivedTitles = includeDerivedTitles
+        self.includeLastMessage = includeLastMessage
+        self.agentId = agentId
+    }
+}
+
+public struct AlisioChatSessionCreateRequest: Sendable, Equatable {
+    public let parentSessionKey: String?
+    public let agentId: String?
+    public let label: String?
+    public let model: String?
+    public let initialMessage: String?
+
+    public init(
+        parentSessionKey: String? = nil,
+        agentId: String? = nil,
+        label: String? = nil,
+        model: String? = nil,
+        initialMessage: String? = nil)
+    {
+        self.parentSessionKey = parentSessionKey
+        self.agentId = agentId
+        self.label = label
+        self.model = model
+        self.initialMessage = initialMessage
+    }
+}
+
+public struct AlisioChatSessionCreateResponse: Codable, Sendable, Equatable {
+    public let ok: Bool?
+    public let key: String
+    public let sessionId: String?
+    public let entry: AlisioChatSessionEntry?
+    public let runStarted: Bool?
+    public let runId: String?
+    public let messageSeq: Int?
+
+    public init(
+        ok: Bool? = nil,
+        key: String,
+        sessionId: String?,
+        entry: AlisioChatSessionEntry?,
+        runStarted: Bool? = nil,
+        runId: String? = nil,
+        messageSeq: Int? = nil)
+    {
+        self.ok = ok
+        self.key = key
+        self.sessionId = sessionId
+        self.entry = entry
+        self.runStarted = runStarted
+        self.runId = runId
+        self.messageSeq = messageSeq
     }
 }
 

@@ -12,6 +12,7 @@ extension CronSettings {
         .onAppear {
             self.store.start()
             self.channelsStore.start()
+            self.ensureSelection()
         }
         .onDisappear {
             self.store.stop()
@@ -33,7 +34,7 @@ extension CronSettings {
                     }
                 })
         }
-        .alert("Delete cron job?", isPresented: Binding(
+        .alert("Delete schedule?", isPresented: Binding(
             get: { self.confirmDelete != nil },
             set: { if !$0 { self.confirmDelete = nil } }))
         {
@@ -49,42 +50,29 @@ extension CronSettings {
                 Text(job.displayName)
             }
         }
+        .onChange(of: self.store.jobs) { _, _ in
+            self.ensureSelection()
+        }
         .onChange(of: self.store.selectedJobId) { _, newValue in
-                guard let newValue else { return }
-                Task { await self.store.refreshRuns(jobId: newValue) }
+            guard let newValue else {
+                self.store.runEntries = []
+                self.store.hasLoadedRunsOnce = false
+                return
             }
+            self.store.runEntries = []
+            self.store.hasLoadedRunsOnce = false
+            Task { await self.store.refreshRuns(jobId: newValue) }
+        }
     }
 
     var schedulerBanner: some View {
         Group {
             if self.store.schedulerEnabled == false {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                        Text("Cron scheduler is disabled")
-                            .font(.headline)
-                        Spacer()
-                    }
-                    Text(
-                        "Jobs are saved, but they will not run automatically until `cron.enabled` is set to `true` " +
-                            "and the Gateway restarts.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let storePath = self.store.schedulerStorePath, !storePath.isEmpty {
-                        Text(storePath)
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color.orange.opacity(0.10))
-                .cornerRadius(8)
+                self.stateCard(
+                    title: "Automatic schedules are currently off.",
+                    message: "Schedules stay saved, but they will not run until scheduling is turned back on.",
+                    systemImage: "pause.circle.fill",
+                    tint: .orange)
             }
         }
     }
@@ -92,9 +80,9 @@ extension CronSettings {
     var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Cron")
+                Text("Schedules")
                     .font(.headline)
-                Text("Manage Gateway cron jobs (main session vs isolated runs) and inspect run history.")
+                Text("Create, review, and run scheduled work.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -114,7 +102,7 @@ extension CronSettings {
                     self.editingJob = nil
                     self.showEditor = true
                 } label: {
-                    Label("New Job", systemImage: "plus")
+                    Label("New schedule", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
             }
@@ -123,13 +111,71 @@ extension CronSettings {
 
     var content: some View {
         HStack(spacing: 12) {
+            self.listPane
+                .frame(width: 300)
+                .frame(maxHeight: .infinity, alignment: .topLeading)
+
+            Divider()
+
+            self.detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    var listPane: some View {
+        switch self.listState {
+        case .loading:
+            self.stateCard(
+                title: "Loading schedules…",
+                message: "Checking what is configured on this Mac.",
+                systemImage: "calendar.badge.clock",
+                showsProgress: true)
+        case let .error(message):
+            self.stateCard(
+                title: "Schedules could not be loaded.",
+                message: message,
+                systemImage: "exclamationmark.triangle.fill",
+                tint: .orange,
+                actionTitle: "Try again")
+            {
+                Task { await self.store.refreshJobs() }
+            }
+        case let .empty(message):
+            if message.hasPrefix("Sign in") {
+                self.stateCard(
+                    title: message,
+                    message: "After you sign in, this account's schedules appear here.",
+                    systemImage: "person.crop.circle.badge.exclamationmark")
+            } else {
+                self.stateCard(
+                    title: message,
+                    message: "Create the first schedule to run work later.",
+                    systemImage: "calendar.badge.plus",
+                    actionTitle: "New schedule")
+                {
+                    self.editorError = nil
+                    self.editingJob = nil
+                    self.showEditor = true
+                }
+            }
+        case .list:
             VStack(alignment: .leading, spacing: 8) {
-                if let err = self.store.lastError {
-                    Text("Error: \(err)")
+                if self.store.isLoadingJobs {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Refreshing…")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if let error = self.trimmedLastError {
+                    Text(error)
                         .font(.footnote)
-                        .foregroundStyle(.red)
-                } else if let msg = self.store.statusMessage {
-                    Text(msg)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let message = self.trimmedStatusMessage {
+                    Text(message)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -143,12 +189,6 @@ extension CronSettings {
                 }
                 .listStyle(.inset)
             }
-            .frame(width: 250)
-
-            Divider()
-
-            self.detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -165,16 +205,68 @@ extension CronSettings {
                 .padding(.top, 2)
             }
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Select a job to inspect details and run history.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Text("Tip: use ‘New Job’ to add one, or enable cron in your gateway config.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+            switch self.listState {
+            case .loading:
+                self.stateCard(
+                    title: "Preparing details…",
+                    message: "Details appear as soon as the first schedule is available.",
+                    systemImage: "calendar",
+                    showsProgress: true)
+            case .error:
+                self.stateCard(
+                    title: "No details to show.",
+                    message: "When schedules load again, the selected schedule appears here.",
+                    systemImage: "rectangle.on.rectangle.slash")
+            case .empty:
+                self.stateCard(
+                    title: "Nothing to show yet.",
+                    message: "When a schedule exists, its details appear here.",
+                    systemImage: "calendar")
+            case .list:
+                self.stateCard(
+                    title: "Choose a schedule.",
+                    message: "Details and recent activity appear here.",
+                    systemImage: "list.bullet.rectangle")
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, 8)
         }
+    }
+
+    func stateCard(
+        title: String,
+        message: String,
+        systemImage: String,
+        tint: Color = .secondary,
+        showsProgress: Bool = false,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil) -> some View
+    {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                if showsProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(tint)
+                }
+
+                Text(title)
+                    .font(.headline)
+            }
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .background(Color.secondary.opacity(0.06))
+        .cornerRadius(12)
     }
 }

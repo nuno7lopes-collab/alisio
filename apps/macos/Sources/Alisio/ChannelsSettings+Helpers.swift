@@ -1,18 +1,94 @@
 import AppKit
+import SwiftUI
 
 import AlisioSupport
 extension ChannelsSettings {
-    func date(fromMs ms: Double?) -> Date? {
-        guard let ms else { return nil }
-        return Date(timeIntervalSince1970: ms / 1000)
+    func connectorTint(_ status: AppIntegrationGroup.Status) -> Color {
+        switch status {
+        case .connected:
+            .green
+        case .attention:
+            .orange
+        case .ready:
+            .secondary
+        }
     }
 
-    func qrImage(from dataUrl: String) -> NSImage? {
-        guard let comma = dataUrl.firstIndex(of: ",") else { return nil }
-        let header = dataUrl[..<comma]
-        guard header.contains("base64") else { return nil }
-        let base64 = dataUrl[dataUrl.index(after: comma)...]
-        guard let data = Data(base64Encoded: String(base64)) else { return nil }
-        return NSImage(data: data)
+    func capabilityTint(_ status: AppIntegrationCapability.Status) -> Color {
+        switch status {
+        case .connected:
+            .green
+        case .needsReconnect, .setupRequired:
+            .orange
+        case .ready:
+            .secondary
+        }
+    }
+
+    func openExternalURL(_ url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
+    func formatConnectedAt(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        return relativeAge(from: date)
+    }
+
+    func accountText(label: String?, email: String?) -> String? {
+        let trimmedLabel = label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmail = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if let trimmedLabel, !trimmedLabel.isEmpty, let trimmedEmail, !trimmedEmail.isEmpty,
+           trimmedLabel.caseInsensitiveCompare(trimmedEmail) != .orderedSame
+        {
+            return "\(trimmedLabel) · \(trimmedEmail)"
+        }
+        if let trimmedLabel, !trimmedLabel.isEmpty {
+            return trimmedLabel
+        }
+        if let trimmedEmail, !trimmedEmail.isEmpty {
+            return trimmedEmail
+        }
+        return nil
+    }
+
+    func appSummaryLine(_ app: AppIntegrationGroup) -> String {
+        switch app.status {
+        case .connected:
+            if let account = self.accountText(label: app.accountLabel, email: app.accountEmail) {
+                return account
+            }
+            return app.capabilities.count == 1
+                ? "Connected"
+                : "All \(app.capabilities.count) access levels connected"
+        case .attention:
+            let connectedCount = app.capabilities.filter { $0.status == .connected }.count
+            if connectedCount > 0 {
+                return "\(connectedCount) of \(app.capabilities.count) access levels connected"
+            }
+            return "Action required"
+        case .ready:
+            return app.capabilities.count == 1 ? "Not connected" : "Ready to connect"
+        }
+    }
+
+    func capabilityDetailLine(_ capability: AppIntegrationCapability) -> String {
+        switch capability.status {
+        case .connected:
+            var parts: [String] = []
+            if let account = self.accountText(label: capability.accountLabel, email: capability.accountEmail) {
+                parts.append(account)
+            }
+            if let connectedAt = self.formatConnectedAt(capability.connectedAt) {
+                parts.append("Connected \(connectedAt)")
+            }
+            return parts.isEmpty ? "Connected and ready." : parts.joined(separator: " · ")
+        case .needsReconnect:
+            return capability.setupHint ?? "Authorization expired or needs reconnecting."
+        case .setupRequired:
+            return capability.setupHint ?? "Gateway setup is incomplete for this app."
+        case .ready:
+            return capability.detail?.nonEmpty ?? capability.subtitle
+        }
     }
 }

@@ -41,7 +41,10 @@ struct SessionDataTests {
             id: "x",
             key: "user@example.com",
             kind: .direct,
+            labelOverride: nil,
             displayName: nil,
+            derivedTitle: nil,
+            lastMessagePreview: nil,
             subject: nil,
             room: nil,
             space: nil,
@@ -57,5 +60,29 @@ struct SessionDataTests {
         #expect(row.flagLabels.contains("verbose debug"))
         #expect(row.flagLabels.contains("system sent"))
         #expect(row.flagLabels.contains("aborted"))
+    }
+
+    @Test func `session row label prefers derived title and exposes preview text`() {
+        let row = SessionRow(
+            id: "x",
+            key: "agent:main:dashboard:child",
+            kind: .direct,
+            labelOverride: "Fallback Label",
+            displayName: "Display Name",
+            derivedTitle: "Derived Title",
+            lastMessagePreview: "Most recent reply",
+            subject: "Subject",
+            room: nil,
+            space: nil,
+            updatedAt: nil,
+            sessionId: nil,
+            thinkingLevel: nil,
+            verboseLevel: nil,
+            systemSent: false,
+            abortedLastRun: false,
+            tokens: SessionTokenStats(input: 0, output: 0, total: 0, contextTokens: 0),
+            model: nil)
+        #expect(row.label == "Derived Title")
+        #expect(row.previewText == "Most recent reply")
     }
 }

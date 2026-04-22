@@ -8,26 +8,17 @@ import AlisioSupport
 final class WorkspaceNavigationState {
     enum Route: String, CaseIterable, Identifiable {
         case chat
-        case authentications
-        case automations
-        case agents
-        case organization
+        case apps
+        case schedules
+        case capabilities
+        case connections
         case settings
-
-        var id: String { self.rawValue }
-    }
-
-    enum SettingsSection: String, CaseIterable, Identifiable {
-        case workspace
-        case mac
-        case debug
 
         var id: String { self.rawValue }
     }
 
     var route: Route
     var activeSessionKey: String?
-    var settingsSection: SettingsSection = .workspace
 
     init() {
         self.route = .chat
@@ -41,40 +32,11 @@ final class WorkspaceNavigationState {
         }
     }
 
-    func showSettings(tab: SettingsTab) {
-        let mapped = Self.mapSettings(tab)
-        self.route = mapped.route
-        if let section = mapped.section {
-            self.settingsSection = section
-        }
+    func showSettings() {
+        self.route = .settings
     }
 
     func show(route: Route) {
         self.route = route
-    }
-
-    private static func mapSettings(_ tab: SettingsTab) -> (route: Route, section: SettingsSection?) {
-        switch tab {
-        case .general:
-            (.settings, .workspace)
-        case .channels:
-            (.authentications, nil)
-        case .skills:
-            (.agents, nil)
-        case .sessions:
-            (.chat, nil)
-        case .cron:
-            (.automations, nil)
-        case .config:
-            (.settings, .debug)
-        case .instances:
-            (.organization, nil)
-        case .voiceWake, .permissions:
-            (.settings, .mac)
-        case .debug:
-            (.settings, .debug)
-        case .about:
-            (.settings, .workspace)
-        }
     }
 }

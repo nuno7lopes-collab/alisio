@@ -2,52 +2,411 @@ import AppKit
 import SwiftUI
 
 import AlisioSupport
-struct InstancesSettings: View {
-    var store: InstancesStore
 
-    init(store: InstancesStore = .shared) {
+enum ConnectionsSurfaceStatus: Equatable {
+    case connected
+    case connecting
+    case attention
+
+    var label: String {
+        switch self {
+        case .connected:
+            "Connected"
+        case .connecting:
+            "Connecting"
+        case .attention:
+            "Needs attention"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .connected:
+            .green
+        case .connecting:
+            .secondary
+        case .attention:
+            .orange
+        }
+    }
+}
+
+struct ConnectionFact: Identifiable, Equatable {
+    let label: String
+    let value: String
+
+    var id: String {
+        self.label
+    }
+}
+
+struct ConnectionOverview: Equatable {
+    let title: String
+    let summary: String
+    let detail: String?
+    let status: ConnectionsSurfaceStatus
+    let facts: [ConnectionFact]
+}
+
+struct InstancesSettings: View {
+    @Bindable var store: InstancesStore
+    @Bindable var state: AppState
+    @Bindable private var healthStore = HealthStore.shared
+    @Bindable private var controlChannel = ControlChannel.shared
+    @Bindable private var connectivityCoordinator = GatewayConnectivityCoordinator.shared
+
+    init(store: InstancesStore = .shared, state: AppState = AppStateStore.shared) {
         self.store = store
+        self.state = state
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            self.header
-            if let err = store.lastError {
-                Text("Error: \(err)")
-                    .foregroundStyle(.red)
-            } else if let info = store.statusMessage {
-                Text(info)
-                    .foregroundStyle(.secondary)
-            }
-            if self.store.instances.isEmpty {
-                Text("No instances reported yet.")
-                    .foregroundStyle(.secondary)
-            } else {
-                List(self.store.instances) { inst in
-                    self.instanceRow(inst)
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 16) {
+                self.header
+                self.connectionCard
+                self.healthCard
+
+                if self.state.connectionMode == .local {
+                    TailscaleIntegrationSection(
+                        connectionMode: self.state.connectionMode,
+                        isPaused: self.state.isPaused)
                 }
-                .listStyle(.inset)
+
+                self.nodesCard
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 12)
         }
-        .onAppear { self.store.start() }
+        .onAppear {
+            self.store.start()
+            Task { await self.refreshAll() }
+        }
+        .onChange(of: self.state.connectionMode) { _, _ in
+            Task { await self.refreshAll() }
+        }
         .onDisappear { self.store.stop() }
+    }
+
+    private var isRefreshingSurface: Bool {
+        self.store.isLoading || self.healthStore.isRefreshing
     }
 
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Connected Instances")
+                Text("Connections")
                     .font(.headline)
-                Text("Latest presence beacons from Alisio nodes. Updated periodically.")
+                Text("See how this Mac reaches the runtime, whether health checks are passing, and which nodes are alive.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            SettingsRefreshButton(isLoading: self.store.isLoading) {
-                Task { await self.store.refresh() }
+            SettingsRefreshButton(isLoading: self.isRefreshingSurface) {
+                Task { await self.refreshAll() }
             }
         }
+    }
+
+    private var connectionOverview: ConnectionOverview {
+        Self.resolveConnectionOverview(
+            mode: self.state.connectionMode,
+            remoteTransport: self.state.remoteTransport,
+            remoteTarget: self.state.remoteTarget,
+            remoteURL: self.state.remoteUrl,
+            endpointState: self.connectivityCoordinator.endpointState,
+            controlState: self.controlChannel.state)
+    }
+
+    private var connectionCard: some View {
+        self.surfaceCard(title: self.connectionOverview.title, systemImage: "network") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(self.connectionOverview.status.color)
+                        .frame(width: 10, height: 10)
+                    Text(self.connectionOverview.summary)
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    self.statusPill(
+                        self.connectionOverview.status.label,
+                        color: self.connectionOverview.status.color)
+                }
+
+                if let detail = self.connectionOverview.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !self.connectionOverview.facts.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(self.connectionOverview.facts) { fact in
+                            LabeledContent(fact.label, value: fact.value)
+                                .font(.caption)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var healthCard: some View {
+        self.surfaceCard(title: "Health", systemImage: "stethoscope") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(self.healthStore.state.tint)
+                        .frame(width: 10, height: 10)
+                    Text(self.healthStore.summaryLine)
+                        .font(.callout.weight(.semibold))
+                }
+
+                if let detail = self.healthStore.detailLine, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let lastSuccess = self.healthStore.lastSuccess {
+                    Text("Last checked \(relativeAge(from: lastSuccess)).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if self.healthStore.isRefreshing {
+                    Text("Running a fresh health check.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Health check has not completed yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var nodesCard: some View {
+        self.surfaceCard(title: "Nodes", systemImage: "desktopcomputer.trianglebadge.exclamationmark") {
+            VStack(alignment: .leading, spacing: 10) {
+                if let err = self.store.lastError, !err.isEmpty {
+                    Text(err)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let info = self.store.statusMessage, !info.isEmpty {
+                    Text(info)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if self.store.instances.isEmpty {
+                    Text("No local or remote nodes have reported in yet.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(self.store.instances.enumerated()), id: \.element.id) { index, inst in
+                            self.instanceRow(inst)
+                            if index < self.store.instances.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func surfaceCard(
+        title: String,
+        systemImage: String,
+        @ViewBuilder content: () -> some View) -> some View
+    {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(title, systemImage: systemImage)
+                .font(.headline)
+            content()
+        }
+        .padding(14)
+        .background(Color.gray.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func statusPill(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.14))
+            .foregroundStyle(color)
+            .clipShape(Capsule())
+    }
+
+    @MainActor
+    private func refreshAll() async {
+        async let presenceRefresh: Void = self.store.refresh()
+        async let healthRefresh: Void = self.healthStore.refresh(onDemand: true)
+        async let endpointRefresh: Void = GatewayEndpointStore.shared.refresh()
+
+        if self.state.connectionMode == .local {
+            async let tailscaleRefresh: Void = TailscaleService.shared.checkTailscaleStatus()
+            _ = await (presenceRefresh, healthRefresh, endpointRefresh, tailscaleRefresh)
+        } else {
+            _ = await (presenceRefresh, healthRefresh, endpointRefresh)
+        }
+    }
+
+    static func resolveConnectionOverview(
+        mode: AppState.ConnectionMode,
+        remoteTransport: AppState.RemoteTransport,
+        remoteTarget: String,
+        remoteURL: String,
+        endpointState: GatewayEndpointState?,
+        controlState: ControlChannel.ConnectionState) -> ConnectionOverview
+    {
+        let accessLabel: (String?, String?) -> String = { token, password in
+            if let token, !token.isEmpty {
+                return "Gateway token"
+            }
+            if let password, !password.isEmpty {
+                return "Password"
+            }
+            return "No gateway auth"
+        }
+
+        let trimmedTarget = remoteTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedRemoteURL = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let controlDetail: String? = {
+            switch controlState {
+            case let .degraded(message):
+                return message.nonEmpty
+            case .connecting:
+                return "The control channel is still connecting."
+            case .connected, .disconnected:
+                return nil
+            }
+        }()
+
+        switch mode {
+        case .unconfigured:
+            return ConnectionOverview(
+                title: "Gateway not configured",
+                summary: "Choose local or remote mode before using connections.",
+                detail: "General settings is the single place to set how this Mac should reach Alisio.",
+                status: .attention,
+                facts: [])
+        case .local:
+            switch endpointState {
+            case let .ready(_, url, token, password):
+                return ConnectionOverview(
+                    title: "Local runtime",
+                    summary: "This Mac is connected directly to the local gateway.",
+                    detail: controlDetail,
+                    status: .connected,
+                    facts: [
+                        ConnectionFact(label: "Route", value: "This Mac"),
+                        ConnectionFact(label: "Gateway", value: Self.hostLabel(for: url)),
+                        ConnectionFact(label: "Access", value: accessLabel(token, password)),
+                    ])
+            case let .connecting(_, detail):
+                return ConnectionOverview(
+                    title: "Starting local runtime",
+                    summary: detail,
+                    detail: controlDetail,
+                    status: .connecting,
+                    facts: [
+                        ConnectionFact(label: "Route", value: "This Mac"),
+                    ])
+            case let .unavailable(_, reason):
+                return ConnectionOverview(
+                    title: "Local runtime unavailable",
+                    summary: reason,
+                    detail: controlDetail,
+                    status: .attention,
+                    facts: [
+                        ConnectionFact(label: "Route", value: "This Mac"),
+                    ])
+            case .none:
+                return ConnectionOverview(
+                    title: "Local runtime",
+                    summary: "Waiting to resolve the local gateway endpoint.",
+                    detail: controlDetail,
+                    status: .connecting,
+                    facts: [
+                        ConnectionFact(label: "Route", value: "This Mac"),
+                    ])
+            }
+        case .remote:
+            let routeValue = remoteTransport == .direct ? "Direct URL" : "SSH tunnel"
+            let targetValue = remoteTransport == .direct
+                ? (Self.remoteHostLabel(from: trimmedRemoteURL) ?? "Remote gateway")
+                : (trimmedTarget.isEmpty ? "Remote gateway" : trimmedTarget)
+
+            switch endpointState {
+            case let .ready(_, _, token, password):
+                let summary = remoteTransport == .direct
+                    ? "This Mac is connected to a remote gateway over a direct URL."
+                    : "This Mac is connected to a remote gateway over SSH tunnel."
+                return ConnectionOverview(
+                    title: "Remote runtime",
+                    summary: summary,
+                    detail: controlDetail,
+                    status: .connected,
+                    facts: [
+                        ConnectionFact(label: "Route", value: routeValue),
+                        ConnectionFact(label: "Target", value: targetValue),
+                        ConnectionFact(label: "Access", value: accessLabel(token, password)),
+                    ])
+            case let .connecting(_, detail):
+                return ConnectionOverview(
+                    title: "Connecting to remote runtime",
+                    summary: detail,
+                    detail: controlDetail,
+                    status: .connecting,
+                    facts: [
+                        ConnectionFact(label: "Route", value: routeValue),
+                        ConnectionFact(label: "Target", value: targetValue),
+                    ])
+            case let .unavailable(_, reason):
+                return ConnectionOverview(
+                    title: "Remote runtime unavailable",
+                    summary: reason,
+                    detail: controlDetail,
+                    status: .attention,
+                    facts: [
+                        ConnectionFact(label: "Route", value: routeValue),
+                        ConnectionFact(label: "Target", value: targetValue),
+                    ])
+            case .none:
+                return ConnectionOverview(
+                    title: "Remote runtime",
+                    summary: "Waiting to resolve the remote gateway endpoint.",
+                    detail: controlDetail,
+                    status: .connecting,
+                    facts: [
+                        ConnectionFact(label: "Route", value: routeValue),
+                        ConnectionFact(label: "Target", value: targetValue),
+                    ])
+            }
+        }
+    }
+
+    private static func remoteHostLabel(from rawURL: String) -> String? {
+        guard let url = URL(string: rawURL), let host = url.host else { return nil }
+        if let port = url.port {
+            return "\(host):\(port)"
+        }
+        return host
+    }
+
+    private static func hostLabel(for url: URL) -> String {
+        let host = url.host ?? url.absoluteString
+        if let port = url.port {
+            return "\(host):\(port)"
+        }
+        return host
     }
 
     @ViewBuilder
@@ -76,7 +435,6 @@ struct InstancesSettings: View {
                     }
 
                     if let device {
-                        // Avoid showing generic device-family labels when a concrete model is available.
                         let family = (inst.deviceFamily ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                         let isGeneric = !family.isEmpty && device.title == family
                         if !isGeneric {
@@ -92,7 +450,9 @@ struct InstancesSettings: View {
                         self.label(icon: self.platformIcon(platform), text: prettyPlatform)
                     }
 
-                    if let mode = inst.mode { self.label(icon: "network", text: mode) }
+                    if let mode = inst.mode {
+                        self.label(icon: "network", text: mode.capitalized)
+                    }
                 }
                 .layoutPriority(1)
 
@@ -100,7 +460,6 @@ struct InstancesSettings: View {
                     HStack(spacing: 8) {
                         Spacer(minLength: 0)
 
-                        // Last local input is helpful for interactive nodes, but noisy/meaningless for the gateway.
                         if let secs = inst.lastInputSeconds {
                             self.label(icon: "clock", text: "\(secs)s ago")
                         }
@@ -114,7 +473,7 @@ struct InstancesSettings: View {
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .help(inst.text)
         .contextMenu {
             Button("Copy Debug Summary") {
@@ -126,10 +485,8 @@ struct InstancesSettings: View {
 
     private func label(icon: String?, text: String) -> some View {
         HStack(spacing: 4) {
-            if let icon {
-                if self.isSystemSymbolAvailable(icon) {
-                    Image(systemName: icon).foregroundStyle(.secondary).font(.caption)
-                }
+            if let icon, self.isSystemSymbolAvailable(icon) {
+                Image(systemName: icon).foregroundStyle(.secondary).font(.caption)
             }
             Text(text)
         }
@@ -246,7 +603,6 @@ struct InstancesSettings: View {
     }
 
     private func updateSummaryText(_ inst: InstanceInfo, isGateway: Bool) -> String? {
-        // For gateway rows, omit the "updated via/by" provenance entirely.
         if isGateway {
             return nil
         }

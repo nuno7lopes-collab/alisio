@@ -14,7 +14,7 @@ struct AlisioWorkspaceWindowSmokeTests {
         let navigationState = WorkspaceNavigationState()
         navigationState.show(route: .chat)
         let appState = AppState(preview: true)
-        appState.onboardingSeen = true
+        appState.macSetupCompleted = true
         AlisioAccountStore.shared.apply(Self.authenticatedSnapshot())
         controller.show(rootState: rootState, navigationState: navigationState, state: appState)
         let contentView = try? #require(controller.window?.contentViewController?.view)
@@ -23,6 +23,25 @@ struct AlisioWorkspaceWindowSmokeTests {
             #expect(Self.containsWKWebView(in: contentView) == false)
         }
         controller.close()
+        #expect(controller.window?.isVisible == false)
+        AlisioAccountStore.shared.clear()
+    }
+
+    @Test func `window close button hides the workspace instead of destroying it`() throws {
+        let controller = AlisioWorkspaceWindowController(presentation: .window)
+        let rootState = AlisioAppRootState()
+        let navigationState = WorkspaceNavigationState()
+        let appState = AppState(preview: true)
+        appState.macSetupCompleted = true
+        AlisioAccountStore.shared.apply(Self.authenticatedSnapshot())
+
+        controller.show(rootState: rootState, navigationState: navigationState, state: appState)
+
+        let window = try #require(controller.window)
+        #expect(controller.windowShouldClose(window) == false)
+        #expect(window.isVisible == false)
+        #expect(window.contentViewController != nil)
+
         AlisioAccountStore.shared.clear()
     }
 
@@ -33,7 +52,7 @@ struct AlisioWorkspaceWindowSmokeTests {
         let navigationState = WorkspaceNavigationState()
         navigationState.showChat(sessionKey: "main")
         let appState = AppState(preview: true)
-        appState.onboardingSeen = true
+        appState.macSetupCompleted = true
         AlisioAccountStore.shared.apply(Self.authenticatedSnapshot())
         controller.show(rootState: rootState, navigationState: navigationState, state: appState)
         let contentView = try? #require(controller.window?.contentViewController?.view)
@@ -42,6 +61,7 @@ struct AlisioWorkspaceWindowSmokeTests {
             #expect(Self.containsWKWebView(in: contentView) == false)
         }
         controller.close()
+        #expect(controller.window?.isVisible == false)
         AlisioAccountStore.shared.clear()
     }
 

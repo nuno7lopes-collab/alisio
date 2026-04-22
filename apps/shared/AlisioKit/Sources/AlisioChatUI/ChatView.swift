@@ -142,13 +142,21 @@ public struct AlisioChatView: View {
             }
 
             VStack(spacing: Layout.stackSpacing) {
-                self.messageList
-                    .padding(.horizontal, self.outerPaddingHorizontal)
-                AlisioChatComposer(
-                    viewModel: self.viewModel,
-                    style: self.style,
-                    showsSessionSwitcher: self.showsSessionSwitcher)
-                    .padding(.horizontal, self.composerPaddingHorizontal)
+                if self.showsSessionHeader {
+                    self.sessionHeader
+                        .padding(.horizontal, self.outerPaddingHorizontal)
+                        .padding(.top, self.style == .alisio ? 6 : 0)
+                }
+
+                if self.showsCenteredHome {
+                    self.centeredHome
+                        .padding(.horizontal, self.outerPaddingHorizontal)
+                } else {
+                    self.messageList
+                        .padding(.horizontal, self.outerPaddingHorizontal)
+                    self.composer
+                        .padding(.horizontal, self.composerPaddingHorizontal)
+                }
             }
             .padding(.vertical, self.outerPaddingVertical)
             .frame(maxWidth: .infinity)
@@ -166,6 +174,147 @@ public struct AlisioChatView: View {
                 EmptyView()
             }
         }
+    }
+
+    private var composer: some View {
+        AlisioChatComposer(
+            viewModel: self.viewModel,
+            style: self.style,
+            showsSessionSwitcher: self.showsSessionSwitcher)
+    }
+
+    private var showsSessionHeader: Bool {
+        self.style == .alisio
+    }
+
+    private var showsCenteredHome: Bool {
+        self.style == .alisio &&
+            !self.viewModel.isLoading &&
+            self.activeErrorText == nil &&
+            self.showsEmptyState
+    }
+
+    private var sessionHeader: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.currentSessionTitle)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(self.currentSessionSubtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+
+            if self.showsSessionSwitcher {
+                Button {
+                    self.showSessions = true
+                } label: {
+                    Label("Chats", systemImage: "sidebar.left")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .keyboardShortcut("j", modifiers: [.command, .shift])
+            }
+
+            Button {
+                self.viewModel.newChat()
+            } label: {
+                if self.viewModel.isCreatingSession {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Label("New Chat", systemImage: "square.and.pencil")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(!self.viewModel.canCreateSession)
+            .keyboardShortcut("n", modifiers: [.command])
+        }
+        .padding(.horizontal, self.style == .alisio ? 6 : 0)
+        .padding(.bottom, self.style == .alisio ? 8 : 0)
+    }
+
+    private var centeredHome: some View {
+        VStack(spacing: 22) {
+            Spacer(minLength: 0)
+
+            VStack(spacing: 12) {
+                Text("Start Here")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Text("Keep your main chat visible, start a clean chat when you need one, and switch between sessions without losing your place.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 620)
+
+                self.homeShortcuts
+            }
+
+            self.composer
+                .frame(maxWidth: 760)
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var homeShortcuts: some View {
+        HStack(spacing: 8) {
+            self.homeShortcutLabel(systemImage: "command", text: "Cmd-N New chat")
+            self.homeShortcutLabel(systemImage: "paperplane", text: "Return Send")
+            self.homeShortcutLabel(systemImage: "text.insert", text: "Shift-Return New line")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func homeShortcutLabel(systemImage: String, text: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(AlisioChatTheme.subtleCard)
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
+    }
+
+    private var currentSessionTitle: String {
+        if let session = self.viewModel.currentSessionEntry {
+            return self.viewModel.sessionTitle(for: session)
+        }
+        return self.viewModel.sessionKey
+    }
+
+    private var currentSessionSubtitle: String {
+        var parts: [String] = []
+        if let session = self.viewModel.currentSessionEntry {
+            parts.append(self.viewModel.isMainSession(session) ? "Main chat" : "Secondary chat")
+            if let preview = self.viewModel.sessionPreviewText(for: session) {
+                parts.append(preview)
+            }
+        } else {
+            parts.append("Choose a chat or start a new one.")
+        }
+
+        if self.viewModel.connectionPhase == .firstMessage {
+            parts.append("First reply is warming up.")
+        } else if self.viewModel.connectionPhase == .reconnecting {
+            parts.append("Reconnecting.")
+        }
+
+        return parts.joined(separator: " · ")
     }
 
     private var messageList: some View {

@@ -12,24 +12,22 @@ final class ConnectionModeCoordinator {
     /// Apply the requested connection mode by starting/stopping local gateway,
     /// managing the control-channel SSH tunnel, and cleaning up chat windows/panels.
     func apply(mode: AppState.ConnectionMode, paused: Bool) async {
-        if let lastMode = self.lastMode, lastMode != mode {
+        let previousMode = self.lastMode
+        if let previousMode, previousMode != mode {
             GatewayProcessManager.shared.clearLastFailure()
             NodesStore.shared.lastError = nil
+            await ControlChannel.shared.disconnect()
         }
         self.lastMode = mode
         switch mode {
         case .unconfigured:
-            _ = await NodeServiceManager.stop()
             NodesStore.shared.lastError = nil
             await RemoteTunnelManager.shared.stopAll()
             AlisioWorkspaceManager.shared.resetTunnels()
             GatewayProcessManager.shared.stop()
-            await GatewayConnection.shared.shutdown()
-            await ControlChannel.shared.disconnect()
             Task.detached { await PortGuardian.shared.sweep(mode: .unconfigured) }
 
         case .local:
-            _ = await NodeServiceManager.stop()
             NodesStore.shared.lastError = nil
             await RemoteTunnelManager.shared.stopAll()
             AlisioWorkspaceManager.shared.resetTunnels()
@@ -57,14 +55,13 @@ final class ConnectionModeCoordinator {
 
         case .remote:
             // Never run a local gateway in remote mode.
+            // The native Mac node runtime is managed by `MacNodeModeCoordinator`.
+            // The separate headless node service remains a manual CLI workflow.
             GatewayProcessManager.shared.stop()
             AlisioWorkspaceManager.shared.resetTunnels()
 
             do {
                 NodesStore.shared.lastError = nil
-                if let error = await NodeServiceManager.start() {
-                    NodesStore.shared.lastError = "Node service start failed: \(error)"
-                }
                 _ = try await GatewayEndpointStore.shared.ensureRemoteControlTunnel()
                 let settings = CommandResolver.connectionSettings()
                 try await ControlChannel.shared.configure(mode: .remote(

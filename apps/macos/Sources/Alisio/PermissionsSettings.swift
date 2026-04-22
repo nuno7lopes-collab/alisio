@@ -5,9 +5,14 @@ import SwiftUI
 
 import AlisioSupport
 struct PermissionsSettings: View {
-    let status: [Capability: Bool]
+    enum State: Equatable {
+        case loading
+        case empty
+        case loaded([Capability: Bool])
+    }
+
+    let state: State
     let refresh: () async -> Void
-    let openSetup: () -> Void
 
     var body: some View {
         ScrollView {
@@ -23,7 +28,7 @@ struct PermissionsSettings: View {
                     title: "macOS permissions",
                     subtitle: "Turn on only the capabilities you plan to use.")
                 {
-                    PermissionStatusList(status: self.status, refresh: self.refresh)
+                    self.permissionsContent
                 }
 
                 PermissionSectionCard(
@@ -33,17 +38,44 @@ struct PermissionsSettings: View {
                     LocationAccessSettings()
                 }
 
-                HStack {
-                    Spacer(minLength: 0)
-                    Button("Open setup") { self.openSetup() }
-                        .buttonStyle(.bordered)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var permissionsContent: some View {
+        switch self.state {
+        case .loading:
+            HStack(spacing: 10) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Refreshing macOS permission status…")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        case .empty:
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Permission status unavailable.")
+                    .font(.callout.weight(.semibold))
+                Text("Try refreshing to load the current Accessibility, Screen Recording, microphone, and related access state.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    Task { await self.refresh() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        case let .loaded(status):
+            PermissionStatusList(status: status, refresh: self.refresh)
+        }
     }
 }
 
@@ -449,16 +481,15 @@ private struct PermissionStateCapsule: View {
 struct PermissionsSettings_Previews: PreviewProvider {
     static var previews: some View {
         PermissionsSettings(
-            status: [
+            state: .loaded([
                 .appleScript: true,
                 .notifications: true,
                 .accessibility: false,
                 .screenRecording: false,
                 .microphone: true,
                 .speechRecognition: false,
-            ],
-            refresh: {},
-            openSetup: {})
+            ]),
+            refresh: {})
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
     }
 }

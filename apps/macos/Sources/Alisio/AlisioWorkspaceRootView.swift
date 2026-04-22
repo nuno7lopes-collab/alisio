@@ -8,7 +8,7 @@ import AlisioSupport
 private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
     case chat
     case apps
-    case automations
+    case schedules
     case capabilities
     case connections
     case settings
@@ -19,7 +19,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .chat: "Chat"
         case .apps: "Apps"
-        case .automations: "Automations"
+        case .schedules: "Schedules"
         case .capabilities: "Capabilities"
         case .connections: "Connections"
         case .settings: "Settings"
@@ -30,7 +30,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .chat: "bubble.left.and.bubble.right"
         case .apps: "link"
-        case .automations: "calendar"
+        case .schedules: "calendar"
         case .capabilities: "sparkles"
         case .connections: "network"
         case .settings: "gearshape"
@@ -38,20 +38,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
     }
 
     init(route: WorkspaceNavigationState.Route) {
-        switch route {
-        case .chat:
-            self = .chat
-        case .authentications:
-            self = .apps
-        case .automations:
-            self = .automations
-        case .agents:
-            self = .capabilities
-        case .organization:
-            self = .connections
-        case .settings:
-            self = .settings
-        }
+        self = Self(rawValue: route.rawValue) ?? .chat
     }
 
     @MainActor
@@ -60,15 +47,15 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
         case .chat:
             navigationState.showChat(sessionKey: navigationState.activeSessionKey ?? "main")
         case .apps:
-            navigationState.show(route: .authentications)
-        case .automations:
-            navigationState.show(route: .automations)
+            navigationState.show(route: .apps)
+        case .schedules:
+            navigationState.show(route: .schedules)
         case .capabilities:
-            navigationState.show(route: .agents)
+            navigationState.show(route: .capabilities)
         case .connections:
-            navigationState.show(route: .organization)
+            navigationState.show(route: .connections)
         case .settings:
-            navigationState.showSettings(tab: .general)
+            navigationState.showSettings()
         }
     }
 }
@@ -113,17 +100,6 @@ struct AlisioWorkspaceRootView: View {
         return trimmed.isEmpty ? "main" : trimmed
     }
 
-    private var settingsTab: SettingsTab {
-        switch self.navigationState.settingsSection {
-        case .workspace:
-            .general
-        case .mac:
-            .permissions
-        case .debug:
-            .debug
-        }
-    }
-
     var body: some View {
         Group {
             if self.presentation.isPanel {
@@ -160,13 +136,10 @@ struct AlisioWorkspaceRootView: View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 12) {
                 AlisioBrandMark(palette: self.palette, size: 38)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 0) {
                     Text("Alisio")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(self.palette.primaryText)
-                    Text("Native macOS workspace")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(self.palette.secondaryText)
                 }
             }
             .padding(.top, 8)
@@ -258,37 +231,11 @@ struct AlisioWorkspaceRootView: View {
     }
 
     private var stageTitle: String {
-        switch self.navigationState.route {
-        case .chat:
-            "Chat"
-        case .authentications:
-            "Apps"
-        case .automations:
-            "Automations"
-        case .agents:
-            "Capabilities"
-        case .organization:
-            "Connections"
-        case .settings:
-            "Settings"
-        }
+        self.navigationState.route.workspaceTitle
     }
 
     private var stageSubtitle: String {
-        switch self.navigationState.route {
-        case .chat:
-            "Native chat, memory, and a real macOS inspector for computer use."
-        case .authentications:
-            "Configure connected apps and account surfaces."
-        case .automations:
-            "Review and edit scheduled automations."
-        case .agents:
-            "Manage skills and agent behavior."
-        case .organization:
-            "Inspect connections and local infrastructure."
-        case .settings:
-            "Adjust app, lifecycle, and permission behavior."
-        }
+        self.navigationState.route.workspaceSubtitle
     }
 
     @ViewBuilder
@@ -302,22 +249,58 @@ struct AlisioWorkspaceRootView: View {
                 compact: compact,
                 environment: self.chatEnvironment)
                 .id("chat-\(self.resolvedSessionKey)-\(compact ? "panel" : "window")-\(self.state.connectionMode.rawValue)")
-        case .authentications:
+        case .apps:
             ChannelsSettings()
                 .padding(compact ? 14 : 24)
-        case .automations:
+        case .schedules:
             CronSettings()
                 .padding(compact ? 14 : 24)
-        case .agents:
+        case .capabilities:
             SkillsSettings(state: self.state)
                 .padding(compact ? 14 : 24)
-        case .organization:
+        case .connections:
             InstancesSettings()
                 .padding(compact ? 14 : 24)
         case .settings:
-            SettingsRootView(state: self.state, updater: self.updater, initialTab: self.settingsTab)
-                .id("settings-\(self.settingsTab.title)")
+            WorkspaceSettingsLauncherView(state: self.state)
+                .id("settings-launcher")
                 .padding(compact ? 14 : 24)
+        }
+    }
+}
+
+extension WorkspaceNavigationState.Route {
+    var workspaceTitle: String {
+        switch self {
+        case .chat:
+            "Chat"
+        case .apps:
+            "Apps"
+        case .schedules:
+            "Schedules"
+        case .capabilities:
+            "Capabilities"
+        case .connections:
+            "Connections"
+        case .settings:
+            "Settings"
+        }
+    }
+
+    var workspaceSubtitle: String {
+        switch self {
+        case .chat:
+            "Continue the current conversation and inspect tool activity for this session."
+        case .apps:
+            "Connect real app integrations like Gmail, Calendar, GitHub, Stripe, and YouTube."
+        case .schedules:
+            "Create, review, and run scheduled work."
+        case .capabilities:
+            "See what this Mac can do and what still needs setup."
+        case .connections:
+            "See how this Mac reaches the runtime, whether health is passing, and which nodes are alive."
+        case .settings:
+            "Open the native Settings window for app-level preferences without duplicating them in the workspace."
         }
     }
 }
@@ -418,7 +401,7 @@ private struct WorkspaceChatStage: View {
     private var chatHeader: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Workspace")
+                Text("Session")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(self.palette.primaryText)
                 Text(self.chatHeaderSubtitle)
@@ -449,7 +432,7 @@ private struct WorkspaceChatStage: View {
     private var chatHeaderSubtitle: String {
         if self.state.connectionMode == .local {
             return self.inspectorActivityID == nil
-                ? "Computer use and tool output appear here when the runtime becomes active."
+                ? "Computer use and tool output appear here when this session becomes active."
                 : "The inspector is following live computer use and tool activity for this session."
         }
         return "Tool activity and run state stay visible here even when the runtime is remote."
@@ -659,7 +642,7 @@ private struct WorkspaceInspectorPane: View {
                             self.metaRow("Run ID", sessionId)
                         }
                         self.metaRow("Runtime", self.runtimeLabel)
-                        self.metaRow("Surface", "Native macOS workspace")
+                        self.metaRow("Surface", "Mac app")
                         if let lastToolLabel, !lastToolLabel.isEmpty {
                             self.metaRow("Last tool", lastToolLabel)
                         }

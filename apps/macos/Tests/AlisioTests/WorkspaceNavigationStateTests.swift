@@ -26,37 +26,32 @@ struct WorkspaceNavigationStateTests {
         let state = WorkspaceNavigationState()
 
         #expect(state.route == .chat)
-        #expect(state.settingsSection == .workspace)
     }
 
     @Test func `workspace routes no longer expose onboarding`() {
         #expect(WorkspaceNavigationState.Route.allCases.map(\.rawValue).contains("onboarding") == false)
     }
 
-    @Test func `settings tabs map to native workspace sections`() {
+    @Test func `workspace routes expose the canonical shell tabs`() {
+        #expect(WorkspaceNavigationState.Route.allCases.map(\.rawValue) == [
+            "chat",
+            "apps",
+            "schedules",
+            "capabilities",
+            "connections",
+            "settings",
+        ])
+    }
+
+    @Test func `workspace routes expose final tab labels`() {
+        #expect(WorkspaceNavigationState.Route.schedules.workspaceTitle == "Schedules")
+        #expect(WorkspaceNavigationState.Route.capabilities.workspaceTitle == "Capabilities")
+    }
+
+    @Test func `settings route is a single native launcher surface`() {
         let state = WorkspaceNavigationState()
 
-        state.showSettings(tab: .skills)
-        #expect(state.route == .agents)
-
-        state.showSettings(tab: .cron)
-        #expect(state.route == .automations)
-
-        state.showSettings(tab: .channels)
-        #expect(state.route == .authentications)
-
-        state.showSettings(tab: .instances)
-        #expect(state.route == .organization)
-
-        state.showSettings(tab: .permissions)
+        state.showSettings()
         #expect(state.route == .settings)
-        #expect(state.settingsSection == .mac)
-
-        state.showSettings(tab: .sessions)
-        #expect(state.route == .chat)
-
-        state.showSettings(tab: .debug)
-        #expect(state.route == .settings)
-        #expect(state.settingsSection == .debug)
     }
 }

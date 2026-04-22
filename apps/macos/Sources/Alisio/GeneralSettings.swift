@@ -105,7 +105,7 @@ struct GeneralSettings: View {
 
     private var connectionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Alisio runs")
+            Text("Runtime")
                 .font(.title3.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -119,7 +119,7 @@ struct GeneralSettings: View {
             .frame(width: 260, alignment: .leading)
 
             if self.state.connectionMode == .unconfigured {
-                Text("Pick Local or Remote to start Alisio.")
+                Text("Choose Local to run Alisio on this Mac, or Remote to use another host.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -420,7 +420,7 @@ struct GeneralSettings: View {
             Button("Recheck") { self.refreshGatewayStatus() }
                 .buttonStyle(.bordered)
 
-            Text("Alisio auto-starts its local runtime in local mode via launchd.")
+            Text("In Local mode, Alisio starts its runtime automatically via launchd.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

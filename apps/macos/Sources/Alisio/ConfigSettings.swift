@@ -93,26 +93,72 @@ extension ConfigSettings {
     private var detail: some View {
         VStack(alignment: .leading, spacing: 16) {
             if self.store.configSchemaLoading {
-                ProgressView().controlSize(.small)
+                HStack(spacing: 10) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading config schema…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             } else if let section = self.activeSection {
                 self.sectionDetail(section)
+            } else if let error = self.schemaErrorMessage {
+                self.errorDetail(error)
             } else if self.store.configSchema != nil {
                 self.emptyDetail
             } else {
-                Text("Schema unavailable.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                self.emptyStateDetail(
+                    title: "Schema unavailable.",
+                    message: "Alisio could not load a schema for the config editor yet.")
             }
         }
         .frame(minWidth: 460, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var emptyDetail: some View {
+        self.emptyStateDetail(
+            title: "Select a config section.",
+            message: "Choose a section from the sidebar to inspect or edit its current values.")
+    }
+
+    private var schemaErrorMessage: String? {
+        guard self.store.configSchema == nil else { return nil }
+        guard let status = self.store.configStatus?.trimmingCharacters(in: .whitespacesAndNewlines), !status.isEmpty else {
+            return nil
+        }
+        return status
+    }
+
+    private func emptyStateDetail(title: String, message: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             self.header
-            Text("Select a config section to view settings.")
+            Text(title)
+                .font(.callout.weight(.semibold))
+            Text(message)
                 .font(.callout)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
+    }
+
+    private func errorDetail(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            self.header
+            Text("Unable to load config.")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Reload") {
+                Task {
+                    await self.store.loadConfigSchema()
+                    await self.store.loadConfig()
+                }
+            }
+            .buttonStyle(.bordered)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)

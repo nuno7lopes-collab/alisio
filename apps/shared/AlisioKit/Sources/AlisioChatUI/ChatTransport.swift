@@ -11,6 +11,8 @@ public enum AlisioChatTransportEvent: Sendable {
 public protocol AlisioChatTransport: Sendable {
     func requestHistory(sessionKey: String) async throws -> AlisioChatHistoryPayload
     func listModels() async throws -> [AlisioChatModelChoice]
+    func listSessions(query: AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse
+    func createSession(request: AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse
     func sendMessage(
         sessionKey: String,
         message: String,
@@ -19,7 +21,6 @@ public protocol AlisioChatTransport: Sendable {
         attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse
 
     func abortRun(sessionKey: String, runId: String) async throws
-    func listSessions(limit: Int?) async throws -> AlisioChatSessionsListResponse
     func setSessionModel(sessionKey: String, model: String?) async throws
     func setSessionThinking(sessionKey: String, thinkingLevel: String) async throws
 
@@ -32,6 +33,20 @@ public protocol AlisioChatTransport: Sendable {
 }
 
 extension AlisioChatTransport {
+    public func listSessions(query _: AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse {
+        throw NSError(
+            domain: "AlisioChatTransport",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: "sessions.list not supported by this transport"])
+    }
+
+    public func createSession(request _: AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse {
+        throw NSError(
+            domain: "AlisioChatTransport",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: "sessions.create not supported by this transport"])
+    }
+
     public func setActiveSessionKey(_: String) async throws {}
 
     public func resetSession(sessionKey _: String) async throws {
@@ -53,13 +68,6 @@ extension AlisioChatTransport {
             domain: "AlisioChatTransport",
             code: 0,
             userInfo: [NSLocalizedDescriptionKey: "chat.abort not supported by this transport"])
-    }
-
-    public func listSessions(limit _: Int?) async throws -> AlisioChatSessionsListResponse {
-        throw NSError(
-            domain: "AlisioChatTransport",
-            code: 0,
-            userInfo: [NSLocalizedDescriptionKey: "sessions.list not supported by this transport"])
     }
 
     public func listModels() async throws -> [AlisioChatModelChoice] {

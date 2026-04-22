@@ -5,19 +5,26 @@ import SwiftUI
 import AlisioSupport
 struct SettingsRootView: View {
     @Bindable var state: AppState
+    @Bindable var navigation: SettingsNavigationModel
     @Bindable private var accountStore = AlisioAccountStore.shared
     private let permissionMonitor = PermissionMonitor.shared
     @State private var monitoringPermissions = false
-    @State private var selectedTab: SettingsTab = .general
+    @State private var permissionsState: PermissionsSettings.State = .loading
     @State private var snapshotPaths: (configPath: String?, stateDir: String?) = (nil, nil)
     let updater: UpdaterProviding?
     private let isPreview = ProcessInfo.processInfo.isPreview
     private let isNixMode = ProcessInfo.processInfo.isNixMode
 
-    init(state: AppState, updater: UpdaterProviding?, initialTab: SettingsTab? = nil) {
+    init(
+        state: AppState,
+        updater: UpdaterProviding?,
+        navigation: SettingsNavigationModel = SettingsNavigationModel(),
+        initialTab: SettingsTab? = nil)
+    {
         self.state = state
         self.updater = updater
-        self._selectedTab = State(initialValue: initialTab ?? .general)
+        self.navigation = navigation
+        self.navigation.select(initialTab ?? navigation.selectedTab, debugEnabled: state.debugPaneEnabled)
     }
 
     var body: some View {
@@ -25,57 +32,24 @@ struct SettingsRootView: View {
             if self.isNixMode {
                 self.nixManagedBanner
             }
-            TabView(selection: self.$selectedTab) {
+            TabView(selection: self.$navigation.selectedTab) {
                 GeneralSettings(state: self.state)
                     .tabItem { Label("General", systemImage: "gearshape") }
                     .tag(SettingsTab.general)
 
-                self.accountProtectedSettingsContent(for: .channels) {
-                    ChannelsSettings()
-                }
-                    .tabItem { Label("Apps", systemImage: "link") }
-                    .tag(SettingsTab.channels)
+                PermissionsSettings(
+                    state: self.permissionsState,
+                    refresh: self.refreshPerms)
+                    .tabItem { Label("Permissions", systemImage: "lock.shield") }
+                    .tag(SettingsTab.permissions)
 
-                self.accountProtectedSettingsContent(for: .voiceWake) {
-                    VoiceWakeSettings(state: self.state, isActive: self.selectedTab == .voiceWake)
-                }
+                VoiceWakeSettings(state: self.state, isActive: self.navigation.selectedTab == .voiceWake)
                     .tabItem { Label("Voice Wake", systemImage: "waveform.circle") }
                     .tag(SettingsTab.voiceWake)
 
                 ConfigSettings()
                     .tabItem { Label("Config", systemImage: "slider.horizontal.3") }
                     .tag(SettingsTab.config)
-
-                self.accountProtectedSettingsContent(for: .instances) {
-                    InstancesSettings()
-                }
-                    .tabItem { Label("Connections", systemImage: "network") }
-                    .tag(SettingsTab.instances)
-
-                self.accountProtectedSettingsContent(for: .sessions) {
-                    SessionsSettings()
-                }
-                    .tabItem { Label("Chat", systemImage: "clock.arrow.circlepath") }
-                    .tag(SettingsTab.sessions)
-
-                self.accountProtectedSettingsContent(for: .cron) {
-                    CronSettings()
-                }
-                    .tabItem { Label("Cron", systemImage: "calendar") }
-                    .tag(SettingsTab.cron)
-
-                self.accountProtectedSettingsContent(for: .skills) {
-                    SkillsSettings(state: self.state)
-                }
-                    .tabItem { Label("Capabilities", systemImage: "sparkles") }
-                    .tag(SettingsTab.skills)
-
-                PermissionsSettings(
-                    status: self.permissionMonitor.status,
-                    refresh: self.refreshPerms,
-                    openSetup: { DebugActions.openSetup() })
-                    .tabItem { Label("Permissions", systemImage: "lock.shield") }
-                    .tag(SettingsTab.permissions)
 
                 if self.state.debugPaneEnabled {
                     DebugSettings(state: self.state)
@@ -92,29 +66,23 @@ struct SettingsRootView: View {
         .padding(.vertical, 22)
         .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight, alignment: .topLeading)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .onReceive(NotificationCenter.default.publisher(for: .alisioSelectSettingsTab)) { note in
-            if let tab = note.object as? SettingsTab {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
-                    self.selectedTab = tab
-                }
-            }
-        }
         .onAppear {
-            if let pending = SettingsTabRouter.consumePending() {
-                self.selectedTab = self.validTab(for: pending)
-            }
-            self.updatePermissionMonitoring(for: self.selectedTab)
+            self.navigation.select(self.navigation.selectedTab, debugEnabled: self.state.debugPaneEnabled)
+            self.updatePermissionMonitoring(for: self.navigation.selectedTab)
         }
         .onChange(of: self.state.debugPaneEnabled) { _, enabled in
-            if !enabled, self.selectedTab == .debug {
-                self.selectedTab = .general
+            if !enabled, self.navigation.selectedTab == .debug {
+                self.navigation.selectedTab = .general
             }
         }
-        .onChange(of: self.selectedTab) { _, newValue in
+        .onChange(of: self.navigation.selectedTab) { _, newValue in
             self.updatePermissionMonitoring(for: newValue)
+            if newValue == .permissions {
+                Task { await self.refreshPerms() }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            guard self.selectedTab == .permissions else { return }
+            guard self.navigation.selectedTab == .permissions else { return }
             Task { await self.refreshPerms() }
         }
         .onDisappear { self.stopPermissionMonitoring() }
@@ -159,26 +127,6 @@ struct SettingsRootView: View {
         .cornerRadius(10)
     }
 
-    @ViewBuilder
-    private func accountProtectedSettingsContent<Content: View>(
-        for tab: SettingsTab,
-        @ViewBuilder content: () -> Content) -> some View
-    {
-        if self.accountStore.isAuthenticated {
-            content()
-        } else {
-            AlisioAccountRequiredView(
-                store: self.accountStore,
-                title: "\(tab.title) requires an Alisio account",
-                message: "This section is disabled until the app can bind it to the signed-in account.")
-        }
-    }
-
-    private func validTab(for requested: SettingsTab) -> SettingsTab {
-        if requested == .debug, !self.state.debugPaneEnabled { return .general }
-        return requested
-    }
-
     @MainActor
     private func refreshSnapshotPaths() async {
         let paths = await GatewayConnection.shared.snapshotPaths()
@@ -187,8 +135,14 @@ struct SettingsRootView: View {
 
     @MainActor
     private func refreshPerms() async {
-        guard !self.isPreview else { return }
+        if self.isPreview {
+            self.permissionsState = self.permissionMonitor.status.isEmpty ? .empty : .loaded(self.permissionMonitor.status)
+            return
+        }
+        self.permissionsState = .loading
         await self.permissionMonitor.refreshNow()
+        let latest = self.permissionMonitor.status
+        self.permissionsState = latest.isEmpty ? .empty : .loaded(latest)
     }
 
     private func updatePermissionMonitoring(for tab: SettingsTab) {
@@ -202,20 +156,15 @@ struct SettingsRootView: View {
 }
 
 enum SettingsTab: CaseIterable {
-    case general, channels, skills, sessions, cron, config, instances, voiceWake, permissions, debug, about
-    static let windowWidth: CGFloat = 824 // wider
-    static let windowHeight: CGFloat = 790 // +10% (more room)
+    case general, permissions, voiceWake, config, debug, about
+    static let windowWidth: CGFloat = 824
+    static let windowHeight: CGFloat = 790
     var title: String {
         switch self {
         case .general: "General"
-        case .channels: "Apps"
-        case .skills: "Capabilities"
-        case .sessions: "Chat"
-        case .cron: "Cron"
-        case .config: "Config"
-        case .instances: "Connections"
-        case .voiceWake: "Voice Wake"
         case .permissions: "Permissions"
+        case .voiceWake: "Voice Wake"
+        case .config: "Config"
         case .debug: "Debug"
         case .about: "About"
         }
@@ -224,43 +173,23 @@ enum SettingsTab: CaseIterable {
     var systemImage: String {
         switch self {
         case .general: "gearshape"
-        case .channels: "link"
-        case .skills: "sparkles"
-        case .sessions: "clock.arrow.circlepath"
-        case .cron: "calendar"
-        case .config: "slider.horizontal.3"
-        case .instances: "network"
-        case .voiceWake: "waveform.circle"
         case .permissions: "lock.shield"
+        case .voiceWake: "waveform.circle"
+        case .config: "slider.horizontal.3"
         case .debug: "ant"
         case .about: "info.circle"
         }
     }
 }
 
-@MainActor
-enum SettingsTabRouter {
-    private static var pending: SettingsTab?
-
-    static func request(_ tab: SettingsTab) {
-        self.pending = tab
-    }
-
-    static func consumePending() -> SettingsTab? {
-        defer { self.pending = nil }
-        return self.pending
-    }
-}
-
-extension Notification.Name {
-    static let alisioSelectSettingsTab = Notification.Name("alisioSelectSettingsTab")
-}
-
 #if DEBUG
 struct SettingsRootView_Previews: PreviewProvider {
     static var previews: some View {
         ForEach(SettingsTab.allCases, id: \.self) { tab in
-            SettingsRootView(state: .preview, updater: DisabledUpdaterController(), initialTab: tab)
+            SettingsRootView(
+                state: .preview,
+                updater: DisabledUpdaterController(),
+                navigation: SettingsNavigationModel(selectedTab: tab))
                 .previewDisplayName(tab.title)
                 .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
         }

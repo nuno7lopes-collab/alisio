@@ -20,7 +20,6 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
     private var hostedNavigationStateID: ObjectIdentifier?
     private var hostedAppStateID: ObjectIdentifier?
 
-    var onClosed: (() -> Void)?
     var onVisibilityChanged: ((Bool) -> Void)?
 
     init(
@@ -90,7 +89,6 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
     override func close() {
         self.window?.orderOut(nil)
         self.onVisibilityChanged?(false)
-        self.onClosed?()
         self.removeDismissMonitor()
     }
 

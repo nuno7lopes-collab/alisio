@@ -16,11 +16,9 @@ struct AlisioApp: App {
     private let gatewayManager = GatewayProcessManager.shared
     private let controlChannel = ControlChannel.shared
     private let activityStore = WorkActivityStore.shared
-    private let connectivityCoordinator = GatewayConnectivityCoordinator.shared
     @State private var statusItem: NSStatusItem?
     @State private var isMenuPresented = false
     @State private var isPanelVisible = false
-    @State private var tailscaleService = TailscaleService.shared
 
     @MainActor
     private func updateStatusHighlight() {
@@ -90,18 +88,6 @@ struct AlisioApp: App {
                 .keyboardShortcut(",", modifiers: [.command])
             }
         }
-
-        Settings {
-            if MacNodeComputerHelperBootstrap.isHelperProcess {
-                EmptyView()
-            } else {
-                SettingsRootView(state: self.state, updater: self.delegate.updaterController)
-                    .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight, alignment: .topLeading)
-                    .environment(self.tailscaleService)
-            }
-        }
-        .defaultSize(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
-        .windowResizability(.contentSize)
         .onChange(of: self.isMenuPresented) { _, _ in
             self.updateStatusHighlight()
             self.updateHoverHUDSuppression()

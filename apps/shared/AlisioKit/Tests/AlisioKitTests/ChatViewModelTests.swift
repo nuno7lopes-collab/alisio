@@ -83,8 +83,11 @@ private func makeViewModel(
     historyResponses: [AlisioChatHistoryPayload],
     sessionsResponses: [AlisioChatSessionsListResponse] = [],
     modelResponses: [[AlisioChatModelChoice]] = [],
+    createSessionResponses: [AlisioChatSessionCreateResponse] = [],
+    listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)? = nil,
     resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
+    createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)? = nil,
     setSessionModelHook: (@Sendable (String?) async throws -> Void)? = nil,
     setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil,
     initialThinkingLevel: String? = nil,
@@ -95,8 +98,11 @@ private func makeViewModel(
         historyResponses: historyResponses,
         sessionsResponses: sessionsResponses,
         modelResponses: modelResponses,
+        createSessionResponses: createSessionResponses,
+        listSessionsHook: listSessionsHook,
         resetSessionHook: resetSessionHook,
         compactSessionHook: compactSessionHook,
+        createSessionHook: createSessionHook,
         setSessionModelHook: setSessionModelHook,
         setSessionThinkingHook: setSessionThinkingHook)
     let vm = await MainActor.run {
@@ -249,8 +255,10 @@ private actor TestChatTransportState {
     var historyCallCount: Int = 0
     var sessionsCallCount: Int = 0
     var modelsCallCount: Int = 0
+    var listSessionQueries: [AlisioChatSessionsQuery] = []
     var resetSessionKeys: [String] = []
     var compactSessionKeys: [String] = []
+    var createSessionRequests: [AlisioChatSessionCreateRequest] = []
     var sentRunIds: [String] = []
     var sentThinkingLevels: [String] = []
     var abortedRunIds: [String] = []
@@ -263,8 +271,11 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     private let historyResponses: [AlisioChatHistoryPayload]
     private let sessionsResponses: [AlisioChatSessionsListResponse]
     private let modelResponses: [[AlisioChatModelChoice]]
+    private let createSessionResponses: [AlisioChatSessionCreateResponse]
+    private let listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)?
     private let resetSessionHook: (@Sendable (String) async throws -> Void)?
     private let compactSessionHook: (@Sendable (String) async throws -> Void)?
+    private let createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)?
     private let setSessionModelHook: (@Sendable (String?) async throws -> Void)?
     private let setSessionThinkingHook: (@Sendable (String) async throws -> Void)?
 
@@ -275,16 +286,22 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         historyResponses: [AlisioChatHistoryPayload],
         sessionsResponses: [AlisioChatSessionsListResponse] = [],
         modelResponses: [[AlisioChatModelChoice]] = [],
+        createSessionResponses: [AlisioChatSessionCreateResponse] = [],
+        listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)? = nil,
         resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
+        createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)? = nil,
         setSessionModelHook: (@Sendable (String?) async throws -> Void)? = nil,
         setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil)
     {
         self.historyResponses = historyResponses
         self.sessionsResponses = sessionsResponses
         self.modelResponses = modelResponses
+        self.createSessionResponses = createSessionResponses
+        self.listSessionsHook = listSessionsHook
         self.resetSessionHook = resetSessionHook
         self.compactSessionHook = compactSessionHook
+        self.createSessionHook = createSessionHook
         self.setSessionModelHook = setSessionModelHook
         self.setSessionThinkingHook = setSessionThinkingHook
         var cont: AsyncStream<AlisioChatTransportEvent>.Continuation!
@@ -329,7 +346,11 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         await self.state.abortedRunIdsAppend(runId)
     }
 
-    func listSessions(limit _: Int?) async throws -> AlisioChatSessionsListResponse {
+    func listSessions(query: AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse {
+        await self.state.listSessionQueriesAppend(query)
+        if let listSessionsHook = self.listSessionsHook {
+            return try await listSessionsHook(query)
+        }
         let idx = await self.state.sessionsCallCount
         await self.state.setSessionsCallCount(idx + 1)
         if idx < self.sessionsResponses.count {
@@ -350,6 +371,24 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
             return self.modelResponses[idx]
         }
         return self.modelResponses.last ?? []
+    }
+
+    func createSession(request: AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse {
+        await self.state.createSessionRequestsAppend(request)
+        if let createSessionHook = self.createSessionHook {
+            return try await createSessionHook(request)
+        }
+        let requests = await self.state.createSessionRequests
+        let fallbackIndex = max(0, requests.count - 1)
+        if fallbackIndex < self.createSessionResponses.count {
+            return self.createSessionResponses[fallbackIndex]
+        }
+        let key = "agent:main:dashboard:\(UUID().uuidString.lowercased())"
+        return AlisioChatSessionCreateResponse(
+            ok: true,
+            key: key,
+            sessionId: "sess-\(fallbackIndex)",
+            entry: sessionEntry(key: key, updatedAt: Date().timeIntervalSince1970 * 1000))
     }
 
     func setSessionModel(sessionKey _: String, model: String?) async throws {
@@ -416,6 +455,14 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     func compactSessionKeys() async -> [String] {
         await self.state.compactSessionKeys
     }
+
+    func createSessionRequests() async -> [AlisioChatSessionCreateRequest] {
+        await self.state.createSessionRequests
+    }
+
+    func listSessionQueries() async -> [AlisioChatSessionsQuery] {
+        await self.state.listSessionQueries
+    }
 }
 
 extension TestChatTransportState {
@@ -457,6 +504,14 @@ extension TestChatTransportState {
 
     fileprivate func compactSessionKeysAppend(_ v: String) {
         self.compactSessionKeys.append(v)
+    }
+
+    fileprivate func createSessionRequestsAppend(_ value: AlisioChatSessionCreateRequest) {
+        self.createSessionRequests.append(value)
+    }
+
+    fileprivate func listSessionQueriesAppend(_ value: AlisioChatSessionsQuery) {
+        self.listSessionQueries.append(value)
     }
 }
 
@@ -799,7 +854,7 @@ extension TestChatTransportState {
         #expect(await MainActor.run { vm.errorText == nil })
     }
 
-    @Test func sessionChoicesPreferMainAndRecent() async throws {
+    @Test func sessionChoicesPreferMainAndKeepOlderChatsAvailable() async throws {
         let now = Date().timeIntervalSince1970 * 1000
         let recent = now - (2 * 60 * 60 * 1000)
         let recentOlder = now - (5 * 60 * 60 * 1000)
@@ -822,7 +877,7 @@ extension TestChatTransportState {
         try await waitUntil("sessions loaded") { await MainActor.run { !vm.sessions.isEmpty } }
 
         let keys = await MainActor.run { vm.sessionChoices.map(\.key) }
-        #expect(keys == ["main", "recent-1", "recent-2"])
+        #expect(keys == ["main", "recent-1", "recent-2", "old-1"])
     }
 
     @Test func sessionChoicesIncludeCurrentWhenMissing() async throws {
@@ -964,7 +1019,7 @@ extension TestChatTransportState {
         #expect(keys == ["agent:main:main"])
     }
 
-    @Test func resetTriggerResetsSessionAndReloadsHistory() async throws {
+    @Test func resetSessionActionResetsSessionAndReloadsHistory() async throws {
         let before = historyPayload(
             messages: [
                 chatTextMessage(role: "assistant", text: "before reset", timestamp: 1),
@@ -980,10 +1035,7 @@ extension TestChatTransportState {
             await MainActor.run { vm.messages.first?.content.first?.text == "before reset" }
         }
 
-        await MainActor.run {
-            vm.input = "/new"
-            vm.send()
-        }
+        await MainActor.run { vm.resetSession() }
 
         try await waitUntil("reset called") {
             await transport.resetSessionKeys() == ["main"]
@@ -994,7 +1046,64 @@ extension TestChatTransportState {
         #expect(await transport.lastSentRunId() == nil)
     }
 
-    @Test func compactTriggerCompactsSessionAndReloadsHistory() async throws {
+    @Test func newChatCreatesCanonicalSessionAndPreservesDraftsPerSession() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let createdKey = "agent:main:dashboard:new-chat"
+        let initialSessions = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 1,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+            ])
+        let sessionsAfterCreate = AlisioChatSessionsListResponse(
+            ts: now + 1,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: createdKey, updatedAt: now + 1),
+                sessionEntry(key: "main", updatedAt: now),
+            ])
+        let createdResponse = AlisioChatSessionCreateResponse(
+            ok: true,
+            key: createdKey,
+            sessionId: "sess-new",
+            entry: sessionEntry(key: createdKey, updatedAt: now + 1))
+
+        let (transport, vm) = await makeViewModel(
+            historyResponses: [
+                historyPayload(sessionKey: "main", sessionId: "sess-main"),
+                historyPayload(sessionKey: createdKey, sessionId: "sess-new"),
+                historyPayload(sessionKey: "main", sessionId: "sess-main"),
+            ],
+            sessionsResponses: [initialSessions, sessionsAfterCreate, sessionsAfterCreate],
+            createSessionResponses: [createdResponse])
+        try await loadAndWaitBootstrap(vm: vm, sessionId: "sess-main")
+
+        await MainActor.run {
+            vm.input = "draft for main chat"
+            vm.newChat()
+        }
+
+        try await waitUntil("new chat request issued") {
+            let requests = await transport.createSessionRequests()
+            return requests.count == 1
+        }
+        try await waitUntil("view model switches to created session") {
+            await MainActor.run { vm.sessionKey == createdKey && vm.sessionId == "sess-new" }
+        }
+        #expect(await MainActor.run { vm.input } == "")
+
+        await MainActor.run { vm.switchSession(to: "main") }
+        try await waitUntil("switch back to main session") {
+            await MainActor.run { vm.sessionKey == "main" && vm.sessionId == "sess-main" }
+        }
+        #expect(await MainActor.run { vm.input } == "draft for main chat")
+    }
+
+    @Test func compactSessionActionCompactsSessionAndReloadsHistory() async throws {
         let before = historyPayload(
             messages: [
                 chatTextMessage(role: "assistant", text: "before compact", timestamp: 1),
@@ -1010,10 +1119,7 @@ extension TestChatTransportState {
             await MainActor.run { vm.messages.first?.content.first?.text == "before compact" }
         }
 
-        await MainActor.run {
-            vm.input = "/compact"
-            vm.send()
-        }
+        await MainActor.run { vm.compactSession() }
 
         try await waitUntil("compact called") {
             await transport.compactSessionKeys() == ["main"]
@@ -1024,7 +1130,7 @@ extension TestChatTransportState {
         #expect(await transport.lastSentRunId() == nil)
     }
 
-    @Test func compactTriggerShowsGenericErrorMessageOnFailure() async throws {
+    @Test func compactSessionActionShowsGenericErrorMessageOnFailure() async throws {
         let history = historyPayload()
         let (transport, vm) = await makeViewModel(
             historyResponses: [history],
@@ -1036,10 +1142,7 @@ extension TestChatTransportState {
             })
         try await loadAndWaitBootstrap(vm: vm)
 
-        await MainActor.run {
-            vm.input = "/compact"
-            vm.send()
-        }
+        await MainActor.run { vm.compactSession() }
 
         try await waitUntil("compact attempted") {
             await transport.compactSessionKeys() == ["main"]
@@ -1047,7 +1150,7 @@ extension TestChatTransportState {
         #expect(await MainActor.run { vm.errorText } == "Unable to compact the session. Please try again.")
     }
 
-    @Test func compactTriggerIgnoresConcurrentAndImmediateRepeatRequests() async throws {
+    @Test func compactSessionActionIgnoresConcurrentAndImmediateRepeatRequests() async throws {
         let before = historyPayload(
             messages: [
                 chatTextMessage(role: "assistant", text: "before compact", timestamp: 1),
@@ -1065,10 +1168,8 @@ extension TestChatTransportState {
         try await loadAndWaitBootstrap(vm: vm)
 
         await MainActor.run {
-            vm.input = "/compact"
-            vm.send()
-            vm.input = "/compact"
-            vm.send()
+            vm.compactSession()
+            vm.compactSession()
         }
 
         try await waitUntil("single compact request issued") {
@@ -1081,17 +1182,14 @@ extension TestChatTransportState {
             await MainActor.run { vm.messages.first?.content.first?.text == "after compact" }
         }
 
-        await MainActor.run {
-            vm.input = "/compact"
-            vm.send()
-        }
+        await MainActor.run { vm.compactSession() }
 
         try await Task.sleep(for: .milliseconds(50))
         #expect(await transport.compactSessionKeys() == ["main"])
         #expect(await MainActor.run { vm.errorText } == "Please wait before compacting this session again.")
     }
 
-    @Test func compactTriggerAllowsImmediateRetryAfterFailure() async throws {
+    @Test func compactSessionActionAllowsImmediateRetryAfterFailure() async throws {
         let history = historyPayload()
         let attemptCount = AsyncCounter()
         let (transport, vm) = await makeViewModel(
@@ -1107,25 +1205,75 @@ extension TestChatTransportState {
             })
         try await loadAndWaitBootstrap(vm: vm)
 
-        await MainActor.run {
-            vm.input = "/compact"
-            vm.send()
-        }
+        await MainActor.run { vm.compactSession() }
 
         try await waitUntil("first compact attempted") {
             await transport.compactSessionKeys() == ["main"]
         }
         #expect(await MainActor.run { vm.errorText } == "Unable to compact the session. Please try again.")
 
-        await MainActor.run {
-            vm.input = "/compact"
-            vm.send()
-        }
+        await MainActor.run { vm.compactSession() }
 
         try await waitUntil("second compact attempted") {
             await transport.compactSessionKeys() == ["main", "main"]
         }
         #expect(await MainActor.run { vm.errorText } == nil)
+    }
+
+    @Test func refreshSessionsSearchKeepsLatestResponseOnly() async throws {
+        let firstGate = AsyncGate()
+        let secondGate = AsyncGate()
+        let oldResponse = AlisioChatSessionsListResponse(
+            ts: 1,
+            path: nil,
+            count: 1,
+            defaults: nil,
+            sessions: [sessionEntry(key: "old-result", updatedAt: 1)])
+        let newResponse = AlisioChatSessionsListResponse(
+            ts: 2,
+            path: nil,
+            count: 1,
+            defaults: nil,
+            sessions: [sessionEntry(key: "new-result", updatedAt: 2)])
+        let listAttemptCount = AsyncCounter()
+        let (transport, vm) = await makeViewModel(
+            historyResponses: [historyPayload()],
+            listSessionsHook: { query in
+                let attempt = await listAttemptCount.increment()
+                if attempt == 1 {
+                    #expect(query.search == "old")
+                    await firstGate.wait()
+                    return oldResponse
+                }
+                #expect(query.search == "new")
+                await secondGate.wait()
+                return newResponse
+            })
+
+        await MainActor.run { vm.refreshSessions(search: "old", limit: 200) }
+        try await waitUntil("first search request issued") {
+            await transport.listSessionQueries().count == 1
+        }
+
+        await MainActor.run { vm.refreshSessions(search: "new", limit: 200) }
+        try await waitUntil("second search request issued") {
+            await transport.listSessionQueries().count == 2
+        }
+
+        let queries = await transport.listSessionQueries()
+        #expect(queries.map { $0.search ?? "" } == ["old", "new"])
+
+        await secondGate.open()
+        try await waitUntil("latest search response applied") {
+            await MainActor.run { vm.sessionChoices.contains(where: { $0.key == "new-result" }) }
+        }
+        #expect(await MainActor.run { vm.sessionChoices.contains(where: { $0.key == "old-result" }) } == false)
+
+        await firstGate.open()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(await MainActor.run { vm.sessionChoices.contains(where: { $0.key == "new-result" }) })
+        #expect(await MainActor.run { vm.sessionChoices.contains(where: { $0.key == "old-result" }) } == false)
     }
 
     @Test func bootstrapsModelSelectionFromSessionAndDefaults() async throws {
@@ -1727,6 +1875,15 @@ Hello?
                     errorMessage: nil)))
 
         try await waitUntil("pending run clears") { await MainActor.run { vm.pendingRunCount == 0 } }
+    }
+
+    @Test func abortWithoutActiveRunShowsHonestError() async throws {
+        let (_, vm) = await makeViewModel(historyResponses: [historyPayload()])
+        try await loadAndWaitBootstrap(vm: vm)
+
+        await MainActor.run { vm.abort() }
+
+        #expect(await MainActor.run { vm.errorText } == "There is no active reply to stop.")
     }
 
     @Test func previewStateFlagsFirstMessagePhaseWhenOnlyUserTurnExists() async {

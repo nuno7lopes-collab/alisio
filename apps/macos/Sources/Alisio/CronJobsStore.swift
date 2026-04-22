@@ -18,6 +18,8 @@ final class CronJobsStore {
 
     var isLoadingJobs = false
     var isLoadingRuns = false
+    var hasLoadedJobsOnce = false
+    var hasLoadedRunsOnce = false
     var lastError: String?
     var statusMessage: String?
 
@@ -76,17 +78,23 @@ final class CronJobsStore {
             self.jobs = []
             self.runEntries = []
             self.lastError = nil
-            self.statusMessage = "Sign in to manage automations."
+            self.statusMessage = "Sign in to manage schedules."
+            self.hasLoadedJobsOnce = true
+            self.hasLoadedRunsOnce = true
             return
         case let .unavailable(message):
             self.lastError = message
             self.statusMessage = nil
+            self.hasLoadedJobsOnce = true
             return
         }
         self.isLoadingJobs = true
         self.lastError = nil
         self.statusMessage = nil
-        defer { self.isLoadingJobs = false }
+        defer {
+            self.isLoadingJobs = false
+            self.hasLoadedJobsOnce = true
+        }
 
         do {
             if let status = try? await GatewayConnection.shared.cronStatus() {
@@ -96,7 +104,7 @@ final class CronJobsStore {
             }
             self.jobs = try await GatewayConnection.shared.cronList(includeDisabled: true)
             if self.jobs.isEmpty {
-                self.statusMessage = "No cron jobs yet."
+                self.statusMessage = "No schedules exist yet."
             }
         } catch {
             self.logger.error("cron.list failed \(error.localizedDescription, privacy: .public)")
@@ -112,15 +120,20 @@ final class CronJobsStore {
         case .signedOut:
             self.runEntries = []
             self.lastError = nil
-            self.statusMessage = "Sign in to view automation runs."
+            self.statusMessage = "Sign in to view run history."
+            self.hasLoadedRunsOnce = true
             return
         case let .unavailable(message):
             self.lastError = message
             self.statusMessage = nil
+            self.hasLoadedRunsOnce = true
             return
         }
         self.isLoadingRuns = true
-        defer { self.isLoadingRuns = false }
+        defer {
+            self.isLoadingRuns = false
+            self.hasLoadedRunsOnce = true
+        }
 
         do {
             self.runEntries = try await GatewayConnection.shared.cronRuns(jobId: jobId, limit: limit)
@@ -135,7 +148,7 @@ final class CronJobsStore {
         case .authenticated:
             break
         case .signedOut:
-            self.lastError = "Sign in to run automations."
+            self.lastError = "Sign in to run schedules."
             return
         case let .unavailable(message):
             self.lastError = message
@@ -153,7 +166,7 @@ final class CronJobsStore {
         case .authenticated:
             break
         case .signedOut:
-            self.lastError = "Sign in to delete automations."
+            self.lastError = "Sign in to delete schedules."
             return
         case let .unavailable(message):
             self.lastError = message
@@ -165,6 +178,7 @@ final class CronJobsStore {
             if self.selectedJobId == id {
                 self.selectedJobId = nil
                 self.runEntries = []
+                self.hasLoadedRunsOnce = false
             }
         } catch {
             self.lastError = error.localizedDescription
@@ -176,7 +190,7 @@ final class CronJobsStore {
         case .authenticated:
             break
         case .signedOut:
-            self.lastError = "Sign in to edit automations."
+            self.lastError = "Sign in to edit schedules."
             return
         case let .unavailable(message):
             self.lastError = message

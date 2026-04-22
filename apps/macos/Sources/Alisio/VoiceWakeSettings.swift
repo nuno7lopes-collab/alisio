@@ -16,12 +16,14 @@ struct VoiceWakeSettings: View {
     @State private var testTimeoutTask: Task<Void, Never>?
     @State private var availableMics: [AudioInputDevice] = []
     @State private var loadingMics = false
+    @State private var didLoadMics = false
     @State private var meterLevel: Double = 0
     @State private var meterError: String?
     private let meter = MicLevelMonitor()
     @State private var micObserver = AudioInputDeviceObserver()
     @State private var micRefreshTask: Task<Void, Never>?
     @State private var availableLocales: [Locale] = []
+    @State private var didLoadLocales = false
     @State private var triggerEntries: [TriggerEntry] = []
     private let fieldLabelWidth: CGFloat = 150
     private let controlWidth: CGFloat = 300
@@ -436,6 +438,14 @@ struct VoiceWakeSettings: View {
             }
             if self.loadingMics {
                 ProgressView().controlSize(.small)
+            } else if self.didLoadMics, self.availableMics.isEmpty {
+                HStack(spacing: 10) {
+                    Color.clear.frame(width: self.fieldLabelWidth, height: 1)
+                    Text("No microphone inputs detected yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
         }
     }
@@ -448,9 +458,16 @@ struct VoiceWakeSettings: View {
                     .frame(width: self.fieldLabelWidth, alignment: .leading)
 
                 if self.availableLocaleIDs.isEmpty {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: self.controlWidth, alignment: .leading)
+                    if self.didLoadLocales {
+                        Text("No recognition languages available on this Mac.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(width: self.controlWidth, alignment: .leading)
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: self.controlWidth, alignment: .leading)
+                    }
                 } else {
                     Picker("Language", selection: self.primaryLocaleBinding) {
                         ForEach(self.availableLocaleIDs, id: \.self) { id in
@@ -612,6 +629,7 @@ struct VoiceWakeSettings: View {
             : connectedDevices.filter { aliveUIDs.contains($0.uniqueID) }
         self.availableMics = devices.map { AudioInputDevice(uid: $0.uniqueID, name: $0.localizedName) }
         self.updateSelectedMicName()
+        self.didLoadMics = true
         self.loadingMics = false
     }
 
@@ -651,6 +669,7 @@ struct VoiceWakeSettings: View {
             voiceWakeLocaleDisplayName(lhs.identifier)
                 .localizedCaseInsensitiveCompare(voiceWakeLocaleDisplayName(rhs.identifier)) == .orderedAscending
         }
+        self.didLoadLocales = true
         self.applyLocaleSelection(
             primary: self.state.voiceWakeLocaleID,
             additional: self.state.voiceWakeAdditionalLocaleIDs)

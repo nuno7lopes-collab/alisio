@@ -1,20 +1,12 @@
-import AppKit
 import SwiftUI
+import Observation
 
 import AlisioSupport
 struct ChannelsSettings: View {
-    struct ChannelItem: Identifiable, Hashable {
-        let id: String
-        let title: String
-        let detailTitle: String
-        let systemImage: String
-        let sortOrder: Int
-    }
+    @Bindable var store: AppsSettingsStore
+    @State var selectedAppID: String?
 
-    @Bindable var store: ChannelsStore
-    @State var selectedChannel: ChannelItem?
-
-    init(store: ChannelsStore = .shared) {
+    init(store: AppsSettingsStore = .shared) {
         self.store = store
     }
 }

@@ -3,6 +3,14 @@ import SwiftUI
 
 import AlisioSupport
 struct SkillsSettings: View {
+    enum ListState: Equatable {
+        case loading
+        case error(String)
+        case empty(String)
+        case filteredEmpty
+        case list
+    }
+
     @Bindable var state: AppState
     @State private var model = SkillsSettingsModel()
     @State private var envEditor: EnvEditorState?
@@ -16,8 +24,7 @@ struct SkillsSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             self.header
-            self.statusBanner
-            self.skillsList
+            self.content
             Spacer(minLength: 0)
         }
         .task { await self.model.refresh() }
@@ -34,12 +41,43 @@ struct SkillsSettings: View {
         }
     }
 
+    private var trimmedError: String? {
+        let trimmed = self.model.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var trimmedStatusMessage: String? {
+        let trimmed = self.model.statusMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var listState: ListState {
+        self.listState(for: self.filter)
+    }
+
+    private func listState(for filter: SkillsFilter) -> ListState {
+        let filteredSkills = self.filteredSkills(for: filter)
+        if !self.model.skills.isEmpty {
+            return filteredSkills.isEmpty ? .filteredEmpty : .list
+        }
+
+        if self.model.isLoading || !self.model.hasLoadedOnce {
+            return .loading
+        }
+
+        if let error = self.trimmedError {
+            return .error(error)
+        }
+
+        return .empty(self.trimmedStatusMessage ?? "No capabilities are available yet.")
+    }
+
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Skills")
+                Text("Capabilities")
                     .font(.headline)
-                Text("Skills are enabled when requirements are met (binaries, env, config).")
+                Text("See what is ready to use and what still needs setup.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -60,24 +98,67 @@ struct SkillsSettings: View {
     }
 
     @ViewBuilder
-    private var statusBanner: some View {
-        if let error = self.model.error {
-            Text(error)
-                .font(.footnote)
-                .foregroundStyle(.orange)
-        } else if let message = self.model.statusMessage {
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+    private var content: some View {
+        switch self.listState {
+        case .loading:
+            self.stateCard(
+                title: "Loading capabilities…",
+                message: "Checking what is available on this Mac.",
+                systemImage: "sparkles",
+                showsProgress: true)
+        case let .error(message):
+            self.stateCard(
+                title: "Capabilities could not be loaded.",
+                message: message,
+                systemImage: "exclamationmark.triangle.fill",
+                tint: .orange,
+                actionTitle: "Try again")
+            {
+                Task { await self.model.refresh() }
+            }
+        case let .empty(message):
+            if message.hasPrefix("Sign in") {
+                self.stateCard(
+                    title: message,
+                    message: "After you sign in, the available capabilities appear here.",
+                    systemImage: "person.crop.circle.badge.exclamationmark")
+            } else {
+                self.stateCard(
+                    title: message,
+                    message: "When capabilities are available, they appear here.",
+                    systemImage: "sparkles")
+            }
+        case .filteredEmpty:
+            self.stateCard(
+                title: "No capabilities match this filter.",
+                message: "Change the filter to see the remaining capabilities.",
+                systemImage: "line.3.horizontal.decrease.circle")
+        case .list:
+            self.capabilitiesList
         }
     }
 
-    @ViewBuilder
-    private var skillsList: some View {
-        if self.model.skills.isEmpty {
-            Text("No skills reported yet.")
-                .foregroundStyle(.secondary)
-        } else {
+    private var capabilitiesList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if self.model.isLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Refreshing…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let error = self.trimmedError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if let message = self.trimmedStatusMessage {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             List {
                 ForEach(self.filteredSkills) { skill in
                     SkillRow(
@@ -99,14 +180,48 @@ struct SkillsSettings: View {
                                 homepage: skill.homepage)
                         })
                 }
-                if !self.model.skills.isEmpty, self.filteredSkills.isEmpty {
-                    Text("No skills match this filter.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
             }
             .listStyle(.inset)
         }
+    }
+
+    func stateCard(
+        title: String,
+        message: String,
+        systemImage: String,
+        tint: Color = .secondary,
+        showsProgress: Bool = false,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil) -> some View
+    {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                if showsProgress {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: systemImage)
+                        .foregroundStyle(tint)
+                }
+
+                Text(title)
+                    .font(.headline)
+            }
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(16)
+        .background(Color.secondary.opacity(0.06))
+        .cornerRadius(12)
     }
 
     private var headerFilter: some View {
@@ -122,8 +237,12 @@ struct SkillsSettings: View {
     }
 
     private var filteredSkills: [SkillStatus] {
+        self.filteredSkills(for: self.filter)
+    }
+
+    private func filteredSkills(for filter: SkillsFilter) -> [SkillStatus] {
         self.model.skills.filter { skill in
-            switch self.filter {
+            switch filter {
             case .all:
                 true
             case .ready:
@@ -154,7 +273,7 @@ private enum SkillsFilter: String, CaseIterable, Identifiable {
         case .ready:
             "Ready"
         case .needsSetup:
-            "Needs Setup"
+            "Needs setup"
         case .disabled:
             "Disabled"
         }
@@ -246,7 +365,7 @@ private struct SkillRow: View {
             SkillTag(text: self.sourceLabel)
             if let url = self.homepageUrl {
                 Link(destination: url) {
-                    Label("Website", systemImage: "link")
+                    Label("Site", systemImage: "link")
                         .font(.caption2.weight(.semibold))
                 }
                 .buttonStyle(.link)
@@ -279,17 +398,17 @@ private struct SkillRow: View {
     private var missingSummary: some View {
         VStack(alignment: .leading, spacing: 4) {
             if self.shouldShowMissingBins {
-                Text("Missing binaries: \(self.missingBins.joined(separator: ", "))")
+                Text("Install required: \(self.missingBins.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if !self.missingEnv.isEmpty {
-                Text("Missing env: \(self.missingEnv.joined(separator: ", "))")
+                Text("Configuration required: \(self.missingEnv.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             if !self.missingConfig.isEmpty {
-                Text("Requires config: \(self.missingConfig.joined(separator: ", "))")
+                Text("Additional config required: \(self.missingConfig.joined(separator: ", "))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -316,7 +435,7 @@ private struct SkillRow: View {
         HStack(spacing: 8) {
             ForEach(self.missingEnv, id: \.self) { envKey in
                 let isPrimary = envKey == self.skill.primaryEnv
-                Button(isPrimary ? "Set API Key" : "Set \(envKey)") {
+                Button(isPrimary ? "Set API key" : "Set \(envKey)") {
                     self.onSetEnv(envKey, isPrimary)
                 }
                 .buttonStyle(.bordered)
@@ -337,20 +456,20 @@ private struct SkillRow: View {
                                 .disabled(self.isBusy)
                         }
                         if self.showGatewayInstall {
-                            Button("Install on This Mac") { self.onInstall(option, .local) }
+                            Button("Install on this Mac") { self.onInstall(option, .local) }
                                 .buttonStyle(.bordered)
                                 .disabled(self.isBusy)
                                 .help(
                                     self.localInstallNeedsSwitch
-                                        ? "Switches to Local mode to install on this Mac."
+                                        ? "Switch to Local mode to install on this Mac."
                                         : "")
                         } else {
-                            Button("Install on This Mac") { self.onInstall(option, .local) }
+                            Button("Install on this Mac") { self.onInstall(option, .local) }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(self.isBusy)
                                 .help(
                                     self.localInstallNeedsSwitch
-                                        ? "Switches to Local mode to install on this Mac."
+                                        ? "Switch to Local mode to install on this Mac."
                                         : "")
                         }
                     }
@@ -457,14 +576,11 @@ private struct EnvEditorView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if let homepageUrl = self.homepageUrl {
-                Link("Get your key →", destination: homepageUrl)
+                Link("Open key page →", destination: homepageUrl)
                     .font(.caption)
             }
             SecureField(self.editor.envKey, text: self.$value)
                 .textFieldStyle(.roundedBorder)
-            Text("Saved to alisio.json under skills.entries.\(self.editor.skillKey)")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
             HStack {
                 Button("Cancel") { self.dismiss() }
                 Spacer()
@@ -496,19 +612,26 @@ private struct EnvEditorView: View {
     }
 
     private var title: String {
-        self.editor.isPrimary ? "Set API Key" : "Set Environment Variable"
+        self.editor.isPrimary ? "Set API key" : "Set environment variable"
     }
 
     private var subtitle: String {
-        "Skill: \(self.editor.skillName)"
+        "Capability: \(self.editor.skillName)"
     }
 }
 
 @MainActor
 @Observable
 final class SkillsSettingsModel {
+    private enum AccountGate {
+        case authenticated
+        case signedOut
+        case unavailable(String)
+    }
+
     var skills: [SkillStatus] = []
     var isLoading = false
+    var hasLoadedOnce = false
     var error: String?
     var statusMessage: String?
     private var busySkills: Set<String> = []
@@ -521,66 +644,162 @@ final class SkillsSettingsModel {
         guard !self.isLoading else { return }
         self.isLoading = true
         self.error = nil
+        self.statusMessage = nil
+        defer {
+            self.isLoading = false
+            self.hasLoadedOnce = true
+        }
+
+        switch await self.accountGate(reason: "skills.status") {
+        case .authenticated:
+            break
+        case .signedOut:
+            self.skills = []
+            self.statusMessage = "Sign in to view capabilities."
+            return
+        case let .unavailable(message):
+            self.skills = []
+            self.statusMessage = nil
+            self.error = message
+            return
+        }
+
         do {
             let report = try await GatewayConnection.shared.skillsStatus()
             self.skills = report.skills.sorted { $0.name < $1.name }
+            if self.skills.isEmpty {
+                self.statusMessage = "No capabilities are available yet."
+            }
         } catch {
+            self.statusMessage = nil
             self.error = error.localizedDescription
         }
-        self.isLoading = false
     }
 
     fileprivate func install(skill: SkillStatus, option: SkillInstallOption, target: InstallTarget) async {
         await self.withBusy(skill.skillKey) {
+            switch await self.accountGate(reason: "skills.install") {
+            case .authenticated:
+                break
+            case .signedOut:
+                self.statusMessage = "Sign in to change capabilities."
+                return
+            case let .unavailable(message):
+                self.statusMessage = nil
+                self.error = message
+                return
+            }
+
             do {
+                self.error = nil
                 if target == .local, AppStateStore.shared.connectionMode != .local {
                     AppStateStore.shared.connectionMode = .local
-                    self.statusMessage = "Switched to Local mode to install on this Mac"
                 }
                 let result = try await GatewayConnection.shared.skillsInstall(
                     name: skill.name,
                     installId: option.id,
                     timeoutMs: 300_000)
-                self.statusMessage = result.message
+                let trimmedMessage = result.message.trimmingCharacters(in: .whitespacesAndNewlines)
+                let successMessage = result.ok
+                    ? "Install completed."
+                    : (trimmedMessage.isEmpty ? "The install failed." : trimmedMessage)
+                await self.refresh()
+                if self.error == nil {
+                    self.statusMessage = successMessage
+                }
             } catch {
-                self.statusMessage = error.localizedDescription
+                self.statusMessage = nil
+                self.error = error.localizedDescription
             }
-            await self.refresh()
         }
     }
 
     func setEnabled(skillKey: String, enabled: Bool) async {
         await self.withBusy(skillKey) {
+            switch await self.accountGate(reason: "skills.update") {
+            case .authenticated:
+                break
+            case .signedOut:
+                self.statusMessage = "Sign in to change capabilities."
+                return
+            case let .unavailable(message):
+                self.statusMessage = nil
+                self.error = message
+                return
+            }
+
             do {
+                self.error = nil
                 _ = try await GatewayConnection.shared.skillsUpdate(
                     skillKey: skillKey,
                     enabled: enabled)
-                self.statusMessage = enabled ? "Skill enabled" : "Skill disabled"
+                let successMessage = enabled ? "Capability enabled." : "Capability disabled."
+                await self.refresh()
+                if self.error == nil {
+                    self.statusMessage = successMessage
+                }
             } catch {
-                self.statusMessage = error.localizedDescription
+                self.statusMessage = nil
+                self.error = error.localizedDescription
             }
-            await self.refresh()
         }
     }
 
     func updateEnv(skillKey: String, envKey: String, value: String, isPrimary: Bool) async {
         await self.withBusy(skillKey) {
+            switch await self.accountGate(reason: "skills.update") {
+            case .authenticated:
+                break
+            case .signedOut:
+                self.statusMessage = "Sign in to change capabilities."
+                return
+            case let .unavailable(message):
+                self.statusMessage = nil
+                self.error = message
+                return
+            }
+
             do {
+                self.error = nil
                 if isPrimary {
                     _ = try await GatewayConnection.shared.skillsUpdate(
                         skillKey: skillKey,
                         apiKey: value)
-                    self.statusMessage = "Saved API key — stored in alisio.json (skills.entries.\(skillKey))"
+                    let successMessage = "API key saved."
+                    await self.refresh()
+                    if self.error == nil {
+                        self.statusMessage = successMessage
+                    }
                 } else {
                     _ = try await GatewayConnection.shared.skillsUpdate(
                         skillKey: skillKey,
                         env: [envKey: value])
-                    self.statusMessage = "Saved \(envKey) — stored in alisio.json (skills.entries.\(skillKey).env)"
+                    let successMessage = "\(envKey) saved."
+                    await self.refresh()
+                    if self.error == nil {
+                        self.statusMessage = successMessage
+                    }
                 }
             } catch {
-                self.statusMessage = error.localizedDescription
+                self.statusMessage = nil
+                self.error = error.localizedDescription
             }
-            await self.refresh()
+        }
+    }
+
+    private func accountGate(reason: String) async -> AccountGate {
+        do {
+            _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
+            return .authenticated
+        } catch let error as AlisioAccountRequiredError {
+            switch error {
+            case .signedOut:
+                return .signedOut
+            case let .unavailable(message):
+                return .unavailable(message)
+            }
+        } catch {
+            return .unavailable(error.localizedDescription)
         }
     }
 
@@ -603,6 +822,13 @@ extension SkillsSettings {
     mutating func setFilterForTesting(_ rawValue: String) {
         guard let filter = SkillsFilter(rawValue: rawValue) else { return }
         self.filter = filter
+    }
+
+    func listStateForTesting(_ rawValue: String) -> ListState {
+        guard let filter = SkillsFilter(rawValue: rawValue) else {
+            return self.listState
+        }
+        return self.listState(for: filter)
     }
 }
 #endif

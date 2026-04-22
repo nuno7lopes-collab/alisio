@@ -2,7 +2,7 @@ import AppKit
 
 import AlisioSupport
 @MainActor
-final class AlisioWindowManager: NSObject, NSWindowDelegate {
+final class AlisioWindowManager {
     static let shared = AlisioWindowManager()
 
     let rootState = AlisioAppRootState()
@@ -59,9 +59,7 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
     }
 
     func showSettings(tab: SettingsTab = .general) {
-        self.rootState.showWorkspace()
-        self.navigationState.showSettings(tab: tab)
-        self.showWindow()
+        SettingsWindowOpener.shared.open(tab: tab)
     }
 
     func hide() {
@@ -75,27 +73,6 @@ final class AlisioWindowManager: NSObject, NSWindowDelegate {
         self.workspaceController?.window?.delegate = nil
         self.workspaceController?.window?.close()
         self.workspaceController = nil
-    }
-
-    func windowShouldClose(_: NSWindow) -> Bool {
-        self.hide()
-        return false
-    }
-
-    func windowDidMiniaturize(_: Notification) {
-        self.onWindowVisibilityChanged?(false)
-    }
-
-    func windowDidDeminiaturize(_: Notification) {
-        self.onWindowVisibilityChanged?(true)
-    }
-
-    func windowDidBecomeKey(_: Notification) {
-        self.onWindowVisibilityChanged?(true)
-    }
-
-    func windowDidResignKey(_: Notification) {
-        self.onWindowVisibilityChanged?(false)
     }
 
     private func showWindow() {

@@ -19,13 +19,13 @@ extension CronSettings {
                 }
             }
             HStack(spacing: 6) {
-                StatusPill(text: job.sessionTargetDisplayValue, tint: .secondary)
-                StatusPill(text: job.wakeMode.rawValue, tint: .secondary)
+                StatusPill(text: self.sessionTargetLabel(job), tint: .secondary)
+                StatusPill(text: self.wakeModeLabel(job.wakeMode), tint: .secondary)
                 if let agentId = job.agentId, !agentId.isEmpty {
                     StatusPill(text: "agent \(agentId)", tint: .secondary)
                 }
                 if let status = job.state.displayStatus {
-                    StatusPill(text: status, tint: status == "ok" ? .green : .orange)
+                    StatusPill(text: self.statusLabel(status), tint: self.statusTint(status))
                 }
             }
         }
@@ -36,7 +36,7 @@ extension CronSettings {
     func jobContextMenu(_ job: CronJob) -> some View {
         Button("Run now") { Task { await self.store.runJob(id: job.id, force: true) } }
         if let transcriptSessionKey = job.transcriptSessionKey {
-            Button("Open transcript") {
+            Button("Open session") {
                 AlisioWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
             }
         }
@@ -77,7 +77,7 @@ extension CronSettings {
                 Button("Run") { Task { await self.store.runJob(id: job.id, force: true) } }
                     .buttonStyle(.borderedProminent)
                 if let transcriptSessionKey = job.transcriptSessionKey {
-                    Button("Transcript") {
+                    Button("Session") {
                         AlisioWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
                     }
                     .buttonStyle(.bordered)
@@ -96,7 +96,7 @@ extension CronSettings {
         VStack(alignment: .leading, spacing: 10) {
             LabeledContent("Schedule") { Text(self.scheduleSummary(job.schedule)).font(.callout) }
             if case .at = job.schedule, job.deleteAfterRun == true {
-                LabeledContent("Auto-delete") { Text("after success") }
+                LabeledContent("Delete after run") { Text("yes") }
             }
             if let desc = job.description, !desc.isEmpty {
                 LabeledContent("Description") { Text(desc).font(.callout) }
@@ -104,8 +104,8 @@ extension CronSettings {
             if let agentId = job.agentId, !agentId.isEmpty {
                 LabeledContent("Agent") { Text(agentId) }
             }
-            LabeledContent("Session") { Text(job.sessionTargetDisplayValue) }
-            LabeledContent("Wake") { Text(job.wakeMode.rawValue) }
+            LabeledContent("Session") { Text(self.sessionTargetLabel(job)) }
+            LabeledContent("Wake mode") { Text(self.wakeModeLabel(job.wakeMode)) }
             LabeledContent("Next run") {
                 if let date = job.nextRunDate {
                     Text(date.formatted(date: .abbreviated, time: .standard))
@@ -121,7 +121,7 @@ extension CronSettings {
                 }
             }
             if let status = job.state.displayStatus {
-                LabeledContent("Last status") { Text(status) }
+                LabeledContent("Last status") { Text(self.statusLabel(status)) }
             }
             if let err = job.state.lastError, !err.isEmpty {
                 Text(err)
@@ -140,7 +140,7 @@ extension CronSettings {
     func runHistoryCard(_ job: CronJob) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Run history")
+                Text("Recent activity")
                     .font(.headline)
                 Spacer()
                 Button {
@@ -156,11 +156,11 @@ extension CronSettings {
                 ProgressView().controlSize(.small)
             }
 
-            if self.store.runEntries.isEmpty {
-                Text("No run log entries yet.")
+            if self.store.runEntries.isEmpty, !self.store.isLoadingRuns, self.store.hasLoadedRunsOnce {
+                Text("No runs exist yet.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else {
+            } else if !self.store.runEntries.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(self.store.runEntries) { entry in
                         self.runRow(entry)
@@ -177,10 +177,10 @@ extension CronSettings {
     func runRow(_ entry: CronRunLogEntry) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                StatusPill(text: entry.status ?? "unknown", tint: self.statusTint(entry.status))
+                StatusPill(text: self.statusLabel(entry.status), tint: self.statusTint(entry.status))
                 if let deliveryStatus = entry.deliveryStatus, !deliveryStatus.isEmpty {
                     StatusPill(
-                        text: deliveryStatus,
+                        text: deliveryStatus == "delivered" ? "delivered" : deliveryStatus,
                         tint: deliveryStatus == "delivered" ? .green : .secondary)
                 }
                 Text(entry.date.formatted(date: .abbreviated, time: .standard))
@@ -221,7 +221,7 @@ extension CronSettings {
     func payloadSummary(_ job: CronJob) -> some View {
         let payload = job.payload
         return VStack(alignment: .leading, spacing: 6) {
-            Text("Payload")
+            Text("Action")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             switch payload {
@@ -235,8 +235,12 @@ extension CronSettings {
                         .font(.callout)
                         .textSelection(.enabled)
                     HStack(spacing: 8) {
-                        if let thinking, !thinking.isEmpty { StatusPill(text: "think \(thinking)", tint: .secondary) }
-                        if let timeoutSeconds { StatusPill(text: "\(timeoutSeconds)s", tint: .secondary) }
+                        if let thinking, !thinking.isEmpty {
+                            StatusPill(text: "thinking \(thinking)", tint: .secondary)
+                        }
+                        if let timeoutSeconds {
+                            StatusPill(text: "timeout \(timeoutSeconds)s", tint: .secondary)
+                        }
                         if job.supportsAnnounceDelivery {
                             let delivery = job.delivery
                             if let delivery {

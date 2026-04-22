@@ -3,6 +3,21 @@ import Foundation
 
 import AlisioSupport
 enum SessionActions {
+    static func createSession(
+        parentSessionKey: String? = nil,
+        agentId: String? = nil,
+        label: String? = nil,
+        model: String? = nil,
+        initialMessage: String? = nil) async throws -> AlisioChatSessionCreateResponse
+    {
+        try await GatewayConnection.shared.sessionsCreate(
+            parentSessionKey: parentSessionKey,
+            agentId: agentId,
+            label: label,
+            model: model,
+            task: initialMessage)
+    }
+
     static func patchSession(
         key: String,
         thinking: GatewayConnection.SessionPatchValue<String> = .unchanged,

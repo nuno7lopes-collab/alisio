@@ -80,16 +80,24 @@ final class ControlChannel {
             guard oldValue != self.state else { return }
             switch self.state {
             case .connected:
-                self.logger.info("control channel state -> connected")
+                self.logger.debug("control channel connected")
             case .connecting:
-                self.logger.info("control channel state -> connecting")
+                self.logger.debug("control channel connecting")
             case .disconnected:
-                self.logger.info("control channel state -> disconnected")
-                self.scheduleRecovery(reason: "disconnected")
+                if self.suppressRecovery {
+                    self.logger.debug("control channel disconnected intentionally")
+                } else {
+                    self.logger.debug("control channel disconnected")
+                    self.scheduleRecovery(reason: "disconnected")
+                }
             case let .degraded(message):
                 let detail = message.isEmpty ? "degraded" : "degraded: \(message)"
-                self.logger.info("control channel state -> \(detail, privacy: .public)")
-                self.scheduleRecovery(reason: message)
+                if self.suppressRecovery {
+                    self.logger.debug("control channel \(detail, privacy: .public)")
+                } else {
+                    self.logger.warning("control channel \(detail, privacy: .public)")
+                    self.scheduleRecovery(reason: message)
+                }
             }
         }
     }
@@ -102,17 +110,20 @@ final class ControlChannel {
     private var eventTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?
     private var lastRecoveryAt: Date?
+    private var suppressRecovery = false
 
     private init() {
         self.startEventStream()
     }
 
     func configure() async {
-        self.logger.info("control channel configure mode=local")
+        self.cancelRecovery()
+        self.logger.debug("control channel configure mode=local")
         await self.refreshEndpoint(reason: "configure")
     }
 
     func configure(mode: Mode = .local) async throws {
+        self.cancelRecovery()
         switch mode {
         case .local:
             await self.configure()
@@ -120,7 +131,7 @@ final class ControlChannel {
             do {
                 _ = (target, identity)
                 let idSet = !identity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                self.logger.info(
+                self.logger.debug(
                     "control channel configure mode=remote " +
                         "target=\(target, privacy: .public) identitySet=\(idSet, privacy: .public)")
                 self.state = .connecting
@@ -134,19 +145,28 @@ final class ControlChannel {
     }
 
     func refreshEndpoint(reason: String) async {
-        self.logger.info("control channel refresh endpoint reason=\(reason, privacy: .public)")
+        guard !Task.isCancelled else { return }
+        self.logger.debug("control channel refresh endpoint reason=\(reason, privacy: .public)")
         self.state = .connecting
         do {
             try await self.establishGatewayConnection()
+            guard !Task.isCancelled else { return }
             self.state = .connected
             PresenceReporter.shared.sendImmediate(reason: "connect")
         } catch {
+            guard !Task.isCancelled else { return }
             let message = self.friendlyGatewayMessage(error)
             self.state = .degraded(message)
         }
     }
 
     func disconnect() async {
+        self.cancelRecovery()
+        self.suppressRecovery = true
+        defer {
+            self.suppressRecovery = false
+            self.lastRecoveryAt = nil
+        }
         await GatewayConnection.shared.shutdown()
         self.state = .disconnected
         self.lastPingMs = nil
@@ -296,6 +316,10 @@ final class ControlChannel {
 
         self.recoveryTask = Task { [weak self] in
             guard let self else { return }
+            if Task.isCancelled {
+                self.recoveryTask = nil
+                return
+            }
             let mode = await MainActor.run { AppStateStore.shared.connectionMode }
             guard mode != .unconfigured else {
                 self.recoveryTask = nil
@@ -304,7 +328,7 @@ final class ControlChannel {
 
             let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
             let reasonText = trimmedReason.isEmpty ? "unknown" : trimmedReason
-            self.logger.info(
+            self.logger.debug(
                 "control channel recovery starting " +
                     "mode=\(String(describing: mode), privacy: .public) " +
                     "reason=\(reasonText, privacy: .public)")
@@ -314,22 +338,35 @@ final class ControlChannel {
             if mode == .remote {
                 do {
                     let port = try await GatewayEndpointStore.shared.ensureRemoteControlTunnel()
-                    self.logger.info("control channel recovery ensured SSH tunnel port=\(port, privacy: .public)")
+                    if Task.isCancelled {
+                        self.recoveryTask = nil
+                        return
+                    }
+                    self.logger.debug("control channel recovery ensured SSH tunnel port=\(port, privacy: .public)")
                 } catch {
                     self.logger.error(
                         "control channel recovery tunnel failed \(error.localizedDescription, privacy: .public)")
                 }
             }
 
+            if Task.isCancelled {
+                self.recoveryTask = nil
+                return
+            }
             await self.refreshEndpoint(reason: "recovery:\(reasonText)")
             if case .connected = self.state {
-                self.logger.info("control channel recovery finished")
+                self.logger.debug("control channel recovery finished")
             } else if case let .degraded(message) = self.state {
                 self.logger.error("control channel recovery failed \(message, privacy: .public)")
             }
 
             self.recoveryTask = nil
         }
+    }
+
+    private func cancelRecovery() {
+        self.recoveryTask?.cancel()
+        self.recoveryTask = nil
     }
 
     private func establishGatewayConnection(timeoutMs: Int = 5000) async throws {

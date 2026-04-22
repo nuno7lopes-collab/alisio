@@ -80,14 +80,13 @@ Logging:
 
 - launchd stdout/err: `~/.alisio/logs/gateway.log` and `~/.alisio/logs/gateway.err.log`
 
-## Local automations
+## Local scheduling
 
-In Local mode, the macOS app manages cron jobs and heartbeat settings through
-the local Gateway control RPCs. Those actions require the signed-in Alisio
-account. The app preflights the local Gateway before list, add, update,
-enable/disable, manual run, heartbeat read, and heartbeat toggle calls, then
-surfaces the real account or gateway error if the runtime is cold, offline, or
-restarting.
+In Local mode, the macOS app manages the `Schedules` surface through the
+local Gateway control RPCs. Those actions require the signed-in Alisio account.
+The app preflights the local Gateway before list, add, update, enable/disable,
+manual run, heartbeat read, and heartbeat toggle calls, then surfaces the real
+account or gateway error if the runtime is cold, offline, or restarting.
 
 The native first-message path (`chat.send`) also preflights the local Gateway
 before issuing the RPC and uses a longer readiness window for cold starts, so

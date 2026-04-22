@@ -3,6 +3,13 @@ import SwiftUI
 
 import AlisioSupport
 struct CronSettings: View {
+    enum ListState: Equatable {
+        case loading
+        case error(String)
+        case empty(String)
+        case list
+    }
+
     @Bindable var store: CronJobsStore
     @Bindable var channelsStore: ChannelsStore
     @State var showEditor = false

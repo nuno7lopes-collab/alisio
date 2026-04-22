@@ -1,14 +1,16 @@
 ---
-summary: "macOS Skills settings UI and gateway-backed status"
+summary: "macOS Capabilities settings UI and gateway-backed status"
 read_when:
-  - Updating the macOS Skills settings UI
-  - Changing skills gating or install behavior
-title: "Skills (macOS)"
+  - Updating the macOS Capabilities settings UI
+  - Changing capabilities gating or install behavior
+title: "Capabilities (macOS)"
 ---
 
-# Skills (macOS)
+# Capabilities (macOS)
 
-The macOS app surfaces Alisio skills via the gateway; it does not parse skills locally.
+The macOS app surfaces Alisio capabilities through the `Capabilities` tab.
+Under the hood, those capabilities are backed by gateway-reported skills; the
+app does not parse skill files locally.
 
 ## Data source
 
