@@ -2,14 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { listAgentIds, resolveAgentDir } from "../../agents/agent-scope.js";
 import {
-  DEFAULT_AGENTS_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
-  DEFAULT_HEARTBEAT_FILENAME,
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_MEMORY_FILENAME,
-  DEFAULT_SOUL_FILENAME,
-  DEFAULT_TOOLS_FILENAME,
-  DEFAULT_USER_FILENAME,
   ensureAgentWorkspace,
   isWorkspaceSetupCompleted,
 } from "../../agents/workspace.js";
@@ -35,8 +30,8 @@ import { movePathToTrash } from "../../plugin-sdk/browser-runtime.js";
 import { listMemoryFiles } from "../../plugin-sdk/memory-core-host-runtime-files.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
 import {
-  getLongTermMemoryFilePriority,
-  isLongTermMemoryFileName,
+  CANONICAL_ROOT_MEMORY_FILE_NAMES,
+  compareCanonicalMemoryFileOrder,
   isMemoryNoteFileName,
   normalizeMemoryFileName,
 } from "../../shared/memory-file-paths.js";
@@ -62,15 +57,9 @@ import { listAgentsForGateway } from "../session-utils.js";
 import { requireAuthenticatedAppAccount } from "./account-required.js";
 import type { GatewayRequestHandlers, RespondFn } from "./types.js";
 
-const BOOTSTRAP_FILE_NAMES = [
-  DEFAULT_AGENTS_FILENAME,
-  DEFAULT_SOUL_FILENAME,
-  DEFAULT_TOOLS_FILENAME,
-  DEFAULT_IDENTITY_FILENAME,
-  DEFAULT_USER_FILENAME,
-  DEFAULT_HEARTBEAT_FILENAME,
-  DEFAULT_BOOTSTRAP_FILENAME,
-] as const;
+const BOOTSTRAP_FILE_NAMES = CANONICAL_ROOT_MEMORY_FILE_NAMES.filter(
+  (name) => name !== DEFAULT_MEMORY_FILENAME,
+);
 const BOOTSTRAP_FILE_NAMES_POST_ONBOARDING = BOOTSTRAP_FILE_NAMES.filter(
   (name) => name !== DEFAULT_BOOTSTRAP_FILENAME,
 );
@@ -104,9 +93,7 @@ export const __testing = {
   },
 };
 
-const MEMORY_FILE_NAMES = [DEFAULT_MEMORY_FILENAME] as const;
-
-const ALLOWED_FILE_NAMES = new Set<string>([...BOOTSTRAP_FILE_NAMES, ...MEMORY_FILE_NAMES]);
+const ALLOWED_FILE_NAMES = new Set<string>(CANONICAL_ROOT_MEMORY_FILE_NAMES);
 
 type AgentFilesScope = "core" | "memory";
 
@@ -412,25 +399,10 @@ async function listAgentMemoryFiles(workspaceDir: string) {
   }
 
   files.sort((left, right) => {
-    const leftLongTerm = isLongTermMemoryFileName(left.name);
-    const rightLongTerm = isLongTermMemoryFileName(right.name);
-    if (leftLongTerm || rightLongTerm) {
-      if (leftLongTerm && rightLongTerm) {
-        const priorityDiff =
-          getLongTermMemoryFilePriority(left.name) - getLongTermMemoryFilePriority(right.name);
-        if (priorityDiff !== 0) {
-          return priorityDiff;
-        }
-        return left.name.localeCompare(right.name);
-      }
-      return leftLongTerm ? -1 : 1;
-    }
-    const leftUpdatedAt = left.updatedAtMs ?? 0;
-    const rightUpdatedAt = right.updatedAtMs ?? 0;
-    if (leftUpdatedAt !== rightUpdatedAt) {
-      return rightUpdatedAt - leftUpdatedAt;
-    }
-    return left.name.localeCompare(right.name);
+    return compareCanonicalMemoryFileOrder(
+      { path: left.name, updatedAtMs: left.updatedAtMs },
+      { path: right.name, updatedAtMs: right.updatedAtMs },
+    );
   });
 
   return files;

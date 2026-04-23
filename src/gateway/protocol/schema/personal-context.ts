@@ -4,65 +4,44 @@ import {
   ALISIO_BACKEND_SHARED_RESOURCES,
   ALISIO_LOCAL_RUNTIME_RESOURCES,
 } from "../../../shared/alisio-account-scope.js";
+import {
+  CANONICAL_MEMORY_FILE_AVAILABILITIES,
+  CANONICAL_MEMORY_FILE_GROUPS,
+  CANONICAL_MEMORY_FILE_KINDS,
+  CANONICAL_MEMORY_NOTE_ROLES,
+  CANONICAL_PERSONAL_CONTEXT_INHERITANCE_VALUES,
+  CANONICAL_PERSONAL_CONTEXT_SESSION_ROLE_VALUES,
+  CANONICAL_MEMORY_SESSION_KINDS,
+} from "../../../shared/memory-file-paths.js";
 import { NonEmptyString } from "./primitives.js";
 
-export const PersonalContextAvailabilitySchema = Type.Union([
-  Type.Literal("setup_only"),
-  Type.Literal("all_sessions"),
-  Type.Literal("private_direct_sessions"),
-  Type.Literal("retrieval_only"),
-]);
+export const PersonalContextAvailabilitySchema = Type.Union(
+  CANONICAL_MEMORY_FILE_AVAILABILITIES.map((entry) => Type.Literal(entry)),
+);
 
-export const PersonalContextInheritanceSchema = Type.Union([
-  Type.Literal("identity"),
-  Type.Literal("soul"),
-  Type.Literal("preferences"),
-  Type.Literal("main_memory"),
-]);
+export const PersonalContextInheritanceSchema = Type.Union(
+  CANONICAL_PERSONAL_CONTEXT_INHERITANCE_VALUES.map((entry) => Type.Literal(entry)),
+);
 
-export const PersonalContextSessionKindSchema = Type.Union([
-  Type.Literal("main"),
-  Type.Literal("direct"),
-  Type.Literal("group"),
-  Type.Literal("subagent"),
-  Type.Literal("cron"),
-]);
+export const PersonalContextSessionKindSchema = Type.Union(
+  CANONICAL_MEMORY_SESSION_KINDS.map((entry) => Type.Literal(entry)),
+);
 
-export const PersonalContextSessionRoleSchema = Type.Union([
-  Type.Literal("default_personal_session"),
-  Type.Literal("private_direct_session"),
-  Type.Literal("shared_session"),
-  Type.Literal("delegated_session"),
-  Type.Literal("automation_session"),
-]);
+export const PersonalContextSessionRoleSchema = Type.Union(
+  CANONICAL_PERSONAL_CONTEXT_SESSION_ROLE_VALUES.map((entry) => Type.Literal(entry)),
+);
 
-export const PersonalContextFileKindSchema = Type.Union([
-  Type.Literal("agent_instructions"),
-  Type.Literal("agent_tools"),
-  Type.Literal("agent_heartbeat"),
-  Type.Literal("setup_bootstrap"),
-  Type.Literal("identity"),
-  Type.Literal("soul"),
-  Type.Literal("preferences"),
-  Type.Literal("main_memory"),
-  Type.Literal("topic_note"),
-  Type.Literal("daily_note"),
-  Type.Literal("backlog_note"),
-]);
+export const PersonalContextFileKindSchema = Type.Union(
+  CANONICAL_MEMORY_FILE_KINDS.map((entry) => Type.Literal(entry)),
+);
 
-export const PersonalContextFileGroupSchema = Type.Union([
-  Type.Literal("agent"),
-  Type.Literal("setup"),
-  Type.Literal("identity"),
-  Type.Literal("memory"),
-]);
+export const PersonalContextFileGroupSchema = Type.Union(
+  CANONICAL_MEMORY_FILE_GROUPS.map((entry) => Type.Literal(entry)),
+);
 
-export const PersonalContextMemoryRoleSchema = Type.Union([
-  Type.Literal("main"),
-  Type.Literal("topic"),
-  Type.Literal("daily"),
-  Type.Literal("backlog"),
-]);
+export const PersonalContextMemoryRoleSchema = Type.Union(
+  CANONICAL_MEMORY_NOTE_ROLES.map((entry) => Type.Literal(entry)),
+);
 
 const AccountScopeRootSchema = Type.Literal(ALISIO_ACCOUNT_SCOPE_ROOT);
 
@@ -181,12 +160,20 @@ export const PersonalContextDocumentCountsSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const PersonalContextReadContractSchema = Type.Object(
+export const PersonalContextDirectReadContractSchema = Type.Object(
   {
     method: Type.Literal("agents.files.get"),
     locator: Type.Literal("workspace_relative_path"),
     pathParam: Type.Literal("name"),
-    accountScopeRequired: Type.Literal(true),
+    readableKinds: Type.Array(PersonalContextFileKindSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextIndexedReadContractSchema = Type.Object(
+  {
+    runtime: Type.Literal("memory_index"),
+    tool: Type.Literal("memory_get"),
     readableKinds: Type.Array(PersonalContextFileKindSchema),
   },
   { additionalProperties: false },
@@ -195,11 +182,18 @@ export const PersonalContextReadContractSchema = Type.Object(
 export const PersonalContextSearchContractSchema = Type.Object(
   {
     runtime: Type.Literal("memory_index"),
-    searchTool: Type.Literal("memory_search"),
-    readTool: Type.Literal("memory_get"),
+    tool: Type.Literal("memory_search"),
+    readableKinds: Type.Array(PersonalContextFileKindSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextAccessContractSchema = Type.Object(
+  {
     accountScopeRequired: Type.Literal(true),
-    indexedKinds: Type.Array(PersonalContextFileKindSchema),
-    excludedKinds: Type.Array(PersonalContextFileKindSchema),
+    directRead: PersonalContextDirectReadContractSchema,
+    indexedRead: PersonalContextIndexedReadContractSchema,
+    search: PersonalContextSearchContractSchema,
   },
   { additionalProperties: false },
 );
@@ -262,13 +256,7 @@ export const PersonalContextSummarySchema = Type.Object(
     ),
     documents: Type.Array(PersonalContextDocumentSchema),
     documentCounts: PersonalContextDocumentCountsSchema,
-    access: Type.Object(
-      {
-        read: PersonalContextReadContractSchema,
-        search: PersonalContextSearchContractSchema,
-      },
-      { additionalProperties: false },
-    ),
+    access: PersonalContextAccessContractSchema,
     sessionPolicy: Type.Object(
       {
         main: PersonalContextSessionPolicySchema,

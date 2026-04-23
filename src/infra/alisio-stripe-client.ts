@@ -1,6 +1,7 @@
 import { Buffer } from "node:buffer";
 
 const STRIPE_API_ROOT = "https://api.stripe.com/v1";
+const STRIPE_CONNECT_OAUTH_ROOT = "https://connect.stripe.com/oauth";
 const STRIPE_CONNECTOR_ID = "stripe";
 const STRIPE_MAX_LIMIT = 100;
 const STRIPE_RUNTIME_USER_AGENT = "Alisio";
@@ -375,6 +376,39 @@ function joinHumanList(values: readonly string[]): string {
 
 function buildStripeAuthorizationHeader(apiKey: string): string {
   return `Basic ${Buffer.from(`${apiKey}:`, "utf8").toString("base64")}`;
+}
+
+export async function revokeAlisioStripeAccountAccess(
+  input: {
+    clientId: string;
+    developerApiKey: string;
+    accountId: string;
+  },
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  const clientId = input.clientId.trim();
+  const developerApiKey = input.developerApiKey.trim();
+  const accountId = input.accountId.trim();
+  if (!clientId || !developerApiKey || !accountId) {
+    return;
+  }
+  try {
+    await fetchImpl(`${STRIPE_CONNECT_OAUTH_ROOT}/deauthorize`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: buildStripeAuthorizationHeader(developerApiKey),
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": STRIPE_RUNTIME_USER_AGENT,
+      },
+      body: new URLSearchParams({
+        client_id: clientId,
+        stripe_user_id: accountId,
+      }),
+    });
+  } catch {
+    // Best-effort revoke only; local state removal remains authoritative.
+  }
 }
 
 function buildStripeUrl(path: string, query?: Record<string, StripeQueryValue>, expand?: string[]) {

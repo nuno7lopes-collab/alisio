@@ -1,176 +1,43 @@
 import type { PersonWorkspaceSummary } from "../config/types.person.js";
 import type {
-  AlisioBackendSharedResource,
-  AlisioLocalRuntimeResource,
-} from "./alisio-account-scope.js";
-import { ALISIO_ACCOUNT_SCOPE_ROOT } from "./alisio-account-scope.js";
+  PersonalContextAccessContract,
+  PersonalContextAccountScope,
+  PersonalContextAvailability,
+  PersonalContextDeviceBinding,
+  PersonalContextDirectReadContract,
+  PersonalContextDocument,
+  PersonalContextDocumentCounts,
+  PersonalContextFileGroup,
+  PersonalContextFileKind,
+  PersonalContextFileSummary,
+  PersonalContextIndexedReadContract,
+  PersonalContextInheritance,
+  PersonalContextSearchContract,
+  PersonalContextSessionKind,
+  PersonalContextSessionPolicy,
+  PersonalContextSummary,
+} from "../memory/personal-context.js";
+import type { MemoryNoteRole } from "./memory-file-paths.js";
 
-export type GatewayAgentIdentity = {
-  name?: string;
-  theme?: string;
-  emoji?: string;
-  avatar?: string;
-  avatarUrl?: string;
-};
-
-export type GatewayPersonalContextAvailability =
-  | "setup_only"
-  | "all_sessions"
-  | "private_direct_sessions"
-  | "retrieval_only";
-
-export type GatewayPersonalContextInheritance = "identity" | "soul" | "preferences" | "main_memory";
-export type GatewayPersonalContextSessionKind = "main" | "direct" | "group" | "subagent" | "cron";
-export type GatewayPersonalContextFileKind =
-  | "agent_instructions"
-  | "agent_tools"
-  | "agent_heartbeat"
-  | "setup_bootstrap"
-  | "identity"
-  | "soul"
-  | "preferences"
-  | "main_memory"
-  | "topic_note"
-  | "daily_note"
-  | "backlog_note";
-export type GatewayPersonalContextFileGroup = "agent" | "setup" | "identity" | "memory";
-export type GatewayPersonalContextMemoryRole = "main" | "topic" | "daily" | "backlog";
-
-export type GatewayPersonalContextFileSummary = {
-  path: string;
-  present: boolean;
-  availability: GatewayPersonalContextAvailability;
-};
-
-export type GatewayPersonalContextSessionPolicy = {
-  kind: GatewayPersonalContextSessionKind;
-  role:
-    | "default_personal_session"
-    | "private_direct_session"
-    | "shared_session"
-    | "delegated_session"
-    | "automation_session";
-  inherits: GatewayPersonalContextInheritance[];
-  key?: string;
-};
-
-export type GatewayAccountScope = {
-  scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
-  accountId: string;
-  source: "account_id";
-  authenticated: true;
-  authRequired: true;
-  workspaceMode: "account_scoped";
-  workspaceRoot: string;
-};
-
-export type GatewayRuntimeResidencyContract = {
-  scopeRoot: typeof ALISIO_ACCOUNT_SCOPE_ROOT;
-  backendShared: AlisioBackendSharedResource[];
-  localRuntime: AlisioLocalRuntimeResource[];
-};
-
-export type GatewayAccountDeviceBinding = {
-  binding: "account_bound";
-  runtime: "local";
-  current: true;
-  accountId: string;
-  deviceId?: string;
-  label?: string;
-  platform?: string;
-};
-
-export type GatewayPersonalContextDocument = GatewayPersonalContextFileSummary & {
-  kind: GatewayPersonalContextFileKind;
-  group: GatewayPersonalContextFileGroup;
-  accountScoped: true;
-  injected: boolean;
-  indexed: boolean;
-  writable: boolean;
-  deletable: boolean;
-  sessionKinds: GatewayPersonalContextSessionKind[];
-  memoryRole?: GatewayPersonalContextMemoryRole;
-  size?: number;
-  updatedAtMs?: number;
-};
-
-export type GatewayPersonalContextDocumentCounts = {
-  expectedCount: number;
-  presentCount: number;
-  agentFileCount: number;
-  identityFileCount: number;
-  setupFileCount: number;
-  memoryFileCount: number;
-  mainMemoryCount: number;
-  topicNoteCount: number;
-  dailyNoteCount: number;
-  backlogNoteCount: number;
-};
-
-export type GatewayPersonalContextReadContract = {
-  method: "agents.files.get";
-  locator: "workspace_relative_path";
-  pathParam: "name";
-  accountScopeRequired: true;
-  readableKinds: GatewayPersonalContextFileKind[];
-};
-
-export type GatewayPersonalContextSearchContract = {
-  runtime: "memory_index";
-  searchTool: "memory_search";
-  readTool: "memory_get";
-  accountScopeRequired: true;
-  indexedKinds: GatewayPersonalContextFileKind[];
-  excludedKinds: GatewayPersonalContextFileKind[];
-};
-
-export type GatewayPersonalContextSummary = {
-  version: 1;
-  accountScope: GatewayAccountScope;
-  runtimeContract: GatewayRuntimeResidencyContract;
-  deviceBinding: GatewayAccountDeviceBinding;
-  bootstrap: GatewayPersonalContextFileSummary & {
-    state: "pending" | "completed";
-    oneTime: true;
-    seededAt?: string;
-    completedAt?: string;
-  };
-  identity: GatewayPersonalContextFileSummary & {
-    resolved: GatewayAgentIdentity;
-    sources: {
-      name?: "identity-file" | "config-identity" | "agent-config" | "account-profile";
-      avatar?: "identity-file" | "config-identity" | "agent-config" | "account-profile";
-      emoji?: "identity-file" | "config-identity" | "agent-config" | "account-profile";
-      theme?: "identity-file" | "config-identity" | "agent-config" | "account-profile";
-    };
-  };
-  soul: GatewayPersonalContextFileSummary;
-  preferences: GatewayPersonalContextFileSummary;
-  memory: {
-    main: GatewayPersonalContextFileSummary;
-    operational: {
-      root: "memory";
-      backlogRoot: "memory/backlog";
-      availability: "retrieval_only";
-      topicCount: number;
-      dailyCount: number;
-      backlogCount: number;
-    };
-  };
-  documents: GatewayPersonalContextDocument[];
-  documentCounts: GatewayPersonalContextDocumentCounts;
-  access: {
-    read: GatewayPersonalContextReadContract;
-    search: GatewayPersonalContextSearchContract;
-  };
-  sessionPolicy: {
-    main: GatewayPersonalContextSessionPolicy;
-    direct: GatewayPersonalContextSessionPolicy;
-    group: GatewayPersonalContextSessionPolicy;
-    subagent: GatewayPersonalContextSessionPolicy;
-    cron: GatewayPersonalContextSessionPolicy;
-  };
-};
+export type GatewayAgentIdentity = PersonalContextSummary["identity"]["resolved"];
+export type GatewayPersonalContextAvailability = PersonalContextAvailability;
+export type GatewayPersonalContextInheritance = PersonalContextInheritance;
+export type GatewayPersonalContextSessionKind = PersonalContextSessionKind;
+export type GatewayPersonalContextFileKind = PersonalContextFileKind;
+export type GatewayPersonalContextFileGroup = PersonalContextFileGroup;
+export type GatewayPersonalContextMemoryRole = MemoryNoteRole;
+export type GatewayPersonalContextFileSummary = PersonalContextFileSummary;
+export type GatewayPersonalContextSessionPolicy = PersonalContextSessionPolicy;
+export type GatewayAccountScope = PersonalContextAccountScope;
+export type GatewayRuntimeResidencyContract = PersonalContextSummary["runtimeContract"];
+export type GatewayAccountDeviceBinding = PersonalContextDeviceBinding;
+export type GatewayPersonalContextDocument = PersonalContextDocument;
+export type GatewayPersonalContextDocumentCounts = PersonalContextDocumentCounts;
+export type GatewayPersonalContextReadContract = PersonalContextDirectReadContract;
+export type GatewayPersonalContextIndexedReadContract = PersonalContextIndexedReadContract;
+export type GatewayPersonalContextSearchContract = PersonalContextSearchContract;
+export type GatewayPersonalContextAccessContract = PersonalContextAccessContract;
+export type GatewayPersonalContextSummary = PersonalContextSummary;
 
 export type GatewayAgentModel = {
   primary?: string;

@@ -1,17 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  CANONICAL_INDEXED_MEMORY_FILE_KINDS,
+  CANONICAL_NON_INDEXED_MEMORY_FILE_KINDS,
+  CANONICAL_ROOT_MEMORY_FILE_NAMES,
   buildCanonicalMemoryNotePath,
+  compareCanonicalMemoryFileOrder,
+  getCanonicalMemoryFileAvailability,
   getCanonicalMemoryFileGroup,
+  getCanonicalMemoryFileSessionKinds,
   getCanonicalMemoryFileSortRank,
-  getLongTermMemoryFilePriority,
   isCanonicalMemoryFileName,
+  isCanonicalIndexedMemoryKind,
   isCanonicalOperationalMemoryKind,
   isDailyMemoryNoteFileName,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
+  listCanonicalRootMemoryFileNames,
   normalizeMemoryNoteRole,
   resolveCanonicalMemoryFileKind,
-  resolveManualMemoryNoteRoot,
+  resolveCanonicalMemoryFileMemoryRole,
   resolveMemoryNoteRole,
   slugifyMemoryNotePathComponent,
 } from "./memory-file-paths.js";
@@ -25,14 +32,32 @@ describe("memory-file-paths", () => {
     expect(isDailyMemoryNoteFileName("memory/backlog/2026-04-08/topic.md")).toBe(false);
   });
 
-  it("prefers MEMORY.md ahead of note files", () => {
-    expect(getLongTermMemoryFilePriority("MEMORY.md")).toBeLessThan(
-      getLongTermMemoryFilePriority("memory/2026-04-07.md"),
-    );
-  });
-
-  it("infers the manual memory directory from note files", () => {
-    expect(resolveManualMemoryNoteRoot(["MEMORY.md", "memory/2026-04-07.md"])).toBe("memory");
+  it("exposes one canonical root-file catalog with session-aware filtering", () => {
+    expect(CANONICAL_ROOT_MEMORY_FILE_NAMES).toEqual([
+      "AGENTS.md",
+      "TOOLS.md",
+      "HEARTBEAT.md",
+      "BOOTSTRAP.md",
+      "IDENTITY.md",
+      "SOUL.md",
+      "USER.md",
+      "MEMORY.md",
+    ]);
+    expect(listCanonicalRootMemoryFileNames({ sessionKind: "group" })).toEqual([
+      "AGENTS.md",
+      "TOOLS.md",
+      "HEARTBEAT.md",
+      "IDENTITY.md",
+      "SOUL.md",
+      "USER.md",
+    ]);
+    expect(listCanonicalRootMemoryFileNames({ sessionKind: "subagent" })).toEqual([
+      "AGENTS.md",
+      "TOOLS.md",
+      "IDENTITY.md",
+      "SOUL.md",
+      "USER.md",
+    ]);
   });
 
   it("normalizes canonical memory note roles", () => {
@@ -91,12 +116,52 @@ describe("memory-file-paths", () => {
     );
     expect(resolveCanonicalMemoryFileKind("notes/project.md")).toBeNull();
     expect(isCanonicalMemoryFileName("memory/project-atlas.md")).toBe(true);
+    expect(isCanonicalIndexedMemoryKind("main_memory")).toBe(true);
     expect(isCanonicalOperationalMemoryKind("topic_note")).toBe(true);
     expect(isCanonicalOperationalMemoryKind("main_memory")).toBe(false);
+    expect(getCanonicalMemoryFileAvailability("main_memory")).toBe("private_direct_sessions");
     expect(getCanonicalMemoryFileGroup("identity")).toBe("identity");
+    expect(getCanonicalMemoryFileSessionKinds("main_memory")).toEqual(["main", "direct"]);
+    expect(resolveCanonicalMemoryFileMemoryRole("backlog_note")).toBe("backlog");
+    expect(CANONICAL_INDEXED_MEMORY_FILE_KINDS).toEqual([
+      "main_memory",
+      "topic_note",
+      "daily_note",
+      "backlog_note",
+    ]);
+    expect(CANONICAL_NON_INDEXED_MEMORY_FILE_KINDS).toEqual([
+      "agent_instructions",
+      "agent_tools",
+      "agent_heartbeat",
+      "setup_bootstrap",
+      "identity",
+      "soul",
+      "preferences",
+    ]);
     expect(getCanonicalMemoryFileSortRank("main_memory")).toBeLessThan(
       getCanonicalMemoryFileSortRank("topic_note"),
     );
+  });
+
+  it("orders canonical files by kind first and recency second", () => {
+    expect(
+      compareCanonicalMemoryFileOrder(
+        { path: "memory/2026-04-18.md", updatedAtMs: 50 },
+        { path: "memory/project-atlas.md", updatedAtMs: 100 },
+      ),
+    ).toBeGreaterThan(0);
+    expect(
+      compareCanonicalMemoryFileOrder(
+        { path: "memory/project-atlas.md", updatedAtMs: 10 },
+        { path: "memory/project-beta.md", updatedAtMs: 100 },
+      ),
+    ).toBeGreaterThan(0);
+    expect(
+      compareCanonicalMemoryFileOrder(
+        { path: "MEMORY.md", updatedAtMs: 0 },
+        { path: "memory/project-atlas.md", updatedAtMs: 1_000 },
+      ),
+    ).toBeLessThan(0);
   });
 
   it("slugifies note path components safely", () => {

@@ -14,6 +14,7 @@ import {
   readAlisioStripeProductWithApiKey,
   readAlisioStripeRefundWithApiKey,
   readAlisioStripeSubscriptionWithApiKey,
+  revokeAlisioStripeAccountAccess,
   validateAlisioStripeAccessToken,
 } from "./alisio-stripe-client.js";
 
@@ -38,6 +39,39 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("alisio stripe client", () => {
+  it("deauthorizes Stripe account access with the app client id and account id", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      jsonResponse({
+        stripe_user_id: "acct_123",
+      }),
+    );
+
+    await revokeAlisioStripeAccountAccess(
+      {
+        clientId: "ca_test_stripe_app",
+        developerApiKey: "sk_test_stripe_app_developer",
+        accountId: "acct_123",
+      },
+      fetchMock,
+    );
+
+    expect(readFetchCallUrl(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://connect.stripe.com/oauth/deauthorize",
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({
+        accept: "application/json",
+        "content-type": "application/x-www-form-urlencoded",
+        "user-agent": "Alisio",
+      }),
+    });
+    const body = fetchMock.mock.calls[0]?.[1]?.body;
+    expect(body).toBeInstanceOf(URLSearchParams);
+    expect((body as URLSearchParams).toString()).toContain("client_id=ca_test_stripe_app");
+    expect((body as URLSearchParams).toString()).toContain("stripe_user_id=acct_123");
+  });
+
   it("validates Stripe App OAuth access tokens against the same read surface", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()

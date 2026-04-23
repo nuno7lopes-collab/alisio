@@ -99,7 +99,10 @@ import {
   type AlisioSharingCloudPrincipal,
   type AlisioSharingCloudRuntimeTarget,
 } from "./alisio-sharing-cloud.js";
-import { validateAlisioStripeAccessToken } from "./alisio-stripe-client.js";
+import {
+  revokeAlisioStripeAccountAccess,
+  validateAlisioStripeAccessToken,
+} from "./alisio-stripe-client.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import { resolveCurrentComputerFallbackLabel, resolveCurrentComputerId } from "./local-computer.js";
@@ -555,6 +558,8 @@ export type AlisioStoredState = {
       tokenType?: string;
       scope?: string;
       expiresAt?: string;
+      accountId?: string;
+      livemode?: boolean;
       createdAt: string;
       refreshedAt?: string;
     }
@@ -992,7 +997,7 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl:
       "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
-    scopes: ["contents", "issues", "pull_requests"],
+    scopes: ["repo", "read:user", "user:email", "read:org", "gist"],
     surface: {
       groupId: "github",
       groupTitle: "GitHub",
@@ -1294,6 +1299,8 @@ function buildStoredOAuthCredential(params: {
   tokenType?: string;
   scope?: string;
   expiresAt?: string;
+  accountId?: string;
+  livemode?: boolean;
   createdAt: string;
   refreshedAt?: string;
   env: NodeJS.ProcessEnv;
@@ -1314,6 +1321,8 @@ function buildStoredOAuthCredential(params: {
     ...(params.tokenType ? { tokenType: params.tokenType } : {}),
     ...(params.scope ? { scope: params.scope } : {}),
     ...(params.expiresAt ? { expiresAt: params.expiresAt } : {}),
+    ...(params.accountId ? { accountId: params.accountId } : {}),
+    ...(typeof params.livemode === "boolean" ? { livemode: params.livemode } : {}),
     createdAt: params.createdAt,
     ...(params.refreshedAt ? { refreshedAt: params.refreshedAt } : {}),
   };
@@ -7935,6 +7944,8 @@ async function refreshStoredConnectorCredential(params: {
         ...(credential.tokenType ? { tokenType: credential.tokenType } : {}),
         ...(credential.scope ? { scope: credential.scope } : {}),
         ...(credential.expiresAt ? { expiresAt: credential.expiresAt } : {}),
+        ...(credential.accountId ? { accountId: credential.accountId } : {}),
+        ...(typeof credential.livemode === "boolean" ? { livemode: credential.livemode } : {}),
         createdAt: credential.createdAt,
         ...(credential.refreshedAt ? { refreshedAt: credential.refreshedAt } : {}),
         env: params.env,
@@ -7993,6 +8004,8 @@ async function refreshStoredConnectorCredential(params: {
       typeof refreshed.expiresIn === "number"
         ? new Date(Date.now() + refreshed.expiresIn * 1000).toISOString()
         : credential.expiresAt,
+    accountId: refreshed.accountId ?? credential.accountId,
+    livemode: refreshed.livemode ?? credential.livemode,
     createdAt: credential.createdAt,
     refreshedAt: new Date().toISOString(),
     env: params.env,
@@ -8306,6 +8319,8 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
         typeof exchanged.expiresIn === "number"
           ? new Date(Date.now() + exchanged.expiresIn * 1000).toISOString()
           : undefined,
+      accountId: exchanged.accountId,
+      livemode: exchanged.livemode,
       createdAt: connectedAt,
       env,
     });
@@ -8351,20 +8366,27 @@ export async function revokeAlisioConnectorAuthorization(
         });
       }
     }
+    if (credential?.provider === "stripe") {
+      const accountId =
+        credential.accountId?.trim() ||
+        state.authorizations[connector.id]?.connectedAccount?.handle?.trim();
+      if (accountId) {
+        const config = resolveOAuthClientConfig("stripe", env);
+        if (config.clientId && config.developerApiKey) {
+          await revokeAlisioStripeAccountAccess(
+            {
+              clientId: config.clientId,
+              developerApiKey: config.developerApiKey,
+              accountId,
+            },
+            fetchImpl,
+          );
+        }
+      }
+    }
     delete state.authorizations[connector.id];
     delete state.oauthCredentials[connector.id];
     await persistState(state, env);
-    const health: AlisioAuthorizationHealth =
-      connector.availability === "ready"
-        ? "needs_reconnect"
-        : connector.availability === "in_review"
-          ? "in_review"
-          : "unavailable";
-    return {
-      connectorId: connector.id,
-      state: "not_connected",
-      health,
-      scopes: connector.scopes,
-    };
+    return buildDefaultConnectorAuthorization(connector, env);
   });
 }

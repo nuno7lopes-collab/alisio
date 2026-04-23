@@ -22,6 +22,8 @@ import {
   AGENT_INSTRUCTIONS_FILE_NAME,
   AGENT_SOUL_FILE_NAME,
   AGENT_TOOLS_FILE_NAME,
+  CANONICAL_ROOT_MEMORY_FILE_NAMES,
+  listCanonicalRootMemoryFileNames,
   PRIMARY_MEMORY_FILE_NAME,
   SETUP_BOOTSTRAP_FILE_NAME,
   USER_PREFERENCES_FILE_NAME,
@@ -223,16 +225,7 @@ export function resolveAccountScopedAgentWorkspaceDir(
 }
 
 /** Set of recognized bootstrap filenames for runtime validation */
-const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
-  DEFAULT_AGENTS_FILENAME,
-  DEFAULT_SOUL_FILENAME,
-  DEFAULT_TOOLS_FILENAME,
-  DEFAULT_IDENTITY_FILENAME,
-  DEFAULT_USER_FILENAME,
-  DEFAULT_HEARTBEAT_FILENAME,
-  DEFAULT_BOOTSTRAP_FILENAME,
-  DEFAULT_MEMORY_FILENAME,
-]);
+const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set(CANONICAL_ROOT_MEMORY_FILE_NAMES);
 
 async function writeFileIfMissing(filePath: string, content: string): Promise<boolean> {
   try {
@@ -641,41 +634,13 @@ export async function loadWorkspaceBootstrapSnapshot(
     includeGitRepo: false,
   });
 
-  const entries: Array<{
-    name: WorkspaceBootstrapFileName;
-    filePath: string;
-  }> = [
-    {
-      name: DEFAULT_AGENTS_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_AGENTS_FILENAME),
-    },
-    {
-      name: DEFAULT_SOUL_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_SOUL_FILENAME),
-    },
-    {
-      name: DEFAULT_TOOLS_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_TOOLS_FILENAME),
-    },
-    {
-      name: DEFAULT_IDENTITY_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_IDENTITY_FILENAME),
-    },
-    {
-      name: DEFAULT_USER_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_USER_FILENAME),
-    },
-    {
-      name: DEFAULT_HEARTBEAT_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_HEARTBEAT_FILENAME),
-    },
-  ];
-  if (!setupCompleted) {
-    entries.push({
-      name: DEFAULT_BOOTSTRAP_FILENAME,
-      filePath: path.join(resolvedDir, DEFAULT_BOOTSTRAP_FILENAME),
-    });
-  }
+  const entries = listCanonicalRootMemoryFileNames()
+    .filter((name) => name !== DEFAULT_MEMORY_FILENAME)
+    .filter((name) => !(setupCompleted && name === DEFAULT_BOOTSTRAP_FILENAME))
+    .map((name) => ({
+      name: name as WorkspaceBootstrapFileName,
+      filePath: path.join(resolvedDir, name),
+    }));
 
   const memoryEntry = await resolveMemoryBootstrapEntry(resolvedDir);
   if (memoryEntry) {
@@ -709,14 +674,6 @@ export async function loadWorkspaceBootstrapFiles(dir: string): Promise<Workspac
   return (await loadWorkspaceBootstrapSnapshot(dir)).files;
 }
 
-const MINIMAL_BOOTSTRAP_ALLOWLIST = new Set([
-  DEFAULT_AGENTS_FILENAME,
-  DEFAULT_TOOLS_FILENAME,
-  DEFAULT_SOUL_FILENAME,
-  DEFAULT_IDENTITY_FILENAME,
-  DEFAULT_USER_FILENAME,
-]);
-
 export function filterBootstrapFilesForSession(
   files: WorkspaceBootstrapFile[],
   sessionKey?: string,
@@ -725,13 +682,14 @@ export function filterBootstrapFilesForSession(
     return files;
   }
   if (isSubagentSessionKey(sessionKey) || isCronSessionKey(sessionKey)) {
-    return files.filter((file) => MINIMAL_BOOTSTRAP_ALLOWLIST.has(file.name));
+    const sessionKind = isSubagentSessionKey(sessionKey) ? "subagent" : "cron";
+    const allowed = new Set(listCanonicalRootMemoryFileNames({ sessionKind }));
+    return files.filter((file) => allowed.has(file.name));
   }
   const chatType = deriveSessionChatType(sessionKey);
   if (chatType === "group" || chatType === "channel") {
-    return files.filter(
-      (file) => file.name !== DEFAULT_MEMORY_FILENAME && file.name !== DEFAULT_BOOTSTRAP_FILENAME,
-    );
+    const allowed = new Set(listCanonicalRootMemoryFileNames({ sessionKind: "group" }));
+    return files.filter((file) => allowed.has(file.name));
   }
   return files;
 }

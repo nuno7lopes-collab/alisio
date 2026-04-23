@@ -996,7 +996,7 @@ describe("agents.files.list memory scope", () => {
     });
   });
 
-  it("returns long-term memory plus markdown notes sorted by recency", async () => {
+  it("returns long-term memory plus markdown notes in canonical kind order", async () => {
     const { respond, promise } = makeCall("agents.files.list", {
       agentId: "main",
       scope: "memory",
@@ -1008,8 +1008,8 @@ describe("agents.files.list memory scope", () => {
       expect.objectContaining({
         files: [
           expect.objectContaining({ name: "MEMORY.md", missing: false }),
-          expect.objectContaining({ name: "memory/2026-04-05.md", missing: false }),
           expect.objectContaining({ name: "memory/2026-04-03-ideas.md", missing: false }),
+          expect.objectContaining({ name: "memory/2026-04-05.md", missing: false }),
         ],
       }),
       undefined,

@@ -7,13 +7,10 @@ import {
 import type { ResolvedAgentIdentity } from "../agents/resolved-identity.js";
 import { resolveResolvedAgentIdentity } from "../agents/resolved-identity.js";
 import {
-  DEFAULT_AGENTS_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
-  DEFAULT_HEARTBEAT_FILENAME,
   DEFAULT_IDENTITY_FILENAME,
   DEFAULT_MEMORY_FILENAME,
   DEFAULT_SOUL_FILENAME,
-  DEFAULT_TOOLS_FILENAME,
   DEFAULT_USER_FILENAME,
   readWorkspaceSetupSummary,
   type WorkspaceSetupSummary,
@@ -32,29 +29,43 @@ import {
   normalizeCanonicalAccountId,
 } from "../shared/alisio-account-scope.js";
 import {
+  CANONICAL_INDEXED_MEMORY_FILE_KINDS,
+  CANONICAL_NON_INDEXED_MEMORY_FILE_KINDS,
+  CANONICAL_PERSONAL_CONTEXT_INHERITANCE_VALUES,
+  CANONICAL_PERSONAL_CONTEXT_SESSION_ROLE_VALUES,
+  type CanonicalMemoryFileAvailability,
   type CanonicalMemoryFileGroup,
   type CanonicalMemoryFileKind,
-  getCanonicalMemoryFileGroup,
-  getCanonicalMemoryFileSortRank,
+  type CanonicalPersonalContextInheritance,
+  type CanonicalPersonalContextSessionRole,
+  compareCanonicalMemoryFileOrder,
+  type CanonicalMemorySessionKind,
+  getCanonicalMemoryKindDescriptor,
   isCanonicalOperationalMemoryKind,
+  listCanonicalRootMemoryFileNames,
   MEMORY_BACKLOG_NOTES_DIR,
   MANUAL_MEMORY_NOTES_DIR,
   type MemoryNoteRole,
   normalizeMemoryFileName,
   resolveCanonicalMemoryFileKind,
+  resolveCanonicalMemoryFileMemoryRole,
 } from "../shared/memory-file-paths.js";
 
 export const PERSONAL_CONTEXT_CONTRACT_VERSION = 1 as const;
 
-export type PersonalContextAvailability =
-  | "setup_only"
-  | "all_sessions"
-  | "private_direct_sessions"
-  | "retrieval_only";
+export type PersonalContextAvailability = CanonicalMemoryFileAvailability;
 
-export type PersonalContextInheritance = "identity" | "soul" | "preferences" | "main_memory";
+export const PERSONAL_CONTEXT_INHERITANCE_VALUES = [
+  ...CANONICAL_PERSONAL_CONTEXT_INHERITANCE_VALUES,
+] as const;
+export type PersonalContextInheritance = CanonicalPersonalContextInheritance;
 
-export type PersonalContextSessionKind = "main" | "direct" | "group" | "subagent" | "cron";
+export type PersonalContextSessionKind = CanonicalMemorySessionKind;
+
+export const PERSONAL_CONTEXT_SESSION_ROLE_VALUES = [
+  ...CANONICAL_PERSONAL_CONTEXT_SESSION_ROLE_VALUES,
+] as const;
+export type PersonalContextSessionRole = CanonicalPersonalContextSessionRole;
 
 export type PersonalContextIdentitySource = CanonicalAgentIdentitySource;
 
@@ -101,21 +112,30 @@ export type PersonalContextDocumentCounts = {
   backlogNoteCount: number;
 };
 
-export type PersonalContextReadContract = {
+export type PersonalContextDirectReadContract = {
   method: "agents.files.get";
   locator: "workspace_relative_path";
   pathParam: "name";
-  accountScopeRequired: true;
+  readableKinds: PersonalContextFileKind[];
+};
+
+export type PersonalContextIndexedReadContract = {
+  runtime: "memory_index";
+  tool: "memory_get";
   readableKinds: PersonalContextFileKind[];
 };
 
 export type PersonalContextSearchContract = {
   runtime: "memory_index";
-  searchTool: "memory_search";
-  readTool: "memory_get";
+  tool: "memory_search";
+  readableKinds: PersonalContextFileKind[];
+};
+
+export type PersonalContextAccessContract = {
   accountScopeRequired: true;
-  indexedKinds: PersonalContextFileKind[];
-  excludedKinds: PersonalContextFileKind[];
+  directRead: PersonalContextDirectReadContract;
+  indexedRead: PersonalContextIndexedReadContract;
+  search: PersonalContextSearchContract;
 };
 
 export type PersonalContextDocumentReadResult = {
@@ -136,12 +156,7 @@ export type PersonalContextDocumentSearchResult = {
 
 export type PersonalContextSessionPolicy = {
   kind: PersonalContextSessionKind;
-  role:
-    | "default_personal_session"
-    | "private_direct_session"
-    | "shared_session"
-    | "delegated_session"
-    | "automation_session";
+  role: PersonalContextSessionRole;
   inherits: PersonalContextInheritance[];
   key?: string;
 };
@@ -196,10 +211,7 @@ export type PersonalContextSummary = {
   };
   documents: PersonalContextDocument[];
   documentCounts: PersonalContextDocumentCounts;
-  access: {
-    read: PersonalContextReadContract;
-    search: PersonalContextSearchContract;
-  };
+  access: PersonalContextAccessContract;
   sessionPolicy: {
     main: PersonalContextSessionPolicy;
     direct: PersonalContextSessionPolicy;
@@ -218,89 +230,6 @@ type FileStatSummary = {
   updatedAtMs: number;
 };
 
-const ALL_SESSION_KINDS: PersonalContextSessionKind[] = [
-  "main",
-  "direct",
-  "group",
-  "subagent",
-  "cron",
-];
-const PRIVATE_DIRECT_SESSION_KINDS: PersonalContextSessionKind[] = ["main", "direct"];
-const NON_DELEGATED_SESSION_KINDS: PersonalContextSessionKind[] = ["main", "direct", "group"];
-const RETRIEVAL_ONLY_SESSION_KINDS: PersonalContextSessionKind[] = [];
-
-const INDEXED_MEMORY_KINDS: PersonalContextFileKind[] = [
-  "main_memory",
-  "topic_note",
-  "daily_note",
-  "backlog_note",
-];
-const NON_INDEXED_MEMORY_KINDS: PersonalContextFileKind[] = [
-  "agent_instructions",
-  "agent_tools",
-  "agent_heartbeat",
-  "setup_bootstrap",
-  "identity",
-  "soul",
-  "preferences",
-];
-
-const ROOT_DOCUMENT_SPECS: Array<{
-  kind: PersonalContextFileKind;
-  path: string;
-  availability: PersonalContextAvailability;
-  sessionKinds: PersonalContextSessionKind[];
-}> = [
-  {
-    kind: "agent_instructions",
-    path: DEFAULT_AGENTS_FILENAME,
-    availability: "all_sessions",
-    sessionKinds: ALL_SESSION_KINDS,
-  },
-  {
-    kind: "agent_tools",
-    path: DEFAULT_TOOLS_FILENAME,
-    availability: "all_sessions",
-    sessionKinds: ALL_SESSION_KINDS,
-  },
-  {
-    kind: "agent_heartbeat",
-    path: DEFAULT_HEARTBEAT_FILENAME,
-    availability: "all_sessions",
-    sessionKinds: NON_DELEGATED_SESSION_KINDS,
-  },
-  {
-    kind: "setup_bootstrap",
-    path: DEFAULT_BOOTSTRAP_FILENAME,
-    availability: "setup_only",
-    sessionKinds: PRIVATE_DIRECT_SESSION_KINDS,
-  },
-  {
-    kind: "identity",
-    path: DEFAULT_IDENTITY_FILENAME,
-    availability: "all_sessions",
-    sessionKinds: ALL_SESSION_KINDS,
-  },
-  {
-    kind: "soul",
-    path: DEFAULT_SOUL_FILENAME,
-    availability: "all_sessions",
-    sessionKinds: ALL_SESSION_KINDS,
-  },
-  {
-    kind: "preferences",
-    path: DEFAULT_USER_FILENAME,
-    availability: "all_sessions",
-    sessionKinds: ALL_SESSION_KINDS,
-  },
-  {
-    kind: "main_memory",
-    path: DEFAULT_MEMORY_FILENAME,
-    availability: "private_direct_sessions",
-    sessionKinds: PRIVATE_DIRECT_SESSION_KINDS,
-  },
-];
-
 async function statRegularFile(filePath: string): Promise<FileStatSummary | null> {
   try {
     const stat = await fs.stat(filePath);
@@ -316,61 +245,33 @@ async function statRegularFile(filePath: string): Promise<FileStatSummary | null
   }
 }
 
-function memoryRoleForKind(kind: PersonalContextFileKind): MemoryNoteRole | undefined {
-  switch (kind) {
-    case "main_memory":
-      return "main";
-    case "topic_note":
-      return "topic";
-    case "daily_note":
-      return "daily";
-    case "backlog_note":
-      return "backlog";
-    default:
-      return undefined;
-  }
-}
-
 function buildDocument(params: {
   kind: PersonalContextFileKind;
   relativePath: string;
   present: boolean;
-  availability: PersonalContextAvailability;
-  sessionKinds: PersonalContextSessionKind[];
   stat?: FileStatSummary | null;
 }): PersonalContextDocument {
-  const memoryRole = memoryRoleForKind(params.kind);
-  const indexed = INDEXED_MEMORY_KINDS.includes(params.kind);
+  const descriptor = getCanonicalMemoryKindDescriptor(params.kind);
+  const memoryRole = resolveCanonicalMemoryFileMemoryRole(params.kind);
   return {
     kind: params.kind,
-    group: getCanonicalMemoryFileGroup(params.kind),
+    group: descriptor.group,
     path: params.relativePath,
     present: params.present,
-    availability: params.availability,
+    availability: descriptor.availability,
     accountScoped: true,
-    injected: params.sessionKinds.length > 0,
-    indexed,
+    injected: descriptor.sessionKinds.length > 0,
+    indexed: descriptor.indexed,
     writable: true,
-    deletable: isCanonicalOperationalMemoryKind(params.kind),
-    sessionKinds: [...params.sessionKinds],
+    deletable: descriptor.deletable,
+    sessionKinds: [...descriptor.sessionKinds],
     ...(memoryRole ? { memoryRole } : {}),
     ...(params.stat ? { size: params.stat.size, updatedAtMs: params.stat.updatedAtMs } : {}),
   };
 }
 
 function sortDocuments(documents: PersonalContextDocument[]): PersonalContextDocument[] {
-  return [...documents].toSorted((left, right) => {
-    const rankDiff =
-      getCanonicalMemoryFileSortRank(left.kind) - getCanonicalMemoryFileSortRank(right.kind);
-    if (rankDiff !== 0) {
-      return rankDiff;
-    }
-    const updatedDiff = (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0);
-    if (updatedDiff !== 0) {
-      return updatedDiff;
-    }
-    return left.path.localeCompare(right.path);
-  });
+  return [...documents].toSorted((left, right) => compareCanonicalMemoryFileOrder(left, right));
 }
 
 function countDocuments(documents: PersonalContextDocument[]): PersonalContextDocumentCounts {
@@ -427,15 +328,17 @@ function countDocuments(documents: PersonalContextDocument[]): PersonalContextDo
 
 async function buildRootDocuments(workspaceDir: string): Promise<PersonalContextDocument[]> {
   return await Promise.all(
-    ROOT_DOCUMENT_SPECS.map(async (spec) => {
-      const filePath = path.join(workspaceDir, spec.path);
+    listCanonicalRootMemoryFileNames().map(async (relativePath) => {
+      const kind = resolveCanonicalMemoryFileKind(relativePath);
+      if (!kind) {
+        throw new Error(`missing canonical personal context kind for ${relativePath}`);
+      }
+      const filePath = path.join(workspaceDir, relativePath);
       const stat = await statRegularFile(filePath);
       return buildDocument({
-        kind: spec.kind,
-        relativePath: spec.path,
+        kind,
+        relativePath,
         present: stat !== null,
-        availability: spec.availability,
-        sessionKinds: spec.sessionKinds,
         stat,
       });
     }),
@@ -462,8 +365,6 @@ async function buildOperationalMemoryDocuments(
         kind,
         relativePath,
         present: stat !== null,
-        availability: "retrieval_only",
-        sessionKinds: RETRIEVAL_ONLY_SESSION_KINDS,
         stat,
       }),
     );
@@ -501,24 +402,37 @@ function requireAccountScopedWorkspaceDir(params: {
   return canonicalAccountId;
 }
 
-function buildReadContract(): PersonalContextReadContract {
+function buildDirectReadContract(): PersonalContextDirectReadContract {
   return {
     method: "agents.files.get",
     locator: "workspace_relative_path",
     pathParam: "name",
-    accountScopeRequired: true,
-    readableKinds: [...INDEXED_MEMORY_KINDS, ...NON_INDEXED_MEMORY_KINDS],
+    readableKinds: [...CANONICAL_NON_INDEXED_MEMORY_FILE_KINDS],
+  };
+}
+
+function buildIndexedReadContract(): PersonalContextIndexedReadContract {
+  return {
+    runtime: "memory_index",
+    tool: "memory_get",
+    readableKinds: [...CANONICAL_INDEXED_MEMORY_FILE_KINDS],
   };
 }
 
 function buildSearchContract(): PersonalContextSearchContract {
   return {
     runtime: "memory_index",
-    searchTool: "memory_search",
-    readTool: "memory_get",
+    tool: "memory_search",
+    readableKinds: [...CANONICAL_INDEXED_MEMORY_FILE_KINDS],
+  };
+}
+
+function buildAccessContract(): PersonalContextAccessContract {
+  return {
     accountScopeRequired: true,
-    indexedKinds: [...INDEXED_MEMORY_KINDS],
-    excludedKinds: [...NON_INDEXED_MEMORY_KINDS],
+    directRead: buildDirectReadContract(),
+    indexedRead: buildIndexedReadContract(),
+    search: buildSearchContract(),
   };
 }
 
@@ -570,7 +484,53 @@ function sliceContentLines(params: { content: string; from?: number; lines?: num
   };
 }
 
+function resolveSelectedContentRange(params: { content: string; from?: number }): {
+  content: string;
+  fromLine: number;
+  toLine: number;
+} {
+  const fromLine = Math.max(1, params.from ?? 1);
+  const lineCount = params.content.length > 0 ? params.content.split("\n").length : 1;
+  return {
+    content: params.content,
+    fromLine,
+    toLine: fromLine + Math.max(0, lineCount - 1),
+  };
+}
+
+async function readIndexedPersonalContextDocument(params: {
+  cfg: AlisioConfig;
+  agentId: string;
+  document: PersonalContextDocument;
+  from?: number;
+  lines?: number;
+}): Promise<{ content: string; fromLine: number; toLine: number }> {
+  const { manager, error } = await getActiveMemorySearchManager({
+    cfg: params.cfg,
+    agentId: params.agentId,
+    purpose: "default",
+  });
+  if (!manager) {
+    throw new Error(`personal context read unavailable: ${error ?? "no manager"}`);
+  }
+  try {
+    const result = await manager.readFile({
+      relPath: params.document.path,
+      from: params.from,
+      lines: params.lines,
+    });
+    return resolveSelectedContentRange({
+      content: result.text,
+      from: params.from,
+    });
+  } finally {
+    await manager.close?.().catch(() => {});
+  }
+}
+
 export async function readPersonalContextDocument(params: {
+  cfg: AlisioConfig;
+  agentId: string;
   workspaceDir: string;
   accountId: string;
   path: string;
@@ -602,12 +562,19 @@ export async function readPersonalContextDocument(params: {
       toLine: 1,
     };
   }
-  const content = await fs.readFile(resolved.absolutePath, "utf-8");
-  const sliced = sliceContentLines({
-    content,
-    from: params.from,
-    lines: params.lines,
-  });
+  const sliced = document.indexed
+    ? await readIndexedPersonalContextDocument({
+        cfg: params.cfg,
+        agentId: params.agentId,
+        document,
+        from: params.from,
+        lines: params.lines,
+      })
+    : sliceContentLines({
+        content: await fs.readFile(resolved.absolutePath, "utf-8"),
+        from: params.from,
+        lines: params.lines,
+      });
   return {
     document,
     content: sliced.content,
@@ -837,10 +804,7 @@ export async function readPersonalContextSummary(params: {
     },
     documents,
     documentCounts,
-    access: {
-      read: buildReadContract(),
-      search: buildSearchContract(),
-    },
+    access: buildAccessContract(),
     sessionPolicy: buildSessionPolicy({
       agentId: params.agentId,
       mainKey: params.mainKey,

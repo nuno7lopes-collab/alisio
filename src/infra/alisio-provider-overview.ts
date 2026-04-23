@@ -424,6 +424,7 @@ function buildAppItems(params: {
           authorization,
         });
         const status = mapConnectorStatus(surfaceStatus);
+        const authSource: AlisioProviderOverviewAuthSource = "connector";
         const accountLabel = authorization?.connectedAccount?.label?.trim();
         const accountEmail = authorization?.connectedAccount?.email?.trim();
         return {
@@ -438,7 +439,7 @@ function buildAppItems(params: {
           accountLabel: accountLabel || undefined,
           accountEmail: accountEmail || undefined,
           docsPath: definition.setupUrl,
-          authSource: "connector",
+          authSource,
           chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
           usageWindows: [],
           current: false,

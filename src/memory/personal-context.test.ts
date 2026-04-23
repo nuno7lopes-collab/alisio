@@ -141,19 +141,12 @@ describe("readPersonalContextSummary", () => {
         backlogNoteCount: 1,
       },
       access: {
-        read: {
+        accountScopeRequired: true,
+        directRead: {
           method: "agents.files.get",
           locator: "workspace_relative_path",
           pathParam: "name",
-          accountScopeRequired: true,
-        },
-        search: {
-          runtime: "memory_index",
-          searchTool: "memory_search",
-          readTool: "memory_get",
-          accountScopeRequired: true,
-          indexedKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
-          excludedKinds: [
+          readableKinds: [
             "agent_instructions",
             "agent_tools",
             "agent_heartbeat",
@@ -162,6 +155,16 @@ describe("readPersonalContextSummary", () => {
             "soul",
             "preferences",
           ],
+        },
+        indexedRead: {
+          runtime: "memory_index",
+          tool: "memory_get",
+          readableKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
+        },
+        search: {
+          runtime: "memory_index",
+          tool: "memory_search",
+          readableKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
         },
       },
       sessionPolicy: {
@@ -245,8 +248,24 @@ describe("readPersonalContextSummary", () => {
       ]),
     );
 
+    getActiveMemorySearchManager.mockResolvedValueOnce({
+      manager: {
+        search: vi.fn(),
+        readFile: vi.fn().mockResolvedValue({
+          path: "memory/physics.md",
+          text: "Indexed study notes.",
+        }),
+        status: vi.fn(),
+        probeEmbeddingAvailability: vi.fn(),
+        probeVectorAvailability: vi.fn(),
+        close: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
     await expect(
       readPersonalContextDocument({
+        cfg,
+        agentId: "main",
         workspaceDir,
         accountId: "user-1",
         path: "memory/physics.md",
@@ -258,7 +277,7 @@ describe("readPersonalContextSummary", () => {
         kind: "topic_note",
         path: "memory/physics.md",
       }),
-      content: "Study notes.",
+      content: "Indexed study notes.",
       missing: false,
       fromLine: 3,
       toLine: 3,

@@ -1,14 +1,12 @@
 import {
-  getLongTermMemoryFilePriority,
+  buildCanonicalMemoryNotePath,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
   normalizeMemoryFileName,
   PRIMARY_MEMORY_FILE_NAME,
-  resolveManualMemoryNoteRoot,
 } from "../../../src/shared/memory-file-paths.js";
 
 export {
-  getLongTermMemoryFilePriority,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
   normalizeMemoryFileName,
@@ -75,7 +73,10 @@ export function buildMemoryNoteName(
   const slug = slugifyMemoryNoteTitle(title);
   const baseName = slug ? `${safeDate}-${slug}` : safeDate;
   const used = new Set(Array.from(existingNames, (entry) => normalizeMemoryFileName(entry)));
-  const root = resolveManualMemoryNoteRoot(existingNames);
+  const root = buildCanonicalMemoryNotePath({ role: "daily", dateStamp: safeDate })
+    .split("/")
+    .slice(0, -1)
+    .join("/");
   let candidate = `${root}/${baseName}.md`;
   if (!used.has(candidate)) {
     return candidate;

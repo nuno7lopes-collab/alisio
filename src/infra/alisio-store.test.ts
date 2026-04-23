@@ -1401,6 +1401,7 @@ describe("beginAlisioConnectorSetup", () => {
     });
     expect(definitions.get("github")).toMatchObject({
       availability: "ready",
+      scopes: ["repo", "read:user", "user:email", "read:org", "gist"],
       surface: {
         groupId: "github",
         groupTitle: "GitHub",
@@ -2922,6 +2923,7 @@ describe("beginAlisioConnectorSetup", () => {
       expect(result).toMatchObject({
         connectorId: "google-calendar",
         state: "not_connected",
+        health: "healthy",
       });
       expect(revokeFetch).toHaveBeenCalledWith(
         "https://oauth2.googleapis.com/revoke",
@@ -2985,6 +2987,7 @@ describe("beginAlisioConnectorSetup", () => {
       expect(result).toMatchObject({
         connectorId: "github",
         state: "not_connected",
+        health: "healthy",
       });
       expect(revokeFetch).toHaveBeenCalledWith(
         "https://api.github.com/applications/github-client-id/token",
@@ -3002,6 +3005,137 @@ describe("beginAlisioConnectorSetup", () => {
       const persistedState = await fs.readFile(alisioStateFile(root), "utf8");
       expect(persistedState).not.toContain("github");
       expect(persistedState).not.toContain("github-access");
+    });
+  });
+
+  it("revokes Stripe account access before removing the local connector state", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_STRIPE_CLIENT_ID: "ca_test_stripe_app",
+        ALISIO_STRIPE_DEVELOPER_API_KEY: "sk_test_stripe_app_developer",
+        ALISIO_STRIPE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/stripe/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const begin = await beginAlisioConnectorSetup("stripe", env);
+      const launchUrl = new URL(begin?.setupUrl ?? "");
+      const setupFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "stripe-oauth-access",
+              refresh_token: "stripe-oauth-refresh",
+              token_type: "bearer",
+              scope: "stripe_apps",
+              livemode: false,
+              account_id: "acct_123",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              object: "balance",
+              livemode: false,
+              available: [],
+              pending: [],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ object: "list", data: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+
+      await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "stripe",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "stripe-code",
+        },
+        env,
+        setupFetch,
+      );
+
+      const revokeFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(JSON.stringify({ stripe_user_id: "acct_123" })));
+      const result = await revokeAlisioConnectorAuthorization("stripe", env, revokeFetch);
+
+      expect(result).toMatchObject({
+        connectorId: "stripe",
+        state: "not_connected",
+        health: "healthy",
+      });
+      expect(revokeFetch).toHaveBeenCalledWith(
+        "https://connect.stripe.com/oauth/deauthorize",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            accept: "application/json",
+            "content-type": "application/x-www-form-urlencoded",
+            "user-agent": "Alisio",
+          }),
+          body: expect.any(URLSearchParams),
+        }),
+      );
+      const revokeBody = revokeFetch.mock.calls[0]?.[1]?.body;
+      expect(revokeBody instanceof URLSearchParams ? revokeBody.get("client_id") : null).toBe(
+        "ca_test_stripe_app",
+      );
+      expect(revokeBody instanceof URLSearchParams ? revokeBody.get("stripe_user_id") : null).toBe(
+        "acct_123",
+      );
+      const persistedState = await fs.readFile(alisioStateFile(root), "utf8");
+      expect(persistedState).not.toContain("stripe");
+      expect(persistedState).not.toContain("stripe-oauth-access");
+      expect(persistedState).not.toContain("stripe-oauth-refresh");
     });
   });
 
