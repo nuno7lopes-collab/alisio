@@ -161,6 +161,8 @@ import {
   AlisioConnectorsListResultSchema,
   type AlisioConnectorsRevokeParams,
   AlisioConnectorsRevokeParamsSchema,
+  type AlisioConnectorsRevokeResult,
+  AlisioConnectorsRevokeResultSchema,
   type AgentIdentityParams,
   AgentIdentityParamsSchema,
   type AgentIdentityResult,
@@ -924,8 +926,14 @@ export const validateAlisioSharingPolicySetResult = ajv.compile<AlisioSharingPol
 export const validateAlisioConnectorsCatalogParams = ajv.compile<AlisioConnectorsCatalogParams>(
   AlisioConnectorsCatalogParamsSchema,
 );
+export const validateAlisioConnectorsCatalogResult = ajv.compile<AlisioConnectorsCatalogResult>(
+  AlisioConnectorsCatalogResultSchema,
+);
 export const validateAlisioConnectorsListParams = ajv.compile<AlisioConnectorsListParams>(
   AlisioConnectorsListParamsSchema,
+);
+export const validateAlisioConnectorsListResult = ajv.compile<AlisioConnectorsListResult>(
+  AlisioConnectorsListResultSchema,
 );
 export const validateAlisioConnectorsBeginParams = ajv.compile<AlisioConnectorsBeginParams>(
   AlisioConnectorsBeginParamsSchema,
@@ -935,6 +943,9 @@ export const validateAlisioConnectorsBeginResult = ajv.compile<AlisioConnectorsB
 );
 export const validateAlisioConnectorsRevokeParams = ajv.compile<AlisioConnectorsRevokeParams>(
   AlisioConnectorsRevokeParamsSchema,
+);
+export const validateAlisioConnectorsRevokeResult = ajv.compile<AlisioConnectorsRevokeResult>(
+  AlisioConnectorsRevokeResultSchema,
 );
 export const validateAgentIdentityParams =
   ajv.compile<AgentIdentityParams>(AgentIdentityParamsSchema);
@@ -1274,6 +1285,7 @@ export const validateExecApprovalsNodeSetParams = ajv.compile<ExecApprovalsNodeS
 );
 export const validateLogsTailParams = ajv.compile<LogsTailParams>(LogsTailParamsSchema);
 export const validateMemoryStatusParams = ajv.compile<MemoryStatusParams>(MemoryStatusParamsSchema);
+export const validateMemoryStatusResult = ajv.compile<MemoryStatusResult>(MemoryStatusResultSchema);
 export const validateMemoryE2eeSetupParams = ajv.compile<MemoryE2eeSetupParams>(
   MemoryE2eeSetupParamsSchema,
 );
@@ -1282,6 +1294,7 @@ export const validateMemoryE2eeExportPairingCodeParams =
 export const validateMemoryE2eeImportPairingCodeParams =
   ajv.compile<MemoryE2eeImportPairingCodeParams>(MemoryE2eeImportPairingCodeParamsSchema);
 export const validateMemorySyncParams = ajv.compile<MemorySyncParams>(MemorySyncParamsSchema);
+export const validateMemorySyncResult = ajv.compile<MemorySyncResult>(MemorySyncResultSchema);
 export const validateMemoryGraphParams = ajv.compile<MemoryGraphParams>(MemoryGraphParamsSchema);
 export const validateChatHistoryParams = ajv.compile(ChatHistoryParamsSchema);
 export const validateChatSendParams = ajv.compile(ChatSendParamsSchema);
@@ -1422,6 +1435,7 @@ export {
   AlisioConnectorsBeginParamsSchema,
   AlisioConnectorsBeginResultSchema,
   AlisioConnectorsRevokeParamsSchema,
+  AlisioConnectorsRevokeResultSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
   WakeParamsSchema,
@@ -1752,6 +1766,7 @@ export type {
   AlisioConnectorsBeginParams,
   AlisioConnectorsBeginResult,
   AlisioConnectorsRevokeParams,
+  AlisioConnectorsRevokeResult,
   AgentIdentityParams,
   AgentIdentityResult,
   AgentWaitParams,

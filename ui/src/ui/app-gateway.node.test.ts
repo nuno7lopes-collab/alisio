@@ -1075,7 +1075,7 @@ describe("connectGateway", () => {
       error: {
         code: "INVALID_REQUEST",
         message:
-          "unauthorized: connection token mismatch (open the dashboard URL and paste the token in Control UI settings)",
+          "unauthorized: connection token mismatch (open the browser admin URL and paste the token in browser admin settings)",
         details: { code: "AUTH_TOKEN_MISMATCH" },
       },
     });

@@ -281,7 +281,7 @@ export function normalizeMemoryFileName(value: string): string {
     .replace(/^\.?\//, "");
 }
 
-export function isLongTermMemoryFileName(name: string): boolean {
+export function isMainMemoryFileName(name: string): boolean {
   return normalizeMemoryFileName(name) === PRIMARY_MEMORY_FILE_NAME;
 }
 

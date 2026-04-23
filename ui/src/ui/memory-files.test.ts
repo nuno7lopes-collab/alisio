@@ -11,7 +11,7 @@ import type { MemoryFileDetail, MemoryFilesListResult } from "./controllers/memo
 import {
   buildMemoryNoteName,
   humanizeMemoryNoteTitle,
-  isLongTermMemoryFileName,
+  isMainMemoryFileName,
   isMemoryNoteFileName,
   todayMemoryDate,
 } from "./memory-files.ts";
@@ -46,8 +46,8 @@ describe("memory-files", () => {
   });
 
   it("distinguishes durable memory files from note files", () => {
-    expect(isLongTermMemoryFileName("MEMORY.md")).toBe(true);
-    expect(isLongTermMemoryFileName("memory.md")).toBe(false);
+    expect(isMainMemoryFileName("MEMORY.md")).toBe(true);
+    expect(isMainMemoryFileName("memory.md")).toBe(false);
     expect(isMemoryNoteFileName("memory/2026-04-06.md")).toBe(true);
     expect(isMemoryNoteFileName("AGENTS.md")).toBe(false);
   });

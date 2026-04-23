@@ -643,4 +643,136 @@ describe("loadAlisioProviderOverview", () => {
     expect(result.apps.map((item) => item.connectorId)).toEqual(["github"]);
     expect(result.connectors.catalog.map((item) => item.id)).toEqual(["github", "notion", "x"]);
   });
+
+  it("orders surfaced app capabilities by native surface priority within the same group", async () => {
+    const result = await loadAlisioProviderOverview({
+      includeUsage: false,
+      deps: {
+        ensureAuthProfileStore: () =>
+          ({
+            version: 1,
+            profiles: {},
+          }) as never,
+        readConfigFileSnapshot: async () =>
+          ({
+            path: "/tmp/models.json",
+            valid: true,
+            config: {},
+            runtimeConfig: {},
+          }) as never,
+        getAlisioAccountState: async () =>
+          ({
+            profile: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: new Date().toISOString(),
+              plan: "free",
+            },
+            preferences: {
+              language: "en",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "system",
+              themeAccents: DEFAULT_THEME_ACCENTS,
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+            },
+            devices: [],
+            cloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
+          }) as never,
+        getAlisioAiState: async () =>
+          ({
+            provider: "openai",
+            status: "connected",
+            profiles: [],
+          }) as never,
+        listAlisioConnectorDefinitions: () =>
+          [
+            {
+              id: "gmail-send",
+              title: "Gmail Send",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Send mail.",
+              availability: "ready",
+              scopes: ["gmail.send"],
+              surface: {
+                groupId: "gmail",
+                groupTitle: "Gmail",
+                capabilityTitle: "Send",
+                sortOrder: 2,
+                systemImage: "envelope.badge",
+              },
+            },
+            {
+              id: "gmail-read",
+              title: "Gmail Read",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Read mail.",
+              availability: "ready",
+              scopes: ["gmail.readonly"],
+              surface: {
+                groupId: "gmail",
+                groupTitle: "Gmail",
+                capabilityTitle: "Read",
+                sortOrder: 0,
+                systemImage: "envelope.badge",
+              },
+            },
+            {
+              id: "gmail-modify",
+              title: "Gmail Modify",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Organize mail.",
+              availability: "ready",
+              scopes: ["gmail.modify"],
+              surface: {
+                groupId: "gmail",
+                groupTitle: "Gmail",
+                capabilityTitle: "Organize",
+                sortOrder: 1,
+                systemImage: "envelope.badge",
+              },
+            },
+          ] as never,
+        listAlisioConnectorAuthorizations: async () => [] as never,
+        loadAlisioModelProviderSnapshot: async () =>
+          ({
+            catalog: [],
+            dynamicSources: [],
+            dynamicCatalogEntries: [],
+            targets: [],
+          }) as never,
+        getActivePluginRegistry: () =>
+          ({
+            providers: [],
+            speechProviders: [],
+            imageGenerationProviders: [],
+            mediaUnderstandingProviders: [],
+            webSearchProviders: [],
+          }) as never,
+        listRegisteredMemoryEmbeddingProviders: () => [],
+        resolveProviderAuthOverview,
+        loadProviderUsageSummary: async () => null as never,
+      },
+    });
+
+    expect(result.apps.map((item) => item.connectorId)).toEqual([
+      "gmail-read",
+      "gmail-modify",
+      "gmail-send",
+    ]);
+  });
 });

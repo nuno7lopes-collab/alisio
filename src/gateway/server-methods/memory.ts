@@ -38,7 +38,9 @@ import {
   type MemoryStatusConfig,
   type MemoryStatusResult,
   type MemoryStatusRuntime,
+  validateMemoryStatusResult,
   validateMemoryStatusParams,
+  validateMemorySyncResult,
   validateMemorySyncParams,
 } from "../protocol/index.js";
 import { formatError } from "../server-utils.js";
@@ -58,6 +60,29 @@ function respondInvalidMethodParams(
       `invalid ${method} params: ${formatValidationErrors(errors)}`,
     ),
   );
+}
+
+function respondInvalidMethodResult(
+  respond: RespondFn,
+  method: string,
+  errors: Parameters<typeof formatValidationErrors>[0],
+): void {
+  respond(
+    false,
+    undefined,
+    errorShape(
+      ErrorCodes.INVALID_REQUEST,
+      `invalid ${method} result: ${formatValidationErrors(errors)}`,
+    ),
+  );
+}
+
+function respondMemoryStatusResult(respond: RespondFn, result: MemoryStatusResult): void {
+  if (!validateMemoryStatusResult(result)) {
+    respondInvalidMethodResult(respond, "memory.status", validateMemoryStatusResult.errors);
+    return;
+  }
+  respond(true, result, undefined);
 }
 
 function resolveAgentContext(params: Record<string, unknown>, respond: RespondFn) {
@@ -118,6 +143,176 @@ function buildMemoryStatusConfig(config: ResolvedMemorySearchConfig): MemoryStat
       ftsTokenizer: config.store.fts.tokenizer,
       vectorEnabled: config.store.vector.enabled,
     },
+  };
+}
+
+type CanonicalStoreRuntime = NonNullable<MemoryStatusRuntime["canonicalStore"]>;
+
+const CANONICAL_STORE_STATES = ["pending-sync", "ready"] as const;
+const CANONICAL_STORE_PROFILE_SOURCES = ["cloud-user", "local-profile", "state-dir"] as const;
+const CANONICAL_STORE_BACKENDS = ["builtin", "qmd"] as const;
+const CANONICAL_STORE_PROJECTION_INTERFACE = "markdown-repo" as const;
+const CANONICAL_STORE_SYNC_MODE = "local-first" as const;
+const CANONICAL_STORE_CLOUD_SYNC_VALUES = ["unavailable", "enabled", "error"] as const;
+const CANONICAL_STORE_PROJECTION_SOURCES = ["workspace-memory"] as const;
+const CANONICAL_STORE_SYNC_AVAILABILITIES = ["active", "inactive", "blocked"] as const;
+const CANONICAL_STORE_SYNC_MODE_CONFIGURED = ["cloud", "direct", "off"] as const;
+const CANONICAL_STORE_SYNC_BLOCKED_REASONS = [
+  "disabled",
+  "mode_off",
+  "missing_profile_key",
+  "missing_relay_base_url",
+  "missing_access_token",
+  "direct_disabled",
+] as const;
+
+function parseCanonicalStoreEnum<T extends readonly string[]>(
+  value: unknown,
+  allowed: T,
+): T[number] | undefined {
+  return typeof value === "string" && allowed.includes(value) ? (value as T[number]) : undefined;
+}
+
+function readCanonicalStoreString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function readCanonicalStoreInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) ? value : undefined;
+}
+
+function buildCanonicalStoreRuntime(value: unknown): CanonicalStoreRuntime | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const state = parseCanonicalStoreEnum(record.state, CANONICAL_STORE_STATES);
+  const path = readCanonicalStoreString(record.path);
+  const profileId = readCanonicalStoreString(record.profileId);
+  const profileSource = parseCanonicalStoreEnum(
+    record.profileSource,
+    CANONICAL_STORE_PROFILE_SOURCES,
+  );
+  const workspaceScope = readCanonicalStoreString(record.workspaceScope);
+  const workspaceDir = readCanonicalStoreString(record.workspaceDir);
+  const backend = parseCanonicalStoreEnum(record.backend, CANONICAL_STORE_BACKENDS);
+  const projectionInterface = parseCanonicalStoreEnum(record.projectionInterface, [
+    CANONICAL_STORE_PROJECTION_INTERFACE,
+  ] as const);
+  const syncMode = parseCanonicalStoreEnum(record.syncMode, [CANONICAL_STORE_SYNC_MODE] as const);
+  const cloudSync = parseCanonicalStoreEnum(record.cloudSync, CANONICAL_STORE_CLOUD_SYNC_VALUES);
+  const entities = readCanonicalStoreInteger(record.entities);
+  const relations = readCanonicalStoreInteger(record.relations);
+  const projections = readCanonicalStoreInteger(record.projections);
+  const ledgerEventsCount = readCanonicalStoreInteger(record.ledgerEventsCount);
+  const lastSyncedLamport = readCanonicalStoreInteger(record.lastSyncedLamport);
+  const checkpointsCount = readCanonicalStoreInteger(record.checkpointsCount);
+
+  if (
+    !state ||
+    !path ||
+    !profileId ||
+    !profileSource ||
+    !workspaceScope ||
+    !workspaceDir ||
+    !backend ||
+    entities === undefined ||
+    relations === undefined ||
+    projections === undefined ||
+    !projectionInterface ||
+    !syncMode ||
+    !cloudSync ||
+    ledgerEventsCount === undefined ||
+    lastSyncedLamport === undefined ||
+    checkpointsCount === undefined ||
+    record.e2eeRequired !== true ||
+    !Array.isArray(record.projectionSources)
+  ) {
+    return undefined;
+  }
+
+  const projectionSources = record.projectionSources
+    .map((entry) => parseCanonicalStoreEnum(entry, CANONICAL_STORE_PROJECTION_SOURCES))
+    .filter(
+      (entry): entry is (typeof CANONICAL_STORE_PROJECTION_SOURCES)[number] => entry !== undefined,
+    );
+  if (projectionSources.length !== record.projectionSources.length) {
+    return undefined;
+  }
+
+  const syncAvailability = parseCanonicalStoreEnum(
+    record.syncAvailability,
+    CANONICAL_STORE_SYNC_AVAILABILITIES,
+  );
+  const syncModeConfigured = parseCanonicalStoreEnum(
+    record.syncModeConfigured,
+    CANONICAL_STORE_SYNC_MODE_CONFIGURED,
+  );
+  const syncBlockedReason = parseCanonicalStoreEnum(
+    record.syncBlockedReason,
+    CANONICAL_STORE_SYNC_BLOCKED_REASONS,
+  );
+
+  const replicaRecord =
+    record.replica && typeof record.replica === "object" && !Array.isArray(record.replica)
+      ? (record.replica as Record<string, unknown>)
+      : null;
+  const replica = replicaRecord
+    ? {
+        deviceId: readCanonicalStoreString(replicaRecord.deviceId),
+        stateDir: readCanonicalStoreString(replicaRecord.stateDir),
+      }
+    : null;
+
+  return {
+    state,
+    path,
+    profileId,
+    profileSource,
+    ...(readCanonicalStoreString(record.displayName)
+      ? { displayName: readCanonicalStoreString(record.displayName) }
+      : {}),
+    workspaceScope,
+    workspaceDir,
+    backend,
+    entities,
+    relations,
+    projections,
+    projectionInterface,
+    syncMode,
+    cloudSync,
+    projectionSources,
+    ledgerEventsCount,
+    lastSyncedLamport,
+    checkpointsCount,
+    e2eeRequired: true,
+    ...(syncAvailability ? { syncAvailability } : {}),
+    ...(syncModeConfigured ? { syncModeConfigured } : {}),
+    ...(syncBlockedReason ? { syncBlockedReason } : {}),
+    ...(readCanonicalStoreString(record.lastSyncSuccessAt)
+      ? { lastSyncSuccessAt: readCanonicalStoreString(record.lastSyncSuccessAt) }
+      : {}),
+    ...(readCanonicalStoreInteger(record.lastAckLamport) !== undefined
+      ? { lastAckLamport: readCanonicalStoreInteger(record.lastAckLamport) }
+      : {}),
+    ...(readCanonicalStoreInteger(record.pendingBacklog) !== undefined
+      ? { pendingBacklog: readCanonicalStoreInteger(record.pendingBacklog) }
+      : {}),
+    ...(readCanonicalStoreString(record.lastSyncedAt)
+      ? { lastSyncedAt: readCanonicalStoreString(record.lastSyncedAt) }
+      : {}),
+    ...(readCanonicalStoreString(record.lastError)
+      ? { lastError: readCanonicalStoreString(record.lastError) }
+      : {}),
+    ...(replica?.deviceId && replica.stateDir
+      ? {
+          replica: {
+            deviceId: replica.deviceId,
+            stateDir: replica.stateDir,
+          },
+        }
+      : {}),
   };
 }
 
@@ -202,116 +397,9 @@ function buildRuntimeStatus(
       ...(status.batch.lastProvider ? { lastProvider: status.batch.lastProvider } : {}),
     };
   }
-  const canonicalStore = (status.custom?.canonicalStore ?? null) as {
-    state?: "pending-sync" | "ready";
-    path?: string;
-    profileId?: string;
-    profileSource?: "cloud-user" | "local-profile" | "state-dir";
-    displayName?: string;
-    workspaceScope?: string;
-    workspaceDir?: string;
-    backend?: "builtin" | "qmd";
-    entities?: number;
-    relations?: number;
-    projections?: number;
-    projectionInterface?: "markdown-repo";
-    syncMode?: "local-first";
-    cloudSync?: "unavailable" | "enabled" | "error";
-    projectionSources?: Array<"workspace-memory">;
-    ledgerEventsCount?: number;
-    lastSyncedLamport?: number;
-    checkpointsCount?: number;
-    e2eeRequired?: true;
-    syncAvailability?: "active" | "inactive" | "blocked";
-    syncModeConfigured?: "cloud" | "direct" | "off";
-    syncBlockedReason?:
-      | "disabled"
-      | "mode_off"
-      | "missing_profile_key"
-      | "missing_relay_base_url"
-      | "missing_access_token"
-      | "direct_disabled";
-    lastSyncSuccessAt?: string;
-    lastAckLamport?: number;
-    pendingBacklog?: number;
-    lastSyncedAt?: string;
-    lastError?: string;
-    replica?: {
-      deviceId?: string;
-      stateDir?: string;
-    };
-  } | null;
-  if (
-    canonicalStore?.state &&
-    canonicalStore.path &&
-    canonicalStore.profileId &&
-    canonicalStore.profileSource &&
-    canonicalStore.workspaceScope &&
-    canonicalStore.workspaceDir &&
-    canonicalStore.backend &&
-    typeof canonicalStore.entities === "number" &&
-    typeof canonicalStore.relations === "number" &&
-    typeof canonicalStore.projections === "number" &&
-    canonicalStore.projectionInterface &&
-    canonicalStore.syncMode &&
-    canonicalStore.cloudSync &&
-    Array.isArray(canonicalStore.projectionSources) &&
-    typeof canonicalStore.ledgerEventsCount === "number" &&
-    typeof canonicalStore.lastSyncedLamport === "number" &&
-    typeof canonicalStore.checkpointsCount === "number" &&
-    (canonicalStore.syncAvailability === "active" ||
-      canonicalStore.syncAvailability === "inactive" ||
-      canonicalStore.syncAvailability === "blocked") &&
-    (canonicalStore.syncModeConfigured === "cloud" ||
-      canonicalStore.syncModeConfigured === "direct" ||
-      canonicalStore.syncModeConfigured === "off") &&
-    canonicalStore.e2eeRequired === true
-  ) {
-    runtime.canonicalStore = {
-      state: canonicalStore.state,
-      path: canonicalStore.path,
-      profileId: canonicalStore.profileId,
-      profileSource: canonicalStore.profileSource,
-      ...(canonicalStore.displayName ? { displayName: canonicalStore.displayName } : {}),
-      workspaceScope: canonicalStore.workspaceScope,
-      workspaceDir: canonicalStore.workspaceDir,
-      backend: canonicalStore.backend,
-      entities: canonicalStore.entities,
-      relations: canonicalStore.relations,
-      projections: canonicalStore.projections,
-      projectionInterface: canonicalStore.projectionInterface,
-      syncMode: canonicalStore.syncMode,
-      cloudSync: canonicalStore.cloudSync,
-      projectionSources: canonicalStore.projectionSources,
-      ledgerEventsCount: canonicalStore.ledgerEventsCount,
-      lastSyncedLamport: canonicalStore.lastSyncedLamport,
-      checkpointsCount: canonicalStore.checkpointsCount,
-      e2eeRequired: canonicalStore.e2eeRequired,
-      syncAvailability: canonicalStore.syncAvailability,
-      syncModeConfigured: canonicalStore.syncModeConfigured,
-      ...(canonicalStore.syncBlockedReason
-        ? { syncBlockedReason: canonicalStore.syncBlockedReason }
-        : {}),
-      ...(canonicalStore.lastSyncSuccessAt
-        ? { lastSyncSuccessAt: canonicalStore.lastSyncSuccessAt }
-        : {}),
-      ...(typeof canonicalStore.lastAckLamport === "number"
-        ? { lastAckLamport: canonicalStore.lastAckLamport }
-        : {}),
-      ...(typeof canonicalStore.pendingBacklog === "number"
-        ? { pendingBacklog: canonicalStore.pendingBacklog }
-        : {}),
-      ...(canonicalStore.lastSyncedAt ? { lastSyncedAt: canonicalStore.lastSyncedAt } : {}),
-      ...(canonicalStore.lastError ? { lastError: canonicalStore.lastError } : {}),
-      ...(canonicalStore.replica?.deviceId && canonicalStore.replica.stateDir
-        ? {
-            replica: {
-              deviceId: canonicalStore.replica.deviceId,
-              stateDir: canonicalStore.replica.stateDir,
-            },
-          }
-        : {}),
-    };
+  const canonicalStore = buildCanonicalStoreRuntime(status.custom?.canonicalStore);
+  if (canonicalStore) {
+    runtime.canonicalStore = canonicalStore;
   }
 
   return runtime;
@@ -473,8 +561,8 @@ export const memoryHandlers: GatewayRequestHandlers = {
 
     const state = resolveMemoryStatusState(scopedCfg, context.agentId);
     if (state.configError || !state.enabled) {
-      respond(
-        true,
+      respondMemoryStatusResult(
+        respond,
         buildStatusWithoutManager({
           agentId: context.agentId,
           enabled: state.enabled,
@@ -483,7 +571,6 @@ export const memoryHandlers: GatewayRequestHandlers = {
           backend: state.backend,
           configError: state.configError,
         }),
-        undefined,
       );
       return;
     }
@@ -494,8 +581,8 @@ export const memoryHandlers: GatewayRequestHandlers = {
       purpose: "status",
     });
     if (!manager) {
-      respond(
-        true,
+      respondMemoryStatusResult(
+        respond,
         buildStatusWithoutManager({
           agentId: context.agentId,
           enabled: state.enabled,
@@ -504,7 +591,6 @@ export const memoryHandlers: GatewayRequestHandlers = {
           backend: state.backend,
           managerError: error,
         }),
-        undefined,
       );
       return;
     }
@@ -518,7 +604,7 @@ export const memoryHandlers: GatewayRequestHandlers = {
         config: state.config,
         backend: state.backend,
       });
-      respond(true, result, undefined);
+      respondMemoryStatusResult(respond, result);
     } finally {
       await manager.close?.().catch(() => {});
     }
@@ -792,7 +878,16 @@ export const memoryHandlers: GatewayRequestHandlers = {
         config: state.config,
         backend: state.backend,
       });
-      respond(true, { ok: true, status }, undefined);
+      if (!validateMemoryStatusResult(status)) {
+        respondInvalidMethodResult(respond, "memory.sync", validateMemoryStatusResult.errors);
+        return;
+      }
+      const result = { ok: true, status } as const;
+      if (!validateMemorySyncResult(result)) {
+        respondInvalidMethodResult(respond, "memory.sync", validateMemorySyncResult.errors);
+        return;
+      }
+      respond(true, result, undefined);
     } catch (err) {
       respond(
         false,

@@ -55,6 +55,29 @@ const loadAlisioGatewayAccountContext = vi.hoisted(() =>
 const readPersonalContextSummary = vi.hoisted(() =>
   vi.fn(async () => ({
     version: 1,
+    accountScope: {
+      scopeRoot: "account",
+      accountId: "user-1",
+      source: "account_id",
+      authenticated: true,
+      authRequired: true,
+      workspaceMode: "account_scoped",
+      workspaceRoot: "accounts/user-1",
+    },
+    runtimeContract: {
+      scopeRoot: "account",
+      backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+      localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+    },
+    deviceBinding: {
+      binding: "account_bound",
+      runtime: "local",
+      current: true,
+      accountId: "user-1",
+      deviceId: "device-1",
+      label: "Mac",
+      platform: "macos",
+    },
     bootstrap: {
       path: "BOOTSTRAP.md",
       present: false,
@@ -97,6 +120,50 @@ const readPersonalContextSummary = vi.hoisted(() =>
         topicCount: 1,
         dailyCount: 2,
         backlogCount: 3,
+      },
+    },
+    documents: [],
+    documentCounts: {
+      expectedCount: 0,
+      presentCount: 0,
+      agentFileCount: 0,
+      identityFileCount: 0,
+      setupFileCount: 0,
+      memoryFileCount: 0,
+      mainMemoryCount: 0,
+      topicNoteCount: 0,
+      dailyNoteCount: 0,
+      backlogNoteCount: 0,
+    },
+    access: {
+      accountScopeRequired: true,
+      directRead: {
+        method: "agents.files.get",
+        locator: "workspace_relative_path",
+        pathParam: "name",
+        readableKinds: [
+          "agent_instructions",
+          "agent_tools",
+          "agent_heartbeat",
+          "setup_bootstrap",
+          "identity",
+          "soul",
+          "preferences",
+          "main_memory",
+          "topic_note",
+          "daily_note",
+          "backlog_note",
+        ],
+      },
+      indexedRead: {
+        runtime: "memory_index",
+        tool: "memory_get",
+        readableKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
+      },
+      search: {
+        runtime: "memory_index",
+        tool: "memory_search",
+        readableKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
       },
     },
     sessionPolicy: {
@@ -316,6 +383,29 @@ describe("memoryHandlers", () => {
     readPersonalContextSummary.mockReset();
     readPersonalContextSummary.mockResolvedValue({
       version: 1,
+      accountScope: {
+        scopeRoot: "account",
+        accountId: "user-1",
+        source: "account_id",
+        authenticated: true,
+        authRequired: true,
+        workspaceMode: "account_scoped",
+        workspaceRoot: "accounts/user-1",
+      },
+      runtimeContract: {
+        scopeRoot: "account",
+        backendShared: ["account", "auth", "linked_devices", "session_index", "automations"],
+        localRuntime: ["identity", "soul", "preferences", "memory", "native_runtime"],
+      },
+      deviceBinding: {
+        binding: "account_bound",
+        runtime: "local",
+        current: true,
+        accountId: "user-1",
+        deviceId: "device-1",
+        label: "Mac",
+        platform: "macos",
+      },
       bootstrap: {
         path: "BOOTSTRAP.md",
         present: false,
@@ -358,6 +448,50 @@ describe("memoryHandlers", () => {
           topicCount: 1,
           dailyCount: 2,
           backlogCount: 3,
+        },
+      },
+      documents: [],
+      documentCounts: {
+        expectedCount: 0,
+        presentCount: 0,
+        agentFileCount: 0,
+        identityFileCount: 0,
+        setupFileCount: 0,
+        memoryFileCount: 0,
+        mainMemoryCount: 0,
+        topicNoteCount: 0,
+        dailyNoteCount: 0,
+        backlogNoteCount: 0,
+      },
+      access: {
+        accountScopeRequired: true,
+        directRead: {
+          method: "agents.files.get",
+          locator: "workspace_relative_path",
+          pathParam: "name",
+          readableKinds: [
+            "agent_instructions",
+            "agent_tools",
+            "agent_heartbeat",
+            "setup_bootstrap",
+            "identity",
+            "soul",
+            "preferences",
+            "main_memory",
+            "topic_note",
+            "daily_note",
+            "backlog_note",
+          ],
+        },
+        indexedRead: {
+          runtime: "memory_index",
+          tool: "memory_get",
+          readableKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
+        },
+        search: {
+          runtime: "memory_index",
+          tool: "memory_search",
+          readableKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
         },
       },
       sessionPolicy: {
@@ -529,6 +663,59 @@ describe("memoryHandlers", () => {
     );
     expect(probeVectorAvailability).toHaveBeenCalled();
     expect(close).toHaveBeenCalled();
+  });
+
+  it("keeps canonical store metadata when optional sync fields are absent", async () => {
+    getActiveMemorySearchManager.mockResolvedValue({
+      manager: {
+        status: () => ({
+          backend: "builtin",
+          provider: "openai",
+          custom: {
+            canonicalStore: {
+              state: "ready",
+              path: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
+              profileId: "local-main",
+              profileSource: "local-profile",
+              workspaceScope: "scope-main",
+              workspaceDir: "/workspace/main/accounts/user-1",
+              backend: "builtin",
+              entities: 3,
+              relations: 2,
+              projections: 3,
+              projectionInterface: "markdown-repo",
+              syncMode: "local-first",
+              cloudSync: "unavailable",
+              projectionSources: ["workspace-memory"],
+              ledgerEventsCount: 12,
+              lastSyncedLamport: 12,
+              checkpointsCount: 1,
+              e2eeRequired: true,
+            },
+          },
+        }),
+        probeEmbeddingAvailability: vi.fn().mockResolvedValue({ ok: true }),
+        probeVectorAvailability: vi.fn().mockResolvedValue(true),
+        close: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    const respond = await invokeMemoryMethod("memory.status", { agentId: "main" });
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        runtime: expect.objectContaining({
+          canonicalStore: expect.objectContaining({
+            profileId: "local-main",
+            lastSyncedLamport: 12,
+            checkpointsCount: 1,
+            e2eeRequired: true,
+          }),
+        }),
+      }),
+      undefined,
+    );
   });
 
   it("returns a disabled payload without querying the runtime", async () => {

@@ -79,7 +79,7 @@ export function registerAuthModesSuite(): void {
         },
       });
       expect(res.ok).toBe(false);
-      expect(res.error?.message ?? "").toContain("dashboard URL");
+      expect(res.error?.message ?? "").toContain("browser admin URL");
       ws.close();
     });
 

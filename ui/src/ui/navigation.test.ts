@@ -94,7 +94,7 @@ describe("subtitleForTab", () => {
     expect(subtitleForTab("connections")).toContain("Runtime");
     expect(subtitleForTab("security")).toContain("Approvals");
     expect(subtitleForTab("authentications")).toContain("connectors");
-    expect(subtitleForTab("settings")).toContain("web workspace");
+    expect(subtitleForTab("settings")).toContain("Alisio workspace");
   });
 });
 

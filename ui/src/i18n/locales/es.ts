@@ -1069,7 +1069,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         rebuildApp: "Sincronizar app + UI",
         rebuildingApp: "Sincronizando app + UI…",
         rebuildStarted:
-          "La sincronización ha comenzado. La app se cerrará, reconstruirá la Control UI, reiniciará el runtime local y volverá a abrirse.",
+          "La sincronización ha comenzado. La app se cerrará, reconstruirá la interfaz admin del navegador, reiniciará el runtime local y volverá a abrirse.",
         rebuildUnavailable:
           "Vuelve a conectar el runtime o abre primero la build nativa de desarrollo.",
         reconnectApp: "Reconectar Alisio",
@@ -1475,9 +1475,9 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         tokens: "Tokens",
         tokensNone: "Tokens: ninguno",
         current: "este ordenador",
-        cleanup: "Limpiar registros antiguos",
+        cleanup: "Eliminar registros inactivos",
         computerFallback: "Ordenador",
-        legacyRecords: "{count} registros antiguos en backend",
+        legacyRecords: "{count} registros inactivos del runtime",
         tokenStatus: {
           active: "activo",
           revoked: "revocado",
@@ -1491,7 +1491,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
         removeConfirm:
           "¿Eliminar {label}? Cualquier acceso activo de este ordenador dejará de funcionar.",
         cleanupConfirm:
-          "¿Limpiar {count} registros antiguos de {label}? El acceso actual de este ordenador seguirá activo.",
+          "¿Eliminar {count} registros inactivos de {label}? El acceso actual de este ordenador seguirá activo.",
       },
       sharing: {
         title: "Compartir",
@@ -1990,7 +1990,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
   overview: {
     access: {
       title: "Conexión del workspace",
-      subtitle: "Dónde se conecta el panel y cómo se autentica.",
+      subtitle: "Dónde se conecta esta app y cómo se autentica.",
       wsUrl: "URL de WebSocket",
       token: "Token de acceso",
       password: "Contraseña (no se guarda)", // pragma: allowlist secret
@@ -2045,7 +2045,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     connection: {
       title: "Cómo conectarse",
       step1: "Inicia Alisio en tu máquina host:",
-      step2: "Obtén una URL del panel con token:",
+      step2: "Obtén una URL de acceso con token:",
       step3: "Pega arriba la URL de WebSocket y el token, o abre directamente la URL con token.",
       step4: "O genera un token reutilizable:",
       docsHint: "Para acceso remoto se recomienda Tailscale Serve. ",
@@ -2145,7 +2145,7 @@ export const es: TranslationMap = mergeTranslationMaps(en, {
     empty: {
       title: "Empieza con un rango de fechas",
       subtitle:
-        "Carga datos de uso para comparar costes, inspeccionar sesiones y profundizar en la línea temporal sin salir del panel.",
+        "Carga datos de uso para comparar costes, inspeccionar sesiones y profundizar en la línea temporal sin salir de esta vista.",
       hint: "Selecciona un rango de fechas y haz clic en Actualizar para cargar el uso.",
       noData: "Sin datos",
       featureOverview: "Tarjetas de resumen",

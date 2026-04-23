@@ -150,6 +150,36 @@ function sortItems(items: readonly AlisioProviderOverviewItem[]): AlisioProvider
   );
 }
 
+function sortAppItems(
+  items: ReadonlyArray<{
+    item: AlisioProviderOverviewItem;
+    groupId?: string;
+    groupTitle?: string;
+    sortOrder?: number;
+  }>,
+): AlisioProviderOverviewItem[] {
+  const statusOrder: Record<AlisioProviderOverviewStatus, number> = {
+    connected: 0,
+    attention: 1,
+    ready: 2,
+    coming_soon: 3,
+    unavailable: 4,
+  };
+  return items
+    .toSorted((left, right) => {
+      return (
+        statusOrder[left.item.status] - statusOrder[right.item.status] ||
+        (left.groupTitle ?? left.item.title).localeCompare(right.groupTitle ?? right.item.title) ||
+        (left.sortOrder ?? Number.MAX_SAFE_INTEGER) -
+          (right.sortOrder ?? Number.MAX_SAFE_INTEGER) ||
+        left.item.title.localeCompare(right.item.title) ||
+        (left.groupId ?? left.item.id).localeCompare(right.groupId ?? right.item.id) ||
+        left.item.id.localeCompare(right.item.id)
+      );
+    })
+    .map((entry) => entry.item);
+}
+
 function buildSummary(sections: {
   assistant: readonly AlisioProviderOverviewItem[];
   providers: readonly AlisioProviderOverviewItem[];
@@ -411,7 +441,7 @@ function buildAppItems(params: {
   const byConnectorId = new Map(
     params.authorizations.map((authorization) => [authorization.connectorId, authorization]),
   );
-  return sortItems(
+  return sortAppItems(
     params.definitions
       .map((definition) => {
         const authorization = byConnectorId.get(definition.id);
@@ -428,25 +458,32 @@ function buildAppItems(params: {
         const accountLabel = authorization?.connectedAccount?.label?.trim();
         const accountEmail = authorization?.connectedAccount?.email?.trim();
         return {
-          id: `connector:${definition.id}`,
-          title: definition.title,
-          subtitle: definition.summary,
-          detail: resolveConnectorDetail({ definition, status: surfaceStatus }),
-          status,
-          connectorId: definition.id,
-          connectLabel: definition.connectLabel,
-          providerLabel: definition.providerLabel,
-          accountLabel: accountLabel || undefined,
-          accountEmail: accountEmail || undefined,
-          docsPath: definition.setupUrl,
-          authSource,
-          chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
-          usageWindows: [],
-          current: false,
-          active: surfaceStatus === "connected" && connectorStatus === "connected",
+          item: {
+            id: `connector:${definition.id}`,
+            title: definition.title,
+            subtitle: definition.summary,
+            detail: resolveConnectorDetail({ definition, status: surfaceStatus }),
+            status,
+            connectorId: definition.id,
+            connectLabel: definition.connectLabel,
+            providerLabel: definition.providerLabel,
+            accountLabel: accountLabel || undefined,
+            accountEmail: accountEmail || undefined,
+            docsPath: definition.setupUrl,
+            authSource,
+            chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
+            usageWindows: [],
+            current: false,
+            active: surfaceStatus === "connected" && connectorStatus === "connected",
+          } satisfies AlisioProviderOverviewItem,
+          groupId: definition.surface?.groupId,
+          groupTitle: definition.surface?.groupTitle,
+          sortOrder: definition.surface?.sortOrder,
         };
       })
-      .filter((item) => item.status !== "coming_soon" && item.status !== "unavailable"),
+      .filter(
+        (entry) => entry.item.status !== "coming_soon" && entry.item.status !== "unavailable",
+      ),
   );
 }
 

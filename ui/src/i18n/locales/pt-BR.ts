@@ -52,12 +52,12 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
     memory: "Memória de longo prazo, notas diárias e contexto editável em um só lugar.",
     tasks: "Execuções em segundo plano, entrega e acompanhamento do operador em uma visão.",
     cron: "Calendário semanal e mensal para cron jobs agendados.",
-    settings: "Geral, conta, conectores e padrões de suporte no workspace web.",
+    settings: "Geral, conta, conectores e padrões de suporte desta workspace do Alisio.",
   },
   overview: {
     access: {
       title: "Conexão do Workspace",
-      subtitle: "Onde o dashboard se conecta e como ele se autentica.",
+      subtitle: "Onde esta app se conecta e como ela se autentica.",
       wsUrl: "URL WebSocket",
       token: "Token de acesso",
       password: "Senha (não armazenada)",
@@ -112,7 +112,7 @@ export const pt_BR: TranslationMap = mergeTranslationMaps(en, {
     connection: {
       title: "Como conectar",
       step1: "Inicie o Alisio na sua máquina host:",
-      step2: "Obtenha uma URL do painel com token:",
+      step2: "Obtenha uma URL de acesso com token:",
       step3: "Cole a URL do WebSocket e o token acima, ou abra a URL com token diretamente.",
       step4: "Ou gere um token reutilizável:",
       docsHint: "Para acesso remoto, recomendamos o Tailscale Serve. ",

@@ -814,6 +814,59 @@ describe("alisio gateway methods", () => {
     });
   });
 
+  it("lists connector authorizations through the legacy connector surface", async () => {
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
+
+      await alisioHandlers["connectors.list"]({
+        params: {},
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "connectors.list", params: {}, id: 101 } as never,
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        authorizations: expect.arrayContaining([
+          expect.objectContaining({
+            connectorId: "google-calendar",
+            state: "not_connected",
+          }),
+        ]),
+      });
+    });
+  });
+
+  it("revokes a connector and returns the canonical authorization shape", async () => {
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
+
+      await alisioHandlers["connectors.revoke"]({
+        params: {
+          connectorId: "google-calendar",
+        },
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "connectors.revoke", params: {}, id: 102 } as never,
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        connectorId: "google-calendar",
+        state: "not_connected",
+        health: "config_missing",
+      });
+    });
+  });
+
   it("rejects invalid account usernames with a product-facing validation error", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();

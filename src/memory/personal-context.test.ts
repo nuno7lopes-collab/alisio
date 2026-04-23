@@ -154,6 +154,10 @@ describe("readPersonalContextSummary", () => {
             "identity",
             "soul",
             "preferences",
+            "main_memory",
+            "topic_note",
+            "daily_note",
+            "backlog_note",
           ],
         },
         indexedRead: {

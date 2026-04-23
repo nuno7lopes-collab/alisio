@@ -1,13 +1,13 @@
 import {
   buildCanonicalMemoryNotePath,
-  isLongTermMemoryFileName,
+  isMainMemoryFileName,
   isMemoryNoteFileName,
   normalizeMemoryFileName,
   PRIMARY_MEMORY_FILE_NAME,
 } from "../../../src/shared/memory-file-paths.js";
 
 export {
-  isLongTermMemoryFileName,
+  isMainMemoryFileName,
   isMemoryNoteFileName,
   normalizeMemoryFileName,
   PRIMARY_MEMORY_FILE_NAME,

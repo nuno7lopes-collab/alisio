@@ -29,8 +29,8 @@ import {
   normalizeCanonicalAccountId,
 } from "../shared/alisio-account-scope.js";
 import {
+  CANONICAL_MEMORY_FILE_KINDS,
   CANONICAL_INDEXED_MEMORY_FILE_KINDS,
-  CANONICAL_NON_INDEXED_MEMORY_FILE_KINDS,
   CANONICAL_PERSONAL_CONTEXT_INHERITANCE_VALUES,
   CANONICAL_PERSONAL_CONTEXT_SESSION_ROLE_VALUES,
   type CanonicalMemoryFileAvailability,
@@ -407,7 +407,7 @@ function buildDirectReadContract(): PersonalContextDirectReadContract {
     method: "agents.files.get",
     locator: "workspace_relative_path",
     pathParam: "name",
-    readableKinds: [...CANONICAL_NON_INDEXED_MEMORY_FILE_KINDS],
+    readableKinds: [...CANONICAL_MEMORY_FILE_KINDS],
   };
 }
 

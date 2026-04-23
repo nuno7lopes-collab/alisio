@@ -876,12 +876,12 @@ describe("nodes devices pending rendering", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Studio Mac");
     expect(text).toContain("current runtime");
-    expect(text).toContain("1 old backend records");
+    expect(text).toContain("1 inactive runtime records");
     expect(text).not.toContain("device-1");
     expect(text).not.toContain("device-2");
 
     const cleanupButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Clean old records"),
+      (button) => button.textContent?.includes("Remove inactive records"),
     );
     expect(cleanupButton).toBeDefined();
 

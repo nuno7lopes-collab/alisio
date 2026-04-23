@@ -13,7 +13,7 @@ import {
   isCanonicalIndexedMemoryKind,
   isCanonicalOperationalMemoryKind,
   isDailyMemoryNoteFileName,
-  isLongTermMemoryFileName,
+  isMainMemoryFileName,
   isMemoryNoteFileName,
   listCanonicalRootMemoryFileNames,
   normalizeMemoryNoteRole,
@@ -24,8 +24,8 @@ import {
 } from "./memory-file-paths.js";
 
 describe("memory-file-paths", () => {
-  it("classifies MEMORY.md as the long-term file", () => {
-    expect(isLongTermMemoryFileName("MEMORY.md")).toBe(true);
+  it("classifies MEMORY.md as the canonical main-memory file", () => {
+    expect(isMainMemoryFileName("MEMORY.md")).toBe(true);
     expect(isMemoryNoteFileName("memory/2026-04-08.md")).toBe(true);
     expect(isMemoryNoteFileName("MEMORY.md")).toBe(false);
     expect(isDailyMemoryNoteFileName("memory/2026-04-08.md")).toBe(true);

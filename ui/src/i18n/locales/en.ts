@@ -80,7 +80,7 @@ export const en: TranslationMap = {
     memory: "Long-term memory, daily notes, and editable context in one place.",
     tasks: "Background runs, delivery state, and operator follow-up in one view.",
     cron: "Weekly and monthly calendar for scheduled cron jobs.",
-    settings: "General, account, connector, and support defaults for the web workspace.",
+    settings: "General, account, connector, and support defaults for this Alisio workspace.",
   },
   alisio: {
     login: {
@@ -1269,7 +1269,7 @@ export const en: TranslationMap = {
     },
     settings: {
       title: "Settings",
-      subtitle: "General, account, AI, connector, and support defaults for the web workspace.",
+      subtitle: "General, account, AI, connector, and support defaults for this Alisio workspace.",
       common: {
         unavailable: "Unavailable",
       },
@@ -1297,7 +1297,7 @@ export const en: TranslationMap = {
         rebuildApp: "Sync app + UI",
         rebuildingApp: "Syncing app + UI…",
         rebuildStarted:
-          "Sync started. The app will close, rebuild the Control UI, restart the local runtime, and reopen.",
+          "Sync started. The app will close, rebuild the browser admin UI, restart the local runtime, and reopen.",
         rebuildUnavailable: "Reconnect the runtime, or open the native dev app build first.",
         reconnectApp: "Reconnect Alisio",
         openSetup: "Open setup",
@@ -1745,9 +1745,9 @@ export const en: TranslationMap = {
         tokens: "Tokens",
         tokensNone: "Tokens: none",
         current: "current runtime",
-        cleanup: "Clean old records",
+        cleanup: "Remove inactive records",
         computerFallback: "Computer",
-        legacyRecords: "{count} old backend records",
+        legacyRecords: "{count} inactive runtime records",
         tokenStatus: {
           active: "active",
           revoked: "revoked",
@@ -1761,7 +1761,7 @@ export const en: TranslationMap = {
         removeConfirm:
           "Remove {label}? Any active access from the current runtime will stop working.",
         cleanupConfirm:
-          "Clean {count} old records for {label}? The current access for the current runtime stays active.",
+          "Remove {count} inactive records for {label}? The current access for the current runtime stays active.",
       },
       sharing: {
         title: "Sharing",
@@ -2369,7 +2369,7 @@ export const en: TranslationMap = {
     connection: {
       title: "How to connect",
       step1: "Start Alisio on your host machine:",
-      step2: "Get a tokenized dashboard URL:",
+      step2: "Get a tokenized access URL:",
       step3: "Paste the WebSocket URL and token above, or open the tokenized URL directly.",
       step4: "Or generate a reusable token:",
       docsHint: "For remote access, Tailscale Serve is recommended. ",
@@ -2468,7 +2468,7 @@ export const en: TranslationMap = {
     empty: {
       title: "Start with a date range",
       subtitle:
-        "Load usage data to compare costs, inspect sessions, and drill into timelines without leaving the dashboard.",
+        "Load usage data to compare costs, inspect sessions, and drill into timelines without leaving this view.",
       hint: "Select a date range and click Refresh to load usage.",
       noData: "No data",
       featureOverview: "Overview cards",

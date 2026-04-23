@@ -110,6 +110,7 @@ export type AlisioConnectorsListResult = SchemaType<"AlisioConnectorsListResult"
 export type AlisioConnectorsBeginParams = SchemaType<"AlisioConnectorsBeginParams">;
 export type AlisioConnectorsBeginResult = SchemaType<"AlisioConnectorsBeginResult">;
 export type AlisioConnectorsRevokeParams = SchemaType<"AlisioConnectorsRevokeParams">;
+export type AlisioConnectorsRevokeResult = SchemaType<"AlisioConnectorsRevokeResult">;
 export type AgentIdentityParams = SchemaType<"AgentIdentityParams">;
 export type AgentIdentityResult = SchemaType<"AgentIdentityResult">;
 export type PollParams = SchemaType<"PollParams">;

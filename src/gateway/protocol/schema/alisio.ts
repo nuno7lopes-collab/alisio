@@ -1394,3 +1394,5 @@ export const AlisioConnectorsRevokeParamsSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+
+export const AlisioConnectorsRevokeResultSchema = AlisioConnectorAuthorizationSchema;

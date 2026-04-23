@@ -160,14 +160,14 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     **Localhost (same machine):**
 
     - Open `http://127.0.0.1:40705/`.
-    - If it asks for auth, paste the token from `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) into Control UI settings.
+    - If it asks for auth, paste the token from `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) into browser admin settings.
     - Retrieve it from the gateway host: `alisio config get gateway.auth.token` (or generate one: `alisio doctor --generate-gateway-token`).
 
     **Not on localhost:**
 
-    - **Tailscale Serve** (recommended): keep bind loopback, run `alisio gateway --tailscale serve`, open `https://<magicdns>/`. If `gateway.auth.allowTailscale` is `true`, identity headers satisfy Control UI/WebSocket auth (no token, assumes trusted gateway host); HTTP APIs still require token/password.
-    - **Tailnet bind**: run `alisio gateway run --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:40705/`, paste token in dashboard settings.
-    - **SSH tunnel**: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/` and paste the token in Control UI settings.
+    - **Tailscale Serve** (recommended): keep bind loopback, run `alisio gateway --tailscale serve`, open `https://<magicdns>/`. If `gateway.auth.allowTailscale` is `true`, identity headers satisfy browser-admin/WebSocket auth (no token, assumes trusted gateway host); HTTP APIs still require token/password.
+    - **Tailnet bind**: run `alisio gateway run --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:40705/`, paste the token in browser admin settings.
+    - **SSH tunnel**: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/` and paste the token in browser admin settings.
 
     See [Dashboard CLI](/cli/dashboard) and [Remote access](/gateway/remote) for bind modes and auth details.
 
@@ -480,7 +480,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     - [exe.dev](/install/exe-dev)
 
     How it works in the cloud: the **Gateway runs on the server**, and you access it
-    from your laptop/phone via the Control UI (or Tailscale/SSH). Your state + workspace
+    from your laptop/phone via the browser admin (or Tailscale/SSH). Your state + workspace
     live on the server, so treat the host as the source of truth and back it up.
 
     You can pair **computers (nodes)** (Mac/headless helper hosts) to that cloud Gateway to access
@@ -1372,7 +1372,7 @@ for usage/billing and raise limits as needed.
     - `gateway.remote.token` / `.password` do **not** enable local gateway auth by themselves.
     - Local call paths can use `gateway.remote.*` as fallback only when `gateway.auth.*` is unset.
     - If `gateway.auth.token` / `gateway.auth.password` is explicitly configured via SecretRef and unresolved, resolution fails closed (no remote fallback masking).
-    - The Control UI authenticates via `connect.params.auth.token` (stored in app/UI settings). Avoid putting tokens in URLs.
+    - The browser admin authenticates via `connect.params.auth.token` (stored in app/UI settings). Avoid putting tokens in URLs.
 
   </Accordion>
 
@@ -1687,7 +1687,7 @@ for usage/billing and raise limits as needed.
        - SSH: `ssh user@your-vps.tailnet-xxxx.ts.net`
        - Gateway WS: `ws://your-vps.tailnet-xxxx.ts.net:40705`
 
-    If you want the Control UI without SSH, use Tailscale Serve on the VPS:
+    If you want browser admin access without SSH, use Tailscale Serve on the VPS:
 
     ```bash
     alisio gateway --tailscale serve
@@ -1698,7 +1698,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How do I connect a Mac computer to a remote Gateway (Tailscale Serve)?">
-    Serve exposes the **Gateway Control UI + WS**. Paired computers (nodes) connect over the same Gateway WS endpoint.
+    Serve exposes the **browser admin + WS**. Paired computers (nodes) connect over the same Gateway WS endpoint.
 
     Recommended setup:
 
@@ -2462,7 +2462,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
 <AccordionGroup>
   <Accordion title="What port does the Gateway use?">
-    `gateway.port` controls the single multiplexed port for WebSocket + HTTP (Control UI, hooks, etc.).
+    `gateway.port` controls the single multiplexed port for WebSocket + HTTP (browser admin, hooks, etc.).
 
     Precedence:
 
@@ -2526,21 +2526,21 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
   </Accordion>
 
-  <Accordion title='The Control UI says "unauthorized" (or keeps reconnecting). What now?'>
+  <Accordion title='The browser admin says "unauthorized" (or keeps reconnecting). What now?'>
     Your gateway is running with auth enabled (`gateway.auth.*`), but the UI is not sending the matching token/password.
 
     Facts (from code):
 
-    - The Control UI keeps the token in `sessionStorage` for the current browser tab session and selected gateway URL, so same-tab refreshes keep working without restoring long-lived localStorage token persistence.
+    - The browser admin keeps the token in `sessionStorage` for the current browser tab session and selected gateway URL, so same-tab refreshes keep working without restoring long-lived localStorage token persistence.
     - On `AUTH_TOKEN_MISMATCH`, trusted clients can attempt one bounded retry with a cached device token when the gateway returns retry hints (`canRetryWithDeviceToken=true`, `recommendedNextStep=retry_with_device_token`).
 
     Fix:
 
-    - Fastest: `alisio dashboard` (prints + copies the dashboard URL, tries to open; shows SSH hint if headless).
+    - Fastest: `alisio dashboard` (prints + copies the browser admin URL, tries to open; shows SSH hint if headless).
     - If you don't have a token yet: `alisio doctor --generate-gateway-token`.
     - If remote, tunnel first: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/`.
     - Set `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) on the gateway host.
-    - In the Control UI settings, paste the same token.
+    - In browser admin settings, paste the same token.
     - If mismatch persists after the one retry, rotate/re-approve the paired device token:
       - `alisio devices list`
       - `alisio devices rotate --device <id> --role operator`
@@ -2715,7 +2715,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     1. Is the Gateway running? `alisio gateway status`
     2. Is the Gateway healthy? `alisio status`
-    3. Does the UI have the right token? `alisio dashboard`
+    3. Does the browser admin have the right token? `alisio dashboard`
     4. If remote, is the tunnel/Tailscale link up?
 
     Then tail logs:
@@ -2933,7 +2933,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     /reasoning off
     ```
 
-    If it is still noisy, check the session settings in the Control UI and set verbose
+    If it is still noisy, check the session settings in the browser admin and set verbose
     to **inherit**. Also confirm you are not using a bot profile with `verboseDefault` set
     to `on` in config.
 

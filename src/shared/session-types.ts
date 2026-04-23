@@ -6,15 +6,20 @@ import type {
   PersonalContextDeviceBinding,
   PersonalContextDirectReadContract,
   PersonalContextDocument,
+  PersonalContextDocumentReadResult,
+  PersonalContextDocumentSearchResult,
   PersonalContextDocumentCounts,
   PersonalContextFileGroup,
   PersonalContextFileKind,
   PersonalContextFileSummary,
+  PersonalContextIdentitySource,
+  PersonalContextIdentitySources,
   PersonalContextIndexedReadContract,
   PersonalContextInheritance,
   PersonalContextSearchContract,
   PersonalContextSessionKind,
   PersonalContextSessionPolicy,
+  PersonalContextSessionRole,
   PersonalContextSummary,
 } from "../memory/personal-context.js";
 import type { MemoryNoteRole } from "./memory-file-paths.js";
@@ -23,20 +28,26 @@ export type GatewayAgentIdentity = PersonalContextSummary["identity"]["resolved"
 export type GatewayPersonalContextAvailability = PersonalContextAvailability;
 export type GatewayPersonalContextInheritance = PersonalContextInheritance;
 export type GatewayPersonalContextSessionKind = PersonalContextSessionKind;
+export type GatewayPersonalContextSessionRole = PersonalContextSessionRole;
 export type GatewayPersonalContextFileKind = PersonalContextFileKind;
 export type GatewayPersonalContextFileGroup = PersonalContextFileGroup;
 export type GatewayPersonalContextMemoryRole = MemoryNoteRole;
 export type GatewayPersonalContextFileSummary = PersonalContextFileSummary;
+export type GatewayPersonalContextIdentitySource = PersonalContextIdentitySource;
+export type GatewayPersonalContextIdentitySources = PersonalContextIdentitySources;
 export type GatewayPersonalContextSessionPolicy = PersonalContextSessionPolicy;
 export type GatewayAccountScope = PersonalContextAccountScope;
 export type GatewayRuntimeResidencyContract = PersonalContextSummary["runtimeContract"];
 export type GatewayAccountDeviceBinding = PersonalContextDeviceBinding;
 export type GatewayPersonalContextDocument = PersonalContextDocument;
 export type GatewayPersonalContextDocumentCounts = PersonalContextDocumentCounts;
+export type GatewayPersonalContextDirectReadContract = PersonalContextDirectReadContract;
 export type GatewayPersonalContextReadContract = PersonalContextDirectReadContract;
 export type GatewayPersonalContextIndexedReadContract = PersonalContextIndexedReadContract;
 export type GatewayPersonalContextSearchContract = PersonalContextSearchContract;
 export type GatewayPersonalContextAccessContract = PersonalContextAccessContract;
+export type GatewayPersonalContextDocumentReadResult = PersonalContextDocumentReadResult;
+export type GatewayPersonalContextDocumentSearchResult = PersonalContextDocumentSearchResult;
 export type GatewayPersonalContextSummary = PersonalContextSummary;
 
 export type GatewayAgentModel = {

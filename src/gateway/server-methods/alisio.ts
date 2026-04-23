@@ -102,8 +102,12 @@ import {
   validateAlisioModelsResult,
   validateAlisioBootstrapResult,
   validateAlisioConnectorsBeginParams,
+  validateAlisioConnectorsBeginResult,
+  validateAlisioConnectorsCatalogResult,
   validateAlisioConnectorsCatalogParams,
+  validateAlisioConnectorsListResult,
   validateAlisioConnectorsListParams,
+  validateAlisioConnectorsRevokeResult,
   validateAlisioConnectorsRevokeParams,
   validateAlisioDoctorSummaryParams,
   validateAlisioDoctorSummaryResult,
@@ -2099,7 +2103,21 @@ export const alisioHandlers: GatewayRequestHandlers = {
     if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
-    respond(true, { connectors: listAlisioConnectorDefinitions() }, undefined);
+    const result = { connectors: listAlisioConnectorDefinitions() };
+    if (!validateAlisioConnectorsCatalogResult(result)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid connectors.catalog result: ${formatValidationErrors(
+            validateAlisioConnectorsCatalogResult.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    respond(true, result, undefined);
   },
   "connectors.list": async ({ params, respond }) => {
     if (!validateAlisioConnectorsListParams(params)) {
@@ -2118,7 +2136,21 @@ export const alisioHandlers: GatewayRequestHandlers = {
     if (!(await requireAuthenticatedAlisioAccount(respond))) {
       return;
     }
-    respond(true, { authorizations: await listAlisioConnectorAuthorizations() }, undefined);
+    const result = { authorizations: await listAlisioConnectorAuthorizations() };
+    if (!validateAlisioConnectorsListResult(result)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid connectors.list result: ${formatValidationErrors(
+            validateAlisioConnectorsListResult.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    respond(true, result, undefined);
   },
   "connectors.begin": async ({ params, respond }) => {
     if (!validateAlisioConnectorsBeginParams(params)) {
@@ -2143,6 +2175,19 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       if (!result) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown connectorId"));
+        return;
+      }
+      if (!validateAlisioConnectorsBeginResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid connectors.begin result: ${formatValidationErrors(
+              validateAlisioConnectorsBeginResult.errors,
+            )}`,
+          ),
+        );
         return;
       }
       respond(true, result, undefined);
@@ -2183,6 +2228,19 @@ export const alisioHandlers: GatewayRequestHandlers = {
     );
     if (!result) {
       respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown connectorId"));
+      return;
+    }
+    if (!validateAlisioConnectorsRevokeResult(result)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid connectors.revoke result: ${formatValidationErrors(
+            validateAlisioConnectorsRevokeResult.errors,
+          )}`,
+        ),
+      );
       return;
     }
     respond(true, result, undefined);

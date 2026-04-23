@@ -23,7 +23,6 @@ export {
   isCanonicalIndexedMemoryKind,
   isCanonicalOperationalMemoryKind,
   isDailyMemoryNoteFileName,
-  isLongTermMemoryFileName,
   isMemoryNoteFileName,
   listCanonicalRootMemoryFileNames,
   normalizeMemoryFileName,
@@ -33,6 +32,7 @@ export {
   resolveMemoryNoteRole,
   slugifyMemoryNotePathComponent,
 } from "../shared/memory-file-paths.js";
+export { isMainMemoryFileName as isLongTermMemoryFileName } from "../shared/memory-file-paths.js";
 export type {
   CanonicalMemoryFileAvailability,
   CanonicalMemoryFileGroup,

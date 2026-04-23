@@ -162,7 +162,8 @@ Flow notes:
   prompt to enable `x_search` with the same `XAI_API_KEY` and optionally pick
   an `x_search` model. Other web-search providers do not show that prompt.
 - Local onboarding DM scope behavior: [CLI Setup Reference](/start/wizard-cli-reference#outputs-and-internals).
-- Fastest first chat: `alisio dashboard` (Control UI, no channel setup).
+- Fastest first chat: `alisio tui`.
+- `alisio dashboard` remains available if you intentionally need the legacy browser admin surface.
 - Custom Provider: connect any OpenAI or Anthropic compatible endpoint,
   including hosted providers not listed. Use Unknown to auto-detect.
 

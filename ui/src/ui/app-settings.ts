@@ -961,7 +961,7 @@ function buildAttentionItems(host: AlisioApp) {
       title: "Missing operator.read scope",
       description:
         "This connection does not have the operator.read scope. Some features may be unavailable.",
-      href: docsUrl("/web/dashboard"),
+      href: docsUrl("/cli/dashboard"),
       external: true,
     });
   }

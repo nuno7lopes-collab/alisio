@@ -64,7 +64,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     memory: "Memória de longo prazo, notas diárias e contexto editável num só lugar.",
     tasks: "Execuções em segundo plano, entrega e follow-up do operador num só lugar.",
     cron: "Calendário semanal e mensal para cron jobs agendados.",
-    settings: "Geral, conta, conectores e predefinições de suporte no workspace web.",
+    settings: "Geral, conta, conectores e predefinições de suporte desta workspace do Alisio.",
   },
   chat: {
     ...(pt_BR.chat as TranslationMap),
@@ -1546,7 +1546,8 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     },
     settings: {
       title: "Definições",
-      subtitle: "Geral, conta, IA, conectores e predefinições de suporte no workspace web.",
+      subtitle:
+        "Geral, conta, IA, conectores e predefinições de suporte desta workspace do Alisio.",
       common: {
         unavailable: "Indisponível",
       },
@@ -1574,7 +1575,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         rebuildApp: "Sincronizar app + UI",
         rebuildingApp: "A sincronizar app + UI…",
         rebuildStarted:
-          "A sincronização começou. A app vai fechar, actualizar a Control UI, reiniciar o runtime local e voltar a abrir.",
+          "A sincronização começou. A app vai fechar, actualizar a interface de admin no browser, reiniciar o runtime local e voltar a abrir.",
         rebuildUnavailable:
           "Volta a ligar o runtime, ou abre primeiro a build nativa de desenvolvimento.",
         reconnectApp: "Reconectar Alisio",
@@ -2026,9 +2027,9 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         tokens: "Tokens",
         tokensNone: "Tokens: nenhum",
         current: "runtime actual",
-        cleanup: "Limpar registos antigos",
+        cleanup: "Remover registos inativos",
         computerFallback: "Computador",
-        legacyRecords: "{count} registos antigos no backend",
+        legacyRecords: "{count} registos inativos do runtime",
         tokenStatus: {
           active: "activo",
           revoked: "revogado",
@@ -2042,7 +2043,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
         removeConfirm:
           "Remover {label}? Qualquer acesso activo do runtime actual deixa de funcionar.",
         cleanupConfirm:
-          "Limpar {count} registos antigos de {label}? O acesso actual do runtime actual continua activo.",
+          "Remover {count} registos inativos de {label}? O acesso actual do runtime actual continua activo.",
       },
       sharing: {
         title: "Partilha",
@@ -2616,6 +2617,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
   },
   overview: {
     access: {
+      subtitle: "Onde esta app se liga e como se autentica.",
       connectHint: "Clica em Ligar para aplicar as alterações de ligação.",
     },
     notes: {
@@ -2630,7 +2632,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     connection: {
       title: "Como ligar",
       step1: "Arranca o Alisio na máquina anfitriã:",
-      step2: "Obtém um URL do painel com token:",
+      step2: "Obtém um URL de acesso com token:",
       step3: "Cola acima o URL WebSocket e o token, ou abre directamente o URL com token.",
       step4: "Ou gera um token reutilizável:",
       docsHint: "Para acesso remoto, recomendamos Tailscale Serve.",
@@ -2706,7 +2708,7 @@ export const pt_PT: TranslationMap = mergeTranslationMaps(pt_BR, {
     empty: {
       title: "Começa por um intervalo de datas",
       subtitle:
-        "Carrega dados de utilização para comparar custos, inspeccionar sessões e aprofundar cronologias sem sair do painel.",
+        "Carrega dados de utilização para comparar custos, inspeccionar sessões e aprofundar cronologias sem sair desta vista.",
       hint: "Selecciona um intervalo de datas e clica em Actualizar para carregar a utilização.",
       noData: "Sem dados",
       featureOverview: "Cartões de visão geral",

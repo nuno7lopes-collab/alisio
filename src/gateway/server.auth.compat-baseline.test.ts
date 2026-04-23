@@ -99,7 +99,7 @@ describe("gateway auth compatibility baseline", () => {
           client: { ...CONTROL_UI_CLIENT },
         });
         expect(res.ok).toBe(false);
-        expect(res.error?.message ?? "").toContain("dashboard URL");
+        expect(res.error?.message ?? "").toContain("browser admin URL");
         expectAuthErrorDetails({
           details: res.error?.details,
           expectedCode: ConnectErrorDetailCodes.AUTH_TOKEN_MISSING,
