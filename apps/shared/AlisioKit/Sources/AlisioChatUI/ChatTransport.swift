@@ -23,6 +23,7 @@ public protocol AlisioChatTransport: Sendable {
     func abortRun(sessionKey: String, runId: String) async throws
     func setSessionModel(sessionKey: String, model: String?) async throws
     func setSessionThinking(sessionKey: String, thinkingLevel: String) async throws
+    func renameSession(sessionKey: String, displayName: String?) async throws
 
     func requestHealth(timeoutMs: Int) async throws -> Bool
     func events() -> AsyncStream<AlisioChatTransportEvent>
@@ -94,5 +95,12 @@ extension AlisioChatTransport {
             domain: "AlisioChatTransport",
             code: 0,
             userInfo: [NSLocalizedDescriptionKey: "sessions.patch(thinkingLevel) not supported by this transport"])
+    }
+
+    public func renameSession(sessionKey _: String, displayName _: String?) async throws {
+        throw NSError(
+            domain: "AlisioChatTransport",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: "sessions.patch(displayName) not supported by this transport"])
     }
 }

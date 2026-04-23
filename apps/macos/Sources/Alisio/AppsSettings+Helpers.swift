@@ -2,14 +2,16 @@ import AppKit
 import SwiftUI
 
 import AlisioSupport
-extension ChannelsSettings {
-    func connectorTint(_ status: AppIntegrationGroup.Status) -> Color {
+extension AppsSettings {
+    func appStatusTint(_ status: AppIntegrationGroup.Status) -> Color {
         switch status {
         case .connected:
             .green
-        case .attention:
+        case .needsAttention:
             .orange
-        case .ready:
+        case .authError:
+            .red
+        case .disconnected:
             .secondary
         }
     }
@@ -18,9 +20,11 @@ extension ChannelsSettings {
         switch status {
         case .connected:
             .green
-        case .needsReconnect, .setupRequired:
+        case .needsReconnect:
             .orange
-        case .ready:
+        case .authError:
+            .red
+        case .disconnected:
             .secondary
         }
     }
@@ -61,14 +65,16 @@ extension ChannelsSettings {
             return app.capabilities.count == 1
                 ? "Connected"
                 : "All \(app.capabilities.count) access levels connected"
-        case .attention:
+        case .needsAttention:
             let connectedCount = app.capabilities.filter { $0.status == .connected }.count
             if connectedCount > 0 {
                 return "\(connectedCount) of \(app.capabilities.count) access levels connected"
             }
             return "Action required"
-        case .ready:
-            return app.capabilities.count == 1 ? "Not connected" : "Ready to connect"
+        case .authError:
+            return "Auth setup required"
+        case .disconnected:
+            return app.capabilities.count == 1 ? "Disconnected" : "Ready to connect"
         }
     }
 
@@ -85,9 +91,9 @@ extension ChannelsSettings {
             return parts.isEmpty ? "Connected and ready." : parts.joined(separator: " · ")
         case .needsReconnect:
             return capability.setupHint ?? "Authorization expired or needs reconnecting."
-        case .setupRequired:
+        case .authError:
             return capability.setupHint ?? "Gateway setup is incomplete for this app."
-        case .ready:
+        case .disconnected:
             return capability.detail?.nonEmpty ?? capability.subtitle
         }
     }

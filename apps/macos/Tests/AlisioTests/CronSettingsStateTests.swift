@@ -37,11 +37,11 @@ struct CronSettingsStateTests {
     @Test func `cron settings exposes empty and error states honestly`() {
         let store = CronJobsStore(isPreview: true)
         store.hasLoadedJobsOnce = true
-        store.statusMessage = "No schedules exist yet."
+        store.jobsStatusMessage = "No schedules exist yet."
         let view = CronSettings(store: store, channelsStore: ChannelsStore(isPreview: true))
         #expect(view.listState == .empty("No schedules exist yet."))
 
-        store.lastError = "Gateway offline"
+        store.jobsError = "Gateway offline"
         #expect(view.listState == .error("Gateway offline"))
     }
 
@@ -49,14 +49,13 @@ struct CronSettingsStateTests {
         let store = CronJobsStore(isPreview: true)
         let job1 = self.makeJob(id: "job-1")
         let job2 = self.makeJob(id: "job-2", name: "Weekly review")
-        var view = CronSettings(store: store, channelsStore: ChannelsStore(isPreview: true))
 
         store.jobs = [job1, job2]
-        view.ensureSelection()
+        store.reconcileSelection()
         #expect(store.selectedJobId == "job-1")
 
-        store.selectedJobId = "missing"
-        view.ensureSelection()
+        store.selectJob("missing")
+        store.reconcileSelection()
         #expect(store.selectedJobId == "job-1")
 
         store.runEntries = [
@@ -75,12 +74,63 @@ struct CronSettingsStateTests {
                 durationMs: nil,
                 nextRunAtMs: nil),
         ]
+        store.loadedRunsJobId = "job-1"
         store.hasLoadedRunsOnce = true
         store.jobs = []
-        view.ensureSelection()
+        store.reconcileSelection()
 
         #expect(store.selectedJobId == nil)
         #expect(store.runEntries.isEmpty)
         #expect(store.hasLoadedRunsOnce == false)
+    }
+
+    @Test func `cron settings only exposes activity for the loaded schedule`() {
+        let store = CronJobsStore(isPreview: true)
+        store.runEntries = [
+            CronRunLogEntry(
+                ts: 1,
+                jobId: "job-1",
+                action: "finished",
+                status: "ok",
+                error: nil,
+                summary: nil,
+                deliveryStatus: nil,
+                deliveryError: nil,
+                sessionId: nil,
+                sessionKey: nil,
+                runAtMs: nil,
+                durationMs: nil,
+                nextRunAtMs: nil),
+            CronRunLogEntry(
+                ts: 2,
+                jobId: "job-2",
+                action: "finished",
+                status: "error",
+                error: "failed",
+                summary: nil,
+                deliveryStatus: nil,
+                deliveryError: nil,
+                sessionId: nil,
+                sessionKey: nil,
+                runAtMs: nil,
+                durationMs: nil,
+                nextRunAtMs: nil),
+        ]
+        store.loadedRunsJobId = "job-1"
+        store.hasLoadedRunsOnce = true
+
+        #expect(store.runEntries(for: "job-1").map(\.jobId) == ["job-1"])
+        #expect(store.runEntries(for: "job-2").isEmpty)
+        #expect(store.hasLoadedRuns(for: "job-1") == true)
+        #expect(store.hasLoadedRuns(for: "job-2") == false)
+    }
+
+    @Test func `cron settings scopes schedule action errors to the affected schedule`() {
+        let store = CronJobsStore(isPreview: true)
+        store.actionError = "Could not pause schedule."
+        store.actionErrorJobId = "job-2"
+
+        #expect(store.actionError(for: "job-1") == nil)
+        #expect(store.actionError(for: "job-2") == "Could not pause schedule.")
     }
 }

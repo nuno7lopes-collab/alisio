@@ -11,43 +11,26 @@ extension CronSettings {
             return .loading
         }
 
-        if let error = self.trimmedLastError {
+        if let error = self.trimmedJobsError {
             return .error(error)
         }
 
         return .empty(self.trimmedStatusMessage ?? "No schedules exist yet.")
     }
 
-    var selectedJob: CronJob? {
-        guard let id = self.store.selectedJobId else { return nil }
-        return self.store.jobs.first(where: { $0.id == id })
+    var trimmedJobsError: String? {
+        let trimmed = self.store.jobsError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
-    var trimmedLastError: String? {
-        let trimmed = self.store.lastError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    var trimmedActionError: String? {
+        let trimmed = self.store.actionError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
     }
 
     var trimmedStatusMessage: String? {
-        let trimmed = self.store.statusMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let trimmed = self.store.jobsStatusMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    func ensureSelection() {
-        guard !self.store.jobs.isEmpty else {
-            self.store.selectedJobId = nil
-            self.store.runEntries = []
-            self.store.hasLoadedRunsOnce = false
-            return
-        }
-
-        if let selectedJobId = self.store.selectedJobId,
-           self.store.jobs.contains(where: { $0.id == selectedJobId })
-        {
-            return
-        }
-
-        self.store.selectedJobId = self.store.jobs.first?.id
     }
 
     func statusTint(_ status: String?) -> Color {
@@ -55,6 +38,9 @@ extension CronSettings {
         case "ok": .green
         case "error": .red
         case "skipped": .orange
+        case "delivered": .green
+        case "not-delivered": .red
+        case "not-requested": .secondary
         default: .secondary
         }
     }
@@ -67,6 +53,12 @@ extension CronSettings {
             "error"
         case "skipped":
             "skipped"
+        case "delivered":
+            "delivered"
+        case "not-delivered":
+            "delivery failed"
+        case "not-requested":
+            "not requested"
         case "":
             "unknown"
         default:
@@ -105,9 +97,13 @@ extension CronSettings {
             return "once at \(at)"
         case let .every(everyMs, _):
             return "every \(self.formatDuration(ms: everyMs))"
-        case let .cron(expr, tz):
-            if let tz, !tz.isEmpty { return "cron \(expr) (\(tz))" }
-            return "cron \(expr)"
+        case let .cron(expr, tz, staggerMs):
+            var parts = ["advanced \(expr)"]
+            if let tz, !tz.isEmpty { parts.append("(\(tz))") }
+            if let staggerMs, staggerMs > 0 {
+                parts.append("stagger \(self.formatDuration(ms: staggerMs))")
+            }
+            return parts.joined(separator: " ")
         }
     }
 

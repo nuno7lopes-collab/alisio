@@ -19,6 +19,7 @@ final class EntryFlowModel {
 
     init(handlers: EntryFlowHandlers) {
         self.handlers = handlers
+        self.intent = .signIn
     }
 
     var isBusy: Bool {
@@ -29,10 +30,14 @@ final class EntryFlowModel {
         !self.history.isEmpty && !self.isBusy
     }
 
+    var selectedIntent: EntryFlowIntent {
+        self.intent ?? .signIn
+    }
+
     func restart() {
         self.history.removeAll()
         self.screen = .welcome
-        self.intent = nil
+        self.intent = .signIn
         self.activeProvider = nil
         self.emailDelivery = nil
         self.externalAuthSession = nil
@@ -42,6 +47,11 @@ final class EntryFlowModel {
         self.draft = EntryFlowDraft()
     }
 
+    func selectIntent(_ intent: EntryFlowIntent) {
+        self.intent = intent
+        self.errorMessage = nil
+    }
+
     func goBack() {
         guard self.canGoBack, let previous = self.history.popLast() else { return }
         self.errorMessage = nil
@@ -49,12 +59,12 @@ final class EntryFlowModel {
     }
 
     func showSignIn() {
-        self.intent = .signIn
+        self.selectIntent(.signIn)
         self.show(.signIn)
     }
 
     func showCreateAccount() {
-        self.intent = .createAccount
+        self.selectIntent(.createAccount)
         self.show(.createAccount)
     }
 

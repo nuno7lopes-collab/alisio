@@ -14,6 +14,22 @@ public struct AlisioChatAssistantIdentity: Equatable, Sendable {
     }
 }
 
+public struct AlisioChatVoiceControl {
+    public let isActive: Bool
+    public let label: String
+    public let onToggle: @MainActor () -> Void
+
+    public init(
+        isActive: Bool,
+        label: String,
+        onToggle: @escaping @MainActor () -> Void)
+    {
+        self.isActive = isActive
+        self.label = label
+        self.onToggle = onToggle
+    }
+}
+
 @MainActor
 public struct AlisioChatView: View {
     public enum Style {
@@ -37,6 +53,8 @@ public struct AlisioChatView: View {
     private let assistantIdentity: AlisioChatAssistantIdentity
     private let autoloadOnAppear: Bool
     private let headerAccessory: AnyView?
+    private let onOpenApps: (@MainActor () -> Void)?
+    private let voiceControl: AlisioChatVoiceControl?
 
     private enum Layout {
         #if os(macOS)
@@ -133,7 +151,9 @@ public struct AlisioChatView: View {
         userAccent: Color? = nil,
         showsAssistantTrace: Bool = false,
         autoloadOnAppear: Bool = true,
-        headerAccessory: AnyView? = nil)
+        headerAccessory: AnyView? = nil,
+        onOpenApps: (@MainActor () -> Void)? = nil,
+        voiceControl: AlisioChatVoiceControl? = nil)
     {
         self._viewModel = State(initialValue: viewModel)
         self.showsSessionSwitcher = showsSessionSwitcher
@@ -144,6 +164,8 @@ public struct AlisioChatView: View {
         self.showsAssistantTrace = showsAssistantTrace
         self.autoloadOnAppear = autoloadOnAppear
         self.headerAccessory = headerAccessory
+        self.onOpenApps = onOpenApps
+        self.voiceControl = voiceControl
     }
 
     public var body: some View {
@@ -193,7 +215,8 @@ public struct AlisioChatView: View {
         AlisioChatComposer(
             viewModel: self.viewModel,
             style: self.style,
-            showsSessionSwitcher: self.showsSessionSwitcher)
+            showsSessionSwitcher: self.showsSessionSwitcher,
+            voiceControl: self.voiceControl)
     }
 
     private var showsSessionHeader: Bool {
@@ -324,6 +347,11 @@ public struct AlisioChatView: View {
                 self.composer
                     .frame(maxWidth: self.homeComposerMaxWidth)
 
+                if self.showsHomeActions {
+                    self.homeActions
+                        .frame(maxWidth: 920)
+                }
+
                 if !self.resumeCandidates.isEmpty {
                     self.homeResumeSection
                         .frame(maxWidth: 920)
@@ -355,6 +383,94 @@ public struct AlisioChatView: View {
             }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private var showsHomeActions: Bool {
+        self.viewModel.canCreateSession ||
+            self.mainResumeCandidate != nil ||
+            self.onOpenApps != nil ||
+            self.showsSessionSwitcher
+    }
+
+    private var homeActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                self.homeActionButtons
+            }
+
+            VStack(spacing: 10) {
+                self.homeActionButtons
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var homeActionButtons: some View {
+        if self.viewModel.canCreateSession {
+            self.homeActionButton(
+                title: "New chat",
+                systemImage: "square.and.pencil",
+                tint: Color.accentColor)
+            {
+                self.viewModel.newChat()
+            }
+        }
+
+        if let mainResumeCandidate {
+            self.homeActionButton(
+                title: "Resume context",
+                systemImage: "arrow.clockwise.circle",
+                tint: Color(chatHex: 0x7A8CFF))
+            {
+                self.viewModel.switchSession(to: mainResumeCandidate.key)
+            }
+            .disabled(!self.viewModel.canSwitchSessions)
+        }
+
+        if let onOpenApps {
+            self.homeActionButton(
+                title: "Open apps",
+                systemImage: "square.grid.2x2",
+                tint: Color(chatHex: 0x8FD17B),
+                action: onOpenApps)
+        }
+
+        if self.showsSessionSwitcher {
+            self.homeActionButton(
+                title: "Choose chat",
+                systemImage: "list.bullet.rectangle",
+                tint: Color(chatHex: 0x8F95A3))
+            {
+                self.showSessions = true
+            }
+        }
+    }
+
+    private var mainResumeCandidate: AlisioChatSessionEntry? {
+        self.resumeCandidates.first(where: self.viewModel.isMainSession(_:))
+    }
+
+    private func homeActionButton(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void) -> some View
+    {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(tint)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(tint.opacity(0.12))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(tint.opacity(0.18), lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
     }
 
     private func homeShortcutLabel(text: String) -> some View {

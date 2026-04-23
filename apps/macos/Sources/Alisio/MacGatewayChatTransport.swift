@@ -92,6 +92,12 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
             thinkingLevel: .set(thinkingLevel))
     }
 
+    func renameSession(sessionKey: String, displayName: String?) async throws {
+        try await GatewayConnection.shared.sessionsPatch(
+            key: sessionKey,
+            displayName: displayName.map(GatewayConnection.SessionPatchValue.set) ?? .clear)
+    }
+
     func requestHealth(timeoutMs: Int) async throws -> Bool {
         try await GatewayConnection.shared.healthOK(timeoutMs: timeoutMs)
     }

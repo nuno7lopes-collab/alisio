@@ -88,6 +88,7 @@ private func makeViewModel(
     resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     deleteSessionHook: (@Sendable (String) async throws -> Void)? = nil,
+    renameSessionHook: (@Sendable (String, String?) async throws -> Void)? = nil,
     createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)? = nil,
     setSessionModelHook: (@Sendable (String?) async throws -> Void)? = nil,
     setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil,
@@ -110,6 +111,7 @@ private func makeViewModel(
         resetSessionHook: resetSessionHook,
         compactSessionHook: compactSessionHook,
         deleteSessionHook: deleteSessionHook,
+        renameSessionHook: renameSessionHook,
         createSessionHook: createSessionHook,
         setSessionModelHook: setSessionModelHook,
         sendMessageHook: sendMessageHook,
@@ -261,6 +263,7 @@ private actor AsyncCounter {
 }
 
 private actor TestChatTransportState {
+    var renamedSessions: [SessionRenameCall] = []
     var historyCallCount: Int = 0
     var sessionsCallCount: Int = 0
     var modelsCallCount: Int = 0
@@ -277,6 +280,11 @@ private actor TestChatTransportState {
     var patchedThinkingLevels: [String] = []
 }
 
+private struct SessionRenameCall: Equatable, Sendable {
+    let sessionKey: String
+    let displayName: String?
+}
+
 private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport {
     private let state = TestChatTransportState()
     private let historyResponses: [AlisioChatHistoryPayload]
@@ -287,6 +295,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     private let resetSessionHook: (@Sendable (String) async throws -> Void)?
     private let compactSessionHook: (@Sendable (String) async throws -> Void)?
     private let deleteSessionHook: (@Sendable (String) async throws -> Void)?
+    private let renameSessionHook: (@Sendable (String, String?) async throws -> Void)?
     private let createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)?
     private let setSessionModelHook: (@Sendable (String?) async throws -> Void)?
     private let sendMessageHook: (@Sendable (
@@ -309,6 +318,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         deleteSessionHook: (@Sendable (String) async throws -> Void)? = nil,
+        renameSessionHook: (@Sendable (String, String?) async throws -> Void)? = nil,
         createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)? = nil,
         setSessionModelHook: (@Sendable (String?) async throws -> Void)? = nil,
         sendMessageHook: (@Sendable (
@@ -327,6 +337,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         self.resetSessionHook = resetSessionHook
         self.compactSessionHook = compactSessionHook
         self.deleteSessionHook = deleteSessionHook
+        self.renameSessionHook = renameSessionHook
         self.createSessionHook = createSessionHook
         self.setSessionModelHook = setSessionModelHook
         self.sendMessageHook = sendMessageHook
@@ -448,6 +459,13 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         }
     }
 
+    func renameSession(sessionKey: String, displayName: String?) async throws {
+        await self.state.renamedSessionsAppend(.init(sessionKey: sessionKey, displayName: displayName))
+        if let renameSessionHook = self.renameSessionHook {
+            try await renameSessionHook(sessionKey, displayName)
+        }
+    }
+
     func setSessionThinking(sessionKey _: String, thinkingLevel: String) async throws {
         await self.state.patchedThinkingLevelsAppend(thinkingLevel)
         if let setSessionThinkingHook = self.setSessionThinkingHook {
@@ -507,9 +525,17 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     func listSessionQueries() async -> [AlisioChatSessionsQuery] {
         await self.state.listSessionQueries
     }
+
+    func renamedSessions() async -> [SessionRenameCall] {
+        await self.state.renamedSessions
+    }
 }
 
 extension TestChatTransportState {
+    fileprivate func renamedSessionsAppend(_ value: SessionRenameCall) {
+        self.renamedSessions.append(value)
+    }
+
     fileprivate func setHistoryCallCount(_ v: Int) {
         self.historyCallCount = v
     }
@@ -2203,6 +2229,42 @@ Hello?
         #expect(await MainActor.run { vm.errorText } == nil)
     }
 
+    @Test func sendDoesNotStayStuckWhenTerminalEventArrivesBeforeAccept() async throws {
+        let sessionId = "sess-main"
+        let history = historyPayload(sessionId: sessionId)
+        let gate = AsyncGate()
+        let (transport, vm) = await makeViewModel(
+            historyResponses: [history, history],
+            sendMessageHook: { _, _, _, idempotencyKey, _ in
+                await gate.wait()
+                return AlisioChatSendResponse(runId: idempotencyKey, status: "ok")
+            })
+        try await loadAndWaitBootstrap(vm: vm, sessionId: sessionId)
+
+        await sendUserMessage(vm)
+        try await waitUntil("dispatching run tracked") { await MainActor.run { vm.pendingRunCount == 1 } }
+
+        let runId = try #require(await transport.lastSentRunId())
+        transport.emit(
+            .chat(
+                AlisioChatEventPayload(
+                    runId: runId,
+                    sessionKey: "main",
+                    state: "final",
+                    message: nil,
+                    errorMessage: nil)))
+        try await waitUntil("terminal event clears pending run") {
+            await MainActor.run { vm.pendingRunCount == 0 }
+        }
+
+        await gate.open()
+
+        try await waitUntil("sending state clears after early terminal event") {
+            await MainActor.run { vm.isSending == false }
+        }
+        #expect(await MainActor.run { vm.errorText } == nil)
+    }
+
     @Test func abortWithoutActiveRunShowsHonestError() async throws {
         let (_, vm) = await makeViewModel(historyResponses: [historyPayload()])
         try await loadAndWaitBootstrap(vm: vm)
@@ -2210,6 +2272,126 @@ Hello?
         await MainActor.run { vm.abort() }
 
         #expect(await MainActor.run { vm.errorText } == "There is no active reply to stop.")
+    }
+
+    @Test func renameSessionPersistsAndUpdatesVisibleTitle() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let initialSessions = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+                sessionEntry(key: "other", updatedAt: now - 1_000),
+            ])
+        let renamedSessions = AlisioChatSessionsListResponse(
+            ts: now + 1,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+                sessionEntry(key: "other", updatedAt: now + 500, displayName: "Deep work"),
+            ])
+
+        let (transport, vm) = await makeViewModel(
+            historyResponses: [historyPayload()],
+            sessionsResponses: [initialSessions, renamedSessions])
+        try await loadAndWaitBootstrap(vm: vm)
+        try await waitUntil("sessions loaded") {
+            await MainActor.run { vm.sessionChoices.count == 2 }
+        }
+
+        let renamed = await vm.renameSessionAndWait(sessionKey: "other", displayName: "  Deep work  ")
+
+        #expect(renamed)
+        #expect(await transport.renamedSessions() == [.init(sessionKey: "other", displayName: "Deep work")])
+        try await waitUntil("visible title updated") {
+            await MainActor.run { vm.sessionTitle(forKey: "other") == "Deep work" }
+        }
+    }
+
+    @Test func clearingCustomChatTitleFallsBackToServerTitle() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let initialSessions = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+                AlisioChatSessionEntry(
+                    key: "other",
+                    kind: nil,
+                    label: nil,
+                    displayName: "Launch prep",
+                    derivedTitle: nil,
+                    lastMessagePreview: nil,
+                    surface: nil,
+                    subject: "Quarterly planning",
+                    room: nil,
+                    space: nil,
+                    updatedAt: now - 1_000,
+                    sessionId: nil,
+                    systemSent: nil,
+                    abortedLastRun: nil,
+                    thinkingLevel: nil,
+                    verboseLevel: nil,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    modelProvider: nil,
+                    model: nil,
+                    contextTokens: nil),
+            ])
+        let clearedSessions = AlisioChatSessionsListResponse(
+            ts: now + 1,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+                AlisioChatSessionEntry(
+                    key: "other",
+                    kind: nil,
+                    label: nil,
+                    displayName: nil,
+                    derivedTitle: nil,
+                    lastMessagePreview: nil,
+                    surface: nil,
+                    subject: "Quarterly planning",
+                    room: nil,
+                    space: nil,
+                    updatedAt: now + 500,
+                    sessionId: nil,
+                    systemSent: nil,
+                    abortedLastRun: nil,
+                    thinkingLevel: nil,
+                    verboseLevel: nil,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    modelProvider: nil,
+                    model: nil,
+                    contextTokens: nil),
+            ])
+
+        let (transport, vm) = await makeViewModel(
+            historyResponses: [historyPayload()],
+            sessionsResponses: [initialSessions, clearedSessions])
+        try await loadAndWaitBootstrap(vm: vm)
+        try await waitUntil("sessions loaded") {
+            await MainActor.run { vm.sessionTitle(forKey: "other") == "Launch prep" }
+        }
+
+        let cleared = await vm.renameSessionAndWait(sessionKey: "other", displayName: nil)
+
+        #expect(cleared)
+        #expect(await transport.renamedSessions() == [.init(sessionKey: "other", displayName: nil)])
+        try await waitUntil("custom title cleared") {
+            await MainActor.run { vm.sessionTitle(forKey: "other") == "Quarterly planning" }
+        }
     }
 
     @Test func previewStateFlagsFirstMessagePhaseWhenOnlyUserTurnExists() async {

@@ -8,6 +8,7 @@ import AlisioSupport
 final class WorkspaceNavigationState {
     enum Route: String, CaseIterable, Identifiable {
         case chat
+        case memory
         case apps
         case schedules
         case capabilities

@@ -31,6 +31,7 @@ struct WorkspaceNavigationStateTests {
     @Test func `workspace routes expose the canonical shell tabs`() {
         #expect(WorkspaceNavigationState.Route.allCases.map(\.rawValue) == [
             "chat",
+            "memory",
             "apps",
             "schedules",
             "capabilities",
@@ -40,6 +41,7 @@ struct WorkspaceNavigationStateTests {
     }
 
     @Test func `workspace routes expose final tab labels`() {
+        #expect(WorkspaceNavigationState.Route.memory.workspaceTitle == "Memory")
         #expect(WorkspaceNavigationState.Route.schedules.workspaceTitle == "Schedules")
         #expect(WorkspaceNavigationState.Route.capabilities.workspaceTitle == "Capabilities")
     }

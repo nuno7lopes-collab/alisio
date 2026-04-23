@@ -2,7 +2,7 @@ import SwiftUI
 import Observation
 
 import AlisioSupport
-struct ChannelsSettings: View {
+struct AppsSettings: View {
     @Bindable var store: AppsSettingsStore
     @State var selectedAppID: String?
 

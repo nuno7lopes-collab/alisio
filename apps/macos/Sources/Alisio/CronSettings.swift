@@ -10,8 +10,26 @@ struct CronSettings: View {
         case list
     }
 
+    enum DisplayMode: String, CaseIterable, Identifiable {
+        case list
+        case week
+        case month
+
+        var id: String { self.rawValue }
+
+        var label: String {
+            switch self {
+            case .list: "List"
+            case .week: "Week"
+            case .month: "Month"
+            }
+        }
+    }
+
     @Bindable var store: CronJobsStore
     @Bindable var channelsStore: ChannelsStore
+    @State var displayMode: DisplayMode = .list
+    @State var calendarReferenceDate = Date()
     @State var showEditor = false
     @State var editingJob: CronJob?
     @State var editorError: String?

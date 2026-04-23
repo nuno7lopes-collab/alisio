@@ -18,7 +18,7 @@ struct CronJobEditor: View {
         "The main session posts into the main chat. "
             + "Current and isolated sessions run agent work and can announce the result to a channel."
     static let scheduleKindNote =
-        "Once runs at a specific time. Every repeats on an interval. Cron uses an advanced 5-field expression."
+        "Once runs at a specific time. Every repeats on an interval. Advanced uses a cron expression."
     static let isolatedPayloadNote =
         "Isolated sessions always run an agent task. You can announce a summary to a channel."
     static let mainPayloadNote =
@@ -41,6 +41,7 @@ struct CronJobEditor: View {
     @State var everyText: String = "1h"
     @State var cronExpr: String = "0 9 * * 3"
     @State var cronTz: String = ""
+    @State var cronStaggerMs: Int?
 
     enum PayloadKind: String, CaseIterable, Identifiable { case systemEvent, agentTurn; var id: String {
         rawValue
@@ -70,7 +71,7 @@ struct CronJobEditor: View {
     }
 
     func channelLabel(for id: String) -> String {
-        if id == "last" { return "último usado" }
+        if id == "last" { return "last used" }
         return self.channelsStore.resolveChannelLabel(id)
     }
 
@@ -108,7 +109,7 @@ struct CronJobEditor: View {
                                     .frame(maxWidth: .infinity)
                             }
                             GridRow {
-                                self.gridLabel("Enabled")
+                                self.gridLabel("Active")
                                 Toggle("", isOn: self.$enabled)
                                     .labelsHidden()
                                     .toggleStyle(.switch)
@@ -153,7 +154,7 @@ struct CronJobEditor: View {
                                 Picker("", selection: self.$scheduleKind) {
                                     Text("once").tag(ScheduleKind.at)
                                     Text("every").tag(ScheduleKind.every)
-                                    Text("cron").tag(ScheduleKind.cron)
+                                    Text("advanced").tag(ScheduleKind.cron)
                                 }
                                 .labelsHidden()
                                 .pickerStyle(.segmented)

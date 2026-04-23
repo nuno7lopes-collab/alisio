@@ -190,6 +190,14 @@ public final class AlisioChatViewModel {
         Task { await self.performDeleteSession(sessionKey: sessionKey) }
     }
 
+    public func renameSession(sessionKey: String, displayName: String?) {
+        Task { _ = await self.performRenameSession(sessionKey: sessionKey, displayName: displayName) }
+    }
+
+    public func renameSessionAndWait(sessionKey: String, displayName: String?) async -> Bool {
+        await self.performRenameSession(sessionKey: sessionKey, displayName: displayName)
+    }
+
     public func refreshSessions(search: String? = nil, limit: Int? = nil) {
         let trimmedSearch = search?.trimmingCharacters(in: .whitespacesAndNewlines)
         let query = AlisioChatSessionsQuery(
@@ -305,6 +313,17 @@ public final class AlisioChatViewModel {
 
     public func canDeleteSession(_ session: AlisioChatSessionEntry) -> Bool {
         !self.isMainSession(session) &&
+            !self.isMutatingSession(session) &&
+            !self.isCreatingSession &&
+            !self.isSending &&
+            self.pendingRuns.isEmpty &&
+            !self.isAborting &&
+            !self.hasPendingModelPatches(key: session.key)
+    }
+
+    public func canRenameSession(_ session: AlisioChatSessionEntry) -> Bool {
+        !self.isMainSession(session) &&
+            !self.isLoading &&
             !self.isMutatingSession(session) &&
             !self.isCreatingSession &&
             !self.isSending &&
@@ -873,6 +892,7 @@ public final class AlisioChatViewModel {
         }
 
         self.isSending = true
+        defer { self.isSending = false }
         self.errorText = nil
         let runId = UUID().uuidString
         let messageText = trimmed.isEmpty && !self.attachments.isEmpty ? "See attached." : trimmed
@@ -961,8 +981,6 @@ public final class AlisioChatViewModel {
                 fallback: "Your message could not be sent. Try again.")
             chatUILogger.error("chat.send failed \(error.localizedDescription, privacy: .public)")
         }
-
-        self.isSending = false
     }
 
     private func performAbort() async {
@@ -1495,6 +1513,58 @@ public final class AlisioChatViewModel {
         }
     }
 
+    private func performRenameSession(sessionKey rawSessionKey: String, displayName rawDisplayName: String?) async -> Bool {
+        let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionKey.isEmpty else { return false }
+
+        let session = self.matchingSession(forKey: sessionKey) ?? self.placeholderSession(key: sessionKey)
+        guard self.canRenameSession(session) else {
+            self.sessionActionErrorText = self.isMainSession(session)
+                ? "Main chat keeps its canonical title."
+                : "Wait for the current work to finish before renaming a chat."
+            return false
+        }
+
+        let displayName: String? = {
+            let trimmed = rawDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? nil : trimmed
+        }()
+        let currentDisplayName: String? = {
+            let trimmed = session.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? nil : trimmed
+        }()
+        if currentDisplayName == displayName {
+            self.sessionActionErrorText = nil
+            return true
+        }
+
+        guard let mutationIdentity = self.beginSessionMutation(for: sessionKey) else { return false }
+        let isCurrentSession = self.sessionKeysMatch(sessionKey, self.sessionKey)
+        self.sessionActionErrorText = nil
+        if isCurrentSession {
+            self.errorText = nil
+        }
+        defer { self.endSessionMutation(identity: mutationIdentity) }
+
+        do {
+            try await self.transport.renameSession(sessionKey: sessionKey, displayName: displayName)
+        } catch {
+            let message = self.presentableErrorMessage(
+                for: error,
+                fallback: "This chat title could not be updated.")
+            if isCurrentSession {
+                self.errorText = message
+            }
+            self.sessionActionErrorText = message
+            chatUILogger.error("session rename failed \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+
+        self.updateSessionDisplayName(displayName, sessionKey: sessionKey)
+        await self.refreshSessionsPreservingQuery()
+        return true
+    }
+
     private func performSelectThinkingLevel(_ level: String, requestID: UInt64) async {
         let next = Self.normalizedThinkingLevel(level) ?? "off"
         guard next != self.thinkingLevel else { return }
@@ -1775,6 +1845,64 @@ public final class AlisioChatViewModel {
         if syncSelection {
             self.syncSelectedModel()
         }
+    }
+
+    private func updateSessionDisplayName(_ displayName: String?, sessionKey: String) {
+        if let index = self.sessions.firstIndex(where: {
+            self.sessionKeysMatch($0.key, sessionKey)
+        }) {
+            let current = self.sessions[index]
+            self.sessions[index] = AlisioChatSessionEntry(
+                key: current.key,
+                kind: current.kind,
+                label: current.label,
+                displayName: displayName,
+                derivedTitle: current.derivedTitle,
+                lastMessagePreview: current.lastMessagePreview,
+                surface: current.surface,
+                subject: current.subject,
+                room: current.room,
+                space: current.space,
+                updatedAt: current.updatedAt,
+                sessionId: current.sessionId,
+                systemSent: current.systemSent,
+                abortedLastRun: current.abortedLastRun,
+                thinkingLevel: current.thinkingLevel,
+                verboseLevel: current.verboseLevel,
+                inputTokens: current.inputTokens,
+                outputTokens: current.outputTokens,
+                totalTokens: current.totalTokens,
+                modelProvider: current.modelProvider,
+                model: current.model,
+                contextTokens: current.contextTokens)
+            return
+        }
+
+        let placeholder = self.placeholderSession(key: sessionKey)
+        self.sessions.append(
+            AlisioChatSessionEntry(
+                key: placeholder.key,
+                kind: placeholder.kind,
+                label: placeholder.label,
+                displayName: displayName,
+                derivedTitle: placeholder.derivedTitle,
+                lastMessagePreview: placeholder.lastMessagePreview,
+                surface: placeholder.surface,
+                subject: placeholder.subject,
+                room: placeholder.room,
+                space: placeholder.space,
+                updatedAt: placeholder.updatedAt,
+                sessionId: placeholder.sessionId,
+                systemSent: placeholder.systemSent,
+                abortedLastRun: placeholder.abortedLastRun,
+                thinkingLevel: placeholder.thinkingLevel,
+                verboseLevel: placeholder.verboseLevel,
+                inputTokens: placeholder.inputTokens,
+                outputTokens: placeholder.outputTokens,
+                totalTokens: placeholder.totalTokens,
+                modelProvider: placeholder.modelProvider,
+                model: placeholder.model,
+                contextTokens: placeholder.contextTokens))
     }
 
     private func handleTransportEvent(_ evt: AlisioChatTransportEvent) {
@@ -2241,6 +2369,7 @@ private struct PreviewChatTransport: AlisioChatTransport {
 
     func setSessionModel(sessionKey _: String, model _: String?) async throws {}
     func setSessionThinking(sessionKey _: String, thinkingLevel _: String) async throws {}
+    func renameSession(sessionKey _: String, displayName _: String?) async throws {}
     func requestHealth(timeoutMs _: Int) async throws -> Bool { true }
     func events() -> AsyncStream<AlisioChatTransportEvent> { AsyncStream { _ in } }
     func deleteSession(sessionKey _: String) async throws {}

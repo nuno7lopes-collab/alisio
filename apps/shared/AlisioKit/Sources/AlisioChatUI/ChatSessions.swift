@@ -170,8 +170,8 @@ public enum AlisioChatSessionPresentation {
         mainSessionKey: String? = nil) -> String
     {
         let candidates = [
-            session.derivedTitle,
             session.displayName,
+            session.derivedTitle,
             session.label,
             session.subject,
             session.room,

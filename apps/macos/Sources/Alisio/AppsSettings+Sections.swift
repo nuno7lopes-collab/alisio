@@ -1,7 +1,7 @@
 import SwiftUI
 
 import AlisioSupport
-extension ChannelsSettings {
+extension AppsSettings {
     func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         GroupBox(title) {
             VStack(alignment: .leading, spacing: 10) {
@@ -122,7 +122,16 @@ extension ChannelsSettings {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(self.store.connectorIsBusy(capability.id))
+            .disabled(self.store.appConnectionIsBusy(capability.id))
+        } else if capability.status == .authError {
+            Button {
+                Task { await self.store.performAction(for: capability) }
+            } label: {
+                self.capabilityActionLabel(for: capability)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(self.store.appConnectionIsBusy(capability.id))
         } else {
             Button {
                 Task { await self.store.performAction(for: capability) }
@@ -131,19 +140,19 @@ extension ChannelsSettings {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(self.store.connectorIsBusy(capability.id))
+            .disabled(self.store.appConnectionIsBusy(capability.id))
         }
     }
 
     @ViewBuilder
     private func capabilityActionLabel(for capability: AppIntegrationCapability) -> some View {
-        if self.store.connectorIsBusy(capability.id) {
+        if self.store.appConnectionIsBusy(capability.id) {
             ProgressView().controlSize(.small)
         } else {
             switch capability.status {
-            case .connected, .needsReconnect:
+            case .connected, .needsReconnect, .authError:
                 Text(capability.status.actionTitle)
-            case .setupRequired, .ready:
+            case .disconnected:
                 Text(capability.connectLabel)
             }
         }

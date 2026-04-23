@@ -55,7 +55,7 @@ struct CronModelsTests {
     }
 
     @Test func `schedule cron encodes and decodes with timezone`() throws {
-        let schedule = CronSchedule.cron(expr: "*/5 * * * *", tz: "Europe/Vienna")
+        let schedule = CronSchedule.cron(expr: "*/5 * * * *", tz: "Europe/Vienna", staggerMs: 30_000)
         let data = try JSONEncoder().encode(schedule)
         let decoded = try JSONDecoder().decode(CronSchedule.self, from: data)
         #expect(decoded == schedule)
@@ -120,7 +120,7 @@ struct CronModelsTests {
 
         var unnamed = base
         unnamed.name = "   "
-        #expect(unnamed.displayName == "Untitled job")
+        #expect(unnamed.displayName == "Untitled schedule")
     }
 
     @Test func `next run date and last run date derive from state`() {
@@ -150,6 +150,30 @@ struct CronModelsTests {
             lastDurationMs: nil)
 
         #expect(state.displayStatus == "error")
+    }
+
+    @Test func `cron job state decodes execution and delivery errors`() throws {
+        let json = """
+        {
+          "lastRunStatus": "error",
+          "lastError": "model timed out",
+          "lastErrorReason": "timeout",
+          "consecutiveErrors": 2,
+          "lastDeliveryStatus": "not-delivered",
+          "lastDeliveryError": "channel unavailable",
+          "lastDelivered": false
+        }
+        """
+
+        let state = try JSONDecoder().decode(CronJobState.self, from: Data(json.utf8))
+
+        #expect(state.displayStatus == "error")
+        #expect(state.lastError == "model timed out")
+        #expect(state.lastErrorReason == "timeout")
+        #expect(state.consecutiveErrors == 2)
+        #expect(state.lastDeliveryStatus == "not-delivered")
+        #expect(state.lastDeliveryError == "channel unavailable")
+        #expect(state.lastDelivered == false)
     }
 
     @Test func `decode cron list response skips malformed jobs`() throws {

@@ -35,10 +35,11 @@ extension CronJobEditor {
         case let .every(everyMs, _):
             self.scheduleKind = .every
             self.everyText = self.formatDuration(ms: everyMs)
-        case let .cron(expr, tz):
+        case let .cron(expr, tz, staggerMs):
             self.scheduleKind = .cron
             self.cronExpr = expr
             self.cronTz = tz ?? ""
+            self.cronStaggerMs = staggerMs
         }
 
         switch job.payload {
@@ -66,22 +67,22 @@ extension CronJobEditor {
     func save() {
         do {
             self.error = nil
-            let payload = try self.buildPayload()
-            self.onSave(payload)
+            let request = try self.buildRequest()
+            self.onSave(request)
         } catch {
             self.error = error.localizedDescription
         }
     }
 
-    func buildPayload() throws -> [String: AnyCodable] {
+    func buildRequest() throws -> [String: AnyCodable] {
         let name = try self.requireName()
         let description = self.trimmed(self.description)
         let agentId = self.trimmed(self.agentId)
         let schedule = try self.buildSchedule()
-        let payload = try self.buildSelectedPayload()
+        let action = try self.buildSelectedAction()
 
-        try self.validateSessionTarget(payload)
-        try self.validatePayloadRequiredFields(payload)
+        try self.validateSessionTarget(action)
+        try self.validateActionRequiredFields(action)
 
         var root: [String: Any] = [
             "name": name,
@@ -89,10 +90,14 @@ extension CronJobEditor {
             "schedule": schedule,
             "sessionTarget": self.effectiveSessionTargetRaw,
             "wakeMode": self.wakeMode.rawValue,
-            "payload": payload,
+            "payload": action,
         ]
         self.applyDeleteAfterRun(to: &root)
-        if !description.isEmpty { root["description"] = description }
+        if !description.isEmpty {
+            root["description"] = description
+        } else if self.job?.description != nil {
+            root["description"] = ""
+        }
         if !agentId.isEmpty {
             root["agentId"] = agentId
         } else if self.job?.agentId != nil {
@@ -156,29 +161,33 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "The cron expression is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The advanced expression is required."])
             }
             let tz = self.trimmed(self.cronTz)
-            if tz.isEmpty {
-                return ["kind": "cron", "expr": expr]
+            var schedule: [String: Any] = ["kind": "cron", "expr": expr]
+            if !tz.isEmpty {
+                schedule["tz"] = tz
             }
-            return ["kind": "cron", "expr": expr, "tz": tz]
+            if let staggerMs = self.cronStaggerMs {
+                schedule["staggerMs"] = staggerMs
+            }
+            return schedule
         }
     }
 
-    func buildSelectedPayload() throws -> [String: Any] {
-        if self.isIsolatedLikeSessionTarget { return self.buildAgentTurnPayload() }
+    func buildSelectedAction() throws -> [String: Any] {
+        if self.isIsolatedLikeSessionTarget { return self.buildAgentTurnAction() }
         switch self.payloadKind {
         case .systemEvent:
             let text = self.trimmed(self.systemEventText)
             return ["kind": "systemEvent", "text": text]
         case .agentTurn:
-            return self.buildAgentTurnPayload()
+            return self.buildAgentTurnAction()
         }
     }
 
-    func validateSessionTarget(_ payload: [String: Any]) throws {
-        if self.effectiveSessionTargetRaw == "main", payload["kind"] as? String == "agentTurn" {
+    func validateSessionTarget(_ action: [String: Any]) throws {
+        if self.effectiveSessionTargetRaw == "main", action["kind"] as? String == "agentTurn" {
             throw NSError(
                 domain: "Cron",
                 code: 0,
@@ -188,7 +197,7 @@ extension CronJobEditor {
                 ])
         }
 
-        if self.effectiveSessionTargetRaw != "main", payload["kind"] as? String == "systemEvent" {
+        if self.effectiveSessionTargetRaw != "main", action["kind"] as? String == "systemEvent" {
             throw NSError(
                 domain: "Cron",
                 code: 0,
@@ -196,17 +205,17 @@ extension CronJobEditor {
         }
     }
 
-    func validatePayloadRequiredFields(_ payload: [String: Any]) throws {
-        if payload["kind"] as? String == "systemEvent" {
-            if (payload["text"] as? String ?? "").isEmpty {
+    func validateActionRequiredFields(_ action: [String: Any]) throws {
+        if action["kind"] as? String == "systemEvent" {
+            if (action["text"] as? String ?? "").isEmpty {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
                     userInfo: [NSLocalizedDescriptionKey: "The chat note is required."])
             }
         }
-        if payload["kind"] as? String == "agentTurn" {
-            if (payload["message"] as? String ?? "").isEmpty {
+        if action["kind"] as? String == "agentTurn" {
+            if (action["message"] as? String ?? "").isEmpty {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
@@ -229,13 +238,13 @@ extension CronJobEditor {
         }
     }
 
-    func buildAgentTurnPayload() -> [String: Any] {
+    func buildAgentTurnAction() -> [String: Any] {
         let msg = self.agentMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-        var payload: [String: Any] = ["kind": "agentTurn", "message": msg]
+        var action: [String: Any] = ["kind": "agentTurn", "message": msg]
         let thinking = self.thinking.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !thinking.isEmpty { payload["thinking"] = thinking }
-        if let n = Int(self.timeoutSeconds), n > 0 { payload["timeoutSeconds"] = n }
-        return payload
+        if !thinking.isEmpty { action["thinking"] = thinking }
+        if let n = Int(self.timeoutSeconds), n > 0 { action["timeoutSeconds"] = n }
+        return action
     }
 
     static func parseDurationMs(_ input: String) -> Int? {

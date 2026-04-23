@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 import AlisioSupport
-extension ChannelsSettings {
+extension AppsSettings {
     var body: some View {
         HStack(spacing: 0) {
             self.sidebar
@@ -37,6 +37,20 @@ extension ChannelsSettings {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 6)
+                } else if self.store.apps.isEmpty, let error = self.store.lastError {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button("Retry") {
+                            Task { await self.store.refresh() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                    }
+                    .padding(.horizontal, 6)
                 } else if self.store.apps.isEmpty {
                     Text("No real app integrations are available on this runtime yet.")
                         .font(.caption)
@@ -52,15 +66,22 @@ extension ChannelsSettings {
                         }
 
                         if !self.attentionApps.isEmpty {
-                            self.sidebarSectionHeader(AppIntegrationGroup.Status.attention.sectionTitle)
+                            self.sidebarSectionHeader(AppIntegrationGroup.Status.needsAttention.sectionTitle)
                             ForEach(self.attentionApps) { app in
                                 self.sidebarRow(app)
                             }
                         }
 
-                        if !self.availableApps.isEmpty {
-                            self.sidebarSectionHeader(AppIntegrationGroup.Status.ready.sectionTitle)
-                            ForEach(self.availableApps) { app in
+                        if !self.authErrorApps.isEmpty {
+                            self.sidebarSectionHeader(AppIntegrationGroup.Status.authError.sectionTitle)
+                            ForEach(self.authErrorApps) { app in
+                                self.sidebarRow(app)
+                            }
+                        }
+
+                        if !self.disconnectedApps.isEmpty {
+                            self.sidebarSectionHeader(AppIntegrationGroup.Status.disconnected.sectionTitle)
+                            ForEach(self.disconnectedApps) { app in
                                 self.sidebarRow(app)
                             }
                         }
@@ -160,7 +181,7 @@ extension ChannelsSettings {
         } label: {
             HStack(spacing: 10) {
                 Circle()
-                    .fill(self.connectorTint(app.status))
+                    .fill(self.appStatusTint(app.status))
                     .frame(width: 8, height: 8)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -200,7 +221,7 @@ extension ChannelsSettings {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Label(app.title, systemImage: app.systemImage)
                     .font(.title3.weight(.semibold))
-                self.statusBadge(app.status.label, color: self.connectorTint(app.status))
+                self.statusBadge(app.status.label, color: self.appStatusTint(app.status))
                 Spacer()
                 self.detailHeaderActions(for: app)
             }

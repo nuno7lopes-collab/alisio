@@ -72,6 +72,9 @@ struct ChatSessionsSheet: View {
     @State private var pendingSwitchSessionKey: String?
     @State private var pendingNewChatSourceKey: String?
     @State private var pendingConfirmation: PendingConfirmation?
+    @State private var pendingRenameSession: AlisioChatSessionEntry?
+    @State private var renameDraft = ""
+    @State private var isSavingRename = false
 
     private var normalizedSearchText: String {
         self.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -109,6 +112,13 @@ struct ChatSessionsSheet: View {
                                     Button("Open Chat") {
                                         self.activate(session)
                                     }
+                                }
+
+                                if !self.viewModel.isMainSession(session) {
+                                    Button("Rename Chat") {
+                                        self.beginRename(session)
+                                    }
+                                    .disabled(!self.viewModel.canRenameSession(session))
                                 }
 
                                 Button("Reset Chat") {
@@ -246,6 +256,9 @@ struct ChatSessionsSheet: View {
                 guard !Task.isCancelled else { return }
                 self.reloadSessions()
             }
+            .sheet(item: self.$pendingRenameSession) { session in
+                self.renameSheet(for: session)
+            }
             .onChange(of: self.viewModel.sessionKey) { _, newValue in
                 if let pendingSwitchSessionKey,
                    self.viewModel.sessionKeysMatch(newValue, pendingSwitchSessionKey)
@@ -317,6 +330,26 @@ struct ChatSessionsSheet: View {
         self.viewModel.newChat()
     }
 
+    private func beginRename(_ session: AlisioChatSessionEntry) {
+        self.renameDraft = session.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? self.viewModel.sessionTitle(for: session)
+        self.pendingRenameSession = session
+    }
+
+    private func submitRename(for session: AlisioChatSessionEntry, displayName: String?) {
+        guard !self.isSavingRename else { return }
+        self.isSavingRename = true
+        Task {
+            let renamed = await self.viewModel.renameSessionAndWait(sessionKey: session.key, displayName: displayName)
+            await MainActor.run {
+                self.isSavingRename = false
+                if renamed {
+                    self.pendingRenameSession = nil
+                }
+            }
+        }
+    }
+
     private func confirm(_ confirmation: PendingConfirmation) {
         switch confirmation {
         case let .reset(session):
@@ -327,6 +360,77 @@ struct ChatSessionsSheet: View {
             self.viewModel.deleteSession(sessionKey: session.key)
         }
         self.pendingConfirmation = nil
+    }
+
+    private func renameSheet(for session: AlisioChatSessionEntry) -> some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Rename chat")
+                        .font(.title3.weight(.semibold))
+                    Text("Give this thread a clear title without changing the underlying session identity.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                TextField("Chat title", text: self.$renameDraft)
+                    .textFieldStyle(.roundedBorder)
+
+                if let actionMessage = self.viewModel.sessionActionErrorText,
+                   !actionMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                {
+                    Text(actionMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 12) {
+                    Button("Cancel") {
+                        self.pendingRenameSession = nil
+                    }
+                    .keyboardShortcut(.cancelAction)
+
+                    Spacer(minLength: 0)
+
+                    if let currentDisplayName = session.displayName?
+                        .trimmingCharacters(in: .whitespacesAndNewlines),
+                       !currentDisplayName.isEmpty
+                    {
+                        Button("Clear custom title") {
+                            self.submitRename(for: session, displayName: nil)
+                        }
+                        .disabled(self.isSavingRename || !self.viewModel.canRenameSession(session))
+                    }
+
+                    Button {
+                        let trimmed = self.renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        self.submitRename(for: session, displayName: trimmed)
+                    } label: {
+                        if self.isSavingRename {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Save")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(self.renameSaveDisabled(for: session))
+                    .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(20)
+            .frame(minWidth: 420, minHeight: 220, alignment: .topLeading)
+        }
+    }
+
+    private func renameSaveDisabled(for session: AlisioChatSessionEntry) -> Bool {
+        guard self.viewModel.canRenameSession(session), !self.isSavingRename else { return true }
+        let trimmed = self.renameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        let current = session.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed == current
     }
 }
 

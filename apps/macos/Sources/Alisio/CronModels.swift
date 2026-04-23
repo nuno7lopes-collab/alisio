@@ -66,9 +66,9 @@ struct CronDelivery: Codable, Equatable {
 enum CronSchedule: Codable, Equatable {
     case at(at: String)
     case every(everyMs: Int, anchorMs: Int?)
-    case cron(expr: String, tz: String?)
+    case cron(expr: String, tz: String?, staggerMs: Int?)
 
-    enum CodingKeys: String, CodingKey { case kind, at, atMs, everyMs, anchorMs, expr, tz }
+    enum CodingKeys: String, CodingKey { case kind, at, atMs, everyMs, anchorMs, expr, tz, staggerMs }
 
     var kind: String {
         switch self {
@@ -105,7 +105,8 @@ enum CronSchedule: Codable, Equatable {
         case "cron":
             self = try .cron(
                 expr: container.decode(String.self, forKey: .expr),
-                tz: container.decodeIfPresent(String.self, forKey: .tz))
+                tz: container.decodeIfPresent(String.self, forKey: .tz),
+                staggerMs: container.decodeIfPresent(Int.self, forKey: .staggerMs))
         default:
             throw DecodingError.dataCorruptedError(
                 forKey: .kind,
@@ -123,9 +124,10 @@ enum CronSchedule: Codable, Equatable {
         case let .every(everyMs, anchorMs):
             try container.encode(everyMs, forKey: .everyMs)
             try container.encodeIfPresent(anchorMs, forKey: .anchorMs)
-        case let .cron(expr, tz):
+        case let .cron(expr, tz, staggerMs):
             try container.encode(expr, forKey: .expr)
             try container.encodeIfPresent(tz, forKey: .tz)
+            try container.encodeIfPresent(staggerMs, forKey: .staggerMs)
         }
     }
 
@@ -220,7 +222,12 @@ struct CronJobState: Codable, Equatable {
     var lastStatus: String?
     var lastRunStatus: String?
     var lastError: String?
+    var lastErrorReason: String?
     var lastDurationMs: Int?
+    var consecutiveErrors: Int?
+    var lastDeliveryStatus: String?
+    var lastDeliveryError: String?
+    var lastDelivered: Bool?
 
     var displayStatus: String? {
         self.lastRunStatus ?? self.lastStatus
@@ -330,21 +337,6 @@ struct CronJob: Identifiable, Codable, Equatable {
         CronCustomSessionTarget.from(self.sessionTargetRaw)
     }
 
-    /// Compatibility shim for existing editor/UI code paths that still use the
-    /// predefined enum.
-    var sessionTarget: CronSessionTarget {
-        switch self.parsedSessionTarget {
-        case let .predefined(target):
-            target
-        case .session:
-            .isolated
-        }
-    }
-
-    var sessionTargetDisplayValue: String {
-        self.parsedSessionTarget.rawValue
-    }
-
     var transcriptSessionKey: String? {
         switch self.parsedSessionTarget {
         case .predefined(.main):
@@ -367,7 +359,7 @@ struct CronJob: Identifiable, Codable, Equatable {
 
     var displayName: String {
         let trimmed = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "Untitled job" : trimmed
+        return trimmed.isEmpty ? "Untitled schedule" : trimmed
     }
 
     var nextRunDate: Date? {
@@ -419,12 +411,4 @@ struct CronRunLogEntry: Codable, Identifiable {
         guard let runAtMs else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(runAtMs) / 1000)
     }
-}
-
-struct CronListResponse: Codable {
-    let jobs: [CronJob]
-}
-
-struct CronRunsResponse: Codable {
-    let entries: [CronRunLogEntry]
 }

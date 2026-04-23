@@ -11,7 +11,7 @@ extension CronSettings {
                     .truncationMode(.middle)
                 Spacer()
                 if !job.enabled {
-                    StatusPill(text: "disabled", tint: .secondary)
+                    StatusPill(text: "paused", tint: .secondary)
                 } else if let next = job.nextRunDate {
                     StatusPill(text: self.nextRunLabel(next), tint: .secondary)
                 } else {
@@ -41,7 +41,7 @@ extension CronSettings {
             }
         }
         Divider()
-        Button(job.enabled ? "Disable" : "Enable") {
+        Button(job.enabled ? "Pause" : "Resume") {
             Task { await self.store.setJobEnabled(id: job.id, enabled: !job.enabled) }
         }
         Button("Edit…") {
@@ -69,12 +69,17 @@ extension CronSettings {
             }
             Spacer()
             HStack(spacing: 8) {
-                Toggle("Enabled", isOn: Binding(
-                    get: { job.enabled },
-                    set: { enabled in Task { await self.store.setJobEnabled(id: job.id, enabled: enabled) } }))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                Button("Run") { Task { await self.store.runJob(id: job.id, force: true) } }
+                HStack(spacing: 6) {
+                    Text(job.enabled ? "Active" : "Paused")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("Active", isOn: Binding(
+                        get: { job.enabled },
+                        set: { enabled in Task { await self.store.setJobEnabled(id: job.id, enabled: enabled) } }))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                }
+                Button("Run now") { Task { await self.store.runJob(id: job.id, force: true) } }
                     .buttonStyle(.borderedProminent)
                 if let transcriptSessionKey = job.transcriptSessionKey {
                     Button("Session") {
@@ -94,6 +99,7 @@ extension CronSettings {
 
     func detailCard(_ job: CronJob) -> some View {
         VStack(alignment: .leading, spacing: 10) {
+            LabeledContent("Status") { Text(job.enabled ? "Active" : "Paused") }
             LabeledContent("Schedule") { Text(self.scheduleSummary(job.schedule)).font(.callout) }
             if case .at = job.schedule, job.deleteAfterRun == true {
                 LabeledContent("Delete after run") { Text("yes") }
@@ -123,13 +129,19 @@ extension CronSettings {
             if let status = job.state.displayStatus {
                 LabeledContent("Last status") { Text(self.statusLabel(status)) }
             }
-            if let err = job.state.lastError, !err.isEmpty {
-                Text(err)
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
-                    .textSelection(.enabled)
+            if let deliveryStatus = job.state.lastDeliveryStatus, !deliveryStatus.isEmpty {
+                LabeledContent("Last delivery") { Text(self.statusLabel(deliveryStatus)) }
             }
-            self.payloadSummary(job)
+            if let err = job.state.lastError, !err.isEmpty {
+                self.errorBlock(title: "Last run error", message: err)
+            }
+            if let deliveryError = job.state.lastDeliveryError, !deliveryError.isEmpty {
+                self.errorBlock(title: "Last delivery error", message: deliveryError)
+            }
+            if let actionError = self.store.actionError(for: job.id) {
+                self.errorBlock(title: "Schedule action failed", message: actionError)
+            }
+            self.actionSummary(job)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -149,20 +161,31 @@ extension CronSettings {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(.bordered)
-                .disabled(self.store.isLoadingRuns)
+                .disabled(self.store.isLoadingRuns(for: job.id))
             }
 
-            if self.store.isLoadingRuns {
-                ProgressView().controlSize(.small)
+            let entries = self.store.runEntries(for: job.id)
+            let isLoading = self.store.isLoadingRuns(for: job.id)
+            let loaded = self.store.hasLoadedRuns(for: job.id)
+
+            if isLoading {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading recent activity…")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            if self.store.runEntries.isEmpty, !self.store.isLoadingRuns, self.store.hasLoadedRunsOnce {
-                Text("No runs exist yet.")
+            if let error = self.store.runsError(for: job.id), !isLoading {
+                self.errorBlock(title: "Activity could not be loaded", message: error)
+            } else if entries.isEmpty, !isLoading, loaded {
+                Text(self.store.runsStatusMessage ?? "No recent activity yet.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-            } else if !self.store.runEntries.isEmpty {
+            } else if !entries.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(self.store.runEntries) { entry in
+                    ForEach(entries) { entry in
                         self.runRow(entry)
                     }
                 }
@@ -180,8 +203,8 @@ extension CronSettings {
                 StatusPill(text: self.statusLabel(entry.status), tint: self.statusTint(entry.status))
                 if let deliveryStatus = entry.deliveryStatus, !deliveryStatus.isEmpty {
                     StatusPill(
-                        text: deliveryStatus == "delivered" ? "delivered" : deliveryStatus,
-                        tint: deliveryStatus == "delivered" ? .green : .secondary)
+                        text: self.statusLabel(deliveryStatus),
+                        tint: self.statusTint(deliveryStatus))
                 }
                 Text(entry.date.formatted(date: .abbreviated, time: .standard))
                     .font(.caption)
@@ -201,30 +224,22 @@ extension CronSettings {
                     .lineLimit(2)
             }
             if let error = entry.error, !error.isEmpty {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .textSelection(.enabled)
-                    .lineLimit(2)
+                self.inlineErrorText("Run error: \(error)")
             }
             if let deliveryError = entry.deliveryError, !deliveryError.isEmpty {
-                Text(deliveryError)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .textSelection(.enabled)
-                    .lineLimit(2)
+                self.inlineErrorText("Delivery error: \(deliveryError)")
             }
         }
         .padding(.vertical, 4)
     }
 
-    func payloadSummary(_ job: CronJob) -> some View {
-        let payload = job.payload
+    func actionSummary(_ job: CronJob) -> some View {
+        let action = job.payload
         return VStack(alignment: .leading, spacing: 6) {
             Text("Action")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            switch payload {
+            switch action {
             case let .systemEvent(text):
                 Text(text)
                     .font(.callout)
@@ -259,5 +274,26 @@ extension CronSettings {
                 }
             }
         }
+    }
+
+    func errorBlock(title: String, message: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.orange)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    func inlineErrorText(_ message: String) -> some View {
+        Text(message)
+            .font(.caption)
+            .foregroundStyle(.orange)
+            .textSelection(.enabled)
+            .lineLimit(2)
     }
 }

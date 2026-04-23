@@ -563,6 +563,84 @@ private func makeTestGatewayConnection() -> GatewayConnection {
         }
     }
 
+    @Test @MainActor func `sessions patch request trims display name`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let captured = CapturedGatewayFrameStore()
+            let session = GatewayTestWebSocketSession(
+                taskFactory: {
+                    GatewayTestWebSocketTask(
+                        sendHook: { task, message, sendIndex in
+                            guard sendIndex > 0 else { return }
+                            guard let frame = gatewayRequestData(from: message) else { return }
+                            await captured.record(frame)
+                            guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                            task.emitReceiveSuccess(.data(GatewayWebSocketTestSupport.okResponseData(id: id)))
+                        },
+                        receiveHook: { task, receiveIndex in
+                            if receiveIndex == 0 {
+                                return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                            }
+                            let id = task.snapshotConnectRequestID() ?? "connect"
+                            return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                        })
+                })
+            let url = try #require(URL(string: "ws://example.invalid"))
+            let connection = GatewayConnection(
+                configProvider: { (url: url, token: nil, password: nil) },
+                sessionBox: WebSocketSessionBox(session: session))
+
+            try await connection.sessionsPatch(
+                key: "  other  ",
+                displayName: .set("  Deep work  "))
+
+            let frameData = try #require(await captured.snapshot())
+            let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+            #expect(frame["method"] as? String == GatewayConnection.Method.sessionsPatch.rawValue)
+            let params = try #require(frame["params"] as? [String: Any])
+            #expect(params["key"] as? String == "other")
+            #expect(params["displayName"] as? String == "Deep work")
+        }
+    }
+
+    @Test @MainActor func `sessions patch request clears display name`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let captured = CapturedGatewayFrameStore()
+            let session = GatewayTestWebSocketSession(
+                taskFactory: {
+                    GatewayTestWebSocketTask(
+                        sendHook: { task, message, sendIndex in
+                            guard sendIndex > 0 else { return }
+                            guard let frame = gatewayRequestData(from: message) else { return }
+                            await captured.record(frame)
+                            guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                            task.emitReceiveSuccess(.data(GatewayWebSocketTestSupport.okResponseData(id: id)))
+                        },
+                        receiveHook: { task, receiveIndex in
+                            if receiveIndex == 0 {
+                                return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                            }
+                            let id = task.snapshotConnectRequestID() ?? "connect"
+                            return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                        })
+                })
+            let url = try #require(URL(string: "ws://example.invalid"))
+            let connection = GatewayConnection(
+                configProvider: { (url: url, token: nil, password: nil) },
+                sessionBox: WebSocketSessionBox(session: session))
+
+            try await connection.sessionsPatch(
+                key: "other",
+                displayName: .clear)
+
+            let frameData = try #require(await captured.snapshot())
+            let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+            #expect(frame["method"] as? String == GatewayConnection.Method.sessionsPatch.rawValue)
+            let params = try #require(frame["params"] as? [String: Any])
+            #expect(params["key"] as? String == "other")
+            #expect(params["displayName"] is NSNull)
+        }
+    }
+
     @Test func `chat send rejects empty trimmed message`() async throws {
         let connection = makeTestGatewayConnection()
 

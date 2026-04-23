@@ -18,6 +18,7 @@ struct AlisioChatComposer: View {
     @Bindable var viewModel: AlisioChatViewModel
     let style: AlisioChatView.Style
     let showsSessionSwitcher: Bool
+    let voiceControl: AlisioChatVoiceControl?
 
     #if !os(macOS)
     @State private var pickerItems: [PhotosPickerItem] = []
@@ -39,6 +40,9 @@ struct AlisioChatComposer: View {
                     self.thinkingPicker
                     Spacer()
                     self.refreshButton
+                    if let voiceControl {
+                        self.toolbarVoiceButton(voiceControl)
+                    }
                     self.attachmentPicker
                 }
                 .padding(.horizontal, 10)
@@ -267,11 +271,36 @@ struct AlisioChatComposer: View {
     private var alisioLeadingControls: some View {
         HStack(spacing: 10) {
             self.alisioAttachmentButton
+            if let voiceControl {
+                self.alisioVoiceButton(voiceControl)
+            }
+            self.alisioThinkingMenu
             self.alisioBadge(systemName: "cpu", text: self.viewModel.activeModelLabel)
             if let status = self.alisioRuntimeStatus {
                 self.alisioBadge(systemName: status.icon, text: status.label, tint: status.tint)
             }
         }
+    }
+
+    private var alisioThinkingMenu: some View {
+        Menu {
+            ForEach(Self.menuThinkingLevels, id: \.self) { level in
+                Button {
+                    self.viewModel.selectThinkingLevel(level)
+                } label: {
+                    if self.viewModel.thinkingLevel == level {
+                        Label(Self.thinkingLabel(for: level), systemImage: "checkmark")
+                    } else {
+                        Text(Self.thinkingLabel(for: level))
+                    }
+                }
+            }
+        } label: {
+            self.alisioBadge(
+                systemName: "sparkles",
+                text: "Thinking \(self.viewModel.activeThinkingLevelLabel)")
+        }
+        .menuStyle(.borderlessButton)
     }
 
     private var alisioRuntimeStatus: (icon: String, label: String, tint: Color)? {
@@ -309,8 +338,36 @@ struct AlisioChatComposer: View {
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
     }
 
+    private func alisioVoiceButton(_ voiceControl: AlisioChatVoiceControl) -> some View {
+        Button {
+            voiceControl.onToggle()
+        } label: {
+            self.alisioBadge(
+                systemName: voiceControl.isActive ? "waveform.circle.fill" : "mic",
+                text: voiceControl.label,
+                tint: voiceControl.isActive ? .accentColor : Color(chatHex: 0x8F95A3))
+        }
+        .buttonStyle(.plain)
+        .help(voiceControl.label)
+    }
+
     private var activeSessionLabel: String {
         self.viewModel.currentSessionTitle
+    }
+
+    private static func thinkingLabel(for level: String) -> String {
+        switch level {
+        case "off":
+            "Thinking Off"
+        case "low":
+            "Thinking Low"
+        case "medium":
+            "Thinking Medium"
+        case "high":
+            "Thinking High"
+        default:
+            "Thinking \(level.capitalized)"
+        }
     }
 
     private var editorOverlay: some View {
@@ -403,6 +460,17 @@ struct AlisioChatComposer: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .help("Refresh")
+    }
+
+    private func toolbarVoiceButton(_ voiceControl: AlisioChatVoiceControl) -> some View {
+        Button {
+            voiceControl.onToggle()
+        } label: {
+            Image(systemName: voiceControl.isActive ? "waveform.circle.fill" : "mic")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(voiceControl.label)
     }
 
     private var showsToolbar: Bool {

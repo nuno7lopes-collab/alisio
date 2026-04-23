@@ -47,7 +47,7 @@ struct GatewayAgentInvocation {
 ///
 /// This owns exactly one `GatewayChannelActor` and reuses it across all callers
 /// (ControlChannel, debug actions, native workspace, etc.).
-actor GatewayConnection {
+actor GatewayConnection: AppsGatewayClient {
     static let shared = GatewayConnection()
     private static let operatorConnectScopes = [
         "operator.admin",
@@ -66,6 +66,9 @@ actor GatewayConnection {
         case systemEvent = "system-event"
         case health
         case channelsStatus = "channels.status"
+        case alisioProvidersGet = "alisio.providers.get"
+        case connectorsBegin = "connectors.begin"
+        case connectorsRevoke = "connectors.revoke"
         case configGet = "config.get"
         case configSet = "config.set"
         case configPatch = "config.patch"
@@ -721,10 +724,30 @@ extension GatewayConnection {
         return true
     }
 
+    // MARK: - Apps
+
+    func fetchAppsOverview(timeoutMs: Double = 8000) async throws -> GatewayProvidersAppsResponse {
+        try await self.requestDecoded(method: .alisioProvidersGet, timeoutMs: timeoutMs)
+    }
+
+    func beginAppConnection(appID: String, timeoutMs: Double = 8000) async throws -> GatewayConnectorBeginResult {
+        try await self.requestDecoded(
+            method: .connectorsBegin,
+            params: ["connectorId": AnyCodable(appID)],
+            timeoutMs: timeoutMs)
+    }
+
+    func revokeAppConnection(appID: String, timeoutMs: Double = 5000) async throws {
+        try await self.requestVoid(
+            method: .connectorsRevoke,
+            params: ["connectorId": AnyCodable(appID)],
+            timeoutMs: timeoutMs)
+    }
+
     // MARK: - Account
 
     func accountSnapshot() async throws -> AlisioAccountSnapshot {
-        try await self.requestDecoded(method: .alisioAccountGet)
+        return try await self.requestDecoded(method: .alisioAccountGet)
     }
 
     func beginAccountEmailAuth(email: String) async throws -> AlisioEmailAuthChallenge {
@@ -739,7 +762,7 @@ extension GatewayConnection {
     }
 
     func verifyAccountEmailAuth(email: String, code: String) async throws -> AlisioAccountSnapshot {
-        try await self.requestDecoded(
+        return try await self.requestDecoded(
             method: .alisioAccountVerifyEmailAuth,
             params: [
                 "email": AnyCodable(email.trimmingCharacters(in: .whitespacesAndNewlines)),
@@ -883,8 +906,6 @@ extension GatewayConnection {
         return (normalized + "alisio").prefix(6).description
     }
 
-    // MARK: - Skills
-
     func skillsStatus() async throws -> SkillsStatusReport {
         try await self.requestDecoded(method: .skillsStatus)
     }
@@ -1014,6 +1035,7 @@ extension GatewayConnection {
         key: String,
         model: SessionPatchValue<String> = .unchanged,
         thinkingLevel: SessionPatchValue<String> = .unchanged,
+        displayName: SessionPatchValue<String> = .unchanged,
         verboseLevel: SessionPatchValue<String> = .unchanged) async throws
     {
         try await self.requireAuthenticatedAccount(reason: Method.sessionsPatch.rawValue)
@@ -1038,6 +1060,18 @@ extension GatewayConnection {
             params["thinkingLevel"] = AnyCodable(value)
         case .clear:
             params["thinkingLevel"] = AnyCodable(NSNull())
+        }
+
+        switch displayName {
+        case .unchanged:
+            break
+        case let .set(value):
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                params["displayName"] = AnyCodable(trimmed)
+            }
+        case .clear:
+            params["displayName"] = AnyCodable(NSNull())
         }
 
         switch verboseLevel {
@@ -1244,9 +1278,6 @@ extension GatewayConnection {
 
     struct CronSchedulerStatus: Decodable {
         let enabled: Bool
-        let storePath: String
-        let jobs: Int
-        let nextWakeAtMs: Int?
     }
 
     func cronStatus() async throws -> CronSchedulerStatus {
@@ -1292,18 +1323,18 @@ extension GatewayConnection {
         try await self.requestVoid(method: .cronRemove, params: ["id": AnyCodable(jobId)])
     }
 
-    func cronUpdate(jobId: String, patch: [String: AnyCodable]) async throws {
+    func cronUpdate(jobId: String, patch: [String: AnyCodable]) async throws -> CronJob {
         try await self.requireAuthenticatedAccount(reason: Method.cronUpdate.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronUpdate.rawValue)
-        try await self.requestVoid(
+        return try await self.requestDecoded(
             method: .cronUpdate,
             params: ["id": AnyCodable(jobId), "patch": AnyCodable(patch)])
     }
 
-    func cronAdd(payload: [String: AnyCodable]) async throws {
+    func cronAdd(payload: [String: AnyCodable]) async throws -> CronJob {
         try await self.requireAuthenticatedAccount(reason: Method.cronAdd.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronAdd.rawValue)
-        try await self.requestVoid(method: .cronAdd, params: payload)
+        return try await self.requestDecoded(method: .cronAdd, params: payload)
     }
 
     func computerSession(sessionKey: String) async throws -> ComputerSessionSnapshot {

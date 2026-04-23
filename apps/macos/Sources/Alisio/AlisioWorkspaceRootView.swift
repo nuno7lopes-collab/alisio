@@ -7,6 +7,7 @@ import AlisioSupport
 
 private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
     case chat
+    case memory
     case apps
     case schedules
     case capabilities
@@ -18,6 +19,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .chat: "Chat"
+        case .memory: "Memory"
         case .apps: "Apps"
         case .schedules: "Schedules"
         case .capabilities: "Capabilities"
@@ -29,6 +31,7 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .chat: "bubble.left.and.bubble.right"
+        case .memory: "brain.head.profile"
         case .apps: "link"
         case .schedules: "calendar"
         case .capabilities: "sparkles"
@@ -46,6 +49,8 @@ private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .chat:
             navigationState.showChat(sessionKey: navigationState.activeSessionKey ?? "main")
+        case .memory:
+            navigationState.show(route: .memory)
         case .apps:
             navigationState.show(route: .apps)
         case .schedules:
@@ -86,6 +91,7 @@ struct AlisioWorkspaceRootView: View {
     let chatEnvironment: AlisioWorkspaceChatEnvironment
 
     @Environment(\.colorScheme) private var systemScheme
+    @State private var isSidebarCollapsed = false
 
     private var palette: AlisioPalette {
         AlisioPalette.resolve(theme: .system, systemScheme: self.systemScheme)
@@ -98,6 +104,10 @@ struct AlisioWorkspaceRootView: View {
     private var resolvedSessionKey: String {
         let trimmed = self.navigationState.activeSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? "main" : trimmed
+    }
+
+    private var sidebarWidth: CGFloat {
+        self.isSidebarCollapsed ? 82 : 228
     }
 
     var body: some View {
@@ -114,7 +124,7 @@ struct AlisioWorkspaceRootView: View {
     private var windowBody: some View {
         HStack(spacing: 0) {
             self.sidebar
-                .frame(width: 228)
+                .frame(width: self.sidebarWidth)
             Rectangle()
                 .fill(self.palette.separator)
                 .frame(width: 1)
@@ -133,14 +143,33 @@ struct AlisioWorkspaceRootView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: self.isSidebarCollapsed ? .center : .leading, spacing: 18) {
             HStack(spacing: 12) {
                 AlisioBrandMark(palette: self.palette, size: 38)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Alisio")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(self.palette.primaryText)
+                if !self.isSidebarCollapsed {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Alisio")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(self.palette.primaryText)
+                    }
                 }
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) {
+                        self.isSidebarCollapsed.toggle()
+                    }
+                } label: {
+                    Image(systemName: self.isSidebarCollapsed ? "chevron.right" : "chevron.left")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(self.palette.secondaryText)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle()
+                                .fill(self.palette.surfaceMuted)
+                                .overlay(Circle().strokeBorder(self.palette.border, lineWidth: 1)))
+                }
+                .buttonStyle(.plain)
+                .help(self.isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")
             }
             .padding(.top, 8)
 
@@ -152,10 +181,13 @@ struct AlisioWorkspaceRootView: View {
                         HStack(spacing: 12) {
                             Image(systemName: item.systemImage)
                                 .frame(width: 18)
-                            Text(item.title)
-                                .font(.system(size: 14, weight: .semibold))
+                            if !self.isSidebarCollapsed {
+                                Text(item.title)
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
                             Spacer(minLength: 0)
                         }
+                        .frame(maxWidth: .infinity, alignment: self.isSidebarCollapsed ? .center : .leading)
                         .foregroundStyle(
                             self.currentSidebarItem == item
                                 ? self.palette.primaryText
@@ -172,28 +204,38 @@ struct AlisioWorkspaceRootView: View {
                                             lineWidth: 1)))
                     }
                     .buttonStyle(.plain)
+                    .help(item.title)
                 }
             }
 
             Spacer()
 
-            VStack(alignment: .leading, spacing: 10) {
-                AlisioChip(
-                    title: self.state.connectionMode == .local ? "On this Mac" : "Remote",
-                    tint: self.state.connectionMode == .local ? self.palette.success : self.palette.warning,
-                    palette: self.palette)
-                Text(self.sidebarSummary)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(self.palette.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(18)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(self.palette.surface)
-                    .overlay(
+            Group {
+                if self.isSidebarCollapsed {
+                    Circle()
+                        .fill(self.state.connectionMode == .local ? self.palette.success : self.palette.warning)
+                        .frame(width: 12, height: 12)
+                        .help(self.sidebarSummary)
+                } else {
+                    VStack(alignment: .leading, spacing: 10) {
+                        AlisioChip(
+                            title: self.state.connectionMode == .local ? "On this Mac" : "Remote",
+                            tint: self.state.connectionMode == .local ? self.palette.success : self.palette.warning,
+                            palette: self.palette)
+                        Text(self.sidebarSummary)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(self.palette.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(18)
+                    .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(self.palette.border, lineWidth: 1)))
+                            .fill(self.palette.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .strokeBorder(self.palette.border, lineWidth: 1)))
+                }
+            }
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 24)
@@ -263,8 +305,11 @@ struct AlisioWorkspaceRootView: View {
                     self.navigationState.showChat(sessionKey: sessionKey)
                 },
                 environment: self.chatEnvironment)
+        case .memory:
+            MemorySettings()
+                .padding(compact ? 14 : 24)
         case .apps:
-            ChannelsSettings()
+            AppsSettings()
                 .padding(compact ? 14 : 24)
         case .schedules:
             CronSettings()
@@ -288,6 +333,8 @@ extension WorkspaceNavigationState.Route {
         switch self {
         case .chat:
             "Chat"
+        case .memory:
+            "Memory"
         case .apps:
             "Apps"
         case .schedules:
@@ -305,6 +352,8 @@ extension WorkspaceNavigationState.Route {
         switch self {
         case .chat:
             "Pick up the main conversation or start a clean new chat."
+        case .memory:
+            "Read daily notes, topic notes, core memory, and agent files."
         case .apps:
             "Connect real app integrations like Gmail, Calendar, GitHub, Stripe, and YouTube."
         case .schedules:
@@ -324,6 +373,7 @@ private struct WorkspaceChatStage: View {
     @Bindable var state: AppState
     @Bindable private var activityStore = WorkActivityStore.shared
     @Bindable private var eventStore = AgentEventStore.shared
+    @Bindable private var talkController = TalkModeController.shared
 
     let sessionKey: String
     let palette: AlisioPalette
@@ -381,7 +431,10 @@ private struct WorkspaceChatStage: View {
                             sessionKey: self.trackedSessionKey,
                             recentEvents: self.recentEvents,
                             lastToolLabel: self.currentSessionToolActivity?.label,
-                            lastToolUpdatedAt: self.currentSessionToolActivity?.lastUpdate)
+                            lastToolUpdatedAt: self.currentSessionToolActivity?.lastUpdate,
+                            onClose: {
+                                self.inspectorVisibility.hide(autoPresent: self.inspectorShouldAutoPresent)
+                            })
                             .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
                     }
                 } else {
@@ -448,9 +501,44 @@ private struct WorkspaceChatStage: View {
             userAccent: self.palette.accent,
             showsAssistantTrace: true,
             autoloadOnAppear: self.environment.autoloadChatOnAppear,
-            headerAccessory: self.chatHeaderAccessory)
+            headerAccessory: self.chatHeaderAccessory,
+            onOpenApps: self.onOpenApps,
+            voiceControl: self.voiceControl)
             .padding(self.compact ? 8 : 22)
             .background(self.palette.stage)
+    }
+
+    private var voiceControl: AlisioChatVoiceControl? {
+        guard self.shouldShowVoiceControl else { return nil }
+        return AlisioChatVoiceControl(
+            isActive: self.state.talkEnabled,
+            label: self.voiceControlLabel,
+            onToggle: {
+                Task {
+                    await self.state.setTalkEnabled(!self.state.talkEnabled)
+                }
+            })
+    }
+
+    private var shouldShowVoiceControl: Bool {
+        self.state.connectionMode == .local && voiceWakeSupported
+    }
+
+    private var voiceControlLabel: String {
+        guard self.state.talkEnabled else { return "Talk off" }
+        if self.talkController.isPaused {
+            return "Talk paused"
+        }
+        switch self.talkController.phase {
+        case .idle:
+            return "Talk on"
+        case .listening:
+            return "Listening"
+        case .thinking:
+            return "Thinking"
+        case .speaking:
+            return "Speaking"
+        }
     }
 
     private var shouldMonitorComputer: Bool {
@@ -608,214 +696,252 @@ private struct WorkspaceInspectorPane: View {
     let recentEvents: [ControlAgentEvent]
     let lastToolLabel: String?
     let lastToolUpdatedAt: Date?
+    let onClose: @MainActor () -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                WorkspaceInspectorCard(
-                    title: "Chat",
-                    subtitle: self.chatSummary)
-                {
-                    VStack(alignment: .leading, spacing: 8) {
-                        self.metaRow("Key", self.sessionKey)
-                        self.metaRow("Title", self.chatViewModel.currentSessionTitle)
-                        if let sessionId = self.chatViewModel.sessionId, !sessionId.isEmpty {
-                            self.metaRow("Run ID", sessionId)
-                        }
-                        self.metaRow("Runtime", self.runtimeLabel)
-                        self.metaRow("Surface", "Mac app")
-                        if let lastToolLabel, !lastToolLabel.isEmpty {
-                            self.metaRow("Last tool", lastToolLabel)
-                        }
-                        if let lastToolUpdatedAt {
-                            self.metaRow("Updated", lastToolUpdatedAt.formatted(date: .omitted, time: .standard))
-                        }
-                    }
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Activity")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(self.palette.primaryText)
+                    Text(self.chatViewModel.currentSessionTitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(self.palette.secondaryText)
+                        .lineLimit(2)
                 }
+                Spacer(minLength: 0)
+                Button {
+                    self.onClose()
+                } label: {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(self.palette.secondaryText)
+                        .frame(width: 30, height: 30)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(self.palette.surfaceMuted)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .strokeBorder(self.palette.border, lineWidth: 1)))
+                }
+                .buttonStyle(.plain)
+                .help("Hide activity")
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
 
-                WorkspaceInspectorCard(
-                    title: "Identity",
-                    subtitle: self.identitySummary)
-                {
-                    VStack(alignment: .leading, spacing: 8) {
-                        self.metaRow("Assistant", "Alisio")
-                        self.metaRow("Operator", InstanceIdentity.displayName)
-                        if self.state.connectionMode == .remote {
-                            self.metaRow("Gateway", self.remoteGatewayLabel)
-                            if let sshIdentity = self.remoteIdentityLabel {
-                                self.metaRow("SSH key", sshIdentity)
+            Rectangle()
+                .fill(self.palette.separator)
+                .frame(height: 1)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    WorkspaceInspectorCard(
+                        title: "Chat",
+                        subtitle: self.chatSummary)
+                    {
+                        VStack(alignment: .leading, spacing: 8) {
+                            self.metaRow("Key", self.sessionKey)
+                            self.metaRow("Title", self.chatViewModel.currentSessionTitle)
+                            if let sessionId = self.chatViewModel.sessionId, !sessionId.isEmpty {
+                                self.metaRow("Session ID", sessionId)
                             }
-                        } else {
-                            self.metaRow("Gateway", self.gatewayProcessManager.status.label)
+                            self.metaRow("Runtime", self.runtimeLabel)
+                            self.metaRow("Surface", "Mac app")
+                            if let lastToolLabel, !lastToolLabel.isEmpty {
+                                self.metaRow("Last tool", lastToolLabel)
+                            }
+                            if let lastToolUpdatedAt {
+                                self.metaRow("Updated", lastToolUpdatedAt.formatted(date: .omitted, time: .standard))
+                            }
                         }
                     }
-                }
 
-                WorkspaceInspectorCard(
-                    title: "Memory",
-                    subtitle: self.memorySummary)
-                {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if let contextUsage = self.chatViewModel.currentSessionContextUsage {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 8) {
-                                    Text("Context")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(self.palette.tertiaryText)
-                                    Spacer()
-                                    Text(self.contextUsageLabel(contextUsage))
-                                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(self.palette.secondaryText)
+                    WorkspaceInspectorCard(
+                        title: "Identity",
+                        subtitle: self.identitySummary)
+                    {
+                        VStack(alignment: .leading, spacing: 8) {
+                            self.metaRow("Assistant", "Alisio")
+                            self.metaRow("Operator", InstanceIdentity.displayName)
+                            if self.state.connectionMode == .remote {
+                                self.metaRow("Gateway", self.remoteGatewayLabel)
+                                if let sshIdentity = self.remoteIdentityLabel {
+                                    self.metaRow("SSH key", sshIdentity)
                                 }
-                                ContextUsageBar(
-                                    usedTokens: contextUsage.totalTokens,
-                                    contextTokens: contextUsage.contextWindow,
-                                    width: nil)
-                                self.metaRow("Messages", "\(self.chatViewModel.messages.count)")
-                                self.metaRow("Thinking", self.chatViewModel.activeThinkingLevelLabel)
-                                self.metaRow("Model", self.chatViewModel.activeModelLabel)
+                            } else {
+                                self.metaRow("Gateway", self.gatewayProcessManager.status.label)
                             }
-                        } else {
-                            Text("Context usage appears here once the gateway reports token counts for this chat.")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(self.palette.secondaryText)
-                        }
-
-                        HStack(spacing: 10) {
-                            Button("Compact memory") {
-                                self.chatViewModel.compactSession()
-                            }
-                            .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
-                            .disabled(!self.chatViewModel.canCompactSession)
-
-                            Button("Reset chat") {
-                                self.chatViewModel.resetSession()
-                            }
-                            .buttonStyle(AlisioGhostButtonStyle(palette: self.palette, isDanger: true))
-                            .disabled(!self.chatViewModel.canResetSession)
                         }
                     }
-                }
 
-                WorkspaceInspectorCard(
-                    title: "Connection",
-                    subtitle: self.connectionSummary)
-                {
-                    VStack(alignment: .leading, spacing: 8) {
-                        self.metaRow("Phase", self.connectionPhaseTitle)
-                        self.metaRow("Health", self.chatViewModel.healthOK ? "Healthy" : "Degraded")
-                        if let lastHistoryRefreshAt = self.chatViewModel.lastHistoryRefreshAt {
-                            self.metaRow("Last sync", lastHistoryRefreshAt.formatted(date: .omitted, time: .standard))
-                        }
-                        if let lastTransportEventAt = self.chatViewModel.lastTransportEventAt {
-                            self.metaRow("Last event", lastTransportEventAt.formatted(date: .omitted, time: .standard))
-                        }
-                        if let lastRecoveryAt = self.chatViewModel.lastRecoveryAt {
-                            self.metaRow("Recovered", lastRecoveryAt.formatted(date: .omitted, time: .standard))
-                        }
-                        if self.state.connectionMode == .local {
-                            self.metaRow("Gateway", self.gatewayProcessManager.status.label)
-                        } else {
-                            self.metaRow("Gateway", self.remoteGatewayLabel)
-                        }
-                    }
-                }
-
-                if self.shouldShowRunStatus {
                     WorkspaceInspectorCard(
-                        title: "Run state",
-                        subtitle: self.runStatusTitle)
+                        title: "Memory",
+                        subtitle: self.memorySummary)
                     {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if let errorText = self.chatViewModel.activeErrorText {
-                                Text(errorText)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(self.palette.danger)
-                            } else if self.chatViewModel.connectionPhase == .reconnecting {
-                                Text("The workspace is resyncing after a dropped stream or failed health check.")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(self.palette.secondaryText)
-                            } else if self.chatViewModel.connectionPhase == .firstMessage {
-                                Text("The first visible assistant turn is still warming up.")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(self.palette.secondaryText)
-                            } else if self.chatViewModel.pendingRunCount > 0 {
-                                Text("Waiting for the assistant, tools, or both to start producing output.")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(self.palette.secondaryText)
-                            } else if !self.chatViewModel.pendingToolCalls.isEmpty {
-                                Text("Tools are currently running for this session.")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(self.palette.secondaryText)
-                            }
-                        }
-                    }
-                }
-
-                if !self.chatViewModel.pendingToolCalls.isEmpty {
-                    WorkspaceInspectorCard(
-                        title: "Active tools",
-                        subtitle: "Live tool calls for this chat")
-                    {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(self.chatViewModel.pendingToolCalls) { toolCall in
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(self.toolSummary(for: toolCall))
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(self.palette.primaryText)
-                                    if let startedAt = toolCall.startedAt {
-                                        Text(self.timeString(fromUnixMs: startedAt))
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundStyle(self.palette.tertiaryText)
-                                    }
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(self.palette.surfaceMuted))
-                            }
-                        }
-                    }
-                }
-
-                if self.state.connectionMode == .local {
-                    DesktopComputerPane(store: self.computerStore, palette: self.palette)
-                }
-
-                if !self.recentEvents.isEmpty {
-                    WorkspaceInspectorCard(
-                        title: "Recent activity",
-                        subtitle: "Latest runtime events routed to this chat")
-                    {
-                        VStack(alignment: .leading, spacing: 10) {
-                            ForEach(self.recentEvents, id: \.id) { event in
-                                VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if let contextUsage = self.chatViewModel.currentSessionContextUsage {
+                                VStack(alignment: .leading, spacing: 8) {
                                     HStack(spacing: 8) {
-                                        Text(self.eventLabel(for: event))
+                                        Text("Context")
                                             .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(self.palette.primaryText)
-                                        Spacer()
-                                        Text(self.timeString(fromUnixMs: event.ts))
-                                            .font(.system(size: 11, weight: .medium))
                                             .foregroundStyle(self.palette.tertiaryText)
+                                        Spacer()
+                                        Text(self.contextUsageLabel(contextUsage))
+                                            .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                            .foregroundStyle(self.palette.secondaryText)
                                     }
-                                    Text(self.eventDetail(for: event))
+                                    ContextUsageBar(
+                                        usedTokens: contextUsage.totalTokens,
+                                        contextTokens: contextUsage.contextWindow,
+                                        width: nil)
+                                    self.metaRow("Messages", "\(self.chatViewModel.messages.count)")
+                                    self.metaRow("Thinking", self.chatViewModel.activeThinkingLevelLabel)
+                                    self.metaRow("Model", self.chatViewModel.activeModelLabel)
+                                }
+                            } else {
+                                Text("Context usage appears here once the gateway reports token counts for this chat.")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(self.palette.secondaryText)
+                            }
+
+                            HStack(spacing: 10) {
+                                Button("Compact memory") {
+                                    self.chatViewModel.compactSession()
+                                }
+                                .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
+                                .disabled(!self.chatViewModel.canCompactSession)
+
+                                Button("Reset chat") {
+                                    self.chatViewModel.resetSession()
+                                }
+                                .buttonStyle(AlisioGhostButtonStyle(palette: self.palette, isDanger: true))
+                                .disabled(!self.chatViewModel.canResetSession)
+                            }
+                        }
+                    }
+
+                    WorkspaceInspectorCard(
+                        title: "Connection",
+                        subtitle: self.connectionSummary)
+                    {
+                        VStack(alignment: .leading, spacing: 8) {
+                            self.metaRow("Phase", self.connectionPhaseTitle)
+                            self.metaRow("Health", self.chatViewModel.healthOK ? "Healthy" : "Degraded")
+                            if let lastHistoryRefreshAt = self.chatViewModel.lastHistoryRefreshAt {
+                                self.metaRow("Last sync", lastHistoryRefreshAt.formatted(date: .omitted, time: .standard))
+                            }
+                            if let lastTransportEventAt = self.chatViewModel.lastTransportEventAt {
+                                self.metaRow("Last event", lastTransportEventAt.formatted(date: .omitted, time: .standard))
+                            }
+                            if let lastRecoveryAt = self.chatViewModel.lastRecoveryAt {
+                                self.metaRow("Recovered", lastRecoveryAt.formatted(date: .omitted, time: .standard))
+                            }
+                            if self.state.connectionMode == .local {
+                                self.metaRow("Gateway", self.gatewayProcessManager.status.label)
+                            } else {
+                                self.metaRow("Gateway", self.remoteGatewayLabel)
+                            }
+                        }
+                    }
+
+                    if self.shouldShowRunStatus {
+                        WorkspaceInspectorCard(
+                            title: "Run state",
+                            subtitle: self.runStatusTitle)
+                        {
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let errorText = self.chatViewModel.activeErrorText {
+                                    Text(errorText)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(self.palette.danger)
+                                } else if self.chatViewModel.connectionPhase == .reconnecting {
+                                    Text("The workspace is resyncing after a dropped stream or failed health check.")
                                         .font(.system(size: 12, weight: .medium))
                                         .foregroundStyle(self.palette.secondaryText)
-                                        .fixedSize(horizontal: false, vertical: true)
+                                } else if self.chatViewModel.connectionPhase == .firstMessage {
+                                    Text("The first visible assistant turn is still warming up.")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(self.palette.secondaryText)
+                                } else if self.chatViewModel.pendingRunCount > 0 {
+                                    Text("Waiting for the assistant, tools, or both to start producing output.")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(self.palette.secondaryText)
+                                } else if !self.chatViewModel.pendingToolCalls.isEmpty {
+                                    Text("Tools are currently running for this session.")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(self.palette.secondaryText)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(self.palette.surfaceMuted))
+                            }
+                        }
+                    }
+
+                    if !self.chatViewModel.pendingToolCalls.isEmpty {
+                        WorkspaceInspectorCard(
+                            title: "Active tools",
+                            subtitle: "Live tool calls for this chat")
+                        {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(self.chatViewModel.pendingToolCalls) { toolCall in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(self.toolSummary(for: toolCall))
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(self.palette.primaryText)
+                                        if let startedAt = toolCall.startedAt {
+                                            Text(self.timeString(fromUnixMs: startedAt))
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundStyle(self.palette.tertiaryText)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(self.palette.surfaceMuted))
+                                }
+                            }
+                        }
+                    }
+
+                    if self.state.connectionMode == .local {
+                        DesktopComputerPane(store: self.computerStore, palette: self.palette)
+                    }
+
+                    if !self.recentEvents.isEmpty {
+                        WorkspaceInspectorCard(
+                            title: "Recent activity",
+                            subtitle: "Latest runtime events routed to this chat")
+                        {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(self.recentEvents, id: \.id) { event in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 8) {
+                                            Text(self.eventLabel(for: event))
+                                                .font(.system(size: 12, weight: .semibold))
+                                                .foregroundStyle(self.palette.primaryText)
+                                            Spacer()
+                                            Text(self.timeString(fromUnixMs: event.ts))
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundStyle(self.palette.tertiaryText)
+                                        }
+                                        Text(self.eventDetail(for: event))
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(self.palette.secondaryText)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(self.palette.surfaceMuted))
+                                }
                             }
                         }
                     }
                 }
+                .padding(18)
             }
-            .padding(18)
         }
         .background(self.palette.surface)
         .overlay(alignment: .leading) {

@@ -12,7 +12,8 @@ extension CronSettings {
         .onAppear {
             self.store.start()
             self.channelsStore.start()
-            self.ensureSelection()
+            self.displayMode = .list
+            self.store.reconcileSelection()
         }
         .onDisappear {
             self.store.stop()
@@ -28,9 +29,9 @@ extension CronSettings {
                     self.showEditor = false
                     self.editingJob = nil
                 },
-                onSave: { payload in
+                onSave: { request in
                     Task {
-                        await self.save(payload: payload)
+                        await self.save(request: request)
                     }
                 })
         }
@@ -47,20 +48,14 @@ extension CronSettings {
             }
         } message: {
             if let job = self.confirmDelete {
-                Text(job.displayName)
+                Text("This permanently removes \(job.displayName).")
             }
         }
         .onChange(of: self.store.jobs) { _, _ in
-            self.ensureSelection()
+            self.store.reconcileSelection()
         }
         .onChange(of: self.store.selectedJobId) { _, newValue in
-            guard let newValue else {
-                self.store.runEntries = []
-                self.store.hasLoadedRunsOnce = false
-                return
-            }
-            self.store.runEntries = []
-            self.store.hasLoadedRunsOnce = false
+            guard let newValue else { return }
             Task { await self.store.refreshRuns(jobId: newValue) }
         }
     }
@@ -88,7 +83,15 @@ extension CronSettings {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Picker("View", selection: self.$displayMode) {
+                    ForEach(CronSettings.DisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+
                 Button {
                     Task { await self.store.refreshJobs() }
                 } label: {
@@ -109,14 +112,23 @@ extension CronSettings {
         }
     }
 
+    @ViewBuilder
     var content: some View {
+        switch self.displayMode {
+        case .list:
+            self.listContent
+        case .week, .month:
+            self.calendarContent
+        }
+    }
+
+    var listContent: some View {
         HStack(spacing: 12) {
             self.listPane
                 .frame(width: 300)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
 
             Divider()
-
             self.detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -169,8 +181,13 @@ extension CronSettings {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
-                } else if let error = self.trimmedLastError {
+                } else if let error = self.trimmedJobsError {
                     Text(error)
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let actionError = self.trimmedActionError {
+                    Text(actionError)
                         .font(.footnote)
                         .foregroundStyle(.orange)
                         .fixedSize(horizontal: false, vertical: true)
@@ -180,7 +197,10 @@ extension CronSettings {
                         .foregroundStyle(.secondary)
                 }
 
-                List(selection: self.$store.selectedJobId) {
+                List(selection: Binding(
+                    get: { self.store.selectedJobId },
+                    set: { self.store.selectJob($0) }))
+                {
                     ForEach(self.store.jobs) { job in
                         self.jobRow(job)
                             .tag(job.id)
@@ -194,7 +214,7 @@ extension CronSettings {
 
     @ViewBuilder
     var detail: some View {
-        if let selected = self.selectedJob {
+        if let selected = self.store.selectedJob {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
                     self.detailHeader(selected)
@@ -267,6 +287,6 @@ extension CronSettings {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(16)
         .background(Color.secondary.opacity(0.06))
-        .cornerRadius(12)
+        .cornerRadius(8)
     }
 }
