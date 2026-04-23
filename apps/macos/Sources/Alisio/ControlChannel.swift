@@ -383,24 +383,23 @@ final class ControlChannel {
     }
 
     private func refreshAuthSourceLabel() async {
-        let isRemote = CommandResolver.connectionModeIsRemote()
         let authSource = await GatewayConnection.shared.authSource()
-        self.authSourceLabel = Self.formatAuthSource(authSource, isRemote: isRemote)
+        self.authSourceLabel = Self.formatAuthSource(authSource)
     }
 
-    private static func formatAuthSource(_ source: GatewayAuthSource?, isRemote: Bool) -> String? {
+    private static func formatAuthSource(_ source: GatewayAuthSource?) -> String? {
         guard let source else { return nil }
         switch source {
         case .deviceToken:
-            return "Auth: device token (paired device)"
+            return "Auth: Device token"
         case .bootstrapToken:
-            return "Auth: bootstrap token (setup code)"
+            return "Auth: Setup code"
         case .sharedToken:
-            return "Auth: shared token (\(isRemote ? "gateway.remote.token" : "gateway.auth.token"))"
+            return "Auth: Gateway token"
         case .password:
-            return "Auth: password (\(isRemote ? "gateway.remote.password" : "gateway.auth.password"))"
+            return "Auth: Password"
         case .none:
-            return "Auth: none"
+            return "Auth: No gateway auth"
         }
     }
 
@@ -418,6 +417,8 @@ final class ControlChannel {
 
     private func handle(push: GatewayPush) {
         switch push {
+        case .seqGap:
+            WorkActivityStore.shared.clearTransientState()
         case let .event(evt) where evt.event == "agent":
             if let payload = evt.payload,
                let agent = try? GatewayPayloadDecoding.decode(payload, as: ControlAgentEvent.self)
@@ -433,6 +434,7 @@ final class ControlChannel {
                 NotificationCenter.default.post(name: .controlHeartbeat, object: data)
             }
         case let .event(evt) where evt.event == "shutdown":
+            WorkActivityStore.shared.clearTransientState()
             self.state = .degraded("gateway shutdown")
         case .snapshot:
             self.state = .connected

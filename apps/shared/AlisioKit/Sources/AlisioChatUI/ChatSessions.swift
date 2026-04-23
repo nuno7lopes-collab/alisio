@@ -401,6 +401,29 @@ public struct AlisioChatSessionContextUsage: Equatable, Sendable {
         guard self.contextWindow > 0, self.totalTokens > 0 else { return nil }
         return min(100, Int(round((Double(self.totalTokens) / Double(self.contextWindow)) * 100)))
     }
+
+    public var compactUsageLabel: String {
+        let used = Self.formatCompactTokenCount(self.totalTokens)
+        let total = self.contextWindow > 0 ? Self.formatCompactTokenCount(self.contextWindow) : "?"
+        return "\(used)/\(total)"
+    }
+
+    public static func formatCompactTokenCount(_ value: Int) -> String {
+        guard value >= 1_000 else { return "\(value)" }
+
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = value >= 10_000_000 ? 0 : 1
+
+        if value >= 1_000_000 {
+            let short = formatter.string(from: NSNumber(value: Double(value) / 1_000_000)) ?? "\(value)"
+            return "\(short)M"
+        }
+
+        let short = formatter.string(from: NSNumber(value: Double(value) / 1_000)) ?? "\(value)"
+        return "\(short)k"
+    }
 }
 
 public struct AlisioChatSessionsListResponse: Codable, Sendable {

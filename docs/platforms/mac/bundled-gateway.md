@@ -107,18 +107,46 @@ The macOS app checks the gateway version against its own version.
 - bundled release builds should stay in lockstep automatically
 - if you are using the external CLI fallback, update the global CLI to match the app version
 
-## Smoke check (packaged app flow)
+## Packaged app release smoke
 
-Use the heavy restart path when validating the real bundle:
+Use the heavy restart path for the final packaged-app QA bar:
 
 ```bash
-pnpm mac:bundle:restart
+scripts/restart-mac.sh
 ```
 
-The restart script packages `.run/Alisio.app`, validates the signature and
-bundled runtime, opens the app, and waits for the main window.
+Preconditions:
 
-Manual checks:
+- Local mode selected in the macOS app
+- Attach-only disabled
+- real signing identity in use
+
+What the script proves automatically:
+
+- packages a real `.app` bundle at `.run/Alisio.app`
+- validates the bundle structure, signature, and bundled Node runtime
+- opens the rebuilt bundle and waits for the first real window
+- waits for the LaunchAgent plist to appear
+- verifies `ProgramArguments:0` and `ProgramArguments:1` point at the bundled
+  Node and bundled entrypoint inside that app bundle
+- waits for `launchctl print gui/$UID/ai.alisio.gateway`
+- waits for bundled `gateway call health` or `gateway call status`
+- runs `launchctl kickstart -k` and waits for `health` or `status` again
+
+What still stays manual:
+
+- send one real first message from the packaged workspace and confirm the first
+  assistant event arrives without a blank window, second reopen, or manual
+  reconnect
+
+If the script fails because the LaunchAgent never appears, treat that as a real
+gap in Local mode readiness first. The common causes are:
+
+- the app is still configured for remote mode
+- attach-only is enabled
+- the bundle is ad-hoc signed and you are trying to debug TCC or release wiring
+
+Manual follow-up commands, only when the smoke fails or you need extra detail:
 
 ```bash
 .run/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node -p 'process.execPath'
@@ -127,12 +155,4 @@ Manual checks:
 launchctl print gui/$UID/ai.alisio.gateway | sed -n '1,120p'
 tail -n 120 ~/.alisio/logs/gateway.log
 tail -n 120 ~/.alisio/logs/gateway.err.log
-```
-
-Health over the bundled package:
-
-```bash
-.run/Alisio.app/Contents/Resources/alisio-package/tools/node/bin/node \
-  .run/Alisio.app/Contents/Resources/alisio-package/alisio.mjs \
-  gateway call health --timeout 10000
 ```

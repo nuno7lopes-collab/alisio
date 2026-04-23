@@ -146,6 +146,26 @@ final class WorkActivityStore {
         self.refreshDerivedState()
     }
 
+    func clearTransientState() {
+        guard !self.jobs.isEmpty ||
+            !self.tools.isEmpty ||
+            self.currentSessionKey != nil ||
+            self.lastToolLabel != nil ||
+            self.lastToolUpdatedAt != nil ||
+            !self.toolSeqBySession.isEmpty
+        else {
+            return
+        }
+
+        self.jobs.removeAll()
+        self.tools.removeAll()
+        self.currentSessionKey = nil
+        self.toolSeqBySession.removeAll()
+        self.lastToolLabel = nil
+        self.lastToolUpdatedAt = nil
+        self.refreshDerivedState()
+    }
+
     private func clearJob(sessionKey: String) {
         guard self.jobs[sessionKey] != nil else { return }
         self.jobs.removeValue(forKey: sessionKey)

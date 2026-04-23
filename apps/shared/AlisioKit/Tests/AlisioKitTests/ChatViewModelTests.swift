@@ -2561,4 +2561,15 @@ Hello?
         #expect(usage?.totalTokens == 2000)
         #expect(usage?.contextWindow == 200_000)
     }
+
+    @Test func compactContextUsageLabelUsesCanonicalSharedFormatting() {
+        let usage = AlisioChatSessionContextUsage(
+            inputTokens: 8_000,
+            outputTokens: 4_500,
+            totalTokens: 12_500,
+            contextWindow: 200_000)
+
+        #expect(usage.compactUsageLabel == "12.5k/200k")
+        #expect(AlisioChatSessionContextUsage.formatCompactTokenCount(1_500_000) == "1.5M")
+    }
 }

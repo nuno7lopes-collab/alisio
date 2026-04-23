@@ -2,6 +2,174 @@ import Foundation
 import Observation
 
 import AlisioSupport
+
+struct GatewayReadinessError: LocalizedError, Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case starting
+        case connect
+        case reconnect
+        case timeout
+        case probe
+        case auth
+        case protocolMismatch
+        case nonGateway
+        case launchdStartTimeout
+        case unavailable
+
+        var isTransient: Bool {
+            switch self {
+            case .starting, .connect, .reconnect, .timeout, .probe:
+                return true
+            case .auth, .protocolMismatch, .nonGateway, .launchdStartTimeout, .unavailable:
+                return false
+            }
+        }
+
+        var suggestsRestart: Bool {
+            switch self {
+            case .auth, .protocolMismatch, .nonGateway:
+                return true
+            case .starting, .connect, .reconnect, .timeout, .probe, .launchdStartTimeout, .unavailable:
+                return false
+            }
+        }
+    }
+
+    private enum Operation {
+        case accountStatus
+        case startGoogleSignIn
+        case startEmailSignIn
+        case finishSignIn
+        case finishProfile
+        case generic
+
+        init(reason: String?) {
+            switch reason?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            case GatewayConnection.Method.alisioAccountGet.rawValue:
+                self = .accountStatus
+            case GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue:
+                self = .startGoogleSignIn
+            case GatewayConnection.Method.alisioAccountBeginEmailAuth.rawValue:
+                self = .startEmailSignIn
+            case
+                GatewayConnection.Method.alisioAccountVerifyEmailAuth.rawValue,
+                GatewayConnection.Method.alisioAccountCompleteEmailLinkAuth.rawValue,
+                GatewayConnection.Method.alisioAccountCompleteGoogleAuth.rawValue:
+                self = .finishSignIn
+            case GatewayConnection.Method.alisioAccountCompleteProfile.rawValue:
+                self = .finishProfile
+            default:
+                self = .generic
+            }
+        }
+
+        func transientMessage() -> String {
+            switch self {
+            case .accountStatus:
+                return "Alisio is still getting this Mac ready. Account status will update in a moment."
+            case .startGoogleSignIn:
+                return "Alisio is still getting this Mac ready. Google sign-in is not available just yet. Try again in a moment."
+            case .startEmailSignIn:
+                return "Alisio is still getting this Mac ready. Email sign-in is not available just yet. Try again in a moment."
+            case .finishSignIn:
+                return "Alisio is still finishing sign-in on this Mac. Try again in a moment."
+            case .finishProfile:
+                return "Alisio is still getting this Mac ready to finish account setup. Try again in a moment."
+            case .generic:
+                return "Alisio is still getting this Mac ready. Try again in a moment."
+            }
+        }
+
+        func failureMessage(restartSuggested: Bool) -> String {
+            let suffix = restartSuggested ? "Restart Alisio and try again." : "Try again in a moment."
+            switch self {
+            case .accountStatus:
+                return "Alisio could not confirm the account on this Mac right now. \(suffix)"
+            case .startGoogleSignIn:
+                return "Alisio could not start Google sign-in on this Mac right now. \(suffix)"
+            case .startEmailSignIn:
+                return "Alisio could not start email sign-in on this Mac right now. \(suffix)"
+            case .finishSignIn:
+                return "Alisio could not finish sign-in on this Mac right now. \(suffix)"
+            case .finishProfile:
+                return "Alisio could not finish account setup on this Mac right now. \(suffix)"
+            case .generic:
+                return "Alisio could not reach its local service on this Mac right now. \(suffix)"
+            }
+        }
+    }
+
+    let kind: Kind
+    let operation: String?
+    let technicalMessage: String
+
+    init(technicalMessage: String, operation: String?, status: GatewayProcessManager.Status) {
+        let normalizedMessage = technicalMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.kind = Self.resolveKind(technicalMessage: normalizedMessage, status: status)
+        self.operation = operation?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.technicalMessage = normalizedMessage
+    }
+
+    var isTransient: Bool {
+        self.kind.isTransient
+    }
+
+    var userMessage: String {
+        let operation = Operation(reason: self.operation)
+        if self.kind.isTransient {
+            return operation.transientMessage()
+        }
+        return operation.failureMessage(restartSuggested: self.kind.suggestsRestart)
+    }
+
+    var errorDescription: String? {
+        self.userMessage
+    }
+
+    private static func resolveKind(
+        technicalMessage: String,
+        status: GatewayProcessManager.Status) -> Kind
+    {
+        switch Self.code(in: technicalMessage) {
+        case "readiness:auth":
+            return .auth
+        case "readiness:protocol":
+            return .protocolMismatch
+        case "readiness:non-gateway":
+            return .nonGateway
+        case "readiness:connect":
+            return .connect
+        case "readiness:reconnect":
+            return .reconnect
+        case "readiness:timeout":
+            return .timeout
+        case "readiness:probe":
+            return .probe
+        case "launchd:start-timeout":
+            return .launchdStartTimeout
+        default:
+            switch status {
+            case .starting:
+                return .starting
+            case .stopped, .running, .attachedExisting, .failed:
+                return .unavailable
+            }
+        }
+    }
+
+    private static func code(in technicalMessage: String) -> String? {
+        guard technicalMessage.hasPrefix("["),
+              let endIndex = technicalMessage.firstIndex(of: "]")
+        else {
+            return nil
+        }
+
+        let startIndex = technicalMessage.index(after: technicalMessage.startIndex)
+        guard startIndex < endIndex else { return nil }
+        return String(technicalMessage[startIndex..<endIndex])
+    }
+}
+
 @MainActor
 @Observable
 final class GatewayProcessManager {
@@ -523,10 +691,10 @@ final class GatewayProcessManager {
         self.lastFailureReason = message
         self.appendLog("[gateway] readiness ensure failed: \(message)\n")
         self.logger.warning("gateway readiness ensure failed reason=\(message)")
-        throw NSError(
-            domain: "Gateway",
-            code: 1,
-            userInfo: [NSLocalizedDescriptionKey: message])
+        throw GatewayReadinessError(
+            technicalMessage: message,
+            operation: requestReason,
+            status: self.status)
     }
 
     func waitForGatewayReady(timeout: TimeInterval = 6) async -> Bool {

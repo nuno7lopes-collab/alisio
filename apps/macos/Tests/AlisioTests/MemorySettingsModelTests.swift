@@ -44,17 +44,19 @@ struct MemorySettingsModelTests {
                     name: "Main",
                     identity: nil,
                     personalContext: MemoryPersonalContextSummary(documents: [
-                        Self.document(path: "AGENTS.md", kind: "agent_instructions"),
-                        Self.document(path: "TOOLS.md", kind: "agent_tools"),
-                        Self.document(path: "HEARTBEAT.md", kind: "agent_heartbeat"),
-                        Self.document(path: "IDENTITY.md", kind: "identity"),
-                        Self.document(path: "SOUL.md", kind: "soul"),
-                        Self.document(path: "USER.md", kind: "preferences"),
-                        Self.document(path: "BOOTSTRAP.md", kind: "setup_bootstrap"),
-                        Self.document(path: "MEMORY.md", kind: "main_memory"),
-                        Self.document(path: "memory/topic-a.md", kind: "topic_note"),
-                        Self.document(path: "memory/2026-04-23.md", kind: "daily_note"),
                         Self.document(path: "memory/backlog/2026-04-23/follow-up.md", kind: "backlog_note"),
+                        Self.document(path: "memory/topic-z.md", kind: "topic_note"),
+                        Self.document(path: "SOUL.md", kind: "soul"),
+                        Self.document(path: "HEARTBEAT.md", kind: "agent_heartbeat"),
+                        Self.document(path: "memory/2026-04-22.md", kind: "daily_note"),
+                        Self.document(path: "TOOLS.md", kind: "agent_tools"),
+                        Self.document(path: "memory/topic-a.md", kind: "topic_note"),
+                        Self.document(path: "USER.md", kind: "preferences"),
+                        Self.document(path: "IDENTITY.md", kind: "identity"),
+                        Self.document(path: "AGENTS.md", kind: "agent_instructions"),
+                        Self.document(path: "MEMORY.md", kind: "main_memory"),
+                        Self.document(path: "BOOTSTRAP.md", kind: "setup_bootstrap"),
+                        Self.document(path: "memory/2026-04-23.md", kind: "daily_note"),
                     ])),
             ],
             contents: [
@@ -67,6 +69,8 @@ struct MemorySettingsModelTests {
                 "BOOTSTRAP.md": "# Bootstrap\n",
                 "MEMORY.md": "# Main\n",
                 "memory/topic-a.md": "# Topic\n",
+                "memory/topic-z.md": "# Topic Z\n",
+                "memory/2026-04-22.md": "# Daily Older\n",
                 "memory/2026-04-23.md": "# Daily\n",
                 "memory/backlog/2026-04-23/follow-up.md": "# Backlog\n",
             ])
@@ -82,8 +86,14 @@ struct MemorySettingsModelTests {
             .agentFiles,
         ])
         #expect(model.sections.first(where: { $0.section == .mainMemory })?.items.map(\.path) == ["MEMORY.md"])
-        #expect(model.sections.first(where: { $0.section == .dailyNotes })?.items.map(\.path) == ["memory/2026-04-23.md"])
-        #expect(model.sections.first(where: { $0.section == .topicNotes })?.items.map(\.path) == ["memory/topic-a.md"])
+        #expect(model.sections.first(where: { $0.section == .dailyNotes })?.items.map(\.path) == [
+            "memory/2026-04-23.md",
+            "memory/2026-04-22.md",
+        ])
+        #expect(model.sections.first(where: { $0.section == .topicNotes })?.items.map(\.path) == [
+            "memory/topic-a.md",
+            "memory/topic-z.md",
+        ])
         #expect(model.sections.first(where: { $0.section == .identity })?.items.map(\.path) == ["IDENTITY.md"])
         #expect(model.sections.first(where: { $0.section == .soul })?.items.map(\.path) == ["SOUL.md"])
         #expect(model.sections.first(where: { $0.section == .agentFiles })?.items.map(\.path) == [
@@ -245,8 +255,8 @@ struct MemorySettingsModelTests {
                 .first(where: { $0.section == .dailyNotes })?
                 .sectionNode)
         await model.selectGraphNode(dailySectionNode)
-        #expect(model.selectedDocument?.item.path == "memory/2026-04-22.md")
-        #expect(model.selectedItemID == "memory/2026-04-22.md")
+        #expect(model.selectedDocument?.item.path == "memory/2026-04-23.md")
+        #expect(model.selectedItemID == "memory/2026-04-23.md")
     }
 
     @Test func `exposes gateway failures honestly`() async {

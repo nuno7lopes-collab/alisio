@@ -49,6 +49,13 @@ struct ConnectionOverview: Equatable {
 }
 
 struct InstancesSettings: View {
+    enum NodesListState: Equatable {
+        case loading
+        case error(String)
+        case empty(String)
+        case list
+    }
+
     @Bindable var store: InstancesStore
     @Bindable var state: AppState
     @Bindable private var healthStore = HealthStore.shared
@@ -116,7 +123,8 @@ struct InstancesSettings: View {
             remoteTarget: self.state.remoteTarget,
             remoteURL: self.state.remoteUrl,
             endpointState: self.connectivityCoordinator.endpointState,
-            controlState: self.controlChannel.state)
+            controlState: self.controlChannel.state,
+            authSourceLabel: self.controlChannel.authSourceLabel)
     }
 
     private var connectionCard: some View {
@@ -188,24 +196,48 @@ struct InstancesSettings: View {
 
     private var nodesCard: some View {
         self.surfaceCard(title: "Nodes", systemImage: "desktopcomputer.trianglebadge.exclamationmark") {
-            VStack(alignment: .leading, spacing: 10) {
-                if let err = self.store.lastError, !err.isEmpty {
-                    Text(err)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if let info = self.store.statusMessage, !info.isEmpty {
-                    Text(info)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+            switch self.nodesListState {
+            case .loading:
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("Loading nodes…")
+                        .font(.callout.weight(.semibold))
+                    Spacer()
                 }
+            case let .error(message):
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            case let .empty(message):
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .list:
+                VStack(alignment: .leading, spacing: 10) {
+                    if self.store.isLoading {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Refreshing nodes…")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
-                if self.store.instances.isEmpty {
-                    Text("No local or remote nodes have reported in yet.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                } else {
+                    if let err = self.trimmedNodesError {
+                        Text(err)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else if let info = self.trimmedNodesMessage {
+                        Text(info)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(self.store.instances.enumerated()), id: \.element.id) { index, inst in
                             self.instanceRow(inst)
@@ -217,6 +249,29 @@ struct InstancesSettings: View {
                 }
             }
         }
+    }
+
+    private var trimmedNodesError: String? {
+        let trimmed = self.store.lastError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var trimmedNodesMessage: String? {
+        let trimmed = self.store.statusMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    var nodesListState: NodesListState {
+        if self.store.instances.isEmpty {
+            if !self.store.hasLoadedOnce || self.store.isLoading {
+                return .loading
+            }
+            if let error = self.trimmedNodesError {
+                return .error(error)
+            }
+            return .empty(self.trimmedNodesMessage ?? "No nodes have reported in yet.")
+        }
+        return .list
     }
 
     private func surfaceCard(
@@ -264,31 +319,22 @@ struct InstancesSettings: View {
         remoteTarget: String,
         remoteURL: String,
         endpointState: GatewayEndpointState?,
-        controlState: ControlChannel.ConnectionState) -> ConnectionOverview
+        controlState: ControlChannel.ConnectionState,
+        authSourceLabel: String? = nil) -> ConnectionOverview
     {
-        let accessLabel: (String?, String?) -> String = { token, password in
+        let configuredAccessValue: (String?, String?) -> String? = { token, password in
             if let token, !token.isEmpty {
                 return "Gateway token"
             }
             if let password, !password.isEmpty {
                 return "Password"
             }
-            return "No gateway auth"
+            return nil
         }
 
         let trimmedTarget = remoteTarget.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedRemoteURL = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let controlDetail: String? = {
-            switch controlState {
-            case let .degraded(message):
-                return message.nonEmpty
-            case .connecting:
-                return "The control channel is still connecting."
-            case .connected, .disconnected:
-                return nil
-            }
-        }()
+        let authValue = Self.authFactValue(from: authSourceLabel)
 
         switch mode {
         case .unconfigured:
@@ -301,43 +347,115 @@ struct InstancesSettings: View {
         case .local:
             switch endpointState {
             case let .ready(_, url, token, password):
-                return ConnectionOverview(
-                    title: "Local runtime",
-                    summary: "This Mac is connected directly to the local gateway.",
-                    detail: controlDetail,
-                    status: .connected,
-                    facts: [
-                        ConnectionFact(label: "Route", value: "This Mac"),
-                        ConnectionFact(label: "Gateway", value: Self.hostLabel(for: url)),
-                        ConnectionFact(label: "Access", value: accessLabel(token, password)),
-                    ])
+                var facts = [
+                    ConnectionFact(label: "Route", value: "This Mac"),
+                    ConnectionFact(label: "Gateway", value: Self.hostLabel(for: url)),
+                ]
+                if case .connected = controlState, let authValue {
+                    facts.append(ConnectionFact(label: "Auth", value: authValue))
+                } else if let configuredAccess = configuredAccessValue(token, password) {
+                    facts.append(ConnectionFact(label: "Configured access", value: configuredAccess))
+                }
+
+                switch controlState {
+                case .connected:
+                    return ConnectionOverview(
+                        title: "Local runtime",
+                        summary: "This Mac is connected directly to the local runtime.",
+                        detail: nil,
+                        status: .connected,
+                        facts: facts)
+                case .connecting:
+                    return ConnectionOverview(
+                        title: "Connecting to local runtime",
+                        summary: "This Mac is reconnecting to the local runtime.",
+                        detail: "Alisio already knows where the local runtime is and is reconnecting now.",
+                        status: .connecting,
+                        facts: facts)
+                case .disconnected:
+                    return ConnectionOverview(
+                        title: "Local runtime disconnected",
+                        summary: "This Mac is not connected to the local runtime right now.",
+                        detail: "Alisio knows where the local runtime is, but the connection is still down.",
+                        status: .attention,
+                        facts: facts)
+                case let .degraded(message):
+                    return ConnectionOverview(
+                        title: "Local runtime needs attention",
+                        summary: Self.connectionFailureSummary(message),
+                        detail: "Alisio knows where the local runtime is, but the connection is not healthy.",
+                        status: .attention,
+                        facts: facts)
+                }
             case let .connecting(_, detail):
-                return ConnectionOverview(
-                    title: "Starting local runtime",
-                    summary: detail,
-                    detail: controlDetail,
-                    status: .connecting,
-                    facts: [
-                        ConnectionFact(label: "Route", value: "This Mac"),
-                    ])
+                switch controlState {
+                case let .degraded(message):
+                    return ConnectionOverview(
+                        title: "Local runtime needs attention",
+                        summary: Self.connectionFailureSummary(message),
+                        detail: detail,
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: "This Mac"),
+                        ])
+                case .disconnected:
+                    return ConnectionOverview(
+                        title: "Local runtime disconnected",
+                        summary: "This Mac is not connected to the local runtime right now.",
+                        detail: detail,
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: "This Mac"),
+                        ])
+                case .connecting, .connected:
+                    return ConnectionOverview(
+                        title: "Starting local runtime",
+                        summary: detail,
+                        detail: nil,
+                        status: .connecting,
+                        facts: [
+                            ConnectionFact(label: "Route", value: "This Mac"),
+                        ])
+                }
             case let .unavailable(_, reason):
                 return ConnectionOverview(
                     title: "Local runtime unavailable",
                     summary: reason,
-                    detail: controlDetail,
+                    detail: nil,
                     status: .attention,
                     facts: [
                         ConnectionFact(label: "Route", value: "This Mac"),
                     ])
             case .none:
-                return ConnectionOverview(
-                    title: "Local runtime",
-                    summary: "Waiting to resolve the local gateway endpoint.",
-                    detail: controlDetail,
-                    status: .connecting,
-                    facts: [
-                        ConnectionFact(label: "Route", value: "This Mac"),
-                    ])
+                switch controlState {
+                case let .degraded(message):
+                    return ConnectionOverview(
+                        title: "Local runtime needs attention",
+                        summary: Self.connectionFailureSummary(message),
+                        detail: "Alisio is still figuring out how to reach the local runtime.",
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: "This Mac"),
+                        ])
+                case .disconnected:
+                    return ConnectionOverview(
+                        title: "Local runtime disconnected",
+                        summary: "This Mac is not connected to the local runtime right now.",
+                        detail: "Alisio is still figuring out how to reach the local runtime.",
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: "This Mac"),
+                        ])
+                case .connecting, .connected:
+                    return ConnectionOverview(
+                        title: "Local runtime",
+                        summary: "Still working out how to reach the local runtime.",
+                        detail: nil,
+                        status: .connecting,
+                        facts: [
+                            ConnectionFact(label: "Route", value: "This Mac"),
+                        ])
+                }
             }
         case .remote:
             let routeValue = remoteTransport == .direct ? "Direct URL" : "SSH tunnel"
@@ -347,51 +465,168 @@ struct InstancesSettings: View {
 
             switch endpointState {
             case let .ready(_, _, token, password):
-                let summary = remoteTransport == .direct
-                    ? "This Mac is connected to a remote gateway over a direct URL."
-                    : "This Mac is connected to a remote gateway over SSH tunnel."
-                return ConnectionOverview(
-                    title: "Remote runtime",
-                    summary: summary,
-                    detail: controlDetail,
-                    status: .connected,
-                    facts: [
-                        ConnectionFact(label: "Route", value: routeValue),
-                        ConnectionFact(label: "Target", value: targetValue),
-                        ConnectionFact(label: "Access", value: accessLabel(token, password)),
-                    ])
+                var facts = [
+                    ConnectionFact(label: "Route", value: routeValue),
+                    ConnectionFact(label: "Target", value: targetValue),
+                ]
+                if case .connected = controlState, let authValue {
+                    facts.append(ConnectionFact(label: "Auth", value: authValue))
+                } else if let configuredAccess = configuredAccessValue(token, password) {
+                    facts.append(ConnectionFact(label: "Configured access", value: configuredAccess))
+                }
+
+                let connectedSummary = remoteTransport == .direct
+                    ? "This Mac is connected to a remote runtime over a direct URL."
+                    : "This Mac is connected to a remote runtime over SSH tunnel."
+
+                switch controlState {
+                case .connected:
+                    return ConnectionOverview(
+                        title: "Remote runtime",
+                        summary: connectedSummary,
+                        detail: nil,
+                        status: .connected,
+                        facts: facts)
+                case .connecting:
+                    return ConnectionOverview(
+                        title: "Connecting to remote runtime",
+                        summary: "This Mac is reconnecting to the remote runtime.",
+                        detail: "Alisio already knows where the remote runtime is and is reconnecting now.",
+                        status: .connecting,
+                        facts: facts)
+                case .disconnected:
+                    return ConnectionOverview(
+                        title: "Remote runtime disconnected",
+                        summary: "This Mac is not connected to the remote runtime right now.",
+                        detail: "Alisio knows where the remote runtime is, but the connection is still down.",
+                        status: .attention,
+                        facts: facts)
+                case let .degraded(message):
+                    return ConnectionOverview(
+                        title: "Remote runtime needs attention",
+                        summary: Self.connectionFailureSummary(message),
+                        detail: "Alisio knows where the remote runtime is, but the connection is not healthy.",
+                        status: .attention,
+                        facts: facts)
+                }
             case let .connecting(_, detail):
-                return ConnectionOverview(
-                    title: "Connecting to remote runtime",
-                    summary: detail,
-                    detail: controlDetail,
-                    status: .connecting,
-                    facts: [
-                        ConnectionFact(label: "Route", value: routeValue),
-                        ConnectionFact(label: "Target", value: targetValue),
-                    ])
+                switch controlState {
+                case let .degraded(message):
+                    return ConnectionOverview(
+                        title: "Remote runtime needs attention",
+                        summary: Self.connectionFailureSummary(message),
+                        detail: detail,
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: routeValue),
+                            ConnectionFact(label: "Target", value: targetValue),
+                        ])
+                case .disconnected:
+                    return ConnectionOverview(
+                        title: "Remote runtime disconnected",
+                        summary: "This Mac is not connected to the remote runtime right now.",
+                        detail: detail,
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: routeValue),
+                            ConnectionFact(label: "Target", value: targetValue),
+                        ])
+                case .connecting, .connected:
+                    return ConnectionOverview(
+                        title: "Connecting to remote runtime",
+                        summary: detail,
+                        detail: nil,
+                        status: .connecting,
+                        facts: [
+                            ConnectionFact(label: "Route", value: routeValue),
+                            ConnectionFact(label: "Target", value: targetValue),
+                        ])
+                }
             case let .unavailable(_, reason):
                 return ConnectionOverview(
                     title: "Remote runtime unavailable",
                     summary: reason,
-                    detail: controlDetail,
+                    detail: nil,
                     status: .attention,
                     facts: [
                         ConnectionFact(label: "Route", value: routeValue),
                         ConnectionFact(label: "Target", value: targetValue),
                     ])
             case .none:
-                return ConnectionOverview(
-                    title: "Remote runtime",
-                    summary: "Waiting to resolve the remote gateway endpoint.",
-                    detail: controlDetail,
-                    status: .connecting,
-                    facts: [
-                        ConnectionFact(label: "Route", value: routeValue),
-                        ConnectionFact(label: "Target", value: targetValue),
-                    ])
+                switch controlState {
+                case let .degraded(message):
+                    return ConnectionOverview(
+                        title: "Remote runtime needs attention",
+                        summary: Self.connectionFailureSummary(message),
+                        detail: "Alisio is still figuring out how to reach the remote runtime.",
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: routeValue),
+                            ConnectionFact(label: "Target", value: targetValue),
+                        ])
+                case .disconnected:
+                    return ConnectionOverview(
+                        title: "Remote runtime disconnected",
+                        summary: "This Mac is not connected to the remote runtime right now.",
+                        detail: "Alisio is still figuring out how to reach the remote runtime.",
+                        status: .attention,
+                        facts: [
+                            ConnectionFact(label: "Route", value: routeValue),
+                            ConnectionFact(label: "Target", value: targetValue),
+                        ])
+                case .connecting, .connected:
+                    return ConnectionOverview(
+                        title: "Remote runtime",
+                        summary: "Still working out how to reach the remote runtime.",
+                        detail: nil,
+                        status: .connecting,
+                        facts: [
+                            ConnectionFact(label: "Route", value: routeValue),
+                            ConnectionFact(label: "Target", value: targetValue),
+                        ])
+                }
             }
         }
+    }
+
+    private static func authFactValue(from label: String?) -> String? {
+        let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("Auth: ") {
+            return String(trimmed.dropFirst("Auth: ".count))
+        }
+        return trimmed
+    }
+
+    private static func connectionFailureSummary(_ raw: String?) -> String {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return "The runtime needs attention." }
+
+        let lower = trimmed.lowercased()
+        if lower.contains("rejected token") ||
+            lower.contains("invalid token") ||
+            lower.contains("authentication") ||
+            lower.contains("unauthorized") ||
+            lower.contains("forbidden") ||
+            lower.contains("password")
+        {
+            return "Saved gateway credentials were rejected."
+        }
+        if lower.contains("timeout") {
+            return "The runtime is taking longer than expected to respond."
+        }
+        if lower.contains("cannot reach gateway") ||
+            lower.contains("cannot connect") ||
+            lower.contains("connection refused") ||
+            lower.contains("disconnected") ||
+            lower.contains("network")
+        {
+            return "Alisio could not reach the runtime."
+        }
+        if lower.contains("remote control tunnel failed") || lower.contains("ssh") {
+            return "Alisio could not open the remote connection."
+        }
+        return trimmed
     }
 
     private static func remoteHostLabel(from rawURL: String) -> String? {

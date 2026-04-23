@@ -166,6 +166,33 @@ struct EntryFlowModelTests {
         #expect(model.canGoBack == false)
     }
 
+    @Test func `google auth shows product copy instead of raw readiness diagnostics`() async {
+        let model = EntryFlowModel(
+            handlers: EntryFlowHandlers(
+                beginGoogleAuth: { _ in
+                    throw GatewayReadinessError(
+                        technicalMessage: "[readiness:connect] Gateway on port 40705 is not reachable yet: cannot connect (while preparing alisio.account.beginGoogleAuth)",
+                        operation: GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue,
+                        status: .starting)
+                },
+                beginEmailAuth: { email, _ in
+                    EntryFlowEmailDelivery(email: email, message: "Check your email.")
+                },
+                verifyEmailCode: { email, _, _ in
+                    .signedIn(email: email)
+                },
+                completeProfile: { _ in }),
+        )
+
+        model.showSignIn()
+        await model.beginGoogleAuth()
+
+        #expect(model.screen == .signIn)
+        #expect(
+            model.errorMessage ==
+                "Alisio is still getting this Mac ready. Google sign-in is not available just yet. Try again in a moment.")
+    }
+
     @Test func `back returns to previous auth screen`() {
         let model = EntryFlowModel(
             handlers: EntryFlowHandlers(

@@ -224,7 +224,10 @@ public struct AlisioChatView: View {
     }
 
     private var showsCenteredHome: Bool {
-        false
+        self.style == .alisio &&
+            !self.viewModel.isLoading &&
+            self.activeErrorText == nil &&
+            self.showsEmptyState
     }
 
     private var sessionHeader: some View {
@@ -651,26 +654,7 @@ public struct AlisioChatView: View {
     }
 
     private func contextUsageLabel(_ usage: AlisioChatSessionContextUsage) -> String {
-        let used = Self.formatCompactTokenCount(usage.totalTokens)
-        let total = usage.contextWindow > 0 ? Self.formatCompactTokenCount(usage.contextWindow) : "?"
-        return "\(used)/\(total)"
-    }
-
-    private static func formatCompactTokenCount(_ value: Int) -> String {
-        guard value >= 1_000 else { return "\(value)" }
-
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = value >= 100_000 ? 0 : 1
-
-        if value >= 1_000_000 {
-            let short = formatter.string(from: NSNumber(value: Double(value) / 1_000_000)) ?? "\(value)"
-            return "\(short)M"
-        }
-
-        let short = formatter.string(from: NSNumber(value: Double(value) / 1_000)) ?? "\(value)"
-        return "\(short)k"
+        usage.compactUsageLabel
     }
 
     private var messageList: some View {

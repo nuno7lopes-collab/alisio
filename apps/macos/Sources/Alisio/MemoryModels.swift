@@ -68,12 +68,28 @@ enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
     case mainMemory
     case dailyNotes
     case topicNotes
-    case backlogNotes
     case identity
     case soul
     case agentFiles
 
     var id: String { self.rawValue }
+
+    var sortOrder: Int {
+        switch self {
+        case .mainMemory:
+            0
+        case .dailyNotes:
+            1
+        case .topicNotes:
+            2
+        case .identity:
+            3
+        case .soul:
+            4
+        case .agentFiles:
+            5
+        }
+    }
 
     var title: String {
         switch self {
@@ -83,8 +99,6 @@ enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
             "Daily notes"
         case .topicNotes:
             "Topic notes"
-        case .backlogNotes:
-            "Backlog notes"
         case .identity:
             "Identity"
         case .soul:
@@ -102,8 +116,6 @@ enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
             "calendar"
         case .topicNotes:
             "note.text"
-        case .backlogNotes:
-            "tray"
         case .identity:
             "person.text.rectangle"
         case .soul:
@@ -229,6 +241,23 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         self.updatedAtMs = document.updatedAtMs
     }
 
+    static func canonicalSort(_ lhs: Self, _ rhs: Self) -> Bool {
+        if lhs.section != rhs.section {
+            return lhs.section.sortOrder < rhs.section.sortOrder
+        }
+
+        switch lhs.section {
+        case .mainMemory, .identity, .soul:
+            return Self.localizedLessThan(lhs.path, rhs.path)
+        case .dailyNotes:
+            return Self.compareDailyNotes(lhs, rhs)
+        case .topicNotes:
+            return Self.compareTopicNotes(lhs, rhs)
+        case .agentFiles:
+            return Self.compareAgentFiles(lhs, rhs)
+        }
+    }
+
     private static func resolveSection(document: MemoryPersonalContextDocument) -> MemorySurfaceSection? {
         switch document.kind {
         case "main_memory":
@@ -267,6 +296,55 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
             return Self.humanizePathComponent(Self.fileStem(from: document.path))
         default:
             return Self.fileName(from: document.path)
+        }
+    }
+
+    private static func compareDailyNotes(_ lhs: Self, _ rhs: Self) -> Bool {
+        let leftDate = Self.parsedDailyDate(path: lhs.path)
+        let rightDate = Self.parsedDailyDate(path: rhs.path)
+        if leftDate != rightDate {
+            return (leftDate ?? .distantPast) > (rightDate ?? .distantPast)
+        }
+        if lhs.updatedAtMs != rhs.updatedAtMs {
+            return (lhs.updatedAtMs ?? .min) > (rhs.updatedAtMs ?? .min)
+        }
+        return Self.localizedLessThan(lhs.path, rhs.path)
+    }
+
+    private static func compareTopicNotes(_ lhs: Self, _ rhs: Self) -> Bool {
+        if lhs.title.caseInsensitiveCompare(rhs.title) != .orderedSame {
+            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+        }
+        return Self.localizedLessThan(lhs.path, rhs.path)
+    }
+
+    private static func compareAgentFiles(_ lhs: Self, _ rhs: Self) -> Bool {
+        let leftRank = Self.agentFileRank(path: lhs.path)
+        let rightRank = Self.agentFileRank(path: rhs.path)
+        if leftRank != rightRank {
+            return leftRank < rightRank
+        }
+        return Self.localizedLessThan(lhs.path, rhs.path)
+    }
+
+    private static func localizedLessThan(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+    }
+
+    private static func parsedDailyDate(path: String) -> Date? {
+        Self.dailyInputFormatter.date(from: Self.fileStem(from: path))
+    }
+
+    private static func agentFileRank(path: String) -> Int {
+        switch Self.fileName(from: path).uppercased() {
+        case "AGENTS.MD":
+            0
+        case "TOOLS.MD":
+            1
+        case "HEARTBEAT.MD":
+            2
+        default:
+            100
         }
     }
 
@@ -502,6 +580,7 @@ final class MemorySettingsModel {
                 let items = (agent.personalContext?.documents ?? [])
                     .filter(\.present)
                     .compactMap(MemorySurfaceItem.init(document:))
+                    .sorted(by: MemorySurfaceItem.canonicalSort)
                 return (agent.id, items)
             })
             self.documentCache.removeAll()

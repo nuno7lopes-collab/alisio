@@ -61,6 +61,13 @@ final class AlisioWorkspaceWindowController: NSWindowController, NSWindowDelegat
         switch self.presentation {
         case .window:
             self.ensureWindowSize()
+            // Menu bar launches can still be in accessory mode here. Promote the app
+            // synchronously before showing the workspace so `--chat` doesn't require
+            // a later manual reopen to surface the first window.
+            if NSApp.activationPolicy() != .regular {
+                NSApp.setActivationPolicy(.regular)
+            }
+            window.orderFrontRegardless()
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
         case let .panel(anchorProvider):

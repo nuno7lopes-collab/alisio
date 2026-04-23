@@ -39,6 +39,7 @@ final class InstancesStore {
     var lastError: String?
     var statusMessage: String?
     var isLoading = false
+    var hasLoadedOnce = false
 
     private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "instances")
     private var task: Task<Void, Never>?
@@ -97,33 +98,25 @@ final class InstancesStore {
 
     func refresh() async {
         if self.isLoading { return }
-        self.statusMessage = nil
         self.isLoading = true
-        defer { self.isLoading = false }
+        defer {
+            self.isLoading = false
+            self.hasLoadedOnce = true
+        }
         do {
             PresenceReporter.shared.sendImmediate(reason: "instances-refresh")
             let data = try await ControlChannel.shared.request(method: "system-presence")
             self.lastPayload = data
             if data.isEmpty {
                 self.logger.error("instances fetch returned empty payload")
-                self.instances = [self.localFallbackInstance(reason: "no presence payload")]
-                self.lastError = nil
-                self.statusMessage = "No presence payload from gateway; showing local fallback + health probe."
-                await self.probeHealthIfNeeded(reason: "no payload")
+                self.applyRefreshFailure(
+                    message: self.userFacingRefreshFailure(
+                        raw: nil,
+                        fallback: "Couldn’t load nodes right now."))
                 return
             }
             let decoded = try JSONDecoder().decode([PresenceEntry].self, from: data)
-            let withIDs = self.normalizePresence(decoded)
-            if withIDs.isEmpty {
-                self.instances = [self.localFallbackInstance(reason: "no presence entries")]
-                self.lastError = nil
-                self.statusMessage = "Presence list was empty; showing local fallback + health probe."
-                await self.probeHealthIfNeeded(reason: "empty list")
-            } else {
-                self.instances = withIDs
-                self.lastError = nil
-                self.statusMessage = nil
-            }
+            self.applyPresence(decoded)
         } catch {
             self.logger.error(
                 """
@@ -131,34 +124,11 @@ final class InstancesStore {
                 len=\(self.lastPayload?.count ?? 0, privacy: .public) \
                 utf8=\(self.snippet(self.lastPayload), privacy: .public)
                 """)
-            self.instances = [self.localFallbackInstance(reason: "presence decode failed")]
-            self.lastError = nil
-            self.statusMessage = "Presence data invalid; showing local fallback + health probe."
-            await self.probeHealthIfNeeded(reason: "decode failed")
+            self.applyRefreshFailure(
+                message: self.userFacingRefreshFailure(
+                    raw: error.localizedDescription,
+                    fallback: "Couldn’t load nodes right now."))
         }
-    }
-
-    private func localFallbackInstance(reason: String) -> InstanceInfo {
-        let host = Host.current().localizedName ?? "this-mac"
-        let ip = SystemPresenceInfo.primaryIPv4Address()
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        let osVersion = ProcessInfo.processInfo.operatingSystemVersion
-        let platform = "macos \(osVersion.majorVersion).\(osVersion.minorVersion).\(osVersion.patchVersion)"
-        let text = "Local node: \(host)\(ip.map { " (\($0))" } ?? "") · app \(version ?? "dev")"
-        let ts = Date().timeIntervalSince1970 * 1000
-        return InstanceInfo(
-            id: "local-\(host)",
-            host: host,
-            ip: ip,
-            version: version,
-            platform: platform,
-            deviceFamily: "Mac",
-            modelIdentifier: InstanceIdentity.modelIdentifier,
-            lastInputSeconds: SystemPresenceInfo.lastInputSeconds(),
-            mode: "local",
-            reason: reason,
-            text: text,
-            ts: ts)
     }
 
     // MARK: - Helpers
@@ -176,67 +146,16 @@ final class InstancesStore {
         return "<\(data.count) bytes non-utf8>"
     }
 
-    private func probeHealthIfNeeded(reason: String? = nil) async {
-        do {
-            let data = try await ControlChannel.shared.health(timeout: 8)
-            guard let snap = decodeHealthSnapshot(from: data) else { return }
-            let linkId = snap.channelOrder?.first(where: {
-                if let summary = snap.channels[$0] { return summary.linked != nil }
-                return false
-            }) ?? snap.channels.keys.first(where: {
-                if let summary = snap.channels[$0] { return summary.linked != nil }
-                return false
-            })
-            let linked = linkId.flatMap { snap.channels[$0]?.linked } ?? false
-            let linkLabel =
-                linkId.flatMap { snap.channelLabels?[$0] } ??
-                linkId?.capitalized ??
-                "channel"
-            let entry = InstanceInfo(
-                id: "health-\(snap.ts)",
-                host: "gateway (health)",
-                ip: nil,
-                version: nil,
-                platform: nil,
-                deviceFamily: nil,
-                modelIdentifier: nil,
-                lastInputSeconds: nil,
-                mode: "health",
-                reason: "health probe",
-                text: "Health ok · \(linkLabel) linked=\(linked)",
-                ts: snap.ts)
-            if !self.instances.contains(where: { $0.id == entry.id }) {
-                self.instances.insert(entry, at: 0)
-            }
-            self.lastError = nil
-            self.statusMessage =
-                "Presence unavailable (\(reason ?? "refresh")); showing health probe + local fallback."
-        } catch {
-            self.logger.error("instances health probe failed: \(error.localizedDescription, privacy: .public)")
-            if let reason {
-                self.statusMessage =
-                    "Presence unavailable (\(reason)), health probe failed: \(error.localizedDescription)"
-            }
-        }
-    }
-
-    private func decodeAndApplyPresenceData(_ data: Data) {
-        do {
-            let decoded = try JSONDecoder().decode([PresenceEntry].self, from: data)
-            self.applyPresence(decoded)
-        } catch {
-            self.logger.error("presence decode from event failed: \(error.localizedDescription, privacy: .public)")
-            self.lastError = error.localizedDescription
-        }
-    }
-
     func handlePresenceEventPayload(_ payload: AlisioProtocol.AnyCodable) {
         do {
             let wrapper = try GatewayPayloadDecoding.decode(payload, as: PresenceEventPayload.self)
             self.applyPresence(wrapper.presence)
         } catch {
             self.logger.error("presence event decode failed: \(error.localizedDescription, privacy: .public)")
-            self.lastError = error.localizedDescription
+            self.applyRefreshFailure(
+                message: self.userFacingRefreshFailure(
+                    raw: nil,
+                    fallback: "Received an invalid nodes update."))
         }
     }
 
@@ -264,8 +183,45 @@ final class InstancesStore {
         self.notifyOnNodeLogin(withIDs)
         self.lastPresenceById = Dictionary(uniqueKeysWithValues: withIDs.map { ($0.id, $0) })
         self.instances = withIDs
-        self.statusMessage = nil
+        self.statusMessage = withIDs.isEmpty ? "No nodes have reported in yet." : nil
         self.lastError = nil
+        self.hasLoadedOnce = true
+    }
+
+    private func applyRefreshFailure(message: String) {
+        self.lastError = message
+        self.statusMessage = nil
+    }
+
+    private func userFacingRefreshFailure(raw: String?, fallback: String) -> String {
+        let hasLastKnownNodes = !self.instances.isEmpty
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let suffix = hasLastKnownNodes ? " Showing the last known list." : ""
+        let baseFallback = fallback + suffix
+        guard !trimmed.isEmpty else { return baseFallback }
+
+        let lower = trimmed.lowercased()
+        if lower.contains("sign in") {
+            return hasLastKnownNodes
+                ? "Sign in to refresh nodes. Showing the last known list."
+                : "Sign in to view nodes."
+        }
+        if lower.contains("timeout") {
+            return hasLastKnownNodes
+                ? "Nodes are taking longer than expected to refresh. Showing the last known list."
+                : "Nodes are taking longer than expected to load."
+        }
+        if lower.contains("disconnected") ||
+            lower.contains("cannot reach gateway") ||
+            lower.contains("cannot connect") ||
+            lower.contains("connection refused") ||
+            lower.contains("network")
+        {
+            return hasLastKnownNodes
+                ? "Alisio is not connected to the runtime right now. Showing the last known list."
+                : "Alisio is not connected to the runtime right now."
+        }
+        return baseFallback
     }
 
     private func notifyOnNodeLogin(_ instances: [InstanceInfo]) {
@@ -326,6 +282,7 @@ extension InstancesStore {
         let store = InstancesStore(isPreview: true)
         store.instances = instances
         store.statusMessage = "Preview data"
+        store.hasLoadedOnce = true
         return store
     }
 }

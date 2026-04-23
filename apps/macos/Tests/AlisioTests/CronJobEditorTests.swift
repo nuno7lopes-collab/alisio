@@ -10,6 +10,7 @@ struct CronJobEditorTests {
         id: String = "job-1",
         description: String? = "Existing description",
         sessionTarget: CronSessionTarget = .main,
+        schedule: CronSchedule = .every(everyMs: 3_600_000, anchorMs: nil),
         payload: CronPayload = .systemEvent(text: "Summarize today"),
         delivery: CronDelivery? = nil) -> Alisio.CronJob
     {
@@ -22,7 +23,7 @@ struct CronJobEditorTests {
             deleteAfterRun: false,
             createdAtMs: 1_700_000_000_000,
             updatedAtMs: 1_700_000_100_000,
-            schedule: .every(everyMs: 3_600_000, anchorMs: nil),
+            schedule: schedule,
             sessionTarget: sessionTarget,
             wakeMode: .now,
             payload: payload,
@@ -217,5 +218,22 @@ struct CronJobEditorTests {
 
         #expect(delivery["mode"] as? String == "none")
         #expect(delivery["bestEffort"] == nil)
+    }
+
+    @Test func `cron job editor preserves every anchor when editing an interval schedule`() throws {
+        let anchorMs = 1_700_000_222_000
+        let view = CronJobEditor(
+            job: self.makeJob(schedule: .every(everyMs: 3_600_000, anchorMs: anchorMs)),
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        view.hydrateFromJob()
+        let schedule = try view.buildSchedule()
+
+        #expect(schedule["kind"] as? String == "every")
+        #expect(schedule["anchorMs"] as? Int == anchorMs)
     }
 }

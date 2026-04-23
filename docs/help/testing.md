@@ -46,17 +46,17 @@ gateway readiness, reconnect, the native right inspector pane, permissions, and
 
 ### Scenario matrix
 
-| Scenario             | Automated coverage                                                                                                     | Operational pass criteria                                                                                                  | Still manual today                                                                |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Startup / cold start | `GatewayProcessManagerTests`, `GatewayEndpointStoreTests`                                                              | Local mode reaches `running` or `attachedExisting` without stale auth failures                                             | Packaged `Alisio.app` launch time, launchd wake from a signed bundle, first paint |
-| First message        | `GatewayConnectionControlTests`, `WorkspaceMainSessionKeyTests`, `WorkspaceNavigationStateTests`                       | First outbound request is non-empty, trimmed, uses the canonical main session, and carries timeout/idempotency metadata    | Native composer-to-transcript perceived latency in the packaged app               |
-| Gateway readiness    | `GatewayProcessManagerTests`, `GatewayConnectionControlTests`, `GatewayChannelConnectTests`                            | `health` or `status` RPC proves liveness; auth failures are surfaced explicitly instead of leaving a silent hang           | Version mismatch handling against a real installed runtime                        |
-| Reconnect            | `MacNodeComputerHelperClientTests`, `GatewayChannelShutdownTests`                                                      | One interruption reconnects cleanly without losing the active computer session or spawning an endless reconnect loop       | Real network flap, sleep/wake, and SSH tunnel churn                               |
-| Right inspector pane | `MacDesktopComputerStoreTests`, `AlisioWorkspaceWindowSmokeTests`                                                      | Session/runtime state opens the pane when there is activity, frame data, or a permission error, and stays closed when idle | Docking, animation, sizing, and real user interaction timing                      |
-| Permissions          | `PermissionManagerTests`, `MacDesktopComputerStoreTests`                                                               | Missing Accessibility/Screen Recording surfaces the right guidance instead of silently failing computer-use startup        | Real TCC prompt appearance, denial flows, and System Settings round-trip          |
-| Restart-required     | `MacDesktopComputerStoreTests`                                                                                         | After a blocked `computer use` start, the UI exposes a restart hint instead of silently failing                            | Confirming the hint clears after a real grant + relaunch                          |
-| Computer use         | `MacDesktopComputerStoreTests`, `MacNodeComputerHelperClientTests`, `MacNodeRuntimeTests`                              | Existing local sessions attach, refresh frames, surface permission errors, and recover after helper interruption           | Real input injection, frame freshness under load, and end-to-end capture latency  |
-| Main sessions        | `WorkspaceMainSessionKeyTests`, `WorkActivityStoreTests`, `MenuSessionsInjectorTests`, `WorkspaceNavigationStateTests` | Native workspace defaults resolve to the main session and main-session activity preempts secondary sessions in app state   | Cross-device session switching in a live signed build                             |
+| Scenario             | Automated coverage                                                                                                     | Operational pass criteria                                                                                                             | Still manual today                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Startup / cold start | `GatewayProcessManagerTests`, `GatewayEndpointStoreTests`, `scripts/restart-mac.sh`                                    | Local mode reaches `running` or `attachedExisting`; the packaged app opens a real window; the LaunchAgent targets the bundled runtime | Subjective cold-start feel after the first visible window                        |
+| First message        | `GatewayConnectionControlTests`, `WorkspaceMainSessionKeyTests`, `WorkspaceNavigationStateTests`                       | First outbound request is non-empty, trimmed, uses the canonical main session, and carries timeout/idempotency metadata               | Native composer-to-first-reply latency in a signed packaged app                  |
+| Gateway readiness    | `GatewayProcessManagerTests`, `GatewayConnectionControlTests`, `GatewayChannelConnectTests`, `scripts/restart-mac.sh`  | `health` or `status` proves liveness; auth failures are surfaced explicitly instead of leaving a silent hang                          | Version mismatch handling against a real installed runtime                       |
+| Reconnect            | `MacNodeComputerHelperClientTests`, `GatewayChannelShutdownTests`, `scripts/restart-mac.sh`                            | One interruption reconnects cleanly; packaged launchd survives `kickstart -k` and returns to `health` or `status`                     | Real sleep/wake, network flap, and SSH tunnel churn                              |
+| Right inspector pane | `MacDesktopComputerStoreTests`, `AlisioWorkspaceWindowSmokeTests`                                                      | Session/runtime state opens the pane when there is activity, frame data, or a permission error, and stays closed when idle            | Docking, animation, sizing, and real user interaction timing                     |
+| Permissions          | `PermissionManagerTests`, `MacDesktopComputerStoreTests`, `SystemSettingsURLSupportTests`                              | Missing Accessibility/Screen Recording surfaces the right guidance and the app targets the correct System Settings pane               | Real TCC prompt appearance, deny/grant flows, and restart-required clearing      |
+| Restart-required     | `MacDesktopComputerStoreTests`, `PermissionManagerTests`                                                               | After a blocked `computer use` start, the UI exposes a restart hint instead of silently failing                                       | Confirming the hint clears after a real grant + relaunch                         |
+| Computer use         | `MacDesktopComputerStoreTests`, `MacNodeComputerHelperClientTests`, `MacNodeRuntimeTests`                              | Existing local sessions attach, refresh frames, surface permission errors, and recover after helper interruption                      | Real input injection, frame freshness under load, and end-to-end capture latency |
+| Main sessions        | `WorkspaceMainSessionKeyTests`, `WorkActivityStoreTests`, `MenuSessionsInjectorTests`, `WorkspaceNavigationStateTests` | Native workspace defaults resolve to the main session and main-session activity preempts secondary sessions in app state              | Cross-device session switching in a live signed build                            |
 
 ### Targeted macOS validation commands
 
@@ -69,10 +69,70 @@ gateway readiness, reconnect, the native right inspector pane, permissions, and
 - `swift test --package-path apps/macos --filter MacNodeComputerHelperClientTests`
 - `swift test --package-path apps/macos --filter AlisioWorkspaceWindowSmokeTests`
 - `swift test --package-path apps/macos --filter PermissionManagerTests`
+- `swift test --package-path apps/macos --filter SystemSettingsURLSupportTests`
 - `swift test --package-path apps/macos --filter WorkspaceNavigationStateTests`
 - `swift test --package-path apps/macos --filter MenuSessionsInjectorTests`
 - `swift test --package-path apps/macos --filter WorkActivityStoreTests`
 - `swift test --package-path apps/macos --filter WorkspaceMainSessionKeyTests`
+- `scripts/restart-mac.sh`
+- `git diff --check`
+
+### Packaged app release bar
+
+Use this as the explicit final bar for subphase 5D.
+
+Preconditions:
+
+- Local mode selected in the macOS app.
+- Attach-only disabled.
+- A real signing identity is in use. Do not use `scripts/restart-mac.sh --no-sign`
+  for final packaged-app QA.
+- For the manual first-message step, use a signed-in account with at least one
+  working model available in the native workspace.
+
+Automated bar:
+
+1. `swift build --package-path apps/macos`
+2. `swift test --package-path apps/macos --filter GatewayConnectionControlTests`
+3. `swift test --package-path apps/macos --filter GatewayChannelConnectTests`
+4. `swift test --package-path apps/macos --filter GatewayProcessManagerTests`
+5. `swift test --package-path apps/macos --filter GatewayChannelShutdownTests`
+6. `swift test --package-path apps/macos --filter MacDesktopComputerStoreTests`
+7. `swift test --package-path apps/macos --filter AlisioWorkspaceWindowSmokeTests`
+8. `swift test --package-path apps/macos --filter PermissionManagerTests`
+9. `swift test --package-path apps/macos --filter SystemSettingsURLSupportTests`
+10. `swift test --package-path apps/macos --filter WorkspaceNavigationStateTests`
+11. `swift test --package-path apps/macos --filter WorkspaceMainSessionKeyTests`
+12. `scripts/restart-mac.sh`
+13. `git diff --check`
+
+Pass criteria:
+
+- The Swift build and targeted smokes stay green.
+- `scripts/restart-mac.sh` completes without error and proves all of these in one
+  pass:
+  - the packaged `Alisio.app` launches from the rebuilt bundle path
+  - the first real window becomes visible
+  - the LaunchAgent plist points at the bundled Node plus bundled entrypoint
+  - `launchctl print` can see the launchd job
+  - the bundled runtime reaches `health` or `status`
+  - `launchctl kickstart -k` returns to `health` or `status`
+- `git diff --check` stays clean.
+
+Manual residual bar:
+
+1. Trigger a permissioned feature from the signed packaged app.
+   Expected: the TCC prompt appears, or the app immediately shows a blocked state with an **Open System Settings** action.
+2. Deny the permission once.
+   Expected: the app stays responsive, surfaces blocked guidance, and does not hang on startup or feature entry.
+3. Use **Open System Settings** from the app.
+   Expected: macOS opens the matching pane for the denied capability, not a random settings page.
+4. Grant the permission without relaunching the app.
+   Expected: the app shows **restart required** rather than silently pretending the feature is ready.
+5. Relaunch with `scripts/restart-mac.sh`.
+   Expected: the blocked or restart-required state clears after relaunch.
+6. Send one real first message from the packaged app.
+   Expected: the workspace is not blank, the run starts, and the first assistant event arrives without requiring a second manual reopen or reconnect.
 
 ### Perceived latency and hang checks
 
@@ -94,13 +154,17 @@ Use these as operational validation criteria for the native macOS app:
 
 ### Known manual coverage gaps
 
-These gaps remain manual today, but they do not block the macOS QA slice from
-going green:
+These gaps remain manual today, but they no longer make the release bar vague:
 
-- There is no packaged-app UI automation seam in `AlisioTests` that measures
-  signed `Alisio.app` launch-to-first-paint or first-message latency.
-- TCC prompts and System Settings grant flows are still manual because the Swift
-  package tests cannot drive real macOS permission dialogs safely.
+- There is still no packaged-app UI automation seam that measures
+  launch-to-first-reply latency inside the signed `Alisio.app`. The heavy smoke
+  now proves bundle startup, first visible window, launchd wiring, and kickstart
+  reconnect, but not perceived reply speed.
+- TCC prompt appearance, deny/grant transitions, and restart-required clearing
+  still need a human on a signed bundle because Swift package tests cannot drive
+  real macOS permission dialogs safely.
+- Sleep/wake and real network-flap reconnects remain manual beyond the scripted
+  `launchctl kickstart -k` reconnect pass.
 - The right inspector pane has useful state-level coverage, but not layout or
   animation coverage. We can assert when it should open, not how it animates.
 

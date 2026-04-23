@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import OSLog
 import SwiftUI
 
 import AlisioSupport
@@ -62,6 +63,15 @@ enum AlisioAppVisibleSurface {
 }
 
 @MainActor
+enum AlisioAppAccountGateStatus: Equatable {
+    case checking
+    case signInRequired
+    case unavailable
+    case profileCompletionRequired
+    case ready
+}
+
+@MainActor
 struct AlisioAppRootView: View {
     @Bindable var rootState: AlisioAppRootState
     @Bindable var navigationState: WorkspaceNavigationState
@@ -75,6 +85,7 @@ struct AlisioAppRootView: View {
 
     private let isPreview = ProcessInfo.processInfo.isPreview
     private let isRunningTests = ProcessInfo.processInfo.isRunningTests
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "app-root")
 
     init(
         rootState: AlisioAppRootState,
@@ -109,19 +120,22 @@ struct AlisioAppRootView: View {
                     rootState: self.rootState,
                     state: self.state,
                     stage: .loading,
-                    presentation: self.presentation)
+                    presentation: self.presentation,
+                    errorMessage: nil)
             case .entryFlow:
                 AlisioEntryFlowRootView(
                     rootState: self.rootState,
                     state: self.state,
                     stage: .entryFlow,
-                    presentation: self.presentation)
+                    presentation: self.presentation,
+                    errorMessage: self.entryFlowErrorMessage)
             case .setup:
                 AlisioEntryFlowRootView(
                     rootState: self.rootState,
                     state: self.state,
                     stage: .setup,
-                    presentation: self.presentation)
+                    presentation: self.presentation,
+                    errorMessage: nil)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -140,10 +154,8 @@ struct AlisioAppRootView: View {
 
     private var visibleSurface: AlisioAppVisibleSurface {
         Self.resolveVisibleSurface(
-            needsInitialAccountRefresh: self.needsInitialAccountRefresh,
             prefersEntryFlow: self.rootState.prefersEntryFlow,
-            isAuthenticated: self.accountStore.isAuthenticated,
-            profileCompleted: self.accountStore.profileCompleted,
+            accountGateStatus: self.accountGateStatus,
             prefersSetup: self.rootState.prefersSetup,
             runtimeGateStatus: self.runtimeGateStatus)
     }
@@ -164,14 +176,50 @@ struct AlisioAppRootView: View {
         .joined(separator: "|")
     }
 
-    private var needsInitialAccountRefresh: Bool {
-        guard !self.isPreview, !self.isRunningTests else { return false }
-        return self.accountStore.snapshot == nil && self.accountStore.lastRefreshAt == nil
+    private var accountGateStatus: AlisioAppAccountGateStatus {
+        Self.resolveAccountGateStatus(
+            snapshot: self.accountStore.snapshot,
+            isLoading: self.accountStore.isLoading,
+            lastError: self.accountStore.lastError,
+            lastErrorIsTransient: self.accountStore.lastErrorIsTransient,
+            lastRefreshAt: self.accountStore.lastRefreshAt)
+    }
+
+    private var entryFlowErrorMessage: String? {
+        switch self.accountGateStatus {
+        case .unavailable:
+            self.accountStore.lastError?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        case .checking, .signInRequired, .profileCompletionRequired, .ready:
+            nil
+        }
     }
 
     private func refreshAccount(reason: String) async {
         guard !self.isPreview, !self.isRunningTests else { return }
-        await self.accountStore.refresh(reason: reason)
+        let delays: [UInt64] = [0, 300_000_000, 900_000_000]
+
+        for (index, delay) in delays.enumerated() {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay)
+            }
+            guard !Task.isCancelled else { return }
+
+            let attemptReason = index == 0 ? reason : "\(reason)-retry-\(index + 1)"
+            await self.accountStore.refresh(reason: attemptReason)
+            guard !Task.isCancelled else { return }
+
+            switch self.accountGateStatus {
+            case .ready, .signInRequired, .profileCompletionRequired, .unavailable:
+                return
+            case .checking:
+                break
+            }
+        }
+
+        let message = self.accountStore.lastError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !message.isEmpty {
+            self.logger.warning("account gate still unavailable after retries: \(message, privacy: .public)")
+        }
     }
 
     private func refreshRuntimeGate() async {
@@ -180,22 +228,61 @@ struct AlisioAppRootView: View {
         self.runtimeGateStatus = AlisioAppRuntimeGateStatus(runtimeState: runtimeState)
     }
 
+    static func resolveAccountGateStatus(
+        snapshot: AlisioAccountSnapshot?,
+        isLoading: Bool,
+        lastError: String?,
+        lastErrorIsTransient: Bool,
+        lastRefreshAt: Date?) -> AlisioAppAccountGateStatus
+    {
+        if isLoading {
+            return .checking
+        }
+
+        if let snapshot {
+            if snapshot.isAuthenticated {
+                return snapshot.session?.profileCompleted == true ? .ready : .profileCompletionRequired
+            }
+
+            if lastRefreshAt != nil {
+                let trimmedError = lastError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                if trimmedError.isEmpty {
+                    return .signInRequired
+                }
+                if !lastErrorIsTransient {
+                    return .unavailable
+                }
+            }
+        }
+
+        if let lastRefreshAt,
+           lastRefreshAt.timeIntervalSince1970 > 0,
+           let lastError,
+           !lastError.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !lastErrorIsTransient
+        {
+            return .unavailable
+        }
+
+        return .checking
+    }
+
     static func resolveVisibleSurface(
-        needsInitialAccountRefresh: Bool,
         prefersEntryFlow: Bool,
-        isAuthenticated: Bool,
-        profileCompleted: Bool,
+        accountGateStatus: AlisioAppAccountGateStatus,
         prefersSetup: Bool,
         runtimeGateStatus: AlisioAppRuntimeGateStatus) -> AlisioAppVisibleSurface
     {
-        if needsInitialAccountRefresh {
-            return .loading
-        }
         if prefersEntryFlow {
             return .entryFlow
         }
-        if !isAuthenticated || !profileCompleted {
+        switch accountGateStatus {
+        case .checking:
+            return .loading
+        case .signInRequired, .profileCompletionRequired, .unavailable:
             return .entryFlow
+        case .ready:
+            break
         }
         if prefersSetup {
             return .setup
@@ -225,6 +312,7 @@ private struct AlisioEntryFlowRootView: View {
 
     let stage: AlisioEntryFlowStage
     let presentation: AlisioWorkspacePresentation
+    let errorMessage: String?
 
     var body: some View {
         Group {
@@ -244,7 +332,7 @@ private struct AlisioEntryFlowRootView: View {
             case .loading:
                 self.loadingStage
             case .entryFlow:
-                AlisioEntryFlowHostView(rootState: self.rootState)
+                AlisioEntryFlowHostView(rootState: self.rootState, initialErrorMessage: self.errorMessage)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .setup:
                 MacSetupView(state: self.state)
@@ -337,6 +425,7 @@ private struct AlisioEntryFlowHostView: View {
     @Bindable var rootState: AlisioAppRootState
     @Bindable private var accountStore = AlisioAccountStore.shared
     @State private var model = EntryFlowModel(handlers: Self.makeHandlers())
+    let initialErrorMessage: String?
 
     var body: some View {
         EntryFlowView(
@@ -349,6 +438,13 @@ private struct AlisioEntryFlowHostView: View {
                 if !self.rootState.prefersEntryFlow {
                     self.rootState.showEntryFlow()
                 }
+            }
+            .task(id: self.initialErrorMessage) {
+                let message = self.initialErrorMessage?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .nonEmpty
+                guard self.model.screen == .welcome, !self.model.isBusy else { return }
+                self.model.errorMessage = message
             }
             .task(id: self.accountStore.lastAuthCompletionEventID) {
                 guard let completion = self.accountStore.takeLastAuthCompletion() else { return }

@@ -794,7 +794,29 @@ if [[ ! -d "$FINAL_APP_ROOT" ]]; then
   exit 1
 fi
 APP_ROOT="$FINAL_APP_ROOT"
+FINAL_ENTRYPOINT="$APP_ROOT/Contents/Resources/${PACKAGE_DIR_NAME}/alisio.mjs"
+if [[ ! -f "$FINAL_ENTRYPOINT" ]]; then
+  FINAL_ENTRYPOINT="$APP_ROOT/Contents/Resources/${PACKAGE_DIR_NAME}/dist/index.js"
+fi
 if [[ "$PACKAGE_MODE" == "release-placeholder" ]]; then
   echo "ℹ️ Release placeholder ready. Use scripts/package-mac-dist.sh for zip/dmg + notarized distribution."
+fi
+SIGNATURE_DETAILS="$(/usr/bin/codesign -dv --verbose=2 "$APP_ROOT" 2>&1 || true)"
+if printf '%s\n' "$SIGNATURE_DETAILS" | grep -q "Signature=adhoc"; then
+  echo "🔏 Signature: ad-hoc"
+  echo "⚠️  TCC não persiste com assinatura ad-hoc. Não uses este bundle para packaged-app QA final."
+else
+  SIGNING_AUTHORITY="$(printf '%s\n' "$SIGNATURE_DETAILS" | grep '^Authority=' | head -n 1 || true)"
+  if [[ -n "$SIGNING_AUTHORITY" ]]; then
+    echo "🔏 Signature: ${SIGNING_AUTHORITY#Authority=}"
+  else
+    echo "🔏 Signature: válida, mas sem authority legível no output do codesign."
+  fi
+fi
+if [[ -x "$FINAL_BUNDLED_NODE" ]]; then
+  echo "🧪 Bundled Node: $FINAL_BUNDLED_NODE"
+fi
+if [[ -f "$FINAL_ENTRYPOINT" ]]; then
+  echo "🧪 Bundled entrypoint: $FINAL_ENTRYPOINT"
 fi
 echo "✅ Bundle pronto em $APP_ROOT"

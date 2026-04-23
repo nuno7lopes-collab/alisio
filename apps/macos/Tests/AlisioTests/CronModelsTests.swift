@@ -47,6 +47,12 @@ struct CronModelsTests {
         }
     }
 
+    @Test func `schedule at parser matches gateway absolute-time normalization`() {
+        #expect(CronSchedule.parseAtDate("2026-04-21") == Self.isoDate("2026-04-21T00:00:00Z"))
+        #expect(CronSchedule.parseAtDate("2026-04-21T10:15:00") == Self.isoDate("2026-04-21T10:15:00Z"))
+        #expect(CronSchedule.parseAtDate("1776766500000") == Self.isoDate("2026-04-21T10:15:00Z"))
+    }
+
     @Test func `schedule every encodes and decodes with anchor`() throws {
         let schedule = CronSchedule.every(everyMs: 5000, anchorMs: 10000)
         let data = try JSONEncoder().encode(schedule)
@@ -272,5 +278,9 @@ struct CronModelsTests {
 
         #expect(entries.count == 1)
         #expect(entries.first?.jobId == "good")
+    }
+
+    private static func isoDate(_ value: String) -> Date {
+        ISO8601DateFormatter().date(from: value)!
     }
 }

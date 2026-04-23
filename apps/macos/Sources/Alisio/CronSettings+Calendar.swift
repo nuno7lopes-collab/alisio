@@ -48,7 +48,8 @@ extension CronSettings {
                 self.showEditor = true
             }
         case .list:
-            let projection = self.calendarProjection
+            let calendar = Calendar.current
+            let projection = self.calendarProjection(using: calendar)
             VStack(alignment: .leading, spacing: 10) {
                 self.calendarControls(projection: projection)
 
@@ -70,13 +71,13 @@ extension CronSettings {
                 case .week:
                     ScheduleWeekCalendarGrid(
                         projection: projection,
-                        calendar: Calendar.current,
+                        calendar: calendar,
                         selectedJobId: self.store.selectedJobId,
                         onSelect: self.openCalendarOccurrence)
                 case .month:
                     ScheduleMonthCalendarGrid(
                         projection: projection,
-                        calendar: Calendar.current,
+                        calendar: calendar,
                         selectedJobId: self.store.selectedJobId,
                         onSelect: self.openCalendarOccurrence)
                 }
@@ -84,12 +85,18 @@ extension CronSettings {
         }
     }
 
-    var calendarProjection: ScheduleCalendarProjection {
+    func calendarProjection(using calendar: Calendar) -> ScheduleCalendarProjection {
         switch self.displayMode {
         case .list, .week:
-            ScheduleCalendarProjection.week(containing: self.calendarReferenceDate, jobs: self.store.jobs)
+            ScheduleCalendarProjection.week(
+                containing: self.calendarReferenceDate,
+                jobs: self.store.jobs,
+                calendar: calendar)
         case .month:
-            ScheduleCalendarProjection.month(containing: self.calendarReferenceDate, jobs: self.store.jobs)
+            ScheduleCalendarProjection.month(
+                containing: self.calendarReferenceDate,
+                jobs: self.store.jobs,
+                calendar: calendar)
         }
     }
 

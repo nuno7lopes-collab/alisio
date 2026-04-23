@@ -116,4 +116,27 @@ struct WorkActivityStoreTests {
         #expect(store.current?.sessionKey == "agent:main:main")
         #expect(store.iconState == .workingMain(.job))
     }
+
+    @Test func `clear transient state drops stale jobs tools and labels after reconnect`() {
+        let store = WorkActivityStore()
+
+        store.handleJob(sessionKey: "main", state: "started")
+        store.handleTool(
+            sessionKey: "main",
+            phase: "start",
+            name: "read",
+            meta: nil,
+            args: ["path": AnyCodable("/tmp/file.txt")])
+
+        #expect(store.current != nil)
+        #expect(store.lastToolLabel != nil)
+
+        store.clearTransientState()
+
+        #expect(store.current == nil)
+        #expect(store.lastToolLabel == nil)
+        #expect(store.lastToolUpdatedAt == nil)
+        #expect(store.iconState == .idle)
+        #expect(store.activity(for: "main") == nil)
+    }
 }

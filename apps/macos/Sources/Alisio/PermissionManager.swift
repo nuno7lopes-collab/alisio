@@ -285,65 +285,79 @@ enum PermissionManager {
 }
 
 enum NotificationPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+        "x-apple.systempreferences:com.apple.preference.notifications",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
-            "x-apple.systempreferences:com.apple.preference.notifications",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
 enum AccessibilityPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
 enum ScreenRecordingPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
 enum MicrophonePermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
 enum CameraPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
 enum SpeechRecognitionPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
 enum LocationPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 
@@ -488,11 +502,13 @@ enum AppleScriptPermission {
 }
 
 enum AutomationPermissionHelper {
+    static let settingsCandidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
+        "x-apple.systempreferences:com.apple.preference.security",
+    ]
+
     static func openSettings() {
-        SystemSettingsURLSupport.openFirst([
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
-            "x-apple.systempreferences:com.apple.preference.security",
-        ])
+        SystemSettingsURLSupport.openFirst(self.settingsCandidates)
     }
 }
 

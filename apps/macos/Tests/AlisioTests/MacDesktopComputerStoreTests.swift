@@ -291,6 +291,36 @@ struct MacDesktopComputerStoreTests {
         }
     }
 
+    @Test func `deactivate clears stale frame data and suppresses ghost auto presentation`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let services = FakeMainActorServices(
+                permissions: .init(accessibility: true, screenRecording: true),
+                observationResult: .success(Self.makeObservation(sessionId: "main")))
+            let sessionDriver = FakeComputerSessionDriver(
+                snapshot: Self.makeSessionSnapshot(
+                    sessionId: "main",
+                    status: .running,
+                    lifecycleState: .running))
+            let store = MacDesktopComputerStore(
+                sessionKey: "main",
+                services: services,
+                sessionDriver: sessionDriver)
+
+            store.activate()
+
+            try await self.waitUntil("frame image to load before deactivation") {
+                store.frameImage != nil && store.shouldAutoPresentPane
+            }
+
+            store.deactivate()
+
+            #expect(store.frameImage == nil)
+            #expect(store.observation == nil)
+            #expect(store.lastUpdatedAt == nil)
+            #expect(store.shouldAutoPresentPane == false)
+        }
+    }
+
     private func waitUntil(
         _ description: String,
         timeoutNanoseconds: UInt64 = 3_000_000_000,

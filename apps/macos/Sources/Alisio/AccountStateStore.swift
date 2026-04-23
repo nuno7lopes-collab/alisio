@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 import SwiftUI
 
 import AlisioSupport
@@ -18,6 +19,100 @@ enum AlisioAccountRequiredError: LocalizedError, Equatable {
                 : message
         }
     }
+}
+
+private enum AlisioAccountOperationContext: Equatable {
+    case accountStatus
+    case beginEmailAuth
+    case verifyEmailAuth
+    case beginGoogleAuth
+    case completeEmailLinkAuth
+    case completeGoogleAuth
+    case completeProfile
+    case generic(String)
+
+    init(reason: String) {
+        switch reason {
+        case GatewayConnection.Method.alisioAccountGet.rawValue:
+            self = .accountStatus
+        case GatewayConnection.Method.alisioAccountBeginEmailAuth.rawValue:
+            self = .beginEmailAuth
+        case GatewayConnection.Method.alisioAccountVerifyEmailAuth.rawValue:
+            self = .verifyEmailAuth
+        case GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue:
+            self = .beginGoogleAuth
+        case GatewayConnection.Method.alisioAccountCompleteEmailLinkAuth.rawValue:
+            self = .completeEmailLinkAuth
+        case GatewayConnection.Method.alisioAccountCompleteGoogleAuth.rawValue:
+            self = .completeGoogleAuth
+        case GatewayConnection.Method.alisioAccountCompleteProfile.rawValue:
+            self = .completeProfile
+        default:
+            self = .generic(reason)
+        }
+    }
+
+    var readinessTimeout: TimeInterval {
+        switch self {
+        case .accountStatus:
+            return 8
+        case .beginGoogleAuth, .completeEmailLinkAuth, .completeGoogleAuth:
+            return 18
+        case .beginEmailAuth, .verifyEmailAuth, .completeProfile, .generic:
+            return 15
+        }
+    }
+
+    var retryDelays: [UInt64] {
+        switch self {
+        case .accountStatus:
+            return [0, 350_000_000]
+        case .beginGoogleAuth, .beginEmailAuth, .verifyEmailAuth, .completeEmailLinkAuth, .completeGoogleAuth, .completeProfile:
+            return [0, 500_000_000, 1_200_000_000]
+        case .generic:
+            return [0, 500_000_000]
+        }
+    }
+
+    var fallbackFailureMessage: String {
+        switch self {
+        case .accountStatus:
+            return "Alisio could not confirm the account on this Mac right now. Try again in a moment."
+        case .beginEmailAuth:
+            return "Alisio could not start email sign-in on this Mac right now. Try again in a moment."
+        case .verifyEmailAuth, .completeEmailLinkAuth, .completeGoogleAuth:
+            return "Alisio could not finish sign-in on this Mac right now. Try again in a moment."
+        case .beginGoogleAuth:
+            return "Alisio could not start Google sign-in on this Mac right now. Try again in a moment."
+        case .completeProfile:
+            return "Alisio could not finish account setup on this Mac right now. Try again in a moment."
+        case .generic:
+            return "Alisio could not reach this Mac right now. Try again in a moment."
+        }
+    }
+
+    var transientFailureMessage: String {
+        switch self {
+        case .accountStatus:
+            return "Alisio is still getting this Mac ready. Account status will update in a moment."
+        case .beginEmailAuth:
+            return "Alisio is still getting this Mac ready. Email sign-in is not available just yet. Try again in a moment."
+        case .verifyEmailAuth, .completeEmailLinkAuth, .completeGoogleAuth:
+            return "Alisio is still finishing sign-in on this Mac. Try again in a moment."
+        case .beginGoogleAuth:
+            return "Alisio is still getting this Mac ready. Google sign-in is not available just yet. Try again in a moment."
+        case .completeProfile:
+            return "Alisio is still getting this Mac ready to finish account setup. Try again in a moment."
+        case .generic:
+            return "Alisio is still getting this Mac ready. Try again in a moment."
+        }
+    }
+}
+
+private struct AlisioAccountErrorPresentation {
+    let message: String
+    let isTransient: Bool
+    let error: NSError
 }
 
 enum AlisioCanonicalAccountSource: String, Decodable, Equatable {
@@ -204,9 +299,12 @@ struct AlisioAccountSnapshot: Decodable, Equatable {
 final class AlisioAccountStore {
     static let shared = AlisioAccountStore()
 
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "account")
+
     private(set) var snapshot: AlisioAccountSnapshot?
     private(set) var isLoading = false
     private(set) var lastError: String?
+    private(set) var lastErrorIsTransient = false
     private(set) var lastRefreshAt: Date?
     private(set) var lastAuthCompletion: AlisioAccountAuthCompletion?
     private(set) var lastAuthCompletionEventID: UUID?
@@ -233,6 +331,10 @@ final class AlisioAccountStore {
         return snapshot.deviceLabel ?? snapshot.deviceId
     }
 
+    var hasConfirmedSignedOutState: Bool {
+        self.hasConfirmedSignedOutSnapshot
+    }
+
     var statusDetail: String {
         if let lastError, !lastError.isEmpty {
             return lastError
@@ -253,6 +355,7 @@ final class AlisioAccountStore {
     func clear() {
         self.snapshot = nil
         self.lastError = nil
+        self.lastErrorIsTransient = false
         self.lastRefreshAt = nil
         self.isLoading = false
         self.lastAuthCompletion = nil
@@ -262,20 +365,31 @@ final class AlisioAccountStore {
     func apply(_ snapshot: AlisioAccountSnapshot) {
         self.snapshot = snapshot
         self.lastError = nil
+        self.lastErrorIsTransient = false
         self.lastRefreshAt = Date()
     }
 
-    func refresh(reason _: String) async {
+    func refresh(reason: String) async {
         guard !self.isLoading else { return }
+        let hadError = self.lastError?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         self.isLoading = true
         defer { self.isLoading = false }
+        let accountReason = GatewayConnection.Method.alisioAccountGet.rawValue
+        let context = AlisioAccountOperationContext(reason: accountReason)
         do {
-            try await self.ensureLocalGatewayReady(reason: GatewayConnection.Method.alisioAccountGet.rawValue)
+            try await self.ensureLocalGatewayReady(reason: accountReason, timeout: context.readinessTimeout)
             let snapshot = try await GatewayConnection.shared.accountSnapshot()
             self.apply(snapshot)
+            if hadError {
+                self.logger.info("account refresh recovered")
+            }
         } catch {
-            self.lastError = error.localizedDescription
+            let presentation = Self.present(error, for: context)
+            self.lastError = presentation.message
+            self.lastErrorIsTransient = presentation.isTransient
             self.lastRefreshAt = Date()
+            self.logger.warning(
+                "account refresh failed reason=\(reason, privacy: .public) technical=\(error.localizedDescription, privacy: .public) presented=\(presentation.message, privacy: .public)")
         }
     }
 
@@ -377,24 +491,153 @@ final class AlisioAccountStore {
     {
         self.isLoading = true
         defer { self.isLoading = false }
-        do {
-            try await self.ensureLocalGatewayReady(reason: reason)
-            let result = try await operation()
-            self.lastError = nil
-            return result
-        } catch {
-            self.lastError = error.localizedDescription
-            throw error
+
+        let context = AlisioAccountOperationContext(reason: reason)
+        var lastPresentation: AlisioAccountErrorPresentation?
+
+        for (index, delay) in context.retryDelays.enumerated() {
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: delay)
+            }
+            guard !Task.isCancelled else {
+                throw CancellationError()
+            }
+
+            do {
+                try await self.ensureLocalGatewayReady(reason: reason, timeout: context.readinessTimeout)
+                let result = try await operation()
+                self.lastError = nil
+                self.lastErrorIsTransient = false
+                return result
+            } catch {
+                let presentation = Self.present(error, for: context)
+                lastPresentation = presentation
+
+                let isLastAttempt = index == context.retryDelays.count - 1
+                if !presentation.isTransient || isLastAttempt {
+                    self.lastError = presentation.message
+                    self.lastErrorIsTransient = presentation.isTransient
+                    self.logger.warning(
+                        "account operation failed reason=\(reason, privacy: .public) technical=\(error.localizedDescription, privacy: .public) presented=\(presentation.message, privacy: .public)")
+                    throw presentation.error
+                }
+            }
         }
+
+        let fallback = lastPresentation ?? Self.present(
+            NSError(
+                domain: "AlisioAccount",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: context.transientFailureMessage]),
+            for: context)
+        self.lastError = fallback.message
+        self.lastErrorIsTransient = fallback.isTransient
+        throw fallback.error
     }
 
-    private func ensureLocalGatewayReady(reason: String) async throws {
-        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: reason)
+    private func ensureLocalGatewayReady(reason: String, timeout: TimeInterval) async throws {
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: reason, timeout: timeout)
     }
 
     private func publishAuthCompletion(_ completion: AlisioAccountAuthCompletion) {
         self.lastAuthCompletion = completion
         self.lastAuthCompletionEventID = UUID()
+    }
+
+    private static func present(
+        _ error: Error,
+        for context: AlisioAccountOperationContext) -> AlisioAccountErrorPresentation
+    {
+        if let readinessError = error as? GatewayReadinessError {
+            return Self.makePresentation(
+                message: readinessError.userMessage,
+                isTransient: readinessError.isTransient,
+                underlying: error)
+        }
+        if let urlError = error as? URLError {
+            let isTransient = Self.isRetryable(urlError)
+            let message = isTransient ? context.transientFailureMessage : context.fallbackFailureMessage
+            return Self.makePresentation(message: message, isTransient: isTransient, underlying: error)
+        }
+        if error is GatewayDecodingError {
+            return Self.makePresentation(
+                message: context.fallbackFailureMessage,
+                isTransient: false,
+                underlying: error)
+        }
+        if let response = error as? GatewayResponseError {
+            let message = response.message.trimmingCharacters(in: .whitespacesAndNewlines)
+            if message.isEmpty || Self.isTechnicalMessage(message) {
+                return Self.makePresentation(
+                    message: context.fallbackFailureMessage,
+                    isTransient: false,
+                    underlying: error)
+            }
+            return Self.makePresentation(message: message, isTransient: false, underlying: error)
+        }
+
+        let description =
+            ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if description.isEmpty {
+            return Self.makePresentation(
+                message: context.fallbackFailureMessage,
+                isTransient: false,
+                underlying: error)
+        }
+        if description.localizedCaseInsensitiveContains("gateway not configured") {
+            return Self.makePresentation(
+                message: context.transientFailureMessage,
+                isTransient: true,
+                underlying: error)
+        }
+        if Self.isTechnicalMessage(description) {
+            return Self.makePresentation(
+                message: context.fallbackFailureMessage,
+                isTransient: false,
+                underlying: error)
+        }
+        return Self.makePresentation(message: description, isTransient: false, underlying: error)
+    }
+
+    private static func makePresentation(
+        message: String,
+        isTransient: Bool,
+        underlying: Error) -> AlisioAccountErrorPresentation
+    {
+        let error = NSError(
+            domain: "AlisioAccount",
+            code: isTransient ? 2 : 1,
+            userInfo: [
+                NSLocalizedDescriptionKey: message,
+                NSUnderlyingErrorKey: underlying,
+            ])
+        return AlisioAccountErrorPresentation(message: message, isTransient: isTransient, error: error)
+    }
+
+    private static func isRetryable(_ error: URLError) -> Bool {
+        switch error.code {
+        case .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .networkConnectionLost, .notConnectedToInternet, .timedOut:
+            true
+        default:
+            false
+        }
+    }
+
+    private static func isTechnicalMessage(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        return lower.contains("[readiness:") ||
+            lower.contains("gateway on port") ||
+            lower.contains("gateway request timed out") ||
+            lower.contains("gateway not configured") ||
+            lower.contains("while preparing") ||
+            lower.contains("health check") ||
+            lower.contains("launchd") ||
+            lower.contains("protocol mismatch") ||
+            lower.contains("127.0.0.1") ||
+            lower.contains("localhost") ||
+            lower.contains("ws://") ||
+            lower.contains("alisio.account.")
     }
 }
 

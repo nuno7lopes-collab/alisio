@@ -101,7 +101,7 @@ struct MenuContent: View {
                     await self.openDashboard()
                 }
             } label: {
-                Label("Open Dashboard", systemImage: "gauge")
+                Label("Open Browser Admin", systemImage: "gauge")
             }
             Button {
                 AlisioWindowManager.shared.showPreferredChat()
@@ -292,7 +292,7 @@ struct MenuContent: View {
             NSWorkspace.shared.open(url)
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Dashboard unavailable"
+            alert.messageText = "Browser admin unavailable"
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }

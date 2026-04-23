@@ -24,6 +24,38 @@ macOS treats the app as new and may drop or hide prompts.
 Ad-hoc signatures generate a new identity every build. macOS will forget previous
 grants, and prompts can disappear entirely until the stale entries are cleared.
 
+## Final TCC release bar
+
+Treat this as the manual residual bar after the automated packaged-app smoke is
+green.
+
+Preconditions:
+
+- use a stable signed bundle path such as `.run/Alisio.app` or `dist/Alisio.app`
+- use a real Apple Development or Developer ID signature
+- launch through `scripts/restart-mac.sh`, not an ad-hoc one-off bundle path
+
+Run this once for each permission surface you care about in release QA
+(Accessibility, Screen Recording, Automation, Microphone, Speech Recognition,
+Camera, Location, Notifications):
+
+1. Start from a denied or not-yet-granted state.
+   Expected: the feature requests access or shows blocked guidance immediately.
+2. Trigger the feature from the signed packaged app.
+   Expected: the TCC prompt appears, or the app offers **Open System Settings**.
+3. Deny the permission once.
+   Expected: the app stays responsive and shows a blocked or denied state instead of hanging.
+4. Use **Open System Settings** from the app.
+   Expected: macOS opens the matching privacy pane for that capability.
+5. Grant the permission without relaunching.
+   Expected: the app shows **restart required** when macOS has not exposed the grant to the running process yet.
+6. Relaunch with `scripts/restart-mac.sh`.
+   Expected: the blocked or restart-required state clears and the feature can proceed.
+
+The app has automated coverage for the System Settings URL fallback order, but
+the actual prompt, denial, grant, and relaunch behavior still requires a human
+on a signed bundle.
+
 ## Recovery checklist when prompts disappear
 
 1. Quit the app.

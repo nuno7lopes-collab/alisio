@@ -142,6 +142,7 @@ final class EntryFlowModel {
     func beginGoogleAuth() async {
         guard let intent else { return }
         self.errorMessage = nil
+        self.externalAuthSession = nil
         self.activity = .google
         defer { self.activity = nil }
         do {
@@ -160,6 +161,7 @@ final class EntryFlowModel {
         let normalizedEmail = Self.normalizeEmail(self.draft.email)
         guard let emailValidation = Self.validateEmail(normalizedEmail) else {
             self.draft.email = normalizedEmail
+            self.emailDelivery = nil
             self.activity = .email
             defer { self.activity = nil }
             do {
@@ -293,8 +295,9 @@ final class EntryFlowModel {
     }
 
     private static func message(for error: Error) -> String {
-        let description = (error as NSError).localizedDescription.trimmingCharacters(
-            in: .whitespacesAndNewlines)
+        let description =
+            ((error as? LocalizedError)?.errorDescription ?? (error as NSError).localizedDescription)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return description.isEmpty ? "Something went wrong. Try again." : description
     }
 }

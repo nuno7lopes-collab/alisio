@@ -47,6 +47,17 @@ struct CapabilitiesSettingsStateTests {
         #expect(view.listState == .error("Gateway offline"))
     }
 
+    @Test func `capabilities keep the last known list visible while surfacing refresh issues`() {
+        let model = CapabilitiesSettingsModel()
+        model.hasLoadedOnce = true
+        model.skills = [self.makeSkill()]
+        model.error = "Capabilities are unavailable because Alisio is not connected right now."
+
+        let view = CapabilitiesSettings(state: AppState(preview: true), model: model)
+
+        #expect(view.listState == .list)
+    }
+
     @Test func `capabilities filter exposes filtered empty state`() {
         let model = CapabilitiesSettingsModel()
         model.hasLoadedOnce = true

@@ -120,12 +120,124 @@ struct ScheduleCalendarProjectionTests {
         #expect(exactOffsets.allSatisfy { $0 == 0 })
     }
 
+    @Test func `cron projection respects OR semantics for day of month and day of week`() {
+        let calendar = Self.utcCalendar()
+        let job = self.makeJob(
+            id: "or-cron",
+            name: "First or Monday",
+            schedule: .cron(expr: "0 9 1 * 1", tz: "UTC", staggerMs: 0),
+            state: CronJobState(nextRunAtMs: Self.ms(Self.date("2026-04-27T09:00:00Z"))))
+
+        let projection = ScheduleCalendarProjection.month(
+            containing: Self.date("2026-04-15T12:00:00Z"),
+            jobs: [job],
+            calendar: calendar)
+
+        #expect(projection.unsupportedSchedules.isEmpty)
+        #expect(Self.dayNumbers(for: "or-cron", in: projection, calendar: calendar) == [1, 6, 13, 20, 27])
+    }
+
+    @Test func `cron projection supports aliases special modifiers and year field`() {
+        let calendar = Self.utcCalendar()
+        let januaryMondays = self.makeJob(
+            id: "aliases",
+            name: "January Mondays",
+            schedule: .cron(expr: "0 9 * JAN MON", tz: "UTC", staggerMs: 0))
+        let nearestWeekday = self.makeJob(
+            id: "nearest-weekday",
+            name: "Nearest weekday",
+            schedule: .cron(expr: "0 9 15W * *", tz: "UTC", staggerMs: 0))
+        let lastDay = self.makeJob(
+            id: "last-day",
+            name: "Last day",
+            schedule: .cron(expr: "0 9 L * *", tz: "UTC", staggerMs: 0))
+        let nthWeekday = self.makeJob(
+            id: "nth-weekday",
+            name: "Second Monday",
+            schedule: .cron(expr: "0 9 * * MON#2", tz: "UTC", staggerMs: 0))
+        let yearBound = self.makeJob(
+            id: "year-bound",
+            name: "Year bound",
+            schedule: .cron(expr: "0 0 12 * * * 2026", tz: "UTC", staggerMs: 0))
+
+        let januaryProjection = ScheduleCalendarProjection.month(
+            containing: Self.date("2027-01-15T12:00:00Z"),
+            jobs: [januaryMondays],
+            calendar: calendar)
+        #expect(Self.dayNumbers(for: "aliases", in: januaryProjection, calendar: calendar) == [4, 11, 18, 25])
+
+        let augustProjection = ScheduleCalendarProjection.month(
+            containing: Self.date("2026-08-15T12:00:00Z"),
+            jobs: [nearestWeekday],
+            calendar: calendar)
+        #expect(Self.dayNumbers(for: "nearest-weekday", in: augustProjection, calendar: calendar) == [14])
+
+        let aprilLastDayProjection = ScheduleCalendarProjection.month(
+            containing: Self.date("2026-04-15T12:00:00Z"),
+            jobs: [lastDay],
+            calendar: calendar)
+        #expect(Self.dayNumbers(for: "last-day", in: aprilLastDayProjection, calendar: calendar) == [30])
+
+        let aprilProjection = ScheduleCalendarProjection.month(
+            containing: Self.date("2026-04-15T12:00:00Z"),
+            jobs: [nthWeekday],
+            calendar: calendar)
+        #expect(Self.dayNumbers(for: "nth-weekday", in: aprilProjection, calendar: calendar) == [13])
+
+        let yearProjection = ScheduleCalendarProjection.week(
+            containing: Self.date("2027-01-06T12:00:00Z"),
+            jobs: [yearBound],
+            calendar: calendar)
+        #expect(yearProjection.occurrences.isEmpty)
+        #expect(yearProjection.unsupportedSchedules.isEmpty)
+    }
+
+    @Test func `cron projection supports one-shot iso patterns and day-of-month lists with last day`() {
+        let calendar = Self.utcCalendar()
+        let oneShot = self.makeJob(
+            id: "iso-once",
+            name: "ISO once",
+            schedule: .cron(expr: "2026-04-21T10:15:00", tz: "Europe/Lisbon", staggerMs: 0))
+        let listWithLastDay = self.makeJob(
+            id: "list-last-day",
+            name: "List with last day",
+            schedule: .cron(expr: "0 9 L,15 * *", tz: "UTC", staggerMs: 0))
+
+        let aprilProjection = ScheduleCalendarProjection.month(
+            containing: Self.date("2026-04-15T12:00:00Z"),
+            jobs: [oneShot, listWithLastDay],
+            calendar: calendar)
+
+        #expect(aprilProjection.unsupportedSchedules.isEmpty)
+        let isoOccurrence = try! #require(aprilProjection.occurrences.first { $0.jobId == "iso-once" })
+        #expect(isoOccurrence.startAt == Self.date("2026-04-21T09:15:00Z"))
+        #expect(Self.dayNumbers(for: "list-last-day", in: aprilProjection, calendar: calendar) == [15, 30])
+    }
+
+    @Test func `frequent interval schedules render honestly when the range is still tractable`() {
+        let calendar = Self.utcCalendar()
+        let anchor = Self.date("2026-04-20T00:00:00Z")
+        let projection = ScheduleCalendarProjection.week(
+            containing: Self.date("2026-04-22T12:00:00Z"),
+            jobs: [
+                self.makeJob(
+                    id: "every-minute",
+                    name: "Every minute",
+                    schedule: .every(everyMs: 60_000, anchorMs: Self.ms(anchor)),
+                    createdAtMs: Self.ms(anchor)),
+            ],
+            calendar: calendar)
+
+        #expect(projection.unsupportedSchedules.isEmpty)
+        #expect(projection.occurrences.count == 10_080)
+    }
+
     @Test func `unsupported schedules are reported without fake occurrences`() {
         let calendar = Self.utcCalendar()
         let unsupported = self.makeJob(
             id: "unsupported",
-            name: "Ambiguous cron",
-            schedule: .cron(expr: "0 9 1 * 1", tz: "UTC", staggerMs: 0),
+            name: "Invalid cron",
+            schedule: .cron(expr: "not valid", tz: "UTC", staggerMs: 0),
             state: CronJobState(nextRunAtMs: Self.ms(Self.date("2026-04-27T09:00:00Z"))))
 
         let projection = ScheduleCalendarProjection.month(
@@ -136,7 +248,7 @@ struct ScheduleCalendarProjectionTests {
         #expect(projection.occurrences.isEmpty)
         let issue = try! #require(projection.unsupportedSchedules.first)
         #expect(issue.jobId == "unsupported")
-        #expect(issue.reason.contains("day of month"))
+        #expect(!issue.reason.isEmpty)
         #expect(issue.nextRunAt == Self.date("2026-04-27T09:00:00Z"))
     }
 

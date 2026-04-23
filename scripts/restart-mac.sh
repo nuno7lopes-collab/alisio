@@ -39,7 +39,10 @@ Uso: $(basename "$0") [--wait] [--sign|--no-sign]
 Faz o ciclo pesado do macOS:
   1. empacota um bundle real em ${DEV_APP_BUNDLE}
   2. valida assinatura + estrutura do bundle
-  3. relança a app com esse bundle
+  3. relança a app com esse bundle e espera pela primeira janela
+  4. valida o LaunchAgent e o runtime bundled
+  5. espera por health/status do gateway
+  6. faz kickstart do launchd e revalida reconnect
 
 Usa este script quando precisas de validar bundle real, signing, TCC, launchd
 ou packaging. Não é o loop leve do dia a dia para iterar no frontend/runtime.
@@ -74,6 +77,133 @@ validate_app_bundle() {
   fi
   /usr/bin/codesign -dv --verbose=2 "$bundle_path" >/dev/null 2>&1 \
     || fail "Assinatura inválida para $bundle_path."
+}
+
+bundle_package_root() {
+  local bundle_path="$1"
+  printf '%s\n' "$bundle_path/Contents/Resources/$PACKAGE_DIR_NAME"
+}
+
+bundle_node_binary() {
+  local bundle_path="$1"
+  printf '%s\n' "$(bundle_package_root "$bundle_path")/tools/node/bin/node"
+}
+
+bundle_entrypoint() {
+  local bundle_path="$1"
+  local package_root
+  package_root="$(bundle_package_root "$bundle_path")"
+  if [[ -f "$package_root/alisio.mjs" ]]; then
+    printf '%s\n' "$package_root/alisio.mjs"
+    return 0
+  fi
+  if [[ -f "$package_root/dist/index.js" ]]; then
+    printf '%s\n' "$package_root/dist/index.js"
+    return 0
+  fi
+  fail "Bundle sem entrypoint utilizável em $package_root."
+}
+
+launch_agent_plist_path() {
+  printf '%s\n' "$HOME/Library/LaunchAgents/$GATEWAY_LAUNCH_AGENT_LABEL.plist"
+}
+
+read_plist_value() {
+  local plist_path="$1"
+  local key_path="$2"
+  /usr/libexec/PlistBuddy -c "Print :${key_path}" "$plist_path" 2>/dev/null
+}
+
+bundled_cli() {
+  local bundle_path="$1"
+  shift
+  local bundled_node
+  local entrypoint
+  bundled_node="$(bundle_node_binary "$bundle_path")"
+  entrypoint="$(bundle_entrypoint "$bundle_path")"
+  "$bundled_node" "$entrypoint" "$@"
+}
+
+wait_for_launch_agent_plist() {
+  local plist_path
+  plist_path="$(launch_agent_plist_path)"
+  local attempt
+  for attempt in {1..30}; do
+    if [[ -f "$plist_path" ]]; then
+      printf '%s\n' "$plist_path"
+      return 0
+    fi
+    sleep 1
+  done
+  fail "LaunchAgent $GATEWAY_LAUNCH_AGENT_LABEL não apareceu em $plist_path. Confirma Local mode e que attach-only está desligado."
+}
+
+validate_launch_agent_targets() {
+  local bundle_path="$1"
+  local plist_path="$2"
+  local expected_node
+  local expected_entry
+  local actual_node
+  local actual_entry
+
+  expected_node="$(bundle_node_binary "$bundle_path")"
+  expected_entry="$(bundle_entrypoint "$bundle_path")"
+  actual_node="$(read_plist_value "$plist_path" "ProgramArguments:0" || true)"
+  actual_entry="$(read_plist_value "$plist_path" "ProgramArguments:1" || true)"
+
+  [[ -n "$actual_node" ]] || fail "LaunchAgent sem ProgramArguments:0 em $plist_path."
+  [[ -n "$actual_entry" ]] || fail "LaunchAgent sem ProgramArguments:1 em $plist_path."
+  [[ "$actual_node" == "$expected_node" ]] \
+    || fail "LaunchAgent aponta para Node inesperada: $actual_node (esperado: $expected_node)."
+  [[ "$actual_entry" == "$expected_entry" ]] \
+    || fail "LaunchAgent aponta para entrypoint inesperado: $actual_entry (esperado: $expected_entry)."
+}
+
+wait_for_launch_agent_job() {
+  local attempt
+  for attempt in {1..30}; do
+    if launchctl print gui/"$UID"/"$GATEWAY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "LaunchAgent $GATEWAY_LAUNCH_AGENT_LABEL não ficou disponível no launchctl."
+}
+
+gateway_rpc_liveness_ok() {
+  local bundle_path="$1"
+  bundled_cli "$bundle_path" gateway call health --timeout 10000 >/dev/null 2>&1 && return 0
+  bundled_cli "$bundle_path" gateway call status --timeout 10000 >/dev/null 2>&1
+}
+
+wait_for_gateway_liveness() {
+  local bundle_path="$1"
+  local phase="$2"
+  local attempt
+  for attempt in {1..30}; do
+    if gateway_rpc_liveness_ok "$bundle_path"; then
+      return 0
+    fi
+    sleep 1
+  done
+  fail "Gateway não ficou saudável após ${phase}. Verifica ~/.alisio/logs/gateway.log e ~/.alisio/logs/gateway.err.log."
+}
+
+validate_packaged_gateway_runtime() {
+  local bundle_path="$1"
+  local plist_path
+  plist_path="$(wait_for_launch_agent_plist)"
+  validate_launch_agent_targets "$bundle_path" "$plist_path"
+  wait_for_launch_agent_job
+  wait_for_gateway_liveness "$bundle_path" "arranque inicial"
+}
+
+validate_launchd_kickstart_reconnect() {
+  local bundle_path="$1"
+  launchctl kickstart -k gui/"$UID"/"$GATEWAY_LAUNCH_AGENT_LABEL" >/dev/null 2>&1 \
+    || fail "Falha ao executar kickstart do LaunchAgent $GATEWAY_LAUNCH_AGENT_LABEL."
+  wait_for_launch_agent_job
+  wait_for_gateway_liveness "$bundle_path" "kickstart launchd"
 }
 
 wait_for_app_process() {
@@ -194,4 +324,6 @@ run_step "package app" bash -lc "cd '$ROOT_DIR' && MACOS_FINAL_APP_PATH='$APP_BU
 run_step "validate app bundle" validate_app_bundle "$APP_BUNDLE"
 
 run_step "open app" open_app_bundle "$APP_BUNDLE"
+run_step "validate packaged launchd runtime" validate_packaged_gateway_runtime "$APP_BUNDLE"
+run_step "validate launchd kickstart reconnect" validate_launchd_kickstart_reconnect "$APP_BUNDLE"
 log "==> Log: ${LOG_PATH}"

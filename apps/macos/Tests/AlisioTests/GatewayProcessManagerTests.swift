@@ -117,6 +117,26 @@ struct GatewayProcessManagerTests {
         #expect(manager.lastFailureReason?.contains("[readiness:connect]") == true)
     }
 
+    @Test func `readiness errors expose product copy while preserving transient classification`() {
+        let transient = GatewayReadinessError(
+            technicalMessage: "[readiness:connect] Gateway on port 40705 is not reachable yet: cannot connect (while preparing alisio.account.beginGoogleAuth)",
+            operation: GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue,
+            status: .starting)
+        #expect(transient.isTransient)
+        #expect(
+            transient.errorDescription ==
+                "Alisio is still getting this Mac ready. Google sign-in is not available just yet. Try again in a moment.")
+
+        let stable = GatewayReadinessError(
+            technicalMessage: "[readiness:auth] Gateway on port 40705 rejected auth.",
+            operation: GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue,
+            status: .failed("auth failed"))
+        #expect(!stable.isTransient)
+        #expect(
+            stable.errorDescription ==
+                "Alisio could not start Google sign-in on this Mac right now. Restart Alisio and try again.")
+    }
+
     @Test func `attaches to existing gateway without spawning launchd`() async throws {
         let expectedVersion = "2026.3.30"
         try await TestIsolation.withEnvValues([

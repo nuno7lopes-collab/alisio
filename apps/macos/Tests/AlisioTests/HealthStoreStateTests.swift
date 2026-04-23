@@ -4,11 +4,24 @@ import AlisioSupport
 @testable import Alisio
 
 struct HealthStoreStateTests {
-    @Test @MainActor func `linked channel probe failure degrades state`() {
-        let snap = HealthSnapshot(
+    private func makeSnapshot(
+        channels: [String: HealthSnapshot.ChannelSummary],
+        channelOrder: [String],
+        channelLabels: [String: String]) -> HealthSnapshot
+    {
+        HealthSnapshot(
             ok: true,
             ts: 0,
             durationMs: 1,
+            channels: channels,
+            channelOrder: channelOrder,
+            channelLabels: channelLabels,
+            heartbeatSeconds: 60,
+            sessions: .init(path: "/tmp/sessions.json", count: 0, recent: []))
+    }
+
+    @Test @MainActor func `linked channel probe failure degrades state`() {
+        let snap = self.makeSnapshot(
             channels: [
                 "whatsapp": .init(
                     configured: true,
@@ -24,11 +37,9 @@ struct HealthStoreStateTests {
                     lastProbeAt: 0),
             ],
             channelOrder: ["whatsapp"],
-            channelLabels: ["whatsapp": "WhatsApp"],
-            heartbeatSeconds: 60,
-            sessions: .init(path: "/tmp/sessions.json", count: 0, recent: []))
+            channelLabels: ["whatsapp": "WhatsApp"])
 
-        let store = HealthStore.shared
+        let store = HealthStore(autoStart: false)
         store.__setSnapshotForTest(snap, lastError: nil)
 
         switch store.state {
@@ -38,6 +49,56 @@ struct HealthStoreStateTests {
             Issue.record("Expected degraded state when probe fails for linked channel")
         }
 
-        #expect(store.summaryLine.contains("probe degraded"))
+        #expect(store.summaryLine == "WhatsApp needs attention")
+        #expect(store.detailLine == "Health check failed because the runtime is unavailable")
+    }
+
+    @Test @MainActor func `health copy stays product level for transport failures`() {
+        let store = HealthStore(autoStart: false)
+        store.__setSnapshotForTest(nil, lastError: "Connection refused")
+
+        #expect(store.summaryLine == "Runtime unavailable")
+        #expect(store.detailLine == "Alisio could not reach the runtime. Open Alisio again or wait for it to finish starting.")
+    }
+
+    @Test @MainActor func `healthy fallback does not pretend linking is complete`() {
+        let snap = self.makeSnapshot(
+            channels: [
+                "whatsapp": .init(
+                    configured: true,
+                    linked: false,
+                    authAgeMs: nil,
+                    probe: nil,
+                    lastProbeAt: 0),
+                "telegram": .init(
+                    configured: true,
+                    linked: nil,
+                    authAgeMs: nil,
+                    probe: .init(
+                        ok: true,
+                        status: 200,
+                        error: nil,
+                        elapsedMs: 8,
+                        bot: nil,
+                        webhook: nil),
+                    lastProbeAt: 0),
+            ],
+            channelOrder: ["whatsapp", "telegram"],
+            channelLabels: ["whatsapp": "WhatsApp", "telegram": "Telegram"])
+
+        let store = HealthStore(autoStart: false)
+        store.__setSnapshotForTest(snap, lastError: nil)
+
+        #expect(store.summaryLine == "Telegram is working")
+        #expect(store.detailLine == "Telegram is available, but this Mac is not linked yet.")
+    }
+
+    @Test @MainActor func `health stays in loading copy while the first refresh is running`() {
+        let store = HealthStore(autoStart: false)
+        store.__setSnapshotForTest(nil, lastError: nil)
+        store.__setRefreshingForTest(true)
+
+        #expect(store.summaryLine == "Checking health…")
+        #expect(store.detailLine == "Running a fresh health check.")
     }
 }

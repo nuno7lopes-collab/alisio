@@ -108,6 +108,9 @@ final class MacDesktopComputerStore {
     }
 
     var shouldAutoPresentPane: Bool {
+        guard self.refreshTask != nil else {
+            return self.sessionStatus == .blockedOnRestartRequired && self.permissionRestartHint != nil
+        }
         if self.frameImage != nil || self.observation != nil || self.blockingState != nil {
             return true
         }
@@ -171,6 +174,8 @@ final class MacDesktopComputerStore {
     func deactivate(stopSession: Bool = false) {
         self.refreshTask?.cancel()
         self.refreshTask = nil
+        self.clearObservation()
+        self.lastUpdatedAt = nil
         guard stopSession else { return }
         Task {
             do {

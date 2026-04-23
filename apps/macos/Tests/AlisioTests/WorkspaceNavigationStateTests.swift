@@ -40,10 +40,68 @@ struct WorkspaceNavigationStateTests {
         ])
     }
 
-    @Test func `workspace routes expose final tab labels`() {
-        #expect(WorkspaceNavigationState.Route.memory.workspaceTitle == "Memory")
-        #expect(WorkspaceNavigationState.Route.schedules.workspaceTitle == "Schedules")
-        #expect(WorkspaceNavigationState.Route.capabilities.workspaceTitle == "Capabilities")
+    @Test func `workspace routes expose the canonical shell metadata`() {
+        let metadata = WorkspaceNavigationState.Route.allCases.map {
+            (
+                $0.rawValue,
+                $0.workspaceTitle,
+                $0.systemImage,
+                $0.showsStageHeader,
+                $0.stageMarkerIdentifier
+            )
+        }
+
+        #expect(metadata.map { $0.0 } == [
+            "chat",
+            "memory",
+            "apps",
+            "schedules",
+            "capabilities",
+            "connections",
+            "settings",
+        ])
+        #expect(metadata.map { $0.1 } == [
+            "Chat",
+            "Memory",
+            "Apps",
+            "Schedules",
+            "Capabilities",
+            "Connections",
+            "Settings",
+        ])
+        #expect(metadata.map { $0.2 } == [
+            "bubble.left.and.bubble.right",
+            "brain.head.profile",
+            "link",
+            "calendar",
+            "sparkles",
+            "network",
+            "gearshape",
+        ])
+        #expect(metadata.map { $0.3 } == [false, true, true, true, true, true, true])
+        #expect(metadata.map { $0.4 } == [
+            "workspace-route-chat",
+            "workspace-route-memory",
+            "workspace-route-apps",
+            "workspace-route-schedules",
+            "workspace-route-capabilities",
+            "workspace-route-connections",
+            "workspace-route-settings",
+        ])
+        #expect(Set(metadata.map { $0.1 }).count == metadata.count)
+        #expect(Set(metadata.map { $0.4 }).count == metadata.count)
+    }
+
+    @Test func `route apply follows the canonical workspace routing contract`() {
+        let state = WorkspaceNavigationState()
+        state.showChat(sessionKey: " team/main ")
+
+        for route in WorkspaceNavigationState.Route.allCases {
+            route.apply(to: state)
+            #expect(state.route == route)
+        }
+
+        #expect(state.activeSessionKey == "team/main")
     }
 
     @Test func `settings route is a single native launcher surface`() {

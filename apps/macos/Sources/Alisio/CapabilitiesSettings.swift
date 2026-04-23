@@ -634,6 +634,8 @@ final class CapabilitiesSettingsModel {
         case unavailable(String)
     }
 
+    private static let emptyCapabilitiesMessage = "No capabilities are available yet."
+
     var skills: [SkillStatus] = []
     var isLoading = false
     var hasLoadedOnce = false
@@ -665,19 +667,19 @@ final class CapabilitiesSettingsModel {
         case let .unavailable(message):
             self.skills = []
             self.statusMessage = nil
-            self.error = message
+            self.error = Self.userFacingError(
+                message,
+                fallback: "Capabilities could not be loaded right now.")
             return
         }
 
         do {
-            let report = try await GatewayConnection.shared.skillsStatus()
-            self.skills = report.skills.sorted { $0.name < $1.name }
-            if self.skills.isEmpty {
-                self.statusMessage = "No capabilities are available yet."
-            }
+            self.applyLoadedSkills(try await self.fetchSkills())
         } catch {
             self.statusMessage = nil
-            self.error = error.localizedDescription
+            self.error = Self.userFacingError(
+                error.localizedDescription,
+                fallback: "Capabilities could not be loaded right now.")
         }
     }
 
@@ -691,12 +693,15 @@ final class CapabilitiesSettingsModel {
                 return
             case let .unavailable(message):
                 self.statusMessage = nil
-                self.error = message
+                self.error = Self.userFacingError(
+                    message,
+                    fallback: "Capability install failed.")
                 return
             }
 
             do {
                 self.error = nil
+                self.statusMessage = nil
                 if target == .local, AppStateStore.shared.connectionMode != .local {
                     AppStateStore.shared.connectionMode = .local
                 }
@@ -704,17 +709,43 @@ final class CapabilitiesSettingsModel {
                     name: skill.name,
                     installId: option.id,
                     timeoutMs: 300_000)
-                let trimmedMessage = result.message.trimmingCharacters(in: .whitespacesAndNewlines)
-                let successMessage = result.ok
-                    ? "Install completed."
-                    : (trimmedMessage.isEmpty ? "The install failed." : trimmedMessage)
-                await self.refresh()
-                if self.error == nil {
-                    self.statusMessage = successMessage
+
+                if !result.ok {
+                    if let refreshedSkills = try? await self.fetchSkills() {
+                        self.skills = refreshedSkills
+                    }
+                    let trimmedMessage = result.message.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.statusMessage = trimmedMessage.isEmpty ? "The install failed." : trimmedMessage
+                    return
                 }
+
+                let refreshedSkills = try await self.fetchSkills()
+                self.skills = refreshedSkills
+
+                guard let refreshedSkill = self.skill(skillKey: skill.skillKey) else {
+                    self.error = "Install finished, but the updated capability list could not be confirmed."
+                    self.statusMessage = nil
+                    return
+                }
+
+                let requestedBins = Set(option.bins)
+                if !requestedBins.isEmpty,
+                    !requestedBins.isDisjoint(with: refreshedSkill.missing.bins)
+                {
+                    self.error = "Install finished, but this capability still reports required tools as missing."
+                    self.statusMessage = nil
+                    return
+                }
+
+                self.statusMessage = refreshedSkill.eligible
+                    ? "Install completed."
+                    : "Install completed. This capability still needs setup."
+                self.error = nil
             } catch {
                 self.statusMessage = nil
-                self.error = error.localizedDescription
+                self.error = Self.userFacingError(
+                    error.localizedDescription,
+                    fallback: "Capability install failed.")
             }
         }
     }
@@ -729,23 +760,35 @@ final class CapabilitiesSettingsModel {
                 return
             case let .unavailable(message):
                 self.statusMessage = nil
-                self.error = message
+                self.error = Self.userFacingError(
+                    message,
+                    fallback: "Capability update failed.")
                 return
             }
 
             do {
                 self.error = nil
+                self.statusMessage = nil
                 _ = try await GatewayConnection.shared.skillsUpdate(
                     skillKey: skillKey,
                     enabled: enabled)
-                let successMessage = enabled ? "Capability enabled." : "Capability disabled."
-                await self.refresh()
-                if self.error == nil {
-                    self.statusMessage = successMessage
+                self.skills = try await self.fetchSkills()
+                guard let refreshedSkill = self.skill(skillKey: skillKey) else {
+                    self.error = "Capability state could not be confirmed."
+                    self.statusMessage = nil
+                    return
                 }
+                guard refreshedSkill.disabled == !enabled else {
+                    self.error = "Capability state could not be confirmed. Refresh and try again."
+                    self.statusMessage = nil
+                    return
+                }
+                self.statusMessage = enabled ? "Capability enabled." : "Capability disabled."
             } catch {
                 self.statusMessage = nil
-                self.error = error.localizedDescription
+                self.error = Self.userFacingError(
+                    error.localizedDescription,
+                    fallback: "Capability update failed.")
             }
         }
     }
@@ -760,36 +803,83 @@ final class CapabilitiesSettingsModel {
                 return
             case let .unavailable(message):
                 self.statusMessage = nil
-                self.error = message
+                self.error = Self.userFacingError(
+                    message,
+                    fallback: "Capability setup failed.")
                 return
             }
 
             do {
                 self.error = nil
+                self.statusMessage = nil
                 if isPrimary {
                     _ = try await GatewayConnection.shared.skillsUpdate(
                         skillKey: skillKey,
                         apiKey: value)
-                    let successMessage = "API key saved."
-                    await self.refresh()
-                    if self.error == nil {
-                        self.statusMessage = successMessage
-                    }
                 } else {
                     _ = try await GatewayConnection.shared.skillsUpdate(
                         skillKey: skillKey,
                         env: [envKey: value])
-                    let successMessage = "\(envKey) saved."
-                    await self.refresh()
-                    if self.error == nil {
-                        self.statusMessage = successMessage
-                    }
                 }
+
+                self.skills = try await self.fetchSkills()
+                guard let refreshedSkill = self.skill(skillKey: skillKey) else {
+                    self.error = "Capability setup could not be confirmed."
+                    self.statusMessage = nil
+                    return
+                }
+                if refreshedSkill.missing.env.contains(envKey) {
+                    self.error = "The new value was sent, but this capability still reports \(envKey) as missing."
+                    self.statusMessage = nil
+                    return
+                }
+                let baseMessage = isPrimary ? "API key saved." : "\(envKey) saved."
+                self.statusMessage = refreshedSkill.eligible
+                    ? baseMessage
+                    : "\(baseMessage) This capability still needs setup."
             } catch {
                 self.statusMessage = nil
-                self.error = error.localizedDescription
+                self.error = Self.userFacingError(
+                    error.localizedDescription,
+                    fallback: "Capability setup failed.")
             }
         }
+    }
+
+    private func fetchSkills() async throws -> [SkillStatus] {
+        let report = try await GatewayConnection.shared.skillsStatus()
+        return report.skills.sorted { $0.name < $1.name }
+    }
+
+    private func applyLoadedSkills(_ skills: [SkillStatus]) {
+        self.skills = skills
+        self.statusMessage = skills.isEmpty ? Self.emptyCapabilitiesMessage : nil
+    }
+
+    private func skill(skillKey: String) -> SkillStatus? {
+        self.skills.first(where: { $0.skillKey == skillKey })
+    }
+
+    private static func userFacingError(_ raw: String?, fallback: String) -> String {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return fallback }
+
+        let lower = trimmed.lowercased()
+        if lower.contains("sign in") {
+            return trimmed
+        }
+        if lower.contains("timeout") {
+            return "Capabilities are taking longer than expected to update."
+        }
+        if lower.contains("disconnected") ||
+            lower.contains("cannot reach gateway") ||
+            lower.contains("cannot connect") ||
+            lower.contains("connection refused") ||
+            lower.contains("network")
+        {
+            return "Capabilities are unavailable because Alisio is not connected right now."
+        }
+        return trimmed
     }
 
     private func accountGate(reason: String) async -> AccountGate {

@@ -32,9 +32,10 @@ extension CronJobEditor {
             if let date = CronSchedule.parseAtDate(at) {
                 self.atDate = date
             }
-        case let .every(everyMs, _):
+        case let .every(everyMs, anchorMs):
             self.scheduleKind = .every
             self.everyText = self.formatDuration(ms: everyMs)
+            self.everyAnchorMs = anchorMs
         case let .cron(expr, tz, staggerMs):
             self.scheduleKind = .cron
             self.cronExpr = expr
@@ -233,7 +234,11 @@ extension CronJobEditor {
                     code: 0,
                     userInfo: [NSLocalizedDescriptionKey: "Invalid repeat interval. Use values such as 10m, 1h, or 1d."])
             }
-            return ["kind": "every", "everyMs": ms]
+            var schedule: [String: Any] = ["kind": "every", "everyMs": ms]
+            if let everyAnchorMs = self.everyAnchorMs {
+                schedule["anchorMs"] = everyAnchorMs
+            }
+            return schedule
         case .cron:
             let expr = self.trimmed(self.cronExpr)
             if expr.isEmpty {

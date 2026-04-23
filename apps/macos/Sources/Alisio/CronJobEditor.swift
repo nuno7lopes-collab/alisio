@@ -39,6 +39,7 @@ struct CronJobEditor: View {
     @State var scheduleKind: ScheduleKind = .every
     @State var atDate: Date = .init().addingTimeInterval(60 * 5)
     @State var everyText: String = "1h"
+    @State var everyAnchorMs: Int?
     @State var cronExpr: String = "0 9 * * 3"
     @State var cronTz: String = ""
     @State var cronStaggerMs: Int?
@@ -59,6 +60,23 @@ struct CronJobEditor: View {
     @State var timeoutSeconds: String = ""
     @State var bestEffortDeliver: Bool = false
 
+    init(
+        job: CronJob?,
+        isSaving: Binding<Bool>,
+        error: Binding<String?>,
+        channelsStore: ChannelsStore,
+        onCancel: @escaping () -> Void,
+        onSave: @escaping ([String: AnyCodable]) -> Void)
+    {
+        self.job = job
+        self._isSaving = isSaving
+        self._error = error
+        self.channelsStore = channelsStore
+        self.onCancel = onCancel
+        self.onSave = onSave
+        self._everyAnchorMs = State(initialValue: Self.initialEveryAnchorMs(from: job))
+    }
+
     var channelOptions: [String] {
         let ordered = self.channelsStore.orderedChannelIds()
         var options = ["last"] + ordered
@@ -73,6 +91,12 @@ struct CronJobEditor: View {
     func channelLabel(for id: String) -> String {
         if id == "last" { return "last used" }
         return self.channelsStore.resolveChannelLabel(id)
+    }
+
+    private static func initialEveryAnchorMs(from job: CronJob?) -> Int? {
+        guard let job else { return nil }
+        guard case let .every(_, anchorMs) = job.schedule else { return nil }
+        return anchorMs
     }
 
     var body: some View {

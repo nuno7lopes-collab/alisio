@@ -1,5 +1,4 @@
 import Foundation
-import Network
 import Observation
 import SwiftUI
 
@@ -79,13 +78,14 @@ final class HealthStore {
     private(set) var lastSuccess: Date?
     private(set) var lastError: String?
     private(set) var isRefreshing = false
+    private(set) var hasLoadedOnce = false
 
     private var loopTask: Task<Void, Never>?
     private let refreshInterval: TimeInterval = 60
 
-    private init() {
+    init(autoStart: Bool = true) {
         // Avoid background health polling in SwiftUI previews and tests.
-        if !ProcessInfo.processInfo.isPreview, !ProcessInfo.processInfo.isRunningTests {
+        if autoStart, !ProcessInfo.processInfo.isPreview, !ProcessInfo.processInfo.isRunningTests {
             self.start()
         }
     }
@@ -95,6 +95,11 @@ final class HealthStore {
     func __setSnapshotForTest(_ snapshot: HealthSnapshot?, lastError: String? = nil) {
         self.snapshot = snapshot
         self.lastError = lastError
+        self.hasLoadedOnce = snapshot != nil || Self.trimmed(lastError) != nil
+    }
+
+    func __setRefreshingForTest(_ isRefreshing: Bool) {
+        self.isRefreshing = isRefreshing
     }
 
     func start() {
@@ -116,7 +121,10 @@ final class HealthStore {
     func refresh(onDemand: Bool = false) async {
         guard !self.isRefreshing else { return }
         self.isRefreshing = true
-        defer { self.isRefreshing = false }
+        defer {
+            self.isRefreshing = false
+            self.hasLoadedOnce = true
+        }
         let previousError = self.lastError
 
         do {
@@ -152,15 +160,21 @@ final class HealthStore {
     }
 
     private static func describeProbeFailure(_ probe: HealthSnapshot.ChannelSummary.Probe) -> String {
-        let elapsed = probe.elapsedMs.map { "\(Int($0))ms" }
-        if let error = probe.error, error.lowercased().contains("timeout") || probe.status == nil {
-            if let elapsed { return "Health check timed out (\(elapsed))" }
+        let lower = probe.error?.lowercased() ?? ""
+        if lower.contains("timeout") || probe.status == nil {
             return "Health check timed out"
         }
-        let code = probe.status.map { "status \($0)" } ?? "status unknown"
-        let reason = probe.error?.isEmpty == false ? probe.error! : "health probe failed"
-        if let elapsed { return "\(reason) (\(code), \(elapsed))" }
-        return "\(reason) (\(code))"
+        if lower.contains("unauthorized") ||
+            lower.contains("forbidden") ||
+            lower.contains("authentication") ||
+            lower.contains("rejected token")
+        {
+            return "Health check failed because sign-in needs attention"
+        }
+        if let status = probe.status, status >= 500 {
+            return "Health check failed because the runtime is unavailable"
+        }
+        return "Health check failed"
     }
 
     private func resolveLinkChannel(
@@ -195,6 +209,58 @@ final class HealthStore {
         return nil
     }
 
+    private static func trimmed(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func label(for channelID: String, in snap: HealthSnapshot) -> String {
+        snap.channelLabels?[channelID] ?? channelID.capitalized
+    }
+
+    private static func healthHeadline(for error: String) -> String {
+        let lower = error.lowercased()
+        if lower.contains("sign in") {
+            return "Sign in required"
+        }
+        if lower.contains("timeout") {
+            return "Health check timed out"
+        }
+        if lower.contains("disconnected") ||
+            lower.contains("cannot reach gateway") ||
+            lower.contains("cannot connect") ||
+            lower.contains("connection refused") ||
+            lower.contains("network")
+        {
+            return "Runtime unavailable"
+        }
+        if lower.contains("not json") || lower.contains("invalid") {
+            return "Health check failed"
+        }
+        return "Health needs attention"
+    }
+
+    private static func healthDetail(for error: String) -> String {
+        let lower = error.lowercased()
+        if lower.contains("sign in") {
+            return "Sign in to Alisio to finish linking this Mac."
+        }
+        if lower.contains("connection refused") ||
+            lower.contains("cannot reach gateway") ||
+            lower.contains("cannot connect") ||
+            lower.contains("disconnected")
+        {
+            return "Alisio could not reach the runtime. Open Alisio again or wait for it to finish starting."
+        }
+        if lower.contains("timeout") {
+            return "The runtime is taking longer than expected to answer."
+        }
+        if lower.contains("not json") || lower.contains("invalid") {
+            return "Alisio received an invalid health response from the runtime."
+        }
+        return error
+    }
+
     var state: HealthState {
         if let error = self.lastError, !error.isEmpty {
             return .degraded(error)
@@ -214,40 +280,55 @@ final class HealthStore {
     }
 
     var summaryLine: String {
-        if self.isRefreshing { return "Health check running…" }
-        if let error = self.lastError { return "Health check failed: \(error)" }
-        guard let snap = self.snapshot else { return "Health check pending" }
-        guard let link = self.resolveLinkChannel(snap) else { return "Health check pending" }
+        if let error = Self.trimmed(self.lastError) {
+            return Self.healthHeadline(for: error)
+        }
+        if self.isRefreshing, self.snapshot == nil {
+            return "Checking health…"
+        }
+        guard let snap = self.snapshot else {
+            return self.hasLoadedOnce ? "Health unavailable" : "Health check pending"
+        }
+        guard let link = self.resolveLinkChannel(snap) else {
+            return self.isRefreshing ? "Checking health…" : "Health check pending"
+        }
         if link.summary.linked != true {
             if let fallback = self.resolveFallbackChannel(snap, excluding: link.id) {
-                let fallbackLabel = snap.channelLabels?[fallback.id] ?? fallback.id.capitalized
-                let fallbackState = (fallback.summary.probe?.ok ?? true) ? "ok" : "degraded"
-                return "\(fallbackLabel) \(fallbackState) · Not linked — sign in to Alisio"
+                return "\(self.label(for: fallback.id, in: snap)) is working"
             }
-            return "Not linked — sign in to Alisio"
+            return "Sign in required"
         }
-        let auth = link.summary.authAgeMs.map { msToAge($0) } ?? "unknown"
         if let probe = link.summary.probe, probe.ok == false {
-            let status = probe.status.map(String.init) ?? "?"
-            let suffix = probe.status == nil ? "probe degraded" : "probe degraded · status \(status)"
-            return "linked · auth \(auth) · \(suffix)"
+            return "\(self.label(for: link.id, in: snap)) needs attention"
         }
-        return "linked · auth \(auth)"
+        return "Healthy"
     }
 
     /// Short, human-friendly detail for the last failure, used in the UI.
     var detailLine: String? {
-        if let error = self.lastError, !error.isEmpty {
-            let lower = error.lowercased()
-            if lower.contains("connection refused") {
-                let port = GatewayEnvironment.gatewayPort()
-                let host = GatewayConnectivityCoordinator.shared.localEndpointHostLabel ?? "127.0.0.1:\(port)"
-                return "The gateway control port (\(host)) isn’t listening — restart Alisio to bring it back."
+        if let error = Self.trimmed(self.lastError) {
+            return Self.healthDetail(for: error)
+        }
+        guard let snap = self.snapshot, let link = self.resolveLinkChannel(snap) else {
+            if self.isRefreshing {
+                return "Running a fresh health check."
             }
-            if lower.contains("timeout") {
-                return "Timed out waiting for the control server; the gateway may be crashed or still starting."
+            return nil
+        }
+        if link.summary.linked != true {
+            if let fallback = self.resolveFallbackChannel(snap, excluding: link.id) {
+                return "\(self.label(for: fallback.id, in: snap)) is available, but this Mac is not linked yet."
             }
-            return error
+            return "Sign in to Alisio to finish linking this Mac."
+        }
+        if let probe = link.summary.probe, probe.ok == false {
+            return Self.describeProbeFailure(probe)
+        }
+        if self.isRefreshing {
+            return "Refreshing health status."
+        }
+        if let authAge = link.summary.authAgeMs {
+            return "\(self.label(for: link.id, in: snap)) linked · last sign-in \(msToAge(authAge))."
         }
         return nil
     }
@@ -267,6 +348,9 @@ final class HealthStore {
 
     var degradedSummary: String? {
         guard case let .degraded(reason) = self.state else { return nil }
+        if let detail = self.detailLine {
+            return detail
+        }
         if reason == "[object Object]" || reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            let snap = self.snapshot
         {

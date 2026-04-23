@@ -1,69 +1,10 @@
+import AppKit
 import AlisioChatUI
 import AlisioKit
 import SwiftUI
 import Observation
 
 import AlisioSupport
-
-private enum AlisioWorkspaceSidebarItem: String, CaseIterable, Identifiable {
-    case chat
-    case memory
-    case apps
-    case schedules
-    case capabilities
-    case connections
-    case settings
-
-    var id: String { self.rawValue }
-
-    var title: String {
-        switch self {
-        case .chat: "Chat"
-        case .memory: "Memory"
-        case .apps: "Apps"
-        case .schedules: "Schedules"
-        case .capabilities: "Capabilities"
-        case .connections: "Connections"
-        case .settings: "Settings"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .chat: "bubble.left.and.bubble.right"
-        case .memory: "brain.head.profile"
-        case .apps: "link"
-        case .schedules: "calendar"
-        case .capabilities: "sparkles"
-        case .connections: "network"
-        case .settings: "gearshape"
-        }
-    }
-
-    init(route: WorkspaceNavigationState.Route) {
-        self = Self(rawValue: route.rawValue) ?? .chat
-    }
-
-    @MainActor
-    func apply(to navigationState: WorkspaceNavigationState) {
-        switch self {
-        case .chat:
-            navigationState.showChat(sessionKey: navigationState.activeSessionKey ?? "main")
-        case .memory:
-            navigationState.show(route: .memory)
-        case .apps:
-            navigationState.show(route: .apps)
-        case .schedules:
-            navigationState.show(route: .schedules)
-        case .capabilities:
-            navigationState.show(route: .capabilities)
-        case .connections:
-            navigationState.show(route: .connections)
-        case .settings:
-            navigationState.showSettings()
-        }
-    }
-}
 
 @MainActor
 struct AlisioWorkspaceChatEnvironment {
@@ -97,8 +38,8 @@ struct AlisioWorkspaceRootView: View {
         AlisioPalette.resolve(theme: .system, systemScheme: self.systemScheme)
     }
 
-    private var currentSidebarItem: AlisioWorkspaceSidebarItem {
-        AlisioWorkspaceSidebarItem(route: self.navigationState.route)
+    private var currentSidebarItem: WorkspaceNavigationState.Route {
+        self.navigationState.route
     }
 
     private var resolvedSessionKey: String {
@@ -108,6 +49,10 @@ struct AlisioWorkspaceRootView: View {
 
     private var sidebarWidth: CGFloat {
         self.isSidebarCollapsed ? 82 : 228
+    }
+
+    private var sidebarAlignment: HorizontalAlignment {
+        self.isSidebarCollapsed ? .center : .leading
     }
 
     var body: some View {
@@ -143,7 +88,7 @@ struct AlisioWorkspaceRootView: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: self.isSidebarCollapsed ? .center : .leading, spacing: 18) {
+        VStack(alignment: self.sidebarAlignment, spacing: 18) {
             HStack(spacing: 12) {
                 AlisioBrandMark(palette: self.palette, size: 38)
                 if !self.isSidebarCollapsed {
@@ -173,40 +118,7 @@ struct AlisioWorkspaceRootView: View {
             }
             .padding(.top, 8)
 
-            VStack(spacing: 8) {
-                ForEach(AlisioWorkspaceSidebarItem.allCases) { item in
-                    Button {
-                        item.apply(to: self.navigationState)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: item.systemImage)
-                                .frame(width: 18)
-                            if !self.isSidebarCollapsed {
-                                Text(item.title)
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .frame(maxWidth: .infinity, alignment: self.isSidebarCollapsed ? .center : .leading)
-                        .foregroundStyle(
-                            self.currentSidebarItem == item
-                                ? self.palette.primaryText
-                                : self.palette.secondaryText)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(self.currentSidebarItem == item ? self.palette.surfaceMuted : .clear)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(
-                                            self.currentSidebarItem == item ? self.palette.border : .clear,
-                                            lineWidth: 1)))
-                    }
-                    .buttonStyle(.plain)
-                    .help(item.title)
-                }
-            }
+            self.sidebarNavigation
 
             Spacer()
 
@@ -242,9 +154,46 @@ struct AlisioWorkspaceRootView: View {
         .background(self.palette.sidebar)
     }
 
+    private var sidebarNavigation: some View {
+        VStack(spacing: 8) {
+            ForEach(WorkspaceNavigationState.Route.allCases) { item in
+                self.sidebarButton(for: item)
+            }
+        }
+    }
+
+    private func sidebarButton(for item: WorkspaceNavigationState.Route) -> some View {
+        let isSelected = self.currentSidebarItem == item
+        return Button {
+            item.apply(to: self.navigationState)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: item.systemImage)
+                    .frame(width: 18)
+                if !self.isSidebarCollapsed {
+                    Text(item.workspaceTitle)
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, alignment: self.isSidebarCollapsed ? .center : .leading)
+            .foregroundStyle(isSelected ? self.palette.primaryText : self.palette.secondaryText)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? self.palette.surfaceMuted : .clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(isSelected ? self.palette.border : .clear, lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
+        .help(item.workspaceTitle)
+    }
+
     private var stage: some View {
         VStack(spacing: 0) {
-            if self.navigationState.route != .chat {
+            if self.navigationState.route.showsStageHeader {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(self.stageTitle)
@@ -258,6 +207,10 @@ struct AlisioWorkspaceRootView: View {
                 }
                 .padding(.horizontal, 28)
                 .padding(.vertical, 20)
+                .overlay(alignment: .topLeading) {
+                    WorkspaceRenderMarker(identifier: self.navigationState.route.stageHeaderMarkerIdentifier)
+                        .frame(width: 1, height: 1)
+                }
 
                 Rectangle()
                     .fill(self.palette.separator)
@@ -266,6 +219,10 @@ struct AlisioWorkspaceRootView: View {
 
             self.workspaceContent(compact: false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .overlay(alignment: .topLeading) {
+            WorkspaceRenderMarker(identifier: self.navigationState.route.stageMarkerIdentifier)
+                .frame(width: 1, height: 1)
         }
         .background(self.palette.stage)
     }
@@ -289,9 +246,17 @@ struct AlisioWorkspaceRootView: View {
         self.navigationState.route.workspaceSubtitle
     }
 
-    @ViewBuilder
     private func workspaceContent(compact: Bool) -> some View {
-        switch self.navigationState.route {
+        self.workspaceStage(for: self.navigationState.route, compact: compact)
+            .overlay(alignment: .topLeading) {
+                WorkspaceRenderMarker(identifier: self.navigationState.route.stageMarkerIdentifier)
+                    .frame(width: 1, height: 1)
+            }
+    }
+
+    @ViewBuilder
+    private func workspaceStage(for route: WorkspaceNavigationState.Route, compact: Bool) -> some View {
+        switch route {
         case .chat:
             WorkspaceChatStage(
                 sessionKey: self.resolvedSessionKey,
@@ -299,7 +264,7 @@ struct AlisioWorkspaceRootView: View {
                 palette: self.palette,
                 compact: compact,
                 onOpenApps: {
-                    self.navigationState.show(route: .apps)
+                    WorkspaceNavigationState.Route.apps.apply(to: self.navigationState)
                 },
                 onSessionChange: { sessionKey in
                     self.navigationState.showChat(sessionKey: sessionKey)
@@ -328,43 +293,19 @@ struct AlisioWorkspaceRootView: View {
     }
 }
 
-extension WorkspaceNavigationState.Route {
-    var workspaceTitle: String {
-        switch self {
-        case .chat:
-            "Chat"
-        case .memory:
-            "Memory"
-        case .apps:
-            "Apps"
-        case .schedules:
-            "Schedules"
-        case .capabilities:
-            "Capabilities"
-        case .connections:
-            "Connections"
-        case .settings:
-            "Settings"
-        }
+private struct WorkspaceRenderMarker: NSViewRepresentable {
+    let identifier: String
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+        view.identifier = NSUserInterfaceItemIdentifier(self.identifier)
+        view.alphaValue = 0.001
+        return view
     }
 
-    var workspaceSubtitle: String {
-        switch self {
-        case .chat:
-            "Pick up the main conversation or start a clean new chat."
-        case .memory:
-            "Daily notes, topic notes, main memory, identity, soul, and agent files."
-        case .apps:
-            "Connect and manage the apps that are available on this Mac."
-        case .schedules:
-            "Create, review, and run scheduled work."
-        case .capabilities:
-            "See what this Mac can do and what still needs setup."
-        case .connections:
-            "See how this Mac reaches the runtime, whether health is passing, and which nodes are alive."
-        case .settings:
-            "Open the native Settings window for app-level preferences without duplicating them in the workspace."
-        }
+    func updateNSView(_ nsView: NSView, context: Context) {
+        nsView.identifier = NSUserInterfaceItemIdentifier(self.identifier)
+        nsView.alphaValue = 0.001
     }
 }
 
@@ -1020,9 +961,7 @@ private struct WorkspaceInspectorPane: View {
     }
 
     private func contextUsageLabel(_ usage: AlisioChatSessionContextUsage) -> String {
-        let used = Self.formatCompactTokenCount(usage.totalTokens)
-        let total = usage.contextWindow > 0 ? Self.formatCompactTokenCount(usage.contextWindow) : "?"
-        return "\(used)/\(total)"
+        usage.compactUsageLabel
     }
 
     private func toolSummary(for toolCall: AlisioChatPendingToolCall) -> String {
@@ -1080,13 +1019,6 @@ private struct WorkspaceInspectorPane: View {
     private func timeString(fromUnixMs timestamp: Double) -> String {
         let date = Date(timeIntervalSince1970: timestamp / 1000)
         return date.formatted(date: .omitted, time: .standard)
-    }
-
-    private static func formatCompactTokenCount(_ value: Int) -> String {
-        guard value >= 1000 else { return "\(value)" }
-        let thousands = Double(value) / 1000
-        let decimals = value >= 10_000 ? 0 : 1
-        return String(format: "%.\(decimals)fk", thousands)
     }
 
     private func metaRow(_ label: String, _ value: String) -> some View {

@@ -176,8 +176,15 @@ enum CronSchedule: Codable, Equatable {
     static func parseAtDate(_ value: String) -> Date? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { return nil }
-        if let date = makeIsoFormatter(withFractional: true).date(from: trimmed) { return date }
-        return self.makeIsoFormatter(withFractional: false).date(from: trimmed)
+        if let millis = Int64(trimmed), millis > 0 {
+            return Date(timeIntervalSince1970: TimeInterval(millis) / 1_000)
+        }
+
+        let normalized = self.normalizeAbsoluteTimeString(trimmed)
+        if let date = makeIsoFormatter(withFractional: true).date(from: normalized) { return date }
+        if let date = self.makeIsoFormatter(withFractional: false).date(from: normalized) { return date }
+        if let date = self.parseDateOnly(trimmed) { return date }
+        return nil
     }
 
     static func formatIsoDate(_ date: Date) -> String {
@@ -190,6 +197,38 @@ enum CronSchedule: Codable, Equatable {
             ? [.withInternetDateTime, .withFractionalSeconds]
             : [.withInternetDateTime]
         return formatter
+    }
+
+    private static func parseDateOnly(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
+    }
+
+    private static func normalizeAbsoluteTimeString(_ raw: String) -> String {
+        if Self.hasTimezoneSuffix(raw) {
+            return raw
+        }
+        if Self.isDateOnly(raw) {
+            return "\(raw)T00:00:00Z"
+        }
+        if raw.contains("T") {
+            return "\(raw)Z"
+        }
+        return raw
+    }
+
+    private static func hasTimezoneSuffix(_ value: String) -> Bool {
+        value.range(of: "(Z|[+-]\\d{2}:?\\d{2})$",
+                    options: .regularExpression) != nil
+    }
+
+    private static func isDateOnly(_ value: String) -> Bool {
+        value.range(of: "^\\d{4}-\\d{2}-\\d{2}$",
+                    options: .regularExpression) != nil
     }
 }
 
