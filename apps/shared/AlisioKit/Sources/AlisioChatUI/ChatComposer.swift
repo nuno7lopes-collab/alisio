@@ -275,7 +275,9 @@ struct AlisioChatComposer: View {
                 self.alisioVoiceButton(voiceControl)
             }
             self.alisioThinkingMenu
-            self.alisioBadge(systemName: "cpu", text: self.viewModel.activeModelLabel)
+            if self.showsAlisioModelBadge {
+                self.alisioBadge(systemName: "cpu", text: self.viewModel.activeModelLabel)
+            }
             if let status = self.alisioRuntimeStatus {
                 self.alisioBadge(systemName: status.icon, text: status.label, tint: status.tint)
             }
@@ -306,7 +308,7 @@ struct AlisioChatComposer: View {
     private var alisioRuntimeStatus: (icon: String, label: String, tint: Color)? {
         switch self.viewModel.connectionPhase {
         case .bootstrapping, .loading:
-            return ("arrow.triangle.2.circlepath", "Loading", Color(chatHex: 0x8F95A3))
+            return nil
         case .reconnecting:
             return ("wifi.exclamationmark", "Reconnecting", Color(chatHex: 0xE0A04B))
         case .firstMessage:
@@ -353,6 +355,12 @@ struct AlisioChatComposer: View {
 
     private var activeSessionLabel: String {
         self.viewModel.currentSessionTitle
+    }
+
+    private var showsAlisioModelBadge: Bool {
+        let label = self.viewModel.activeModelLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { return false }
+        return label.lowercased() != "default"
     }
 
     private static func thinkingLabel(for level: String) -> String {

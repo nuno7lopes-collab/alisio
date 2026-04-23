@@ -15,7 +15,7 @@ extension CronSettings {
             return .error(error)
         }
 
-        return .empty(self.trimmedStatusMessage ?? "No schedules exist yet.")
+        return .empty(self.trimmedStatusMessage ?? "No schedules yet.")
     }
 
     var trimmedJobsError: String? {
@@ -35,6 +35,7 @@ extension CronSettings {
 
     func statusTint(_ status: String?) -> Color {
         switch (status ?? "").lowercased() {
+        case "running": .blue
         case "ok": .green
         case "error": .red
         case "skipped": .orange
@@ -47,18 +48,20 @@ extension CronSettings {
 
     func statusLabel(_ status: String?) -> String {
         switch (status ?? "").lowercased() {
+        case "running":
+            "running"
         case "ok":
-            "ok"
+            "completed"
         case "error":
-            "error"
+            "failed"
         case "skipped":
             "skipped"
         case "delivered":
             "delivered"
         case "not-delivered":
-            "delivery failed"
+            "send failed"
         case "not-requested":
-            "not requested"
+            "not sent"
         case "":
             "unknown"
         default:
@@ -69,22 +72,22 @@ extension CronSettings {
     func sessionTargetLabel(_ job: CronJob) -> String {
         switch job.parsedSessionTarget {
         case .predefined(.main):
-            "main"
+            "Main chat"
         case .predefined(.isolated):
-            "isolated"
+            "Separate chat"
         case .predefined(.current):
-            "current"
+            "This chat"
         case let .session(id):
-            "session \(id)"
+            "Chat \(id)"
         }
     }
 
     func wakeModeLabel(_ wakeMode: CronWakeMode) -> String {
         switch wakeMode {
         case .now:
-            "now"
+            "Immediately"
         case .nextHeartbeat:
-            "next heartbeat"
+            "On wake-up"
         }
     }
 
@@ -92,18 +95,75 @@ extension CronSettings {
         switch schedule {
         case let .at(at):
             if let date = CronSchedule.parseAtDate(at) {
-                return "once at \(date.formatted(date: .abbreviated, time: .standard))"
+                return "One time on \(date.formatted(date: .abbreviated, time: .standard))"
             }
-            return "once at \(at)"
+            return "One time on \(at)"
         case let .every(everyMs, _):
-            return "every \(self.formatDuration(ms: everyMs))"
+            return "Every \(self.formatDuration(ms: everyMs))"
         case let .cron(expr, tz, staggerMs):
-            var parts = ["advanced \(expr)"]
-            if let tz, !tz.isEmpty { parts.append("(\(tz))") }
+            var parts = ["Custom pattern \(expr)"]
+            if let tz, !tz.isEmpty { parts.append("in \(tz)") }
             if let staggerMs, staggerMs > 0 {
-                parts.append("stagger \(self.formatDuration(ms: staggerMs))")
+                parts.append("with up to \(self.formatDuration(ms: staggerMs)) spread")
             }
             return parts.joined(separator: " ")
+        }
+    }
+
+    func runStateLabel(_ job: CronJob) -> String {
+        if job.isRunning {
+            return "Running now"
+        }
+        if !job.enabled {
+            return "Paused"
+        }
+        if let status = job.state.displayStatus {
+            return self.statusLabel(status)
+        }
+        return "Scheduled"
+    }
+
+    func resultHandlingLabel(_ delivery: CronDelivery?) -> String {
+        guard let delivery else { return "No follow-up" }
+        switch delivery.mode {
+        case .announce:
+            return "Post to chat"
+        case .webhook:
+            return "Send to URL"
+        case .none:
+            return "No follow-up"
+        }
+    }
+
+    func resultHandlingDestination(_ delivery: CronDelivery?) -> String? {
+        guard let delivery else { return nil }
+        switch delivery.mode {
+        case .announce:
+            let rawChannel = (delivery.channel ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let channel: String
+            if rawChannel.isEmpty {
+                channel = ""
+            } else if rawChannel == "last" {
+                channel = "Last used chat"
+            } else {
+                channel = self.channelsStore.resolveChannelLabel(rawChannel)
+            }
+            let target = (delivery.to ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if channel.isEmpty, target.isEmpty {
+                return "Last used chat"
+            }
+            if !channel.isEmpty, !target.isEmpty {
+                return "\(channel) · \(target)"
+            }
+            if !channel.isEmpty {
+                return channel
+            }
+            return target.isEmpty ? nil : target
+        case .webhook:
+            let target = (delivery.to ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return target.isEmpty ? nil : target
+        case .none:
+            return nil
         }
     }
 

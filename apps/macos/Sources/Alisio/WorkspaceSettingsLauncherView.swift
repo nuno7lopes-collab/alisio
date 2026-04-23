@@ -17,7 +17,7 @@ struct WorkspaceSettingsLauncherView: View {
                     title: "App settings live in the native Settings window.",
                     message: """
                     Use Settings for runtime, account, permissions, voice wake, and app-level preferences. \
-                    Apps, Schedules, Capabilities, Connections, and Chat stay in their own workspace sections.
+                    Memory, Apps, Schedules, Capabilities, Connections, and Chat stay in their own workspace sections.
                     """)
 
                 self.launchCard(

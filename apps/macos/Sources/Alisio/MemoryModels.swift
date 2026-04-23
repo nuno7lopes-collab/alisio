@@ -29,9 +29,26 @@ struct MemoryPersonalContextSummary: Decodable, Equatable, Hashable, Sendable {
 struct MemoryPersonalContextDocument: Decodable, Equatable, Hashable, Sendable {
     let path: String
     let kind: String
+    let group: String?
     let present: Bool
     let size: Int?
     let updatedAtMs: Int?
+
+    init(
+        path: String,
+        kind: String,
+        group: String? = nil,
+        present: Bool,
+        size: Int?,
+        updatedAtMs: Int?)
+    {
+        self.path = path
+        self.kind = kind
+        self.group = group
+        self.present = present
+        self.size = size
+        self.updatedAtMs = updatedAtMs
+    }
 }
 
 struct MemoryAgentFileGetResult: Decodable, Sendable {
@@ -104,46 +121,140 @@ struct MemorySurfaceGroup: Identifiable, Equatable, Sendable {
     var id: MemorySurfaceSection { self.section }
 }
 
+struct MemoryGraphNode: Identifiable, Equatable, Hashable, Sendable {
+    enum Kind: String, Sendable {
+        case section
+        case document
+    }
+
+    let id: String
+    let kind: Kind
+    let title: String
+    let subtitle: String?
+    let section: MemorySurfaceSection
+    let relatedItemID: String?
+    let isSelected: Bool
+}
+
+struct MemoryGraphEdge: Identifiable, Equatable, Hashable, Sendable {
+    let id: String
+    let sourceID: String
+    let targetID: String
+}
+
+struct MemoryGraphLane: Identifiable, Equatable, Sendable {
+    let section: MemorySurfaceSection
+    let sectionNode: MemoryGraphNode
+    let documentNodes: [MemoryGraphNode]
+
+    var id: MemorySurfaceSection { self.section }
+}
+
+struct MemoryGraphProjection: Equatable, Sendable {
+    let nodes: [MemoryGraphNode]
+    let edges: [MemoryGraphEdge]
+    let lanes: [MemoryGraphLane]
+
+    init(sections: [MemorySurfaceGroup], selectedItemID: String?) {
+        var nodes: [MemoryGraphNode] = []
+        var edges: [MemoryGraphEdge] = []
+        var lanes: [MemoryGraphLane] = []
+
+        for group in sections {
+            guard !group.items.isEmpty else { continue }
+
+            let relatedItemID = group.items.first(where: { $0.id == selectedItemID })?.id
+                ?? group.items.first?.id
+            let sectionNode = MemoryGraphNode(
+                id: "section:\(group.section.rawValue)",
+                kind: .section,
+                title: group.section.title,
+                subtitle: Self.sectionSummary(for: group.items.count),
+                section: group.section,
+                relatedItemID: relatedItemID,
+                isSelected: group.items.contains(where: { $0.id == selectedItemID }))
+            let documentNodes = group.items.map { item in
+                MemoryGraphNode(
+                    id: "item:\(item.id)",
+                    kind: .document,
+                    title: item.title,
+                    subtitle: item.path,
+                    section: item.section,
+                    relatedItemID: item.id,
+                    isSelected: item.id == selectedItemID)
+            }
+            let laneEdges = documentNodes.map { node in
+                MemoryGraphEdge(
+                    id: "\(sectionNode.id)->\(node.id)",
+                    sourceID: sectionNode.id,
+                    targetID: node.id)
+            }
+
+            nodes.append(sectionNode)
+            nodes.append(contentsOf: documentNodes)
+            edges.append(contentsOf: laneEdges)
+            lanes.append(MemoryGraphLane(
+                section: group.section,
+                sectionNode: sectionNode,
+                documentNodes: documentNodes))
+        }
+
+        self.nodes = nodes
+        self.edges = edges
+        self.lanes = lanes
+    }
+
+    private static func sectionSummary(for count: Int) -> String {
+        count == 1 ? "1 file" : "\(count) files"
+    }
+}
+
 struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     let path: String
     let title: String
-    let subtitle: String
     let section: MemorySurfaceSection
     let size: Int?
     let updatedAtMs: Int?
 
-    init(document: MemoryPersonalContextDocument) {
+    init?(document: MemoryPersonalContextDocument) {
+        guard let section = Self.resolveSection(document: document) else {
+            return nil
+        }
         self.id = document.path
         self.path = document.path
-        self.section = Self.resolveSection(kind: document.kind)
-        self.title = Self.resolveTitle(path: document.path, kind: document.kind)
-        self.subtitle = document.path
+        self.section = section
+        self.title = Self.resolveTitle(document: document)
         self.size = document.size
         self.updatedAtMs = document.updatedAtMs
     }
 
-    private static func resolveSection(kind: String) -> MemorySurfaceSection {
-        switch kind {
+    private static func resolveSection(document: MemoryPersonalContextDocument) -> MemorySurfaceSection? {
+        switch document.kind {
         case "main_memory":
-            .mainMemory
+            return .mainMemory
         case "daily_note":
-            .dailyNotes
+            return .dailyNotes
         case "topic_note":
-            .topicNotes
-        case "backlog_note":
-            .backlogNotes
+            return .topicNotes
         case "identity":
-            .identity
+            return .identity
         case "soul":
-            .soul
+            return .soul
+        case "agent_instructions", "agent_tools", "agent_heartbeat":
+            return .agentFiles
         default:
-            .agentFiles
+            // The primary Memory surface intentionally leaves backlog/setup/preferences
+            // out of the canonical sidebar until that product slice is promoted.
+            if document.group == "agent" {
+                return .agentFiles
+            }
+            return nil
         }
     }
 
-    private static func resolveTitle(path: String, kind: String) -> String {
-        switch kind {
+    private static func resolveTitle(document: MemoryPersonalContextDocument) -> String {
+        switch document.kind {
         case "main_memory":
             return "Main memory"
         case "identity":
@@ -151,11 +262,11 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         case "soul":
             return "Soul"
         case "daily_note":
-            return Self.formatDailyTitle(path: path)
-        case "topic_note", "backlog_note":
-            return Self.humanizePathComponent(Self.fileStem(from: path))
+            return Self.formatDailyTitle(path: document.path)
+        case "topic_note":
+            return Self.humanizePathComponent(Self.fileStem(from: document.path))
         default:
-            return Self.fileName(from: path)
+            return Self.fileName(from: document.path)
         }
     }
 
@@ -208,10 +319,6 @@ struct MemoryWorkspaceFileDocument: Equatable, Sendable {
     let content: String
     let size: Int?
     let updatedAtMs: Int?
-
-    var fileName: String {
-        URL(fileURLWithPath: self.item.path).lastPathComponent
-    }
 }
 
 struct MemorySettingsClient: Sendable {
@@ -296,6 +403,8 @@ final class MemorySettingsModel {
     private let accountGateProvider: (String) async -> MemorySettingsAccountGate
     private var itemsByAgentID: [String: [MemorySurfaceItem]] = [:]
     private var documentCache: [CacheKey: MemoryWorkspaceFileDocument] = [:]
+    private static let emptyCatalogMessage =
+        "No daily notes, topic notes, main memory, identity, soul, or agent files are available yet."
 
     init(
         client: MemorySettingsClient = .live,
@@ -320,6 +429,10 @@ final class MemorySettingsModel {
         return self.itemsByAgentID[selectedAgentID] ?? []
     }
 
+    var graphProjection: MemoryGraphProjection {
+        MemoryGraphProjection(sections: self.sections, selectedItemID: self.selectedItemID)
+    }
+
     var currentErrorMessage: String? {
         self.searchError?.nonEmpty ?? self.loadError?.nonEmpty
     }
@@ -341,7 +454,7 @@ final class MemorySettingsModel {
             return .filteredEmpty
         }
 
-        return .empty(self.statusMessage ?? "No memory files are available yet.")
+        return .empty(self.statusMessage ?? Self.emptyCatalogMessage)
     }
 
     func refresh() async {
@@ -388,7 +501,7 @@ final class MemorySettingsModel {
             self.itemsByAgentID = Dictionary(uniqueKeysWithValues: agents.map { agent in
                 let items = (agent.personalContext?.documents ?? [])
                     .filter(\.present)
-                    .map(MemorySurfaceItem.init(document:))
+                    .compactMap(MemorySurfaceItem.init(document:))
                 return (agent.id, items)
             })
             self.documentCache.removeAll()
@@ -439,6 +552,10 @@ final class MemorySettingsModel {
         await self.loadSelectedDocument()
     }
 
+    func selectGraphNode(_ node: MemoryGraphNode) async {
+        await self.selectItem(node.relatedItemID)
+    }
+
     func reloadSelectedDocument() async {
         guard let agentID = self.selectedAgentID, let item = self.selectedItem else { return }
         self.documentCache.removeValue(forKey: CacheKey(agentId: agentID, path: item.path))
@@ -465,7 +582,7 @@ final class MemorySettingsModel {
         }
 
         self.loadError = nil
-        self.statusMessage = self.allItems.isEmpty ? "No memory files are available yet." : nil
+        self.statusMessage = self.allItems.isEmpty ? Self.emptyCatalogMessage : nil
 
         do {
             let filteredItems = try await self.filteredItems()

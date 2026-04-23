@@ -52,10 +52,19 @@ extension AppsSettings {
                     }
                     .padding(.horizontal, 6)
                 } else if self.store.apps.isEmpty {
-                    Text("No real app integrations are available on this runtime yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("No apps are available on this Mac right now.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button("Refresh") {
+                            Task { await self.store.refresh() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding(.horizontal, 6)
                 } else {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         if !self.connectedApps.isEmpty {
@@ -98,11 +107,11 @@ extension AppsSettings {
             } else if self.store.apps.isEmpty, let error = self.store.lastError {
                 self.errorDetail(error)
             } else if self.store.apps.isEmpty {
-                self.emptyDetail
+                self.noAppsDetail
             } else if let app = self.selectedApp {
                 self.appDetail(app)
             } else {
-                self.emptyDetail
+                self.selectionPromptDetail
             }
         }
         .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -111,9 +120,9 @@ extension AppsSettings {
     private var loadingDetail: some View {
         VStack(alignment: .leading, spacing: 10) {
             ProgressView()
-            Text("Loading connected apps")
+            Text("Loading apps")
                 .font(.title3.weight(.semibold))
-            Text("Alisio is checking which real app integrations are available on this runtime.")
+            Text("Alisio is checking which apps are available on this Mac.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -138,11 +147,27 @@ extension AppsSettings {
         .padding(.vertical, 18)
     }
 
-    private var emptyDetail: some View {
+    private var noAppsDetail: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Apps")
                 .font(.title3.weight(.semibold))
-            Text("Select an app integration to view connection status and actions.")
+            Text("No apps are available to connect on this Mac right now.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Refresh") {
+                Task { await self.store.refresh() }
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 18)
+    }
+
+    private var selectionPromptDetail: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Apps")
+                .font(.title3.weight(.semibold))
+            Text("Select an app to view its connection status and actions.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -155,7 +180,7 @@ extension AppsSettings {
             VStack(alignment: .leading, spacing: 16) {
                 self.detailHeader(for: app)
                 if let statusMessage = self.store.statusMessage, !statusMessage.isEmpty {
-                    self.messageBanner(text: statusMessage, tint: .secondary)
+                    self.messageBanner(text: statusMessage, tint: self.statusMessageTint(statusMessage))
                 }
                 if let error = self.store.lastError, !error.isEmpty {
                     self.messageBanner(text: error, tint: .red)
@@ -163,9 +188,6 @@ extension AppsSettings {
                 Divider()
                 self.overviewSection(app)
                 self.capabilitiesSection(app)
-                if let docsURL = app.docsURL {
-                    self.helpSection(app, docsURL: docsURL)
-                }
                 Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -230,8 +252,11 @@ extension AppsSettings {
                 Text(app.summary)
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                if let lastUpdated = self.store.lastUpdated {
-                    Text("Updated \(relativeAge(from: lastUpdated))")
+                if let refreshLine = self.refreshStatusLine(
+                    lastUpdated: self.store.lastUpdated,
+                    isRefreshing: self.store.isRefreshing)
+                {
+                    Text(refreshLine)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

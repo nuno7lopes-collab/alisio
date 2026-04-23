@@ -8,7 +8,10 @@ import AlisioSupport
 struct CronJobEditorTests {
     private func makeJob(
         id: String = "job-1",
-        description: String? = "Existing description") -> Alisio.CronJob
+        description: String? = "Existing description",
+        sessionTarget: CronSessionTarget = .main,
+        payload: CronPayload = .systemEvent(text: "Summarize today"),
+        delivery: CronDelivery? = nil) -> Alisio.CronJob
     {
         Alisio.CronJob(
             id: id,
@@ -20,10 +23,10 @@ struct CronJobEditorTests {
             createdAtMs: 1_700_000_000_000,
             updatedAtMs: 1_700_000_100_000,
             schedule: .every(everyMs: 3_600_000, anchorMs: nil),
-            sessionTarget: .main,
+            sessionTarget: sessionTarget,
             wakeMode: .now,
-            payload: .systemEvent(text: "Summarize today"),
-            delivery: nil,
+            payload: payload,
+            delivery: delivery,
             state: CronJobState())
     }
 
@@ -43,7 +46,7 @@ struct CronJobEditorTests {
     }
 
     @Test func `cron job editor clears an existing description when saved blank`() throws {
-        var view = CronJobEditor(
+        let view = CronJobEditor(
             job: self.makeJob(),
             isSaving: .constant(false),
             error: .constant(nil),
@@ -51,10 +54,168 @@ struct CronJobEditorTests {
             onCancel: {},
             onSave: { _ in })
 
-        view.hydrateFromJob()
-        view.description = "   "
+        var root: [String: Any] = [:]
+        view.applyStringPatch(
+            to: &root,
+            key: "description",
+            value: "   ",
+            previousValue: "Existing description",
+            emptyReplacement: "")
 
-        let request = try view.buildRequest()
-        #expect(request["description"]?.value as? String == "")
+        #expect(root["description"] as? String == "")
+    }
+
+    @Test func `cron job editor keeps webhook follow up on main chat jobs`() throws {
+        let view = CronJobEditor(
+            job: self.makeJob(
+                sessionTarget: .main,
+                delivery: CronDelivery(
+                    mode: .webhook,
+                    channel: nil,
+                    to: "https://example.com/hook",
+                    bestEffort: true)),
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        let delivery = view.buildDelivery(
+            mode: .webhook,
+            channel: "last",
+            to: "https://example.com/hook",
+            bestEffort: true,
+            existingDelivery: CronDelivery(
+                mode: .webhook,
+                channel: nil,
+                to: "https://example.com/hook",
+                bestEffort: true))
+        #expect(delivery["mode"] as? String == "webhook")
+        #expect(delivery["to"] as? String == "https://example.com/hook")
+        #expect(delivery["bestEffort"] as? Bool == true)
+    }
+
+    @Test func `cron job editor hydrates isolated jobs without follow up honestly`() {
+        let view = CronJobEditor(
+            job: self.makeJob(
+                sessionTarget: .isolated,
+                payload: .agentTurn(
+                    message: "Run the report",
+                    thinking: nil,
+                    timeoutSeconds: nil,
+                    deliver: nil,
+                    channel: nil,
+                    to: nil,
+                    bestEffortDeliver: nil),
+                delivery: nil),
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        view.hydrateFromJob()
+
+        #expect(view.deliveryMode == .none)
+    }
+
+    @Test func `cron job editor clears optional announce target when removed`() {
+        let view = CronJobEditor(
+            job: self.makeJob(
+                sessionTarget: .isolated,
+                payload: .agentTurn(
+                    message: "Run the report",
+                    thinking: nil,
+                    timeoutSeconds: nil,
+                    deliver: nil,
+                    channel: nil,
+                    to: nil,
+                    bestEffortDeliver: nil),
+                delivery: CronDelivery(
+                    mode: .announce,
+                    channel: "telegram",
+                    to: "@ops",
+                    bestEffort: true)),
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        let delivery = view.buildDelivery(
+            mode: .announce,
+            channel: "last",
+            to: "   ",
+            bestEffort: false,
+            existingDelivery: CronDelivery(
+                mode: .announce,
+                channel: "telegram",
+                to: "@ops",
+                bestEffort: true))
+
+        #expect(delivery["mode"] as? String == "announce")
+        #expect(delivery["channel"] as? String == "last")
+        #expect(delivery["to"] as? String == "")
+        #expect(delivery["bestEffort"] as? Bool == false)
+    }
+
+    @Test func `cron job editor clears chat follow up when moving back to main chat`() throws {
+        let view = CronJobEditor(
+            job: self.makeJob(
+                sessionTarget: .isolated,
+                payload: .agentTurn(
+                    message: "Run the report",
+                    thinking: nil,
+                    timeoutSeconds: nil,
+                    deliver: nil,
+                    channel: nil,
+                    to: nil,
+                    bestEffortDeliver: nil),
+                delivery: CronDelivery(
+                    mode: .announce,
+                    channel: "telegram",
+                    to: "@ops",
+                    bestEffort: false)),
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        let delivery = view.buildDelivery(
+            mode: .none,
+            channel: "telegram",
+            to: "@ops",
+            bestEffort: false,
+            existingDelivery: CronDelivery(
+                mode: .announce,
+                channel: "telegram",
+                to: "@ops",
+                bestEffort: false))
+
+        #expect(delivery["mode"] as? String == "none")
+        #expect(delivery["channel"] as? String == "")
+        #expect(delivery["to"] as? String == "")
+        #expect(delivery["bestEffort"] as? Bool == false)
+    }
+
+    @Test func `cron job editor does not keep best effort when follow up is none on a new job`() {
+        let view = CronJobEditor(
+            job: nil,
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        let delivery = view.buildDelivery(
+            mode: .none,
+            channel: "last",
+            to: "",
+            bestEffort: true,
+            existingDelivery: nil)
+
+        #expect(delivery["mode"] as? String == "none")
+        #expect(delivery["bestEffort"] == nil)
     }
 }

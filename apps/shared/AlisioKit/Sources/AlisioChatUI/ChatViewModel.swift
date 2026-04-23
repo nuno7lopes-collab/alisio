@@ -594,7 +594,6 @@ public final class AlisioChatViewModel {
         self.errorText = nil
         self.clearPendingRuns(reason: nil)
         self.clearTransientReplyState(for: nil)
-        self.healthOK = false
         defer {
             if self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) {
                 self.isLoading = false
@@ -621,6 +620,11 @@ public final class AlisioChatViewModel {
             {
                 self.thinkingLevel = level
             }
+            // A successful history fetch proves the runtime is reachable enough for chat.
+            self.healthOK = true
+            self.isLoading = false
+            self.isRecoveringConnection = false
+            self.errorText = nil
             self.cacheLoadedState(for: targetSessionKey)
 
             if let sessions = await sessionsResult,
@@ -639,15 +643,15 @@ public final class AlisioChatViewModel {
                self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey)
             {
                 self.healthOK = ok
-            } else if self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) {
-                self.healthOK = false
+                if !ok, self.hasLoadedHistory {
+                    self.markConnectionRecovering()
+                }
             }
-            self.errorText = nil
-            self.isRecoveringConnection = false
         } catch {
             guard self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) else {
                 return
             }
+            self.healthOK = false
             self.errorText = self.presentableErrorMessage(
                 for: error,
                 fallback: "This chat could not be loaded.")
@@ -2115,6 +2119,7 @@ public final class AlisioChatViewModel {
                 self.sessionId = payload.sessionId
                 self.hasLoadedHistory = true
                 self.lastHistoryRefreshAt = Date()
+                self.healthOK = true
                 if !self.prefersExplicitThinkingLevel,
                    let level = Self.normalizedThinkingLevel(payload.thinkingLevel)
                 {

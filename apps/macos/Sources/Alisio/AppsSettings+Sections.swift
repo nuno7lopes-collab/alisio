@@ -14,12 +14,8 @@ extension AppsSettings {
     @ViewBuilder
     func detailHeaderActions(for app: AppIntegrationGroup) -> some View {
         HStack(spacing: 8) {
-            if let primaryCapability = app.primaryCapability {
-                self.capabilityActionButton(primaryCapability)
-            }
-
             if let docsURL = app.docsURL {
-                Button("Guide") {
+                Button("Setup guide") {
                     self.openExternalURL(docsURL)
                 }
                 .buttonStyle(.bordered)
@@ -68,20 +64,6 @@ extension AppsSettings {
                     Divider()
                 }
             }
-        }
-    }
-
-    func helpSection(_ app: AppIntegrationGroup, docsURL: URL) -> some View {
-        self.formSection("Help") {
-            Text("Need setup details for \(app.title)? Open the provider guide in your browser.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Button("Open setup guide") {
-                self.openExternalURL(docsURL)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
     }
 

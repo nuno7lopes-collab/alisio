@@ -75,6 +75,19 @@ struct CronModelsTests {
         #expect(decoded == payload)
     }
 
+    @Test func `delivery decode normalizes legacy deliver mode`() throws {
+        let json = """
+        {"mode":"deliver","channel":"telegram","to":"ops","bestEffort":true}
+        """
+
+        let delivery = try JSONDecoder().decode(CronDelivery.self, from: Data(json.utf8))
+
+        #expect(delivery.mode == .announce)
+        #expect(delivery.channel == "telegram")
+        #expect(delivery.to == "ops")
+        #expect(delivery.bestEffort == true)
+    }
+
     @Test func `job encodes and decodes delete after run`() throws {
         let job = AppCronJob(
             id: "job-1",
@@ -176,6 +189,26 @@ struct CronModelsTests {
         #expect(state.lastDelivered == false)
     }
 
+    @Test func `job decode defaults missing session target and wake mode from payload`() throws {
+        let json = """
+        {
+          "id": "legacy-job",
+          "name": "Legacy agent job",
+          "enabled": true,
+          "createdAtMs": 1,
+          "updatedAtMs": 2,
+          "schedule": { "kind": "at", "at": "2026-03-01T10:00:00Z" },
+          "payload": { "message": "hello" },
+          "state": {}
+        }
+        """
+
+        let job = try JSONDecoder().decode(AppCronJob.self, from: Data(json.utf8))
+
+        #expect(job.parsedSessionTarget == .predefined(.isolated))
+        #expect(job.wakeMode == .now)
+    }
+
     @Test func `decode cron list response skips malformed jobs`() throws {
         let json = """
         {
@@ -198,7 +231,6 @@ struct CronModelsTests {
               "enabled": true,
               "createdAtMs": 1,
               "updatedAtMs": 2,
-              "schedule": { "kind": "at", "at": "2026-03-01T10:00:00Z" },
               "payload": { "kind": "systemEvent", "text": "hello" },
               "state": {}
             }

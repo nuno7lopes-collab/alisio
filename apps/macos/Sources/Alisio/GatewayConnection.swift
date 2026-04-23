@@ -1331,10 +1331,10 @@ extension GatewayConnection {
             params: ["id": AnyCodable(jobId), "patch": AnyCodable(patch)])
     }
 
-    func cronAdd(payload: [String: AnyCodable]) async throws -> CronJob {
+    func cronAdd(request: [String: AnyCodable]) async throws -> CronJob {
         try await self.requireAuthenticatedAccount(reason: Method.cronAdd.rawValue)
         try await self.ensureLocalGatewayReadyIfNeeded(reason: Method.cronAdd.rawValue)
-        return try await self.requestDecoded(method: .cronAdd, params: payload)
+        return try await self.requestDecoded(method: .cronAdd, params: request)
     }
 
     func computerSession(sessionKey: String) async throws -> ComputerSessionSnapshot {

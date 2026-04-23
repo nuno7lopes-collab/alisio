@@ -61,6 +61,48 @@ struct CronDelivery: Codable, Equatable {
     var channel: String?
     var to: String?
     var bestEffort: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case mode
+        case channel
+        case to
+        case bestEffort
+    }
+
+    init(mode: CronDeliveryMode, channel: String?, to: String?, bestEffort: Bool?) {
+        self.mode = mode
+        self.channel = channel
+        self.to = to
+        self.bestEffort = bestEffort
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawMode = (try container.decodeIfPresent(String.self, forKey: .mode) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let channel = try container.decodeIfPresent(String.self, forKey: .channel)
+        let to = try container.decodeIfPresent(String.self, forKey: .to)
+        let hasLegacyDestination = !(to?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+            || channel != nil
+        let inferredMode: CronDeliveryMode = switch rawMode {
+        case "announce", "deliver":
+            .announce
+        case "webhook":
+            .webhook
+        case "none":
+            .none
+        case "":
+            hasLegacyDestination ? .announce : .none
+        default:
+            .none
+        }
+        self.init(
+            mode: inferredMode,
+            channel: channel,
+            to: to,
+            bestEffort: try container.decodeIfPresent(Bool.self, forKey: .bestEffort))
+    }
 }
 
 enum CronSchedule: Codable, Equatable {
@@ -175,11 +217,34 @@ enum CronPayload: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(String.self, forKey: .kind)
+        let rawKind = (try container.decodeIfPresent(String.self, forKey: .kind) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let kind: String
+        if rawKind.isEmpty {
+            let hasMessage = (try container.decodeIfPresent(String.self, forKey: .message) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty == false
+            let hasText = (try container.decodeIfPresent(String.self, forKey: .text) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty == false
+            if hasMessage {
+                kind = "agentturn"
+            } else if hasText {
+                kind = "systemevent"
+            } else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .kind,
+                    in: container,
+                    debugDescription: "Missing payload kind")
+            }
+        } else {
+            kind = rawKind
+        }
         switch kind {
-        case "systemEvent":
+        case "systemevent":
             self = try .systemEvent(text: container.decode(String.self, forKey: .text))
-        case "agentTurn":
+        case "agentturn":
             self = try .agentTurn(
                 message: container.decode(String.self, forKey: .message),
                 thinking: container.decodeIfPresent(String.self, forKey: .thinking),
@@ -232,6 +297,10 @@ struct CronJobState: Codable, Equatable {
     var displayStatus: String? {
         self.lastRunStatus ?? self.lastStatus
     }
+
+    var isRunning: Bool {
+        self.runningAtMs != nil
+    }
 }
 
 struct CronJob: Identifiable, Codable, Equatable {
@@ -265,6 +334,27 @@ struct CronJob: Identifiable, Codable, Equatable {
         case payload
         case delivery
         case state
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let payload = try container.decode(CronPayload.self, forKey: .payload)
+        let createdAtMs = try container.decodeIfPresent(Int.self, forKey: .createdAtMs) ?? 0
+
+        self.id = try container.decode(String.self, forKey: .id)
+        self.agentId = try container.decodeIfPresent(String.self, forKey: .agentId)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+        self.enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        self.deleteAfterRun = try container.decodeIfPresent(Bool.self, forKey: .deleteAfterRun)
+        self.createdAtMs = createdAtMs
+        self.updatedAtMs = try container.decodeIfPresent(Int.self, forKey: .updatedAtMs) ?? createdAtMs
+        self.schedule = try container.decode(CronSchedule.self, forKey: .schedule)
+        self.sessionTargetRaw = Self.decodeSessionTargetRaw(from: container, payload: payload)
+        self.wakeMode = Self.decodeWakeMode(from: container)
+        self.payload = payload
+        self.delivery = try container.decodeIfPresent(CronDelivery.self, forKey: .delivery)
+        self.state = try container.decodeIfPresent(CronJobState.self, forKey: .state) ?? CronJobState()
     }
 
     init(
@@ -348,18 +438,13 @@ struct CronJob: Identifiable, Codable, Equatable {
         }
     }
 
-    var supportsAnnounceDelivery: Bool {
-        switch self.parsedSessionTarget {
-        case .predefined(.main):
-            false
-        case .predefined(.isolated), .predefined(.current), .session:
-            true
-        }
-    }
-
     var displayName: String {
         let trimmed = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Untitled schedule" : trimmed
+    }
+
+    var isRunning: Bool {
+        self.state.isRunning
     }
 
     var nextRunDate: Date? {
@@ -370,6 +455,32 @@ struct CronJob: Identifiable, Codable, Equatable {
     var lastRunDate: Date? {
         guard let ms = self.state.lastRunAtMs else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(ms) / 1000)
+    }
+
+    private static func decodeSessionTargetRaw(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        payload: CronPayload) -> String
+    {
+        let rawTarget = (try? container.decodeIfPresent(String.self, forKey: .sessionTargetRaw))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let rawTarget, !rawTarget.isEmpty {
+            return rawTarget
+        }
+        switch payload {
+        case .systemEvent:
+            return CronSessionTarget.main.rawValue
+        case .agentTurn:
+            return CronSessionTarget.isolated.rawValue
+        }
+    }
+
+    private static func decodeWakeMode(
+        from container: KeyedDecodingContainer<CodingKeys>) -> CronWakeMode
+    {
+        let rawWakeMode = (try? container.decodeIfPresent(String.self, forKey: .wakeMode))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return CronWakeMode(rawValue: rawWakeMode ?? "") ?? .now
     }
 }
 

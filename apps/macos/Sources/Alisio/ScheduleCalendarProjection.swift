@@ -8,7 +8,6 @@ struct ScheduleCalendarProjection: Equatable {
         let jobName: String
         let startAt: Date
         let isEnabled: Bool
-        let scheduleKind: String
     }
 
     struct UnsupportedSchedule: Identifiable, Equatable {
@@ -88,10 +87,20 @@ struct ScheduleCalendarProjection: Equatable {
         }
 
         occurrences.sort {
-            if $0.startAt == $1.startAt {
-                return $0.jobName.localizedCaseInsensitiveCompare($1.jobName) == .orderedAscending
+            if $0.startAt != $1.startAt {
+                return $0.startAt < $1.startAt
             }
-            return $0.startAt < $1.startAt
+
+            let nameOrder = $0.jobName.localizedCaseInsensitiveCompare($1.jobName)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+
+            if $0.jobId != $1.jobId {
+                return $0.jobId < $1.jobId
+            }
+
+            return $0.id < $1.id
         }
 
         let grouped = Dictionary(grouping: occurrences) { occurrence in
@@ -102,7 +111,11 @@ struct ScheduleCalendarProjection: Equatable {
         }
 
         unsupported.sort {
-            $0.jobName.localizedCaseInsensitiveCompare($1.jobName) == .orderedAscending
+            let nameOrder = $0.jobName.localizedCaseInsensitiveCompare($1.jobName)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+            return $0.jobId < $1.jobId
         }
 
         return ScheduleCalendarProjection(
@@ -131,7 +144,7 @@ struct ScheduleCalendarProjection: Equatable {
             guard self.contains(date, in: interval) else {
                 return .occurrences([])
             }
-            return .occurrences([self.occurrence(for: job, at: date, scheduleKind: "once")])
+            return .occurrences([self.occurrence(for: job, at: date)])
         case let .every(everyMs, anchorMs):
             return self.expandEvery(
                 job: job,
@@ -189,8 +202,7 @@ struct ScheduleCalendarProjection: Equatable {
         while cursor < rangeEndMs {
             result.append(self.occurrence(
                 for: job,
-                at: self.date(fromMilliseconds: cursor),
-                scheduleKind: "every"))
+                at: self.date(fromMilliseconds: cursor)))
             cursor += intervalMs
         }
         return .occurrences(result)
@@ -247,18 +259,17 @@ struct ScheduleCalendarProjection: Equatable {
 
         let occurrences = dates
             .filter { self.contains($0, in: interval) }
-            .map { self.occurrence(for: job, at: $0, scheduleKind: "cron") }
+            .map { self.occurrence(for: job, at: $0) }
         return .occurrences(occurrences)
     }
 
-    private static func occurrence(for job: CronJob, at date: Date, scheduleKind: String) -> Occurrence {
+    private static func occurrence(for job: CronJob, at date: Date) -> Occurrence {
         Occurrence(
             id: "\(job.id):\(self.milliseconds(since1970: date))",
             jobId: job.id,
             jobName: job.displayName,
             startAt: date,
-            isEnabled: job.enabled,
-            scheduleKind: scheduleKind)
+            isEnabled: job.enabled)
     }
 
     private static func dayStarts(in interval: DateInterval, calendar: Calendar) -> [Date] {

@@ -315,7 +315,7 @@ struct AlisioWorkspaceRootView: View {
             CronSettings()
                 .padding(compact ? 14 : 24)
         case .capabilities:
-            SkillsSettings(state: self.state)
+            CapabilitiesSettings(state: self.state)
                 .padding(compact ? 14 : 24)
         case .connections:
             InstancesSettings()
@@ -353,9 +353,9 @@ extension WorkspaceNavigationState.Route {
         case .chat:
             "Pick up the main conversation or start a clean new chat."
         case .memory:
-            "Read daily notes, topic notes, core memory, and agent files."
+            "Daily notes, topic notes, main memory, identity, soul, and agent files."
         case .apps:
-            "Connect real app integrations like Gmail, Calendar, GitHub, Stripe, and YouTube."
+            "Connect and manage the apps that are available on this Mac."
         case .schedules:
             "Create, review, and run scheduled work."
         case .capabilities:
@@ -469,27 +469,7 @@ private struct WorkspaceChatStage: View {
     }
 
     private var chatHeaderAccessory: AnyView? {
-        guard !self.compact else { return nil }
-        return AnyView(
-            HStack(spacing: 8) {
-                Button("Apps") {
-                    self.onOpenApps()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                if self.supportsInspector {
-                    Button(self.inspectorVisible ? "Hide activity" : "Activity") {
-                        if self.inspectorVisible {
-                            self.inspectorVisibility.hide(autoPresent: self.inspectorShouldAutoPresent)
-                        } else {
-                            self.inspectorVisibility.show()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-            })
+        nil
     }
 
     private var chatOnlyStage: some View {
@@ -561,12 +541,6 @@ private struct WorkspaceChatStage: View {
     }
 
     private var inspectorShouldAutoPresent: Bool {
-        if self.chatViewModel.pendingRunCount > 0 || !self.chatViewModel.pendingToolCalls.isEmpty {
-            return true
-        }
-        if self.currentSessionActivity != nil {
-            return true
-        }
         if self.shouldPresentComputerInspector {
             return true
         }
@@ -620,19 +594,9 @@ private struct WorkspaceChatStage: View {
 
         switch self.chatViewModel.connectionPhase {
         case .bootstrapping:
-            return (
-                "Opening your chat",
-                "Loading recent messages and getting things ready.",
-                nil,
-                true,
-                self.palette.accent)
+            return nil
         case .loading:
-            return (
-                "Refreshing chat",
-                "Updating messages and chat details.",
-                nil,
-                true,
-                self.palette.accent)
+            return nil
         case .reconnecting:
             return (
                 "Reconnecting",
@@ -641,12 +605,7 @@ private struct WorkspaceChatStage: View {
                 false,
                 self.palette.warning)
         case .firstMessage:
-            return (
-                "Starting your reply",
-                "The first reply in a fresh chat can take a moment.",
-                nil,
-                true,
-                self.palette.accent)
+            return nil
         case .ready:
             return nil
         }

@@ -5,14 +5,13 @@ extension CronSettings {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             self.header
-            self.schedulerBanner
+            self.automaticRunsBanner
             self.content
             Spacer(minLength: 0)
         }
         .onAppear {
             self.store.start()
             self.channelsStore.start()
-            self.displayMode = .list
             self.store.reconcileSelection()
         }
         .onDisappear {
@@ -60,12 +59,12 @@ extension CronSettings {
         }
     }
 
-    var schedulerBanner: some View {
+    var automaticRunsBanner: some View {
         Group {
-            if self.store.schedulerEnabled == false {
+            if self.store.automaticRunsEnabled == false {
                 self.stateCard(
-                    title: "Automatic schedules are currently off.",
-                    message: "Schedules stay saved, but they will not run until scheduling is turned back on.",
+                    title: "Automatic runs are currently off.",
+                    message: "Schedules stay saved, but they will not run until automatic runs are turned back on.",
                     systemImage: "pause.circle.fill",
                     tint: .orange)
             }
@@ -77,7 +76,7 @@ extension CronSettings {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Schedules")
                     .font(.headline)
-                Text("Create, review, and run scheduled work.")
+                Text("Create, review, and run work at the right time.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -86,7 +85,8 @@ extension CronSettings {
             HStack(spacing: 10) {
                 Picker("View", selection: self.$displayMode) {
                     ForEach(CronSettings.DisplayMode.allCases) { mode in
-                        Text(mode.label).tag(mode)
+                        Text(mode.title)
+                            .tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -140,7 +140,7 @@ extension CronSettings {
         case .loading:
             self.stateCard(
                 title: "Loading schedules…",
-                message: "Checking what is configured on this Mac.",
+                message: "Checking what is set up on this Mac.",
                 systemImage: "calendar.badge.clock",
                 showsProgress: true)
         case let .error(message):

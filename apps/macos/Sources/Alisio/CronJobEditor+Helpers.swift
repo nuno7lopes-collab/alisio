@@ -54,13 +54,26 @@ extension CronJobEditor {
         }
 
         if let delivery = job.delivery {
-            self.deliveryMode = delivery.mode == .announce ? .announce : .none
+            switch delivery.mode {
+            case .announce:
+                self.deliveryMode = .announce
+            case .webhook:
+                self.deliveryMode = .webhook
+            case .none:
+                self.deliveryMode = .none
+            }
             let trimmed = (delivery.channel ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             self.channel = trimmed.isEmpty ? "last" : trimmed
             self.to = delivery.to ?? ""
             self.bestEffortDeliver = delivery.bestEffort ?? false
-        } else if self.isIsolatedLikeSessionTarget {
-            self.deliveryMode = .announce
+        } else {
+            self.deliveryMode = .none
+            self.channel = "last"
+            self.to = ""
+            self.bestEffortDeliver = false
+        }
+        if !self.canAnnounceFollowUp, self.deliveryMode == .announce {
+            self.deliveryMode = .none
         }
     }
 
@@ -83,6 +96,7 @@ extension CronJobEditor {
 
         try self.validateSessionTarget(action)
         try self.validateActionRequiredFields(action)
+        try self.validateDelivery()
 
         var root: [String: Any] = [
             "name": name,
@@ -93,18 +107,20 @@ extension CronJobEditor {
             "payload": action,
         ]
         self.applyDeleteAfterRun(to: &root)
-        if !description.isEmpty {
-            root["description"] = description
-        } else if self.job?.description != nil {
-            root["description"] = ""
-        }
-        if !agentId.isEmpty {
-            root["agentId"] = agentId
-        } else if self.job?.agentId != nil {
-            root["agentId"] = NSNull()
-        }
+        self.applyStringPatch(
+            to: &root,
+            key: "description",
+            value: description,
+            previousValue: self.job?.description,
+            emptyReplacement: "")
+        self.applyStringPatch(
+            to: &root,
+            key: "agentId",
+            value: agentId,
+            previousValue: self.job?.agentId,
+            emptyReplacement: NSNull())
 
-        if self.isIsolatedLikeSessionTarget {
+        if self.shouldIncludeDeliveryPatch {
             root["delivery"] = self.buildDelivery()
         }
 
@@ -112,20 +128,83 @@ extension CronJobEditor {
     }
 
     func buildDelivery() -> [String: Any] {
-        let mode = self.deliveryMode == .announce ? "announce" : "none"
+        self.buildDelivery(
+            mode: self.deliveryMode,
+            channel: self.channel,
+            to: self.to,
+            bestEffort: self.bestEffortDeliver,
+            existingDelivery: self.job?.delivery)
+    }
+
+    func buildDelivery(
+        mode: DeliveryChoice,
+        channel: String,
+        to: String,
+        bestEffort: Bool,
+        existingDelivery: CronDelivery?) -> [String: Any]
+    {
+        let mode: String = switch mode {
+        case .announce:
+            "announce"
+        case .webhook:
+            "webhook"
+        case .none:
+            "none"
+        }
         var delivery: [String: Any] = ["mode": mode]
-        if self.deliveryMode == .announce {
-            let trimmed = self.channel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let existingDestination = self.trimmed(existingDelivery?.to ?? "")
+        if mode == "announce" {
+            let trimmed = self.trimmed(channel)
             delivery["channel"] = trimmed.isEmpty ? "last" : trimmed
-            let to = self.to.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !to.isEmpty { delivery["to"] = to }
-            if self.bestEffortDeliver {
-                delivery["bestEffort"] = true
-            } else if self.job?.delivery?.bestEffort == true {
+            let destination = self.trimmed(to)
+            if !destination.isEmpty {
+                delivery["to"] = destination
+            } else if !existingDestination.isEmpty {
+                delivery["to"] = ""
+            }
+            if bestEffort || existingDelivery?.bestEffort != nil {
+                delivery["bestEffort"] = bestEffort
+            }
+        } else if mode == "webhook" {
+            if existingDelivery?.channel != nil {
+                delivery["channel"] = ""
+            }
+            let destination = self.trimmed(to)
+            if !destination.isEmpty {
+                delivery["to"] = destination
+            } else if !existingDestination.isEmpty {
+                delivery["to"] = ""
+            }
+            if bestEffort || existingDelivery?.bestEffort != nil {
+                delivery["bestEffort"] = bestEffort
+            }
+        } else {
+            if existingDelivery?.channel != nil {
+                delivery["channel"] = ""
+            }
+            if !existingDestination.isEmpty {
+                delivery["to"] = ""
+            }
+            if existingDelivery?.bestEffort != nil {
                 delivery["bestEffort"] = false
             }
         }
         return delivery
+    }
+
+    func applyStringPatch(
+        to root: inout [String: Any],
+        key: String,
+        value: String,
+        previousValue: String?,
+        emptyReplacement: Any)
+    {
+        let trimmed = self.trimmed(value)
+        if !trimmed.isEmpty {
+            root[key] = trimmed
+        } else if previousValue != nil {
+            root[key] = emptyReplacement
+        }
     }
 
     func trimmed(_ value: String) -> String {
@@ -138,7 +217,7 @@ extension CronJobEditor {
             throw NSError(
                 domain: "Cron",
                 code: 0,
-                userInfo: [NSLocalizedDescriptionKey: "The name is required."])
+                userInfo: [NSLocalizedDescriptionKey: "Name is required."])
         }
         return name
     }
@@ -152,7 +231,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid interval. Use values such as 10m, 1h, or 1d."])
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid repeat interval. Use values such as 10m, 1h, or 1d."])
             }
             return ["kind": "every", "everyMs": ms]
         case .cron:
@@ -161,7 +240,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "The advanced expression is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The custom pattern is required."])
             }
             let tz = self.trimmed(self.cronTz)
             var schedule: [String: Any] = ["kind": "cron", "expr": expr]
@@ -193,7 +272,7 @@ extension CronJobEditor {
                 code: 0,
                 userInfo: [
                     NSLocalizedDescriptionKey:
-                        "The main session only accepts chat notes. Switch the session target to isolated to run an agent task.",
+                        "The main chat only accepts notes. Switch to a separate chat to run an agent task.",
                 ])
         }
 
@@ -201,7 +280,7 @@ extension CronJobEditor {
             throw NSError(
                 domain: "Cron",
                 code: 0,
-                userInfo: [NSLocalizedDescriptionKey: "Isolated sessions require an agent task."])
+                userInfo: [NSLocalizedDescriptionKey: "Separate chats require an agent task."])
         }
     }
 
@@ -211,7 +290,7 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "The chat note is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The note is required."])
             }
         }
         if action["kind"] as? String == "agentTurn" {
@@ -219,7 +298,25 @@ extension CronJobEditor {
                 throw NSError(
                     domain: "Cron",
                     code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "The agent instruction is required."])
+                    userInfo: [NSLocalizedDescriptionKey: "The task instructions are required."])
+            }
+        }
+    }
+
+    func validateDelivery() throws {
+        if self.deliveryMode == .announce, !self.canAnnounceFollowUp {
+            throw NSError(
+                domain: "Cron",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Posting a follow-up to chat requires this chat or a separate chat."])
+        }
+        if self.deliveryMode == .webhook {
+            let destination = self.trimmed(self.to)
+            if destination.isEmpty {
+                throw NSError(
+                    domain: "Cron",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "The follow-up URL is required."])
             }
         }
     }
@@ -285,6 +382,14 @@ extension CronJobEditor {
 
     var isIsolatedLikeSessionTarget: Bool {
         self.effectiveSessionTargetRaw != "main"
+    }
+
+    var canAnnounceFollowUp: Bool {
+        self.isIsolatedLikeSessionTarget
+    }
+
+    var shouldIncludeDeliveryPatch: Bool {
+        self.isIsolatedLikeSessionTarget || self.deliveryMode != .none || self.job?.delivery != nil
     }
 
     func formatDuration(ms: Int) -> String {

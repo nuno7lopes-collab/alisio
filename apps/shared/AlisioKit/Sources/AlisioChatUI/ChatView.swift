@@ -224,10 +224,7 @@ public struct AlisioChatView: View {
     }
 
     private var showsCenteredHome: Bool {
-        self.style == .alisio &&
-            !self.viewModel.isLoading &&
-            self.activeErrorText == nil &&
-            self.showsEmptyState
+        false
     }
 
     private var sessionHeader: some View {
@@ -245,11 +242,13 @@ public struct AlisioChatView: View {
                     self.sessionSummaryCard(showsDisclosure: false)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: 520, alignment: .leading)
 
             if let headerAccessory {
                 headerAccessory
             }
+
+            Spacer(minLength: 0)
 
             Button {
                 self.viewModel.newChat()
@@ -267,33 +266,44 @@ public struct AlisioChatView: View {
             .disabled(!self.viewModel.canCreateSession)
             .keyboardShortcut("n", modifiers: [.command])
         }
-        .padding(.horizontal, self.style == .alisio ? 6 : 0)
-        .padding(.bottom, self.style == .alisio ? 12 : 0)
+        .frame(maxWidth: self.contentMaxWidth)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, self.style == .alisio ? 4 : 0)
+        .padding(.bottom, self.style == .alisio ? 8 : 0)
     }
 
     private func sessionSummaryCard(showsDisclosure: Bool) -> some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Text("Current chat")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Current chat")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
 
-                    if let status = self.currentSessionStatus {
-                        self.headerBadge(status.title, tint: status.tint)
-                    }
+                if let status = self.currentSessionStatus {
+                    self.headerBadge(status.title, tint: status.tint)
                 }
+            }
 
+            HStack(alignment: .center, spacing: 10) {
                 Text(self.currentSessionTitle)
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
+                Spacer(minLength: 0)
+
+                if showsDisclosure {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
                 Text(self.currentSessionSubtitle)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
 
                 HStack(spacing: 8) {
                     if self.isMainSession {
@@ -307,24 +317,16 @@ public struct AlisioChatView: View {
                     }
                 }
             }
-
-            Spacer(minLength: 0)
-
-            if showsDisclosure {
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(chatHex: 0x15171C))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var centeredHome: some View {
@@ -854,15 +856,21 @@ public struct AlisioChatView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else if self.showsEmptyState {
-            ChatNoticeCard(
-                systemImage: "bubble.left.and.bubble.right.fill",
-                title: self.emptyStateTitle,
-                message: self.emptyStateMessage,
-                tint: .accentColor,
-                actionTitle: nil,
-                action: nil)
-                .padding(.horizontal, 24)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if self.style == .alisio {
+                self.alisioEmptyState
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ChatNoticeCard(
+                    systemImage: "bubble.left.and.bubble.right.fill",
+                    title: self.emptyStateTitle,
+                    message: self.emptyStateMessage,
+                    tint: .accentColor,
+                    actionTitle: nil,
+                    action: nil)
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 
@@ -898,15 +906,44 @@ public struct AlisioChatView: View {
     }
 
     private var emptyStateTitle: String {
-        "Start a conversation"
+        self.style == .alisio ? "New chat" : "Start a conversation"
     }
 
     private var emptyStateMessage: String {
+        if self.style == .alisio {
+            return "Send a message below to start a focused conversation without touching your main workspace chat."
+        }
         #if os(macOS)
-        "Type a message below to get started.\nReturn sends • Shift-Return adds a line break."
+        return "Type a message below to get started.\nReturn sends • Shift-Return adds a line break."
         #else
-        "Type a message below to get started."
+        return "Type a message below to get started."
         #endif
+    }
+
+    private var alisioEmptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "bubble.left.and.bubble.right")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+
+            Text(self.emptyStateTitle)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+
+            Text(self.emptyStateMessage)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 420)
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(chatHex: 0x121419))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
     }
 
     private func errorPresentation(for error: String) -> (title: String, systemImage: String, tint: Color) {

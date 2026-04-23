@@ -67,12 +67,18 @@ extension AppsSettings {
                 : "All \(app.capabilities.count) access levels connected"
         case .needsAttention:
             let connectedCount = app.capabilities.filter { $0.status == .connected }.count
+            let reconnectCount = app.capabilities.filter { $0.status == .needsReconnect }.count
             if connectedCount > 0 {
                 return "\(connectedCount) of \(app.capabilities.count) access levels connected"
             }
-            return "Action required"
+            if reconnectCount > 0 {
+                return reconnectCount == 1
+                    ? "Needs reconnect"
+                    : "\(reconnectCount) access levels need reconnecting"
+            }
+            return "Needs attention"
         case .authError:
-            return "Auth setup required"
+            return "Auth error"
         case .disconnected:
             return app.capabilities.count == 1 ? "Disconnected" : "Ready to connect"
         }
@@ -90,11 +96,30 @@ extension AppsSettings {
             }
             return parts.isEmpty ? "Connected and ready." : parts.joined(separator: " · ")
         case .needsReconnect:
-            return capability.setupHint ?? "Authorization expired or needs reconnecting."
+            return capability.setupHint ?? "Reconnect this app to keep using it."
         case .authError:
-            return capability.setupHint ?? "Gateway setup is incomplete for this app."
+            return capability.setupHint ?? "This app needs setup on this Mac before it can connect."
         case .disconnected:
             return capability.detail?.nonEmpty ?? capability.subtitle
         }
+    }
+
+    func refreshStatusLine(lastUpdated: Date?, isRefreshing: Bool) -> String? {
+        if isRefreshing {
+            if let lastUpdated {
+                return "Refreshing… Last checked \(relativeAge(from: lastUpdated))"
+            }
+            return "Refreshing…"
+        }
+        guard let lastUpdated else { return nil }
+        return "Updated \(relativeAge(from: lastUpdated))"
+    }
+
+    func statusMessageTint(_ message: String) -> Color {
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.hasSuffix("connected.") || normalized.hasSuffix("disconnected.") {
+            return .green
+        }
+        return .secondary
     }
 }

@@ -4,7 +4,7 @@ import AlisioSupport
 
 @Suite(.serialized)
 @MainActor
-struct SkillsSettingsStateTests {
+struct CapabilitiesSettingsStateTests {
     private func makeSkill(
         name: String = "Calendar",
         disabled: Bool = false,
@@ -30,17 +30,17 @@ struct SkillsSettingsStateTests {
     }
 
     @Test func `capabilities starts in loading state before the first refresh`() {
-        let model = SkillsSettingsModel()
-        let view = SkillsSettings(state: AppState(preview: true), model: model)
+        let model = CapabilitiesSettingsModel()
+        let view = CapabilitiesSettings(state: AppState(preview: true), model: model)
 
         #expect(view.listState == .loading)
     }
 
     @Test func `capabilities exposes empty and error states honestly`() {
-        let model = SkillsSettingsModel()
+        let model = CapabilitiesSettingsModel()
         model.hasLoadedOnce = true
         model.statusMessage = "No capabilities are available yet."
-        let view = SkillsSettings(state: AppState(preview: true), model: model)
+        let view = CapabilitiesSettings(state: AppState(preview: true), model: model)
         #expect(view.listState == .empty("No capabilities are available yet."))
 
         model.error = "Gateway offline"
@@ -48,11 +48,11 @@ struct SkillsSettingsStateTests {
     }
 
     @Test func `capabilities filter exposes filtered empty state`() {
-        let model = SkillsSettingsModel()
+        let model = CapabilitiesSettingsModel()
         model.hasLoadedOnce = true
         model.skills = [self.makeSkill(disabled: false, eligible: true)]
 
-        let view = SkillsSettings(state: AppState(preview: true), model: model)
+        let view = CapabilitiesSettings(state: AppState(preview: true), model: model)
         #expect(view.listStateForTesting("disabled") == .filteredEmpty)
     }
 }

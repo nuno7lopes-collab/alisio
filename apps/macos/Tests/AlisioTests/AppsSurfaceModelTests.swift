@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import AlisioKit
 @testable import Alisio
 
 struct AppsSurfaceModelTests {
@@ -148,7 +149,7 @@ struct AppsSurfaceModelTests {
 
         #expect(github.status == .authError)
         #expect(github.capabilities.first?.status == .authError)
-        #expect(github.detail == "Gateway OAuth setup is incomplete for this app.")
+        #expect(github.detail == "This app needs setup on this Mac before it can connect.")
     }
 
     @Test
@@ -350,7 +351,7 @@ struct AppsSurfaceModelTests {
         #expect(gmail.capabilities.map(\.title) == ["Read", "Organize", "Send"])
         #expect(gmail.capabilities.map(\.status) == [.connected, .needsReconnect, .disconnected])
         #expect(gmail.capabilities.map(\.displayTitle) == ["Gmail Read", "Gmail Organize", "Gmail Send"])
-        #expect(gmail.capabilities.map(\.status.label) == ["Connected", "Needs attention", "Disconnected"])
+        #expect(gmail.capabilities.map(\.status.label) == ["Connected", "Needs reconnect", "Disconnected"])
         #expect(gmail.capabilities.map(\.status.actionTitle) == ["Disconnect", "Reconnect", "Connect"])
 
         let youtube = try #require(apps.first(where: { $0.id == "youtube" }))
@@ -362,8 +363,8 @@ struct AppsSurfaceModelTests {
         let github = try #require(apps.first(where: { $0.id == "github" }))
         #expect(github.status == .authError)
         #expect(github.primaryCapability?.status.label == "Auth error")
-        #expect(github.primaryCapability?.status.actionTitle == "Review setup")
-        #expect(github.detail == "Gateway OAuth setup is incomplete for this app.")
+        #expect(github.primaryCapability?.status.actionTitle == "Open setup guide")
+        #expect(github.detail == "This app needs setup on this Mac before it can connect.")
 
         let calendar = try #require(apps.first(where: { $0.id == "google-calendar" }))
         #expect(calendar.status == .disconnected)
@@ -518,6 +519,58 @@ struct AppsSurfaceModelTests {
         #expect(store.apps.first?.status == .disconnected)
         #expect(store.statusMessage == "GitHub disconnected.")
     }
+
+    @Test
+    @MainActor
+    func `auth error action opens setup guide and keeps auth state honest`() async throws {
+        let gateway = RecordingAppsGatewayClient(
+            overviews: [
+                githubResponse(state: .notConnected, health: .configMissing, itemStatus: .ready),
+                githubResponse(state: .notConnected, health: .configMissing, itemStatus: .ready),
+            ],
+            beginResult: GatewayConnectorBeginResult(
+                connectorId: "github",
+                mode: .setup,
+                statusReason: .missingClientConfig,
+                setupUrl: "https://docs.example/github-setup",
+                setupHint: "Set up GitHub on this Mac before you connect it."))
+        var opened: [URL] = []
+        let store = AppsSettingsStore(
+            isPreview: true,
+            gateway: gateway,
+            openURL: { opened.append($0) })
+
+        await store.refresh()
+        let capability = try #require(store.apps.first?.primaryCapability)
+        await store.performAction(for: capability)
+
+        let calls = await gateway.calls()
+        #expect(calls.fetches == 2)
+        #expect(calls.begun == ["github"])
+        #expect(calls.revoked == [])
+        #expect(opened.map(\.absoluteString) == ["https://docs.example/github-setup"])
+        #expect(store.apps.first?.status == .authError)
+        #expect(store.statusMessage == "Set up GitHub on this Mac before you connect it.")
+        #expect(store.lastError == nil)
+    }
+
+    @Test
+    @MainActor
+    func `refresh maps account requirement to product copy`() async throws {
+        let gateway = RecordingAppsGatewayClient(
+            overviews: [],
+            fetchError: GatewayResponseError(
+                method: "alisio.providers.get",
+                code: "INVALID_REQUEST",
+                message: "Alisio account sign-in required before using shared backend features.",
+                details: nil))
+        let store = AppsSettingsStore(isPreview: true, gateway: gateway, openURL: { _ in })
+
+        await store.refresh()
+
+        #expect(store.apps.isEmpty)
+        #expect(store.lastError == "Sign in to your Alisio account before managing apps.")
+    }
 }
 
 private actor RecordingAppsGatewayClient: AppsGatewayClient {
@@ -527,12 +580,14 @@ private actor RecordingAppsGatewayClient: AppsGatewayClient {
 
     private var overviews: [GatewayProvidersAppsResponse]
     private let beginResult: GatewayConnectorBeginResult
+    private let fetchError: Error?
     private var fetches = 0
     private var begun: [String] = []
     private var revoked: [String] = []
 
     init(
         overviews: [GatewayProvidersAppsResponse],
+        fetchError: Error? = nil,
         beginResult: GatewayConnectorBeginResult = GatewayConnectorBeginResult(
             connectorId: "github",
             mode: .oauth,
@@ -541,11 +596,15 @@ private actor RecordingAppsGatewayClient: AppsGatewayClient {
             setupHint: nil))
     {
         self.overviews = overviews
+        self.fetchError = fetchError
         self.beginResult = beginResult
     }
 
     func fetchAppsOverview(timeoutMs _: Double) async throws -> GatewayProvidersAppsResponse {
         self.fetches += 1
+        if let fetchError {
+            throw fetchError
+        }
         guard !self.overviews.isEmpty else {
             throw Failure.missingOverview
         }

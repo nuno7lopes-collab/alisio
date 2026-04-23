@@ -10,7 +10,9 @@ extension CronSettings {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
-                if !job.enabled {
+                if job.isRunning {
+                    StatusPill(text: "running now", tint: .blue)
+                } else if !job.enabled {
                     StatusPill(text: "paused", tint: .secondary)
                 } else if let next = job.nextRunDate {
                     StatusPill(text: self.nextRunLabel(next), tint: .secondary)
@@ -24,7 +26,7 @@ extension CronSettings {
                 if let agentId = job.agentId, !agentId.isEmpty {
                     StatusPill(text: "agent \(agentId)", tint: .secondary)
                 }
-                if let status = job.state.displayStatus {
+                if !job.isRunning, let status = job.state.displayStatus {
                     StatusPill(text: self.statusLabel(status), tint: self.statusTint(status))
                 }
             }
@@ -35,6 +37,7 @@ extension CronSettings {
     @ViewBuilder
     func jobContextMenu(_ job: CronJob) -> some View {
         Button("Run now") { Task { await self.store.runJob(id: job.id, force: true) } }
+            .disabled(job.isRunning)
         if let transcriptSessionKey = job.transcriptSessionKey {
             Button("Open session") {
                 AlisioWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
@@ -79,8 +82,11 @@ extension CronSettings {
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
-                Button("Run now") { Task { await self.store.runJob(id: job.id, force: true) } }
+                Button(job.isRunning ? "Running" : "Run now") {
+                    Task { await self.store.runJob(id: job.id, force: true) }
+                }
                     .buttonStyle(.borderedProminent)
+                    .disabled(job.isRunning)
                 if let transcriptSessionKey = job.transcriptSessionKey {
                     Button("Session") {
                         AlisioWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
@@ -99,10 +105,11 @@ extension CronSettings {
 
     func detailCard(_ job: CronJob) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            LabeledContent("Status") { Text(job.enabled ? "Active" : "Paused") }
+            LabeledContent("Status") { Text(self.runStateLabel(job)) }
+            LabeledContent("Automatic runs") { Text(job.enabled ? "Active" : "Paused") }
             LabeledContent("Schedule") { Text(self.scheduleSummary(job.schedule)).font(.callout) }
             if case .at = job.schedule, job.deleteAfterRun == true {
-                LabeledContent("Delete after run") { Text("yes") }
+                LabeledContent("Remove after success") { Text("Yes") }
             }
             if let desc = job.description, !desc.isEmpty {
                 LabeledContent("Description") { Text(desc).font(.callout) }
@@ -110,8 +117,8 @@ extension CronSettings {
             if let agentId = job.agentId, !agentId.isEmpty {
                 LabeledContent("Agent") { Text(agentId) }
             }
-            LabeledContent("Session") { Text(self.sessionTargetLabel(job)) }
-            LabeledContent("Wake mode") { Text(self.wakeModeLabel(job.wakeMode)) }
+            LabeledContent("Conversation") { Text(self.sessionTargetLabel(job)) }
+            LabeledContent("Start") { Text(self.wakeModeLabel(job.wakeMode)) }
             LabeledContent("Next run") {
                 if let date = job.nextRunDate {
                     Text(date.formatted(date: .abbreviated, time: .standard))
@@ -130,18 +137,22 @@ extension CronSettings {
                 LabeledContent("Last status") { Text(self.statusLabel(status)) }
             }
             if let deliveryStatus = job.state.lastDeliveryStatus, !deliveryStatus.isEmpty {
-                LabeledContent("Last delivery") { Text(self.statusLabel(deliveryStatus)) }
+                LabeledContent("Last follow-up") { Text(self.statusLabel(deliveryStatus)) }
+            }
+            if let consecutiveErrors = job.state.consecutiveErrors, consecutiveErrors > 1 {
+                LabeledContent("Recent failures") { Text("\(consecutiveErrors) in a row") }
             }
             if let err = job.state.lastError, !err.isEmpty {
-                self.errorBlock(title: "Last run error", message: err)
+                self.errorBlock(title: "Last run failed", message: err)
             }
             if let deliveryError = job.state.lastDeliveryError, !deliveryError.isEmpty {
-                self.errorBlock(title: "Last delivery error", message: deliveryError)
+                self.errorBlock(title: "Last follow-up failed", message: deliveryError)
             }
             if let actionError = self.store.actionError(for: job.id) {
-                self.errorBlock(title: "Schedule action failed", message: actionError)
+                self.errorBlock(title: "Could not change this schedule", message: actionError)
             }
             self.actionSummary(job)
+            self.followUpSummary(job)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
@@ -168,17 +179,17 @@ extension CronSettings {
             let isLoading = self.store.isLoadingRuns(for: job.id)
             let loaded = self.store.hasLoadedRuns(for: job.id)
 
-            if isLoading {
+            if isLoading || !loaded {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text("Loading recent activity…")
+                    Text(isLoading ? "Loading recent activity…" : "Preparing recent activity…")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
 
             if let error = self.store.runsError(for: job.id), !isLoading {
-                self.errorBlock(title: "Activity could not be loaded", message: error)
+                self.errorBlock(title: "Could not load recent activity", message: error)
             } else if entries.isEmpty, !isLoading, loaded {
                 Text(self.store.runsStatusMessage ?? "No recent activity yet.")
                     .font(.footnote)
@@ -211,7 +222,7 @@ extension CronSettings {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if let ms = entry.durationMs {
-                    Text("\(ms)ms")
+                    Text(self.formatDuration(ms: ms))
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -224,10 +235,10 @@ extension CronSettings {
                     .lineLimit(2)
             }
             if let error = entry.error, !error.isEmpty {
-                self.inlineErrorText("Run error: \(error)")
+                self.inlineErrorText("Run failed: \(error)")
             }
             if let deliveryError = entry.deliveryError, !deliveryError.isEmpty {
-                self.inlineErrorText("Delivery error: \(deliveryError)")
+                self.inlineErrorText("Follow-up failed: \(deliveryError)")
             }
         }
         .padding(.vertical, 4)
@@ -256,21 +267,24 @@ extension CronSettings {
                         if let timeoutSeconds {
                             StatusPill(text: "timeout \(timeoutSeconds)s", tint: .secondary)
                         }
-                        if job.supportsAnnounceDelivery {
-                            let delivery = job.delivery
-                            if let delivery {
-                                if delivery.mode == .announce {
-                                    StatusPill(text: "announce", tint: .secondary)
-                                    if let channel = delivery.channel, !channel.isEmpty {
-                                        StatusPill(text: channel, tint: .secondary)
-                                    }
-                                    if let to = delivery.to, !to.isEmpty { StatusPill(text: to, tint: .secondary) }
-                                } else {
-                                    StatusPill(text: "no delivery", tint: .secondary)
-                                }
-                            }
-                        }
                     }
+                }
+            }
+        }
+    }
+
+    func followUpSummary(_ job: CronJob) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("After it runs")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                StatusPill(text: self.resultHandlingLabel(job.delivery), tint: .secondary)
+                if let destination = self.resultHandlingDestination(job.delivery), !destination.isEmpty {
+                    StatusPill(text: destination, tint: .secondary)
+                }
+                if job.delivery?.bestEffort == true {
+                    StatusPill(text: "best effort", tint: .secondary)
                 }
             }
         }

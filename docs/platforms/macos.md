@@ -23,7 +23,7 @@ reach a runtime.
 - optional macOS permissions for local computer features
 - shared backend selection when runtime lives elsewhere
 - local computer capabilities on this Mac
-- connector, app, and skill installs from the local marketplace
+- connector, app, and capability installs from the local marketplace
 
 ## What The App Does Well
 

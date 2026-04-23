@@ -9,8 +9,9 @@ title: "Capabilities (macOS)"
 # Capabilities (macOS)
 
 The macOS app surfaces Alisio capabilities through the `Capabilities` tab.
-Under the hood, those capabilities are backed by gateway-reported skills; the
-app does not parse skill files locally.
+That product surface is capability-first. Under the hood, the gateway still
+reports the backing runtime skills, and the app maps them into one native
+capabilities surface instead of exposing a separate "skills" product area.
 
 ## Data source
 

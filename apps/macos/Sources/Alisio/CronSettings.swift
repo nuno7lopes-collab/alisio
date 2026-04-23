@@ -3,13 +3,6 @@ import SwiftUI
 
 import AlisioSupport
 struct CronSettings: View {
-    enum ListState: Equatable {
-        case loading
-        case error(String)
-        case empty(String)
-        case list
-    }
-
     enum DisplayMode: String, CaseIterable, Identifiable {
         case list
         case week
@@ -17,13 +10,23 @@ struct CronSettings: View {
 
         var id: String { self.rawValue }
 
-        var label: String {
+        var title: String {
             switch self {
-            case .list: "List"
-            case .week: "Week"
-            case .month: "Month"
+            case .list:
+                "List"
+            case .week:
+                "Week"
+            case .month:
+                "Month"
             }
         }
+    }
+
+    enum ListState: Equatable {
+        case loading
+        case error(String)
+        case empty(String)
+        case list
     }
 
     @Bindable var store: CronJobsStore

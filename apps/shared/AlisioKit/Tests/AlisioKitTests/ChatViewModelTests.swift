@@ -85,6 +85,7 @@ private func makeViewModel(
     modelResponses: [[AlisioChatModelChoice]] = [],
     createSessionResponses: [AlisioChatSessionCreateResponse] = [],
     listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)? = nil,
+    listModelsHook: (@Sendable () async throws -> [AlisioChatModelChoice])? = nil,
     resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     deleteSessionHook: (@Sendable (String) async throws -> Void)? = nil,
@@ -98,6 +99,7 @@ private func makeViewModel(
         _ thinking: String,
         _ idempotencyKey: String,
         _ attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse)? = nil,
+    requestHealthHook: (@Sendable (Int) async throws -> Bool)? = nil,
     initialThinkingLevel: String? = nil,
     onThinkingLevelChanged: (@MainActor @Sendable (String) -> Void)? = nil) async
     -> (TestChatTransport, AlisioChatViewModel)
@@ -108,6 +110,7 @@ private func makeViewModel(
         modelResponses: modelResponses,
         createSessionResponses: createSessionResponses,
         listSessionsHook: listSessionsHook,
+        listModelsHook: listModelsHook,
         resetSessionHook: resetSessionHook,
         compactSessionHook: compactSessionHook,
         deleteSessionHook: deleteSessionHook,
@@ -115,7 +118,8 @@ private func makeViewModel(
         createSessionHook: createSessionHook,
         setSessionModelHook: setSessionModelHook,
         sendMessageHook: sendMessageHook,
-        setSessionThinkingHook: setSessionThinkingHook)
+        setSessionThinkingHook: setSessionThinkingHook,
+        requestHealthHook: requestHealthHook)
     let vm = await MainActor.run {
         AlisioChatViewModel(
             sessionKey: sessionKey,
@@ -292,6 +296,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     private let modelResponses: [[AlisioChatModelChoice]]
     private let createSessionResponses: [AlisioChatSessionCreateResponse]
     private let listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)?
+    private let listModelsHook: (@Sendable () async throws -> [AlisioChatModelChoice])?
     private let resetSessionHook: (@Sendable (String) async throws -> Void)?
     private let compactSessionHook: (@Sendable (String) async throws -> Void)?
     private let deleteSessionHook: (@Sendable (String) async throws -> Void)?
@@ -305,6 +310,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         _ idempotencyKey: String,
         _ attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse)?
     private let setSessionThinkingHook: (@Sendable (String) async throws -> Void)?
+    private let requestHealthHook: (@Sendable (Int) async throws -> Bool)?
 
     private let stream: AsyncStream<AlisioChatTransportEvent>
     private let continuation: AsyncStream<AlisioChatTransportEvent>.Continuation
@@ -315,6 +321,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         modelResponses: [[AlisioChatModelChoice]] = [],
         createSessionResponses: [AlisioChatSessionCreateResponse] = [],
         listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)? = nil,
+        listModelsHook: (@Sendable () async throws -> [AlisioChatModelChoice])? = nil,
         resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         deleteSessionHook: (@Sendable (String) async throws -> Void)? = nil,
@@ -327,13 +334,15 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
             _ thinking: String,
             _ idempotencyKey: String,
             _ attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse)? = nil,
-        setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil)
+        setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil,
+        requestHealthHook: (@Sendable (Int) async throws -> Bool)? = nil)
     {
         self.historyResponses = historyResponses
         self.sessionsResponses = sessionsResponses
         self.modelResponses = modelResponses
         self.createSessionResponses = createSessionResponses
         self.listSessionsHook = listSessionsHook
+        self.listModelsHook = listModelsHook
         self.resetSessionHook = resetSessionHook
         self.compactSessionHook = compactSessionHook
         self.deleteSessionHook = deleteSessionHook
@@ -342,6 +351,7 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         self.setSessionModelHook = setSessionModelHook
         self.sendMessageHook = sendMessageHook
         self.setSessionThinkingHook = setSessionThinkingHook
+        self.requestHealthHook = requestHealthHook
         var cont: AsyncStream<AlisioChatTransportEvent>.Continuation!
         self.stream = AsyncStream { c in
             cont = c
@@ -405,6 +415,9 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     }
 
     func listModels() async throws -> [AlisioChatModelChoice] {
+        if let listModelsHook = self.listModelsHook {
+            return try await listModelsHook()
+        }
         let idx = await self.state.modelsCallCount
         await self.state.setModelsCallCount(idx + 1)
         if idx < self.modelResponses.count {
@@ -473,8 +486,11 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         }
     }
 
-    func requestHealth(timeoutMs _: Int) async throws -> Bool {
-        true
+    func requestHealth(timeoutMs: Int) async throws -> Bool {
+        if let requestHealthHook = self.requestHealthHook {
+            return try await requestHealthHook(timeoutMs)
+        }
+        return true
     }
 
     func emit(_ evt: AlisioChatTransportEvent) {
@@ -594,6 +610,48 @@ extension TestChatTransportState {
 }
 
 @Suite struct ChatViewModelTests {
+    @Test func bootstrapStopsBlockingUIAfterHistoryLoadsWhileMetadataRefreshContinues() async throws {
+        let sessionsGate = AsyncGate()
+        let modelsGate = AsyncGate()
+        let healthGate = AsyncGate()
+        let history = historyPayload(
+            sessionId: "sess-main",
+            messages: [
+                chatTextMessage(
+                    role: "assistant",
+                    text: "ready",
+                    timestamp: Date().timeIntervalSince1970 * 1000),
+            ])
+
+        let (_, vm) = await makeViewModel(
+            historyResponses: [history],
+            listSessionsHook: { _ in
+                await sessionsGate.wait()
+                return AlisioChatSessionsListResponse(ts: nil, path: nil, count: 0, defaults: nil, sessions: [])
+            },
+            listModelsHook: {
+                await modelsGate.wait()
+                return []
+            },
+            requestHealthHook: { _ in
+                await healthGate.wait()
+                return true
+            })
+
+        await MainActor.run { vm.load() }
+
+        try await waitUntil("bootstrap history loaded") {
+            await MainActor.run { vm.messages.count == 1 }
+        }
+
+        #expect(await MainActor.run { vm.isLoading } == false)
+        #expect(await MainActor.run { vm.healthOK } == true)
+
+        await sessionsGate.open()
+        await modelsGate.open()
+        await healthGate.open()
+    }
+
     @Test func streamsAssistantAndClearsOnFinal() async throws {
         let sessionId = "sess-main"
         let history1 = historyPayload(sessionId: sessionId)

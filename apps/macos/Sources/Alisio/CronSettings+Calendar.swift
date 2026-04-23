@@ -42,6 +42,7 @@ extension CronSettings {
                 systemImage: message.hasPrefix("Sign in") ? "person.crop.circle.badge.exclamationmark" : "calendar.badge.plus",
                 actionTitle: message.hasPrefix("Sign in") ? nil : "New schedule")
             {
+                guard !message.hasPrefix("Sign in") else { return }
                 self.editorError = nil
                 self.editingJob = nil
                 self.showEditor = true
@@ -85,9 +86,7 @@ extension CronSettings {
 
     var calendarProjection: ScheduleCalendarProjection {
         switch self.displayMode {
-        case .list:
-            ScheduleCalendarProjection.week(containing: self.calendarReferenceDate, jobs: self.store.jobs)
-        case .week:
+        case .list, .week:
             ScheduleCalendarProjection.week(containing: self.calendarReferenceDate, jobs: self.store.jobs)
         case .month:
             ScheduleCalendarProjection.month(containing: self.calendarReferenceDate, jobs: self.store.jobs)
@@ -123,7 +122,9 @@ extension CronSettings {
 
             Spacer()
 
-            Text("\(projection.occurrences.count) shown")
+            let shownCount = projection.occurrences.count
+            let hiddenCount = projection.unsupportedSchedules.count
+            Text(hiddenCount == 0 ? "\(shownCount) shown" : "\(shownCount) shown · \(hiddenCount) not shown")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -296,7 +297,9 @@ private struct ScheduleMonthCalendarGrid: View {
         guard let first = self.projection.days.first else { return [] }
         let weekday = self.calendar.component(.weekday, from: first.start)
         let leading = (weekday - self.calendar.firstWeekday + 7) % 7
-        return Array(repeating: nil, count: leading) + self.projection.days.map(Optional.some)
+        let baseCells = Array(repeating: nil, count: leading) + self.projection.days.map(Optional.some)
+        let trailing = (7 - (baseCells.count % 7)) % 7
+        return baseCells + Array(repeating: nil, count: trailing)
     }
 
     var body: some View {
@@ -391,8 +394,18 @@ private struct ScheduleOccurrenceButton: View {
     }
 
     private var timeLabel: String {
-        let components = self.calendar.dateComponents([.hour, .minute], from: self.occurrence.startAt)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+        let components = self.calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: self.occurrence.startAt)
+        let hour = components.hour ?? 0
+        let minute = components.minute ?? 0
+        let second = components.second ?? 0
+        let millisecond = max(0, (components.nanosecond ?? 0) / 1_000_000)
+        if millisecond > 0 {
+            return String(format: "%02d:%02d:%02d.%03d", hour, minute, second, millisecond)
+        }
+        if second > 0 {
+            return String(format: "%02d:%02d:%02d", hour, minute, second)
+        }
+        return String(format: "%02d:%02d", hour, minute)
     }
 
     private var fullTimeLabel: String {

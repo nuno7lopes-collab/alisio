@@ -87,7 +87,7 @@ Notes:
 
 - `memory index --verbose` prints per-phase details (provider, model, sources, batch activity).
 - `memory status` includes any extra paths configured via `memorySearch.extraPaths`.
-- `memory graph` reads the profile-scoped structured canonical store behind the native wiki and derived projections, so it can return explicit note-to-note relations instead of only text matches.
+- `memory graph` reads the profile-scoped structured canonical store behind the human-facing memory projections, so it can return explicit note-to-note relations instead of only text matches.
 - `memory graph` now exposes one surface with two modes: `overview` for the broader map, and `focus` for a relationship trace around a specific note/entity.
 - When the active profile is signed into Alisio cloud, the canonical store keeps a local-first replica on disk and may report snapshot-based cloud sync status for that profile store.
 - If effectively active memory remote API key fields are configured as SecretRefs, the command resolves those values from the active gateway snapshot. If gateway is unavailable, the command fails fast.

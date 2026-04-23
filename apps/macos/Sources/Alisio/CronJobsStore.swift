@@ -8,12 +8,20 @@ import AlisioSupport
 final class CronJobsStore {
     static let shared = CronJobsStore()
 
+    private struct UserVisibleCronError: LocalizedError {
+        let message: String
+
+        var errorDescription: String? {
+            self.message
+        }
+    }
+
     var jobs: [CronJob] = []
     var selectedJobId: String?
     var runEntries: [CronRunLogEntry] = []
     var loadedRunsJobId: String?
 
-    var schedulerEnabled: Bool?
+    var automaticRunsEnabled: Bool?
 
     var isLoadingJobs = false
     var isLoadingRuns = false
@@ -83,12 +91,14 @@ final class CronJobsStore {
         case .signedOut:
             self.jobs = []
             self.clearRunHistory()
+            self.automaticRunsEnabled = nil
             self.jobsError = nil
             self.jobsStatusMessage = "Sign in to manage schedules."
             self.hasLoadedJobsOnce = true
             self.reconcileSelection()
             return
         case let .unavailable(message):
+            self.automaticRunsEnabled = nil
             self.jobsError = message
             self.jobsStatusMessage = nil
             self.hasLoadedJobsOnce = true
@@ -106,11 +116,11 @@ final class CronJobsStore {
 
         do {
             if let status = try? await GatewayConnection.shared.cronStatus() {
-                self.schedulerEnabled = status.enabled
+                self.automaticRunsEnabled = status.enabled
             }
-            self.jobs = try await GatewayConnection.shared.cronList(includeDisabled: true)
+            self.jobs = Self.sortedJobs(try await GatewayConnection.shared.cronList(includeDisabled: true))
             if self.jobs.isEmpty {
-                self.jobsStatusMessage = "No schedules exist yet."
+                self.jobsStatusMessage = "No schedules yet."
             }
         } catch {
             self.logger.error("cron.list failed \(error.localizedDescription, privacy: .public)")
@@ -256,21 +266,27 @@ final class CronJobsStore {
         case .authenticated:
             break
         case .signedOut:
-            throw AlisioAccountRequiredError.signedOut
+            throw UserVisibleCronError(
+                message: id == nil ? "Sign in to create schedules." : "Sign in to edit schedules.")
         case let .unavailable(message):
-            throw AlisioAccountRequiredError.unavailable(message)
+            throw UserVisibleCronError(message: message)
         }
         self.actionError = nil
         self.actionErrorJobId = nil
-        let job: CronJob
-        if let id {
-            job = try await GatewayConnection.shared.cronUpdate(jobId: id, patch: request)
-        } else {
-            job = try await GatewayConnection.shared.cronAdd(payload: request)
+        do {
+            let job: CronJob
+            if let id {
+                job = try await GatewayConnection.shared.cronUpdate(jobId: id, patch: request)
+            } else {
+                job = try await GatewayConnection.shared.cronAdd(request: request)
+            }
+            self.upsertLocalJob(job)
+            self.selectJob(job.id)
+            await self.refreshJobs()
+        } catch {
+            let message = id == nil ? "Could not create schedule" : "Could not save schedule"
+            throw UserVisibleCronError(message: "\(message): \(self.gatewayErrorMessage(error))")
         }
-        self.upsertLocalJob(job)
-        self.selectJob(job.id)
-        await self.refreshJobs()
     }
 
     var selectedJob: CronJob? {
@@ -334,6 +350,8 @@ final class CronJobsStore {
 
     func clearRunHistory() {
         self.currentRunsRefreshToken = nil
+        self.runsTask?.cancel()
+        self.runsTask = nil
         self.loadingRunsJobId = nil
         self.loadedRunsJobId = nil
         self.isLoadingRuns = false
@@ -350,12 +368,7 @@ final class CronJobsStore {
         } else {
             self.jobs.append(job)
         }
-        self.jobs.sort { lhs, rhs in
-            let left = lhs.state.nextRunAtMs ?? Int.max
-            let right = rhs.state.nextRunAtMs ?? Int.max
-            if left != right { return left < right }
-            return lhs.id < rhs.id
-        }
+        self.jobs = Self.sortedJobs(self.jobs)
     }
 
     private func applyRunsResult(
@@ -367,7 +380,12 @@ final class CronJobsStore {
     {
         guard self.shouldApplyRunsRefresh(token: token, jobId: jobId) else { return }
         self.loadedRunsJobId = jobId
-        self.runEntries = entries.filter { $0.jobId == jobId }
+        self.runEntries = entries
+            .filter { $0.jobId == jobId }
+            .sorted { lhs, rhs in
+                if lhs.ts != rhs.ts { return lhs.ts > rhs.ts }
+                return lhs.id > rhs.id
+            }
         self.runsError = error
         self.runsErrorJobId = error == nil ? nil : jobId
         self.runsStatusMessage = message
@@ -424,7 +442,7 @@ final class CronJobsStore {
     }
 
     private func handle(cronEvent evt: CronEvent) {
-        // Keep UI in sync with the gateway scheduler.
+        // Keep the UI in sync with automatic runs in the gateway.
         self.scheduleRefresh(delayMs: 250)
         if evt.action == "finished", let selected = self.selectedJobId, selected == evt.jobId {
             self.scheduleRunsRefresh(jobId: selected, delayMs: 200)
@@ -462,6 +480,27 @@ final class CronJobsStore {
             }
         } catch {
             return .unavailable(error.localizedDescription)
+        }
+    }
+
+    private static func sortedJobs(_ jobs: [CronJob]) -> [CronJob] {
+        jobs.sorted { lhs, rhs in
+            if lhs.isRunning != rhs.isRunning {
+                return lhs.isRunning && !rhs.isRunning
+            }
+            if lhs.enabled != rhs.enabled {
+                return lhs.enabled && !rhs.enabled
+            }
+            let leftNext = lhs.state.nextRunAtMs ?? Int.max
+            let rightNext = rhs.state.nextRunAtMs ?? Int.max
+            if leftNext != rightNext {
+                return leftNext < rightNext
+            }
+            let leftName = lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName)
+            if leftName != .orderedSame {
+                return leftName == .orderedAscending
+            }
+            return lhs.id < rhs.id
         }
     }
 

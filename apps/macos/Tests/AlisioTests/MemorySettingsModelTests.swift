@@ -28,12 +28,15 @@ struct MemorySettingsModelTests {
 
         await model.refresh()
 
-        #expect(model.listState == .empty("No memory files are available yet."))
+        #expect(
+            model.listState
+                == .empty(
+                    "No daily notes, topic notes, main memory, identity, soul, or agent files are available yet."))
         #expect(model.sections.isEmpty)
         #expect(model.selectedDocument == nil)
     }
 
-    @Test func `groups canonical files into native sections`() async {
+    @Test func `groups supported canonical files into native sections`() async {
         let model = Self.makeModel(
             agents: [
                 MemoryAgentSummary(
@@ -42,8 +45,12 @@ struct MemorySettingsModelTests {
                     identity: nil,
                     personalContext: MemoryPersonalContextSummary(documents: [
                         Self.document(path: "AGENTS.md", kind: "agent_instructions"),
+                        Self.document(path: "TOOLS.md", kind: "agent_tools"),
+                        Self.document(path: "HEARTBEAT.md", kind: "agent_heartbeat"),
                         Self.document(path: "IDENTITY.md", kind: "identity"),
                         Self.document(path: "SOUL.md", kind: "soul"),
+                        Self.document(path: "USER.md", kind: "preferences"),
+                        Self.document(path: "BOOTSTRAP.md", kind: "setup_bootstrap"),
                         Self.document(path: "MEMORY.md", kind: "main_memory"),
                         Self.document(path: "memory/topic-a.md", kind: "topic_note"),
                         Self.document(path: "memory/2026-04-23.md", kind: "daily_note"),
@@ -52,8 +59,12 @@ struct MemorySettingsModelTests {
             ],
             contents: [
                 "AGENTS.md": "# Agent\n",
+                "TOOLS.md": "# Tools\n",
+                "HEARTBEAT.md": "# Heartbeat\n",
                 "IDENTITY.md": "# Identity\n",
                 "SOUL.md": "# Soul\n",
+                "USER.md": "# User\n",
+                "BOOTSTRAP.md": "# Bootstrap\n",
                 "MEMORY.md": "# Main\n",
                 "memory/topic-a.md": "# Topic\n",
                 "memory/2026-04-23.md": "# Daily\n",
@@ -66,7 +77,6 @@ struct MemorySettingsModelTests {
             .mainMemory,
             .dailyNotes,
             .topicNotes,
-            .backlogNotes,
             .identity,
             .soul,
             .agentFiles,
@@ -74,12 +84,58 @@ struct MemorySettingsModelTests {
         #expect(model.sections.first(where: { $0.section == .mainMemory })?.items.map(\.path) == ["MEMORY.md"])
         #expect(model.sections.first(where: { $0.section == .dailyNotes })?.items.map(\.path) == ["memory/2026-04-23.md"])
         #expect(model.sections.first(where: { $0.section == .topicNotes })?.items.map(\.path) == ["memory/topic-a.md"])
-        #expect(model.sections.first(where: { $0.section == .backlogNotes })?.items.map(\.path) == ["memory/backlog/2026-04-23/follow-up.md"])
         #expect(model.sections.first(where: { $0.section == .identity })?.items.map(\.path) == ["IDENTITY.md"])
         #expect(model.sections.first(where: { $0.section == .soul })?.items.map(\.path) == ["SOUL.md"])
-        #expect(model.sections.first(where: { $0.section == .agentFiles })?.items.map(\.path) == ["AGENTS.md"])
+        #expect(model.sections.first(where: { $0.section == .agentFiles })?.items.map(\.path) == [
+            "AGENTS.md",
+            "TOOLS.md",
+            "HEARTBEAT.md",
+        ])
+        #expect(model.sections.flatMap(\.items).map(\.path).contains("USER.md") == false)
+        #expect(model.sections.flatMap(\.items).map(\.path).contains("BOOTSTRAP.md") == false)
+        #expect(model.sections.flatMap(\.items).map(\.path).contains("memory/backlog/2026-04-23/follow-up.md") == false)
         #expect(model.selectedDocument?.item.path == "MEMORY.md")
         #expect(model.selectedDocument?.content == "# Main\n")
+
+        let projection = model.graphProjection
+        #expect(projection.lanes.map(\.section) == model.sections.map(\.section))
+        #expect(projection.lanes.flatMap(\.documentNodes).compactMap(\.relatedItemID) == model.sections.flatMap(\.items).map(\.id))
+        #expect(projection.edges.count == model.sections.flatMap(\.items).count)
+        #expect(projection.edges.allSatisfy { $0.sourceID.hasPrefix("section:") && $0.targetID.hasPrefix("item:") })
+    }
+
+    @Test func `keeps unsupported canonical files out of the surface and search`() async {
+        let recorder = FileGetRecorder()
+        let model = Self.makeModel(
+            agents: [
+                MemoryAgentSummary(
+                    id: "main",
+                    name: "Main",
+                    identity: nil,
+                    personalContext: MemoryPersonalContextSummary(documents: [
+                        Self.document(path: "USER.md", kind: "preferences"),
+                        Self.document(path: "BOOTSTRAP.md", kind: "setup_bootstrap"),
+                        Self.document(path: "memory/backlog/2026-04-23/follow-up.md", kind: "backlog_note"),
+                    ])),
+            ],
+            contents: [
+                "USER.md": "# User\n",
+                "BOOTSTRAP.md": "# Bootstrap\n",
+                "memory/backlog/2026-04-23/follow-up.md": "# Backlog\nBoson summary.\n",
+            ],
+            onRead: { path in
+                await recorder.record(path)
+            })
+
+        await model.refresh()
+        await model.search(query: "boson")
+
+        #expect(
+            model.listState
+                == .empty(
+                    "No daily notes, topic notes, main memory, identity, soul, or agent files are available yet."))
+        #expect(model.sections.isEmpty)
+        #expect(await recorder.paths.isEmpty)
     }
 
     @Test func `search reads canonical file content through gateway client`() async {
@@ -109,7 +165,88 @@ struct MemorySettingsModelTests {
         #expect(model.listState == .list)
         #expect(model.sections.map(\.section) == [.topicNotes])
         #expect(model.sections.first?.items.map(\.path) == ["memory/physics.md"])
+        #expect(model.graphProjection.lanes.map(\.section) == [.topicNotes])
+        #expect(model.graphProjection.lanes.flatMap(\.documentNodes).compactMap(\.relatedItemID) == ["memory/physics.md"])
+        #expect(model.graphProjection.edges.count == 1)
         #expect(await recorder.paths.contains("memory/physics.md"))
+    }
+
+    @Test func `switching agents rebuilds the canonical selection coherently`() async {
+        let model = Self.makeModel(
+            agents: [
+                MemoryAgentSummary(
+                    id: "main",
+                    name: "Main",
+                    identity: nil,
+                    personalContext: MemoryPersonalContextSummary(documents: [
+                        Self.document(path: "MEMORY.md", kind: "main_memory"),
+                    ])),
+                MemoryAgentSummary(
+                    id: "writer",
+                    name: "Writer",
+                    identity: nil,
+                    personalContext: MemoryPersonalContextSummary(documents: [
+                        Self.document(path: "SOUL.md", kind: "soul"),
+                        Self.document(path: "AGENTS.md", kind: "agent_instructions"),
+                    ])),
+            ],
+            contents: [
+                "MEMORY.md": "# Main\n",
+                "SOUL.md": "# Soul\n",
+                "AGENTS.md": "# Agent\n",
+            ])
+
+        await model.refresh()
+        #expect(model.selectedAgentID == "main")
+        #expect(model.selectedDocument?.item.path == "MEMORY.md")
+
+        await model.selectAgent("writer")
+
+        #expect(model.selectedAgentID == "writer")
+        #expect(model.sections.map(\.section) == [.soul, .agentFiles])
+        #expect(model.selectedDocument?.item.path == "SOUL.md")
+        #expect(model.selectedDocument?.content == "# Soul\n")
+    }
+
+    @Test func `graph node selection opens the related canonical context`() async throws {
+        let model = Self.makeModel(
+            agents: [
+                MemoryAgentSummary(
+                    id: "main",
+                    name: "Main",
+                    identity: nil,
+                    personalContext: MemoryPersonalContextSummary(documents: [
+                        Self.document(path: "MEMORY.md", kind: "main_memory"),
+                        Self.document(path: "memory/2026-04-22.md", kind: "daily_note"),
+                        Self.document(path: "memory/2026-04-23.md", kind: "daily_note"),
+                        Self.document(path: "memory/physics.md", kind: "topic_note"),
+                    ])),
+            ],
+            contents: [
+                "MEMORY.md": "# Memory\nShort notes.\n",
+                "memory/2026-04-22.md": "# Daily\nOlder.\n",
+                "memory/2026-04-23.md": "# Daily\nLatest.\n",
+                "memory/physics.md": "# Physics\nBoson summary.\n",
+            ])
+
+        await model.refresh()
+
+        let topicNode = try #require(
+            model.graphProjection.lanes
+                .first(where: { $0.section == .topicNotes })?
+                .documentNodes
+                .first)
+        await model.selectGraphNode(topicNode)
+        #expect(model.selectedDocument?.item.path == "memory/physics.md")
+        #expect(model.selectedDocument?.content == "# Physics\nBoson summary.\n")
+
+        let dailySectionNode = try #require(
+            model.graphProjection.lanes
+                .first(where: { $0.section == .dailyNotes })?
+                .sectionNode)
+        await model.selectGraphNode(dailySectionNode)
+        #expect(model.selectedDocument?.item.path == "memory/2026-04-22.md")
+        #expect(model.selectedItemID == "memory/2026-04-22.md")
     }
 
     @Test func `exposes gateway failures honestly`() async {
@@ -174,6 +311,7 @@ struct MemorySettingsModelTests {
     private static func document(
         path: String,
         kind: String,
+        group: String? = nil,
         present: Bool = true,
         size: Int? = 128,
         updatedAtMs: Int? = 1_713_830_400_000) -> MemoryPersonalContextDocument
@@ -181,6 +319,7 @@ struct MemorySettingsModelTests {
         MemoryPersonalContextDocument(
             path: path,
             kind: kind,
+            group: group,
             present: present,
             size: size,
             updatedAtMs: updatedAtMs)

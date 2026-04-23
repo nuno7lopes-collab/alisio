@@ -2,10 +2,27 @@ import SwiftUI
 
 import AlisioSupport
 
+private enum MemoryNavigationMode: String, CaseIterable, Identifiable {
+    case list
+    case graph
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .list:
+            "List"
+        case .graph:
+            "Graph"
+        }
+    }
+}
+
 struct MemorySettings: View {
     @State private var model: MemorySettingsModel
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
+    @State private var navigationMode: MemoryNavigationMode = .list
 
     init(model: MemorySettingsModel = MemorySettingsModel()) {
         self._model = State(initialValue: model)
@@ -16,7 +33,7 @@ struct MemorySettings: View {
             self.header
             HStack(spacing: 12) {
                 self.sidebar
-                    .frame(width: 320)
+                    .frame(width: self.navigationMode == .graph ? 420 : 320)
                     .frame(maxHeight: .infinity, alignment: .topLeading)
                 Divider()
                 self.detail
@@ -37,7 +54,7 @@ struct MemorySettings: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Memory")
                     .font(.headline)
-                Text("Read daily notes, topic notes, core memory, and agent files.")
+                Text("Read the canonical files for the selected agent.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -81,33 +98,34 @@ struct MemorySettings: View {
         SettingsSidebarScroll {
             VStack(alignment: .leading, spacing: 12) {
                 self.searchField
+                self.navigationModePicker
 
                 switch self.model.listState {
                 case .loading:
                     self.stateCard(
-                        title: "Loading memory…",
-                        message: "Checking the canonical memory files for this agent.",
+                        title: "Loading files…",
+                        message: "Reading the canonical memory catalog for this agent.",
                         systemImage: "brain.head.profile",
                         showsProgress: true)
                 case let .error(message):
                     self.stateCard(
-                        title: "Memory could not be loaded.",
+                        title: "Couldn't load memory.",
                         message: message,
                         systemImage: "exclamationmark.triangle.fill",
                         tint: .orange,
-                        actionTitle: "Try again")
+                        actionTitle: "Reload")
                     {
                         Task { await self.model.refresh() }
                     }
                 case let .empty(message):
                     self.stateCard(
-                        title: message,
-                        message: "When memory files are available, they appear here.",
+                        title: "Nothing to show yet.",
+                        message: message,
                         systemImage: "doc.text")
                 case .filteredEmpty:
                     self.stateCard(
                         title: "No files match this search.",
-                        message: "Try a different term to search titles and file content.",
+                        message: "Try another term.",
                         systemImage: "magnifyingglass")
                 case .list:
                     VStack(alignment: .leading, spacing: 8) {
@@ -125,22 +143,27 @@ struct MemorySettings: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        List(selection: Binding(
-                            get: { self.model.selectedItemID },
-                            set: { newValue in
-                                Task { await self.model.selectItem(newValue) }
-                            }))
-                        {
-                            ForEach(self.model.sections) { group in
-                                Section(group.section.title) {
-                                    ForEach(group.items) { item in
-                                        self.sidebarRow(item)
-                                            .tag(item.id)
+                        switch self.navigationMode {
+                        case .list:
+                            List(selection: Binding(
+                                get: { self.model.selectedItemID },
+                                set: { newValue in
+                                    Task { await self.model.selectItem(newValue) }
+                                }))
+                            {
+                                ForEach(self.model.sections) { group in
+                                    Section(group.section.title) {
+                                        ForEach(group.items) { item in
+                                            self.sidebarRow(item)
+                                                .tag(item.id)
+                                        }
                                     }
                                 }
                             }
+                            .listStyle(.inset)
+                        case .graph:
+                            self.graphNavigator
                         }
-                        .listStyle(.inset)
                     }
                 }
             }
@@ -153,16 +176,16 @@ struct MemorySettings: View {
                 if self.model.isLoadingSelectedDocument && self.model.selectedDocument?.item.id != item.id {
                     self.stateCard(
                         title: "Loading file…",
-                        message: "Reading the selected file from the gateway.",
+                        message: "Reading the selected file.",
                         systemImage: "doc.text",
                         showsProgress: true)
                 } else if let error = self.model.detailError?.nonEmpty {
                     self.stateCard(
-                        title: "The file could not be opened.",
+                        title: "Couldn't open this file.",
                         message: error,
                         systemImage: "exclamationmark.triangle.fill",
                         tint: .orange,
-                        actionTitle: "Try again")
+                        actionTitle: "Reload")
                     {
                         Task { await self.model.reloadSelectedDocument() }
                     }
@@ -180,18 +203,18 @@ struct MemorySettings: View {
                 case .loading:
                     self.stateCard(
                         title: "Preparing details…",
-                        message: "The selected file appears here as soon as memory loads.",
+                        message: "The selected file appears here as soon as the catalog loads.",
                         systemImage: "doc.text",
                         showsProgress: true)
                 case .error:
                     self.stateCard(
                         title: "No file to show.",
-                        message: "When memory loads again, the selected file appears here.",
+                        message: "Reload memory to open a file.",
                         systemImage: "rectangle.on.rectangle.slash")
-                case .empty:
+                case let .empty(message):
                     self.stateCard(
                         title: "Nothing to show yet.",
-                        message: "When memory files exist, the selected file appears here.",
+                        message: message,
                         systemImage: "doc.text")
                 case .filteredEmpty:
                     self.stateCard(
@@ -212,7 +235,7 @@ struct MemorySettings: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Search files and content", text: self.$searchText)
+            TextField("Search files", text: self.$searchText)
                 .textFieldStyle(.plain)
             if self.searchText.nonEmpty != nil {
                 Button {
@@ -229,6 +252,16 @@ struct MemorySettings: View {
         .padding(.vertical, 9)
         .background(Color.secondary.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var navigationModePicker: some View {
+        Picker("View", selection: self.$navigationMode) {
+            ForEach(MemoryNavigationMode.allCases) { mode in
+                Text(mode.title)
+                    .tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
     }
 
     private func sidebarRow(_ item: MemorySurfaceItem) -> some View {
@@ -250,6 +283,99 @@ struct MemorySettings: View {
         .padding(.vertical, 4)
     }
 
+    private var graphNavigator: some View {
+        let projection = self.model.graphProjection
+        return VStack(alignment: .leading, spacing: 10) {
+            if projection.lanes.isEmpty {
+                self.stateCard(
+                    title: "No relationships to draw.",
+                    message: "The current filter does not expose canonical section-to-file links.",
+                    systemImage: "point.3.connected.trianglepath.dotted")
+            } else {
+                ForEach(projection.lanes) { lane in
+                    self.graphLane(lane)
+                }
+            }
+        }
+    }
+
+    private func graphLane(_ lane: MemoryGraphLane) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            self.graphNodeButton(lane.sectionNode)
+
+            ForEach(Array(lane.documentNodes.enumerated()), id: \.element.id) { index, node in
+                HStack(alignment: .top, spacing: 10) {
+                    self.graphConnector(isLast: index == lane.documentNodes.count - 1)
+                    self.graphNodeButton(node)
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func graphNodeButton(_ node: MemoryGraphNode) -> some View {
+        Button {
+            Task { await self.model.selectGraphNode(node) }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: node.kind == .section ? node.section.systemImage : "doc.text")
+                        .foregroundStyle(node.isSelected ? Color.accentColor : .secondary)
+                        .frame(width: 14)
+                    Text(node.title)
+                        .font(node.kind == .section ? .body.weight(.semibold) : .callout.weight(.medium))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
+                }
+
+                if let subtitle = node.subtitle?.nonEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(node.kind == .section ? 1 : 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .background(node.isSelected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        node.isSelected ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.12),
+                        lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(node.relatedItemID == nil)
+    }
+
+    private func graphConnector(isLast: Bool) -> some View {
+        let lineColor = Color.secondary.opacity(0.35)
+        return VStack(spacing: 0) {
+            Rectangle()
+                .fill(lineColor)
+                .frame(width: 1, height: 10)
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(lineColor)
+                    .frame(width: 14, height: 1)
+                Circle()
+                    .fill(lineColor)
+                    .frame(width: 5, height: 5)
+            }
+            Rectangle()
+                .fill(lineColor.opacity(isLast ? 0 : 1))
+                .frame(width: 1, height: 18)
+        }
+        .frame(width: 20, alignment: .leading)
+    }
+
     private func documentDetail(_ document: MemoryWorkspaceFileDocument) -> some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 14) {
@@ -269,9 +395,11 @@ struct MemorySettings: View {
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
 
-                    Text(self.detailSummary(for: document))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if let summary = self.detailSummary(for: document).nonEmpty {
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Divider()
@@ -354,7 +482,7 @@ struct MemorySettings: View {
     }
 
     private func detailSummary(for document: MemoryWorkspaceFileDocument) -> String {
-        var parts = ["Agent \(document.agentId)"]
+        var parts: [String] = []
         if let size = document.size {
             parts.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
         }

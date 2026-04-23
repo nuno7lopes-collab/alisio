@@ -2,7 +2,9 @@ import Observation
 import SwiftUI
 
 import AlisioSupport
-struct SkillsSettings: View {
+
+// The product surface is "Capabilities"; gateway-reported skills are the backing data model.
+struct CapabilitiesSettings: View {
     enum ListState: Equatable {
         case loading
         case error(String)
@@ -12,11 +14,14 @@ struct SkillsSettings: View {
     }
 
     @Bindable var state: AppState
-    @State private var model = SkillsSettingsModel()
+    @State private var model = CapabilitiesSettingsModel()
     @State private var envEditor: EnvEditorState?
-    @State private var filter: SkillsFilter = .all
+    @State private var filter: CapabilitiesFilter = .all
 
-    init(state: AppState = AppStateStore.shared, model: SkillsSettingsModel = SkillsSettingsModel()) {
+    init(
+        state: AppState = AppStateStore.shared,
+        model: CapabilitiesSettingsModel = CapabilitiesSettingsModel())
+    {
         self.state = state
         self._model = State(initialValue: model)
     }
@@ -55,10 +60,10 @@ struct SkillsSettings: View {
         self.listState(for: self.filter)
     }
 
-    private func listState(for filter: SkillsFilter) -> ListState {
-        let filteredSkills = self.filteredSkills(for: filter)
+    private func listState(for filter: CapabilitiesFilter) -> ListState {
+        let filteredCapabilities = self.filteredCapabilities(for: filter)
         if !self.model.skills.isEmpty {
-            return filteredSkills.isEmpty ? .filteredEmpty : .list
+            return filteredCapabilities.isEmpty ? .filteredEmpty : .list
         }
 
         if self.model.isLoading || !self.model.hasLoadedOnce {
@@ -160,8 +165,8 @@ struct SkillsSettings: View {
             }
 
             List {
-                ForEach(self.filteredSkills) { skill in
-                    SkillRow(
+                ForEach(self.filteredCapabilities) { skill in
+                    CapabilityRow(
                         skill: skill,
                         isBusy: self.model.isBusy(skill: skill),
                         connectionMode: self.state.connectionMode,
@@ -226,7 +231,7 @@ struct SkillsSettings: View {
 
     private var headerFilter: some View {
         Picker("Filter", selection: self.$filter) {
-            ForEach(SkillsFilter.allCases) { filter in
+            ForEach(CapabilitiesFilter.allCases) { filter in
                 Text(filter.title)
                     .tag(filter)
             }
@@ -236,11 +241,11 @@ struct SkillsSettings: View {
         .frame(width: 160, alignment: .trailing)
     }
 
-    private var filteredSkills: [SkillStatus] {
-        self.filteredSkills(for: self.filter)
+    private var filteredCapabilities: [SkillStatus] {
+        self.filteredCapabilities(for: self.filter)
     }
 
-    private func filteredSkills(for filter: SkillsFilter) -> [SkillStatus] {
+    private func filteredCapabilities(for filter: CapabilitiesFilter) -> [SkillStatus] {
         self.model.skills.filter { skill in
             switch filter {
             case .all:
@@ -256,7 +261,7 @@ struct SkillsSettings: View {
     }
 }
 
-private enum SkillsFilter: String, CaseIterable, Identifiable {
+private enum CapabilitiesFilter: String, CaseIterable, Identifiable {
     case all
     case ready
     case needsSetup
@@ -285,7 +290,7 @@ private enum InstallTarget: String, CaseIterable {
     case local
 }
 
-private struct SkillRow: View {
+private struct CapabilityRow: View {
     let skill: SkillStatus
     let isBusy: Bool
     let connectionMode: AppState.ConnectionMode
@@ -622,7 +627,7 @@ private struct EnvEditorView: View {
 
 @MainActor
 @Observable
-final class SkillsSettingsModel {
+final class CapabilitiesSettingsModel {
     private enum AccountGate {
         case authenticated
         case signedOut
@@ -634,10 +639,10 @@ final class SkillsSettingsModel {
     var hasLoadedOnce = false
     var error: String?
     var statusMessage: String?
-    private var busySkills: Set<String> = []
+    private var busyCapabilities: Set<String> = []
 
     func isBusy(skill: SkillStatus) -> Bool {
-        self.busySkills.contains(skill.skillKey)
+        self.busyCapabilities.contains(skill.skillKey)
     }
 
     func refresh() async {
@@ -804,28 +809,28 @@ final class SkillsSettingsModel {
     }
 
     private func withBusy(_ id: String, _ work: @escaping () async -> Void) async {
-        self.busySkills.insert(id)
-        defer { self.busySkills.remove(id) }
+        self.busyCapabilities.insert(id)
+        defer { self.busyCapabilities.remove(id) }
         await work()
     }
 }
 
 #if DEBUG
-struct SkillsSettings_Previews: PreviewProvider {
+struct CapabilitiesSettings_Previews: PreviewProvider {
     static var previews: some View {
-        SkillsSettings(state: .preview)
+        CapabilitiesSettings(state: .preview)
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
     }
 }
 
-extension SkillsSettings {
+extension CapabilitiesSettings {
     mutating func setFilterForTesting(_ rawValue: String) {
-        guard let filter = SkillsFilter(rawValue: rawValue) else { return }
+        guard let filter = CapabilitiesFilter(rawValue: rawValue) else { return }
         self.filter = filter
     }
 
     func listStateForTesting(_ rawValue: String) -> ListState {
-        guard let filter = SkillsFilter(rawValue: rawValue) else {
+        guard let filter = CapabilitiesFilter(rawValue: rawValue) else {
             return self.listState
         }
         return self.listState(for: filter)

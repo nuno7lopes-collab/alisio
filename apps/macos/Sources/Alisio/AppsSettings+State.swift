@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 
+import AlisioKit
 import AlisioSupport
 
 enum GatewayAppItemStatus: String, Decodable, Sendable {
@@ -130,7 +131,7 @@ struct AppIntegrationCapability: Identifiable, Hashable, Sendable {
             case .connected:
                 "Connected"
             case .needsReconnect:
-                "Needs attention"
+                "Needs reconnect"
             case .authError:
                 "Auth error"
             case .disconnected:
@@ -145,7 +146,7 @@ struct AppIntegrationCapability: Identifiable, Hashable, Sendable {
             case .needsReconnect:
                 "Reconnect"
             case .authError:
-                "Review setup"
+                "Open setup guide"
             case .disconnected:
                 "Connect"
             }
@@ -326,6 +327,7 @@ struct AppsSurfaceModel: Equatable, Sendable {
             let connectedCount = sortedCapabilities.filter { $0.status == .connected }.count
             let detail = Self.buildGroupDetail(
                 status: status,
+                capabilities: sortedCapabilities,
                 capabilityCount: sortedCapabilities.count,
                 connectedCount: connectedCount)
             let summary = sortedCapabilities.count == 1
@@ -407,6 +409,7 @@ struct AppsSurfaceModel: Equatable, Sendable {
 
     private static func buildGroupDetail(
         status: AppIntegrationGroup.Status,
+        capabilities: [AppIntegrationCapability],
         capabilityCount: Int,
         connectedCount: Int) -> String?
     {
@@ -420,12 +423,18 @@ struct AppsSurfaceModel: Equatable, Sendable {
             if connectedCount > 0 {
                 return "\(connectedCount) of \(capabilityCount) access levels are connected."
             }
-            return "Reconnect this app before it can be used."
+            if capabilities.contains(where: { $0.status == .needsReconnect }) {
+                return capabilityCount == 1
+                    ? "Reconnect this app to keep using it."
+                    : "Reconnect the access levels that need attention."
+            }
+            return "This app needs attention before it can connect."
         case .authError:
-            return "Gateway OAuth setup is incomplete for this app."
+            return capabilities.compactMap(\.setupHint).first ??
+                "This app needs setup on this Mac before it can connect."
         case .disconnected:
             if capabilityCount == 1 {
-                return "Disconnected."
+                return "Not connected yet."
             }
             return "Choose which access levels to connect."
         }
@@ -434,13 +443,13 @@ struct AppsSurfaceModel: Equatable, Sendable {
     private static func setupHint(for authorization: GatewayConnectorAuthorization?) -> String? {
         switch authorization?.health {
         case .configMissing:
-            return "Gateway OAuth setup is incomplete for this app."
+            return "This app needs setup on this Mac before it can connect."
         case .inReview:
-            return "This app is still in provider review on this runtime."
+            return "This app is not available to connect on this Mac."
         case .unavailable:
-            return "This app is unavailable on this runtime."
+            return "This app is not available to connect on this Mac."
         case .needsReconnect:
-            return "Authorization expired or needs reconnecting."
+            return "Reconnect this app to keep using it."
         case .healthy, .none:
             return nil
         }
@@ -594,6 +603,7 @@ final class AppsSettingsStore {
     func performAction(for capability: AppIntegrationCapability) async {
         guard self.activeAppConnectionID == nil else { return }
         self.activeAppConnectionID = capability.id
+        self.statusMessage = nil
         self.lastError = nil
         defer { self.activeAppConnectionID = nil }
 
@@ -611,6 +621,7 @@ final class AppsSettingsStore {
 
     private func beginConnection(for capability: AppIntegrationCapability) async {
         do {
+            self.pendingBrowserAction = nil
             let result = try await self.gateway.beginAppConnection(
                 appID: capability.id,
                 timeoutMs: 8000)
@@ -631,7 +642,7 @@ final class AppsSettingsStore {
             case .setup:
                 self.statusMessage =
                     result.setupHint ??
-                    "Open the setup guide for \(capability.displayTitle), then return to Apps."
+                    "Open the setup guide for \(capability.displayTitle), then come back here."
             }
 
             await self.refresh()
@@ -652,10 +663,39 @@ final class AppsSettingsStore {
     }
 
     private func userFacingError(_ error: Error) -> String {
+        if error is GatewayDecodingError {
+            return "Alisio could not read the latest app status right now."
+        }
+        if error is URLError {
+            return "Alisio could not refresh apps right now. Check the connection and try again."
+        }
+        if let response = error as? GatewayResponseError {
+            let normalizedMessage = response.message.trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+            if normalizedMessage.contains("alisio account sign-in required") {
+                return "Sign in to your Alisio account before managing apps."
+            }
+            if normalizedMessage.contains("unknown connectorid") {
+                return "This app is no longer available on this Mac."
+            }
+            switch response.method {
+            case "alisio.providers.get":
+                return "Alisio could not load apps right now."
+            case "connectors.begin":
+                return "Alisio could not start this app connection right now."
+            case "connectors.revoke":
+                return "Alisio could not disconnect this app right now."
+            default:
+                break
+            }
+        }
         let message = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !message.isEmpty else { return "Unable to load app connections right now." }
+        guard !message.isEmpty else { return "Unable to load apps right now." }
         if message.contains("Alisio account sign-in required") {
-            return "Sign in to your Alisio account before managing app connections."
+            return "Sign in to your Alisio account before managing apps."
+        }
+        if message.localizedCaseInsensitiveContains("gateway not configured") {
+            return "Alisio could not reach this Mac right now. Try again in a moment."
         }
         return message
     }
@@ -663,11 +703,11 @@ final class AppsSettingsStore {
     private func beginFailureMessage(_ result: GatewayConnectorBeginResult, title: String) -> String {
         switch result.statusReason {
         case .missingClientConfig:
-            return "\(title) needs gateway OAuth setup before it can be connected."
+            return "\(title) needs setup on this Mac before it can connect."
         case .missingTokenEncryption:
-            return "This gateway cannot store \(title) tokens securely yet."
+            return "This Mac is not ready to store \(title) sign-ins securely yet."
         case .reviewRequired, .unavailable:
-            return "\(title) is not available on this runtime."
+            return "\(title) is not available to connect on this Mac."
         case .readyForSetup:
             return "Open the setup guide for \(title)."
         case .readyForOAuth:

@@ -87,6 +87,39 @@ struct ScheduleCalendarProjectionTests {
         #expect(occurrences.allSatisfy { !$0.isEnabled })
     }
 
+    @Test func `top of hour cron projection keeps scheduler stagger semantics`() {
+        let calendar = Self.utcCalendar()
+        let jobs = [
+            self.makeJob(
+                id: "staggered",
+                name: "Default stagger",
+                schedule: .cron(expr: "0 * * * *", tz: "UTC", staggerMs: nil)),
+            self.makeJob(
+                id: "exact",
+                name: "Exact hour",
+                schedule: .cron(expr: "0 * * * *", tz: "UTC", staggerMs: 0)),
+        ]
+
+        let projection = ScheduleCalendarProjection.week(
+            containing: Self.date("2026-04-22T12:00:00Z"),
+            jobs: jobs,
+            calendar: calendar)
+
+        let staggeredOffsets = projection.occurrences
+            .filter { $0.jobId == "staggered" }
+            .map { Self.hourOffsetMs($0.startAt) }
+        #expect(staggeredOffsets.count == 168)
+        let staggeredOffset = try! #require(staggeredOffsets.first)
+        #expect(staggeredOffsets.allSatisfy { $0 == staggeredOffset })
+        #expect(staggeredOffset == 102_620)
+
+        let exactOffsets = projection.occurrences
+            .filter { $0.jobId == "exact" }
+            .map { Self.hourOffsetMs($0.startAt) }
+        #expect(exactOffsets.count == 168)
+        #expect(exactOffsets.allSatisfy { $0 == 0 })
+    }
+
     @Test func `unsupported schedules are reported without fake occurrences`() {
         let calendar = Self.utcCalendar()
         let unsupported = self.makeJob(
@@ -107,23 +140,25 @@ struct ScheduleCalendarProjectionTests {
         #expect(issue.nextRunAt == Self.date("2026-04-27T09:00:00Z"))
     }
 
-    @MainActor
-    @Test func `opening a calendar occurrence selects the same job detail used by the list`() {
-        let store = CronJobsStore(isPreview: true)
-        let job = self.makeJob(id: "job-1", name: "Daily", schedule: .every(everyMs: 86_400_000, anchorMs: nil))
-        store.jobs = [job]
-        let view = CronSettings(store: store, channelsStore: ChannelsStore(isPreview: true))
-        let occurrence = ScheduleCalendarProjection.Occurrence(
-            id: "job-1:1",
-            jobId: "job-1",
-            jobName: "Daily",
-            startAt: Self.date("2026-04-21T09:00:00Z"),
-            isEnabled: true,
-            scheduleKind: "every")
+    @Test func `projection ordering stays stable when names and timestamps match`() {
+        let calendar = Self.utcCalendar()
+        let jobs = [
+            self.makeJob(
+                id: "job-b",
+                name: "Same name",
+                schedule: .at(at: "2026-04-21T10:15:00Z")),
+            self.makeJob(
+                id: "job-a",
+                name: "Same name",
+                schedule: .at(at: "2026-04-21T10:15:00Z")),
+        ]
 
-        view.openCalendarOccurrence(occurrence)
+        let projection = ScheduleCalendarProjection.week(
+            containing: Self.date("2026-04-22T12:00:00Z"),
+            jobs: jobs,
+            calendar: calendar)
 
-        #expect(store.selectedJobId == "job-1")
+        #expect(projection.occurrences.map(\.jobId) == ["job-a", "job-b"])
     }
 
     private func makeJob(
@@ -164,6 +199,13 @@ struct ScheduleCalendarProjectionTests {
 
     private static func ms(_ date: Date) -> Int {
         Int((date.timeIntervalSince1970 * 1_000).rounded(.down))
+    }
+
+    private static func hourOffsetMs(_ date: Date) -> Int {
+        let totalMs = Int((date.timeIntervalSince1970 * 1_000).rounded(.down))
+        let hourMs = 60 * 60 * 1_000
+        let offset = totalMs % hourMs
+        return offset >= 0 ? offset : offset + hourMs
     }
 
     private static func dayNumbers(
