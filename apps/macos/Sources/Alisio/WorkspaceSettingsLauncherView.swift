@@ -114,22 +114,22 @@ struct WorkspaceSettingsLauncherView: View {
     private var permissionsSummary: String {
         let missingCount = self.permissionMonitor.status.values.filter { !$0 }.count
         if self.permissionMonitor.status.isEmpty {
-            return "Loading current macOS permission status."
+            return "Optional macOS access is managed here."
         }
         if missingCount == 0 {
-            return "All tracked macOS permissions look ready."
+            return "Optional macOS access is ready where enabled."
         }
         if missingCount == 1 {
-            return "1 macOS permission still needs review."
+            return "1 optional macOS permission is currently off."
         }
-        return "\(missingCount) macOS permissions still need review."
+        return "\(missingCount) optional macOS permissions are currently off."
     }
 
     private var permissionsDetail: String {
         if self.permissionMonitor.status.isEmpty {
-            return "Open Permissions to refresh Accessibility, Screen Recording, microphone, location, and related capabilities."
+            return "Use Permissions to review Accessibility, Screen Recording, microphone, location, and similar access when you need those features."
         }
-        return "Use the native Permissions tab to refresh, grant, and verify system access without duplicating controls inside the workspace."
+        return "Features ask for macOS access when needed. Use the native Permissions tab to review or change that access later."
     }
 
     private var voiceWakeSummary: String {

@@ -119,7 +119,7 @@ struct GeneralSettings: View {
             .frame(width: 260, alignment: .leading)
 
             if self.state.connectionMode == .unconfigured {
-                Text("Choose Local to run Alisio on this Mac, or Remote to use another host.")
+                Text("Choose Local to run Alisio on this Mac, or Remote to use another host. The workspace stays closed until this is set.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -420,10 +420,10 @@ struct GeneralSettings: View {
             Button("Recheck") { self.refreshGatewayStatus() }
                 .buttonStyle(.bordered)
 
-            Text("In Local mode, Alisio starts its runtime automatically via launchd.")
+            Text("In Local mode, Alisio starts its runtime automatically via launchd. If this runtime is not ready yet, the workspace stays closed until it is.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
         .background(Color.gray.opacity(0.08))

@@ -121,6 +121,176 @@ public struct AlisioChatSessionEntry: Codable, Identifiable, Sendable, Hashable 
     }
 }
 
+public enum AlisioChatSessionIdentity {
+    public static func normalizedKey(_ key: String) -> String {
+        key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    public static func resolvedMainSessionKey(
+        from defaults: AlisioChatSessionsDefaults?,
+        fallback: String = "main") -> String
+    {
+        let trimmed = defaults?.mainSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (trimmed?.isEmpty == false ? trimmed : nil) ?? fallback
+    }
+
+    public static func identityKey(for key: String, mainSessionKey: String?) -> String {
+        let normalized = self.normalizedKey(key)
+        guard !normalized.isEmpty else { return normalized }
+        if self.mainAliases(mainSessionKey: mainSessionKey).contains(normalized) {
+            return "__main__"
+        }
+        return normalized
+    }
+
+    public static func matches(_ lhs: String, _ rhs: String, mainSessionKey: String? = nil) -> Bool {
+        let leftIdentity = self.identityKey(for: lhs, mainSessionKey: mainSessionKey)
+        let rightIdentity = self.identityKey(for: rhs, mainSessionKey: mainSessionKey)
+        guard !leftIdentity.isEmpty, !rightIdentity.isEmpty else { return false }
+        return leftIdentity == rightIdentity
+    }
+
+    private static func mainAliases(mainSessionKey: String?) -> Set<String> {
+        var aliases: Set<String> = [
+            self.normalizedKey("main"),
+            self.normalizedKey("agent:main:main"),
+        ]
+        let normalizedMain = self.normalizedKey(mainSessionKey ?? "")
+        if !normalizedMain.isEmpty {
+            aliases.insert(normalizedMain)
+        }
+        return aliases
+    }
+}
+
+public enum AlisioChatSessionPresentation {
+    public static func title(
+        for session: AlisioChatSessionEntry,
+        currentSessionKey: String? = nil,
+        mainSessionKey: String? = nil) -> String
+    {
+        let candidates = [
+            session.derivedTitle,
+            session.displayName,
+            session.label,
+            session.subject,
+            session.room,
+            session.space,
+        ]
+        for candidate in candidates {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+
+        if self.isMain(session, mainSessionKey: mainSessionKey) {
+            return "Main chat"
+        }
+
+        let kind = session.kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        if kind == "group" {
+            return "Group chat"
+        }
+        if kind == "direct" || kind == "dm" {
+            return "Direct chat"
+        }
+        if self.isCurrent(session, currentSessionKey: currentSessionKey, mainSessionKey: mainSessionKey),
+           session.updatedAt == nil,
+           session.sessionId == nil
+        {
+            return "New chat"
+        }
+        if self.isLikelyCanonicalSessionKey(session.key) {
+            return "Chat"
+        }
+        return session.key
+    }
+
+    public static func previewText(for session: AlisioChatSessionEntry) -> String? {
+        let preview = session.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !preview.isEmpty {
+            return preview
+        }
+        let subject = session.subject?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !subject.isEmpty {
+            return subject
+        }
+        return nil
+    }
+
+    public static func summary(
+        for session: AlisioChatSessionEntry,
+        currentSessionKey: String? = nil,
+        mainSessionKey: String? = nil) -> String
+    {
+        let title = self.title(
+            for: session,
+            currentSessionKey: currentSessionKey,
+            mainSessionKey: mainSessionKey)
+        if let preview = self.previewText(for: session),
+           preview != title
+        {
+            return preview
+        }
+        if self.isMain(session, mainSessionKey: mainSessionKey) {
+            return "Your ongoing workspace conversation."
+        }
+        if self.isCurrent(session, currentSessionKey: currentSessionKey, mainSessionKey: mainSessionKey),
+           session.updatedAt == nil,
+           session.sessionId == nil
+        {
+            return "Start a fresh chat without losing your place."
+        }
+        return "Pick up this chat where you left off."
+    }
+
+    public static func searchText(
+        for session: AlisioChatSessionEntry,
+        currentSessionKey: String? = nil,
+        mainSessionKey: String? = nil) -> String
+    {
+        [
+            self.title(for: session, currentSessionKey: currentSessionKey, mainSessionKey: mainSessionKey),
+            session.derivedTitle,
+            session.displayName,
+            session.label,
+            session.subject,
+            session.room,
+            session.space,
+            session.sessionId,
+            session.key,
+            session.lastMessagePreview,
+        ]
+        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .joined(separator: " ")
+    }
+
+    public static func isCurrent(
+        _ session: AlisioChatSessionEntry,
+        currentSessionKey: String?,
+        mainSessionKey: String? = nil) -> Bool
+    {
+        guard let currentSessionKey else { return false }
+        return AlisioChatSessionIdentity.matches(session.key, currentSessionKey, mainSessionKey: mainSessionKey)
+    }
+
+    public static func isMain(_ session: AlisioChatSessionEntry, mainSessionKey: String?) -> Bool {
+        guard let mainSessionKey else { return false }
+        return AlisioChatSessionIdentity.matches(session.key, mainSessionKey, mainSessionKey: mainSessionKey)
+    }
+
+    private static func isLikelyCanonicalSessionKey(_ key: String) -> Bool {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if trimmed == "main" || trimmed == "onboarding" {
+            return true
+        }
+        return trimmed.contains(":") || trimmed.contains("/") || trimmed.contains("\\")
+    }
+}
+
 public struct AlisioChatSessionsQuery: Sendable, Equatable {
     public let limit: Int?
     public let search: String?

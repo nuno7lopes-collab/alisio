@@ -130,6 +130,11 @@ final class WorkActivityStore {
         self.refreshDerivedState()
     }
 
+    func activity(for sessionKey: String) -> Activity? {
+        guard let resolvedSessionKey = self.activityKey(for: sessionKey) else { return nil }
+        return self.currentActivity(for: resolvedSessionKey)
+    }
+
     func setMainSessionKey(_ sessionKey: String) {
         let trimmed = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -163,8 +168,8 @@ final class WorkActivityStore {
 
     private func pickNextSession() {
         // Prefer main if present.
-        if self.isActive(sessionKey: self.mainSessionKeyStorage) {
-            self.currentSessionKey = self.mainSessionKeyStorage
+        if let mainSessionKey = self.activityKey(for: self.mainSessionKeyStorage) {
+            self.currentSessionKey = mainSessionKey
             return
         }
 
@@ -175,7 +180,7 @@ final class WorkActivityStore {
     }
 
     private func role(for sessionKey: String) -> SessionRole {
-        sessionKey == self.mainSessionKeyStorage ? .main : .other
+        self.matchesSessionKey(sessionKey, self.mainSessionKeyStorage) ? .main : .other
     }
 
     private func isActive(sessionKey: String) -> Bool {
@@ -189,6 +194,36 @@ final class WorkActivityStore {
     private func currentActivity(for sessionKey: String) -> Activity? {
         // Prefer tool overlay if present, otherwise job.
         self.tools[sessionKey] ?? self.jobs[sessionKey]
+    }
+
+    private func activityKey(for sessionKey: String) -> String? {
+        let trimmed = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if self.isActive(sessionKey: trimmed) {
+            return trimmed
+        }
+
+        let keys = Set(self.jobs.keys).union(self.tools.keys)
+        return keys.first { self.matchesSessionKey($0, trimmed) }
+    }
+
+    private func matchesSessionKey(_ lhs: String, _ rhs: String) -> Bool {
+        self.normalizedSessionIdentity(lhs) == self.normalizedSessionIdentity(rhs)
+    }
+
+    private func normalizedSessionIdentity(_ sessionKey: String) -> String {
+        let trimmed = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty else { return trimmed }
+        return self.isMainSessionAlias(trimmed) ? "__main__" : trimmed
+    }
+
+    private func isMainSessionAlias(_ sessionKey: String) -> Bool {
+        let normalizedMainSessionKey = self.mainSessionKeyStorage
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return sessionKey == "main" ||
+            sessionKey == "agent:main:main" ||
+            (!normalizedMainSessionKey.isEmpty && sessionKey == normalizedMainSessionKey)
     }
 
     private func refreshDerivedState() {

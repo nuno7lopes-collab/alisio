@@ -127,7 +127,7 @@ struct GatewayEndpointStoreTests {
         #expect(resolved.mode == .remote)
     }
 
-    @Test func `connection mode resolver defaults to local without onboarding state`() {
+    @Test func `connection mode resolver defaults to local without persisted mode`() {
         let defaults = self.makeDefaults()
 
         let resolved = ConnectionModeResolver.resolve(root: [:], defaults: defaults)

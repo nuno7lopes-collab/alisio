@@ -26,7 +26,7 @@ struct PermissionsSettings: View {
 
                 PermissionSectionCard(
                     title: "macOS permissions",
-                    subtitle: "Turn on only the capabilities you plan to use.")
+                    subtitle: "Optional access for features you choose to use. Nothing here blocks opening the workspace.")
                 {
                     self.permissionsContent
                 }
@@ -59,9 +59,9 @@ struct PermissionsSettings: View {
             }
         case .empty:
             VStack(alignment: .leading, spacing: 8) {
-                Text("Permission status unavailable.")
+                Text("Permission status not loaded yet.")
                     .font(.callout.weight(.semibold))
-                Text("Try refreshing to load the current Accessibility, Screen Recording, microphone, and related access state.")
+                Text("Refresh to load the current Accessibility, Screen Recording, microphone, and related access state. Features still open without these until they are needed.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -74,7 +74,13 @@ struct PermissionsSettings: View {
                 .controlSize(.small)
             }
         case let .loaded(status):
-            PermissionStatusList(status: status, refresh: self.refresh)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Alisio only needs these when you use the matching feature.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                PermissionStatusList(status: status, refresh: self.refresh)
+            }
         }
     }
 }

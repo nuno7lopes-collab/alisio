@@ -1,7 +1,7 @@
 ---
-summary: "Setup surfaces for the Alisio macOS app after account entry."
+summary: "How the macOS app handles account entry, direct workspace access, and follow-up runtime review."
 read_when:
-  - Documenting the macOS setup experience
+  - Documenting the macOS account-entry and first-workspace flow
   - Aligning setup copy with the current product flow
 title: "macOS App Setup"
 sidebarTitle: "macOS App Setup"
@@ -9,42 +9,47 @@ sidebarTitle: "macOS App Setup"
 
 # macOS App Setup
 
-The macOS app no longer treats a dedicated multi-step onboarding wizard as the
-main entry story.
+The macOS app starts with account entry, not a standalone technical wizard.
 
-After account entry, setup for this Mac happens through the native app surface
-and Settings.
+When account entry is finished and this Mac already knows how it should reach
+Alisio, the app opens the workspace directly. Settings is only the setup
+surface when this Mac still needs a runtime choice, a runtime fix, or optional
+device permissions.
 
 For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 
 ## Recommended Path
 
 1. Finish account entry in the app.
-2. Open **Settings → General** and choose where the runtime lives:
+2. If **Settings → General** shows that this Mac is still unconfigured or
+   missing its runtime, choose where it should connect:
    - **Local** when this Mac should run Alisio itself
    - **Remote** when this Mac should attach to another host
-   - **Not configured** when you want to enter the workspace first and decide later
-3. Open **Settings → Permissions** and enable only the macOS capabilities this
-   Mac should expose.
-4. Enter the workspace and finish product-specific setup there:
+3. Open the workspace as soon as the runtime is ready.
+4. Review **Settings → Permissions** only for the macOS capabilities this Mac
+   should expose.
+5. Finish product-specific setup in the workspace:
    - **Apps** for connected app surfaces
    - **Capabilities** for skills and agent behavior
    - **Connections** for local infrastructure and linked systems
 
-## Where Setup Lives
+## Where Follow-up Setup Lives
 
-| Task                      | Surface                             | Notes                                                                     |
-| ------------------------- | ----------------------------------- | ------------------------------------------------------------------------- |
-| Account entry             | App entry flow                      | Required before the workspace unlocks                                     |
-| Runtime location          | Settings → General                  | Local runtime health, remote endpoint, and CLI install state              |
-| macOS permissions         | Settings → Permissions              | Accessibility, Screen Recording, microphone, location, and related access |
-| Apps and connectors       | Workspace / Settings → Apps         | Configure product surfaces after sign-in                                  |
-| Skills and agent behavior | Workspace / Settings → Capabilities | Review bundled and installed capabilities                                 |
+| Task                      | Surface                             | Notes                                                       |
+| ------------------------- | ----------------------------------- | ----------------------------------------------------------- |
+| Account entry             | App entry flow                      | Required before the first workspace open                    |
+| Runtime location          | Settings → General                  | Only blocks when Local or Remote is still missing or broken |
+| macOS permissions         | Settings → Permissions              | Optional until a feature on this Mac needs them             |
+| Apps and connectors       | Workspace / Settings → Apps         | Configure product surfaces after sign-in                    |
+| Skills and agent behavior | Workspace / Settings → Capabilities | Review bundled and installed capabilities                   |
 
 ## Product Notes
 
 - The workspace is the main product surface after account entry.
-- Runtime setup on macOS is now a Settings concern, not a standalone wizard.
+- Runtime review on macOS lives in Settings, not in a standalone onboarding
+  surface.
+- Permissions are not the main gate. Turn them on when this Mac needs the
+  corresponding feature.
 - Use [Onboarding (CLI)](/start/wizard) when you need headless, remote, or
   operator-led setup.
 

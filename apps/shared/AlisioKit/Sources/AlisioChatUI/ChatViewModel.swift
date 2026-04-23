@@ -61,6 +61,7 @@ public final class AlisioChatViewModel {
     public private(set) var isRefreshingSessions = false
     public private(set) var isCreatingSession = false
     public private(set) var sessionListErrorText: String?
+    public private(set) var sessionActionErrorText: String?
     private let transport: any AlisioChatTransport
     private var sessionDefaults: AlisioChatSessionsDefaults?
     private let prefersExplicitThinkingLevel: Bool
@@ -75,6 +76,11 @@ public final class AlisioChatViewModel {
     private var dispatchingRunIDs = Set<String>() {
         didSet { self.refreshPendingRunCount() }
     }
+    private var abortRequestedRunIDs = Set<String>() {
+        didSet { self.isAborting = !self.abortRequestedRunIDs.isEmpty }
+    }
+    private var streamingAssistantRunID: String?
+    private var pendingToolCallRunIDsById: [String: String] = [:]
 
     @ObservationIgnored
     private nonisolated(unsafe) var pendingRunTimeoutTasks: [String: Task<Void, Never>] = [:]
@@ -98,7 +104,10 @@ public final class AlisioChatViewModel {
     private var nextSessionsRequestID: UInt64 = 0
     private var activeSessionsRequestID: UInt64 = 0
     public private(set) var isCompacting = false
-    private var lastCompactAt: Date?
+    private var lastCompactAtsBySession: [String: Date] = [:]
+    private var lastManualSessionsQuery: AlisioChatSessionsQuery?
+    private var mutatingSessionIdentityKeys = Set<String>()
+    private var deletedSessionIdentityKeys = Set<String>()
     private var lastOptimisticMessageTimestampMs: Double = 0
     private let compactCooldown: TimeInterval = 60
 
@@ -165,8 +174,20 @@ public final class AlisioChatViewModel {
         Task { await self.performReset() }
     }
 
+    public func resetSession(sessionKey: String) {
+        Task { await self.performReset(sessionKey: sessionKey) }
+    }
+
     public func compactSession() {
         Task { await self.performCompact() }
+    }
+
+    public func compactSession(sessionKey: String) {
+        Task { await self.performCompact(sessionKey: sessionKey) }
+    }
+
+    public func deleteSession(sessionKey: String) {
+        Task { await self.performDeleteSession(sessionKey: sessionKey) }
     }
 
     public func refreshSessions(search: String? = nil, limit: Int? = nil) {
@@ -178,6 +199,7 @@ public final class AlisioChatViewModel {
             includeUnknown: false,
             includeDerivedTitles: true,
             includeLastMessage: true)
+        self.lastManualSessionsQuery = query
         Task { await self.fetchSessions(query: query) }
     }
 
@@ -200,11 +222,16 @@ public final class AlisioChatViewModel {
     }
 
     public var currentSessionEntry: AlisioChatSessionEntry? {
-        self.sessions.first(where: { Self.matchesCurrentSessionKey(incoming: $0.key, current: self.sessionKey) })
+        self.matchingSession(forKey: self.sessionKey)
     }
 
     public var currentSessionContextUsage: AlisioChatSessionContextUsage? {
         self.currentSessionEntry.flatMap(AlisioChatSessionContextUsage.init(session:))
+    }
+
+    public var activeErrorText: String? {
+        let trimmed = self.errorText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     public var connectionPhase: AlisioChatConnectionPhase {
@@ -228,11 +255,11 @@ public final class AlisioChatViewModel {
     }
 
     public var canResetSession: Bool {
-        !self.isLoading && !self.isSending && !self.isAborting
+        self.canResetSession(key: self.sessionKey)
     }
 
     public var canCompactSession: Bool {
-        !self.isCompacting && !self.isLoading && !self.isSending && self.pendingRuns.isEmpty && !self.isAborting
+        self.canCompactSession(key: self.sessionKey)
     }
 
     public var canSwitchSessions: Bool {
@@ -243,6 +270,90 @@ public final class AlisioChatViewModel {
         self.canSwitchSessions && !self.isCompacting
     }
 
+    public var currentSessionTitle: String {
+        self.sessionTitle(forKey: self.sessionKey)
+    }
+
+    public var currentSessionSummary: String {
+        self.sessionSummary(forKey: self.sessionKey)
+    }
+
+    public var currentSessionSubtitle: String {
+        var parts: [String] = []
+        let summary = self.currentSessionSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !summary.isEmpty {
+            parts.append(summary)
+        }
+        switch self.connectionPhase {
+        case .firstMessage:
+            parts.append("First reply is warming up.")
+        case .reconnecting:
+            parts.append("Reconnecting.")
+        case .bootstrapping, .loading, .ready:
+            break
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    public func canResetSession(_ session: AlisioChatSessionEntry) -> Bool {
+        self.canResetSession(key: session.key)
+    }
+
+    public func canCompactSession(_ session: AlisioChatSessionEntry) -> Bool {
+        self.canCompactSession(key: session.key)
+    }
+
+    public func canDeleteSession(_ session: AlisioChatSessionEntry) -> Bool {
+        !self.isMainSession(session) &&
+            !self.isMutatingSession(session) &&
+            !self.isCreatingSession &&
+            !self.isSending &&
+            self.pendingRuns.isEmpty &&
+            !self.isAborting &&
+            !self.hasPendingModelPatches(key: session.key)
+    }
+
+    public func isMutatingSession(_ session: AlisioChatSessionEntry) -> Bool {
+        self.isMutatingSession(key: session.key)
+    }
+
+    public func sessionKeysMatch(_ lhs: String, _ rhs: String) -> Bool {
+        AlisioChatSessionIdentity.matches(lhs, rhs, mainSessionKey: self.resolvedMainSessionKey)
+    }
+
+    private func canResetSession(key: String) -> Bool {
+        !self.isLoading &&
+            !self.isSending &&
+            self.pendingRuns.isEmpty &&
+            !self.isAborting &&
+            !self.isCreatingSession &&
+            !self.hasPendingModelPatches(key: key) &&
+            !self.isMutatingSession(key: key)
+    }
+
+    private func canCompactSession(key: String) -> Bool {
+        !self.isCompacting &&
+            !self.isLoading &&
+            !self.isSending &&
+            self.pendingRuns.isEmpty &&
+            !self.isAborting &&
+            !self.isCreatingSession &&
+            !self.hasPendingModelPatches(key: key) &&
+            !self.isMutatingSession(key: key)
+    }
+
+    private func isMutatingSession(key: String) -> Bool {
+        let identity = AlisioChatSessionIdentity.identityKey(
+            for: key,
+            mainSessionKey: self.resolvedMainSessionKey)
+        guard !identity.isEmpty else { return false }
+        return self.mutatingSessionIdentityKeys.contains(identity)
+    }
+
+    private func hasPendingModelPatches(key: String) -> Bool {
+        (self.inFlightModelPatchCountsBySession[key] ?? 0) > 0
+    }
+
     public var sessionChoices: [AlisioChatSessionEntry] {
         let sorted = self.sessions.sorted { ($0.updatedAt ?? 0) > ($1.updatedAt ?? 0) }
         let mainSessionKey = self.resolvedMainSessionKey
@@ -251,13 +362,7 @@ public final class AlisioChatViewModel {
         var included = Set<String>()
 
         func identity(for key: String) -> String {
-            let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if Self.matchesCurrentSessionKey(incoming: trimmed, current: "main") ||
-                Self.matchesCurrentSessionKey(incoming: trimmed, current: "agent:main:main")
-            {
-                return "__main__"
-            }
-            return trimmed
+            AlisioChatSessionIdentity.identityKey(for: key, mainSessionKey: mainSessionKey)
         }
 
         func append(_ entry: AlisioChatSessionEntry) {
@@ -268,13 +373,13 @@ public final class AlisioChatViewModel {
             included.insert(id)
         }
 
-        if let main = sorted.first(where: { Self.matchesCurrentSessionKey(incoming: $0.key, current: mainSessionKey) }) {
+        if let main = sorted.first(where: { self.sessionKeysMatch($0.key, mainSessionKey) }) {
             append(main)
         } else {
             append(self.placeholderSession(key: mainSessionKey))
         }
 
-        if let current = sorted.first(where: { Self.matchesCurrentSessionKey(incoming: $0.key, current: self.sessionKey) }) {
+        if let current = sorted.first(where: { self.sessionKeysMatch($0.key, self.sessionKey) }) {
             append(current)
         } else {
             append(self.placeholderSession(key: self.sessionKey))
@@ -288,15 +393,53 @@ public final class AlisioChatViewModel {
     }
 
     private var resolvedMainSessionKey: String {
-        let trimmed = self.sessionDefaults?.mainSessionKey?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (trimmed?.isEmpty == false ? trimmed : nil) ?? "main"
+        AlisioChatSessionIdentity.resolvedMainSessionKey(from: self.sessionDefaults)
     }
 
     private static func isHiddenInternalSession(_ key: String) -> Bool {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         return trimmed == "onboarding" || trimmed.hasSuffix(":onboarding")
+    }
+
+    private func matchingSession(forKey sessionKey: String) -> AlisioChatSessionEntry? {
+        let matching = self.sessions.filter { self.sessionKeysMatch($0.key, sessionKey) }
+        guard !matching.isEmpty else { return nil }
+
+        let normalizedTarget = AlisioChatSessionIdentity.normalizedKey(sessionKey)
+        if self.sessionKeysMatch(sessionKey, self.resolvedMainSessionKey) {
+            return matching.max(by: { self.mainSessionMatchScore($0) < self.mainSessionMatchScore($1) })
+        }
+        if let exact = matching.first(where: {
+            AlisioChatSessionIdentity.normalizedKey($0.key) == normalizedTarget
+        }) {
+            return exact
+        }
+        return matching.first
+    }
+
+    private func mainSessionMatchScore(_ session: AlisioChatSessionEntry) -> Int {
+        let normalizedKey = AlisioChatSessionIdentity.normalizedKey(session.key)
+        var score = 0
+        if normalizedKey != "main" && normalizedKey != "agent:main:main" {
+            score += 100
+        }
+        if let displayName = session.displayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !displayName.isEmpty
+        {
+            score += 10
+        }
+        if let derivedTitle = session.derivedTitle?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !derivedTitle.isEmpty
+        {
+            score += 8
+        }
+        if let label = session.label?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !label.isEmpty
+        {
+            score += 6
+        }
+        return score
     }
 
     public var showsModelPicker: Bool {
@@ -310,64 +453,91 @@ public final class AlisioChatViewModel {
         return "Default: \(self.modelLabel(for: defaultModelID))"
     }
 
-    public func sessionTitle(for session: AlisioChatSessionEntry) -> String {
-        let candidates = [
-            session.derivedTitle,
-            session.displayName,
-            session.label,
-            session.subject,
-            session.key,
-        ]
-        for candidate in candidates {
-            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !trimmed.isEmpty {
-                return trimmed
-            }
+    public var activeModelLabel: String {
+        let selectedModelID = self.normalizedSelectionID(self.modelSelectionID)
+        if selectedModelID != Self.defaultModelSelectionID {
+            return self.modelLabel(for: selectedModelID)
         }
-        return session.key
+        guard let defaultModelID = self.normalizedModelSelectionID(self.sessionDefaults?.model) else {
+            return "Default"
+        }
+        return self.modelLabel(for: defaultModelID)
+    }
+
+    public func sessionTitle(forKey sessionKey: String) -> String {
+        if let session = self.matchingSession(forKey: sessionKey) {
+            return self.sessionTitle(for: session)
+        }
+        if self.sessionKeysMatch(sessionKey, self.resolvedMainSessionKey) {
+            return "Main chat"
+        }
+        return "New chat"
+    }
+
+    public func sessionTitle(for session: AlisioChatSessionEntry) -> String {
+        AlisioChatSessionPresentation.title(
+            for: session,
+            currentSessionKey: self.sessionKey,
+            mainSessionKey: self.resolvedMainSessionKey)
+    }
+
+    public func sessionSummary(forKey sessionKey: String) -> String {
+        if let session = self.matchingSession(forKey: sessionKey) {
+            return self.sessionSummary(for: session)
+        }
+        if self.sessionKeysMatch(sessionKey, self.resolvedMainSessionKey) {
+            return "Your ongoing workspace conversation."
+        }
+        return "Start a fresh chat without losing your place."
     }
 
     public func sessionPreviewText(for session: AlisioChatSessionEntry) -> String? {
-        let preview = session.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !preview.isEmpty {
-            return preview
-        }
-        let subject = session.subject?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !subject.isEmpty {
-            return subject
-        }
-        return nil
+        AlisioChatSessionPresentation.previewText(for: session)
+    }
+
+    public func sessionSummary(for session: AlisioChatSessionEntry) -> String {
+        AlisioChatSessionPresentation.summary(
+            for: session,
+            currentSessionKey: self.sessionKey,
+            mainSessionKey: self.resolvedMainSessionKey)
     }
 
     public func sessionSearchText(for session: AlisioChatSessionEntry) -> String {
-        [
-            session.derivedTitle,
-            session.displayName,
-            session.label,
-            session.subject,
-            session.sessionId,
-            session.key,
-            session.lastMessagePreview,
-        ]
-        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-        .filter { !$0.isEmpty }
-        .joined(separator: " ")
+        AlisioChatSessionPresentation.searchText(
+            for: session,
+            currentSessionKey: self.sessionKey,
+            mainSessionKey: self.resolvedMainSessionKey)
     }
 
     public func isCurrentSession(_ session: AlisioChatSessionEntry) -> Bool {
-        Self.matchesCurrentSessionKey(incoming: session.key, current: self.sessionKey)
+        AlisioChatSessionPresentation.isCurrent(
+            session,
+            currentSessionKey: self.sessionKey,
+            mainSessionKey: self.resolvedMainSessionKey)
+    }
+
+    public func isMainSessionKey(_ sessionKey: String) -> Bool {
+        self.sessionKeysMatch(sessionKey, self.resolvedMainSessionKey)
     }
 
     public func isMainSession(_ session: AlisioChatSessionEntry) -> Bool {
-        Self.matchesCurrentSessionKey(incoming: session.key, current: self.resolvedMainSessionKey)
+        AlisioChatSessionPresentation.isMain(session, mainSessionKey: self.resolvedMainSessionKey)
+    }
+
+    public var activeThinkingLevelLabel: String {
+        self.thinkingLevel.capitalized
+    }
+
+    public func dismissError() {
+        self.errorText = nil
     }
 
     public func addAttachments(urls: [URL]) {
         Task { await self.loadAttachments(urls: urls) }
     }
 
-    public func addImageAttachment(data: Data, fileName: String, mimeType: String) {
-        Task { await self.addImageAttachment(url: nil, data: data, fileName: fileName, mimeType: mimeType) }
+    public func addAttachment(data: Data, fileName: String, mimeType: String) {
+        Task { await self.addAttachment(url: nil, data: data, fileName: fileName, mimeType: mimeType) }
     }
 
     public func removeAttachment(_ id: AlisioPendingAttachment.ID) {
@@ -404,8 +574,7 @@ public final class AlisioChatViewModel {
         self.isLoading = true
         self.errorText = nil
         self.clearPendingRuns(reason: nil)
-        self.pendingToolCallsById = [:]
-        self.streamingAssistantText = nil
+        self.clearTransientReplyState(for: nil)
         self.healthOK = false
         defer {
             if self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) {
@@ -416,12 +585,6 @@ public final class AlisioChatViewModel {
             async let sessionsResult = try? self.transport.listSessions(query: self.defaultSessionsQuery)
             async let modelsResult = try? self.transport.listModels()
             async let healthResult = try? self.transport.requestHealth(timeoutMs: 5000)
-
-            do {
-                try await self.transport.setActiveSessionKey(targetSessionKey)
-            } catch {
-                // Best-effort only; history/send/health still work without push events.
-            }
 
             let payload = try await self.transport.requestHistory(sessionKey: targetSessionKey)
             guard self.shouldApplyBootstrapResponse(requestID: requestID, sessionKey: targetSessionKey) else {
@@ -714,8 +877,7 @@ public final class AlisioChatViewModel {
         let runId = UUID().uuidString
         let messageText = trimmed.isEmpty && !self.attachments.isEmpty ? "See attached." : trimmed
         let thinkingLevel = self.thinkingLevel
-        self.pendingToolCallsById = [:]
-        self.streamingAssistantText = nil
+        self.clearTransientReplyState(for: nil)
 
         // Optimistically append user message to UI.
         var userContent: [AlisioChatMessageContent] = [
@@ -778,17 +940,22 @@ public final class AlisioChatViewModel {
             await Task.yield()
             self.dispatchingRunIDs.insert(runId)
             let response = try await sendTask.value
+            let runWasClearedBeforeAccept = !self.dispatchingRunIDs.contains(runId) && !self.pendingRuns.contains(runId)
             self.dispatchingRunIDs.remove(runId)
+            guard !runWasClearedBeforeAccept else { return }
             self.pendingRuns.insert(runId)
             self.armPendingRunTimeout(runId: runId)
             if response.runId != runId {
+                self.moveAbortRequest(from: runId, to: response.runId)
                 self.clearPendingRun(runId)
                 self.pendingRuns.insert(response.runId)
                 self.armPendingRunTimeout(runId: response.runId)
             }
+            await self.issueDeferredAbortIfNeeded(for: response.runId)
         } catch {
             self.dispatchingRunIDs.remove(runId)
             self.clearPendingRun(runId)
+            self.abortRequestedRunIDs.remove(runId)
             self.errorText = self.presentableErrorMessage(
                 for: error,
                 fallback: "Your message could not be sent. Try again.")
@@ -804,23 +971,25 @@ public final class AlisioChatViewModel {
             self.errorText = "There is no active reply to stop."
             return
         }
-        guard !self.isAborting else { return }
-        self.isAborting = true
-        defer { self.isAborting = false }
+        let requestedRunIDs = activeRunIDs.filter { !self.abortRequestedRunIDs.contains($0) }
+        guard !requestedRunIDs.isEmpty else { return }
 
-        var abortedAnyRun = false
-        for runId in activeRunIDs {
-            do {
-                try await self.transport.abortRun(sessionKey: self.sessionKey, runId: runId)
-                abortedAnyRun = true
-            } catch {
-                chatUILogger.error("chat.abort failed \(error.localizedDescription, privacy: .public)")
+        self.errorText = nil
+        for runId in requestedRunIDs {
+            self.abortRequestedRunIDs.insert(runId)
+        }
+
+        let abortableRunIDs = requestedRunIDs.filter { self.pendingRuns.contains($0) }
+        guard !abortableRunIDs.isEmpty else { return }
+
+        var stoppedAnyRun = false
+        for runId in abortableRunIDs {
+            if await self.requestAbort(for: runId, reportFailure: true) {
+                stoppedAnyRun = true
             }
         }
-        if !abortedAnyRun {
+        if !stoppedAnyRun, abortableRunIDs.count == requestedRunIDs.count {
             self.errorText = "The reply could not be stopped. Try again."
-        } else {
-            self.errorText = nil
         }
     }
 
@@ -835,6 +1004,7 @@ public final class AlisioChatViewModel {
         self.cacheCurrentSessionState()
         self.isCreatingSession = true
         self.errorText = nil
+        self.sessionActionErrorText = nil
         defer { self.isCreatingSession = false }
 
         let request = AlisioChatSessionCreateRequest(
@@ -876,6 +1046,7 @@ public final class AlisioChatViewModel {
         let requestID = self.beginSessionsRequest()
         self.isRefreshingSessions = true
         self.sessionListErrorText = nil
+        self.sessionActionErrorText = nil
         defer {
             if self.shouldApplySessionsRequestResponse(requestID: requestID) {
                 self.isRefreshingSessions = false
@@ -896,7 +1067,7 @@ public final class AlisioChatViewModel {
     private func performSwitchSession(to sessionKey: String) async {
         let next = sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !next.isEmpty else { return }
-        guard !Self.matchesCurrentSessionKey(incoming: next, current: self.sessionKey) else { return }
+        guard !self.sessionKeysMatch(next, self.sessionKey) else { return }
         guard self.canSwitchSessions else {
             self.errorText = self.pendingRuns.isEmpty
                 ? "Wait for the current work to finish before switching chats."
@@ -916,6 +1087,7 @@ public final class AlisioChatViewModel {
         self.sessionKey = next
         self.onSessionKeyChanged?(next)
         self.errorText = nil
+        self.sessionActionErrorText = nil
         self.streamingAssistantText = nil
         self.pendingToolCallsById = [:]
         self.clearPendingRuns(reason: nil)
@@ -970,9 +1142,43 @@ public final class AlisioChatViewModel {
             lastHistoryRefreshAt: self.lastHistoryRefreshAt)
     }
 
+    private func clearCachedSessionState(for sessionKey: String) {
+        self.cachedStatesBySession.removeValue(forKey: sessionKey)
+        if self.sessionKeysMatch(sessionKey, self.sessionKey) {
+            self.messages = []
+            self.sessionId = nil
+            self.hasLoadedHistory = false
+            self.lastBootstrapAt = nil
+            self.lastHistoryRefreshAt = nil
+        }
+    }
+
+    private func removeSessionState(for sessionKey: String) {
+        self.clearCachedSessionState(for: sessionKey)
+        self.draftInputsBySession.removeValue(forKey: sessionKey)
+        self.draftAttachmentsBySession.removeValue(forKey: sessionKey)
+        self.lastCompactAtsBySession.removeValue(forKey: self.sessionMutationIdentity(for: sessionKey))
+        self.latestThinkingLevelsBySession.removeValue(forKey: sessionKey)
+        self.latestThinkingSelectionRequestIDsBySession.removeValue(forKey: sessionKey)
+        self.latestModelSelectionIDsBySession.removeValue(forKey: sessionKey)
+        self.latestModelSelectionRequestIDsBySession.removeValue(forKey: sessionKey)
+        self.lastSuccessfulModelSelectionIDsBySession.removeValue(forKey: sessionKey)
+        self.inFlightModelPatchCountsBySession.removeValue(forKey: sessionKey)
+        let waiters = self.modelPatchWaitersBySession.removeValue(forKey: sessionKey) ?? []
+        for waiter in waiters {
+            waiter.resume()
+        }
+        self.sessions.removeAll { self.sessionKeysMatch($0.key, sessionKey) }
+    }
+
+    private func refreshSessionsPreservingQuery() async {
+        let query = self.lastManualSessionsQuery ?? self.defaultSessionsQuery
+        await self.fetchSessions(query: query)
+    }
+
     private func shouldApplyBootstrapResponse(requestID: UInt64, sessionKey: String) -> Bool {
         requestID == self.activeBootstrapRequestID &&
-            Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey)
+            self.sessionKeysMatch(sessionKey, self.sessionKey)
     }
 
     private func beginSessionsRequest() -> UInt64 {
@@ -986,19 +1192,107 @@ public final class AlisioChatViewModel {
     }
 
     private func applySessionsResponse(_ response: AlisioChatSessionsListResponse) {
-        self.sessions = response.sessions
-        self.sessionDefaults = response.defaults
+        let previousDefaults = self.sessionDefaults
+        var merged: [AlisioChatSessionEntry] = []
+        let effectiveDefaults = response.defaults != nil ? response.defaults : previousDefaults
+        self.sessionDefaults = effectiveDefaults
+        let mainSessionKey = AlisioChatSessionIdentity.resolvedMainSessionKey(from: effectiveDefaults)
+
+        for entry in response.sessions {
+            let identity = AlisioChatSessionIdentity.identityKey(for: entry.key, mainSessionKey: mainSessionKey)
+            guard !self.deletedSessionIdentityKeys.contains(identity) else { continue }
+            let existing = self.sessions.first(where: {
+                AlisioChatSessionIdentity.matches($0.key, entry.key, mainSessionKey: mainSessionKey)
+            })
+            merged.append(self.mergedSessionEntry(existing: existing, incoming: entry))
+        }
+
+        for preservedKey in [mainSessionKey, self.sessionKey] {
+            guard !preservedKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            let identity = AlisioChatSessionIdentity.identityKey(for: preservedKey, mainSessionKey: mainSessionKey)
+            guard !self.deletedSessionIdentityKeys.contains(identity) else { continue }
+            guard !merged.contains(where: {
+                AlisioChatSessionIdentity.matches($0.key, preservedKey, mainSessionKey: mainSessionKey)
+            }) else { continue }
+            if let existing = self.sessions.first(where: {
+                AlisioChatSessionIdentity.matches($0.key, preservedKey, mainSessionKey: mainSessionKey)
+            }) {
+                merged.append(existing)
+            } else if self.sessionKeysMatch(preservedKey, self.sessionKey) {
+                merged.append(self.placeholderSession(key: preservedKey))
+            }
+        }
+
+        self.sessions = merged
         self.syncSelectedModel()
+    }
+
+    private func mergedSessionEntry(
+        existing: AlisioChatSessionEntry?,
+        incoming: AlisioChatSessionEntry) -> AlisioChatSessionEntry
+    {
+        guard let existing else { return incoming }
+        let resolvedModel: String? = {
+            if incoming.model != nil || incoming.modelProvider != nil {
+                return incoming.model
+            }
+            return existing.model
+        }()
+        let resolvedModelProvider: String? = {
+            if incoming.model != nil || incoming.modelProvider != nil {
+                return incoming.modelProvider
+            }
+            return existing.modelProvider
+        }()
+        return AlisioChatSessionEntry(
+            key: incoming.key,
+            kind: incoming.kind ?? existing.kind,
+            label: incoming.label ?? existing.label,
+            displayName: incoming.displayName ?? existing.displayName,
+            derivedTitle: incoming.derivedTitle ?? existing.derivedTitle,
+            lastMessagePreview: incoming.lastMessagePreview ?? existing.lastMessagePreview,
+            surface: incoming.surface ?? existing.surface,
+            subject: incoming.subject ?? existing.subject,
+            room: incoming.room ?? existing.room,
+            space: incoming.space ?? existing.space,
+            updatedAt: incoming.updatedAt ?? existing.updatedAt,
+            sessionId: incoming.sessionId ?? existing.sessionId,
+            systemSent: incoming.systemSent ?? existing.systemSent,
+            abortedLastRun: incoming.abortedLastRun ?? existing.abortedLastRun,
+            thinkingLevel: incoming.thinkingLevel ?? existing.thinkingLevel,
+            verboseLevel: incoming.verboseLevel ?? existing.verboseLevel,
+            inputTokens: incoming.inputTokens ?? existing.inputTokens,
+            outputTokens: incoming.outputTokens ?? existing.outputTokens,
+            totalTokens: incoming.totalTokens ?? existing.totalTokens,
+            modelProvider: resolvedModelProvider,
+            model: resolvedModel,
+            contextTokens: incoming.contextTokens ?? existing.contextTokens)
     }
 
     private func upsertSessionEntry(_ entry: AlisioChatSessionEntry) {
         if let index = self.sessions.firstIndex(where: {
-            Self.matchesCurrentSessionKey(incoming: $0.key, current: entry.key)
+            self.sessionKeysMatch($0.key, entry.key)
         }) {
             self.sessions[index] = entry
             return
         }
         self.sessions.append(entry)
+    }
+
+    private func sessionMutationIdentity(for sessionKey: String) -> String {
+        AlisioChatSessionIdentity.identityKey(for: sessionKey, mainSessionKey: self.resolvedMainSessionKey)
+    }
+
+    private func beginSessionMutation(for sessionKey: String) -> String? {
+        let identity = self.sessionMutationIdentity(for: sessionKey)
+        guard !identity.isEmpty else { return nil }
+        guard !self.mutatingSessionIdentityKeys.contains(identity) else { return nil }
+        self.mutatingSessionIdentityKeys.insert(identity)
+        return identity
+    }
+
+    private func endSessionMutation(identity: String) {
+        self.mutatingSessionIdentityKeys.remove(identity)
     }
 
     private func lastKnownThinkingLevel(for sessionKey: String) -> String? {
@@ -1009,7 +1303,7 @@ public final class AlisioChatViewModel {
             return latest
         }
         if let level = self.sessions.first(where: {
-            Self.matchesCurrentSessionKey(incoming: $0.key, current: sessionKey)
+            self.sessionKeysMatch($0.key, sessionKey)
         })?.thinkingLevel {
             return Self.normalizedThinkingLevel(level)
         }
@@ -1045,48 +1339,105 @@ public final class AlisioChatViewModel {
     }
 
     private func performReset() async {
-        self.isLoading = true
+        await self.performReset(sessionKey: self.sessionKey)
+    }
+
+    private func performReset(sessionKey rawSessionKey: String) async {
+        let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionKey.isEmpty else { return }
+        guard self.canResetSession(key: sessionKey) else {
+            let message = "Wait for the current work to finish before resetting a chat."
+            self.errorText = self.sessionKeysMatch(sessionKey, self.sessionKey) ? message : self.errorText
+            self.sessionActionErrorText = message
+            return
+        }
+
+        guard let mutationIdentity = self.beginSessionMutation(for: sessionKey) else { return }
+        let isCurrentSession = self.sessionKeysMatch(sessionKey, self.sessionKey)
+        if isCurrentSession {
+            self.isLoading = true
+        }
         self.errorText = nil
-        defer { self.isLoading = false }
+        self.sessionActionErrorText = nil
+        defer {
+            if isCurrentSession {
+                self.isLoading = false
+            }
+            self.endSessionMutation(identity: mutationIdentity)
+        }
 
         do {
-            try await self.transport.resetSession(sessionKey: self.sessionKey)
+            try await self.transport.resetSession(sessionKey: sessionKey)
         } catch {
-            self.errorText = self.presentableErrorMessage(
+            let message = self.presentableErrorMessage(
                 for: error,
                 fallback: "This chat could not be reset.")
+            if isCurrentSession {
+                self.errorText = message
+            }
+            self.sessionActionErrorText = message
             chatUILogger.error("session reset failed \(error.localizedDescription, privacy: .public)")
             return
         }
 
-        await self.bootstrap()
+        self.clearCachedSessionState(for: sessionKey)
+        if isCurrentSession {
+            await self.bootstrap(sessionKey: sessionKey)
+        } else {
+            await self.refreshSessionsPreservingQuery()
+        }
     }
 
     private func performCompact() async {
+        await self.performCompact(sessionKey: self.sessionKey)
+    }
+
+    private func performCompact(sessionKey rawSessionKey: String) async {
+        let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionKey.isEmpty else { return }
         guard !self.isCompacting else { return }
-        guard !self.isSending, self.pendingRuns.isEmpty, !self.isAborting else {
-            self.errorText = "Wait for the current response before compacting the session."
-            return
-        }
-        if let lastCompactAt,
-           Date().timeIntervalSince(lastCompactAt) < self.compactCooldown
-        {
-            self.errorText = "Please wait before compacting this session again."
+        guard !self.isMutatingSession(key: sessionKey) else { return }
+        guard self.canCompactSession(key: sessionKey) else {
+            let message = "Wait for the current response before compacting the session."
+            self.errorText = self.sessionKeysMatch(sessionKey, self.sessionKey) ? message : self.errorText
+            self.sessionActionErrorText = message
             return
         }
 
+        let identity = self.sessionMutationIdentity(for: sessionKey)
+        if let lastCompactAt = self.lastCompactAtsBySession[identity],
+           Date().timeIntervalSince(lastCompactAt) < self.compactCooldown
+        {
+            let message = "Please wait before compacting this session again."
+            self.errorText = self.sessionKeysMatch(sessionKey, self.sessionKey) ? message : self.errorText
+            self.sessionActionErrorText = message
+            return
+        }
+
+        guard let mutationIdentity = self.beginSessionMutation(for: sessionKey) else { return }
+        let isCurrentSession = self.sessionKeysMatch(sessionKey, self.sessionKey)
         self.isCompacting = true
-        self.isLoading = true
+        if isCurrentSession {
+            self.isLoading = true
+        }
         self.errorText = nil
+        self.sessionActionErrorText = nil
         defer {
-            self.isLoading = false
+            if isCurrentSession {
+                self.isLoading = false
+            }
             self.isCompacting = false
+            self.endSessionMutation(identity: mutationIdentity)
         }
 
         do {
-            try await self.transport.compactSession(sessionKey: self.sessionKey)
+            try await self.transport.compactSession(sessionKey: sessionKey)
         } catch {
-            self.errorText = "Unable to compact the session. Please try again."
+            let message = "Unable to compact the session. Please try again."
+            if isCurrentSession {
+                self.errorText = message
+            }
+            self.sessionActionErrorText = message
             let nsError = error as NSError
             chatUILogger.error(
                 "session compact failed domain=\(nsError.domain, privacy: .public) code=\(nsError.code, privacy: .public) details=\(String(describing: error), privacy: .private)"
@@ -1094,8 +1445,54 @@ public final class AlisioChatViewModel {
             return
         }
 
-        self.lastCompactAt = Date()
-        await self.bootstrap()
+        self.lastCompactAtsBySession[identity] = Date()
+        if isCurrentSession {
+            await self.bootstrap(sessionKey: sessionKey)
+        } else {
+            await self.refreshSessionsPreservingQuery()
+        }
+    }
+
+    private func performDeleteSession(sessionKey rawSessionKey: String) async {
+        let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionKey.isEmpty else { return }
+        let session = self.matchingSession(forKey: sessionKey) ?? self.placeholderSession(key: sessionKey)
+        guard self.canDeleteSession(session) else {
+            self.sessionActionErrorText = self.isMainSession(session)
+                ? "Main chat can't be deleted."
+                : "Wait for the current work to finish before deleting a chat."
+            return
+        }
+
+        guard let mutationIdentity = self.beginSessionMutation(for: sessionKey) else { return }
+        let isCurrentSession = self.sessionKeysMatch(sessionKey, self.sessionKey)
+        self.sessionActionErrorText = nil
+        if isCurrentSession {
+            self.errorText = nil
+        }
+        defer { self.endSessionMutation(identity: mutationIdentity) }
+
+        do {
+            try await self.transport.deleteSession(sessionKey: sessionKey)
+        } catch {
+            let message = self.presentableErrorMessage(
+                for: error,
+                fallback: "This chat could not be deleted.")
+            if isCurrentSession {
+                self.errorText = message
+            }
+            self.sessionActionErrorText = message
+            chatUILogger.error("session delete failed \(error.localizedDescription, privacy: .public)")
+            return
+        }
+
+        self.deletedSessionIdentityKeys.insert(mutationIdentity)
+        self.removeSessionState(for: sessionKey)
+        if isCurrentSession {
+            await self.activateSession(self.resolvedMainSessionKey)
+        } else {
+            await self.refreshSessionsPreservingQuery()
+        }
     }
 
     private func performSelectThinkingLevel(_ level: String, requestID: UInt64) async {
@@ -1224,7 +1621,7 @@ public final class AlisioChatViewModel {
 
     private func syncSelectedModel() {
         let currentSession = self.sessions.first(where: {
-            Self.matchesCurrentSessionKey(incoming: $0.key, current: self.sessionKey)
+            self.sessionKeysMatch($0.key, self.sessionKey)
         })
         let explicitModelID = self.normalizedModelSelectionID(
             currentSession?.model,
@@ -1322,7 +1719,7 @@ public final class AlisioChatViewModel {
         syncSelection: Bool)
     {
         if let index = self.sessions.firstIndex(where: {
-            Self.matchesCurrentSessionKey(incoming: $0.key, current: sessionKey)
+            self.sessionKeysMatch($0.key, sessionKey)
         }) {
             let current = self.sessions[index]
             self.sessions[index] = AlisioChatSessionEntry(
@@ -1402,6 +1799,7 @@ public final class AlisioChatViewModel {
             self.lastTransportEventAt = Date()
             self.errorText = nil
             self.clearPendingRuns(reason: nil)
+            self.clearTransientReplyState(for: nil)
             self.markConnectionRecovering()
             let sessionKey = self.sessionKey
             Task {
@@ -1412,14 +1810,14 @@ public final class AlisioChatViewModel {
     }
 
     private func handleChatEvent(_ chat: AlisioChatEventPayload) {
-        let isOurRun = chat.runId.flatMap { self.pendingRuns.contains($0) } ?? false
+        let isOurRun = chat.runId.map { self.pendingRuns.contains($0) || self.dispatchingRunIDs.contains($0) } ?? false
 
         // Gateway may publish canonical session keys (for example "agent:main:main")
         // even when this view currently uses an alias key (for example "main").
         // Never drop events for our own pending run on key mismatch, or the UI can stay
         // stuck at "thinking" until the user reopens and forces a history reload.
         if let sessionKey = chat.sessionKey,
-           !Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey),
+           !self.sessionKeysMatch(sessionKey, self.sessionKey),
            !isOurRun
         {
             return
@@ -1428,8 +1826,7 @@ public final class AlisioChatViewModel {
             // Keep multiple clients in sync: if another client finishes a run for our session, refresh history.
             switch chat.state {
             case "final", "aborted", "error":
-                self.streamingAssistantText = nil
-                self.pendingToolCallsById = [:]
+                self.clearTerminalTransientReplyState(for: chat.runId)
                 let refreshSessionKey = chat.sessionKey ?? self.sessionKey
                 Task { await self.refreshHistoryAfterRun(sessionKey: refreshSessionKey) }
             default:
@@ -1445,31 +1842,16 @@ public final class AlisioChatViewModel {
             }
             if let runId = chat.runId {
                 self.clearPendingRun(runId)
+                self.clearTerminalTransientReplyState(for: runId)
             } else if self.pendingRuns.count <= 1 {
                 self.clearPendingRuns(reason: nil)
+                self.clearTerminalTransientReplyState(for: nil)
             }
-            self.pendingToolCallsById = [:]
-            self.streamingAssistantText = nil
             let refreshSessionKey = chat.sessionKey ?? self.sessionKey
             Task { await self.refreshHistoryAfterRun(sessionKey: refreshSessionKey) }
         default:
             break
         }
-    }
-
-    private static func matchesCurrentSessionKey(incoming: String, current: String) -> Bool {
-        let incomingNormalized = incoming.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let currentNormalized = current.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if incomingNormalized == currentNormalized {
-            return true
-        }
-        // Common alias pair in operator clients: UI uses "main" while gateway emits canonical.
-        if (incomingNormalized == "agent:main:main" && currentNormalized == "main") ||
-            (incomingNormalized == "main" && currentNormalized == "agent:main:main")
-        {
-            return true
-        }
-        return false
     }
 
     private func handleAgentEvent(_ evt: AlisioAgentEventPayload) {
@@ -1480,6 +1862,7 @@ public final class AlisioChatViewModel {
         switch evt.stream {
         case "assistant":
             if let text = evt.data["text"]?.value as? String {
+                self.streamingAssistantRunID = evt.runId
                 self.streamingAssistantText = text
             }
         case "tool":
@@ -1488,6 +1871,7 @@ public final class AlisioChatViewModel {
             guard let toolCallId = evt.data["toolCallId"]?.value as? String else { return }
             if phase == "start" {
                 let args = evt.data["args"]
+                self.pendingToolCallRunIDsById[toolCallId] = evt.runId
                 self.pendingToolCallsById[toolCallId] = AlisioChatPendingToolCall(
                     toolCallId: toolCallId,
                     name: name,
@@ -1495,11 +1879,79 @@ public final class AlisioChatViewModel {
                     startedAt: evt.ts.map(Double.init) ?? Date().timeIntervalSince1970 * 1000,
                     isError: nil)
             } else if phase == "result" {
-                self.pendingToolCallsById[toolCallId] = nil
+                self.removePendingToolCall(toolCallId)
             }
         default:
             break
         }
+    }
+
+    private func clearTransientReplyState(for runId: String?) {
+        if let runId {
+            if self.streamingAssistantRunID == runId {
+                self.streamingAssistantRunID = nil
+                self.streamingAssistantText = nil
+            }
+            let matchingToolCallIDs = self.pendingToolCallRunIDsById.compactMap { toolCallId, toolRunId in
+                toolRunId == runId ? toolCallId : nil
+            }
+            for toolCallId in matchingToolCallIDs {
+                self.removePendingToolCall(toolCallId)
+            }
+            return
+        }
+
+        self.streamingAssistantRunID = nil
+        self.streamingAssistantText = nil
+        self.pendingToolCallRunIDsById.removeAll()
+        self.pendingToolCallsById = [:]
+    }
+
+    private func hasTransientReplyState(for runId: String) -> Bool {
+        self.streamingAssistantRunID == runId || self.pendingToolCallRunIDsById.values.contains(runId)
+    }
+
+    private func clearTerminalTransientReplyState(for runId: String?) {
+        if let runId, self.hasTransientReplyState(for: runId) {
+            self.clearTransientReplyState(for: runId)
+            return
+        }
+        if self.pendingRunCount == 0 {
+            self.clearTransientReplyState(for: nil)
+        }
+    }
+
+    private func removePendingToolCall(_ toolCallId: String) {
+        self.pendingToolCallRunIDsById.removeValue(forKey: toolCallId)
+        self.pendingToolCallsById[toolCallId] = nil
+    }
+
+    private func moveAbortRequest(from previousRunId: String, to nextRunId: String) {
+        guard previousRunId != nextRunId else { return }
+        guard self.abortRequestedRunIDs.remove(previousRunId) != nil else { return }
+        self.abortRequestedRunIDs.insert(nextRunId)
+    }
+
+    @discardableResult
+    private func requestAbort(for runId: String, reportFailure: Bool) async -> Bool {
+        guard self.pendingRuns.contains(runId) else { return false }
+        do {
+            try await self.transport.abortRun(sessionKey: self.sessionKey, runId: runId)
+            self.errorText = nil
+            return true
+        } catch {
+            self.abortRequestedRunIDs.remove(runId)
+            if reportFailure {
+                self.errorText = "The reply could not be stopped. Try again."
+            }
+            chatUILogger.error("chat.abort failed \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    private func issueDeferredAbortIfNeeded(for runId: String) async {
+        guard self.abortRequestedRunIDs.contains(runId) else { return }
+        _ = await self.requestAbort(for: runId, reportFailure: true)
     }
 
     private func acceptsAgentEvent(_ evt: AlisioAgentEventPayload) -> Bool {
@@ -1510,7 +1962,7 @@ public final class AlisioChatViewModel {
         if let eventSessionKey = evt.sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines),
            !eventSessionKey.isEmpty
         {
-            return Self.matchesCurrentSessionKey(incoming: eventSessionKey, current: self.sessionKey) || isKnownRun
+            return self.sessionKeysMatch(eventSessionKey, self.sessionKey) || isKnownRun
         }
 
         return isKnownRun
@@ -1519,7 +1971,7 @@ public final class AlisioChatViewModel {
     private func refreshHistoryAfterRun(sessionKey rawSessionKey: String) async {
         let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sessionKey.isEmpty else { return }
-        let previousMessages = if Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey) {
+        let previousMessages = if self.sessionKeysMatch(sessionKey, self.sessionKey) {
             self.messages
         } else {
             self.cachedStatesBySession[sessionKey]?.messages ?? []
@@ -1530,7 +1982,7 @@ public final class AlisioChatViewModel {
                 previous: previousMessages,
                 incoming: Self.decodeMessages(payload.messages ?? []))
 
-            if Self.matchesCurrentSessionKey(incoming: sessionKey, current: self.sessionKey) {
+            if self.sessionKeysMatch(sessionKey, self.sessionKey) {
                 self.messages = refreshedMessages
                 self.sessionId = payload.sessionId
                 self.hasLoadedHistory = true
@@ -1568,6 +2020,7 @@ public final class AlisioChatViewModel {
                 guard let self else { return }
                 guard self.pendingRuns.contains(runId) else { return }
                 self.clearPendingRun(runId)
+                self.clearTerminalTransientReplyState(for: runId)
                 self.errorText = "Timed out waiting for a reply; try again or refresh."
             }
         }
@@ -1575,12 +2028,15 @@ public final class AlisioChatViewModel {
 
     private func clearPendingRun(_ runId: String) {
         self.pendingRuns.remove(runId)
+        self.dispatchingRunIDs.remove(runId)
+        self.abortRequestedRunIDs.remove(runId)
         self.pendingRunTimeoutTasks[runId]?.cancel()
         self.pendingRunTimeoutTasks[runId] = nil
     }
 
     private func clearPendingRuns(reason: String?) {
         self.dispatchingRunIDs.removeAll()
+        self.abortRequestedRunIDs.removeAll()
         for runId in self.pendingRuns {
             self.pendingRunTimeoutTasks[runId]?.cancel()
         }
@@ -1674,7 +2130,7 @@ public final class AlisioChatViewModel {
         for url in urls {
             do {
                 let data = try await Task.detached { try Data(contentsOf: url) }.value
-                await self.addImageAttachment(
+                await self.addAttachment(
                     url: url,
                     data: data,
                     fileName: url.lastPathComponent,
@@ -1695,7 +2151,7 @@ public final class AlisioChatViewModel {
         return (UTType(filenameExtension: ext) ?? .data).preferredMIMEType
     }
 
-    private func addImageAttachment(url: URL?, data: Data, fileName: String, mimeType: String) async {
+    private func addAttachment(url: URL?, data: Data, fileName: String, mimeType: String) async {
         if data.count > 5_000_000 {
             self.errorText = "Attachment \(fileName) exceeds 5 MB limit"
             return
@@ -1707,18 +2163,15 @@ public final class AlisioChatViewModel {
             }
             return UTType(mimeType: mimeType) ?? .data
         }()
-        guard uti.conforms(to: .image) else {
-            self.errorText = "Only image attachments are supported right now"
-            return
-        }
-
-        let preview = Self.previewImage(data: data)
+        let isImageAttachment = uti.conforms(to: .image)
+        let preview = isImageAttachment ? Self.previewImage(data: data) : nil
         self.attachments.append(
             AlisioPendingAttachment(
                 url: url,
                 data: data,
                 fileName: fileName,
                 mimeType: mimeType,
+                type: isImageAttachment ? "image" : "file",
                 preview: preview))
     }
 
@@ -1790,6 +2243,7 @@ private struct PreviewChatTransport: AlisioChatTransport {
     func setSessionThinking(sessionKey _: String, thinkingLevel _: String) async throws {}
     func requestHealth(timeoutMs _: Int) async throws -> Bool { true }
     func events() -> AsyncStream<AlisioChatTransportEvent> { AsyncStream { _ in } }
+    func deleteSession(sessionKey _: String) async throws {}
 }
 
 extension AlisioChatViewModel {

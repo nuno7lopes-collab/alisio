@@ -5,7 +5,6 @@ import AlisioSupport
 // nix-alisio writes app defaults into this suite to survive app bundle identifier churn.
 let launchdLabel = AlisioBrand.launchdLabel
 let gatewayLaunchdLabel = AlisioBrand.gatewayLaunchdLabel
-let macSetupCompletedKey = AlisioBrand.defaultsPrefix + "macSetupCompleted"
 let pauseDefaultsKey = AlisioBrand.defaultsPrefix + "pauseEnabled"
 let iconAnimationsEnabledKey = AlisioBrand.defaultsPrefix + "iconAnimationsEnabled"
 let swabbleEnabledKey = AlisioBrand.defaultsPrefix + "swabbleEnabled"

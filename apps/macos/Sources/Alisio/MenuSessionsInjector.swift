@@ -26,6 +26,8 @@ final class MenuSessionsInjector: NSObject, NSMenuDelegate {
     private var cachedSnapshot: SessionStoreSnapshot?
     private var cachedErrorText: String?
     private var cacheUpdatedAt: Date?
+    private var nextCacheRequestID: UInt64 = 0
+    private var activeCacheRequestID: UInt64 = 0
     private let refreshIntervalSeconds: TimeInterval = 12
     private var cachedUsageSummary: GatewayUsageSummary?
     private var cachedUsageErrorText: String?
@@ -161,7 +163,7 @@ extension MenuSessionsInjector {
     // MARK: - Injection
 
     private var mainSessionKey: String {
-        WorkActivityStore.shared.mainSessionKey
+        self.cachedSnapshot?.defaults.mainSessionKey ?? WorkActivityStore.shared.mainSessionKey
     }
 
     private func inject(into menu: NSMenu) {
@@ -181,15 +183,17 @@ extension MenuSessionsInjector {
 
         if let snapshot = self.cachedSnapshot {
             let now = Date()
-            let mainKey = self.mainSessionKey
+            let mainKey = snapshot.defaults.mainSessionKey
+            var seen = Set<String>()
             let rows = snapshot.rows.filter { row in
-                if row.key == "main", mainKey != "main" { return false }
-                if row.key == mainKey { return true }
+                let identity = AlisioChatSessionIdentity.identityKey(for: row.key, mainSessionKey: mainKey)
+                guard seen.insert(identity).inserted else { return false }
+                if row.isMainSession(mainSessionKey: mainKey) { return true }
                 guard let updatedAt = row.updatedAt else { return false }
                 return now.timeIntervalSince(updatedAt) <= self.activeWindowSeconds
             }.sorted { lhs, rhs in
-                if lhs.key == mainKey { return true }
-                if rhs.key == mainKey { return false }
+                if lhs.isMainSession(mainSessionKey: mainKey) { return true }
+                if rhs.isMainSession(mainSessionKey: mainKey) { return false }
                 return (lhs.updatedAt ?? .distantPast) > (rhs.updatedAt ?? .distantPast)
             }
             if !rows.isEmpty {
@@ -228,7 +232,10 @@ extension MenuSessionsInjector {
                     item.isEnabled = true
                     item.submenu = self.buildSubmenu(for: row, storePath: snapshot.storePath)
                     item.view = self.makeHostedView(
-                        rootView: AnyView(SessionMenuLabelView(row: row, width: width)),
+                        rootView: AnyView(SessionMenuLabelView(
+                            row: row,
+                            width: width,
+                            mainSessionKey: mainKey)),
                         width: width,
                         highlighted: true)
                     menu.insertItem(item, at: cursor)
@@ -672,11 +679,13 @@ extension MenuSessionsInjector {
     // MARK: - Cache
 
     private func refreshCache(force: Bool) async {
+        let requestID = self.beginCacheRequest()
         if !force, let updated = self.cacheUpdatedAt, Date().timeIntervalSince(updated) < self.refreshIntervalSeconds {
             return
         }
 
         guard self.isControlChannelConnected else {
+            guard self.shouldApplyCacheResponse(requestID: requestID) else { return }
             if self.cachedSnapshot != nil {
                 self.cachedErrorText = "Gateway disconnected (showing cached)"
             } else {
@@ -687,14 +696,30 @@ extension MenuSessionsInjector {
         }
 
         do {
-            self.cachedSnapshot = try await SessionLoader.loadSnapshot(limit: 32)
+            let snapshot = try await SessionLoader.loadSnapshot(limit: 32)
+            guard self.shouldApplyCacheResponse(requestID: requestID) else { return }
+            self.cachedSnapshot = snapshot
             self.cachedErrorText = nil
             self.cacheUpdatedAt = Date()
         } catch {
-            self.cachedSnapshot = nil
-            self.cachedErrorText = self.compactError(error)
+            guard self.shouldApplyCacheResponse(requestID: requestID) else { return }
+            if self.cachedSnapshot != nil {
+                self.cachedErrorText = "\(self.compactError(error)) (showing cached)"
+            } else {
+                self.cachedErrorText = self.compactError(error)
+            }
             self.cacheUpdatedAt = Date()
         }
+    }
+
+    private func beginCacheRequest() -> UInt64 {
+        self.nextCacheRequestID &+= 1
+        self.activeCacheRequestID = self.nextCacheRequestID
+        return self.activeCacheRequestID
+    }
+
+    private func shouldApplyCacheResponse(requestID: UInt64) -> Bool {
+        requestID == self.activeCacheRequestID
     }
 
     private func refreshUsageCache(force: Bool) async {
@@ -822,7 +847,7 @@ extension MenuSessionsInjector {
         compact.representedObject = row.key
         menu.addItem(compact)
 
-        if row.key != self.mainSessionKey, row.key != "global" {
+        if !row.isMainSession(mainSessionKey: self.mainSessionKey), row.key != "global" {
             let del = NSMenuItem(title: "Delete Session", action: #selector(self.deleteSession(_:)), keyEquivalent: "")
             del.target = self
             del.representedObject = row.key

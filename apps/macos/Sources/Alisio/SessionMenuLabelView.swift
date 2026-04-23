@@ -8,6 +8,7 @@ extension EnvironmentValues {
 struct SessionMenuLabelView: View {
     let row: SessionRow
     let width: CGFloat
+    let mainSessionKey: String
     @Environment(\.menuItemHighlighted) private var isHighlighted
     private let paddingLeading: CGFloat = 22
     private let paddingTrailing: CGFloat = 14
@@ -22,8 +23,8 @@ struct SessionMenuLabelView: View {
                 height: self.barHeight)
 
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(self.row.label)
-                    .font(.caption.weight(self.row.key == "main" ? .semibold : .regular))
+                Text(self.row.displayLabel(mainSessionKey: self.mainSessionKey))
+                    .font(.caption.weight(self.row.isMainSession(mainSessionKey: self.mainSessionKey) ? .semibold : .regular))
                     .foregroundStyle(MenuItemHighlightColors.primary(self.isHighlighted))
                     .lineLimit(1)
                     .truncationMode(.middle)

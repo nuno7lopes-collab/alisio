@@ -134,14 +134,13 @@ struct AlisioChatComposer: View {
 
     private var sessionPicker: some View {
         Picker(
-            "Session",
+            "Chat",
             selection: Binding(
                 get: { self.viewModel.sessionKey },
                 set: { next in self.viewModel.switchSession(to: next) }))
         {
             ForEach(self.viewModel.sessionChoices, id: \.key) { session in
-                Text(session.displayName ?? session.key)
-                    .font(.system(.caption, design: .monospaced))
+                Text(self.viewModel.sessionTitle(for: session))
                     .tag(session.key)
             }
         }
@@ -149,7 +148,7 @@ struct AlisioChatComposer: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .frame(maxWidth: 160, alignment: .leading)
-        .help("Session")
+        .help("Chat")
     }
 
     @ViewBuilder
@@ -191,7 +190,7 @@ struct AlisioChatComposer: View {
                                 .frame(width: 22, height: 22)
                                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         } else {
-                            Image(systemName: "photo")
+                            Image(systemName: att.type == "image" ? "photo" : "doc.fill")
                         }
 
                         Text(att.fileName)
@@ -229,10 +228,7 @@ struct AlisioChatComposer: View {
 
             HStack(alignment: .center, spacing: 8) {
                 if self.style == .alisio {
-                    HStack(spacing: 14) {
-                        self.alisioAttachmentButton
-                        self.alisioMentionButton
-                    }
+                    self.alisioLeadingControls
                 } else if self.showsConnectionPill {
                     self.connectionPill
                 }
@@ -268,16 +264,59 @@ struct AlisioChatComposer: View {
         .clipShape(Capsule())
     }
 
+    private var alisioLeadingControls: some View {
+        HStack(spacing: 10) {
+            self.alisioAttachmentButton
+            self.alisioBadge(systemName: "cpu", text: self.viewModel.activeModelLabel)
+            if let status = self.alisioRuntimeStatus {
+                self.alisioBadge(systemName: status.icon, text: status.label, tint: status.tint)
+            }
+        }
+    }
+
+    private var alisioRuntimeStatus: (icon: String, label: String, tint: Color)? {
+        switch self.viewModel.connectionPhase {
+        case .bootstrapping, .loading:
+            return ("arrow.triangle.2.circlepath", "Loading", Color(chatHex: 0x8F95A3))
+        case .reconnecting:
+            return ("wifi.exclamationmark", "Reconnecting", Color(chatHex: 0xE0A04B))
+        case .firstMessage:
+            return ("hourglass", "Warming up", Color(chatHex: 0xE0A04B))
+        case .ready:
+            if self.viewModel.pendingRunCount > 0 {
+                return ("ellipsis.bubble", "Responding", Color(chatHex: 0x8F95A3))
+            }
+            return nil
+        }
+    }
+
+    private func alisioBadge(systemName: String, text: String, tint: Color = Color(chatHex: 0x8F95A3)) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .semibold))
+            Text(text)
+                .lineLimit(1)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            Capsule()
+                .fill(Color(chatHex: 0x17191E))
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
+    }
+
     private var activeSessionLabel: String {
-        let match = self.viewModel.sessions.first { $0.key == self.viewModel.sessionKey }
-        let trimmed = match?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? self.viewModel.sessionKey : trimmed
+        self.viewModel.currentSessionTitle
     }
 
     private var editorOverlay: some View {
         ZStack(alignment: .topLeading) {
             if self.viewModel.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(self.style == .alisio ? "Message Alisio…" : "Message Alisio…")
+                Text(self.style == .alisio ? "Ask Alisio anything" : "Message Alisio…")
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 4)
@@ -291,7 +330,7 @@ struct AlisioChatComposer: View {
                     self.viewModel.send()
                 },
                 onPasteImageAttachment: { data, fileName, mimeType in
-                    self.viewModel.addImageAttachment(data: data, fileName: fileName, mimeType: mimeType)
+                    self.viewModel.addAttachment(data: data, fileName: fileName, mimeType: mimeType)
                 })
             .frame(minHeight: self.textMinHeight, idealHeight: self.textMinHeight, maxHeight: self.textMaxHeight)
             .padding(.horizontal, 4)
@@ -345,7 +384,11 @@ struct AlisioChatComposer: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
                 .padding(self.style == .alisio ? 9 : 6)
-                .background(Circle().fill(self.style == .alisio ? Color(chatHex: 0x272A32) : Color.accentColor))
+                .background(
+                    Circle().fill(
+                        self.style == .alisio
+                            ? (self.viewModel.canSend ? Color.accentColor : Color(chatHex: 0x272A32))
+                            : Color.accentColor))
                 .disabled(!self.viewModel.canSend)
             }
         }
@@ -435,19 +478,6 @@ struct AlisioChatComposer: View {
         #endif
     }
 
-    private var alisioMentionButton: some View {
-        Image(systemName: "at")
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Color(chatHex: 0x8F95A3))
-            .frame(width: 28, height: 28)
-            .background(
-                Circle()
-                    .fill(Color(chatHex: 0x17191E))
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
-    }
-
     #if os(macOS)
     private func pickFilesMac() {
         let panel = NSOpenPanel()
@@ -484,7 +514,7 @@ struct AlisioChatComposer: View {
                 let ext = type.preferredFilenameExtension ?? "jpg"
                 let mime = type.preferredMIMEType ?? "image/jpeg"
                 let name = "photo-\(UUID().uuidString.prefix(8)).\(ext)"
-                self.viewModel.addImageAttachment(data: data, fileName: name, mimeType: mime)
+                self.viewModel.addAttachment(data: data, fileName: name, mimeType: mime)
             } catch {
                 self.viewModel.errorText = error.localizedDescription
             }

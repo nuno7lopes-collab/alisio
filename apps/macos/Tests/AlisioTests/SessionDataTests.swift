@@ -85,4 +85,28 @@ struct SessionDataTests {
         #expect(row.label == "Derived Title")
         #expect(row.previewText == "Most recent reply")
     }
+
+    @Test func `session row can resolve canonical main session title`() {
+        let row = SessionRow(
+            id: "main",
+            key: "agent:main:main",
+            kind: .direct,
+            labelOverride: nil,
+            displayName: nil,
+            derivedTitle: nil,
+            lastMessagePreview: nil,
+            subject: nil,
+            room: nil,
+            space: nil,
+            updatedAt: nil,
+            sessionId: nil,
+            thinkingLevel: nil,
+            verboseLevel: nil,
+            systemSent: false,
+            abortedLastRun: false,
+            tokens: SessionTokenStats(input: 0, output: 0, total: 0, contextTokens: 200_000),
+            model: nil)
+        #expect(row.displayLabel(mainSessionKey: "agent:main:main") == "Main chat")
+        #expect(row.isMainSession(mainSessionKey: "agent:main:main"))
+    }
 }

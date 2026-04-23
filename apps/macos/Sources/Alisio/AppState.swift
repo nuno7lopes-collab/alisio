@@ -5,6 +5,14 @@ import ServiceManagement
 import SwiftUI
 
 import AlisioSupport
+
+struct AppRuntimeReadinessSnapshot: Equatable {
+    let gatewayStatus: GatewayEnvironmentStatus?
+    let remoteProbeResult: RemoteGatewayProbeResult?
+
+    static let pending = Self(gatewayStatus: nil, remoteProbeResult: nil)
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -41,12 +49,6 @@ final class AppState {
         didSet {
             guard !self.isInitializing else { return }
             self.ifNotPreview { Task { AppStateStore.updateLaunchAtLogin(enabled: self.launchAtLogin) } }
-        }
-    }
-
-    var macSetupCompleted: Bool {
-        didSet {
-            self.ifNotPreview { UserDefaults.standard.set(self.macSetupCompleted, forKey: macSetupCompletedKey) }
         }
     }
 
@@ -202,9 +204,6 @@ final class AppState {
     var connectionMode: ConnectionMode {
         didSet {
             self.ifNotPreview { UserDefaults.standard.set(self.connectionMode.rawValue, forKey: connectionModeKey) }
-            if !self.isInitializing, oldValue != self.connectionMode {
-                self.markMacSetupNeedsReview()
-            }
             self.syncGatewayConfigIfNeeded()
         }
     }
@@ -263,10 +262,6 @@ final class AppState {
     private(set) var remoteTokenDirty = false
     private(set) var remoteTokenUnsupported = false
 
-    var requiresMacSetup: Bool {
-        self.connectionMode == .unconfigured || !self.macSetupCompleted
-    }
-
     var remoteIdentity: String {
         didSet { self.ifNotPreview { UserDefaults.standard.set(self.remoteIdentity, forKey: remoteIdentityKey) } }
     }
@@ -280,14 +275,13 @@ final class AppState {
     }
 
     private var earBoostTask: Task<Void, Never>?
+    var runtimeReadinessOverride: AppRuntimeReadinessSnapshot?
 
     init(preview: Bool = false) {
         let isPreview = preview || ProcessInfo.processInfo.isRunningTests
         self.isPreview = isPreview
-        let macSetupCompleted = UserDefaults.standard.bool(forKey: macSetupCompletedKey)
         self.isPaused = UserDefaults.standard.bool(forKey: pauseDefaultsKey)
         self.launchAtLogin = false
-        self.macSetupCompleted = macSetupCompleted
         self.debugPaneEnabled = UserDefaults.standard.bool(forKey: debugPaneEnabledKey)
         let savedVoiceWake = UserDefaults.standard.bool(forKey: swabbleEnabledKey)
         self.swabbleEnabled = voiceWakeSupported ? savedVoiceWake : false
@@ -358,6 +352,7 @@ final class AppState {
         self.remoteProjectRoot = UserDefaults.standard.string(forKey: remoteProjectRootKey) ?? ""
         self.remoteCliPath = UserDefaults.standard.string(forKey: remoteCliPathKey) ?? ""
         self.canvasEnabled = UserDefaults.standard.object(forKey: canvasEnabledKey) as? Bool ?? true
+        self.runtimeReadinessOverride = nil
         let execDefaults = ExecApprovalsStore.resolveDefaults()
         self.execApprovalMode = ExecApprovalQuickMode.from(security: execDefaults.security, ask: execDefaults.ask)
         self.peekabooBridgeEnabled = UserDefaults.standard
@@ -760,13 +755,42 @@ final class AppState {
         self.isWorking = working
     }
 
-    func completeMacSetup() {
-        self.macSetupCompleted = true
+    func initialRuntimeReadinessSnapshot() -> AppRuntimeReadinessSnapshot {
+        self.runtimeReadinessOverride ?? .pending
     }
 
-    func markMacSetupNeedsReview() {
-        guard self.macSetupCompleted else { return }
-        self.macSetupCompleted = false
+    func runtimeReadinessState(from snapshot: AppRuntimeReadinessSnapshot) -> MacSetupRuntimeState {
+        MacSetupEvaluator.runtime(
+            connectionMode: self.connectionMode,
+            gatewayStatus: snapshot.gatewayStatus,
+            remoteProbe: snapshot.remoteProbeResult)
+    }
+
+    func initialRuntimeReadinessState() -> MacSetupRuntimeState {
+        self.runtimeReadinessState(from: self.initialRuntimeReadinessSnapshot())
+    }
+
+    func refreshRuntimeReadinessSnapshot() async -> AppRuntimeReadinessSnapshot {
+        if let runtimeReadinessOverride {
+            return runtimeReadinessOverride
+        }
+
+        switch self.connectionMode {
+        case .unconfigured:
+            return .pending
+        case .local:
+            let gatewayStatus = await Task.detached(priority: .utility) {
+                GatewayEnvironment.check()
+            }.value
+            return AppRuntimeReadinessSnapshot(gatewayStatus: gatewayStatus, remoteProbeResult: nil)
+        case .remote:
+            let remoteProbeResult = await RemoteGatewayProbe.run()
+            return AppRuntimeReadinessSnapshot(gatewayStatus: nil, remoteProbeResult: remoteProbeResult)
+        }
+    }
+
+    func refreshRuntimeReadinessState() async -> MacSetupRuntimeState {
+        self.runtimeReadinessState(from: await self.refreshRuntimeReadinessSnapshot())
     }
 
     // MARK: - Chime persistence
@@ -790,7 +814,6 @@ extension AppState {
         let state = AppState(preview: true)
         state.isPaused = false
         state.launchAtLogin = true
-        state.macSetupCompleted = true
         state.debugPaneEnabled = true
         state.swabbleEnabled = true
         state.swabbleTriggerWords = ["Claude", "Computer", "Jarvis"]
@@ -815,6 +838,14 @@ extension AppState {
         state.remoteIdentity = "~/.ssh/id_ed25519"
         state.remoteProjectRoot = "~/Projects/alisio"
         state.remoteCliPath = ""
+        state.runtimeReadinessOverride = AppRuntimeReadinessSnapshot(
+            gatewayStatus: GatewayEnvironmentStatus(
+                kind: .ok,
+                nodeVersion: "22.16.0",
+                gatewayVersion: "preview",
+                requiredGateway: "preview",
+                message: "Preview runtime ready"),
+            remoteProbeResult: nil)
         return state
     }
 }

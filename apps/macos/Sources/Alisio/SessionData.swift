@@ -56,24 +56,50 @@ struct SessionRow: Identifiable {
     let tokens: SessionTokenStats
     let model: String?
 
+    private var sessionEntry: AlisioChatSessionEntry {
+        AlisioChatSessionEntry(
+            key: self.key,
+            kind: self.kind.storageValue,
+            label: self.labelOverride,
+            displayName: self.displayName,
+            derivedTitle: self.derivedTitle,
+            lastMessagePreview: self.lastMessagePreview,
+            surface: nil,
+            subject: self.subject,
+            room: self.room,
+            space: self.space,
+            updatedAt: self.updatedAt.map { $0.timeIntervalSince1970 * 1000 },
+            sessionId: self.sessionId,
+            systemSent: self.systemSent,
+            abortedLastRun: self.abortedLastRun,
+            thinkingLevel: self.thinkingLevel,
+            verboseLevel: self.verboseLevel,
+            inputTokens: self.tokens.input,
+            outputTokens: self.tokens.output,
+            totalTokens: self.tokens.total,
+            modelProvider: nil,
+            model: self.model,
+            contextTokens: self.tokens.contextTokens)
+    }
+
     var ageText: String {
         relativeAge(from: self.updatedAt)
     }
 
     var label: String {
-        self.derivedTitle ?? self.displayName ?? self.labelOverride ?? self.key
+        self.displayLabel(mainSessionKey: nil)
+    }
+
+    func displayLabel(mainSessionKey: String?) -> String {
+        AlisioChatSessionPresentation.title(for: self.sessionEntry, mainSessionKey: mainSessionKey)
     }
 
     var previewText: String? {
-        let trimmedPreview = self.lastMessagePreview?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmedPreview, !trimmedPreview.isEmpty {
-            return trimmedPreview
-        }
-        let trimmedSubject = self.subject?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let trimmedSubject, !trimmedSubject.isEmpty {
-            return trimmedSubject
-        }
-        return nil
+        AlisioChatSessionPresentation.previewText(for: self.sessionEntry)
+    }
+
+    func isMainSession(mainSessionKey: String?) -> Bool {
+        AlisioChatSessionPresentation.isMain(self.sessionEntry, mainSessionKey: mainSessionKey)
     }
 
     var flagLabels: [String] {
@@ -115,11 +141,21 @@ enum SessionKind {
         case .unknown: .gray
         }
     }
+
+    var storageValue: String {
+        switch self {
+        case .direct: "direct"
+        case .group: "group"
+        case .global: "global"
+        case .unknown: "unknown"
+        }
+    }
 }
 
 struct SessionDefaults {
     let model: String
     let contextTokens: Int
+    let mainSessionKey: String
 }
 
 struct ModelChoice: Identifiable, Hashable, Codable {
@@ -195,7 +231,8 @@ enum SessionLoader {
 
         let defaults = SessionDefaults(
             model: payload.defaults?.model ?? self.fallbackModel,
-            contextTokens: payload.defaults?.contextTokens ?? self.fallbackContextTokens)
+            contextTokens: payload.defaults?.contextTokens ?? self.fallbackContextTokens,
+            mainSessionKey: AlisioChatSessionIdentity.resolvedMainSessionKey(from: payload.defaults))
 
         let rows = payload.sessions.map { entry -> SessionRow in
             let updated = entry.updatedAt.map { Date(timeIntervalSince1970: $0 / 1000) }

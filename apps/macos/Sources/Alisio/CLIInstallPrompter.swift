@@ -38,7 +38,6 @@ final class CLIInstallPrompter {
 
     private func shouldPrompt() -> Bool {
         guard !self.isPrompting else { return false }
-        guard AppStateStore.shared.macSetupCompleted else { return false }
         guard AppStateStore.shared.connectionMode == .local else { return false }
         guard CommandResolver.bundledPackageRoot() == nil else { return false }
         guard CLIInstaller.installedLocation() == nil else { return false }

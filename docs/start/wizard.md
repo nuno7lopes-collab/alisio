@@ -1,5 +1,5 @@
 ---
-summary: "CLI onboarding: guided setup for the shared backend, workspace, channels, and skills"
+summary: "CLI setup for the shared backend, workspace, channels, and skills"
 read_when:
   - Running or configuring CLI onboarding
   - Setting up a new machine
@@ -9,17 +9,17 @@ sidebarTitle: "Onboarding: CLI"
 
 # Onboarding (CLI)
 
-CLI onboarding is the secondary setup path.
+`alisio onboard` is the runtime-first CLI flow.
 Use it when you are intentionally configuring the shared backend, a server,
-Linux, or Windows via WSL2. For the product path on a Mac, start with the
-macOS app instead.
+Linux, or Windows via WSL2. On macOS, account entry and the main workspace live
+in the app; use the CLI when you want terminal-led runtime or operator work.
 
 ```bash
 alisio onboard
 ```
 
 <Info>
-Fastest first chat from CLI onboarding: open the TUI with `alisio tui`.
+Fastest first chat after CLI setup: open the TUI with `alisio tui`.
 </Info>
 
 To reconfigure later:
@@ -34,7 +34,7 @@ alisio agents add <name>
 </Note>
 
 <Tip>
-CLI onboarding includes a web search step where you can pick a provider
+The CLI flow includes a web search step where you can pick a provider
 (Perplexity, Brave, Gemini, Grok, or Kimi) and paste your API key so the agent
 can use `web_search`. You can also configure this later with
 `alisio configure --section web`. Docs: [Web tools](/tools/web).
@@ -42,7 +42,8 @@ can use `web_search`. You can also configure this later with
 
 ## QuickStart vs Advanced
 
-Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
+The CLI flow starts with **QuickStart** (defaults) vs **Advanced** (full
+control).
 
 <Tabs>
   <Tab title="QuickStart (defaults)">
@@ -60,7 +61,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
   </Tab>
 </Tabs>
 
-## What onboarding configures
+## What The CLI Flow Configures
 
 **Local mode (default)** walks you through these steps:
 
@@ -70,7 +71,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
    For non-interactive runs, `--secret-input-mode ref` stores env-backed refs in auth profiles instead of plaintext API key values.
    In non-interactive `ref` mode, the provider env var must be set; passing inline key flags without that env var fails fast.
    In interactive runs, choosing secret reference mode lets you point at either an environment variable or a configured provider ref (`file` or `exec`), with a fast preflight validation before saving.
-2. **Workspace** — Location for agent files (default `~/.alisio/workspace`). Seeds bootstrap files.
+2. **Workspace** — Location for agent files (default `~/.alisio/workspace`). Seeds first-run workspace files.
 3. **Backend** — Port, bind address, auth mode, Tailscale exposure.
    In interactive token mode, choose default plaintext token storage or opt into SecretRef.
    Non-interactive token SecretRef path: `--gateway-token-ref-env <ENV_VAR>`.
@@ -86,7 +87,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
 <Note>
 Re-running onboarding does **not** wipe anything unless you explicitly choose **Reset** (or pass `--reset`).
 CLI `--reset` defaults to config, credentials, and sessions; use `--reset-scope full` to include workspace.
-If the config is invalid or contains legacy keys, onboarding asks you to run `alisio doctor` first.
+If the config is invalid or contains legacy keys, the CLI flow asks you to run `alisio doctor` first.
 </Note>
 
 **Remote mode** only configures the local client to connect to a backend elsewhere.
@@ -95,7 +96,8 @@ It does **not** install or change anything on the remote host.
 ## Add another agent
 
 Use `alisio agents add <name>` to create a separate agent with its own workspace,
-sessions, and auth profiles. Running without `--workspace` launches onboarding.
+sessions, and auth profiles. Running without `--workspace` launches the CLI
+flow.
 
 What it sets:
 
@@ -106,7 +108,7 @@ What it sets:
 Notes:
 
 - Default workspaces follow `~/.alisio/workspace-<agentId>`.
-- Add `bindings` to route inbound messages (onboarding can do this).
+- Add `bindings` to route inbound messages (the CLI flow can do this).
 - Non-interactive flags: `--model`, `--agent-dir`, `--bind`, `--non-interactive`.
 
 ## Full reference
@@ -121,5 +123,5 @@ For the deeper technical reference, including RPC details, see
 
 - CLI command reference: [`alisio onboard`](/cli/onboard)
 - Onboarding overview: [Onboarding Overview](/start/onboarding-overview)
-- macOS app setup: [macOS App Setup](/start/onboarding)
+- macOS app flow: [macOS App Setup](/start/onboarding)
 - Agent first-run ritual: [Agent Bootstrapping](/start/bootstrapping)

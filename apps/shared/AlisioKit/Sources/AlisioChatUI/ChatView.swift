@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -35,6 +36,7 @@ public struct AlisioChatView: View {
     private let showsAssistantTrace: Bool
     private let assistantIdentity: AlisioChatAssistantIdentity
     private let autoloadOnAppear: Bool
+    private let headerAccessory: AnyView?
 
     private enum Layout {
         #if os(macOS)
@@ -114,6 +116,14 @@ public struct AlisioChatView: View {
         self.style == .alisio ? 0 : Layout.messageListPaddingHorizontal
     }
 
+    private var contentMaxWidth: CGFloat {
+        self.style == .alisio ? 880 : .infinity
+    }
+
+    private var homeComposerMaxWidth: CGFloat {
+        self.style == .alisio ? 840 : 760
+    }
+
     public init(
         viewModel: AlisioChatViewModel,
         showsSessionSwitcher: Bool = false,
@@ -122,7 +132,8 @@ public struct AlisioChatView: View {
         assistantIdentity: AlisioChatAssistantIdentity = .init(),
         userAccent: Color? = nil,
         showsAssistantTrace: Bool = false,
-        autoloadOnAppear: Bool = true)
+        autoloadOnAppear: Bool = true,
+        headerAccessory: AnyView? = nil)
     {
         self._viewModel = State(initialValue: viewModel)
         self.showsSessionSwitcher = showsSessionSwitcher
@@ -132,6 +143,7 @@ public struct AlisioChatView: View {
         self.userAccent = userAccent
         self.showsAssistantTrace = showsAssistantTrace
         self.autoloadOnAppear = autoloadOnAppear
+        self.headerAccessory = headerAccessory
     }
 
     public var body: some View {
@@ -155,6 +167,7 @@ public struct AlisioChatView: View {
                     self.messageList
                         .padding(.horizontal, self.outerPaddingHorizontal)
                     self.composer
+                        .frame(maxWidth: self.contentMaxWidth)
                         .padding(.horizontal, self.composerPaddingHorizontal)
                 }
             }
@@ -196,29 +209,23 @@ public struct AlisioChatView: View {
 
     private var sessionHeader: some View {
         HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(self.currentSessionTitle)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Text(self.currentSessionSubtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-
-            if self.showsSessionSwitcher {
-                Button {
-                    self.showSessions = true
-                } label: {
-                    Label("Chats", systemImage: "sidebar.left")
+            Group {
+                if self.showsSessionSwitcher {
+                    Button {
+                        self.showSessions = true
+                    } label: {
+                        self.sessionSummaryCard(showsDisclosure: true)
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut("j", modifiers: [.command, .shift])
+                } else {
+                    self.sessionSummaryCard(showsDisclosure: false)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .keyboardShortcut("j", modifiers: [.command, .shift])
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let headerAccessory {
+                headerAccessory
             }
 
             Button {
@@ -229,7 +236,7 @@ public struct AlisioChatView: View {
                         .controlSize(.small)
                         .frame(width: 12, height: 12)
                 } else {
-                    Label("New Chat", systemImage: "square.and.pencil")
+                    Label("New chat", systemImage: "square.and.pencil")
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -238,46 +245,120 @@ public struct AlisioChatView: View {
             .keyboardShortcut("n", modifiers: [.command])
         }
         .padding(.horizontal, self.style == .alisio ? 6 : 0)
-        .padding(.bottom, self.style == .alisio ? 8 : 0)
+        .padding(.bottom, self.style == .alisio ? 12 : 0)
+    }
+
+    private func sessionSummaryCard(showsDisclosure: Bool) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("Current chat")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    if let status = self.currentSessionStatus {
+                        self.headerBadge(status.title, tint: status.tint)
+                    }
+                }
+
+                Text(self.currentSessionTitle)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(self.currentSessionSubtitle)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    if self.isMainSession {
+                        self.headerBadge("Main", tint: Color.accentColor)
+                    } else if self.isFreshSession {
+                        self.headerBadge("Fresh", tint: Color.white.opacity(0.75))
+                    }
+
+                    if let usage = self.viewModel.currentSessionContextUsage {
+                        self.headerBadge("Context \(self.contextUsageLabel(usage))", tint: Color(chatHex: 0x7A8CFF))
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if showsDisclosure {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color(chatHex: 0x15171C))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var centeredHome: some View {
-        VStack(spacing: 22) {
-            Spacer(minLength: 0)
+        VStack(spacing: 24) {
+            Spacer(minLength: 24)
 
-            VStack(spacing: 12) {
-                Text("Start Here")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.primary)
+            VStack(spacing: 24) {
+                VStack(spacing: 10) {
+                    Text(self.homeTitle)
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(.primary)
 
-                Text("Keep your main chat visible, start a clean chat when you need one, and switch between sessions without losing your place.")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 620)
+                    Text(self.homeSubtitle)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 660)
+                }
+
+                self.composer
+                    .frame(maxWidth: self.homeComposerMaxWidth)
+
+                if !self.resumeCandidates.isEmpty {
+                    self.homeResumeSection
+                        .frame(maxWidth: 920)
+                }
 
                 self.homeShortcuts
             }
+            .frame(maxWidth: 920)
 
-            self.composer
-                .frame(maxWidth: 760)
-
-            Spacer(minLength: 0)
+            Spacer(minLength: 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var homeShortcuts: some View {
-        HStack(spacing: 8) {
-            self.homeShortcutLabel(systemImage: "command", text: "Cmd-N New chat")
-            self.homeShortcutLabel(systemImage: "paperplane", text: "Return Send")
-            self.homeShortcutLabel(systemImage: "text.insert", text: "Shift-Return New line")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                self.homeShortcutLabel(text: "Cmd-Shift-J Choose chat")
+                self.homeShortcutLabel(text: "Cmd-N New chat")
+                self.homeShortcutLabel(text: "Return Send")
+                self.homeShortcutLabel(text: "Shift-Return New line")
+            }
+
+            VStack(spacing: 8) {
+                self.homeShortcutLabel(text: "Cmd-Shift-J Choose chat")
+                self.homeShortcutLabel(text: "Cmd-N New chat")
+                self.homeShortcutLabel(text: "Return Send")
+                self.homeShortcutLabel(text: "Shift-Return New line")
+            }
         }
         .frame(maxWidth: .infinity)
     }
 
-    private func homeShortcutLabel(systemImage: String, text: String) -> some View {
-        Label(text, systemImage: systemImage)
+    private func homeShortcutLabel(text: String) -> some View {
+        Text(text)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)
@@ -290,31 +371,188 @@ public struct AlisioChatView: View {
                             .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
     }
 
-    private var currentSessionTitle: String {
-        if let session = self.viewModel.currentSessionEntry {
-            return self.viewModel.sessionTitle(for: session)
+    private var homeTitle: String {
+        "What do you want to do next?"
+    }
+
+    private var homeSubtitle: String {
+        if self.resumeCandidates.contains(where: self.viewModel.isMainSession(_:)) {
+            return "Start something new in this chat, then jump back into your main context whenever you need it."
         }
-        return self.viewModel.sessionKey
+        if !self.resumeCandidates.isEmpty {
+            return "Start fresh here or pick up a recent conversation without losing your place."
+        }
+        return "Use this chat for a focused thread. Your main workspace conversation stays available when you need it."
+    }
+
+    private var homeResumeSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(self.resumeSectionTitle)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Text(self.resumeSectionSubtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            LazyVGrid(columns: self.resumeColumns, spacing: 12) {
+                ForEach(self.resumeCandidates) { session in
+                    self.resumeCard(for: session)
+                }
+            }
+        }
+    }
+
+    private var resumeSectionTitle: String {
+        if self.resumeCandidates.contains(where: self.viewModel.isMainSession(_:)) {
+            return "Resume context"
+        }
+        return "Recent chats"
+    }
+
+    private var resumeSectionSubtitle: String {
+        if self.resumeCandidates.contains(where: self.viewModel.isMainSession(_:)) {
+            return "Jump back into the main chat or keep going in another recent thread."
+        }
+        return "Pick up a recent conversation without losing your place."
+    }
+
+    private var resumeCandidates: [AlisioChatSessionEntry] {
+        Array(self.viewModel.sessionChoices.filter { !self.viewModel.isCurrentSession($0) }.prefix(3))
+    }
+
+    private var resumeColumns: [GridItem] {
+        let count = max(1, min(self.resumeCandidates.count, 3))
+        return Array(repeating: GridItem(.flexible(minimum: 220), spacing: 12, alignment: .top), count: count)
+    }
+
+    private func resumeCard(for session: AlisioChatSessionEntry) -> some View {
+        Button {
+            self.viewModel.switchSession(to: session.key)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(self.viewModel.sessionTitle(for: session))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        if let updatedAt = self.updatedLabel(for: session) {
+                            Text(updatedAt)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if self.viewModel.isMainSession(session) {
+                        self.headerBadge("Main", tint: Color.accentColor)
+                    }
+                }
+
+                Text(self.viewModel.sessionSummary(for: session))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+
+                if let usage = AlisioChatSessionContextUsage(session: session) {
+                    self.headerBadge("Context \(self.contextUsageLabel(usage))", tint: Color(chatHex: 0x7A8CFF))
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(chatHex: 0x14161A))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
+        .disabled(!self.viewModel.canSwitchSessions)
+    }
+
+    private func headerBadge(_ title: String, tint: Color) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.14))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .strokeBorder(tint.opacity(0.18), lineWidth: 1)))
+    }
+
+    private var currentSessionTitle: String {
+        self.viewModel.currentSessionTitle
     }
 
     private var currentSessionSubtitle: String {
-        var parts: [String] = []
-        if let session = self.viewModel.currentSessionEntry {
-            parts.append(self.viewModel.isMainSession(session) ? "Main chat" : "Secondary chat")
-            if let preview = self.viewModel.sessionPreviewText(for: session) {
-                parts.append(preview)
-            }
-        } else {
-            parts.append("Choose a chat or start a new one.")
-        }
+        self.viewModel.currentSessionSubtitle
+    }
 
+    private var currentSessionStatus: (title: String, tint: Color)? {
+        if self.viewModel.connectionPhase == .reconnecting {
+            return ("Reconnecting", Color(chatHex: 0xF0A245))
+        }
         if self.viewModel.connectionPhase == .firstMessage {
-            parts.append("First reply is warming up.")
-        } else if self.viewModel.connectionPhase == .reconnecting {
-            parts.append("Reconnecting.")
+            return ("Preparing reply", Color(chatHex: 0x7A8CFF))
+        }
+        if !self.viewModel.pendingToolCalls.isEmpty || self.viewModel.pendingRunCount > 0 {
+            return ("Working", Color(chatHex: 0x7A8CFF))
+        }
+        return nil
+    }
+
+    private var isMainSession: Bool {
+        guard let session = self.viewModel.currentSessionEntry else {
+            return self.viewModel.isMainSessionKey(self.viewModel.sessionKey)
+        }
+        return self.viewModel.isMainSession(session)
+    }
+
+    private var isFreshSession: Bool {
+        guard let session = self.viewModel.currentSessionEntry else {
+            return self.viewModel.messages.isEmpty
+        }
+        return self.viewModel.isCurrentSession(session) && session.updatedAt == nil && session.sessionId == nil
+    }
+
+    private func updatedLabel(for session: AlisioChatSessionEntry) -> String? {
+        guard let updatedAt = session.updatedAt, updatedAt > 0 else { return nil }
+        return Date(timeIntervalSince1970: updatedAt / 1000).formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func contextUsageLabel(_ usage: AlisioChatSessionContextUsage) -> String {
+        let used = Self.formatCompactTokenCount(usage.totalTokens)
+        let total = usage.contextWindow > 0 ? Self.formatCompactTokenCount(usage.contextWindow) : "?"
+        return "\(used)/\(total)"
+    }
+
+    private static func formatCompactTokenCount(_ value: Int) -> String {
+        guard value >= 1_000 else { return "\(value)" }
+
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = value >= 100_000 ? 0 : 1
+
+        if value >= 1_000_000 {
+            let short = formatter.string(from: NSNumber(value: Double(value) / 1_000_000)) ?? "\(value)"
+            return "\(short)M"
         }
 
-        return parts.joined(separator: " · ")
+        let short = formatter.string(from: NSNumber(value: Double(value) / 1_000)) ?? "\(value)"
+        return "\(short)k"
     }
 
     private var messageList: some View {
@@ -333,6 +571,8 @@ public struct AlisioChatView: View {
                 }
                 // Use scroll targets for stable auto-scroll without ScrollViewReader relayout glitches.
                 .scrollTargetLayout()
+                .frame(maxWidth: self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
                 .padding(.top, self.messageListPaddingTop)
                 .padding(.horizontal, self.messageListPaddingHorizontal)
             }
@@ -479,7 +719,7 @@ public struct AlisioChatView: View {
                         title: presentation.title,
                         message: error,
                         tint: presentation.tint,
-                        dismiss: { self.viewModel.errorText = nil },
+                        dismiss: { self.viewModel.dismissError() },
                         refresh: { self.viewModel.refresh() })
                     Spacer(minLength: 0)
                 }
@@ -511,13 +751,7 @@ public struct AlisioChatView: View {
     }
 
     private var activeErrorText: String? {
-        guard let text = self.viewModel.errorText?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !text.isEmpty
-        else {
-            return nil
-        }
-        return text
+        self.viewModel.activeErrorText
     }
 
     private var hasVisibleMessageListContent: Bool {
@@ -548,14 +782,14 @@ public struct AlisioChatView: View {
     }
 
     private var emptyStateTitle: String {
-        "Chat"
+        "Start a conversation"
     }
 
     private var emptyStateMessage: String {
         #if os(macOS)
-        "Type a message below to start.\nReturn sends • Shift-Return adds a line break."
+        "Type a message below to get started.\nReturn sends • Shift-Return adds a line break."
         #else
-        "Type a message below to start."
+        "Type a message below to get started."
         #endif
     }
 

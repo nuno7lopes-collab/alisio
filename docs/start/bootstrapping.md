@@ -1,18 +1,18 @@
 ---
-summary: "Agent bootstrapping ritual that seeds the workspace and identity files"
+summary: "Agent first-run ritual that seeds the workspace and identity files"
 read_when:
   - Understanding what happens on the first agent run
   - Explaining where bootstrapping files live
-  - Debugging onboarding identity setup
+  - Debugging first-run agent identity setup
 title: "Agent Bootstrapping"
 sidebarTitle: "Bootstrapping"
 ---
 
 # Agent Bootstrapping
 
-Bootstrapping is the **first‑run** ritual that prepares an agent workspace and
-collects identity details. It happens after onboarding, when the agent starts
-for the first time.
+Bootstrapping is the **first-run** ritual that prepares an agent workspace and
+collects identity details. It happens when an agent starts for the first time
+on an existing workspace.
 
 ## What bootstrapping does
 
@@ -37,5 +37,5 @@ host (for example, `user@gateway-host:~/.alisio/workspace`).
 
 ## Related docs
 
-- macOS app setup: [macOS App Setup](/start/onboarding)
+- macOS app flow: [macOS App Setup](/start/onboarding)
 - Workspace layout: [Agent workspace](/concepts/agent-workspace)

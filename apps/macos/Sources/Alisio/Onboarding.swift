@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-import AlisioIPC
 import AlisioSupport
 
 enum MacSetupRuntimeState: Equatable {
@@ -53,102 +52,21 @@ enum MacSetupRuntimeState: Equatable {
     }
 }
 
-struct MacSetupPermissionSummary: Equatable {
-    let hasSnapshot: Bool
-    let grantedCount: Int
-    let totalCount: Int
-
-    init(status: [Capability: Bool]) {
-        self.hasSnapshot = !status.isEmpty
-        self.totalCount = Capability.allCases.count
-        self.grantedCount = Capability.allCases.reduce(into: 0) { total, capability in
-            if status[capability] == true {
-                total += 1
-            }
-        }
-    }
-
-    var missingCount: Int {
-        max(self.totalCount - self.grantedCount, 0)
-    }
-
-    var summary: String {
-        if !self.hasSnapshot {
-            return "Checking macOS permissions."
-        }
-        if self.missingCount == 0 {
-            return "All reviewed permissions are on."
-        }
-        if self.missingCount == 1 {
-            return "1 permission is still off."
-        }
-        return "\(self.missingCount) permissions are still off."
-    }
-
-    var detail: String {
-        if !self.hasSnapshot {
-            return "Permissions refresh after the app checks macOS. Nothing here blocks the workspace."
-        }
-        if self.missingCount == 0 {
-            return "You can still change Accessibility, Screen Recording, microphone, location, or other device access later in Settings."
-        }
-        return "Permissions stay optional until you turn on the feature that needs them."
-    }
-
-    var systemImage: String {
-        if !self.hasSnapshot {
-            return "lock.shield"
-        }
-        return self.missingCount == 0 ? "checkmark.shield" : "lock.shield"
-    }
-
-    var tint: Color {
-        if !self.hasSnapshot {
-            return .secondary
-        }
-        return self.missingCount == 0 ? .green : .orange
-    }
-}
-
 struct MacSetupSnapshot: Equatable {
     let runtime: MacSetupRuntimeState
-    let permissions: MacSetupPermissionSummary
 
     var canOpenWorkspace: Bool {
         self.runtime.isReady
     }
 
-    var statusTitle: String {
+    var surfaceTitle: String {
         switch self.runtime {
         case .checking:
             "Checking this Mac"
         case .ready:
-            "This Mac is ready"
+            "Opening the workspace"
         case .blocked:
-            "Finish runtime setup to open the workspace"
-        }
-    }
-
-    var statusDetail: String {
-        switch self.runtime {
-        case let .checking(_, detail):
-            return detail
-        case let .blocked(_, detail):
-            if self.permissions.hasSnapshot, self.permissions.missingCount > 0 {
-                return "\(detail) Permissions can wait until you need the matching feature."
-            }
-            return detail
-        case .ready:
-            if !self.permissions.hasSnapshot {
-                return "The runtime is ready. Permission status is still refreshing."
-            }
-            if self.permissions.missingCount == 0 {
-                return "The runtime is ready and nothing else is blocking the workspace."
-            }
-            if self.permissions.missingCount == 1 {
-                return "The runtime is ready. 1 optional permission is still off and can be enabled later in Settings."
-            }
-            return "The runtime is ready. \(self.permissions.missingCount) optional permissions are still off and can be enabled later in Settings."
+            "Can't open the workspace yet"
         }
     }
 }
@@ -157,15 +75,13 @@ enum MacSetupEvaluator {
     static func snapshot(
         connectionMode: AppState.ConnectionMode,
         gatewayStatus: GatewayEnvironmentStatus?,
-        remoteProbe: RemoteGatewayProbeResult?,
-        permissionStatus: [Capability: Bool]) -> MacSetupSnapshot
+        remoteProbe: RemoteGatewayProbeResult?) -> MacSetupSnapshot
     {
         MacSetupSnapshot(
             runtime: self.runtime(
                 connectionMode: connectionMode,
                 gatewayStatus: gatewayStatus,
-                remoteProbe: remoteProbe),
-            permissions: MacSetupPermissionSummary(status: permissionStatus))
+                remoteProbe: remoteProbe))
     }
 
     static func runtime(
@@ -246,114 +162,53 @@ enum MacSetupEvaluator {
 
 struct MacSetupView: View {
     @Bindable var state: AppState
-    var permissionMonitor: PermissionMonitor
     @State private var didLoadInitialState = false
+    @State private var didAutoFinish = false
     @State private var gatewayStatus: GatewayEnvironmentStatus?
     @State private var remoteProbeResult: RemoteGatewayProbeResult?
 
-    init(
-        state: AppState = AppStateStore.shared,
-        permissionMonitor: PermissionMonitor = .shared)
-    {
+    init(state: AppState = AppStateStore.shared) {
         self.state = state
-        self.permissionMonitor = permissionMonitor
     }
 
     var body: some View {
         let setup = MacSetupEvaluator.snapshot(
             connectionMode: self.state.connectionMode,
             gatewayStatus: self.gatewayStatus,
-            remoteProbe: self.remoteProbeResult,
-            permissionStatus: self.permissionMonitor.status)
+            remoteProbe: self.remoteProbeResult)
 
         ScrollView {
-            VStack(spacing: 24) {
-                AlisioOnboardingIcon()
+            VStack(spacing: 20) {
+                Image(systemName: setup.runtime.systemImage)
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(setup.runtime.tint)
                     .padding(.top, 8)
 
-                VStack(spacing: 10) {
-                    Text("Set up this Mac")
+                VStack(spacing: 8) {
+                    Text(setup.surfaceTitle)
                         .font(.largeTitle.weight(.semibold))
-                    Text(
-                        "Confirm how this Mac reaches Alisio, then review any optional permissions before opening the workspace.")
+                    Text(setup.runtime.title)
+                        .font(.title3.weight(.semibold))
+                    Text(setup.runtime.detail)
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 560)
+                        .frame(maxWidth: 520)
                 }
 
-                self.setupCard(
-                    title: "Runtime",
-                    badgeTitle: "Required",
-                    badgeTint: .orange,
-                    summary: setup.runtime.title,
-                    detail: setup.runtime.detail,
-                    systemImage: setup.runtime.systemImage,
-                    tint: setup.runtime.tint,
-                    actionTitle: "Open General Settings",
-                    action: { self.openSettings(tab: .general) },
-                    secondaryActionTitle: self.state.connectionMode == .unconfigured ? nil : "Recheck",
-                    secondaryAction: self.state.connectionMode == .unconfigured
-                        ? nil
-                        : { Task { await self.refreshRuntimeState() } })
-
-                self.setupCard(
-                    title: "Permissions",
-                    badgeTitle: "Optional",
-                    badgeTint: .secondary,
-                    summary: setup.permissions.summary,
-                    detail: setup.permissions.detail,
-                    systemImage: setup.permissions.systemImage,
-                    tint: setup.permissions.tint,
-                    actionTitle: "Open Permissions",
-                    action: { self.openSettings(tab: .permissions) })
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(setup.statusTitle)
-                        .font(.headline)
-                    Text(setup.statusDetail)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                if case .checking = setup.runtime {
+                    ProgressView()
+                        .controlSize(.regular)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color(nsColor: .controlBackgroundColor)))
 
                 HStack(spacing: 12) {
-                    if setup.canOpenWorkspace {
-                        Button("General Settings") {
-                            self.openSettings(tab: .general)
-                        }
-                        .buttonStyle(.bordered)
-                    } else {
-                        Button("General Settings") {
-                            self.openSettings(tab: .general)
-                        }
-                        .buttonStyle(.borderedProminent)
+                    Button("Open General Settings") {
+                        self.openSettings(tab: .general)
                     }
-
-                    Button("Permissions") {
-                        self.openSettings(tab: .permissions)
-                    }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
 
                     if self.state.connectionMode != .unconfigured {
-                        Button {
-                            Task { await self.refreshSetupState() }
-                        } label: {
-                            Label("Recheck", systemImage: "arrow.clockwise")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    if setup.canOpenWorkspace {
-                        Button("Open Workspace") {
-                            self.finish()
-                        }
-                        .buttonStyle(.borderedProminent)
+                        self.recheckButton
                     }
                 }
             }
@@ -366,7 +221,7 @@ struct MacSetupView: View {
         .task {
             guard !self.didLoadInitialState else { return }
             self.didLoadInitialState = true
-            await self.refreshSetupState()
+            await self.refreshRuntimeState()
         }
         .onChange(of: self.state.connectionMode) { _, _ in
             Task { await self.refreshRuntimeState() }
@@ -375,109 +230,43 @@ struct MacSetupView: View {
             Task { await self.refreshRuntimeState() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await self.refreshSetupState() }
+            Task { await self.refreshRuntimeState() }
         }
-    }
-
-    private func refreshSetupState() async {
-        await self.permissionMonitor.refreshNow()
-        await self.refreshRuntimeState()
     }
 
     private func refreshRuntimeState() async {
-        switch self.state.connectionMode {
-        case .unconfigured:
-            self.gatewayStatus = nil
-            self.remoteProbeResult = nil
-        case .local:
-            self.remoteProbeResult = nil
-            self.gatewayStatus = await Task.detached(priority: .utility) {
-                GatewayEnvironment.check()
-            }.value
-        case .remote:
-            self.gatewayStatus = nil
-            self.remoteProbeResult = await RemoteGatewayProbe.run()
-        }
+        let snapshot = await self.state.refreshRuntimeReadinessSnapshot()
+        self.gatewayStatus = snapshot.gatewayStatus
+        self.remoteProbeResult = snapshot.remoteProbeResult
+
+        self.finishIfReady()
     }
 
     private func openSettings(tab: SettingsTab) {
         SettingsWindowOpener.shared.open(tab: tab)
     }
 
+    private func finishIfReady() {
+        guard !self.didAutoFinish else { return }
+        let setup = MacSetupEvaluator.snapshot(
+            connectionMode: self.state.connectionMode,
+            gatewayStatus: self.gatewayStatus,
+            remoteProbe: self.remoteProbeResult)
+        guard setup.canOpenWorkspace else { return }
+        self.didAutoFinish = true
+        self.finish()
+    }
+
     private func finish() {
-        self.state.completeMacSetup()
         AlisioWindowManager.shared.showPreferredChat()
     }
 
-    @ViewBuilder
-    private func setupCard(
-        title: String,
-        badgeTitle: String,
-        badgeTint: Color,
-        summary: String,
-        detail: String,
-        systemImage: String,
-        tint: Color,
-        actionTitle: String,
-        action: @escaping () -> Void,
-        secondaryActionTitle: String? = nil,
-        secondaryAction: (() -> Void)? = nil) -> some View
-    {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.title2.weight(.semibold))
-                .foregroundStyle(tint)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .center, spacing: 10) {
-                    Text(title)
-                        .font(.headline)
-                    MacSetupBadge(title: badgeTitle, tint: badgeTint)
-                }
-
-                Text(summary)
-                    .font(.subheadline.weight(.semibold))
-
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 12) {
-                    Button(actionTitle, action: action)
-                        .buttonStyle(.link)
-
-                    if let secondaryActionTitle, let secondaryAction {
-                        Button(secondaryActionTitle, action: secondaryAction)
-                            .buttonStyle(.link)
-                    }
-                }
-                .padding(.top, 2)
-            }
-
-            Spacer(minLength: 0)
+    private var recheckButton: some View {
+        Button {
+            Task { await self.refreshRuntimeState() }
+        } label: {
+            Label("Recheck", systemImage: "arrow.clockwise")
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor)))
-    }
-}
-
-private struct MacSetupBadge: View {
-    let title: String
-    let tint: Color
-
-    var body: some View {
-        Text(self.title)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(self.tint)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(self.tint.opacity(0.12)))
+        .buttonStyle(.bordered)
     }
 }

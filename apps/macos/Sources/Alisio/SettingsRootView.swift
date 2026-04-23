@@ -88,8 +88,13 @@ struct SettingsRootView: View {
         .onDisappear { self.stopPermissionMonitoring() }
         .task {
             guard !self.isPreview else { return }
-            await self.refreshPerms()
             await self.accountStore.refresh(reason: "settings-root")
+            if self.navigation.selectedTab == .permissions {
+                await self.refreshPerms()
+            } else {
+                let latest = self.permissionMonitor.status
+                self.permissionsState = latest.isEmpty ? .empty : .loaded(latest)
+            }
         }
         .task(id: self.state.connectionMode) {
             guard !self.isPreview else { return }

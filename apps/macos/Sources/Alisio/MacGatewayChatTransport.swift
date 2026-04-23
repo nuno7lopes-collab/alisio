@@ -72,12 +72,12 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
     }
 
     func createSession(request: AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse {
-        try await SessionActions.createSession(
+        try await GatewayConnection.shared.sessionsCreate(
             parentSessionKey: request.parentSessionKey,
             agentId: request.agentId,
             label: request.label,
             model: request.model,
-            initialMessage: request.initialMessage)
+            task: request.initialMessage)
     }
 
     func setSessionModel(sessionKey: String, model: String?) async throws {
@@ -144,16 +144,16 @@ struct MacGatewayChatTransport: AlisioChatTransport, Sendable {
         }
     }
 
-    func setActiveSessionKey(_: String) async throws {
-        // Operator clients receive session-scoped chat events without an explicit subscription RPC.
-    }
-
     func resetSession(sessionKey: String) async throws {
-        try await SessionActions.resetSession(key: sessionKey)
+        try await GatewayConnection.shared.sessionsReset(key: sessionKey)
     }
 
     func compactSession(sessionKey: String) async throws {
-        try await SessionActions.compactSession(key: sessionKey)
+        try await GatewayConnection.shared.sessionsCompact(key: sessionKey)
+    }
+
+    func deleteSession(sessionKey: String) async throws {
+        try await GatewayConnection.shared.sessionsDelete(key: sessionKey)
     }
 
     private func ensureLocalGatewayReadyIfNeeded(reason: String, timeout: TimeInterval = 15) async throws {

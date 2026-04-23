@@ -179,14 +179,13 @@ struct AlisioWorkspaceRootView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 AlisioChip(
-                    title: self.state.connectionMode == .local ? "This Mac" : "Remote",
+                    title: self.state.connectionMode == .local ? "On this Mac" : "Remote",
                     tint: self.state.connectionMode == .local ? self.palette.success : self.palette.warning,
                     palette: self.palette)
-                Text(self.resolvedSessionKey)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(self.palette.tertiaryText)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                Text(self.sidebarSummary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(self.palette.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(18)
             .background(
@@ -203,31 +202,41 @@ struct AlisioWorkspaceRootView: View {
 
     private var stage: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(self.stageTitle)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(self.palette.primaryText)
-                    Text(self.stageSubtitle)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(self.palette.secondaryText)
+            if self.navigationState.route != .chat {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(self.stageTitle)
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundStyle(self.palette.primaryText)
+                        Text(self.stageSubtitle)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(self.palette.secondaryText)
+                    }
+                    Spacer()
                 }
-                Spacer()
-                if self.navigationState.route == .chat {
-                    AlisioChip(title: self.resolvedSessionKey, tint: self.palette.accent, palette: self.palette)
-                }
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 20)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 20)
 
-            Rectangle()
-                .fill(self.palette.separator)
-                .frame(height: 1)
+                Rectangle()
+                    .fill(self.palette.separator)
+                    .frame(height: 1)
+            }
 
             self.workspaceContent(compact: false)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .background(self.palette.stage)
+    }
+
+    private var sidebarSummary: String {
+        switch self.state.connectionMode {
+        case .local:
+            "Native workspace ready on this Mac."
+        case .remote:
+            "Native workspace connected remotely."
+        case .unconfigured:
+            "Finish setup to open the full workspace."
+        }
     }
 
     private var stageTitle: String {
@@ -247,8 +256,13 @@ struct AlisioWorkspaceRootView: View {
                 state: self.state,
                 palette: self.palette,
                 compact: compact,
+                onOpenApps: {
+                    self.navigationState.show(route: .apps)
+                },
+                onSessionChange: { sessionKey in
+                    self.navigationState.showChat(sessionKey: sessionKey)
+                },
                 environment: self.chatEnvironment)
-                .id("chat-\(self.resolvedSessionKey)-\(compact ? "panel" : "window")-\(self.state.connectionMode.rawValue)")
         case .apps:
             ChannelsSettings()
                 .padding(compact ? 14 : 24)
@@ -290,7 +304,7 @@ extension WorkspaceNavigationState.Route {
     var workspaceSubtitle: String {
         switch self {
         case .chat:
-            "Continue the current conversation and inspect tool activity for this session."
+            "Pick up the main conversation or start a clean new chat."
         case .apps:
             "Connect real app integrations like Gmail, Calendar, GitHub, Stripe, and YouTube."
         case .schedules:
@@ -314,24 +328,29 @@ private struct WorkspaceChatStage: View {
     let sessionKey: String
     let palette: AlisioPalette
     let compact: Bool
+    let onOpenApps: @MainActor () -> Void
+    let onSessionChange: @MainActor (String) -> Void
     let environment: AlisioWorkspaceChatEnvironment
 
     @State private var chatViewModel: AlisioChatViewModel
     @State private var computerStore: MacDesktopComputerStore
-    @State private var inspectorVisible = false
-    @State private var lastDismissedActivityID: String?
+    @State private var inspectorVisibility = WorkspaceInspectorVisibilityState()
 
     init(
         sessionKey: String,
         state: AppState,
         palette: AlisioPalette,
         compact: Bool,
+        onOpenApps: @escaping @MainActor () -> Void,
+        onSessionChange: @escaping @MainActor (String) -> Void,
         environment: AlisioWorkspaceChatEnvironment = .live)
     {
         self.state = state
         self.sessionKey = sessionKey
         self.palette = palette
         self.compact = compact
+        self.onOpenApps = onOpenApps
+        self.onSessionChange = onSessionChange
         self.environment = environment
         self._chatViewModel = State(initialValue: environment.makeChatViewModel(sessionKey))
         self._computerStore = State(initialValue: environment.makeComputerStore(sessionKey))
@@ -339,12 +358,6 @@ private struct WorkspaceChatStage: View {
 
     var body: some View {
         VStack(spacing: self.compact ? 0 : 14) {
-            if !self.compact {
-                self.chatHeader
-                    .padding(.horizontal, 22)
-                    .padding(.top, 20)
-            }
-
             if let status = self.bootstrapStatus {
                 WorkspaceStatusBanner(
                     title: status.title,
@@ -365,7 +378,7 @@ private struct WorkspaceChatStage: View {
                             chatViewModel: self.chatViewModel,
                             computerStore: self.computerStore,
                             palette: self.palette,
-                            sessionKey: self.sessionKey,
+                            sessionKey: self.trackedSessionKey,
                             recentEvents: self.recentEvents,
                             lastToolLabel: self.currentSessionToolActivity?.label,
                             lastToolUpdatedAt: self.currentSessionToolActivity?.lastUpdate)
@@ -382,60 +395,48 @@ private struct WorkspaceChatStage: View {
             } else {
                 self.computerStore.deactivate()
             }
-            self.syncInspectorVisibility()
         }
         .onDisappear {
             self.computerStore.deactivate()
         }
-        .onChange(of: self.inspectorActivityID) { _, _ in
-            self.syncInspectorVisibility()
+        .onChange(of: self.inspectorShouldAutoPresent) { _, isAutoPresent in
+            self.inspectorVisibility.sync(autoPresent: isAutoPresent)
         }
-        .onChange(of: self.state.connectionMode) { _, _ in
-            self.syncInspectorVisibility()
+        .onChange(of: self.sessionKey) { _, nextSessionKey in
+            self.syncPresentedSession(to: nextSessionKey)
         }
-        .onAppear {
-            self.syncInspectorVisibility()
+        .onChange(of: self.chatViewModel.sessionKey) { _, nextSessionKey in
+            guard !self.matchesSessionKey(nextSessionKey, self.sessionKey) else { return }
+            self.onSessionChange(nextSessionKey)
         }
-    }
-
-    private var chatHeader: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Session")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(self.palette.primaryText)
-                Text(self.chatHeaderSubtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(self.palette.secondaryText)
-            }
-            Spacer()
-            AlisioChip(
-                title: self.state.connectionMode == .local ? "This Mac" : "Remote",
-                tint: self.state.connectionMode == .local ? self.palette.success : self.palette.warning,
-                palette: self.palette)
-            if self.inspectorVisible {
-                Button("Hide pane") {
-                    self.lastDismissedActivityID = self.inspectorActivityID
-                    self.inspectorVisible = false
-                }
-                .buttonStyle(AlisioGhostButtonStyle(palette: self.palette))
-            } else {
-                Button("Show pane") {
-                    self.lastDismissedActivityID = nil
-                    self.inspectorVisible = true
-                }
-                .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
-            }
+        .onChange(of: self.trackedSessionKey) { previousSessionKey, nextSessionKey in
+            guard !self.matchesSessionKey(previousSessionKey, nextSessionKey) else { return }
+            self.replaceComputerStore(sessionKey: nextSessionKey)
         }
     }
 
-    private var chatHeaderSubtitle: String {
-        if self.state.connectionMode == .local {
-            return self.inspectorActivityID == nil
-                ? "Computer use and tool output appear here when this session becomes active."
-                : "The inspector is following live computer use and tool activity for this session."
-        }
-        return "Tool activity and run state stay visible here even when the runtime is remote."
+    private var chatHeaderAccessory: AnyView? {
+        guard !self.compact else { return nil }
+        return AnyView(
+            HStack(spacing: 8) {
+                Button("Apps") {
+                    self.onOpenApps()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                if self.supportsInspector {
+                    Button(self.inspectorVisible ? "Hide activity" : "Activity") {
+                        if self.inspectorVisible {
+                            self.inspectorVisibility.hide(autoPresent: self.inspectorShouldAutoPresent)
+                        } else {
+                            self.inspectorVisibility.show()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            })
     }
 
     private var chatOnlyStage: some View {
@@ -446,7 +447,8 @@ private struct WorkspaceChatStage: View {
             assistantIdentity: .init(name: "Alisio"),
             userAccent: self.palette.accent,
             showsAssistantTrace: true,
-            autoloadOnAppear: self.environment.autoloadChatOnAppear)
+            autoloadOnAppear: self.environment.autoloadChatOnAppear,
+            headerAccessory: self.chatHeaderAccessory)
             .padding(self.compact ? 8 : 22)
             .background(self.palette.stage)
     }
@@ -459,6 +461,59 @@ private struct WorkspaceChatStage: View {
         !self.compact
     }
 
+    private var inspectorVisible: Bool {
+        self.inspectorVisibility.isVisible(
+            supportsInspector: self.supportsInspector,
+            autoPresent: self.inspectorShouldAutoPresent)
+    }
+
+    private var trackedSessionKey: String {
+        let trimmed = self.chatViewModel.sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? self.sessionKey : trimmed
+    }
+
+    private var inspectorShouldAutoPresent: Bool {
+        if self.chatViewModel.pendingRunCount > 0 || !self.chatViewModel.pendingToolCalls.isEmpty {
+            return true
+        }
+        if self.currentSessionActivity != nil {
+            return true
+        }
+        if self.shouldPresentComputerInspector {
+            return true
+        }
+        return self.chatViewModel.activeErrorText != nil
+    }
+
+    private var shouldPresentComputerInspector: Bool {
+        guard self.shouldMonitorComputer else { return false }
+        guard self.matchesTrackedSession(sessionKey: self.computerStore.sessionKey) else { return false }
+        return self.computerStore.shouldAutoPresentPane
+    }
+
+    private func syncPresentedSession(to nextSessionKey: String) {
+        let trimmed = nextSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !self.matchesSessionKey(trimmed, self.chatViewModel.sessionKey) else { return }
+        guard self.chatViewModel.canSwitchSessions else {
+            self.onSessionChange(self.trackedSessionKey)
+            return
+        }
+        self.chatViewModel.switchSession(to: trimmed)
+    }
+
+    private func replaceComputerStore(sessionKey rawSessionKey: String) {
+        let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sessionKey.isEmpty else { return }
+        guard !self.matchesSessionKey(self.computerStore.sessionKey, sessionKey) else { return }
+        let shouldActivate = self.shouldMonitorComputer
+        self.computerStore.deactivate()
+        self.computerStore = self.environment.makeComputerStore(sessionKey)
+        if shouldActivate {
+            self.computerStore.activate()
+        }
+    }
+
     private var bootstrapStatus: (
         title: String,
         message: String,
@@ -469,7 +524,7 @@ private struct WorkspaceChatStage: View {
         if self.state.connectionMode == .unconfigured {
             return (
                 "Preparing Alisio",
-                "The workspace is waiting for a configured runtime.",
+                "Finish setup before opening chat.",
                 "gearshape.2",
                 false,
                 self.palette.warning)
@@ -477,43 +532,30 @@ private struct WorkspaceChatStage: View {
 
         switch self.chatViewModel.connectionPhase {
         case .bootstrapping:
-            switch self.state.connectionMode {
-            case .local:
-                return (
-                    "Connecting to the local runtime",
-                    "Loading session history, health, and available models before the first turn.",
-                    nil,
-                    true,
-                    self.palette.accent)
-            case .remote:
-                return (
-                    "Connecting to the remote runtime",
-                    "Loading session history over the current control connection before the first turn.",
-                    nil,
-                    true,
-                    self.palette.accent)
-            case .unconfigured:
-                return nil
-            }
+            return (
+                "Opening your chat",
+                "Loading recent messages and getting things ready.",
+                nil,
+                true,
+                self.palette.accent)
         case .loading:
             return (
-                "Refreshing the native session",
-                "Updating the local view of history, model choices, and session metadata.",
+                "Refreshing chat",
+                "Updating messages and chat details.",
                 nil,
                 true,
                 self.palette.accent)
         case .reconnecting:
-            let runtimeLabel = self.state.connectionMode == .local ? "local runtime" : "remote runtime"
             return (
-                "Reconnecting to the \(runtimeLabel)",
-                "The workspace lost a live signal and is resyncing history before showing stale state as final.",
+                "Reconnecting",
+                "Restoring the live connection before showing the latest state.",
                 "arrow.trianglehead.2.clockwise.rotate.90",
                 false,
                 self.palette.warning)
         case .firstMessage:
             return (
-                "Starting the first response",
-                "The first visible assistant turn can take longer while the runtime warms up and the session attaches its tools.",
+                "Starting your reply",
+                "The first reply in a fresh chat can take a moment.",
                 nil,
                 true,
                 self.palette.accent)
@@ -522,59 +564,14 @@ private struct WorkspaceChatStage: View {
         }
     }
 
-    private var inspectorActivityID: String? {
-        var parts: [String] = []
-
-        if !self.chatViewModel.pendingToolCalls.isEmpty {
-            let startedAt = self.chatViewModel.pendingToolCalls
-                .compactMap(\.startedAt)
-                .max() ?? 0
-            let ids = self.chatViewModel.pendingToolCalls.map(\.toolCallId).sorted().joined(separator: ",")
-            parts.append("pending-tools:\(ids):\(Int(startedAt))")
-        }
-
-        if let activity = self.currentSessionActivity {
-            parts.append("activity:\(activity.sessionKey):\(activity.label):\(Int(activity.lastUpdate.timeIntervalSince1970 * 1000))")
-        }
-
-        if let lastUpdatedAt = self.computerStore.lastUpdatedAt {
-            parts.append("computer-frame:\(Int(lastUpdatedAt.timeIntervalSince1970 * 1000))")
-        }
-
-        if let errorText = self.computerStore.errorText?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !errorText.isEmpty
-        {
-            parts.append("computer-error:\(errorText)")
-        }
-
-        if let errorText = self.chatViewModel.errorText?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !errorText.isEmpty
-        {
-            parts.append("chat-error:\(errorText)")
-        }
-
-        if self.chatViewModel.pendingRunCount > 0 {
-            parts.append("pending-run:\(self.chatViewModel.pendingRunCount)")
-        }
-
-        if let eventID = self.recentEvents.first?.id {
-            parts.append("event:\(eventID)")
-        }
-
-        guard !parts.isEmpty else { return nil }
-        return parts.joined(separator: "|")
-    }
-
     private var recentEvents: [ControlAgentEvent] {
         Array(self.eventStore.events.reversed().filter { event in
-            self.matchesCurrentSession(event: event)
+            self.matchesTrackedSession(event: event)
         }.prefix(8))
     }
 
     private var currentSessionActivity: WorkActivityStore.Activity? {
-        guard let activity = self.activityStore.current else { return nil }
-        guard self.matchesCurrentSession(sessionKey: activity.sessionKey) else { return nil }
-        return activity
+        self.activityStore.activity(for: self.trackedSessionKey)
     }
 
     private var currentSessionToolActivity: WorkActivityStore.Activity? {
@@ -583,35 +580,19 @@ private struct WorkspaceChatStage: View {
         return activity
     }
 
-    private func matchesCurrentSession(event: ControlAgentEvent) -> Bool {
-        self.matchesCurrentSession(sessionKey: event.sessionKey ?? (event.data["sessionKey"]?.value as? String))
+    private func matchesTrackedSession(event: ControlAgentEvent) -> Bool {
+        self.matchesTrackedSession(sessionKey: event.sessionKey ?? (event.data["sessionKey"]?.value as? String))
     }
 
-    private func matchesCurrentSession(sessionKey raw: String?) -> Bool {
-        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmed.isEmpty {
-            return self.sessionKey == "main" || self.sessionKey == "agent:main:main"
-        }
-        return trimmed == self.sessionKey ||
-            (trimmed == "agent:main:main" && self.sessionKey == "main") ||
-            (trimmed == "main" && self.sessionKey == "agent:main:main")
+    private func matchesTrackedSession(sessionKey raw: String?) -> Bool {
+        self.matchesSessionKey(raw, self.trackedSessionKey)
     }
 
-    private func syncInspectorVisibility() {
-        guard self.supportsInspector else {
-            self.inspectorVisible = false
-            return
-        }
-
-        guard let activityID = self.inspectorActivityID else {
-            return
-        }
-
-        guard activityID != self.lastDismissedActivityID else {
-            return
-        }
-
-        self.inspectorVisible = true
+    private func matchesSessionKey(_ lhs: String?, _ rhs: String?) -> Bool {
+        let left = lhs?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        let right = rhs?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        guard !left.isEmpty, !right.isEmpty else { return left == right }
+        return self.chatViewModel.sessionKeysMatch(left, right)
     }
 }
 
@@ -632,12 +613,12 @@ private struct WorkspaceInspectorPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 WorkspaceInspectorCard(
-                    title: "Session",
-                    subtitle: self.sessionSummary)
+                    title: "Chat",
+                    subtitle: self.chatSummary)
                 {
                     VStack(alignment: .leading, spacing: 8) {
-                        self.metaRow("Session", self.sessionKey)
-                        self.metaRow("Name", self.currentSessionName)
+                        self.metaRow("Key", self.sessionKey)
+                        self.metaRow("Title", self.chatViewModel.currentSessionTitle)
                         if let sessionId = self.chatViewModel.sessionId, !sessionId.isEmpty {
                             self.metaRow("Run ID", sessionId)
                         }
@@ -691,13 +672,11 @@ private struct WorkspaceInspectorPane: View {
                                     contextTokens: contextUsage.contextWindow,
                                     width: nil)
                                 self.metaRow("Messages", "\(self.chatViewModel.messages.count)")
-                                self.metaRow("Thinking", self.currentThinkingLabel)
-                                if let model = self.currentModelLabel {
-                                    self.metaRow("Model", model)
-                                }
+                                self.metaRow("Thinking", self.chatViewModel.activeThinkingLevelLabel)
+                                self.metaRow("Model", self.chatViewModel.activeModelLabel)
                             }
                         } else {
-                            Text("Context usage appears here once the gateway reports token counts for this session.")
+                            Text("Context usage appears here once the gateway reports token counts for this chat.")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(self.palette.secondaryText)
                         }
@@ -748,9 +727,7 @@ private struct WorkspaceInspectorPane: View {
                         subtitle: self.runStatusTitle)
                     {
                         VStack(alignment: .leading, spacing: 10) {
-                            if let errorText = self.chatViewModel.errorText?.trimmingCharacters(in: .whitespacesAndNewlines),
-                               !errorText.isEmpty
-                            {
+                            if let errorText = self.chatViewModel.activeErrorText {
                                 Text(errorText)
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundStyle(self.palette.danger)
@@ -778,7 +755,7 @@ private struct WorkspaceInspectorPane: View {
                 if !self.chatViewModel.pendingToolCalls.isEmpty {
                     WorkspaceInspectorCard(
                         title: "Active tools",
-                        subtitle: "Live tool calls for this session")
+                        subtitle: "Live tool calls for this chat")
                     {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(self.chatViewModel.pendingToolCalls) { toolCall in
@@ -809,7 +786,7 @@ private struct WorkspaceInspectorPane: View {
                 if !self.recentEvents.isEmpty {
                     WorkspaceInspectorCard(
                         title: "Recent activity",
-                        subtitle: "Latest runtime events routed to this session")
+                        subtitle: "Latest runtime events routed to this chat")
                     {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(self.recentEvents, id: \.id) { event in
@@ -852,13 +829,11 @@ private struct WorkspaceInspectorPane: View {
         self.chatViewModel.connectionPhase != .ready ||
             self.chatViewModel.pendingRunCount > 0 ||
             !self.chatViewModel.pendingToolCalls.isEmpty ||
-            ((self.chatViewModel.errorText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) == false)
+            self.chatViewModel.activeErrorText != nil
     }
 
     private var runStatusTitle: String {
-        if let errorText = self.chatViewModel.errorText?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !errorText.isEmpty
-        {
+        if self.chatViewModel.activeErrorText != nil {
             return "Blocked"
         }
         if self.chatViewModel.connectionPhase == .reconnecting {
@@ -882,20 +857,15 @@ private struct WorkspaceInspectorPane: View {
         return "Idle"
     }
 
-    private var sessionSummary: String {
+    private var chatSummary: String {
+        let subtitle = self.chatViewModel.currentSessionSubtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !subtitle.isEmpty {
+            return subtitle
+        }
         if self.chatViewModel.connectionPhase == .reconnecting {
-            return "The native workspace is recovering the current session before it trusts live state again."
+            return "The native workspace is recovering this chat before it trusts live state again."
         }
-        if self.chatViewModel.connectionPhase == .firstMessage {
-            return "The first visible assistant turn is still bootstrapping."
-        }
-        if self.chatViewModel.pendingRunCount > 0 {
-            return "The session is live and waiting for the next visible update."
-        }
-        if !self.chatViewModel.pendingToolCalls.isEmpty {
-            return "Tool output is still in flight."
-        }
-        return "This pane keeps session, identity, memory, and runtime state visible while you work."
+        return "This pane keeps chat, identity, memory, and runtime state visible while you work."
     }
 
     private var identitySummary: String {
@@ -905,13 +875,13 @@ private struct WorkspaceInspectorPane: View {
     }
 
     private var memorySummary: String {
-        "Session context, model selection, and native memory controls."
+        "Chat context, model selection, and native memory controls."
     }
 
     private var connectionSummary: String {
         switch self.chatViewModel.connectionPhase {
         case .bootstrapping:
-            "Initial load before the workspace trusts the session."
+            "Initial load before the workspace trusts the chat."
         case .loading:
             "Refreshing native state from the gateway."
         case .reconnecting:
@@ -921,28 +891,6 @@ private struct WorkspaceInspectorPane: View {
         case .ready:
             "Current health and recency of the native data plane."
         }
-    }
-
-    private var currentSessionName: String {
-        let trimmed = self.chatViewModel.currentSessionEntry?.displayName?.trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        return (trimmed?.isEmpty == false ? trimmed : nil) ?? self.sessionKey
-    }
-
-    private var currentModelLabel: String? {
-        guard let entry = self.chatViewModel.currentSessionEntry else { return nil }
-        let provider = entry.modelProvider?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let model = entry.model?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !model.isEmpty else { return nil }
-        guard !provider.isEmpty else { return model }
-        return "\(provider)/\(model)"
-    }
-
-    private var currentThinkingLabel: String {
-        let entryLevel = self.chatViewModel.currentSessionEntry?.thinkingLevel?.trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        let resolved = (entryLevel?.isEmpty == false ? entryLevel : nil) ?? self.chatViewModel.thinkingLevel
-        return resolved.capitalized
     }
 
     private var runtimeLabel: String {
@@ -1156,7 +1104,7 @@ private extension AlisioWorkspaceChatEnvironment {
                 content: [
                     AlisioChatMessageContent(
                         type: "text",
-                        text: "O stage nativo está fechado e a pane direita mostra sessão, memória e ligação.",
+                        text: "The native stage is consolidated and the right pane keeps chat, memory, and connection state visible.",
                         thinking: nil,
                         thinkingSignature: nil,
                         mimeType: nil,
@@ -1173,7 +1121,7 @@ private extension AlisioWorkspaceChatEnvironment {
             content: [
                 AlisioChatMessageContent(
                     type: "text",
-                    text: "Fecha a workspace nativa do macOS.",
+                    text: "Finish the native macOS workspace hardening.",
                     thinking: nil,
                     thinkingSignature: nil,
                     mimeType: nil,

@@ -43,7 +43,10 @@ struct MenuSessionsInjectorTests {
         let injector = MenuSessionsInjector()
         injector.setTestingControlChannelConnected(true)
 
-        let defaults = SessionDefaults(model: "anthropic/claude-opus-4-6", contextTokens: 200_000)
+        let defaults = SessionDefaults(
+            model: "anthropic/claude-opus-4-6",
+            contextTokens: 200_000,
+            mainSessionKey: "main")
         let rows = [
             SessionRow(
                 id: "main",
@@ -128,6 +131,72 @@ struct MenuSessionsInjectorTests {
         #expect(sendHeartbeatsIndex < firstInjectedIndex)
         #expect(openDashboardIndex < firstInjectedIndex)
         #expect(firstInjectedIndex < settingsIndex)
+    }
+
+    @Test func `injector prefers canonical main session key and dedupes aliases`() {
+        let injector = MenuSessionsInjector()
+        injector.setTestingControlChannelConnected(true)
+
+        let defaults = SessionDefaults(
+            model: "anthropic/claude-opus-4-6",
+            contextTokens: 200_000,
+            mainSessionKey: "agent:main:main")
+        let rows = [
+            SessionRow(
+                id: "main",
+                key: "main",
+                kind: .direct,
+                labelOverride: "Main Alias",
+                displayName: nil,
+                derivedTitle: nil,
+                lastMessagePreview: nil,
+                subject: nil,
+                room: nil,
+                space: nil,
+                updatedAt: Date(),
+                sessionId: "s-main-alias",
+                thinkingLevel: nil,
+                verboseLevel: nil,
+                systemSent: false,
+                abortedLastRun: false,
+                tokens: SessionTokenStats(input: 1, output: 1, total: 2, contextTokens: 200_000),
+                model: nil),
+            SessionRow(
+                id: "agent:main:main",
+                key: "agent:main:main",
+                kind: .direct,
+                labelOverride: "Canonical Main",
+                displayName: nil,
+                derivedTitle: nil,
+                lastMessagePreview: nil,
+                subject: nil,
+                room: nil,
+                space: nil,
+                updatedAt: Date(timeIntervalSinceNow: -30),
+                sessionId: "s-main",
+                thinkingLevel: nil,
+                verboseLevel: nil,
+                systemSent: false,
+                abortedLastRun: false,
+                tokens: SessionTokenStats(input: 1, output: 1, total: 2, contextTokens: 200_000),
+                model: nil),
+        ]
+        injector.setTestingSnapshot(
+            SessionStoreSnapshot(
+                storePath: "/tmp/sessions.json",
+                defaults: defaults,
+                rows: rows),
+            errorText: nil)
+
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Header", action: nil, keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Send Heartbeats", action: nil, keyEquivalent: ""))
+
+        injector.injectForTesting(into: menu)
+
+        let injectedViews = menu.items.compactMap { $0.view as? HighlightedMenuItemHostView }
+        #expect(injectedViews.count == 1)
     }
 
     @Test func `cost usage submenu does not use injector delegate`() {

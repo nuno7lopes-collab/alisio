@@ -95,4 +95,25 @@ struct WorkActivityStoreTests {
         store.resolveIconState(override: .otherEdit)
         #expect(store.iconState == .overridden(.tool(.edit)))
     }
+
+    @Test func `activity lookup follows the requested session even when another session is current`() {
+        let store = WorkActivityStore()
+
+        store.handleJob(sessionKey: "discord:group:1", state: "started")
+        store.handleJob(sessionKey: "main", state: "started")
+
+        #expect(store.current?.sessionKey == "main")
+        #expect(store.activity(for: "discord:group:1")?.sessionKey == "discord:group:1")
+        #expect(store.activity(for: "main")?.sessionKey == "main")
+    }
+
+    @Test func `activity lookup matches the main session alias`() {
+        let store = WorkActivityStore()
+
+        store.handleJob(sessionKey: "agent:main:main", state: "started")
+
+        #expect(store.activity(for: "main")?.sessionKey == "agent:main:main")
+        #expect(store.current?.sessionKey == "agent:main:main")
+        #expect(store.iconState == .workingMain(.job))
+    }
 }

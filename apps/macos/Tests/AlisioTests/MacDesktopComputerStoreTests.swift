@@ -35,6 +35,7 @@ struct MacDesktopComputerStoreTests {
             #expect(store.frameImage == nil)
             #expect(store.observation == nil)
             #expect(store.errorText == "Sign in to use computer control.")
+            #expect(store.shouldAutoPresentPane == false)
             #expect(services.observeCalls == 0)
             #expect(sessionDriver.commandCalls.isEmpty)
         }

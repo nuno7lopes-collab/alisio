@@ -36,18 +36,29 @@ actor SessionPreviewCache {
 
     private var entries: [String: CacheEntry] = [:]
 
-    func cachedSnapshot(for sessionKey: String, maxAge: TimeInterval) -> SessionMenuPreviewSnapshot? {
-        guard let entry = self.entries[sessionKey] else { return nil }
+    func cachedSnapshot(
+        for sessionKey: String,
+        mainSessionKey: String?,
+        maxAge: TimeInterval) -> SessionMenuPreviewSnapshot?
+    {
+        let cacheKey = self.cacheKey(for: sessionKey, mainSessionKey: mainSessionKey)
+        guard let entry = self.entries[cacheKey] else { return nil }
         guard Date().timeIntervalSince(entry.updatedAt) < maxAge else { return nil }
         return entry.snapshot
     }
 
-    func store(snapshot: SessionMenuPreviewSnapshot, for sessionKey: String) {
-        self.entries[sessionKey] = CacheEntry(snapshot: snapshot, updatedAt: Date())
+    func store(snapshot: SessionMenuPreviewSnapshot, for sessionKey: String, mainSessionKey: String?) {
+        let cacheKey = self.cacheKey(for: sessionKey, mainSessionKey: mainSessionKey)
+        self.entries[cacheKey] = CacheEntry(snapshot: snapshot, updatedAt: Date())
     }
 
-    func lastSnapshot(for sessionKey: String) -> SessionMenuPreviewSnapshot? {
-        self.entries[sessionKey]?.snapshot
+    func lastSnapshot(for sessionKey: String, mainSessionKey: String?) -> SessionMenuPreviewSnapshot? {
+        let cacheKey = self.cacheKey(for: sessionKey, mainSessionKey: mainSessionKey)
+        return self.entries[cacheKey]?.snapshot
+    }
+
+    private func cacheKey(for sessionKey: String, mainSessionKey: String?) -> String {
+        AlisioChatSessionIdentity.identityKey(for: sessionKey, mainSessionKey: mainSessionKey)
     }
 }
 
@@ -101,9 +112,11 @@ extension SessionPreviewCache {
     func _testSet(
         snapshot: SessionMenuPreviewSnapshot,
         for sessionKey: String,
+        mainSessionKey: String? = nil,
         updatedAt: Date = Date())
     {
-        self.entries[sessionKey] = CacheEntry(snapshot: snapshot, updatedAt: updatedAt)
+        let cacheKey = self.cacheKey(for: sessionKey, mainSessionKey: mainSessionKey)
+        self.entries[cacheKey] = CacheEntry(snapshot: snapshot, updatedAt: updatedAt)
     }
 
     func _testReset() {
@@ -238,9 +251,14 @@ enum SessionMenuPreviewLoader {
         let keys = self.uniqueKeys(sessionKeys)
         guard !keys.isEmpty else { return }
         guard await self.accountGate(reason: "sessions.preview") == .authenticated else { return }
+        let mainSessionKey = await self.cachedMainSessionKey()
         do {
             let payload = try await self.requestPreview(keys: keys, maxItems: maxItems)
-            await self.cache(payload: payload, maxItems: maxItems)
+            await self.cache(
+                payload: payload,
+                requestedKeys: keys,
+                mainSessionKey: mainSessionKey,
+                maxItems: maxItems)
         } catch {
             if self.isUnknownMethodError(error) { return }
             let errorDescription = String(describing: error)
@@ -251,19 +269,24 @@ enum SessionMenuPreviewLoader {
     }
 
     static func load(sessionKey: String, maxItems: Int) async -> SessionMenuPreviewSnapshot {
+        let mainSessionKey = await self.cachedMainSessionKey()
         switch await self.accountGate(reason: "sessions.preview") {
         case .authenticated:
             break
         case .signedOut:
             return SessionMenuPreviewSnapshot(items: [], status: .error("Sign in required"))
         case .unavailable:
-            if let fallback = await SessionPreviewCache.shared.lastSnapshot(for: sessionKey) {
+            if let fallback = await SessionPreviewCache.shared.lastSnapshot(
+                for: sessionKey,
+                mainSessionKey: mainSessionKey)
+            {
                 return fallback
             }
             return SessionMenuPreviewSnapshot(items: [], status: .error("Preview unavailable"))
         }
         if let cached = await SessionPreviewCache.shared.cachedSnapshot(
             for: sessionKey,
+            mainSessionKey: mainSessionKey,
             maxAge: cacheMaxAgeSeconds)
         {
             return cached
@@ -271,12 +294,18 @@ enum SessionMenuPreviewLoader {
 
         do {
             let snapshot = try await self.fetchSnapshot(sessionKey: sessionKey, maxItems: maxItems)
-            await SessionPreviewCache.shared.store(snapshot: snapshot, for: sessionKey)
+            await SessionPreviewCache.shared.store(
+                snapshot: snapshot,
+                for: sessionKey,
+                mainSessionKey: mainSessionKey)
             return snapshot
         } catch is CancellationError {
             return SessionMenuPreviewSnapshot(items: [], status: .loading)
         } catch {
-            if let fallback = await SessionPreviewCache.shared.lastSnapshot(for: sessionKey) {
+            if let fallback = await SessionPreviewCache.shared.lastSnapshot(
+                for: sessionKey,
+                mainSessionKey: mainSessionKey)
+            {
                 return fallback
             }
             let errorDescription = String(describing: error)
@@ -358,17 +387,39 @@ enum SessionMenuPreviewLoader {
         case "empty":
             return SessionMenuPreviewSnapshot(items: items, status: .empty)
         case "missing":
-            return SessionMenuPreviewSnapshot(items: items, status: .error("Session missing"))
+            return SessionMenuPreviewSnapshot(items: items, status: .error("Chat missing"))
         default:
             return SessionMenuPreviewSnapshot(items: items, status: .error("Preview unavailable"))
         }
     }
 
-    private static func cache(payload: AlisioSessionsPreviewPayload, maxItems: Int) async {
+    private static func cache(
+        payload: AlisioSessionsPreviewPayload,
+        requestedKeys: [String],
+        mainSessionKey: String?,
+        maxItems: Int) async
+    {
         for entry in payload.previews {
             let snapshot = self.snapshot(from: entry, maxItems: maxItems)
-            await SessionPreviewCache.shared.store(snapshot: snapshot, for: entry.key)
+            await SessionPreviewCache.shared.store(
+                snapshot: snapshot,
+                for: entry.key,
+                mainSessionKey: mainSessionKey)
+            for requestedKey in requestedKeys where AlisioChatSessionIdentity.matches(
+                requestedKey,
+                entry.key,
+                mainSessionKey: mainSessionKey)
+            {
+                await SessionPreviewCache.shared.store(
+                    snapshot: snapshot,
+                    for: requestedKey,
+                    mainSessionKey: mainSessionKey)
+            }
         }
+    }
+
+    private static func cachedMainSessionKey() async -> String? {
+        await GatewayConnection.shared.cachedMainSessionKey()
     }
 
     private static func accountGate(reason: String) async -> AccountGate {

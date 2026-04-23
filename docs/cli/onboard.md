@@ -1,5 +1,5 @@
 ---
-summary: "CLI reference for `alisio onboard` (interactive onboarding)"
+summary: "CLI reference for `alisio onboard`, the interactive runtime and gateway setup flow"
 read_when:
   - You want guided setup for gateway, workspace, auth, channels, and skills
 title: "onboard"
@@ -7,7 +7,9 @@ title: "onboard"
 
 # `alisio onboard`
 
-Interactive onboarding for local or remote Gateway setup.
+Interactive CLI setup for local or remote Gateway configuration.
+On macOS, the native app remains the default account-entry and workspace
+surface; use this command for terminal-led runtime work.
 
 ## Related guides
 
@@ -15,7 +17,7 @@ Interactive onboarding for local or remote Gateway setup.
 - Onboarding overview: [Onboarding Overview](/start/onboarding-overview)
 - CLI onboarding reference: [CLI Setup Reference](/start/wizard-cli-reference)
 - CLI automation: [CLI Automation](/start/wizard-cli-automation)
-- macOS app setup: [macOS App Setup](/start/onboarding)
+- macOS app flow: [macOS App Setup](/start/onboarding)
 
 ## Examples
 
@@ -115,17 +117,17 @@ Non-interactive local gateway health:
 
 - Unless you pass `--skip-health`, onboarding waits for a reachable local gateway before it exits successfully.
 - `--install-daemon` starts the managed gateway install path first. Without it, you must already have a local gateway running, for example `alisio gateway run`.
-- If you only want config/workspace/bootstrap writes in automation, use `--skip-health`.
+- If you only want config and workspace writes in automation, use `--skip-health`.
 - On native Windows, `--install-daemon` tries Scheduled Tasks first and falls back to a per-user Startup-folder login item if task creation is denied.
 
-Interactive onboarding behavior with reference mode:
+Interactive secret-reference behavior:
 
 - Choose **Use secret reference** when prompted.
 - Then choose either:
   - Environment variable
   - Configured secret provider (`file` or `exec`)
-- Onboarding performs a fast preflight validation before saving the ref.
-  - If validation fails, onboarding shows the error and lets you retry.
+- The CLI flow performs a fast preflight validation before saving the ref.
+  - If validation fails, the CLI flow shows the error and lets you retry.
 
 Non-interactive Z.AI endpoint choices:
 

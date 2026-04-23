@@ -36,6 +36,23 @@ final class AlisioAppRootState {
     }
 }
 
+enum AlisioAppRuntimeGateStatus: Equatable {
+    case checking
+    case blocked
+    case ready
+
+    init(runtimeState: MacSetupRuntimeState) {
+        switch runtimeState {
+        case .checking:
+            self = .checking
+        case .blocked:
+            self = .blocked
+        case .ready:
+            self = .ready
+        }
+    }
+}
+
 @MainActor
 enum AlisioAppVisibleSurface {
     case loading
@@ -50,6 +67,7 @@ struct AlisioAppRootView: View {
     @Bindable var navigationState: WorkspaceNavigationState
     @Bindable var state: AppState
     @Bindable private var accountStore = AlisioAccountStore.shared
+    @State private var runtimeGateStatus: AlisioAppRuntimeGateStatus
 
     let presentation: AlisioWorkspacePresentation
     let updater: (any UpdaterProviding)?
@@ -57,6 +75,24 @@ struct AlisioAppRootView: View {
 
     private let isPreview = ProcessInfo.processInfo.isPreview
     private let isRunningTests = ProcessInfo.processInfo.isRunningTests
+
+    init(
+        rootState: AlisioAppRootState,
+        navigationState: WorkspaceNavigationState,
+        state: AppState,
+        presentation: AlisioWorkspacePresentation,
+        updater: (any UpdaterProviding)?,
+        chatEnvironment: AlisioWorkspaceChatEnvironment)
+    {
+        self.rootState = rootState
+        self.navigationState = navigationState
+        self.state = state
+        self.presentation = presentation
+        self.updater = updater
+        self.chatEnvironment = chatEnvironment
+        self._runtimeGateStatus = State(
+            initialValue: AlisioAppRuntimeGateStatus(runtimeState: state.initialRuntimeReadinessState()))
+    }
 
     var body: some View {
         Group {
@@ -89,10 +125,16 @@ struct AlisioAppRootView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await self.refreshAccount(reason: "app-root-active") }
+            Task {
+                await self.refreshAccount(reason: "app-root-active")
+                await self.refreshRuntimeGate()
+            }
         }
         .task(id: self.accountRefreshKey) {
             await self.refreshAccount(reason: "app-root")
+        }
+        .task(id: self.runtimeRefreshKey) {
+            await self.refreshRuntimeGate()
         }
     }
 
@@ -103,11 +145,23 @@ struct AlisioAppRootView: View {
             isAuthenticated: self.accountStore.isAuthenticated,
             profileCompleted: self.accountStore.profileCompleted,
             prefersSetup: self.rootState.prefersSetup,
-            requiresMacSetup: self.state.requiresMacSetup)
+            runtimeGateStatus: self.runtimeGateStatus)
     }
 
     private var accountRefreshKey: String {
         "\(self.state.connectionMode.rawValue)-\(self.rootState.surfaceOverride)"
+    }
+
+    private var runtimeRefreshKey: String {
+        [
+            self.state.connectionMode.rawValue,
+            self.state.remoteTransport.rawValue,
+            self.state.remoteTarget,
+            self.state.remoteIdentity,
+            self.state.remoteUrl,
+            self.state.remoteToken,
+        ]
+        .joined(separator: "|")
     }
 
     private var needsInitialAccountRefresh: Bool {
@@ -120,13 +174,19 @@ struct AlisioAppRootView: View {
         await self.accountStore.refresh(reason: reason)
     }
 
+    private func refreshRuntimeGate() async {
+        let runtimeState = await self.state.refreshRuntimeReadinessState()
+        guard !Task.isCancelled else { return }
+        self.runtimeGateStatus = AlisioAppRuntimeGateStatus(runtimeState: runtimeState)
+    }
+
     static func resolveVisibleSurface(
         needsInitialAccountRefresh: Bool,
         prefersEntryFlow: Bool,
         isAuthenticated: Bool,
         profileCompleted: Bool,
         prefersSetup: Bool,
-        requiresMacSetup: Bool) -> AlisioAppVisibleSurface
+        runtimeGateStatus: AlisioAppRuntimeGateStatus) -> AlisioAppVisibleSurface
     {
         if needsInitialAccountRefresh {
             return .loading
@@ -137,10 +197,17 @@ struct AlisioAppRootView: View {
         if !isAuthenticated || !profileCompleted {
             return .entryFlow
         }
-        if prefersSetup || requiresMacSetup {
+        if prefersSetup {
             return .setup
         }
-        return .workspace
+        switch runtimeGateStatus {
+        case .checking:
+            return .loading
+        case .blocked:
+            return .setup
+        case .ready:
+            return .workspace
+        }
     }
 }
 
@@ -177,7 +244,7 @@ private struct AlisioEntryFlowRootView: View {
             case .loading:
                 self.loadingStage
             case .entryFlow:
-                AlisioEntryFlowHostView(rootState: self.rootState, state: self.state)
+                AlisioEntryFlowHostView(rootState: self.rootState)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .setup:
                 MacSetupView(state: self.state)
@@ -221,7 +288,7 @@ private struct AlisioEntryFlowRootView: View {
                 .controlSize(.large)
             Text("Preparing Alisio")
                 .font(.title2.weight(.semibold))
-            Text("Checking account state before opening the workspace.")
+            Text("Checking account and runtime state before opening the workspace.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -268,7 +335,6 @@ private struct AlisioEntryFlowRootView: View {
 @MainActor
 private struct AlisioEntryFlowHostView: View {
     @Bindable var rootState: AlisioAppRootState
-    @Bindable var state: AppState
     @Bindable private var accountStore = AlisioAccountStore.shared
     @State private var model = EntryFlowModel(handlers: Self.makeHandlers())
 
@@ -277,11 +343,7 @@ private struct AlisioEntryFlowHostView: View {
             model: self.model,
             legalLinks: EntryFlowLegalLinks(),
             onContinue: {
-                if self.state.requiresMacSetup {
-                    self.rootState.showSetup()
-                } else {
-                    self.rootState.showWorkspace()
-                }
+                self.rootState.showWorkspace()
             })
             .task {
                 if !self.rootState.prefersEntryFlow {

@@ -444,9 +444,9 @@ private func makeTestGatewayConnection() -> GatewayConnection {
                 configProvider: { (url: url, token: nil, password: nil) },
                 sessionBox: WebSocketSessionBox(session: session))
             let attachment = AlisioChatAttachmentPayload(
-                type: "image",
-                mimeType: "image/png",
-                fileName: "proof.png",
+                type: "file",
+                mimeType: "application/pdf",
+                fileName: "brief.pdf",
                 content: "base64payload")
 
             let response = try await connection.chatSend(
@@ -470,9 +470,9 @@ private func makeTestGatewayConnection() -> GatewayConnection {
             #expect(params["timeoutMs"] as? Int == 31000)
             let attachments = try #require(params["attachments"] as? [[String: Any]])
             let firstAttachment = try #require(attachments.first)
-            #expect(firstAttachment["type"] as? String == "image")
-            #expect(firstAttachment["mimeType"] as? String == "image/png")
-            #expect(firstAttachment["fileName"] as? String == "proof.png")
+            #expect(firstAttachment["type"] as? String == "file")
+            #expect(firstAttachment["mimeType"] as? String == "application/pdf")
+            #expect(firstAttachment["fileName"] as? String == "brief.pdf")
             #expect(firstAttachment["content"] as? String == "base64payload")
         }
     }
@@ -523,6 +523,43 @@ private func makeTestGatewayConnection() -> GatewayConnection {
             #expect(params["label"] as? String == "Native Chat")
             #expect(params["model"] as? String == "openai/gpt-5.4")
             #expect(params["task"] as? String == "hello from create")
+        }
+    }
+
+    @Test @MainActor func `sessions delete request forwards canonical key`() async throws {
+        try await TestIsolation.withSignedInAccount {
+            let captured = CapturedGatewayFrameStore()
+            let session = GatewayTestWebSocketSession(
+                taskFactory: {
+                    GatewayTestWebSocketTask(
+                        sendHook: { task, message, sendIndex in
+                            guard sendIndex > 0 else { return }
+                            guard let frame = gatewayRequestData(from: message) else { return }
+                            await captured.record(frame)
+                            guard let id = GatewayWebSocketTestSupport.requestID(from: message) else { return }
+                            task.emitReceiveSuccess(.data(GatewayWebSocketTestSupport.okResponseData(id: id)))
+                        },
+                        receiveHook: { task, receiveIndex in
+                            if receiveIndex == 0 {
+                                return .data(GatewayWebSocketTestSupport.connectChallengeData())
+                            }
+                            let id = task.snapshotConnectRequestID() ?? "connect"
+                            return .data(GatewayWebSocketTestSupport.connectOkData(id: id))
+                        })
+                })
+            let url = try #require(URL(string: "ws://example.invalid"))
+            let connection = GatewayConnection(
+                configProvider: { (url: url, token: nil, password: nil) },
+                sessionBox: WebSocketSessionBox(session: session))
+
+            try await connection.sessionsDelete(key: "  main  ")
+
+            let frameData = try #require(await captured.snapshot())
+            let frame = try #require(try JSONSerialization.jsonObject(with: frameData) as? [String: Any])
+            #expect(frame["method"] as? String == GatewayConnection.Method.sessionsDelete.rawValue)
+            let params = try #require(frame["params"] as? [String: Any])
+            #expect(params["key"] as? String == "main")
+            #expect(params["deleteTranscript"] as? Bool == true)
         }
     }
 

@@ -38,8 +38,9 @@ the selected agent, with a native session switcher for other sessions.
   `chat.inject` and events `chat`, `agent`, `presence`, `tick`, `health`.
 - Session: defaults to the primary session (`main`, or `global` when scope is
   global). The UI can switch between sessions.
-- Onboarding uses a dedicated session to keep first‑run setup separate.
-- The first message path shows honest bootstrap state while session history,
+- Account entry and Mac runtime review happen before the native workspace
+  opens; the workspace does not expose a separate onboarding route.
+- The first message path shows honest initial-load state while session history,
   health, and models are loading, instead of leaving the window in a blank
   thinking state.
 

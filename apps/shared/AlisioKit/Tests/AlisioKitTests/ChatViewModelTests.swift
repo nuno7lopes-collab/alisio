@@ -23,11 +23,11 @@ private func historyPayload(
         thinkingLevel: "off")
 }
 
-private func sessionEntry(key: String, updatedAt: Double) -> AlisioChatSessionEntry {
+private func sessionEntry(key: String, updatedAt: Double, displayName: String? = nil) -> AlisioChatSessionEntry {
     AlisioChatSessionEntry(
         key: key,
         kind: nil,
-        displayName: nil,
+        displayName: displayName,
         surface: nil,
         subject: nil,
         room: nil,
@@ -87,9 +87,16 @@ private func makeViewModel(
     listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)? = nil,
     resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
+    deleteSessionHook: (@Sendable (String) async throws -> Void)? = nil,
     createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)? = nil,
     setSessionModelHook: (@Sendable (String?) async throws -> Void)? = nil,
     setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil,
+    sendMessageHook: (@Sendable (
+        _ sessionKey: String,
+        _ message: String,
+        _ thinking: String,
+        _ idempotencyKey: String,
+        _ attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse)? = nil,
     initialThinkingLevel: String? = nil,
     onThinkingLevelChanged: (@MainActor @Sendable (String) -> Void)? = nil) async
     -> (TestChatTransport, AlisioChatViewModel)
@@ -102,8 +109,10 @@ private func makeViewModel(
         listSessionsHook: listSessionsHook,
         resetSessionHook: resetSessionHook,
         compactSessionHook: compactSessionHook,
+        deleteSessionHook: deleteSessionHook,
         createSessionHook: createSessionHook,
         setSessionModelHook: setSessionModelHook,
+        sendMessageHook: sendMessageHook,
         setSessionThinkingHook: setSessionThinkingHook)
     let vm = await MainActor.run {
         AlisioChatViewModel(
@@ -258,9 +267,11 @@ private actor TestChatTransportState {
     var listSessionQueries: [AlisioChatSessionsQuery] = []
     var resetSessionKeys: [String] = []
     var compactSessionKeys: [String] = []
+    var deleteSessionKeys: [String] = []
     var createSessionRequests: [AlisioChatSessionCreateRequest] = []
     var sentRunIds: [String] = []
     var sentThinkingLevels: [String] = []
+    var sentAttachments: [[AlisioChatAttachmentPayload]] = []
     var abortedRunIds: [String] = []
     var patchedModels: [String?] = []
     var patchedThinkingLevels: [String] = []
@@ -275,8 +286,15 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     private let listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)?
     private let resetSessionHook: (@Sendable (String) async throws -> Void)?
     private let compactSessionHook: (@Sendable (String) async throws -> Void)?
+    private let deleteSessionHook: (@Sendable (String) async throws -> Void)?
     private let createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)?
     private let setSessionModelHook: (@Sendable (String?) async throws -> Void)?
+    private let sendMessageHook: (@Sendable (
+        _ sessionKey: String,
+        _ message: String,
+        _ thinking: String,
+        _ idempotencyKey: String,
+        _ attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse)?
     private let setSessionThinkingHook: (@Sendable (String) async throws -> Void)?
 
     private let stream: AsyncStream<AlisioChatTransportEvent>
@@ -290,8 +308,15 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         listSessionsHook: (@Sendable (AlisioChatSessionsQuery) async throws -> AlisioChatSessionsListResponse)? = nil,
         resetSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         compactSessionHook: (@Sendable (String) async throws -> Void)? = nil,
+        deleteSessionHook: (@Sendable (String) async throws -> Void)? = nil,
         createSessionHook: (@Sendable (AlisioChatSessionCreateRequest) async throws -> AlisioChatSessionCreateResponse)? = nil,
         setSessionModelHook: (@Sendable (String?) async throws -> Void)? = nil,
+        sendMessageHook: (@Sendable (
+            _ sessionKey: String,
+            _ message: String,
+            _ thinking: String,
+            _ idempotencyKey: String,
+            _ attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse)? = nil,
         setSessionThinkingHook: (@Sendable (String) async throws -> Void)? = nil)
     {
         self.historyResponses = historyResponses
@@ -301,8 +326,10 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         self.listSessionsHook = listSessionsHook
         self.resetSessionHook = resetSessionHook
         self.compactSessionHook = compactSessionHook
+        self.deleteSessionHook = deleteSessionHook
         self.createSessionHook = createSessionHook
         self.setSessionModelHook = setSessionModelHook
+        self.sendMessageHook = sendMessageHook
         self.setSessionThinkingHook = setSessionThinkingHook
         var cont: AsyncStream<AlisioChatTransportEvent>.Continuation!
         self.stream = AsyncStream { c in
@@ -314,8 +341,6 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     func events() -> AsyncStream<AlisioChatTransportEvent> {
         self.stream
     }
-
-    func setActiveSessionKey(_: String) async throws {}
 
     func requestHistory(sessionKey: String) async throws -> AlisioChatHistoryPayload {
         let idx = await self.state.historyCallCount
@@ -331,14 +356,18 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
     }
 
     func sendMessage(
-        sessionKey _: String,
-        message _: String,
+        sessionKey: String,
+        message: String,
         thinking: String,
         idempotencyKey: String,
-        attachments _: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse
+        attachments: [AlisioChatAttachmentPayload]) async throws -> AlisioChatSendResponse
     {
         await self.state.sentRunIdsAppend(idempotencyKey)
         await self.state.sentThinkingLevelsAppend(thinking)
+        await self.state.sentAttachmentsAppend(attachments)
+        if let sendMessageHook = self.sendMessageHook {
+            return try await sendMessageHook(sessionKey, message, thinking, idempotencyKey, attachments)
+        }
         return AlisioChatSendResponse(runId: idempotencyKey, status: "ok")
     }
 
@@ -405,6 +434,13 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         }
     }
 
+    func deleteSession(sessionKey: String) async throws {
+        await self.state.deleteSessionKeysAppend(sessionKey)
+        if let deleteSessionHook = self.deleteSessionHook {
+            try await deleteSessionHook(sessionKey)
+        }
+    }
+
     func compactSession(sessionKey: String) async throws {
         await self.state.compactSessionKeysAppend(sessionKey)
         if let compactSessionHook = self.compactSessionHook {
@@ -440,6 +476,10 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
         await self.state.sentThinkingLevels
     }
 
+    func sentAttachments() async -> [[AlisioChatAttachmentPayload]] {
+        await self.state.sentAttachments
+    }
+
     func patchedModels() async -> [String?] {
         await self.state.patchedModels
     }
@@ -454,6 +494,10 @@ private final class TestChatTransport: @unchecked Sendable, AlisioChatTransport 
 
     func compactSessionKeys() async -> [String] {
         await self.state.compactSessionKeys
+    }
+
+    func deleteSessionKeys() async -> [String] {
+        await self.state.deleteSessionKeys
     }
 
     func createSessionRequests() async -> [AlisioChatSessionCreateRequest] {
@@ -490,6 +534,10 @@ extension TestChatTransportState {
         self.sentThinkingLevels.append(v)
     }
 
+    fileprivate func sentAttachmentsAppend(_ value: [AlisioChatAttachmentPayload]) {
+        self.sentAttachments.append(value)
+    }
+
     fileprivate func patchedModelsAppend(_ v: String?) {
         self.patchedModels.append(v)
     }
@@ -504,6 +552,10 @@ extension TestChatTransportState {
 
     fileprivate func compactSessionKeysAppend(_ v: String) {
         self.compactSessionKeys.append(v)
+    }
+
+    fileprivate func deleteSessionKeysAppend(_ v: String) {
+        self.deleteSessionKeys.append(v)
     }
 
     fileprivate func createSessionRequestsAppend(_ value: AlisioChatSessionCreateRequest) {
@@ -831,6 +883,72 @@ extension TestChatTransportState {
         #expect(await MainActor.run { vm.pendingToolCalls.isEmpty })
     }
 
+    @Test func externalFinalDoesNotClearLocalStreamingForOwnPendingRun() async throws {
+        let sessionId = "sess-main"
+        let history = historyPayload(sessionId: sessionId)
+        let (transport, vm) = await makeViewModel(historyResponses: [history, history])
+        try await loadAndWaitBootstrap(vm: vm, sessionId: sessionId)
+
+        await sendUserMessage(vm)
+        try await waitUntil("pending run starts") { await MainActor.run { vm.pendingRunCount == 1 } }
+
+        let runId = try #require(await transport.lastSentRunId())
+        emitAssistantText(transport: transport, runId: runId, text: "local stream", sessionKey: "main")
+        emitToolStart(transport: transport, runId: runId, sessionKey: "main")
+
+        try await waitUntil("local stream visible") {
+            await MainActor.run { vm.streamingAssistantText == "local stream" && vm.pendingToolCalls.count == 1 }
+        }
+
+        emitExternalFinal(transport: transport, runId: "other-run", sessionKey: "main")
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(await MainActor.run { vm.streamingAssistantText } == "local stream")
+        #expect(await MainActor.run { vm.pendingToolCalls.count } == 1)
+    }
+
+    @Test func sendsGenericFileAttachmentsWithoutRejectingNonImageFiles() async throws {
+        let (transport, vm) = await makeViewModel(historyResponses: [historyPayload(), historyPayload()])
+        try await loadAndWaitBootstrap(vm: vm)
+
+        await MainActor.run {
+            vm.addAttachment(
+                data: Data("draft notes".utf8),
+                fileName: "notes.txt",
+                mimeType: "text/plain")
+        }
+
+        try await waitUntil("attachment queued") {
+            await MainActor.run { vm.attachments.count == 1 && vm.attachments.first?.type == "file" }
+        }
+
+        await MainActor.run { vm.send() }
+        try await waitUntil("attachment send captured") {
+            await transport.sentAttachments().count == 1
+        }
+
+        let sentAttachment = try #require(await transport.sentAttachments().first?.first)
+        #expect(sentAttachment.type == "file")
+        #expect(sentAttachment.mimeType == "text/plain")
+        #expect(sentAttachment.fileName == "notes.txt")
+        #expect(await MainActor.run {
+            vm.messages.last?.content.contains(where: { content in
+                content.type == "file" && content.fileName == "notes.txt"
+            }) == true
+        })
+
+        let runId = try #require(await transport.lastSentRunId())
+        transport.emit(
+            .chat(
+                AlisioChatEventPayload(
+                    runId: runId,
+                    sessionKey: "main",
+                    state: "final",
+                    message: nil,
+                    errorMessage: nil)))
+        try await waitUntil("attachment send settles") { await MainActor.run { vm.pendingRunCount == 0 } }
+    }
+
     @Test func seqGapClearsPendingRunsAndAutoRefreshesHistory() async throws {
         let now = Date().timeIntervalSince1970 * 1000
         let history1 = historyPayload()
@@ -950,6 +1068,133 @@ extension TestChatTransportState {
 
         let keys = await MainActor.run { vm.sessionChoices.map(\.key) }
         #expect(keys == ["Luke’s MacBook Pro", "recent-1"])
+    }
+
+    @Test func sessionChoicesDedupeMainAliasAgainstResolvedMainSessionKey() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let history = historyPayload(sessionKey: "main", sessionId: "sess-main")
+        let sessions = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 3,
+            defaults: AlisioChatSessionsDefaults(
+                model: nil,
+                contextTokens: nil,
+                mainSessionKey: "Luke’s MacBook Pro"),
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now - 1_000),
+                AlisioChatSessionEntry(
+                    key: "Luke’s MacBook Pro",
+                    kind: nil,
+                    displayName: "Luke’s MacBook Pro",
+                    surface: nil,
+                    subject: nil,
+                    room: nil,
+                    space: nil,
+                    updatedAt: now,
+                    sessionId: nil,
+                    systemSent: nil,
+                    abortedLastRun: nil,
+                    thinkingLevel: nil,
+                    verboseLevel: nil,
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    modelProvider: nil,
+                    model: nil,
+                    contextTokens: nil),
+                sessionEntry(key: "recent-1", updatedAt: now - 2_000),
+            ])
+
+        let (_, vm) = await makeViewModel(
+            sessionKey: "main",
+            historyResponses: [history],
+            sessionsResponses: [sessions])
+        await MainActor.run { vm.load() }
+        try await waitUntil("deduped main sessions loaded") {
+            await MainActor.run { !vm.sessions.isEmpty }
+        }
+
+        let keys = await MainActor.run { vm.sessionChoices.map(\.key) }
+        #expect(keys == ["Luke’s MacBook Pro", "recent-1"])
+        #expect(await MainActor.run { vm.currentSessionEntry?.displayName } == "Luke’s MacBook Pro")
+    }
+
+    @Test func refreshWithoutDefaultsKeepsResolvedMainSessionIdentity() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let initial = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 2,
+            defaults: AlisioChatSessionsDefaults(
+                model: nil,
+                contextTokens: nil,
+                mainSessionKey: "Luke’s MacBook Pro"),
+            sessions: [
+                sessionEntry(key: "Luke’s MacBook Pro", updatedAt: now, displayName: "Luke’s MacBook Pro"),
+                sessionEntry(key: "recent-1", updatedAt: now - 1_000),
+            ])
+        let staleRefresh = AlisioChatSessionsListResponse(
+            ts: now + 1,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now + 1),
+                sessionEntry(key: "recent-1", updatedAt: now - 1_000),
+            ])
+
+        let (_, vm) = await makeViewModel(
+            sessionKey: "Luke’s MacBook Pro",
+            historyResponses: [historyPayload(sessionKey: "Luke’s MacBook Pro", sessionId: "sess-main")],
+            sessionsResponses: [initial, staleRefresh])
+        await MainActor.run { vm.load() }
+        try await waitUntil("initial canonical main loaded") {
+            await MainActor.run { vm.sessionChoices.map(\.key) == ["Luke’s MacBook Pro", "recent-1"] }
+        }
+
+        await MainActor.run { vm.refreshSessions(limit: 200) }
+        try await waitUntil("refresh without defaults applied without duplicate main aliases") {
+            await MainActor.run { vm.sessionChoices.map(\.key) == ["main", "recent-1"] }
+        }
+        #expect(await MainActor.run { vm.currentSessionEntry?.displayName } == "Luke’s MacBook Pro")
+        #expect(await MainActor.run { vm.sessionTitle(forKey: "Luke’s MacBook Pro") } == "Luke’s MacBook Pro")
+    }
+
+    @Test func sessionTitlesPreferHumanFallbacksOverCanonicalKeys() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let history = historyPayload()
+        let sessions = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 2,
+            defaults: nil,
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+                sessionEntry(key: "agent:main:dashboard:new-chat", updatedAt: now - 1),
+            ])
+
+        let (_, vm) = await makeViewModel(historyResponses: [history], sessionsResponses: [sessions])
+        await MainActor.run { vm.load() }
+        try await waitUntil("sessions loaded") { await MainActor.run { !vm.sessions.isEmpty } }
+
+        let titles = await MainActor.run {
+            Dictionary(uniqueKeysWithValues: vm.sessionChoices.map { ($0.key, vm.sessionTitle(for: $0)) })
+        }
+        #expect(titles["main"] == "Main chat")
+        #expect(titles["agent:main:dashboard:new-chat"] == "Chat")
+    }
+
+    @Test func newCurrentSessionUsesProductSummaryInsteadOfInfraCopy() async throws {
+        let (_, vm) = await makeViewModel(
+            sessionKey: "agent:main:dashboard:new-chat",
+            historyResponses: [historyPayload(sessionKey: "agent:main:dashboard:new-chat", sessionId: "sess-new")])
+
+        let title = await MainActor.run { vm.sessionTitle(forKey: vm.sessionKey) }
+        let summary = await MainActor.run { vm.sessionSummary(forKey: vm.sessionKey) }
+
+        #expect(title == "New chat")
+        #expect(summary == "Start a fresh chat without losing your place.")
     }
 
     @Test func sessionChoicesHideInternalOnboardingSession() async throws {
@@ -1220,6 +1465,41 @@ extension TestChatTransportState {
         #expect(await MainActor.run { vm.errorText } == nil)
     }
 
+    @Test func deleteCurrentSessionFallsBackToMainAndRemovesDeletedEntry() async throws {
+        let now = Date().timeIntervalSince1970 * 1000
+        let sessions = AlisioChatSessionsListResponse(
+            ts: now,
+            path: nil,
+            count: 2,
+            defaults: AlisioChatSessionsDefaults(model: nil, contextTokens: nil, mainSessionKey: "main"),
+            sessions: [
+                sessionEntry(key: "main", updatedAt: now),
+                sessionEntry(key: "other", updatedAt: now - 1_000),
+            ])
+
+        let (transport, vm) = await makeViewModel(
+            sessionKey: "other",
+            historyResponses: [
+                historyPayload(sessionKey: "other", sessionId: "sess-other"),
+                historyPayload(sessionKey: "main", sessionId: "sess-main"),
+            ],
+            sessionsResponses: [sessions, sessions],
+            deleteSessionHook: { key in
+                #expect(key == "other")
+            })
+        try await loadAndWaitBootstrap(vm: vm, sessionId: "sess-other")
+
+        await MainActor.run { vm.deleteSession(sessionKey: "other") }
+
+        try await waitUntil("delete issued") {
+            await transport.deleteSessionKeys() == ["other"]
+        }
+        try await waitUntil("deleted current session falls back to main") {
+            await MainActor.run { vm.sessionKey == "main" && vm.sessionId == "sess-main" }
+        }
+        #expect(await MainActor.run { vm.sessionChoices.map(\.key) } == ["main"])
+    }
+
     @Test func refreshSessionsSearchKeepsLatestResponseOnly() async throws {
         let firstGate = AsyncGate()
         let secondGate = AsyncGate()
@@ -1301,6 +1581,7 @@ extension TestChatTransportState {
 
         #expect(await MainActor.run { vm.showsModelPicker })
         #expect(await MainActor.run { vm.modelSelectionID } == "anthropic/claude-opus-4-6")
+        #expect(await MainActor.run { vm.activeModelLabel } == "anthropic/claude-opus-4-6")
         #expect(await MainActor.run { vm.defaultModelLabel } == "Default: openai/gpt-4.1-mini")
     }
 
@@ -1335,6 +1616,7 @@ extension TestChatTransportState {
         }
 
         #expect(await MainActor.run { vm.modelSelectionID } == AlisioChatViewModel.defaultModelSelectionID)
+        #expect(await MainActor.run { vm.activeModelLabel } == "openai/gpt-4.1-mini")
     }
 
     @Test func selectingProviderQualifiedModelDisambiguatesDuplicateModelIDs() async throws {
@@ -1875,6 +2157,50 @@ Hello?
                     errorMessage: nil)))
 
         try await waitUntil("pending run clears") { await MainActor.run { vm.pendingRunCount == 0 } }
+    }
+
+    @Test func abortWaitsForDispatchToFinishBeforeCallingAbortRun() async throws {
+        let sessionId = "sess-main"
+        let history = historyPayload(sessionId: sessionId)
+        let gate = AsyncGate()
+        let (transport, vm) = await makeViewModel(
+            historyResponses: [history, history],
+            sendMessageHook: { _, _, _, idempotencyKey, _ in
+                await gate.wait()
+                return AlisioChatSendResponse(runId: idempotencyKey, status: "ok")
+            })
+        try await loadAndWaitBootstrap(vm: vm, sessionId: sessionId)
+
+        await sendUserMessage(vm)
+        try await waitUntil("dispatching run tracked") { await MainActor.run { vm.pendingRunCount == 1 } }
+
+        let runId = try #require(await transport.lastSentRunId())
+        await MainActor.run { vm.abort() }
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(await transport.abortedRunIds().isEmpty)
+        #expect(await MainActor.run { vm.isAborting })
+        #expect(await MainActor.run { vm.pendingRunCount } == 1)
+
+        await gate.open()
+
+        try await waitUntil("abort fires after dispatch") {
+            await transport.abortedRunIds() == [runId]
+        }
+
+        transport.emit(
+            .chat(
+                AlisioChatEventPayload(
+                    runId: runId,
+                    sessionKey: "main",
+                    state: "aborted",
+                    message: nil,
+                    errorMessage: nil)))
+
+        try await waitUntil("abort state clears") {
+            await MainActor.run { vm.pendingRunCount == 0 && vm.isAborting == false }
+        }
+        #expect(await MainActor.run { vm.errorText } == nil)
     }
 
     @Test func abortWithoutActiveRunShowsHonestError() async throws {

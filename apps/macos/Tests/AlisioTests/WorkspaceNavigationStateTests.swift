@@ -28,10 +28,6 @@ struct WorkspaceNavigationStateTests {
         #expect(state.route == .chat)
     }
 
-    @Test func `workspace routes no longer expose onboarding`() {
-        #expect(WorkspaceNavigationState.Route.allCases.map(\.rawValue).contains("onboarding") == false)
-    }
-
     @Test func `workspace routes expose the canonical shell tabs`() {
         #expect(WorkspaceNavigationState.Route.allCases.map(\.rawValue) == [
             "chat",

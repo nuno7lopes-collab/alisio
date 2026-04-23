@@ -27,9 +27,9 @@ public protocol AlisioChatTransport: Sendable {
     func requestHealth(timeoutMs: Int) async throws -> Bool
     func events() -> AsyncStream<AlisioChatTransportEvent>
 
-    func setActiveSessionKey(_ sessionKey: String) async throws
     func resetSession(sessionKey: String) async throws
     func compactSession(sessionKey: String) async throws
+    func deleteSession(sessionKey: String) async throws
 }
 
 extension AlisioChatTransport {
@@ -47,8 +47,6 @@ extension AlisioChatTransport {
             userInfo: [NSLocalizedDescriptionKey: "sessions.create not supported by this transport"])
     }
 
-    public func setActiveSessionKey(_: String) async throws {}
-
     public func resetSession(sessionKey _: String) async throws {
         throw NSError(
             domain: "AlisioChatTransport",
@@ -61,6 +59,13 @@ extension AlisioChatTransport {
             domain: "AlisioChatTransport",
             code: 0,
             userInfo: [NSLocalizedDescriptionKey: "sessions.compact not supported by this transport"])
+    }
+
+    public func deleteSession(sessionKey _: String) async throws {
+        throw NSError(
+            domain: "AlisioChatTransport",
+            code: 0,
+            userInfo: [NSLocalizedDescriptionKey: "sessions.delete not supported by this transport"])
     }
 
     public func abortRun(sessionKey _: String, runId _: String) async throws {

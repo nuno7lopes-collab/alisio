@@ -1,5 +1,5 @@
 ---
-summary: "Full reference for CLI onboarding: every step, flag, and config field"
+summary: "Full reference for `alisio onboard`: every step, flag, and config field"
 read_when:
   - Looking up a specific onboarding step or flag
   - Automating onboarding with non-interactive mode
@@ -10,8 +10,11 @@ sidebarTitle: "Onboarding Reference"
 
 # Onboarding Reference
 
-This is the full reference for `alisio onboard`.
+This is the full reference for `alisio onboard`, the CLI runtime and gateway
+setup flow.
 For a high-level overview, see [Onboarding (CLI)](/start/wizard).
+
+The macOS app no longer uses this wizard as its primary product entry surface.
 
 ## Flow details (local mode)
 
@@ -184,8 +187,11 @@ alisio agents add work \
 
 ## Gateway wizard RPC
 
-The Gateway exposes the onboarding flow over RPC (`wizard.start`, `wizard.next`, `wizard.cancel`, `wizard.status`).
-Clients (macOS app, Control UI) can render steps without re‑implementing onboarding logic.
+The Gateway exposes the onboarding flow over RPC (`wizard.start`, `wizard.next`,
+`wizard.cancel`, `wizard.status`).
+Operator-facing clients and tooling can render steps without re-implementing
+the CLI flow. The macOS app's primary entry flow does not depend on this
+wizard.
 
 ## Signal setup (signal-cli)
 
@@ -201,7 +207,7 @@ Notes:
 - Native builds are used when available.
 - Windows uses WSL2; signal-cli install follows the Linux flow inside WSL.
 
-## What the wizard writes
+## What `alisio onboard` writes
 
 Typical fields in `~/.alisio/alisio.json`:
 
@@ -230,7 +236,7 @@ will prompt to install it (npm or a local path) before it can be configured.
 ## Related docs
 
 - Onboarding overview: [Onboarding (CLI)](/start/wizard)
-- macOS app setup: [macOS App Setup](/start/onboarding)
+- macOS app flow: [macOS App Setup](/start/onboarding)
 - Config reference: [Gateway configuration](/gateway/configuration)
 - Providers: [WhatsApp](/channels/whatsapp), [Telegram](/channels/telegram), [Discord](/channels/discord), [Google Chat](/channels/googlechat), [Signal](/channels/signal), [BlueBubbles](/channels/bluebubbles) (iMessage), [iMessage](/channels/imessage) (legacy)
 - Skills: [Skills](/tools/skills), [Skills config](/tools/skills-config)

@@ -3,9 +3,75 @@ import SwiftUI
 
 @MainActor
 struct ChatSessionsSheet: View {
+    private enum PendingConfirmation: Identifiable {
+        case reset(AlisioChatSessionEntry)
+        case compact(AlisioChatSessionEntry)
+        case delete(AlisioChatSessionEntry)
+
+        var id: String {
+            switch self {
+            case let .reset(session):
+                return "reset:\(session.key)"
+            case let .compact(session):
+                return "compact:\(session.key)"
+            case let .delete(session):
+                return "delete:\(session.key)"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .reset:
+                return "Reset chat?"
+            case .compact:
+                return "Compact chat?"
+            case .delete:
+                return "Delete chat?"
+            }
+        }
+
+        var actionTitle: String {
+            switch self {
+            case .reset:
+                return "Reset"
+            case .compact:
+                return "Compact"
+            case .delete:
+                return "Delete"
+            }
+        }
+
+        var isDestructive: Bool {
+            switch self {
+            case .delete:
+                return true
+            case .reset, .compact:
+                return false
+            }
+        }
+
+        var message: String {
+            switch self {
+            case let .reset(session):
+                return "Starts a fresh transcript for “\(Self.chatTitle(for: session))”."
+            case .compact:
+                return "Keeps the recent transcript and archives the older log."
+            case let .delete(session):
+                return "Deletes “\(Self.chatTitle(for: session))” and archives its transcript."
+            }
+        }
+
+        private static func chatTitle(for session: AlisioChatSessionEntry) -> String {
+            AlisioChatSessionPresentation.title(for: session)
+        }
+    }
+
     @Bindable var viewModel: AlisioChatViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var searchText = ""
+    @State private var pendingSwitchSessionKey: String?
+    @State private var pendingNewChatSourceKey: String?
+    @State private var pendingConfirmation: PendingConfirmation?
 
     private var normalizedSearchText: String {
         self.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -24,19 +90,58 @@ struct ChatSessionsSheet: View {
             Group {
                 if self.filteredSessions.isEmpty, !self.viewModel.isRefreshingSessions {
                     ContentUnavailableView(
-                        "No Chats",
+                        self.normalizedSearchText.isEmpty ? "No chats yet" : "No matching chats",
                         systemImage: "bubble.left.and.bubble.right",
                         description: Text(self.emptyStateMessage))
                 } else {
                     List(self.filteredSessions) { session in
-                        Button {
-                            self.viewModel.switchSession(to: session.key)
-                            self.dismiss()
-                        } label: {
-                            ChatSessionRowView(viewModel: self.viewModel, session: session)
+                        HStack(alignment: .top, spacing: 10) {
+                            Button {
+                                self.activate(session)
+                            } label: {
+                                ChatSessionRowView(viewModel: self.viewModel, session: session)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(!self.viewModel.canSwitchSessions)
+
+                            Menu {
+                                if !self.viewModel.isCurrentSession(session) {
+                                    Button("Open Chat") {
+                                        self.activate(session)
+                                    }
+                                }
+
+                                Button("Reset Chat") {
+                                    self.pendingConfirmation = .reset(session)
+                                }
+                                .disabled(!self.viewModel.canResetSession(session))
+
+                                Button("Compact Chat") {
+                                    self.pendingConfirmation = .compact(session)
+                                }
+                                .disabled(!self.viewModel.canCompactSession(session))
+
+                                if !self.viewModel.isMainSession(session) {
+                                    Button("Delete Chat", role: .destructive) {
+                                        self.pendingConfirmation = .delete(session)
+                                    }
+                                    .disabled(!self.viewModel.canDeleteSession(session))
+                                }
+                            } label: {
+                                Group {
+                                    if self.viewModel.isMutatingSession(session) {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        Image(systemName: "ellipsis.circle")
+                                    }
+                                }
+                                .frame(width: 18, height: 18)
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
                         }
-                        .buttonStyle(.plain)
-                        .disabled(!self.viewModel.canSwitchSessions)
+                        .padding(.vertical, 2)
                     }
                     .overlay {
                         if self.viewModel.isRefreshingSessions {
@@ -46,7 +151,7 @@ struct ChatSessionsSheet: View {
                     }
                 }
             }
-            .navigationTitle("Chats")
+            .navigationTitle("Recent chats")
             .searchable(text: self.$searchText, prompt: "Search chats")
             .toolbar {
                 #if os(macOS)
@@ -59,8 +164,7 @@ struct ChatSessionsSheet: View {
                     .disabled(self.viewModel.isRefreshingSessions)
 
                     Button {
-                        self.viewModel.newChat()
-                        self.dismiss()
+                        self.startNewChat()
                     } label: {
                         if self.viewModel.isCreatingSession {
                             ProgressView().controlSize(.small)
@@ -88,8 +192,7 @@ struct ChatSessionsSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 12) {
                         Button("New Chat") {
-                            self.viewModel.newChat()
-                            self.dismiss()
+                            self.startNewChat()
                         }
                         .disabled(!self.viewModel.canCreateSession)
 
@@ -103,7 +206,7 @@ struct ChatSessionsSheet: View {
                 #endif
             }
             .overlay(alignment: .bottom) {
-                if let message = self.viewModel.sessionListErrorText?
+                if let message = self.statusMessage?
                     .trimmingCharacters(in: .whitespacesAndNewlines),
                    !message.isEmpty
                 {
@@ -115,20 +218,79 @@ struct ChatSessionsSheet: View {
                         .background(
                             Capsule(style: .continuous)
                                 .fill(AlisioChatTheme.subtleCard))
-                        .padding(.bottom, 12)
+                    .padding(.bottom, 12)
                 }
+            }
+            .confirmationDialog(
+                self.pendingConfirmation?.title ?? "",
+                isPresented: Binding(
+                    get: { self.pendingConfirmation != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            self.pendingConfirmation = nil
+                        }
+                    }),
+                titleVisibility: .visible)
+            {
+                if let confirmation = self.pendingConfirmation {
+                    Button(confirmation.actionTitle, role: confirmation.isDestructive ? .destructive : nil) {
+                        self.confirm(confirmation)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(self.pendingConfirmation?.message ?? "")
             }
             .task(id: self.normalizedSearchText) {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
                 self.reloadSessions()
             }
+            .onChange(of: self.viewModel.sessionKey) { _, newValue in
+                if let pendingSwitchSessionKey,
+                   self.viewModel.sessionKeysMatch(newValue, pendingSwitchSessionKey)
+                {
+                    self.pendingSwitchSessionKey = nil
+                    self.pendingNewChatSourceKey = nil
+                    self.dismiss()
+                    return
+                }
+
+                if let sourceSessionKey = self.pendingNewChatSourceKey,
+                   !self.viewModel.isCreatingSession,
+                   !self.viewModel.sessionKeysMatch(newValue, sourceSessionKey)
+                {
+                    self.pendingNewChatSourceKey = nil
+                    self.dismiss()
+                }
+            }
+            .onChange(of: self.viewModel.isCreatingSession) { _, isCreating in
+                guard !isCreating else { return }
+                guard let sourceSessionKey = self.pendingNewChatSourceKey else { return }
+                guard !self.viewModel.sessionKeysMatch(self.viewModel.sessionKey, sourceSessionKey) else { return }
+                self.pendingNewChatSourceKey = nil
+                self.dismiss()
+            }
         }
+    }
+
+    private var statusMessage: String? {
+        let actionMessage = self.viewModel.sessionActionErrorText?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let actionMessage, !actionMessage.isEmpty {
+            return actionMessage
+        }
+        let listMessage = self.viewModel.sessionListErrorText?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let listMessage, !listMessage.isEmpty {
+            return listMessage
+        }
+        return nil
     }
 
     private var emptyStateMessage: String {
         if self.normalizedSearchText.isEmpty {
-            return "Start a new chat or refresh to load recent sessions."
+            return "Start a new chat to keep separate threads and pick up past work later."
         }
         return "Try a different search."
     }
@@ -137,6 +299,34 @@ struct ChatSessionsSheet: View {
         self.viewModel.refreshSessions(
             search: self.normalizedSearchText.isEmpty ? nil : self.normalizedSearchText,
             limit: 200)
+    }
+
+    private func activate(_ session: AlisioChatSessionEntry) {
+        if self.viewModel.isCurrentSession(session) {
+            self.dismiss()
+            return
+        }
+        self.pendingNewChatSourceKey = nil
+        self.pendingSwitchSessionKey = session.key
+        self.viewModel.switchSession(to: session.key)
+    }
+
+    private func startNewChat() {
+        self.pendingSwitchSessionKey = nil
+        self.pendingNewChatSourceKey = self.viewModel.sessionKey
+        self.viewModel.newChat()
+    }
+
+    private func confirm(_ confirmation: PendingConfirmation) {
+        switch confirmation {
+        case let .reset(session):
+            self.viewModel.resetSession(sessionKey: session.key)
+        case let .compact(session):
+            self.viewModel.compactSession(sessionKey: session.key)
+        case let .delete(session):
+            self.viewModel.deleteSession(sessionKey: session.key)
+        }
+        self.pendingConfirmation = nil
     }
 }
 
@@ -170,17 +360,10 @@ private struct ChatSessionRowView: View {
                 }
             }
 
-            if let preview = self.viewModel.sessionPreviewText(for: self.session) {
-                Text(preview)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            } else {
-                Text(self.session.key)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            Text(self.viewModel.sessionSummary(for: self.session))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

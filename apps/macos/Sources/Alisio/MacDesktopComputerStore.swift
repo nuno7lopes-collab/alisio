@@ -108,11 +108,16 @@ final class MacDesktopComputerStore {
     }
 
     var shouldAutoPresentPane: Bool {
-        self.sessionStatus != .stopped ||
-            self.frameImage != nil ||
-            self.observation != nil ||
-            self.errorText != nil ||
-            self.blockingSummary != nil
+        if self.frameImage != nil || self.observation != nil || self.blockingState != nil {
+            return true
+        }
+
+        switch self.sessionState {
+        case .running, .paused:
+            return true
+        case .stopped:
+            return self.sessionStatus == .blockedOnRestartRequired && self.permissionRestartHint != nil
+        }
     }
 
     var blockingSummary: String? {
