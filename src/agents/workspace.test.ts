@@ -326,14 +326,16 @@ describe("filterBootstrapFilesForSession", () => {
       mockFiles,
       "agent:default:discord:channel:chan-1",
     );
-    expect(result).toHaveLength(mockFiles.length - 1);
+    expect(result).toHaveLength(mockFiles.length - 2);
     expect(getMemoryEntries(result)).toHaveLength(0);
+    expect(result.map((file) => file.name)).not.toContain("BOOTSTRAP.md");
   });
 
   it("omits MEMORY.md for shared group sessions", () => {
     const result = filterBootstrapFilesForSession(mockFiles, "agent:default:slack:group:g-1");
-    expect(result).toHaveLength(mockFiles.length - 1);
+    expect(result).toHaveLength(mockFiles.length - 2);
     expect(getMemoryEntries(result)).toHaveLength(0);
+    expect(result.map((file) => file.name)).not.toContain("BOOTSTRAP.md");
   });
 
   it("filters to allowlist for subagent sessions", () => {

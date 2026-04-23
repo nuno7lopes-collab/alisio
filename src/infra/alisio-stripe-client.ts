@@ -283,21 +283,6 @@ export type AlisioStripeResult =
       requestId?: string;
     };
 
-export type AlisioStripeKeyValidationResult =
-  | {
-      ok: true;
-      connectedAccount: StripeConnectedAccount;
-      accessKind: StripeAccessKind;
-      keyKind: StripeKeyKind;
-      mode: StripeMode;
-    }
-  | {
-      ok: false;
-      message: string;
-      reconnectRequired?: boolean;
-      missingPermissions?: string[];
-    };
-
 function normalizeStripeApiKey(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -916,43 +901,6 @@ function buildStripeConnectedAccount(params: {
   }
   return {
     label: `Stripe ${modeLabel} account`,
-  };
-}
-
-export async function validateAlisioStripeApiKey(
-  input: { apiKey: string },
-  fetchImpl: typeof fetch = fetch,
-): Promise<AlisioStripeKeyValidationResult> {
-  const apiKey = normalizeStripeApiKey(input.apiKey);
-  if (!apiKey) {
-    return {
-      ok: false,
-      message: "Enter a Stripe secret or restricted API key. Publishable keys are not supported.",
-    };
-  }
-  const probe = await validateStripeReadAccess({
-    credential: apiKey,
-    fetchImpl,
-    modeHint: detectStripeMode(apiKey),
-  });
-  if (!probe.ok) {
-    return {
-      ok: false,
-      message: probe.message.replace("Stripe credential", "Stripe key"),
-      ...(probe.reconnectRequired ? { reconnectRequired: true } : {}),
-      ...(probe.missingPermissions ? { missingPermissions: probe.missingPermissions } : {}),
-    };
-  }
-  const keyKind = detectStripeKeyKind(apiKey);
-  return {
-    ok: true,
-    accessKind: keyKind,
-    keyKind,
-    mode: probe.mode,
-    connectedAccount: buildStripeConnectedAccount({
-      mode: probe.mode,
-      accessKind: keyKind,
-    }),
   };
 }
 

@@ -7,8 +7,8 @@ describe("gateway public method list", () => {
     expect(methods).toContain("connectors.catalog");
     expect(methods).toContain("connectors.list");
     expect(methods).toContain("connectors.begin");
-    expect(methods).toContain("connectors.complete");
     expect(methods).toContain("connectors.revoke");
+    expect(methods).not.toContain("connectors.complete");
     expect(methods).not.toContain("alisio.connectors.catalog");
     expect(methods).not.toContain("alisio.connectors.list");
     expect(methods).not.toContain("alisio.connectors.begin");

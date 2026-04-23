@@ -99,10 +99,7 @@ import {
   type AlisioSharingCloudPrincipal,
   type AlisioSharingCloudRuntimeTarget,
 } from "./alisio-sharing-cloud.js";
-import {
-  validateAlisioStripeAccessToken,
-  validateAlisioStripeApiKey,
-} from "./alisio-stripe-client.js";
+import { validateAlisioStripeAccessToken } from "./alisio-stripe-client.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import { resolveCurrentComputerFallbackLabel, resolveCurrentComputerId } from "./local-computer.js";
@@ -139,6 +136,15 @@ export type AlisioBootstrapStep =
   | "connectors"
   | "permissions"
   | "ready";
+
+export type AlisioConnectorSurface = {
+  groupId: string;
+  groupTitle: string;
+  capabilityTitle: string;
+  sortOrder: number;
+  systemImage: string;
+  groupSummary?: string;
+};
 
 export type AlisioBootstrapConnectorSummary = {
   total: number;
@@ -197,6 +203,7 @@ export type AlisioConnectorDefinition = {
   availability: AlisioConnectorAvailability;
   setupUrl?: string;
   scopes: string[];
+  surface?: AlisioConnectorSurface;
 };
 
 export type AlisioConnectedAccount = {
@@ -659,6 +666,7 @@ const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = ALISIO_CONNECTOR_TOKEN_KE
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const STRIPE_CONNECTOR_ID = "stripe";
 const STRIPE_OAUTH_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
+const GMAIL_SURFACE_SUMMARY = "Read, organize, and send email with the access levels you choose.";
 const withLock = createAsyncLock();
 
 function resolveDurableRuntimeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -758,6 +766,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/documents", "openid", "email"],
+    surface: {
+      groupId: "google-docs",
+      groupTitle: "Google Docs",
+      capabilityTitle: "Documents",
+      sortOrder: 0,
+      systemImage: "doc.text",
+    },
   },
   {
     id: "google-sheets",
@@ -769,6 +784,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/spreadsheets", "openid", "email"],
+    surface: {
+      groupId: "google-sheets",
+      groupTitle: "Google Sheets",
+      capabilityTitle: "Spreadsheets",
+      sortOrder: 0,
+      systemImage: "tablecells",
+    },
   },
   {
     id: "google-forms",
@@ -780,6 +802,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/forms.body", "openid", "email"],
+    surface: {
+      groupId: "google-forms",
+      groupTitle: "Google Forms",
+      capabilityTitle: "Forms",
+      sortOrder: 0,
+      systemImage: "list.bullet.rectangle",
+    },
   },
   {
     id: "youtube",
@@ -791,6 +820,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/youtube.readonly", "openid", "email"],
+    surface: {
+      groupId: "youtube",
+      groupTitle: "YouTube",
+      capabilityTitle: "Channel",
+      sortOrder: 0,
+      systemImage: "play.rectangle",
+    },
   },
   {
     id: "gmail-read",
@@ -802,6 +838,14 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/gmail.readonly", "openid", "email"],
+    surface: {
+      groupId: "gmail",
+      groupTitle: "Gmail",
+      capabilityTitle: "Read",
+      sortOrder: 0,
+      systemImage: "envelope.badge",
+      groupSummary: GMAIL_SURFACE_SUMMARY,
+    },
   },
   {
     id: "gmail-modify",
@@ -813,6 +857,14 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/gmail.modify", "openid", "email"],
+    surface: {
+      groupId: "gmail",
+      groupTitle: "Gmail",
+      capabilityTitle: "Organize",
+      sortOrder: 1,
+      systemImage: "envelope.badge",
+      groupSummary: GMAIL_SURFACE_SUMMARY,
+    },
   },
   {
     id: "gmail-send",
@@ -824,6 +876,14 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/gmail.send", "openid", "email"],
+    surface: {
+      groupId: "gmail",
+      groupTitle: "Gmail",
+      capabilityTitle: "Send",
+      sortOrder: 2,
+      systemImage: "envelope.badge",
+      groupSummary: GMAIL_SURFACE_SUMMARY,
+    },
   },
   {
     id: "google-calendar",
@@ -835,6 +895,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/calendar", "openid", "email"],
+    surface: {
+      groupId: "google-calendar",
+      groupTitle: "Google Calendar",
+      capabilityTitle: "Calendar",
+      sortOrder: 0,
+      systemImage: "calendar",
+    },
   },
   {
     id: "google-drive",
@@ -846,6 +913,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/drive", "openid", "email"],
+    surface: {
+      groupId: "google-drive",
+      groupTitle: "Google Drive",
+      capabilityTitle: "Files",
+      sortOrder: 0,
+      systemImage: "externaldrive",
+    },
   },
   {
     id: "google-analytics",
@@ -857,6 +931,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     availability: "ready",
     setupUrl: "https://developers.google.com/identity/protocols/oauth2",
     scopes: ["https://www.googleapis.com/auth/analytics.readonly", "openid", "email"],
+    surface: {
+      groupId: "google-analytics",
+      groupTitle: "Google Analytics",
+      capabilityTitle: "Reports",
+      sortOrder: 0,
+      systemImage: "chart.xyaxis.line",
+    },
   },
   {
     id: STRIPE_CONNECTOR_ID,
@@ -881,6 +962,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
       "dispute_read",
       "refund_read",
     ],
+    surface: {
+      groupId: STRIPE_CONNECTOR_ID,
+      groupTitle: "Stripe",
+      capabilityTitle: "Finance",
+      sortOrder: 0,
+      systemImage: "creditcard",
+    },
   },
   {
     id: "notion",
@@ -905,6 +993,13 @@ const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
     setupUrl:
       "https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app",
     scopes: ["contents", "issues", "pull_requests"],
+    surface: {
+      groupId: "github",
+      groupTitle: "GitHub",
+      capabilityTitle: "Repositories",
+      sortOrder: 0,
+      systemImage: "chevron.left.forwardslash.chevron.right",
+    },
   },
   {
     id: "vercel",
@@ -7939,6 +8034,39 @@ async function revokeGoogleOAuthCredential(params: {
   }
 }
 
+async function revokeGitHubOAuthCredential(params: {
+  accessToken: string;
+  config: AlisioOAuthClientConfig;
+  fetchImpl: typeof fetch;
+}): Promise<void> {
+  if (!params.config.clientId || !params.config.clientSecret) {
+    return;
+  }
+  try {
+    await params.fetchImpl(
+      `https://api.github.com/applications/${encodeURIComponent(params.config.clientId)}/token`,
+      {
+        method: "DELETE",
+        headers: {
+          accept: "application/vnd.github+json",
+          authorization: `Basic ${Buffer.from(
+            `${params.config.clientId}:${params.config.clientSecret}`,
+            "utf8",
+          ).toString("base64")}`,
+          "content-type": "application/json",
+          "user-agent": "Alisio",
+          "x-github-api-version": "2022-11-28",
+        },
+        body: JSON.stringify({
+          access_token: params.accessToken,
+        }),
+      },
+    );
+  } catch {
+    // Best-effort revoke only; the local token must still be removed.
+  }
+}
+
 export async function completeAlisioConnectorAuthorizationFromCallback(
   input: {
     provider: string;
@@ -8190,90 +8318,6 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
   });
 }
 
-export async function completeAlisioConnectorAuthorization(
-  input: {
-    connectorId: string;
-    account?: AlisioConnectedAccount;
-    apiKey?: string;
-  },
-  env?: NodeJS.ProcessEnv,
-  fetchImpl: typeof fetch = fetch,
-): Promise<AlisioConnectorAuthorization | null> {
-  return withLock(async () => {
-    const connector = CONNECTOR_CATALOG.find((entry) => entry.id === input.connectorId.trim());
-    if (!connector || connector.availability !== "ready") {
-      return null;
-    }
-    const provider = resolveConnectorOAuthProvider(connector.id);
-    if (
-      provider === "google" ||
-      provider === "github" ||
-      (provider === "stripe" && !input.apiKey)
-    ) {
-      return null;
-    }
-    const state = await loadStoredState(env);
-    assertAlisioAccountSetupAccess(state, "connector", env ?? process.env);
-    const gate = gateAlisioConnectorConnection({
-      plan: resolveStoredAlisioPlan(state),
-      connectedCount: countAlisioLimitedConnectorSlots(Object.values(state.authorizations)),
-      connectorAlreadyConnected:
-        state.authorizations[connector.id]?.state === "connected" ||
-        state.authorizations[connector.id]?.state === "needs_reconnect",
-    });
-    if (!gate.ok) {
-      throw new AlisioAccountValidationError(gate.message);
-    }
-    if (connector.id === STRIPE_CONNECTOR_ID) {
-      // Compatibility path for older local Stripe setups that stored a read-only
-      // key directly. The primary product flow now uses Stripe App OAuth.
-      const apiKey = input.apiKey?.trim();
-      if (!apiKey) {
-        throw new AlisioAccountValidationError("Enter a Stripe secret or restricted API key.");
-      }
-      const validation = await validateAlisioStripeApiKey({ apiKey }, fetchImpl);
-      if (!validation.ok) {
-        throw new AlisioAccountValidationError(validation.message);
-      }
-      const connectedAt = new Date().toISOString();
-      const authorization: AlisioConnectorAuthorization = {
-        connectorId: connector.id,
-        state: "connected",
-        health: "healthy",
-        connectedAt,
-        scopes: connector.scopes,
-        connectedAccount: input.account ?? validation.connectedAccount,
-      };
-      state.authorizations[connector.id] = authorization;
-      state.oauthCredentials[connector.id] = buildStoredOAuthCredential({
-        provider: "stripe",
-        accessToken: apiKey,
-        createdAt: connectedAt,
-        env: env ?? process.env,
-      });
-      await persistState(state, env);
-      return authorization;
-    }
-    const connectedAccount =
-      input.account ??
-      ({
-        label: state.account.profile.displayName,
-        email: state.account.profile.email,
-      } satisfies AlisioConnectedAccount);
-    const authorization: AlisioConnectorAuthorization = {
-      connectorId: connector.id,
-      state: "connected",
-      health: "healthy",
-      connectedAt: new Date().toISOString(),
-      scopes: connector.scopes,
-      connectedAccount,
-    };
-    state.authorizations[connector.id] = authorization;
-    await persistState(state, env);
-    return authorization;
-  });
-}
-
 export async function revokeAlisioConnectorAuthorization(
   connectorId: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -8293,6 +8337,16 @@ export async function revokeAlisioConnectorAuthorization(
       if (tokenForRevoke) {
         await revokeGoogleOAuthCredential({
           token: tokenForRevoke,
+          fetchImpl,
+        });
+      }
+    }
+    if (credential?.provider === "github") {
+      const accessToken = readStoredAccessToken(credential, env);
+      if (accessToken) {
+        await revokeGitHubOAuthCredential({
+          accessToken,
+          config: resolveOAuthClientConfig("github", env),
           fetchImpl,
         });
       }

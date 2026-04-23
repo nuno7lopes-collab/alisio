@@ -3,6 +3,7 @@ import type { MemoryCitationsMode } from "../config/types.memory.js";
 import type {
   MemoryEmbeddingProbeResult,
   MemoryProviderStatus,
+  MemorySearchResult,
   MemorySyncProgressUpdate,
 } from "../plugin-sdk/memory-core-host-engine-storage.js";
 
@@ -27,6 +28,15 @@ export type MemoryFlushPlanResolver = (params: {
 }) => MemoryFlushPlan | null;
 
 export type RegisteredMemorySearchManager = {
+  search(
+    query: string,
+    opts?: { maxResults?: number; minScore?: number; sessionKey?: string },
+  ): Promise<MemorySearchResult[]>;
+  readFile(params: {
+    relPath: string;
+    from?: number;
+    lines?: number;
+  }): Promise<{ text: string; path: string }>;
   status(): MemoryProviderStatus;
   probeEmbeddingAvailability(): Promise<MemoryEmbeddingProbeResult>;
   probeVectorAvailability(): Promise<boolean>;

@@ -20,6 +20,21 @@ export type GatewayPersonalContextAvailability =
   | "retrieval_only";
 
 export type GatewayPersonalContextInheritance = "identity" | "soul" | "preferences" | "main_memory";
+export type GatewayPersonalContextSessionKind = "main" | "direct" | "group" | "subagent" | "cron";
+export type GatewayPersonalContextFileKind =
+  | "agent_instructions"
+  | "agent_tools"
+  | "agent_heartbeat"
+  | "setup_bootstrap"
+  | "identity"
+  | "soul"
+  | "preferences"
+  | "main_memory"
+  | "topic_note"
+  | "daily_note"
+  | "backlog_note";
+export type GatewayPersonalContextFileGroup = "agent" | "setup" | "identity" | "memory";
+export type GatewayPersonalContextMemoryRole = "main" | "topic" | "daily" | "backlog";
 
 export type GatewayPersonalContextFileSummary = {
   path: string;
@@ -28,7 +43,7 @@ export type GatewayPersonalContextFileSummary = {
 };
 
 export type GatewayPersonalContextSessionPolicy = {
-  kind: "main" | "direct" | "group" | "subagent" | "cron";
+  kind: GatewayPersonalContextSessionKind;
   role:
     | "default_personal_session"
     | "private_direct_session"
@@ -65,6 +80,50 @@ export type GatewayAccountDeviceBinding = {
   platform?: string;
 };
 
+export type GatewayPersonalContextDocument = GatewayPersonalContextFileSummary & {
+  kind: GatewayPersonalContextFileKind;
+  group: GatewayPersonalContextFileGroup;
+  accountScoped: true;
+  injected: boolean;
+  indexed: boolean;
+  writable: boolean;
+  deletable: boolean;
+  sessionKinds: GatewayPersonalContextSessionKind[];
+  memoryRole?: GatewayPersonalContextMemoryRole;
+  size?: number;
+  updatedAtMs?: number;
+};
+
+export type GatewayPersonalContextDocumentCounts = {
+  expectedCount: number;
+  presentCount: number;
+  agentFileCount: number;
+  identityFileCount: number;
+  setupFileCount: number;
+  memoryFileCount: number;
+  mainMemoryCount: number;
+  topicNoteCount: number;
+  dailyNoteCount: number;
+  backlogNoteCount: number;
+};
+
+export type GatewayPersonalContextReadContract = {
+  method: "agents.files.get";
+  locator: "workspace_relative_path";
+  pathParam: "name";
+  accountScopeRequired: true;
+  readableKinds: GatewayPersonalContextFileKind[];
+};
+
+export type GatewayPersonalContextSearchContract = {
+  runtime: "memory_index";
+  searchTool: "memory_search";
+  readTool: "memory_get";
+  accountScopeRequired: true;
+  indexedKinds: GatewayPersonalContextFileKind[];
+  excludedKinds: GatewayPersonalContextFileKind[];
+};
+
 export type GatewayPersonalContextSummary = {
   version: 1;
   accountScope: GatewayAccountScope;
@@ -97,6 +156,12 @@ export type GatewayPersonalContextSummary = {
       dailyCount: number;
       backlogCount: number;
     };
+  };
+  documents: GatewayPersonalContextDocument[];
+  documentCounts: GatewayPersonalContextDocumentCounts;
+  access: {
+    read: GatewayPersonalContextReadContract;
+    search: GatewayPersonalContextSearchContract;
   };
   sessionPolicy: {
     main: GatewayPersonalContextSessionPolicy;

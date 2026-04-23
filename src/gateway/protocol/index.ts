@@ -101,6 +101,8 @@ import {
   AlisioAccountUpdateParamsSchema,
   type AlisioConnectedAccount,
   AlisioConnectedAccountSchema,
+  type AlisioConnectorSurface,
+  AlisioConnectorSurfaceSchema,
   type AlisioConnectorAuthorization,
   AlisioConnectorAuthorizationSchema,
   type AlisioConnectorDefinition,
@@ -153,8 +155,6 @@ import {
   AlisioConnectorsCatalogParamsSchema,
   type AlisioConnectorsCatalogResult,
   AlisioConnectorsCatalogResultSchema,
-  type AlisioConnectorsCompleteParams,
-  AlisioConnectorsCompleteParamsSchema,
   type AlisioConnectorsListParams,
   AlisioConnectorsListParamsSchema,
   type AlisioConnectorsListResult,
@@ -933,9 +933,6 @@ export const validateAlisioConnectorsBeginParams = ajv.compile<AlisioConnectorsB
 export const validateAlisioConnectorsBeginResult = ajv.compile<AlisioConnectorsBeginResult>(
   AlisioConnectorsBeginResultSchema,
 );
-export const validateAlisioConnectorsCompleteParams = ajv.compile<AlisioConnectorsCompleteParams>(
-  AlisioConnectorsCompleteParamsSchema,
-);
 export const validateAlisioConnectorsRevokeParams = ajv.compile<AlisioConnectorsRevokeParams>(
   AlisioConnectorsRevokeParamsSchema,
 );
@@ -1350,6 +1347,7 @@ export {
   AgentParamsSchema,
   AlisioAiStateSchema,
   AlisioConnectedAccountSchema,
+  AlisioConnectorSurfaceSchema,
   AlisioConnectorDefinitionSchema,
   AlisioConnectorAuthorizationSchema,
   AlisioConnectorSummarySchema,
@@ -1423,7 +1421,6 @@ export {
   AlisioConnectorsListResultSchema,
   AlisioConnectorsBeginParamsSchema,
   AlisioConnectorsBeginResultSchema,
-  AlisioConnectorsCompleteParamsSchema,
   AlisioConnectorsRevokeParamsSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
@@ -1670,6 +1667,7 @@ export type {
   StateVersion,
   AgentEvent,
   AlisioConnectedAccount,
+  AlisioConnectorSurface,
   AlisioConnectorDefinition,
   AlisioConnectorAuthorization,
   AlisioConnectorSummary,
@@ -1753,7 +1751,6 @@ export type {
   AlisioConnectorsListResult,
   AlisioConnectorsBeginParams,
   AlisioConnectorsBeginResult,
-  AlisioConnectorsCompleteParams,
   AlisioConnectorsRevokeParams,
   AgentIdentityParams,
   AgentIdentityResult,

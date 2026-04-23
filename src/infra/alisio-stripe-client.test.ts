@@ -15,7 +15,6 @@ import {
   readAlisioStripeRefundWithApiKey,
   readAlisioStripeSubscriptionWithApiKey,
   validateAlisioStripeAccessToken,
-  validateAlisioStripeApiKey,
 } from "./alisio-stripe-client.js";
 
 function readFetchCallUrl(input: unknown): string {
@@ -39,60 +38,6 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 describe("alisio stripe client", () => {
-  it("validates restricted keys against the Stripe v1 API endpoints", async () => {
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        jsonResponse({
-          object: "balance",
-          livemode: false,
-          available: [],
-          pending: [],
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
-      .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }));
-
-    const result = await validateAlisioStripeApiKey(
-      {
-        apiKey: "rk_test_readonly_123",
-      },
-      fetchMock,
-    );
-
-    expect(result).toMatchObject({
-      ok: true,
-      mode: "test",
-      accessKind: "restricted",
-      keyKind: "restricted",
-      connectedAccount: {
-        label: "Stripe test mode",
-        handle: "restricted key",
-      },
-    });
-    expect(readFetchCallUrl(fetchMock.mock.calls[0]?.[0])).toBe(
-      "https://api.stripe.com/v1/balance",
-    );
-    expect(readFetchCallUrl(fetchMock.mock.calls[8]?.[0])).toContain("/v1/refunds?limit=1");
-  });
-
-  it("rejects publishable Stripe keys", async () => {
-    await expect(
-      validateAlisioStripeApiKey({
-        apiKey: "pk_test_browser_only",
-      }),
-    ).resolves.toMatchObject({
-      ok: false,
-      message: "Enter a Stripe secret or restricted API key. Publishable keys are not supported.",
-    });
-  });
-
   it("validates Stripe App OAuth access tokens against the same read surface", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -156,9 +101,10 @@ describe("alisio stripe client", () => {
         ),
       );
 
-    const result = await validateAlisioStripeApiKey(
+    const result = await validateAlisioStripeAccessToken(
       {
-        apiKey: "rk_live_missing_permissions",
+        accessToken: "stripe-oauth-live-missing-permissions",
+        livemode: true,
       },
       fetchMock,
     );
@@ -178,7 +124,7 @@ describe("alisio stripe client", () => {
       ],
     });
     expect(result.ok ? null : result.message).toBe(
-      "Stripe key needs read access to customers, charges, payment intents, products, prices, subscriptions, disputes, and refunds.",
+      "Stripe credential needs read access to customers, charges, payment intents, products, prices, subscriptions, disputes, and refunds.",
     );
   });
 

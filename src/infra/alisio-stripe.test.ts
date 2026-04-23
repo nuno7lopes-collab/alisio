@@ -3,7 +3,10 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_THEME_ACCENTS, DEFAULT_THEME_FAMILY } from "../shared/alisio-appearance.js";
 import { withTempDir } from "../test-helpers/temp-dir.js";
-import { completeAlisioConnectorAuthorization } from "./alisio-store.js";
+import {
+  beginAlisioConnectorSetup,
+  completeAlisioConnectorAuthorizationFromCallback,
+} from "./alisio-store.js";
 import {
   getAlisioStripeAccount,
   listAlisioStripeCharges,
@@ -93,8 +96,25 @@ async function createReadyAlisioAccountEnv(root: string) {
 }
 
 async function connectStripe(env: NodeJS.ProcessEnv) {
+  env.ALISIO_STRIPE_CLIENT_ID = "ca_test_stripe_app";
+  env.ALISIO_STRIPE_DEVELOPER_API_KEY = "sk_test_stripe_app_developer";
+  env.ALISIO_STRIPE_REDIRECT_URI = "http://127.0.0.1:8787/oauth/stripe/callback";
+  env.ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY = CONNECTOR_ENCRYPTION_KEY;
+
+  const begin = await beginAlisioConnectorSetup("stripe", env);
+  const launchUrl = new URL(begin?.setupUrl ?? "");
   const connectFetch = vi
     .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      jsonResponse({
+        access_token: "stripe-oauth-access",
+        refresh_token: "stripe-oauth-refresh",
+        token_type: "bearer",
+        scope: "stripe_apps",
+        livemode: false,
+        account_id: "acct_123",
+      }),
+    )
     .mockResolvedValueOnce(
       jsonResponse({
         object: "balance",
@@ -112,14 +132,16 @@ async function connectStripe(env: NodeJS.ProcessEnv) {
     .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }))
     .mockResolvedValueOnce(jsonResponse({ object: "list", data: [] }));
 
-  await completeAlisioConnectorAuthorization(
+  const result = await completeAlisioConnectorAuthorizationFromCallback(
     {
-      connectorId: "stripe",
-      apiKey: "rk_test_runtime_readonly",
+      provider: "stripe",
+      stateToken: launchUrl.searchParams.get("state"),
+      code: "stripe-code",
     },
     env,
     connectFetch,
   );
+  expect(result.ok).toBe(true);
 }
 
 describe("alisio stripe runtime", () => {

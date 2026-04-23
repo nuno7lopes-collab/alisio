@@ -20,7 +20,6 @@ import {
   beginAlisioConnectorSetup,
   beginAlisioAiConnect,
   changeAlisioAccountEmail,
-  completeAlisioConnectorAuthorization,
   completeAlisioAiConnect,
   disconnectAlisioAi,
   getAlisioDoctorSummary,
@@ -104,7 +103,6 @@ import {
   validateAlisioBootstrapResult,
   validateAlisioConnectorsBeginParams,
   validateAlisioConnectorsCatalogParams,
-  validateAlisioConnectorsCompleteParams,
   validateAlisioConnectorsListParams,
   validateAlisioConnectorsRevokeParams,
   validateAlisioDoctorSummaryParams,
@@ -2159,52 +2157,6 @@ export const alisioHandlers: GatewayRequestHandlers = {
         errorShape(
           ErrorCodes.UNAVAILABLE,
           `failed to begin Alisio connector setup: ${formatError(err)}`,
-        ),
-      );
-    }
-  },
-  "connectors.complete": async ({ params, respond }) => {
-    if (!validateAlisioConnectorsCompleteParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid connectors.complete params: ${formatValidationErrors(
-            validateAlisioConnectorsCompleteParams.errors,
-          )}`,
-        ),
-      );
-      return;
-    }
-    if (!(await requireAuthenticatedAlisioAccount(respond))) {
-      return;
-    }
-    try {
-      const result = await completeAlisioConnectorAuthorization(params as never);
-      if (!result) {
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.INVALID_REQUEST,
-            "connector cannot be completed in this environment",
-          ),
-        );
-        return;
-      }
-      respond(true, result, undefined);
-    } catch (err) {
-      if (err instanceof AlisioAccountValidationError) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
-        return;
-      }
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.UNAVAILABLE,
-          `failed to complete Alisio connector setup: ${formatError(err)}`,
         ),
       );
     }

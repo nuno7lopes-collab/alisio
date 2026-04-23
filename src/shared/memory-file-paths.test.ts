@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCanonicalMemoryNotePath,
+  getCanonicalMemoryFileGroup,
+  getCanonicalMemoryFileSortRank,
   getLongTermMemoryFilePriority,
+  isCanonicalMemoryFileName,
+  isCanonicalOperationalMemoryKind,
   isDailyMemoryNoteFileName,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
   normalizeMemoryNoteRole,
+  resolveCanonicalMemoryFileKind,
   resolveManualMemoryNoteRoot,
   resolveMemoryNoteRole,
   slugifyMemoryNotePathComponent,
@@ -68,6 +73,30 @@ describe("memory-file-paths", () => {
       "backlog",
     );
     expect(resolveMemoryNoteRole({ path: "memory/random.md", tags: ["daily"] })).toBe("daily");
+  });
+
+  it("classifies canonical personal memory files with closed kinds", () => {
+    expect(resolveCanonicalMemoryFileKind("AGENTS.md")).toBe("agent_instructions");
+    expect(resolveCanonicalMemoryFileKind("TOOLS.md")).toBe("agent_tools");
+    expect(resolveCanonicalMemoryFileKind("HEARTBEAT.md")).toBe("agent_heartbeat");
+    expect(resolveCanonicalMemoryFileKind("BOOTSTRAP.md")).toBe("setup_bootstrap");
+    expect(resolveCanonicalMemoryFileKind("IDENTITY.md")).toBe("identity");
+    expect(resolveCanonicalMemoryFileKind("SOUL.md")).toBe("soul");
+    expect(resolveCanonicalMemoryFileKind("USER.md")).toBe("preferences");
+    expect(resolveCanonicalMemoryFileKind("MEMORY.md")).toBe("main_memory");
+    expect(resolveCanonicalMemoryFileKind("memory/2026-04-18.md")).toBe("daily_note");
+    expect(resolveCanonicalMemoryFileKind("memory/project-atlas.md")).toBe("topic_note");
+    expect(resolveCanonicalMemoryFileKind("memory/backlog/2026-04-18/loop.md")).toBe(
+      "backlog_note",
+    );
+    expect(resolveCanonicalMemoryFileKind("notes/project.md")).toBeNull();
+    expect(isCanonicalMemoryFileName("memory/project-atlas.md")).toBe(true);
+    expect(isCanonicalOperationalMemoryKind("topic_note")).toBe(true);
+    expect(isCanonicalOperationalMemoryKind("main_memory")).toBe(false);
+    expect(getCanonicalMemoryFileGroup("identity")).toBe("identity");
+    expect(getCanonicalMemoryFileSortRank("main_memory")).toBeLessThan(
+      getCanonicalMemoryFileSortRank("topic_note"),
+    );
   });
 
   it("slugifies note path components safely", () => {

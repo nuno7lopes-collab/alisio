@@ -118,6 +118,34 @@ function createAllowlistedOpenAiModelCfg(): AlisioConfig {
   } as AlisioConfig;
 }
 
+test("sets and clears session displayName", async () => {
+  const store: Record<string, SessionEntry> = {
+    [MAIN_SESSION_KEY]: { sessionId: "sess-main", updatedAt: 1, displayName: "Old name" },
+  };
+
+  const renamed = expectPatchOk(
+    await runPatch({
+      store,
+      patch: {
+        key: MAIN_SESSION_KEY,
+        displayName: "  Product launch  ",
+      },
+    }),
+  );
+  expect(renamed.displayName).toBe("Product launch");
+
+  const cleared = expectPatchOk(
+    await runPatch({
+      store,
+      patch: {
+        key: MAIN_SESSION_KEY,
+        displayName: null,
+      },
+    }),
+  );
+  expect(cleared.displayName).toBeUndefined();
+});
+
 describe("gateway sessions patch", () => {
   test("persists thinkingLevel=off (does not clear)", async () => {
     const entry = expectPatchOk(

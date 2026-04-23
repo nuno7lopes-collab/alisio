@@ -176,14 +176,29 @@ function mapConnectorStatus(status: AlisioConnectorUiStatus): AlisioProviderOver
       return "connected";
     case "needs_reconnect":
       return "attention";
-    case "ready":
     case "setup_required":
+      return "attention";
+    case "ready":
       return "ready";
     case "in_review":
       return "coming_soon";
     case "unavailable":
     default:
       return "unavailable";
+  }
+}
+
+function resolveConnectorDetail(params: {
+  definition: AlisioConnectorDefinition;
+  status: AlisioConnectorUiStatus;
+}): string | undefined {
+  switch (params.status) {
+    case "needs_reconnect":
+      return "Authorization is no longer valid. Reconnect this app before using it.";
+    case "setup_required":
+      return "Gateway OAuth credentials or secure token storage must be configured before this app can connect.";
+    default:
+      return params.definition.detail?.trim() || undefined;
   }
 }
 
@@ -397,38 +412,40 @@ function buildAppItems(params: {
     params.authorizations.map((authorization) => [authorization.connectorId, authorization]),
   );
   return sortItems(
-    params.definitions.map((definition) => {
-      const authorization = byConnectorId.get(definition.id);
-      const connectorStatus = resolveAlisioConnectorUiStatus({
-        definition,
-        authorization,
-      });
-      const surfaceStatus = resolveAlisioConnectorSurfaceUiStatus({
-        definition,
-        authorization,
-      });
-      const status = mapConnectorStatus(surfaceStatus);
-      const accountLabel = authorization?.connectedAccount?.label?.trim();
-      const accountEmail = authorization?.connectedAccount?.email?.trim();
-      return {
-        id: `connector:${definition.id}`,
-        title: definition.title,
-        subtitle: definition.summary,
-        detail: definition.detail?.trim() || undefined,
-        status,
-        connectorId: definition.id,
-        connectLabel: definition.connectLabel,
-        providerLabel: definition.providerLabel,
-        accountLabel: accountLabel || undefined,
-        accountEmail: accountEmail || undefined,
-        docsPath: definition.setupUrl,
-        authSource: "connector",
-        chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
-        usageWindows: [],
-        current: false,
-        active: surfaceStatus === "connected" && connectorStatus === "connected",
-      };
-    }),
+    params.definitions
+      .map((definition) => {
+        const authorization = byConnectorId.get(definition.id);
+        const connectorStatus = resolveAlisioConnectorUiStatus({
+          definition,
+          authorization,
+        });
+        const surfaceStatus = resolveAlisioConnectorSurfaceUiStatus({
+          definition,
+          authorization,
+        });
+        const status = mapConnectorStatus(surfaceStatus);
+        const accountLabel = authorization?.connectedAccount?.label?.trim();
+        const accountEmail = authorization?.connectedAccount?.email?.trim();
+        return {
+          id: `connector:${definition.id}`,
+          title: definition.title,
+          subtitle: definition.summary,
+          detail: resolveConnectorDetail({ definition, status: surfaceStatus }),
+          status,
+          connectorId: definition.id,
+          connectLabel: definition.connectLabel,
+          providerLabel: definition.providerLabel,
+          accountLabel: accountLabel || undefined,
+          accountEmail: accountEmail || undefined,
+          docsPath: definition.setupUrl,
+          authSource: "connector",
+          chips: toUniqueList([definition.providerLabel, humanizeToken(definition.category)]),
+          usageWindows: [],
+          current: false,
+          active: surfaceStatus === "connected" && connectorStatus === "connected",
+        };
+      })
+      .filter((item) => item.status !== "coming_soon" && item.status !== "unavailable"),
   );
 }
 

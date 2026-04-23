@@ -38,7 +38,6 @@ const BASE_METHODS = [
   "connectors.catalog",
   "connectors.list",
   "connectors.begin",
-  "connectors.complete",
   "connectors.revoke",
   "doctor.memory.status",
   "memory.status",

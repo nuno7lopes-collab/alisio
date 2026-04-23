@@ -238,6 +238,18 @@ export const AlisioConnectedAccountSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const AlisioConnectorSurfaceSchema = Type.Object(
+  {
+    groupId: NonEmptyString,
+    groupTitle: NonEmptyString,
+    capabilityTitle: NonEmptyString,
+    sortOrder: Type.Integer({ minimum: 0 }),
+    systemImage: NonEmptyString,
+    groupSummary: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
 export const AlisioConnectorDefinitionSchema = Type.Object(
   {
     id: NonEmptyString,
@@ -250,6 +262,7 @@ export const AlisioConnectorDefinitionSchema = Type.Object(
     availability: ConnectorAvailabilitySchema,
     setupUrl: Type.Optional(Type.String()),
     scopes: Type.Array(NonEmptyString),
+    surface: Type.Optional(AlisioConnectorSurfaceSchema),
   },
   { additionalProperties: false },
 );
@@ -1371,15 +1384,6 @@ export const AlisioConnectorsBeginResultSchema = Type.Object(
     callbackPath: Type.Optional(Type.String()),
     requiredEnvVars: Type.Optional(Type.Array(NonEmptyString)),
     setupHint: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
-
-export const AlisioConnectorsCompleteParamsSchema = Type.Object(
-  {
-    connectorId: NonEmptyString,
-    account: Type.Optional(AlisioConnectedAccountSchema),
-    apiKey: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

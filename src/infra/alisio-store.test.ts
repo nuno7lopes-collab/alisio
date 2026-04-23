@@ -12,7 +12,6 @@ import { withTempDir } from "../test-helpers/temp-dir.js";
 import {
   __testing,
   beginAlisioConnectorSetup,
-  completeAlisioConnectorAuthorization,
   completeAlisioConnectorAuthorizationFromCallback,
   changeAlisioAccountEmail,
   disconnectAlisioAi,
@@ -27,6 +26,7 @@ import {
   getAlisioOrganizationState,
   loadAlisioBootstrapSnapshot,
   listAlisioConnectorAuthorizations,
+  listAlisioConnectorDefinitions,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
   requestAlisioAccountRecoveryEmail,
@@ -1353,6 +1353,79 @@ describe("beginAlisioConnectorSetup", () => {
     expect(__testing.resolveConnectorTokenKeychainAccounts(env)).toEqual([
       accountFor("/Users/nuno/.alisio"),
     ]);
+  });
+
+  it("keeps priority app surface metadata in the canonical connector catalog", () => {
+    const definitions = new Map(
+      listAlisioConnectorDefinitions().map((definition) => [definition.id, definition]),
+    );
+
+    expect(definitions.get("gmail-read")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "gmail",
+        groupTitle: "Gmail",
+        capabilityTitle: "Read",
+        sortOrder: 0,
+        systemImage: "envelope.badge",
+      },
+    });
+    expect(definitions.get("gmail-modify")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "gmail",
+        groupTitle: "Gmail",
+        capabilityTitle: "Organize",
+        sortOrder: 1,
+        systemImage: "envelope.badge",
+      },
+    });
+    expect(definitions.get("gmail-send")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "gmail",
+        groupTitle: "Gmail",
+        capabilityTitle: "Send",
+        sortOrder: 2,
+        systemImage: "envelope.badge",
+      },
+    });
+    expect(definitions.get("google-calendar")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "google-calendar",
+        groupTitle: "Google Calendar",
+        capabilityTitle: "Calendar",
+        systemImage: "calendar",
+      },
+    });
+    expect(definitions.get("github")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "github",
+        groupTitle: "GitHub",
+        capabilityTitle: "Repositories",
+        systemImage: "chevron.left.forwardslash.chevron.right",
+      },
+    });
+    expect(definitions.get("youtube")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "youtube",
+        groupTitle: "YouTube",
+        capabilityTitle: "Channel",
+        systemImage: "play.rectangle",
+      },
+    });
+    expect(definitions.get("stripe")).toMatchObject({
+      availability: "ready",
+      surface: {
+        groupId: "stripe",
+        groupTitle: "Stripe",
+        capabilityTitle: "Finance",
+        systemImage: "creditcard",
+      },
+    });
   });
 
   it("returns an honest setup fallback when OAuth client config is missing", async () => {
@@ -2861,6 +2934,77 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("revokes GitHub OAuth access before removing the local connector state", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_GITHUB_CLIENT_ID: "github-client-id",
+        ALISIO_GITHUB_CLIENT_SECRET: "github-client-secret",
+        ALISIO_GITHUB_REDIRECT_URI: "http://127.0.0.1:8787/oauth/github/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const begin = await beginAlisioConnectorSetup("github", env);
+      const launchUrl = new URL(begin?.setupUrl ?? "");
+      const setupFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "github-access",
+              token_type: "bearer",
+              scope: "repo read:user user:email read:org gist",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              login: "nunolopes",
+              name: "Nuno Lopes",
+              email: "nuno@github.example",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+
+      await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "github",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "github-code",
+        },
+        env,
+        setupFetch,
+      );
+
+      const revokeFetch = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const result = await revokeAlisioConnectorAuthorization("github", env, revokeFetch);
+
+      expect(result).toMatchObject({
+        connectorId: "github",
+        state: "not_connected",
+      });
+      expect(revokeFetch).toHaveBeenCalledWith(
+        "https://api.github.com/applications/github-client-id/token",
+        expect.objectContaining({
+          method: "DELETE",
+          headers: expect.objectContaining({
+            accept: "application/vnd.github+json",
+            "x-github-api-version": "2022-11-28",
+          }),
+          body: JSON.stringify({
+            access_token: "github-access",
+          }),
+        }),
+      );
+      const persistedState = await fs.readFile(alisioStateFile(root), "utf8");
+      expect(persistedState).not.toContain("github");
+      expect(persistedState).not.toContain("github-access");
+    });
+  });
+
   it("keeps in-review connectors honest instead of pretending OAuth is ready", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
@@ -2902,258 +3046,6 @@ describe("beginAlisioConnectorSetup", () => {
           "ALISIO_VERCEL_REDIRECT_URI",
         ],
       });
-    });
-  });
-
-  it("does not allow manual completion for connectors that are still in review", async () => {
-    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
-      const env = await createReadyAlisioAccountEnv(root);
-      const result = await completeAlisioConnectorAuthorization(
-        {
-          connectorId: "notion",
-        },
-        env,
-      );
-
-      expect(result).toBeNull();
-    });
-  });
-
-  it("does not allow manual completion for Google and GitHub connectors", async () => {
-    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
-      const env = await createReadyAlisioAccountEnv(root);
-      const google = await completeAlisioConnectorAuthorization(
-        {
-          connectorId: "google-calendar",
-        },
-        env,
-      );
-      const github = await completeAlisioConnectorAuthorization(
-        {
-          connectorId: "github",
-        },
-        env,
-      );
-
-      expect(google).toBeNull();
-      expect(github).toBeNull();
-    });
-  });
-
-  it("connects Stripe through manual API key setup and stores the encrypted token", async () => {
-    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
-      const env = await createReadyAlisioAccountEnv(root);
-      const fetchMock = vi
-        .fn<typeof fetch>()
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              object: "balance",
-              livemode: false,
-              available: [],
-              pending: [],
-            }),
-            { status: 200, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ object: "list", data: [] }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          }),
-        );
-
-      const result = await completeAlisioConnectorAuthorization(
-        {
-          connectorId: "stripe",
-          apiKey: "rk_test_stripe_readonly",
-        },
-        env,
-        fetchMock,
-      );
-
-      expect(result).toMatchObject({
-        connectorId: "stripe",
-        state: "connected",
-        health: "healthy",
-        connectedAccount: {
-          label: "Stripe test mode",
-          handle: "restricted key",
-        },
-      });
-      await expect(getAlisioConnectorAccessToken("stripe", env)).resolves.toBe(
-        "rk_test_stripe_readonly",
-      );
-      await expect(listAlisioConnectorAuthorizations(env)).resolves.toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            connectorId: "stripe",
-            state: "connected",
-          }),
-        ]),
-      );
-    });
-  });
-
-  it("rejects Stripe manual completion when the key is missing required read permissions", async () => {
-    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
-      const env = await createReadyAlisioAccountEnv(root);
-      const fetchMock = vi
-        .fn<typeof fetch>()
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              object: "balance",
-              livemode: true,
-              available: [],
-              pending: [],
-            }),
-            { status: 200, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              error: {
-                message: "Missing permission.",
-                code: "permission_denied",
-              },
-            }),
-            { status: 403, headers: { "content-type": "application/json" } },
-          ),
-        );
-
-      await expect(
-        completeAlisioConnectorAuthorization(
-          {
-            connectorId: "stripe",
-            apiKey: "rk_live_missing_permissions",
-          },
-          env,
-          fetchMock,
-        ),
-      ).rejects.toThrow(
-        "Stripe key needs read access to customers, charges, payment intents, products, prices, subscriptions, disputes, and refunds.",
-      );
     });
   });
 

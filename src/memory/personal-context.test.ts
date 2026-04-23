@@ -1,10 +1,21 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ensureAgentWorkspace } from "../agents/workspace.js";
 import type { AlisioConfig } from "../config/config.js";
 import { makeTempWorkspace, writeWorkspaceFile } from "../test-helpers/workspace.js";
-import { readPersonalContextSummary } from "./personal-context.js";
+import {
+  listPersonalContextDocuments,
+  readPersonalContextDocument,
+  readPersonalContextSummary,
+  searchPersonalContextDocuments,
+} from "./personal-context.js";
+
+const getActiveMemorySearchManager = vi.hoisted(() => vi.fn());
+
+vi.mock("../plugins/memory-runtime.js", () => ({
+  getActiveMemorySearchManager,
+}));
 
 function createCfg(workspaceDir: string): AlisioConfig {
   return {
@@ -117,6 +128,42 @@ describe("readPersonalContextSummary", () => {
           backlogCount: 1,
         },
       },
+      documentCounts: {
+        expectedCount: 11,
+        presentCount: 11,
+        agentFileCount: 3,
+        identityFileCount: 3,
+        setupFileCount: 1,
+        memoryFileCount: 4,
+        mainMemoryCount: 1,
+        topicNoteCount: 1,
+        dailyNoteCount: 1,
+        backlogNoteCount: 1,
+      },
+      access: {
+        read: {
+          method: "agents.files.get",
+          locator: "workspace_relative_path",
+          pathParam: "name",
+          accountScopeRequired: true,
+        },
+        search: {
+          runtime: "memory_index",
+          searchTool: "memory_search",
+          readTool: "memory_get",
+          accountScopeRequired: true,
+          indexedKinds: ["main_memory", "topic_note", "daily_note", "backlog_note"],
+          excludedKinds: [
+            "agent_instructions",
+            "agent_tools",
+            "agent_heartbeat",
+            "setup_bootstrap",
+            "identity",
+            "soul",
+            "preferences",
+          ],
+        },
+      },
       sessionPolicy: {
         main: {
           kind: "main",
@@ -136,5 +183,163 @@ describe("readPersonalContextSummary", () => {
         },
       },
     });
+    expect(summary.documents.map((document) => document.path)).toEqual([
+      "AGENTS.md",
+      "TOOLS.md",
+      "HEARTBEAT.md",
+      "BOOTSTRAP.md",
+      "IDENTITY.md",
+      "SOUL.md",
+      "USER.md",
+      "MEMORY.md",
+      "memory/physics.md",
+      "memory/2026-04-20.md",
+      "memory/backlog/2026-04-20/loop.md",
+    ]);
+    expect(summary.documents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "identity",
+          group: "identity",
+          path: "IDENTITY.md",
+          accountScoped: true,
+          injected: true,
+          indexed: false,
+          sessionKinds: ["main", "direct", "group", "subagent", "cron"],
+        }),
+        expect.objectContaining({
+          kind: "setup_bootstrap",
+          group: "setup",
+          path: "BOOTSTRAP.md",
+          availability: "setup_only",
+          sessionKinds: ["main", "direct"],
+        }),
+        expect.objectContaining({
+          kind: "main_memory",
+          path: "MEMORY.md",
+          memoryRole: "main",
+          indexed: true,
+          injected: true,
+          sessionKinds: ["main", "direct"],
+        }),
+        expect.objectContaining({
+          kind: "topic_note",
+          path: "memory/physics.md",
+          memoryRole: "topic",
+          availability: "retrieval_only",
+          indexed: true,
+          injected: false,
+          deletable: true,
+          sessionKinds: [],
+        }),
+        expect.objectContaining({
+          kind: "daily_note",
+          path: "memory/2026-04-20.md",
+          memoryRole: "daily",
+        }),
+        expect.objectContaining({
+          kind: "backlog_note",
+          path: "memory/backlog/2026-04-20/loop.md",
+          memoryRole: "backlog",
+        }),
+      ]),
+    );
+
+    await expect(
+      readPersonalContextDocument({
+        workspaceDir,
+        accountId: "user-1",
+        path: "memory/physics.md",
+        from: 3,
+        lines: 1,
+      }),
+    ).resolves.toMatchObject({
+      document: expect.objectContaining({
+        kind: "topic_note",
+        path: "memory/physics.md",
+      }),
+      content: "Study notes.",
+      missing: false,
+      fromLine: 3,
+      toLine: 3,
+    });
+
+    getActiveMemorySearchManager.mockResolvedValueOnce({
+      manager: {
+        search: vi.fn().mockResolvedValue([
+          {
+            path: "memory/physics.md",
+            startLine: 1,
+            endLine: 1,
+            score: 0.98,
+            snippet: "# Physics",
+            source: "memory",
+          },
+        ]),
+        readFile: vi.fn(),
+        status: vi.fn(),
+        probeEmbeddingAvailability: vi.fn(),
+        probeVectorAvailability: vi.fn(),
+        close: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    const searchResults = await searchPersonalContextDocuments({
+      cfg,
+      agentId: "main",
+      workspaceDir,
+      accountId: "user-1",
+      query: "physics",
+    });
+    expect(searchResults[0]).toMatchObject({
+      document: expect.objectContaining({
+        kind: "topic_note",
+        path: "memory/physics.md",
+      }),
+      excerpt: "# Physics",
+      startLine: 1,
+      endLine: 1,
+    });
+  });
+
+  it("requires account scope before listing or summarizing personal context", async () => {
+    const workspaceRoot = await makeTempWorkspace("alisio-personal-context-scope-");
+    const workspaceDir = path.join(workspaceRoot, "accounts", "user-1");
+    const cfg = createCfg(workspaceRoot);
+    await fs.mkdir(workspaceDir, { recursive: true });
+
+    await expect(
+      listPersonalContextDocuments({
+        workspaceDir,
+        accountId: "",
+      }),
+    ).rejects.toThrow("personal context requires an authenticated accountId");
+
+    await expect(
+      readPersonalContextSummary({
+        cfg,
+        agentId: "main",
+        workspaceDir,
+        mainKey: "main",
+        accountId: "",
+      }),
+    ).rejects.toThrow("personal context requires an authenticated accountId");
+
+    await expect(
+      listPersonalContextDocuments({
+        workspaceDir,
+        accountId: "user-2",
+      }),
+    ).rejects.toThrow("personal context workspace must be account-scoped for user-2");
+
+    await expect(
+      readPersonalContextSummary({
+        cfg,
+        agentId: "main",
+        workspaceDir,
+        mainKey: "main",
+        accountId: "user-2",
+      }),
+    ).rejects.toThrow("personal context workspace must be account-scoped for user-2");
   });
 });

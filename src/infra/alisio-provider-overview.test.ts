@@ -145,6 +145,13 @@ describe("loadAlisioProviderOverview", () => {
               summary: "Calendar access.",
               availability: "ready",
               scopes: ["https://www.googleapis.com/auth/calendar", "openid", "email"],
+              surface: {
+                groupId: "google-calendar",
+                groupTitle: "Google Calendar",
+                capabilityTitle: "Calendar",
+                sortOrder: 0,
+                systemImage: "calendar",
+              },
             },
           ] as never,
         listAlisioConnectorAuthorizations: async () =>
@@ -415,7 +422,7 @@ describe("loadAlisioProviderOverview", () => {
     expect(result.providers[0]?.status).toBe("ready");
   });
 
-  it("keeps setup-required connectors visible as ready in the apps overview", async () => {
+  it("keeps setup-required connectors visible as attention in the apps overview", async () => {
     const result = await loadAlisioProviderOverview({
       includeUsage: false,
       deps: {
@@ -475,6 +482,13 @@ describe("loadAlisioProviderOverview", () => {
               summary: "Payments and customer data.",
               availability: "ready",
               scopes: ["balance.read"],
+              surface: {
+                groupId: "stripe",
+                groupTitle: "Stripe",
+                capabilityTitle: "Finance",
+                sortOrder: 0,
+                systemImage: "creditcard",
+              },
             },
           ] as never,
         listAlisioConnectorAuthorizations: async () =>
@@ -507,6 +521,126 @@ describe("loadAlisioProviderOverview", () => {
       },
     });
 
-    expect(result.apps.find((item) => item.connectorId === "stripe")?.status).toBe("ready");
+    expect(result.apps.find((item) => item.connectorId === "stripe")).toMatchObject({
+      status: "attention",
+      detail:
+        "Gateway OAuth credentials or secure token storage must be configured before this app can connect.",
+    });
+  });
+
+  it("keeps in-review and unavailable connectors out of the primary apps overview", async () => {
+    const result = await loadAlisioProviderOverview({
+      includeUsage: false,
+      deps: {
+        ensureAuthProfileStore: () =>
+          ({
+            version: 1,
+            profiles: {},
+          }) as never,
+        readConfigFileSnapshot: async () =>
+          ({
+            path: "/tmp/models.json",
+            valid: true,
+            config: {},
+            runtimeConfig: {},
+          }) as never,
+        getAlisioAccountState: async () =>
+          ({
+            profile: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: new Date().toISOString(),
+              plan: "free",
+            },
+            preferences: {
+              language: "en",
+              themeFamily: DEFAULT_THEME_FAMILY,
+              themeMode: "system",
+              themeAccents: DEFAULT_THEME_ACCENTS,
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+            },
+            devices: [],
+            cloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
+          }) as never,
+        getAlisioAiState: async () =>
+          ({
+            provider: "openai",
+            status: "connected",
+            profiles: [],
+          }) as never,
+        listAlisioConnectorDefinitions: () =>
+          [
+            {
+              id: "github",
+              title: "GitHub",
+              providerLabel: "GitHub",
+              category: "development",
+              connectLabel: "Connect with GitHub",
+              summary: "Repository workflows.",
+              availability: "ready",
+              scopes: ["repo"],
+            },
+            {
+              id: "notion",
+              title: "Notion",
+              providerLabel: "Notion",
+              category: "productivity",
+              connectLabel: "Connect with Notion",
+              summary: "In review.",
+              availability: "in_review",
+              scopes: ["read_content"],
+            },
+            {
+              id: "x",
+              title: "X / Twitter",
+              providerLabel: "X",
+              category: "social",
+              connectLabel: "Connect with X",
+              summary: "Unavailable.",
+              availability: "unavailable",
+              scopes: ["tweet.read"],
+            },
+          ] as never,
+        listAlisioConnectorAuthorizations: async () =>
+          [
+            {
+              connectorId: "github",
+              state: "not_connected",
+              health: "healthy",
+              scopes: ["repo"],
+            },
+          ] as never,
+        loadAlisioModelProviderSnapshot: async () =>
+          ({
+            catalog: [],
+            dynamicSources: [],
+            dynamicCatalogEntries: [],
+            targets: [],
+          }) as never,
+        getActivePluginRegistry: () =>
+          ({
+            providers: [],
+            speechProviders: [],
+            imageGenerationProviders: [],
+            mediaUnderstandingProviders: [],
+            webSearchProviders: [],
+          }) as never,
+        listRegisteredMemoryEmbeddingProviders: () => [],
+        resolveProviderAuthOverview,
+        loadProviderUsageSummary: async () => null as never,
+      },
+    });
+
+    expect(result.apps.map((item) => item.connectorId)).toEqual(["github"]);
+    expect(result.connectors.catalog.map((item) => item.id)).toEqual(["github", "notion", "x"]);
   });
 });

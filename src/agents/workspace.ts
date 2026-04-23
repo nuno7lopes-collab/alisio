@@ -16,6 +16,16 @@ import {
   isAccountScopedWorkspaceDir,
   normalizeCanonicalAccountId,
 } from "../shared/alisio-account-scope.js";
+import {
+  AGENT_HEARTBEAT_FILE_NAME,
+  AGENT_IDENTITY_FILE_NAME,
+  AGENT_INSTRUCTIONS_FILE_NAME,
+  AGENT_SOUL_FILE_NAME,
+  AGENT_TOOLS_FILE_NAME,
+  PRIMARY_MEMORY_FILE_NAME,
+  SETUP_BOOTSTRAP_FILE_NAME,
+  USER_PREFERENCES_FILE_NAME,
+} from "../shared/memory-file-paths.js";
 import { resolveUserPath } from "../utils.js";
 import { resolveWorkspaceTemplateDir } from "./workspace-templates.js";
 
@@ -42,14 +52,14 @@ export function resolveDefaultAgentWorkspaceDir(
 }
 
 export const DEFAULT_AGENT_WORKSPACE_DIR = resolveDefaultAgentWorkspaceDir();
-export const DEFAULT_AGENTS_FILENAME = "AGENTS.md";
-export const DEFAULT_SOUL_FILENAME = "SOUL.md";
-export const DEFAULT_TOOLS_FILENAME = "TOOLS.md";
-export const DEFAULT_IDENTITY_FILENAME = "IDENTITY.md";
-export const DEFAULT_USER_FILENAME = "USER.md";
-export const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md";
-export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
-export const DEFAULT_MEMORY_FILENAME = "MEMORY.md";
+export const DEFAULT_AGENTS_FILENAME = AGENT_INSTRUCTIONS_FILE_NAME;
+export const DEFAULT_SOUL_FILENAME = AGENT_SOUL_FILE_NAME;
+export const DEFAULT_TOOLS_FILENAME = AGENT_TOOLS_FILE_NAME;
+export const DEFAULT_IDENTITY_FILENAME = AGENT_IDENTITY_FILE_NAME;
+export const DEFAULT_USER_FILENAME = USER_PREFERENCES_FILE_NAME;
+export const DEFAULT_HEARTBEAT_FILENAME = AGENT_HEARTBEAT_FILE_NAME;
+export const DEFAULT_BOOTSTRAP_FILENAME = SETUP_BOOTSTRAP_FILE_NAME;
+export const DEFAULT_MEMORY_FILENAME = PRIMARY_MEMORY_FILE_NAME;
 const WORKSPACE_STATE_DIRNAME = ".alisio";
 const WORKSPACE_STATE_FILENAME = "workspace-state.json";
 const WORKSPACE_STATE_VERSION = 1;
@@ -719,7 +729,9 @@ export function filterBootstrapFilesForSession(
   }
   const chatType = deriveSessionChatType(sessionKey);
   if (chatType === "group" || chatType === "channel") {
-    return files.filter((file) => file.name !== DEFAULT_MEMORY_FILENAME);
+    return files.filter(
+      (file) => file.name !== DEFAULT_MEMORY_FILENAME && file.name !== DEFAULT_BOOTSTRAP_FILENAME,
+    );
   }
   return files;
 }

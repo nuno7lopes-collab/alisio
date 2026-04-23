@@ -47,9 +47,28 @@ export {
   withProgressTotals,
 } from "./memory-core-host-runtime-cli.js";
 export {
+  buildCanonicalMemoryNotePath,
+  getCanonicalMemoryFileGroup,
+  getCanonicalMemoryFileSortRank,
+  isCanonicalMemoryFileName,
+  isCanonicalOperationalMemoryKind,
+  isDailyMemoryNoteFileName,
+  isLongTermMemoryFileName,
+  isMemoryNoteFileName,
   listMemoryFiles,
+  normalizeMemoryFileName,
   normalizeExtraMemoryPaths,
+  normalizeMemoryNoteRole,
   readAgentMemoryFile,
+  resolveCanonicalMemoryFileKind,
+  resolveManualMemoryNoteRoot,
   resolveMemoryBackendConfig,
+  resolveMemoryNoteRole,
+  slugifyMemoryNotePathComponent,
 } from "./memory-core-host-runtime-files.js";
-export type { MemorySearchResult } from "./memory-core-host-runtime-files.js";
+export type {
+  CanonicalMemoryFileGroup,
+  CanonicalMemoryFileKind,
+  MemoryNoteRole,
+  MemorySearchResult,
+} from "./memory-core-host-runtime-files.js";

@@ -36,6 +36,34 @@ export const PersonalContextSessionRoleSchema = Type.Union([
   Type.Literal("automation_session"),
 ]);
 
+export const PersonalContextFileKindSchema = Type.Union([
+  Type.Literal("agent_instructions"),
+  Type.Literal("agent_tools"),
+  Type.Literal("agent_heartbeat"),
+  Type.Literal("setup_bootstrap"),
+  Type.Literal("identity"),
+  Type.Literal("soul"),
+  Type.Literal("preferences"),
+  Type.Literal("main_memory"),
+  Type.Literal("topic_note"),
+  Type.Literal("daily_note"),
+  Type.Literal("backlog_note"),
+]);
+
+export const PersonalContextFileGroupSchema = Type.Union([
+  Type.Literal("agent"),
+  Type.Literal("setup"),
+  Type.Literal("identity"),
+  Type.Literal("memory"),
+]);
+
+export const PersonalContextMemoryRoleSchema = Type.Union([
+  Type.Literal("main"),
+  Type.Literal("topic"),
+  Type.Literal("daily"),
+  Type.Literal("backlog"),
+]);
+
 const AccountScopeRootSchema = Type.Literal(ALISIO_ACCOUNT_SCOPE_ROOT);
 
 export const PersonalContextCanonicalAccountIdSourceSchema = Type.Literal("account_id");
@@ -117,6 +145,65 @@ export const PersonalContextSessionPolicySchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const PersonalContextDocumentSchema = Type.Object(
+  {
+    kind: PersonalContextFileKindSchema,
+    group: PersonalContextFileGroupSchema,
+    path: NonEmptyString,
+    present: Type.Boolean(),
+    availability: PersonalContextAvailabilitySchema,
+    accountScoped: Type.Literal(true),
+    injected: Type.Boolean(),
+    indexed: Type.Boolean(),
+    writable: Type.Boolean(),
+    deletable: Type.Boolean(),
+    sessionKinds: Type.Array(PersonalContextSessionKindSchema),
+    memoryRole: Type.Optional(PersonalContextMemoryRoleSchema),
+    size: Type.Optional(Type.Integer({ minimum: 0 })),
+    updatedAtMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextDocumentCountsSchema = Type.Object(
+  {
+    expectedCount: Type.Integer({ minimum: 0 }),
+    presentCount: Type.Integer({ minimum: 0 }),
+    agentFileCount: Type.Integer({ minimum: 0 }),
+    identityFileCount: Type.Integer({ minimum: 0 }),
+    setupFileCount: Type.Integer({ minimum: 0 }),
+    memoryFileCount: Type.Integer({ minimum: 0 }),
+    mainMemoryCount: Type.Integer({ minimum: 0 }),
+    topicNoteCount: Type.Integer({ minimum: 0 }),
+    dailyNoteCount: Type.Integer({ minimum: 0 }),
+    backlogNoteCount: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextReadContractSchema = Type.Object(
+  {
+    method: Type.Literal("agents.files.get"),
+    locator: Type.Literal("workspace_relative_path"),
+    pathParam: Type.Literal("name"),
+    accountScopeRequired: Type.Literal(true),
+    readableKinds: Type.Array(PersonalContextFileKindSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const PersonalContextSearchContractSchema = Type.Object(
+  {
+    runtime: Type.Literal("memory_index"),
+    searchTool: Type.Literal("memory_search"),
+    readTool: Type.Literal("memory_get"),
+    accountScopeRequired: Type.Literal(true),
+    indexedKinds: Type.Array(PersonalContextFileKindSchema),
+    excludedKinds: Type.Array(PersonalContextFileKindSchema),
+  },
+  { additionalProperties: false },
+);
+
 export const PersonalContextSummarySchema = Type.Object(
   {
     version: Type.Literal(1),
@@ -170,6 +257,15 @@ export const PersonalContextSummarySchema = Type.Object(
           },
           { additionalProperties: false },
         ),
+      },
+      { additionalProperties: false },
+    ),
+    documents: Type.Array(PersonalContextDocumentSchema),
+    documentCounts: PersonalContextDocumentCountsSchema,
+    access: Type.Object(
+      {
+        read: PersonalContextReadContractSchema,
+        search: PersonalContextSearchContractSchema,
       },
       { additionalProperties: false },
     ),

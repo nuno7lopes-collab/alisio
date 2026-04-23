@@ -146,7 +146,6 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "devices.share.revoke",
     "devices.policy.set",
     "connectors.begin",
-    "connectors.complete",
     "connectors.revoke",
     "alisio.models.install",
     "alisio.models.uninstall",
