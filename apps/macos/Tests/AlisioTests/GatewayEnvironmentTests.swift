@@ -3,7 +3,25 @@ import Testing
 import AlisioSupport
 @testable import Alisio
 
+@Suite(.serialized)
 struct GatewayEnvironmentTests {
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        func increment() {
+            self.lock.lock()
+            self.value += 1
+            self.lock.unlock()
+        }
+
+        func snapshot() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
+    }
+
     @Test func `semver parses common forms`() {
         #expect(Semver.parse("1.2.3") == Semver(major: 1, minor: 2, patch: 3))
         #expect(Semver.parse("  v1.2.3  \n") == Semver(major: 1, minor: 2, patch: 3))
@@ -29,6 +47,85 @@ struct GatewayEnvironmentTests {
         let normalized = GatewayEnvironment.normalizeGatewayVersionOutput("  Alisio 2026.3.23-1 \n")
         #expect(normalized == "2026.3.23-1")
         #expect(Semver.parse(normalized) == Semver(major: 2026, minor: 3, patch: 23))
+    }
+
+    @Test func `cached gateway environment check reuses recent result`() async {
+        await GatewayEnvironment._testResetCache()
+        let counter = Counter()
+        let expected = GatewayEnvironmentStatus(
+            kind: .ok,
+            nodeVersion: "22.16.0",
+            gatewayVersion: "2026.4.23",
+            requiredGateway: "2026.4.23",
+            message: "cached")
+
+        let first = await GatewayEnvironment._testCheckCached(maxAge: 60) {
+            counter.increment()
+            return expected
+        }
+        let second = await GatewayEnvironment._testCheckCached(maxAge: 60) {
+            counter.increment()
+            return .checking
+        }
+
+        #expect(first == expected)
+        #expect(second == expected)
+        #expect(counter.snapshot() == 1)
+    }
+
+    @Test func `forced gateway environment check bypasses cache`() async {
+        await GatewayEnvironment._testResetCache()
+        let counter = Counter()
+        let first = await GatewayEnvironment._testCheckCached(maxAge: 60) {
+            counter.increment()
+            return GatewayEnvironmentStatus(
+                kind: .ok,
+                nodeVersion: "22.16.0",
+                gatewayVersion: "2026.4.23",
+                requiredGateway: "2026.4.23",
+                message: "first")
+        }
+        let second = await GatewayEnvironment._testCheckCached(force: true, maxAge: 60) {
+            counter.increment()
+            return GatewayEnvironmentStatus(
+                kind: .ok,
+                nodeVersion: "22.16.0",
+                gatewayVersion: "2026.4.24",
+                requiredGateway: "2026.4.24",
+                message: "second")
+        }
+
+        #expect(first.message == "first")
+        #expect(second.message == "second")
+        #expect(counter.snapshot() == 2)
+    }
+
+    @Test func `concurrent cached gateway environment checks share one in flight computation`() async {
+        await GatewayEnvironment._testResetCache()
+        let counter = Counter()
+        let expected = GatewayEnvironmentStatus(
+            kind: .ok,
+            nodeVersion: "22.16.0",
+            gatewayVersion: "2026.4.23",
+            requiredGateway: "2026.4.23",
+            message: "shared")
+
+        async let first: GatewayEnvironmentStatus = GatewayEnvironment._testCheckCached(maxAge: 60) {
+            counter.increment()
+            usleep(120_000)
+            return expected
+        }
+        async let second: GatewayEnvironmentStatus = GatewayEnvironment._testCheckCached(maxAge: 60) {
+            counter.increment()
+            return .checking
+        }
+
+        let firstResult = await first
+        let secondResult = await second
+
+        #expect(firstResult == expected)
+        #expect(secondResult == expected)
+        #expect(counter.snapshot() == 1)
     }
 
     @Test func `semver compatibility requires same major and not older`() {

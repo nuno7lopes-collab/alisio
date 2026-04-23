@@ -407,4 +407,50 @@ struct GatewayProcessManagerTests {
             await cleanup()
         }
     }
+
+    @Test func `existing listener that is still warming up does not surface as a hard attach failure`() async throws {
+        let session = GatewayTestWebSocketSession(
+            taskFactory: {
+                GatewayTestWebSocketTask(
+                    receiveHook: { _, _ in
+                        throw URLError(.timedOut)
+                    })
+            })
+        let url = try #require(URL(string: "ws://example.invalid"))
+        let connection = GatewayConnection(
+            configProvider: { (url: url, token: nil, password: nil) },
+            sessionBox: WebSocketSessionBox(session: session))
+        let port = GatewayEnvironment.gatewayPort()
+        let descriptor = PortGuardian.Descriptor(
+            pid: 31001,
+            command: "alisio-gateway",
+            executablePath: "/tmp/alisio-gateway")
+
+        let manager = GatewayProcessManager()
+        manager.clearLog()
+        await PortGuardian.shared.setTestingDescriptor(descriptor, forPort: port)
+        manager.setTestingConnection(connection)
+        manager.setTestingSkipControlChannelRefresh(true)
+
+        func cleanup() async {
+            await PortGuardian.shared.setTestingDescriptor(nil, forPort: port)
+            await MainActor.run {
+                manager.setTestingConnection(nil)
+                manager.setTestingSkipControlChannelRefresh(false)
+                manager.setTestingDesiredActive(false)
+                manager.setTestingLastFailureReason(nil)
+            }
+        }
+
+        let attached = await manager._testAttachExistingGatewayIfAvailable()
+        #expect(attached == false)
+        guard case .starting = manager.status else {
+            Issue.record("expected existing listener warmup to keep manager in starting state")
+            await cleanup()
+            return
+        }
+        #expect(manager.lastFailureReason?.contains("[readiness:timeout]") == true)
+        #expect(manager.log.contains("still warming up"))
+        await cleanup()
+    }
 }

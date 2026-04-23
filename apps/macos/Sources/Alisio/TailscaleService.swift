@@ -15,7 +15,7 @@ final class TailscaleService {
     private static let tailscaleAPIEndpoint = "http://100.100.100.100/api/data"
 
     /// API request timeout in seconds.
-    private static let apiTimeoutInterval: TimeInterval = 5.0
+    private static let apiTimeoutInterval: TimeInterval = 1.5
 
     private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "tailscale")
 

@@ -270,6 +270,7 @@ final class AlisioAccountStore {
         self.isLoading = true
         defer { self.isLoading = false }
         do {
+            try await self.ensureLocalGatewayReady(reason: GatewayConnection.Method.alisioAccountGet.rawValue)
             let snapshot = try await GatewayConnection.shared.accountSnapshot()
             self.apply(snapshot)
         } catch {
@@ -279,13 +280,13 @@ final class AlisioAccountStore {
     }
 
     func beginEmailAuth(email: String) async throws -> AlisioEmailAuthChallenge {
-        try await self.runAccountOperation {
+        try await self.runAccountOperation(reason: GatewayConnection.Method.alisioAccountBeginEmailAuth.rawValue) {
             try await GatewayConnection.shared.beginAccountEmailAuth(email: email)
         }
     }
 
     func verifyEmailAuth(email: String, code: String) async throws -> AlisioAccountAuthCompletion {
-        try await self.runAccountOperation {
+        try await self.runAccountOperation(reason: GatewayConnection.Method.alisioAccountVerifyEmailAuth.rawValue) {
             let snapshot = try await GatewayConnection.shared.verifyAccountEmailAuth(email: email, code: code)
             self.apply(snapshot)
             return AlisioAccountAuthCompletion(method: .email, snapshot: snapshot)
@@ -293,7 +294,7 @@ final class AlisioAccountStore {
     }
 
     func completeEmailLinkAuth(_ link: AccountEmailLinkDeepLink) async throws -> AlisioAccountAuthCompletion {
-        try await self.runAccountOperation {
+        try await self.runAccountOperation(reason: GatewayConnection.Method.alisioAccountCompleteEmailLinkAuth.rawValue) {
             let snapshot = try await GatewayConnection.shared.completeAccountEmailLinkAuth(link)
             self.apply(snapshot)
             let completion = AlisioAccountAuthCompletion(method: .email, snapshot: snapshot)
@@ -303,7 +304,7 @@ final class AlisioAccountStore {
     }
 
     func beginGoogleAuth() async throws -> AlisioGoogleAuthRequest {
-        try await self.runAccountOperation {
+        try await self.runAccountOperation(reason: GatewayConnection.Method.alisioAccountBeginGoogleAuth.rawValue) {
             try await GatewayConnection.shared.beginAccountGoogleAuth()
         }
     }
@@ -311,7 +312,7 @@ final class AlisioAccountStore {
     func completeGoogleAuth(
         _ callback: AccountGoogleAuthCallbackDeepLink) async throws -> AlisioAccountAuthCompletion
     {
-        try await self.runAccountOperation {
+        try await self.runAccountOperation(reason: GatewayConnection.Method.alisioAccountCompleteGoogleAuth.rawValue) {
             let snapshot = try await GatewayConnection.shared.completeAccountGoogleAuth(callback)
             self.apply(snapshot)
             let completion = AlisioAccountAuthCompletion(method: .google, snapshot: snapshot)
@@ -321,7 +322,7 @@ final class AlisioAccountStore {
     }
 
     func completeProfile(_ submission: EntryFlowProfileSubmission) async throws {
-        try await self.runAccountOperation {
+        try await self.runAccountOperation(reason: GatewayConnection.Method.alisioAccountCompleteProfile.rawValue) {
             let snapshot = try await GatewayConnection.shared.completeAccountProfile(submission)
             self.apply(snapshot)
         }
@@ -370,10 +371,14 @@ final class AlisioAccountStore {
         return completion
     }
 
-    private func runAccountOperation<T>(_ operation: () async throws -> T) async throws -> T {
+    private func runAccountOperation<T>(
+        reason: String,
+        _ operation: () async throws -> T) async throws -> T
+    {
         self.isLoading = true
         defer { self.isLoading = false }
         do {
+            try await self.ensureLocalGatewayReady(reason: reason)
             let result = try await operation()
             self.lastError = nil
             return result
@@ -381,6 +386,10 @@ final class AlisioAccountStore {
             self.lastError = error.localizedDescription
             throw error
         }
+    }
+
+    private func ensureLocalGatewayReady(reason: String) async throws {
+        try await LocalGatewayPreflight.ensureReadyIfNeeded(reason: reason)
     }
 
     private func publishAuthCompletion(_ completion: AlisioAccountAuthCompletion) {

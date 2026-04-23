@@ -71,6 +71,7 @@ struct InstancesSettings: View {
                     TailscaleIntegrationSection(
                         connectionMode: self.state.connectionMode,
                         isPaused: self.state.isPaused)
+                        .environment(TailscaleService.shared)
                 }
 
                 self.nodesCard
@@ -631,6 +632,7 @@ struct InstancesSettings_Previews: PreviewProvider {
     static var previews: some View {
         InstancesSettings(store: .preview())
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
+            .environment(TailscaleService.shared)
     }
 }
 #endif

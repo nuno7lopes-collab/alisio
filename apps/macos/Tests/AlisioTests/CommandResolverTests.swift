@@ -313,7 +313,7 @@ import AlisioSupport
         #expect(resolved?.path == bundledRoot.path)
     }
 
-    @Test func `gateway launch root ignores inferred developer checkout by default`() throws {
+    @Test func `gateway launch root uses inferred developer checkout for dev app`() throws {
         let bundledRoot = try makeTempDirForTests()
         try "{}".write(to: bundledRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
         try FileManager().createDirectory(
@@ -335,7 +335,7 @@ import AlisioSupport
             bundleURL: bundleURL,
             fileManager: FileManager())
 
-        #expect(resolved == nil)
+        #expect(resolved?.path == bundledRoot.path)
     }
 
     @Test func `gateway launch root still honors explicit configured project root`() throws {
@@ -367,14 +367,33 @@ import AlisioSupport
         #expect(resolved?.path == configuredRoot.path)
     }
 
-    @Test func `gateway service command ignores inferred developer checkout by default`() throws {
+    @Test func `gateway service command prefers inferred developer checkout runtime`() throws {
         let bundleRoot = try makeTempDirForTests()
+        try "{}".write(to: bundleRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        try FileManager().createDirectory(
+            at: bundleRoot.appendingPathComponent("src"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundleRoot.appendingPathComponent("ui"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundleRoot.appendingPathComponent("apps/macos"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundleRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: bundleRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
         let bundleURL = bundleRoot.appendingPathComponent(".run/Alisio.app", isDirectory: true)
         try FileManager().createDirectory(at: bundleURL, withIntermediateDirectories: true)
 
         let binDir = try makeTempDirForTests()
-        let alisioPath = binDir.appendingPathComponent("alisio")
-        try makeExecutableForTests(at: alisioPath)
+        let nodePath = binDir.appendingPathComponent("node")
+        try "#!/bin/sh\necho v22.16.0\n".write(to: nodePath, atomically: true, encoding: .utf8)
+        try FileManager().setAttributes([.posixPermissions: 0o755], ofItemAtPath: nodePath.path)
 
         let command = CommandResolver.gatewayServiceCommand(
             subcommand: "gateway",
@@ -384,7 +403,12 @@ import AlisioSupport
             bundleURL: bundleURL,
             fileManager: FileManager())
 
-        #expect(command.prefix(3).elementsEqual([alisioPath.path, "gateway", "install"]))
+        #expect(command.count >= 3)
+        if command.count >= 3 {
+            #expect(command[0] == nodePath.path)
+            #expect(command[1] == bundleRoot.appendingPathComponent("dist/index.js").path)
+            #expect(command[2] == "gateway")
+        }
     }
 
     @Test func `gateway service command honors explicit configured runtime`() throws {

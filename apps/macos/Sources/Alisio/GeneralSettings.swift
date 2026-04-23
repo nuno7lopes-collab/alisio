@@ -417,7 +417,7 @@ struct GeneralSettings: View {
                     .foregroundStyle(.red)
             }
 
-            Button("Recheck") { self.refreshGatewayStatus() }
+            Button("Recheck") { self.refreshGatewayStatus(force: true) }
                 .buttonStyle(.bordered)
 
             Text("In Local mode, Alisio starts its runtime automatically via launchd. If this runtime is not ready yet, the workspace stays closed until it is.")
@@ -430,11 +430,9 @@ struct GeneralSettings: View {
         .cornerRadius(10)
     }
 
-    private func refreshGatewayStatus() {
+    private func refreshGatewayStatus(force: Bool = false) {
         Task {
-            let status = await Task.detached(priority: .utility) {
-                GatewayEnvironment.check()
-            }.value
+            let status = await GatewayEnvironment.checkCached(force: force)
             self.gatewayStatus = status
         }
     }

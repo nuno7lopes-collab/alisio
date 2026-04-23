@@ -68,6 +68,7 @@ struct GatewayEnvironmentStatus: Equatable {
 enum GatewayEnvironment {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.env")
     private static let supportedBindModes: Set<String> = ["loopback", "tailnet", "lan", "auto"]
+    private static let statusCache = GatewayEnvironmentStatusCache()
 
     static func gatewayPort() -> Int {
         let stored = UserDefaults.standard.integer(forKey: "gatewayPort")
@@ -170,6 +171,12 @@ enum GatewayEnvironment {
                 gatewayVersion: gatewayVersionText,
                 requiredGateway: expectedString,
                 message: "Node \(runtime.version.description); gateway \(gatewayVersionText) \(gatewayLabelText)")
+        }
+    }
+
+    static func checkCached(force: Bool = false, maxAge: TimeInterval = 8) async -> GatewayEnvironmentStatus {
+        await self.statusCache.status(force: force, maxAge: maxAge) {
+            self.check()
         }
     }
 
@@ -359,3 +366,76 @@ enum GatewayEnvironment {
         return "update the local runtime."
     }
 }
+
+private actor GatewayEnvironmentStatusCache {
+    private var cachedStatus: GatewayEnvironmentStatus?
+    private var cachedAt: Date?
+    private var inFlightTask: Task<GatewayEnvironmentStatus, Never>?
+    private var generation = 0
+
+    func status(
+        force: Bool,
+        maxAge: TimeInterval,
+        compute: @escaping @Sendable () -> GatewayEnvironmentStatus) async -> GatewayEnvironmentStatus
+    {
+        let now = Date()
+        if !force,
+           let cachedStatus,
+           let cachedAt,
+           now.timeIntervalSince(cachedAt) < maxAge
+        {
+            return cachedStatus
+        }
+
+        if !force, let inFlightTask {
+            return await inFlightTask.value
+        }
+
+        self.generation += 1
+        let generation = self.generation
+        let task = Task.detached(priority: .utility) {
+            compute()
+        }
+        self.inFlightTask = task
+        let status = await task.value
+        if generation == self.generation {
+            self.cachedStatus = status
+            self.cachedAt = Date()
+            self.inFlightTask = nil
+        }
+        return status
+    }
+
+    #if DEBUG
+    func reset() {
+        self.cachedStatus = nil
+        self.cachedAt = nil
+        self.inFlightTask = nil
+        self.generation = 0
+    }
+
+    func statusForTests(
+        force: Bool,
+        maxAge: TimeInterval,
+        compute: @escaping @Sendable () -> GatewayEnvironmentStatus) async -> GatewayEnvironmentStatus
+    {
+        await self.status(force: force, maxAge: maxAge, compute: compute)
+    }
+    #endif
+}
+
+#if DEBUG
+extension GatewayEnvironment {
+    static func _testResetCache() async {
+        await self.statusCache.reset()
+    }
+
+    static func _testCheckCached(
+        force: Bool = false,
+        maxAge: TimeInterval = 8,
+        compute: @escaping @Sendable () -> GatewayEnvironmentStatus) async -> GatewayEnvironmentStatus
+    {
+        await self.statusCache.statusForTests(force: force, maxAge: maxAge, compute: compute)
+    }
+}
+#endif

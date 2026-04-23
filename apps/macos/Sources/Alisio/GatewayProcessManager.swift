@@ -159,9 +159,7 @@ final class GatewayProcessManager {
         }
         self.lastEnvironmentRefresh = now
         self.environmentRefreshTask = Task { [weak self] in
-            let status = await Task.detached(priority: .utility) {
-                GatewayEnvironment.check()
-            }.value
+            let status = await GatewayEnvironment.checkCached(force: force)
             await MainActor.run {
                 guard let self else { return }
                 self.environmentStatus = status
@@ -224,6 +222,19 @@ final class GatewayProcessManager {
                 }
 
                 if hasListener {
+                    if self.describeGatewayReadinessFailure(error, port: port) == nil {
+                        // A listener owned by the expected runtime can briefly accept the port
+                        // before the websocket health/status RPCs are ready. Treat that as warmup,
+                        // not as a hard attach failure, so launchd/readiness recovery can continue.
+                        let reason = self.describeTransientGatewayReadinessFailure(error, port: port)
+                        self.existingGatewayDetails = instanceText
+                        self.status = .starting
+                        self.lastFailureReason = reason
+                        self.appendLog("[gateway] existing listener still warming up: \(reason)\n")
+                        self.logger.info("gateway existing listener still warming up reason=\(reason)")
+                        return false
+                    }
+
                     let reason = self.describeAttachFailure(error, port: port, instance: instance)
                     self.existingGatewayDetails = instanceText
                     self.status = .failed(reason)
@@ -419,9 +430,7 @@ final class GatewayProcessManager {
 
     private func enableLaunchdGateway() async {
         self.existingGatewayDetails = nil
-        let environmentStatus = await Task.detached(priority: .utility) {
-            GatewayEnvironment.check()
-        }.value
+        let environmentStatus = await GatewayEnvironment.checkCached(force: true)
         await MainActor.run { self.environmentStatus = environmentStatus }
         guard case .ok = environmentStatus.kind else {
             await MainActor.run {

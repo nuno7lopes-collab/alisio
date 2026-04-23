@@ -770,7 +770,7 @@ final class AppState {
         self.runtimeReadinessState(from: self.initialRuntimeReadinessSnapshot())
     }
 
-    func refreshRuntimeReadinessSnapshot() async -> AppRuntimeReadinessSnapshot {
+    func refreshRuntimeReadinessSnapshot(force: Bool = false) async -> AppRuntimeReadinessSnapshot {
         if let runtimeReadinessOverride {
             return runtimeReadinessOverride
         }
@@ -779,9 +779,7 @@ final class AppState {
         case .unconfigured:
             return .pending
         case .local:
-            let gatewayStatus = await Task.detached(priority: .utility) {
-                GatewayEnvironment.check()
-            }.value
+            let gatewayStatus = await GatewayEnvironment.checkCached(force: force)
             return AppRuntimeReadinessSnapshot(gatewayStatus: gatewayStatus, remoteProbeResult: nil)
         case .remote:
             let remoteProbeResult = await RemoteGatewayProbe.run()
@@ -789,8 +787,8 @@ final class AppState {
         }
     }
 
-    func refreshRuntimeReadinessState() async -> MacSetupRuntimeState {
-        self.runtimeReadinessState(from: await self.refreshRuntimeReadinessSnapshot())
+    func refreshRuntimeReadinessState(force: Bool = false) async -> MacSetupRuntimeState {
+        self.runtimeReadinessState(from: await self.refreshRuntimeReadinessSnapshot(force: force))
     }
 
     // MARK: - Chime persistence

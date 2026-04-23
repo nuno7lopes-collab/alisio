@@ -96,7 +96,10 @@ enum CommandResolver {
         if let bundled = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) {
             return bundled
         }
-        return self.configuredProjectRoot(defaults: defaults, fileManager: fileManager)
+        if let configured = self.configuredProjectRoot(defaults: defaults, fileManager: fileManager) {
+            return configured
+        }
+        return self.inferBundledProjectRoot(bundleURL: bundleURL, fileManager: fileManager)
     }
 
     static func projectRootPath() -> String {

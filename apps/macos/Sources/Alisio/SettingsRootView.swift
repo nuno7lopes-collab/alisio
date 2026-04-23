@@ -197,6 +197,7 @@ struct SettingsRootView_Previews: PreviewProvider {
                 navigation: SettingsNavigationModel(selectedTab: tab))
                 .previewDisplayName(tab.title)
                 .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
+                .environment(TailscaleService.shared)
         }
     }
 }
