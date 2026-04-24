@@ -110,4 +110,10 @@ struct WorkspaceNavigationStateTests {
         state.showSettings()
         #expect(state.route == .settings)
     }
+
+    @Test func `settings route copy makes the native boundary explicit`() {
+        #expect(
+            WorkspaceNavigationState.Route.settings.workspaceSubtitle
+                == "Open the native Settings window for app setup and preferences.")
+    }
 }

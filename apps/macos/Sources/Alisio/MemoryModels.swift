@@ -30,6 +30,7 @@ struct MemoryPersonalContextDocument: Decodable, Equatable, Hashable, Sendable {
     let path: String
     let kind: String
     let group: String?
+    let indexed: Bool?
     let present: Bool
     let size: Int?
     let updatedAtMs: Int?
@@ -38,6 +39,7 @@ struct MemoryPersonalContextDocument: Decodable, Equatable, Hashable, Sendable {
         path: String,
         kind: String,
         group: String? = nil,
+        indexed: Bool? = nil,
         present: Bool,
         size: Int?,
         updatedAtMs: Int?)
@@ -45,6 +47,7 @@ struct MemoryPersonalContextDocument: Decodable, Equatable, Hashable, Sendable {
         self.path = path
         self.kind = kind
         self.group = group
+        self.indexed = indexed
         self.present = present
         self.size = size
         self.updatedAtMs = updatedAtMs
@@ -64,10 +67,35 @@ struct MemoryAgentFilePayload: Decodable, Equatable, Sendable {
     let content: String?
 }
 
+struct MemorySearchToolResult: Decodable, Equatable, Sendable {
+    let disabled: Bool?
+    let error: String?
+    let results: [MemorySearchToolMatch]?
+}
+
+struct MemorySearchToolMatch: Decodable, Equatable, Hashable, Sendable {
+    let path: String
+    let displayPath: String?
+    let snippet: String
+    let pageId: String?
+    let projectionId: String?
+}
+
+private struct MemoryToolInvokeEnvelope<Result: Decodable>: Decodable {
+    let ok: Bool
+    let result: Result?
+    let error: MemoryToolInvokeError?
+}
+
+private struct MemoryToolInvokeError: Decodable {
+    let type: String?
+    let message: String?
+}
+
 enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
     case mainMemory
-    case dailyNotes
     case topicNotes
+    case dailyNotes
     case identity
     case soul
     case agentFiles
@@ -78,9 +106,9 @@ enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .mainMemory:
             0
-        case .dailyNotes:
-            1
         case .topicNotes:
+            1
+        case .dailyNotes:
             2
         case .identity:
             3
@@ -95,10 +123,10 @@ enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .mainMemory:
             "Main memory"
-        case .dailyNotes:
-            "Daily notes"
         case .topicNotes:
             "Topic notes"
+        case .dailyNotes:
+            "Daily notes"
         case .identity:
             "Identity"
         case .soul:
@@ -112,10 +140,10 @@ enum MemorySurfaceSection: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .mainMemory:
             "brain"
-        case .dailyNotes:
-            "calendar"
         case .topicNotes:
             "note.text"
+        case .dailyNotes:
+            "calendar"
         case .identity:
             "person.text.rectangle"
         case .soul:
@@ -225,6 +253,8 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     let path: String
     let title: String
+    let kind: String
+    let indexed: Bool
     let section: MemorySurfaceSection
     let size: Int?
     let updatedAtMs: Int?
@@ -233,8 +263,11 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         guard let section = Self.resolveSection(document: document) else {
             return nil
         }
-        self.id = document.path
-        self.path = document.path
+        let normalizedPath = Self.normalizePath(document.path)
+        self.id = normalizedPath
+        self.path = normalizedPath
+        self.kind = document.kind
+        self.indexed = document.indexed ?? Self.isIndexedKind(document.kind)
         self.section = section
         self.title = Self.resolveTitle(document: document)
         self.size = document.size
@@ -249,12 +282,35 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         switch lhs.section {
         case .mainMemory, .identity, .soul:
             return Self.localizedLessThan(lhs.path, rhs.path)
-        case .dailyNotes:
-            return Self.compareDailyNotes(lhs, rhs)
         case .topicNotes:
             return Self.compareTopicNotes(lhs, rhs)
+        case .dailyNotes:
+            return Self.compareDailyNotes(lhs, rhs)
         case .agentFiles:
             return Self.compareAgentFiles(lhs, rhs)
+        }
+    }
+
+    var kindTitle: String {
+        switch self.kind {
+        case "main_memory":
+            "Main memory"
+        case "topic_note":
+            "Topic note"
+        case "daily_note":
+            "Daily note"
+        case "identity":
+            "Identity"
+        case "soul":
+            "Soul"
+        case "agent_instructions":
+            "Agent instructions"
+        case "agent_tools":
+            "Agent tools"
+        case "agent_heartbeat":
+            "Heartbeat"
+        default:
+            "Memory file"
         }
     }
 
@@ -262,10 +318,10 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         switch document.kind {
         case "main_memory":
             return .mainMemory
-        case "daily_note":
-            return .dailyNotes
         case "topic_note":
             return .topicNotes
+        case "daily_note":
+            return .dailyNotes
         case "identity":
             return .identity
         case "soul":
@@ -273,11 +329,6 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         case "agent_instructions", "agent_tools", "agent_heartbeat":
             return .agentFiles
         default:
-            // The primary Memory surface intentionally leaves backlog/setup/preferences
-            // out of the canonical sidebar until that product slice is promoted.
-            if document.group == "agent" {
-                return .agentFiles
-            }
             return nil
         }
     }
@@ -286,32 +337,37 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         switch document.kind {
         case "main_memory":
             return "Main memory"
+        case "topic_note", "daily_note":
+            return Self.fileStem(from: document.path)
         case "identity":
             return "Identity"
         case "soul":
             return "Soul"
-        case "daily_note":
-            return Self.formatDailyTitle(path: document.path)
-        case "topic_note":
-            return Self.humanizePathComponent(Self.fileStem(from: document.path))
+        case "agent_instructions":
+            return "Instructions"
+        case "agent_tools":
+            return "Tools"
+        case "agent_heartbeat":
+            return "Heartbeat"
         default:
             return Self.fileName(from: document.path)
         }
     }
 
     private static func compareDailyNotes(_ lhs: Self, _ rhs: Self) -> Bool {
-        let leftDate = Self.parsedDailyDate(path: lhs.path)
-        let rightDate = Self.parsedDailyDate(path: rhs.path)
-        if leftDate != rightDate {
-            return (leftDate ?? .distantPast) > (rightDate ?? .distantPast)
-        }
         if lhs.updatedAtMs != rhs.updatedAtMs {
             return (lhs.updatedAtMs ?? .min) > (rhs.updatedAtMs ?? .min)
+        }
+        if lhs.title != rhs.title {
+            return lhs.title.localizedStandardCompare(rhs.title) == .orderedDescending
         }
         return Self.localizedLessThan(lhs.path, rhs.path)
     }
 
     private static func compareTopicNotes(_ lhs: Self, _ rhs: Self) -> Bool {
+        if lhs.updatedAtMs != rhs.updatedAtMs {
+            return (lhs.updatedAtMs ?? .min) > (rhs.updatedAtMs ?? .min)
+        }
         if lhs.title.caseInsensitiveCompare(rhs.title) != .orderedSame {
             return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
         }
@@ -331,8 +387,13 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
     }
 
-    private static func parsedDailyDate(path: String) -> Date? {
-        Self.dailyInputFormatter.date(from: Self.fileStem(from: path))
+    private static func isIndexedKind(_ kind: String) -> Bool {
+        switch kind {
+        case "main_memory", "topic_note", "daily_note":
+            true
+        default:
+            false
+        }
     }
 
     private static func agentFileRank(path: String) -> Int {
@@ -348,6 +409,13 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
         }
     }
 
+    private static func normalizePath(_ path: String) -> String {
+        path
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\", with: "/")
+            .replacingOccurrences(of: #"^\./"#, with: "", options: .regularExpression)
+    }
+
     private static func fileName(from path: String) -> String {
         URL(fileURLWithPath: path).lastPathComponent
     }
@@ -355,40 +423,6 @@ struct MemorySurfaceItem: Identifiable, Equatable, Hashable, Sendable {
     private static func fileStem(from path: String) -> String {
         URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
     }
-
-    private static func humanizePathComponent(_ value: String) -> String {
-        let spaced = value
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return spaced.isEmpty ? value : spaced.localizedCapitalized
-    }
-
-    private static func formatDailyTitle(path: String) -> String {
-        let value = Self.fileStem(from: path)
-        let formatter = Self.dailyInputFormatter
-        let displayFormatter = Self.dailyOutputFormatter
-        guard let date = formatter.date(from: value) else {
-            return value
-        }
-        return displayFormatter.string(from: date)
-    }
-
-    private static let dailyInputFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
-
-    private static let dailyOutputFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter
-    }()
 }
 
 struct MemoryWorkspaceFileDocument: Equatable, Sendable {
@@ -402,6 +436,7 @@ struct MemoryWorkspaceFileDocument: Equatable, Sendable {
 struct MemorySettingsClient: Sendable {
     let listAgents: @Sendable () async throws -> MemoryAgentsListResult
     let readFile: @Sendable (_ agentId: String, _ path: String) async throws -> MemoryAgentFilePayload
+    let searchMemory: @Sendable (_ agentId: String, _ query: String, _ maxResults: Int) async throws -> MemorySearchToolResult
 
     static let live = Self(
         listAgents: {
@@ -424,6 +459,16 @@ struct MemorySettingsClient: Sendable {
                 from: data,
                 method: "agents.files.get")
             return result.file
+        },
+        searchMemory: { agentId, query, maxResults in
+            try await Self.invokeTool(
+                MemorySearchToolResult.self,
+                name: "memory_search",
+                sessionKey: "agent:\(agentId):main",
+                args: [
+                    "query": AnyCodable(query),
+                    "maxResults": AnyCodable(max(1, maxResults)),
+                ])
         })
 
     private static func decode<T: Decodable>(_ type: T.Type, from data: Data, method: String) throws -> T {
@@ -435,6 +480,89 @@ struct MemorySettingsClient: Sendable {
                 code: 1,
                 userInfo: [NSLocalizedDescriptionKey: "\(method) returned invalid data: \(error.localizedDescription)"])
         }
+    }
+
+    private static func invokeTool<T: Decodable>(
+        _ type: T.Type,
+        name: String,
+        sessionKey: String,
+        args: [String: AnyCodable]) async throws -> T
+    {
+        let endpoint = try await GatewayEndpointStore.shared.requireConfig()
+        guard let url = Self.toolInvokeURL(from: endpoint.url) else {
+            throw NSError(
+                domain: "MemorySettings",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Couldn't resolve the memory search endpoint."])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let credential = endpoint.token?.nonEmpty ?? endpoint.password?.nonEmpty
+        if let credential {
+            request.setValue("Bearer \(credential)", forHTTPHeaderField: "Authorization")
+        }
+
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: [
+                "tool": name,
+                "sessionKey": sessionKey,
+                "args": args.mapValues(\.foundationValue),
+            ],
+            options: [.fragmentsAllowed])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "MemorySettings",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "\(name) returned a non-HTTP response."])
+        }
+
+        let envelope = try Self.decode(
+            MemoryToolInvokeEnvelope<T>.self,
+            from: data,
+            method: "tools.invoke")
+
+        guard (200..<300).contains(http.statusCode), envelope.ok else {
+            let message = envelope.error?.message?.nonEmpty
+                ?? "The gateway couldn't run \(name)."
+            throw NSError(
+                domain: "MemorySettings",
+                code: http.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: message])
+        }
+
+        guard let result = envelope.result else {
+            throw NSError(
+                domain: "MemorySettings",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "\(name) returned no result."])
+        }
+
+        return result
+    }
+
+    private static func toolInvokeURL(from gatewayURL: URL) -> URL? {
+        guard var components = URLComponents(url: gatewayURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        switch components.scheme?.lowercased() {
+        case "wss":
+            components.scheme = "https"
+        case "ws":
+            components.scheme = "http"
+        default:
+            break
+        }
+        components.path = "/tools/invoke"
+        components.query = nil
+        components.fragment = nil
+        return components.url
     }
 }
 
@@ -472,10 +600,12 @@ final class MemorySettingsModel {
     var hasLoadedOnce = false
 
     var statusMessage: String?
+    var searchNotice: String?
     var loadError: String?
     var searchError: String?
     var detailError: String?
     var searchQuery = ""
+    var searchMatchesByItemID: [String: MemorySearchToolMatch] = [:]
 
     private let client: MemorySettingsClient
     private let accountGateProvider: (String) async -> MemorySettingsAccountGate
@@ -542,6 +672,7 @@ final class MemorySettingsModel {
         self.searchError = nil
         self.detailError = nil
         self.statusMessage = nil
+        self.searchNotice = nil
         defer {
             self.isLoading = false
             self.hasLoadedOnce = true
@@ -612,6 +743,7 @@ final class MemorySettingsModel {
         guard self.selectedAgentID != agentID else { return }
         self.selectedAgentID = agentID
         self.searchError = nil
+        self.searchNotice = nil
         self.detailError = nil
         self.selectedDocument = nil
         await self.rebuildSectionsAndSelection()
@@ -620,6 +752,7 @@ final class MemorySettingsModel {
     func search(query: String) async {
         self.searchQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         self.searchError = nil
+        self.searchNotice = nil
         await self.rebuildSectionsAndSelection()
     }
 
@@ -662,6 +795,7 @@ final class MemorySettingsModel {
 
         self.loadError = nil
         self.statusMessage = self.allItems.isEmpty ? Self.emptyCatalogMessage : nil
+        self.searchNotice = nil
 
         do {
             let filteredItems = try await self.filteredItems()
@@ -691,26 +825,57 @@ final class MemorySettingsModel {
     private func filteredItems() async throws -> [MemorySurfaceItem] {
         let query = self.searchQuery.nonEmpty
         let items = self.allItems
-        guard let query else { return items }
+        guard let query else {
+            self.searchMatchesByItemID = [:]
+            return items
+        }
 
         self.isSearching = true
         defer { self.isSearching = false }
 
-        var matches: [MemorySurfaceItem] = []
-        for item in items {
-            try Task.checkCancellation()
-            if Self.matchesMetadata(item: item, query: query) {
-                matches.append(item)
-                continue
+        self.searchMatchesByItemID = [:]
+
+        let itemsByPath = Dictionary(uniqueKeysWithValues: items.map { ($0.path, $0) })
+        var matchedItemIDs = Set(items.filter { Self.matchesMetadata(item: $0, query: query) }.map(\.id))
+        let searchableCount = items.filter(\.indexed).count
+
+        guard searchableCount > 0 else {
+            return items.filter { matchedItemIDs.contains($0.id) }
+        }
+
+        guard let agentID = self.selectedAgentID else {
+            return items.filter { matchedItemIDs.contains($0.id) }
+        }
+
+        do {
+            let result = try await self.client.searchMemory(agentID, query, searchableCount)
+            if result.disabled == true {
+                let message = result.error?.nonEmpty ?? "Memory search is unavailable on this gateway."
+                throw NSError(
+                    domain: "MemorySettings",
+                    code: 4,
+                    userInfo: [NSLocalizedDescriptionKey: message])
             }
 
-            guard let agentID = self.selectedAgentID else { continue }
-            let document = try await self.document(agentId: agentID, item: item)
-            if document.content.localizedCaseInsensitiveContains(query) {
-                matches.append(item)
+            for match in result.results ?? [] {
+                try Task.checkCancellation()
+                guard let path = Self.resolveMatchedPath(match), let item = itemsByPath[path] else {
+                    continue
+                }
+                matchedItemIDs.insert(item.id)
+                if self.searchMatchesByItemID[item.id] == nil {
+                    self.searchMatchesByItemID[item.id] = match
+                }
             }
+        } catch {
+            self.searchMatchesByItemID = [:]
+            if matchedItemIDs.isEmpty {
+                throw error
+            }
+            self.searchNotice = "Content search is unavailable right now. Showing file matches only."
         }
-        return matches
+
+        return items.filter { matchedItemIDs.contains($0.id) }
     }
 
     private func loadSelectedDocument() async {
@@ -792,6 +957,20 @@ final class MemorySettingsModel {
     }
 
     private static func matchesMetadata(item: MemorySurfaceItem, query: String) -> Bool {
-        item.title.localizedCaseInsensitiveContains(query) || item.path.localizedCaseInsensitiveContains(query)
+        item.title.localizedCaseInsensitiveContains(query)
+            || item.path.localizedCaseInsensitiveContains(query)
+            || item.kindTitle.localizedCaseInsensitiveContains(query)
+    }
+
+    private static func resolveMatchedPath(_ match: MemorySearchToolMatch) -> String? {
+        let candidate = match.displayPath?.nonEmpty ?? match.path.nonEmpty
+        guard let candidate else { return nil }
+        let normalized = candidate
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\", with: "/")
+        guard !normalized.hasPrefix("memory://"), !normalized.hasPrefix("session://") else {
+            return nil
+        }
+        return normalized.replacingOccurrences(of: #"^\./"#, with: "", options: .regularExpression)
     }
 }

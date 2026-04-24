@@ -62,26 +62,19 @@ extension CronSettings {
     var automaticRunsBanner: some View {
         Group {
             if self.store.automaticRunsEnabled == false {
-                self.stateCard(
-                    title: "Automatic runs are currently off.",
-                    message: "Schedules stay saved, but they will not run until automatic runs are turned back on.",
-                    systemImage: "pause.circle.fill",
-                    tint: .orange)
+                WorkspaceInlineBanner(
+                    text: "Automatic runs are off. Schedules stay saved, but nothing runs again until you turn automatic runs back on.",
+                    tone: .caution)
             }
         }
     }
 
     var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Schedules")
-                    .font(.headline)
-                Text("Create, review, and run work at the right time.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
+        WorkspaceRouteHeader(
+            title: "Schedules",
+            subtitle: "Plan work, review history, and make changes from one place.",
+            showsTitle: self.showsHeader)
+        {
             HStack(spacing: 10) {
                 Picker("View", selection: self.$displayMode) {
                     ForEach(CronSettings.DisplayMode.allCases) { mode in
@@ -114,53 +107,55 @@ extension CronSettings {
 
     @ViewBuilder
     var content: some View {
+        let calendar = Calendar.current
+        let projection = self.detailProjection(using: calendar)
         switch self.displayMode {
         case .list:
-            self.listContent
+            self.listContent(projection: projection, calendar: calendar)
         case .week, .month:
-            self.calendarContent
+            self.calendarContent(projection: projection, calendar: calendar)
         }
     }
 
-    var listContent: some View {
+    func listContent(projection: ScheduleCalendarProjection, calendar: Calendar) -> some View {
         HStack(spacing: 12) {
-            self.listPane
-                .frame(width: 300)
+            self.listPane(projection: projection)
+                .frame(width: 320)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
 
             Divider()
-            self.detail
+            self.detail(projection: projection, calendar: calendar)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
     @ViewBuilder
-    var listPane: some View {
+    func listPane(projection: ScheduleCalendarProjection) -> some View {
         switch self.listState {
         case .loading:
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "Loading schedules…",
                 message: "Checking what is set up on this Mac.",
                 systemImage: "calendar.badge.clock",
                 showsProgress: true)
         case let .error(message):
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "Schedules could not be loaded.",
                 message: message,
                 systemImage: "exclamationmark.triangle.fill",
-                tint: .orange,
+                tone: .caution,
                 actionTitle: "Try again")
             {
                 Task { await self.store.refreshJobs() }
             }
         case let .empty(message):
             if message.hasPrefix("Sign in") {
-                self.stateCard(
+                WorkspaceStateCard(
                     title: message,
                     message: "After you sign in, this account's schedules appear here.",
                     systemImage: "person.crop.circle.badge.exclamationmark")
             } else {
-                self.stateCard(
+                WorkspaceStateCard(
                     title: message,
                     message: "Create the first schedule to run work later.",
                     systemImage: "calendar.badge.plus",
@@ -202,7 +197,7 @@ extension CronSettings {
                     set: { self.store.selectJob($0) }))
                 {
                     ForEach(self.store.jobs) { job in
-                        self.jobRow(job)
+                        self.jobRow(job, coverage: projection.coverage(for: job.id))
                             .tag(job.id)
                             .contextMenu { self.jobContextMenu(job) }
                     }
@@ -213,12 +208,19 @@ extension CronSettings {
     }
 
     @ViewBuilder
-    var detail: some View {
+    func detail(projection: ScheduleCalendarProjection, calendar: Calendar) -> some View {
         if let selected = self.store.selectedJob {
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 12) {
-                    self.detailHeader(selected)
-                    self.detailCard(selected)
+                    self.detailHeader(
+                        selected,
+                        coverage: projection.coverage(for: selected.id),
+                        projection: projection)
+                    self.detailCard(
+                        selected,
+                        coverage: projection.coverage(for: selected.id),
+                        projection: projection,
+                        calendar: calendar)
                     self.runHistoryCard(selected)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -227,66 +229,27 @@ extension CronSettings {
         } else {
             switch self.listState {
             case .loading:
-                self.stateCard(
+                WorkspaceStateCard(
                     title: "Preparing details…",
                     message: "Details appear as soon as the first schedule is available.",
                     systemImage: "calendar",
                     showsProgress: true)
             case .error:
-                self.stateCard(
+                WorkspaceStateCard(
                     title: "No details to show.",
                     message: "When schedules load again, the selected schedule appears here.",
                     systemImage: "rectangle.on.rectangle.slash")
             case .empty:
-                self.stateCard(
+                WorkspaceStateCard(
                     title: "Nothing to show yet.",
                     message: "When a schedule exists, its details appear here.",
                     systemImage: "calendar")
             case .list:
-                self.stateCard(
+                WorkspaceStateCard(
                     title: "Choose a schedule.",
                     message: "Details and recent activity appear here.",
                     systemImage: "list.bullet.rectangle")
             }
         }
-    }
-
-    func stateCard(
-        title: String,
-        message: String,
-        systemImage: String,
-        tint: Color = .secondary,
-        showsProgress: Bool = false,
-        actionTitle: String? = nil,
-        action: (() -> Void)? = nil) -> some View
-    {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                if showsProgress {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(tint)
-                }
-
-                Text(title)
-                    .font(.headline)
-            }
-
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
-        .background(Color.secondary.opacity(0.06))
-        .cornerRadius(8)
     }
 }

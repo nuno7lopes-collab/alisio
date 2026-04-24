@@ -2,28 +2,10 @@ import Testing
 @testable import Alisio
 
 struct WorkspaceInspectorVisibilityTests {
-    @Test func `auto presentation opens and closes with live activity`() {
-        var state = WorkspaceInspectorVisibilityState()
+    @Test func `inspector stays hidden until the user opens it`() {
+        let state = WorkspaceInspectorVisibilityState()
 
-        #expect(state.isVisible(supportsInspector: true, autoPresent: false) == false)
-        #expect(state.isVisible(supportsInspector: true, autoPresent: true) == true)
-
-        state.sync(autoPresent: false)
-
-        #expect(state.isVisible(supportsInspector: true, autoPresent: false) == false)
-    }
-
-    @Test func `manual dismissal stays in effect until auto presentation ends`() {
-        var state = WorkspaceInspectorVisibilityState()
-
-        state.hide(autoPresent: true)
-
-        #expect(state.isVisible(supportsInspector: true, autoPresent: true) == false)
-
-        state.sync(autoPresent: false)
-
-        #expect(state.isVisible(supportsInspector: true, autoPresent: false) == false)
-        #expect(state.isVisible(supportsInspector: true, autoPresent: true) == true)
+        #expect(state.isVisible(supportsInspector: true) == false)
     }
 
     @Test func `manual show pins the inspector until the user hides it`() {
@@ -31,10 +13,15 @@ struct WorkspaceInspectorVisibilityTests {
 
         state.show()
 
-        #expect(state.isVisible(supportsInspector: true, autoPresent: false) == true)
+        #expect(state.isVisible(supportsInspector: true) == true)
+    }
 
-        state.hide(autoPresent: false)
+    @Test func `hide closes the pinned inspector`() {
+        var state = WorkspaceInspectorVisibilityState()
 
-        #expect(state.isVisible(supportsInspector: true, autoPresent: false) == false)
+        state.show()
+        state.hide()
+
+        #expect(state.isVisible(supportsInspector: true) == false)
     }
 }

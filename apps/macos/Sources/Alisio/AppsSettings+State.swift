@@ -123,7 +123,7 @@ struct AppIntegrationCapability: Identifiable, Hashable, Sendable {
     enum Status: Equatable, Hashable, Sendable {
         case connected
         case needsReconnect
-        case authError
+        case setupRequired
         case disconnected
 
         var label: String {
@@ -131,11 +131,11 @@ struct AppIntegrationCapability: Identifiable, Hashable, Sendable {
             case .connected:
                 "Connected"
             case .needsReconnect:
-                "Needs reconnect"
-            case .authError:
-                "Auth error"
+                "Reconnect"
+            case .setupRequired:
+                "Setup"
             case .disconnected:
-                "Disconnected"
+                "Not connected"
             }
         }
 
@@ -145,8 +145,8 @@ struct AppIntegrationCapability: Identifiable, Hashable, Sendable {
                 "Disconnect"
             case .needsReconnect:
                 "Reconnect"
-            case .authError:
-                "Open setup guide"
+            case .setupRequired:
+                "Open setup"
             case .disconnected:
                 "Connect"
             }
@@ -174,35 +174,40 @@ struct AppIntegrationCapability: Identifiable, Hashable, Sendable {
 }
 
 struct AppIntegrationGroup: Identifiable, Hashable, Sendable {
-    enum Status: Int, CaseIterable, Equatable, Hashable, Sendable {
+    enum Status: Equatable, Hashable, Sendable {
         case connected
-        case needsAttention
-        case authError
+        case needsReconnect
+        case setupRequired
+        case partiallyConnected
         case disconnected
 
         var label: String {
             switch self {
             case .connected:
                 "Connected"
-            case .needsAttention:
-                "Needs attention"
-            case .authError:
-                "Auth error"
+            case .needsReconnect:
+                "Reconnect"
+            case .setupRequired:
+                "Setup"
+            case .partiallyConnected:
+                "Partly connected"
             case .disconnected:
-                "Disconnected"
+                "Not connected"
             }
         }
 
-        var sectionTitle: String {
+        var sortRank: Int {
             switch self {
             case .connected:
-                "Connected"
-            case .needsAttention:
-                "Needs Attention"
-            case .authError:
-                "Auth Errors"
+                0
+            case .needsReconnect:
+                1
+            case .setupRequired:
+                2
+            case .partiallyConnected:
+                3
             case .disconnected:
-                "Disconnected"
+                4
             }
         }
     }
@@ -223,6 +228,10 @@ struct AppIntegrationGroup: Identifiable, Hashable, Sendable {
     var primaryCapability: AppIntegrationCapability? {
         guard self.capabilities.count == 1 else { return nil }
         return self.capabilities.first
+    }
+
+    var primaryConnectedAt: Date? {
+        self.primaryCapability?.connectedAt
     }
 }
 
@@ -249,10 +258,13 @@ struct AppsSurfaceModel: Equatable, Sendable {
         let capabilities = response.apps.compactMap { appItem -> AppIntegrationCapability? in
             guard let connectorId = appItem.connectorId?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !connectorId.isEmpty,
-                  appItem.status.isVisibleInNativeAppsSurface,
                   let catalog = catalogByID[connectorId],
                   let surface = catalog.surface
             else {
+                return nil
+            }
+            let authorization = authorizationsByID[connectorId]
+            guard Self.isVisibleInNativeAppsSurface(appItem, authorization: authorization) else {
                 return nil
             }
 
@@ -265,7 +277,6 @@ struct AppsSurfaceModel: Equatable, Sendable {
             } else {
                 displayTitle = "\(groupTitle) \(capabilityTitle)"
             }
-            let authorization = authorizationsByID[connectorId]
 
             return AppIntegrationCapability(
                 id: connectorId,
@@ -327,7 +338,6 @@ struct AppsSurfaceModel: Equatable, Sendable {
             let connectedCount = sortedCapabilities.filter { $0.status == .connected }.count
             let detail = Self.buildGroupDetail(
                 status: status,
-                capabilities: sortedCapabilities,
                 capabilityCount: sortedCapabilities.count,
                 connectedCount: connectedCount)
             let summary = sortedCapabilities.count == 1
@@ -351,8 +361,8 @@ struct AppsSurfaceModel: Equatable, Sendable {
                 status: status)
         }
             .sorted { lhs, rhs in
-                if lhs.status != rhs.status {
-                    return lhs.status.rawValue < rhs.status.rawValue
+                if lhs.status.sortRank != rhs.status.sortRank {
+                    return lhs.status.sortRank < rhs.status.sortRank
                 }
                 return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
             }
@@ -360,18 +370,30 @@ struct AppsSurfaceModel: Equatable, Sendable {
         return AppsSurfaceModel(apps: apps)
     }
 
+    private static func isVisibleInNativeAppsSurface(
+        _ item: GatewayAppItem,
+        authorization: GatewayConnectorAuthorization?) -> Bool
+    {
+        guard item.status.isVisibleInNativeAppsSurface else { return false }
+        switch authorization?.health {
+        case .inReview, .unavailable:
+            return false
+        case .healthy, .needsReconnect, .configMissing, .none:
+            return true
+        }
+    }
+
     private static func resolveCapabilityStatus(
         itemStatus: GatewayAppItemStatus,
         authorization: GatewayConnectorAuthorization?) -> AppIntegrationCapability.Status
     {
-        if authorization?.state == .needsReconnect || authorization?.health == .needsReconnect {
-            return .needsReconnect
+        if authorization?.health == .configMissing {
+            return .setupRequired
         }
-        if authorization?.health == .configMissing ||
-            authorization?.health == .inReview ||
-            authorization?.health == .unavailable
+        if authorization?.state == .needsReconnect ||
+            (authorization?.health == .needsReconnect && authorization?.state != .notConnected)
         {
-            return .authError
+            return .needsReconnect
         }
         if authorization?.state == .connected {
             return .connected
@@ -389,68 +411,62 @@ struct AppsSurfaceModel: Equatable, Sendable {
     }
 
     private static func resolveGroupStatus(capabilities: [AppIntegrationCapability]) -> AppIntegrationGroup.Status {
-        if capabilities.contains(where: { $0.status == .authError }) {
-            return .authError
-        }
-        if capabilities.contains(where: { capability in
-            capability.status == .needsReconnect
-        }) {
-            return .needsAttention
-        }
         let connectedCount = capabilities.filter { $0.status == .connected }.count
         if connectedCount == capabilities.count {
             return .connected
         }
+        if capabilities.contains(where: { $0.status == .needsReconnect }) {
+            return .needsReconnect
+        }
         if connectedCount > 0 {
-            return .needsAttention
+            return .partiallyConnected
+        }
+        if capabilities.contains(where: { $0.status == .setupRequired }) {
+            return .setupRequired
         }
         return .disconnected
     }
 
     private static func buildGroupDetail(
         status: AppIntegrationGroup.Status,
-        capabilities: [AppIntegrationCapability],
         capabilityCount: Int,
         connectedCount: Int) -> String?
     {
         switch status {
         case .connected:
             if capabilityCount == 1 {
-                return "Connected and ready."
+                return "Connected."
             }
-            return "All \(capabilityCount) access levels are connected."
-        case .needsAttention:
+            return "All \(capabilityCount) connected."
+        case .needsReconnect:
             if connectedCount > 0 {
-                return "\(connectedCount) of \(capabilityCount) access levels are connected."
+                return "\(connectedCount) connected. Reconnect the rest to keep using this app."
             }
-            if capabilities.contains(where: { $0.status == .needsReconnect }) {
-                return capabilityCount == 1
-                    ? "Reconnect this app to keep using it."
-                    : "Reconnect the access levels that need attention."
+            return capabilityCount == 1
+                ? "Reconnect to keep using this app."
+                : "Reconnect the connections that need it."
+        case .setupRequired:
+            return "Finish setup on this Mac before connecting."
+        case .partiallyConnected:
+            if connectedCount > 0 {
+                return "\(connectedCount) of \(capabilityCount) connected."
             }
-            return "This app needs attention before it can connect."
-        case .authError:
-            return capabilities.compactMap(\.setupHint).first ??
-                "This app needs setup on this Mac before it can connect."
+            return "Partly connected."
         case .disconnected:
             if capabilityCount == 1 {
                 return "Not connected yet."
             }
-            return "Choose which access levels to connect."
+            return "Choose what to connect."
         }
     }
 
     private static func setupHint(for authorization: GatewayConnectorAuthorization?) -> String? {
         switch authorization?.health {
         case .configMissing:
-            return "This app needs setup on this Mac before it can connect."
-        case .inReview:
-            return "This app is not available to connect on this Mac."
-        case .unavailable:
-            return "This app is not available to connect on this Mac."
+            return "Finish setup on this Mac before connecting."
         case .needsReconnect:
-            return "Reconnect this app to keep using it."
-        case .healthy, .none:
+            return "Sign in again to keep using this app."
+        case .healthy, .inReview, .unavailable, .none:
             return nil
         }
     }
@@ -507,6 +523,12 @@ protocol AppsGatewayClient: Sendable {
     func revokeAppConnection(appID: String, timeoutMs: Double) async throws
 }
 
+enum AppsStatusMessageTone: Equatable, Sendable {
+    case neutral
+    case success
+    case warning
+}
+
 @MainActor
 @Observable
 final class AppsSettingsStore {
@@ -527,6 +549,7 @@ final class AppsSettingsStore {
     var lastUpdated: Date?
     var lastError: String?
     var statusMessage: String?
+    var statusMessageTone: AppsStatusMessageTone = .neutral
     var isRefreshing = false
     var activeAppConnectionID: String?
 
@@ -592,7 +615,8 @@ final class AppsSettingsStore {
                let capability = surface.capability(withID: pending.appID),
                capability.status == .connected
             {
-                self.statusMessage = "\(pending.title) connected."
+                self.statusMessage = "\(pending.title) is connected."
+                self.statusMessageTone = .success
                 self.pendingBrowserAction = nil
             }
         } catch {
@@ -604,13 +628,14 @@ final class AppsSettingsStore {
         guard self.activeAppConnectionID == nil else { return }
         self.activeAppConnectionID = capability.id
         self.statusMessage = nil
+        self.statusMessageTone = .neutral
         self.lastError = nil
         defer { self.activeAppConnectionID = nil }
 
         switch capability.status {
         case .connected:
             await self.revokeConnection(for: capability)
-        case .needsReconnect, .authError, .disconnected:
+        case .needsReconnect, .setupRequired, .disconnected:
             await self.beginConnection(for: capability)
         }
     }
@@ -638,11 +663,13 @@ final class AppsSettingsStore {
                 self.pendingBrowserAction = PendingBrowserAction(
                     appID: capability.id,
                     title: capability.displayTitle)
-                self.statusMessage = "Continue in your browser to connect \(capability.displayTitle)."
+                self.statusMessage = "Finish connecting \(capability.displayTitle) in your browser."
+                self.statusMessageTone = .neutral
             case .setup:
                 self.statusMessage =
                     result.setupHint ??
-                    "Open the setup guide for \(capability.displayTitle), then come back here."
+                    "Finish setup for \(capability.displayTitle), then come back here."
+                self.statusMessageTone = .warning
             }
 
             await self.refresh()
@@ -656,6 +683,7 @@ final class AppsSettingsStore {
             try await self.gateway.revokeAppConnection(appID: capability.id, timeoutMs: 5000)
             self.pendingBrowserAction = nil
             self.statusMessage = "\(capability.displayTitle) disconnected."
+            self.statusMessageTone = .success
             await self.refresh()
         } catch {
             self.lastError = self.userFacingError(error)
@@ -680,11 +708,11 @@ final class AppsSettingsStore {
             }
             switch response.method {
             case "alisio.providers.get":
-                return "Alisio could not load apps right now."
+                return "Couldn't load apps right now."
             case "connectors.begin":
-                return "Alisio could not start this app connection right now."
+                return "Couldn't start this connection right now."
             case "connectors.revoke":
-                return "Alisio could not disconnect this app right now."
+                return "Couldn't disconnect this app right now."
             default:
                 break
             }
@@ -702,16 +730,14 @@ final class AppsSettingsStore {
 
     private func beginFailureMessage(_ result: GatewayConnectorBeginResult, title: String) -> String {
         switch result.statusReason {
-        case .missingClientConfig:
-            return "\(title) needs setup on this Mac before it can connect."
-        case .missingTokenEncryption:
-            return "This Mac is not ready to store \(title) sign-ins securely yet."
+        case .missingClientConfig, .missingTokenEncryption:
+            return "Finish setup on this Mac before connecting \(title)."
         case .reviewRequired, .unavailable:
-            return "\(title) is not available to connect on this Mac."
+            return "\(title) isn't available on this Mac right now."
         case .readyForSetup:
-            return "Open the setup guide for \(title)."
+            return "Open setup for \(title)."
         case .readyForOAuth:
-            return "Unable to start the connection flow for \(title)."
+            return "Couldn't start the connection for \(title)."
         }
     }
 }
@@ -720,22 +746,6 @@ extension AppsSettings {
     var selectedApp: AppIntegrationGroup? {
         guard let selectedAppID else { return nil }
         return self.store.apps.first(where: { $0.id == selectedAppID })
-    }
-
-    var connectedApps: [AppIntegrationGroup] {
-        self.store.apps.filter { $0.status == .connected }
-    }
-
-    var attentionApps: [AppIntegrationGroup] {
-        self.store.apps.filter { $0.status == .needsAttention }
-    }
-
-    var authErrorApps: [AppIntegrationGroup] {
-        self.store.apps.filter { $0.status == .authError }
-    }
-
-    var disconnectedApps: [AppIntegrationGroup] {
-        self.store.apps.filter { $0.status == .disconnected }
     }
 
     func ensureSelection() {

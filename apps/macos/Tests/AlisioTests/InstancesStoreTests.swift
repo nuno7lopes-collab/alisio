@@ -55,7 +55,7 @@ struct InstancesStoreTests {
 
         #expect(store.instances.isEmpty)
         #expect(store.lastError == nil)
-        #expect(store.statusMessage == "No nodes have reported in yet.")
+        #expect(store.statusMessage == "No nodes have checked in yet.")
     }
 
     @Test
@@ -70,6 +70,7 @@ struct InstancesStoreTests {
         store.handlePresenceEventPayload(invalidPayload)
 
         #expect(store.instances.count == 1)
-        #expect(store.lastError == "Received an invalid nodes update. Showing the last known list.")
+        #expect(store.lastError == "The nodes list could not be refreshed. Showing the last known nodes.")
+        #expect(store.lastSuccess != nil)
     }
 }

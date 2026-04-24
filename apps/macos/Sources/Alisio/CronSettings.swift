@@ -31,6 +31,7 @@ struct CronSettings: View {
 
     @Bindable var store: CronJobsStore
     @Bindable var channelsStore: ChannelsStore
+    let showsHeader: Bool
     @State var displayMode: DisplayMode = .list
     @State var calendarReferenceDate = Date()
     @State var showEditor = false
@@ -39,8 +40,13 @@ struct CronSettings: View {
     @State var isSaving = false
     @State var confirmDelete: CronJob?
 
-    init(store: CronJobsStore = .shared, channelsStore: ChannelsStore = .shared) {
+    init(
+        store: CronJobsStore = .shared,
+        channelsStore: ChannelsStore = .shared,
+        showsHeader: Bool = true)
+    {
         self.store = store
         self.channelsStore = channelsStore
+        self.showsHeader = showsHeader
     }
 }

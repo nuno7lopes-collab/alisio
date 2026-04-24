@@ -120,6 +120,11 @@ enum CronSchedule: Codable, Equatable {
         }
     }
 
+    var isOneShot: Bool {
+        if case .at = self { return true }
+        return false
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(String.self, forKey: .kind)
@@ -480,6 +485,11 @@ struct CronJob: Identifiable, Codable, Equatable {
     var displayName: String {
         let trimmed = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "Untitled schedule" : trimmed
+    }
+
+    var effectiveDeleteAfterRun: Bool {
+        guard self.schedule.isOneShot else { return false }
+        return self.deleteAfterRun ?? true
     }
 
     var isRunning: Bool {

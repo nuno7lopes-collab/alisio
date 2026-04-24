@@ -12,17 +12,16 @@ struct CronJobEditor: View {
 
     let labelColumnWidth: CGFloat = 160
     static let introText =
-        "Choose when Alisio should take this action. "
-            + "Use a separate chat if you do not want the work mixed into the main chat."
+        "Set when this schedule runs, what it does, and where the result should go."
     static let sessionTargetNote =
-        "The main chat posts directly into the main conversation. "
-            + "This chat and separate chats can run agent work and send follow-ups elsewhere."
+        "Main chat posts directly into the main conversation. "
+            + "This chat and separate chats can run work and send follow-ups elsewhere."
     static let scheduleKindNote =
-        "One time runs at a specific moment. Repeating runs on an interval. Custom uses a time pattern."
+        "Use once for a single time, repeating for a fixed interval, or custom for a cron pattern."
     static let isolatedPayloadNote =
-        "Separate chats always run agent work."
+        "This chat and separate chats always run a task."
     static let mainPayloadNote =
-        "The main chat posts a note here. Switch to a separate chat to run agent work."
+        "Main chat can only post a note. Switch chats to run a task."
 
     @State var name: String = ""
     @State var description: String = ""
@@ -31,7 +30,7 @@ struct CronJobEditor: View {
     @State var sessionTarget: CronSessionTarget = .main
     @State var preservedSessionTargetRaw: String?
     @State var wakeMode: CronWakeMode = .now
-    @State var deleteAfterRun: Bool = false
+    @State var deleteAfterRun: Bool = true
 
     enum ScheduleKind: String, CaseIterable, Identifiable { case at, every, cron; var id: String {
         rawValue
@@ -112,7 +111,7 @@ struct CronJobEditor: View {
 
             ScrollView(.vertical) {
                 VStack(alignment: .leading, spacing: 14) {
-                    GroupBox("General") {
+                    GroupBox("Basics") {
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                             GridRow {
                                 self.gridLabel("Name")
@@ -171,7 +170,7 @@ struct CronJobEditor: View {
                         }
                     }
 
-                    GroupBox("Timing") {
+                    GroupBox("Schedule") {
                         Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                             GridRow {
                                 self.gridLabel("Type")
@@ -206,8 +205,8 @@ struct CronJobEditor: View {
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                 }
                                 GridRow {
-                                    self.gridLabel("Remove after success")
-                                    Toggle("Remove this schedule after it succeeds", isOn: self.$deleteAfterRun)
+                                    self.gridLabel("After success")
+                                    Toggle("Delete this schedule after it succeeds", isOn: self.$deleteAfterRun)
                                         .toggleStyle(.switch)
                                 }
                             case .every:
@@ -234,7 +233,11 @@ struct CronJobEditor: View {
                         }
                     }
 
-                    GroupBox("What Happens") {
+                    GroupBox("Preview") {
+                        self.schedulePreviewCard
+                    }
+
+                    GroupBox("Action") {
                         VStack(alignment: .leading, spacing: 10) {
                             if self.isIsolatedLikeSessionTarget {
                                 Text(Self.isolatedPayloadNote)
@@ -278,7 +281,7 @@ struct CronJobEditor: View {
                         }
                     }
 
-                    GroupBox("After It Runs") {
+                    GroupBox("Follow-Up") {
                         self.followUpEditor
                     }
                 }
@@ -418,6 +421,51 @@ struct CronJobEditor: View {
                         self.gridLabel("Best effort")
                         Toggle("Do not fail the schedule if the follow-up cannot be sent", isOn: self.$bestEffortDeliver)
                             .toggleStyle(.switch)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    var schedulePreviewCard: some View {
+        switch self.schedulePreviewState() {
+        case let .ready(snapshot):
+            VStack(alignment: .leading, spacing: 10) {
+                Text("The calendar below uses the same projection as the schedule views.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                self.schedulePreviewRow(title: "This week", coverage: snapshot.week)
+                self.schedulePreviewRow(title: "This month", coverage: snapshot.month)
+            }
+        case let .invalid(message):
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    func schedulePreviewRow(
+        title: String,
+        coverage: ScheduleCalendarProjection.JobCoverage) -> some View
+    {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(self.schedulePreviewSummary(title: title, coverage: coverage))
+                .font(.callout)
+                .foregroundStyle(self.schedulePreviewTint(for: coverage))
+                .fixedSize(horizontal: false, vertical: true)
+            let preview = Array(coverage.occurrences.prefix(3))
+            if !preview.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(preview) { occurrence in
+                        Text(occurrence.startAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

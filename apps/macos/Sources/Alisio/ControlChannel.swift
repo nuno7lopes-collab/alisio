@@ -103,6 +103,7 @@ final class ControlChannel {
     }
 
     private(set) var lastPingMs: Double?
+    private(set) var authSource: GatewayAuthSource?
     private(set) var authSourceLabel: String?
 
     private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "control")
@@ -170,8 +171,16 @@ final class ControlChannel {
         await GatewayConnection.shared.shutdown()
         self.state = .disconnected
         self.lastPingMs = nil
+        self.authSource = nil
         self.authSourceLabel = nil
         AlisioAccountStore.shared.clear()
+    }
+
+    func reconnectUsingSavedSettings() async {
+        let appState = AppStateStore.shared
+        await ConnectionModeCoordinator.shared.apply(
+            mode: appState.connectionMode,
+            paused: appState.isPaused)
     }
 
     func health(timeout: TimeInterval? = nil) async throws -> Data {
@@ -384,6 +393,7 @@ final class ControlChannel {
 
     private func refreshAuthSourceLabel() async {
         let authSource = await GatewayConnection.shared.authSource()
+        self.authSource = authSource
         self.authSourceLabel = Self.formatAuthSource(authSource)
     }
 

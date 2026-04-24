@@ -12,7 +12,8 @@ struct CronJobEditorTests {
         sessionTarget: CronSessionTarget = .main,
         schedule: CronSchedule = .every(everyMs: 3_600_000, anchorMs: nil),
         payload: CronPayload = .systemEvent(text: "Summarize today"),
-        delivery: CronDelivery? = nil) -> Alisio.CronJob
+        delivery: CronDelivery? = nil,
+        deleteAfterRun: Bool? = false) -> Alisio.CronJob
     {
         Alisio.CronJob(
             id: id,
@@ -20,7 +21,7 @@ struct CronJobEditorTests {
             name: "Daily summary",
             description: description,
             enabled: true,
-            deleteAfterRun: false,
+            deleteAfterRun: deleteAfterRun,
             createdAtMs: 1_700_000_000_000,
             updatedAtMs: 1_700_000_100_000,
             schedule: schedule,
@@ -44,6 +45,18 @@ struct CronJobEditorTests {
         view.applyDeleteAfterRun(to: &root, scheduleKind: CronJobEditor.ScheduleKind.at, deleteAfterRun: true)
         let raw = root["deleteAfterRun"] as? Bool
         #expect(raw == true)
+    }
+
+    @Test func `cron job editor defaults new one shot schedules to delete after success`() {
+        let view = CronJobEditor(
+            job: nil,
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        #expect(view.deleteAfterRun == true)
     }
 
     @Test func `cron job editor clears an existing description when saved blank`() throws {
@@ -235,5 +248,21 @@ struct CronJobEditorTests {
 
         #expect(schedule["kind"] as? String == "every")
         #expect(schedule["anchorMs"] as? Int == anchorMs)
+    }
+
+    @Test func `cron job editor hydrates one shot jobs with backend delete default`() {
+        let view = CronJobEditor(
+            job: self.makeJob(
+                schedule: .at(at: "2026-04-21T10:15:00Z"),
+                deleteAfterRun: nil),
+            isSaving: .constant(false),
+            error: .constant(nil),
+            channelsStore: ChannelsStore(isPreview: true),
+            onCancel: {},
+            onSave: { _ in })
+
+        view.hydrateFromJob()
+
+        #expect(view.deleteAfterRun == true)
     }
 }

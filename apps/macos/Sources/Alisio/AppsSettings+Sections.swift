@@ -1,24 +1,31 @@
+import AppKit
 import SwiftUI
 
 import AlisioSupport
+
+private struct AppsDetailFact: Identifiable {
+    let label: String
+    let value: String
+
+    var id: String {
+        self.label
+    }
+}
+
 extension AppsSettings {
-    func formSection(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        GroupBox(title) {
-            VStack(alignment: .leading, spacing: 10) {
+    func surfaceCard(@ViewBuilder content: () -> some View) -> some View {
+        WorkspaceSurfaceCard {
+            VStack(alignment: .leading, spacing: 14) {
                 content()
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     @ViewBuilder
     func detailHeaderActions(for app: AppIntegrationGroup) -> some View {
         HStack(spacing: 8) {
-            if let docsURL = app.docsURL {
-                Button("Setup guide") {
-                    self.openExternalURL(docsURL)
-                }
-                .buttonStyle(.bordered)
+            if let capability = app.primaryCapability {
+                self.capabilityActionButton(capability, prominent: capability.status != .connected)
             }
 
             Button {
@@ -31,87 +38,113 @@ extension AppsSettings {
                 }
             }
             .buttonStyle(.bordered)
+            .controlSize(.small)
             .disabled(self.store.isRefreshing)
         }
-        .controlSize(.small)
     }
 
-    func overviewSection(_ app: AppIntegrationGroup) -> some View {
-        self.formSection("Overview") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(app.summary)
-                    .font(.callout)
-
-                if let account = self.accountText(label: app.accountLabel, email: app.accountEmail) {
-                    LabeledContent("Account", value: account)
-                }
-
-                LabeledContent("Provider", value: app.providerLabel)
-                LabeledContent("Status", value: app.status.label)
-
-                if !app.chips.isEmpty {
-                    self.chipRow(app.chips)
+    @ViewBuilder
+    func appFactsSection(_ app: AppIntegrationGroup) -> some View {
+        let facts = self.appFacts(for: app)
+        if !facts.isEmpty {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 140), alignment: .leading)],
+                alignment: .leading,
+                spacing: 12)
+            {
+                ForEach(facts) { fact in
+                    self.factView(fact)
                 }
             }
         }
     }
 
     func capabilitiesSection(_ app: AppIntegrationGroup) -> some View {
-        self.formSection(app.capabilities.count > 1 ? "Access Levels" : "Access") {
-            ForEach(app.capabilities) { capability in
-                self.capabilityRow(capability)
-                if capability.id != app.capabilities.last?.id {
-                    Divider()
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Access")
+                .font(.headline)
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(app.capabilities) { capability in
+                    self.capabilityRow(capability)
                 }
             }
         }
     }
 
+    private func factView(_ fact: AppsDetailFact) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(fact.label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(fact.value)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func appFacts(for app: AppIntegrationGroup) -> [AppsDetailFact] {
+        var facts: [AppsDetailFact] = []
+
+        if let account = self.accountText(label: app.accountLabel, email: app.accountEmail) {
+            facts.append(AppsDetailFact(label: "Account", value: account))
+        }
+
+        facts.append(AppsDetailFact(label: "Provider", value: app.providerLabel))
+
+        if app.capabilities.count > 1 {
+            let count = app.capabilities.count
+            let value = count == 1 ? "1 connection" : "\(count) connections"
+            facts.append(AppsDetailFact(label: "Access", value: value))
+        }
+
+        if let connectedAt = self.formatConnectedAt(app.primaryConnectedAt) {
+            facts.append(AppsDetailFact(label: "Connected", value: connectedAt))
+        }
+
+        return facts
+    }
+
     private func capabilityRow(_ capability: AppIntegrationCapability) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(capability.title)
-                        .font(.headline)
-                    self.statusBadge(
-                        capability.status.label,
-                        color: self.capabilityTint(capability.status))
+        self.surfaceCard {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(capability.title)
+                            .font(.headline)
+                        self.statusBadge(
+                            capability.status.label,
+                            color: self.capabilityTint(capability.status))
+                    }
+
+                    Text(capability.subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Text(self.capabilityDetailLine(capability))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text(capability.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
 
-                Text(self.capabilityDetailLine(capability))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                self.capabilityActionButton(capability)
             }
-
-            Spacer(minLength: 0)
-
-            self.capabilityActionButton(capability)
         }
     }
 
     @ViewBuilder
-    private func capabilityActionButton(_ capability: AppIntegrationCapability) -> some View {
-        if capability.status == .connected {
+    private func capabilityActionButton(_ capability: AppIntegrationCapability, prominent: Bool? = nil) -> some View {
+        let usesProminentStyle = prominent ?? (capability.status != .connected)
+        if usesProminentStyle {
             Button {
                 Task { await self.store.performAction(for: capability) }
             } label: {
                 self.capabilityActionLabel(for: capability)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(self.store.appConnectionIsBusy(capability.id))
-        } else if capability.status == .authError {
-            Button {
-                Task { await self.store.performAction(for: capability) }
-            } label: {
-                self.capabilityActionLabel(for: capability)
-            }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .disabled(self.store.appConnectionIsBusy(capability.id))
         } else {
@@ -120,7 +153,7 @@ extension AppsSettings {
             } label: {
                 self.capabilityActionLabel(for: capability)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(self.store.appConnectionIsBusy(capability.id))
         }
@@ -132,37 +165,11 @@ extension AppsSettings {
             ProgressView().controlSize(.small)
         } else {
             switch capability.status {
-            case .connected, .needsReconnect, .authError:
+            case .connected, .needsReconnect, .setupRequired:
                 Text(capability.status.actionTitle)
             case .disconnected:
                 Text(capability.connectLabel)
             }
         }
-    }
-
-    private func chipRow(_ chips: [String]) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                ForEach(chips, id: \.self) { chip in
-                    self.chip(chip)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(chips, id: \.self) { chip in
-                    self.chip(chip)
-                }
-            }
-        }
-    }
-
-    private func chip(_ text: String) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.12))
-            .foregroundStyle(.secondary)
-            .clipShape(Capsule())
     }
 }

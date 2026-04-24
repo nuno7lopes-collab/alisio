@@ -19,12 +19,17 @@ private enum MemoryNavigationMode: String, CaseIterable, Identifiable {
 }
 
 struct MemorySettings: View {
+    let showsHeader: Bool
     @State private var model: MemorySettingsModel
     @State private var searchText = ""
     @State private var searchTask: Task<Void, Never>?
     @State private var navigationMode: MemoryNavigationMode = .list
 
-    init(model: MemorySettingsModel = MemorySettingsModel()) {
+    init(
+        model: MemorySettingsModel = MemorySettingsModel(),
+        showsHeader: Bool = true)
+    {
+        self.showsHeader = showsHeader
         self._model = State(initialValue: model)
     }
 
@@ -50,46 +55,43 @@ struct MemorySettings: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Memory")
-                    .font(.headline)
-                Text("Read the canonical files for the selected agent.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            if self.model.agents.count > 1 {
-                Picker("Agent", selection: Binding(
-                    get: { self.model.selectedAgentID ?? "" },
-                    set: { newValue in
-                        guard !newValue.isEmpty else { return }
-                        Task { await self.model.selectAgent(newValue) }
-                    }))
-                {
-                    ForEach(self.model.agents) { agent in
-                        Text(agent.displayName)
-                            .tag(agent.id)
+        WorkspaceRouteHeader(
+            title: "Memory",
+            subtitle: "Read the visible canonical memory for the selected agent.",
+            showsTitle: self.showsHeader)
+        {
+            HStack(spacing: 10) {
+                if self.model.agents.count > 1 {
+                    Picker("Agent", selection: Binding(
+                        get: { self.model.selectedAgentID ?? "" },
+                        set: { newValue in
+                            guard !newValue.isEmpty else { return }
+                            Task { await self.model.selectAgent(newValue) }
+                        }))
+                    {
+                        ForEach(self.model.agents) { agent in
+                            Text(agent.displayName)
+                                .tag(agent.id)
+                        }
                     }
+                    .pickerStyle(.menu)
+                    .frame(width: 220)
+                } else if let agent = self.model.selectedAgent {
+                    Label(agent.displayName, systemImage: "person")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
-                .pickerStyle(.menu)
-                .frame(width: 220)
-            } else if let agent = self.model.selectedAgent {
-                Label(agent.displayName, systemImage: "person")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
 
-            if self.model.isLoading {
-                ProgressView()
-            } else {
-                Button {
-                    Task { await self.model.refresh() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                if self.model.isLoading {
+                    ProgressView()
+                } else {
+                    Button {
+                        Task { await self.model.refresh() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
             }
         }
     }
@@ -102,30 +104,30 @@ struct MemorySettings: View {
 
                 switch self.model.listState {
                 case .loading:
-                    self.stateCard(
-                        title: "Loading files…",
-                        message: "Reading the canonical memory catalog for this agent.",
+                    WorkspaceStateCard(
+                        title: "Loading memory…",
+                        message: "Reading the visible canonical catalog for this agent.",
                         systemImage: "brain.head.profile",
                         showsProgress: true)
                 case let .error(message):
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "Couldn't load memory.",
                         message: message,
                         systemImage: "exclamationmark.triangle.fill",
-                        tint: .orange,
+                        tone: .caution,
                         actionTitle: "Reload")
                     {
                         Task { await self.model.refresh() }
                     }
                 case let .empty(message):
-                    self.stateCard(
-                        title: "Nothing to show yet.",
+                    WorkspaceStateCard(
+                        title: "No memory yet.",
                         message: message,
                         systemImage: "doc.text")
                 case .filteredEmpty:
-                    self.stateCard(
-                        title: "No files match this search.",
-                        message: "Try another term.",
+                    WorkspaceStateCard(
+                        title: "No matches.",
+                        message: "Try another search term.",
                         systemImage: "magnifyingglass")
                 case .list:
                     VStack(alignment: .leading, spacing: 8) {
@@ -137,6 +139,10 @@ struct MemorySettings: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
+                        } else if let notice = self.model.searchNotice?.nonEmpty {
+                            Text(notice)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         } else if let message = self.model.statusMessage?.nonEmpty {
                             Text(message)
                                 .font(.footnote)
@@ -174,17 +180,17 @@ struct MemorySettings: View {
         Group {
             if let item = self.model.selectedItem {
                 if self.model.isLoadingSelectedDocument && self.model.selectedDocument?.item.id != item.id {
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "Loading file…",
-                        message: "Reading the selected file.",
+                        message: "Reading the selected canonical file.",
                         systemImage: "doc.text",
                         showsProgress: true)
                 } else if let error = self.model.detailError?.nonEmpty {
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "Couldn't open this file.",
                         message: error,
                         systemImage: "exclamationmark.triangle.fill",
-                        tint: .orange,
+                        tone: .caution,
                         actionTitle: "Reload")
                     {
                         Task { await self.model.reloadSelectedDocument() }
@@ -192,37 +198,37 @@ struct MemorySettings: View {
                 } else if let document = self.model.selectedDocument, document.item.id == item.id {
                     self.documentDetail(document)
                 } else {
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "Preparing file…",
-                        message: "The selected file appears here as soon as it loads.",
+                        message: "The selected file appears here as soon as it is ready.",
                         systemImage: "doc.text",
                         showsProgress: true)
                 }
             } else {
                 switch self.model.listState {
                 case .loading:
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "Preparing details…",
-                        message: "The selected file appears here as soon as the catalog loads.",
+                        message: "Pick a file as soon as the catalog finishes loading.",
                         systemImage: "doc.text",
                         showsProgress: true)
                 case .error:
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "No file to show.",
                         message: "Reload memory to open a file.",
                         systemImage: "rectangle.on.rectangle.slash")
                 case let .empty(message):
-                    self.stateCard(
-                        title: "Nothing to show yet.",
+                    WorkspaceStateCard(
+                        title: "No memory yet.",
                         message: message,
                         systemImage: "doc.text")
                 case .filteredEmpty:
-                    self.stateCard(
-                        title: "No matching file selected.",
+                    WorkspaceStateCard(
+                        title: "No match selected.",
                         message: "Clear or change the search to read a file.",
                         systemImage: "magnifyingglass")
                 case .list:
-                    self.stateCard(
+                    WorkspaceStateCard(
                         title: "Choose a file.",
                         message: "The file content appears here.",
                         systemImage: "list.bullet.rectangle")
@@ -235,7 +241,7 @@ struct MemorySettings: View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
-            TextField("Search files", text: self.$searchText)
+            TextField("Search memory", text: self.$searchText)
                 .textFieldStyle(.plain)
             if self.searchText.nonEmpty != nil {
                 Button {
@@ -250,7 +256,7 @@ struct MemorySettings: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
-        .background(Color.secondary.opacity(0.08))
+        .background(Color.secondary.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
@@ -266,30 +272,27 @@ struct MemorySettings: View {
 
     private func sidebarRow(_ item: MemorySurfaceItem) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Image(systemName: item.section.systemImage)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 14)
-                Text(item.title)
-                    .font(.body.weight(.medium))
-                    .lineLimit(1)
-            }
+            Text(item.title)
+                .font(.body.weight(.medium))
+                .lineLimit(1)
 
-            Text(self.metadataLine(for: item))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            if let subtitle = self.sidebarSubtitle(for: item).nonEmpty {
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 
     private var graphNavigator: some View {
         let projection = self.model.graphProjection
         return VStack(alignment: .leading, spacing: 10) {
             if projection.lanes.isEmpty {
-                self.stateCard(
-                    title: "No relationships to draw.",
-                    message: "The current filter does not expose canonical section-to-file links.",
+                WorkspaceStateCard(
+                    title: "No graph for this view.",
+                    message: "Change the search or list selection to see the catalog links.",
                     systemImage: "point.3.connected.trianglepath.dotted")
             } else {
                 ForEach(projection.lanes) { lane in
@@ -300,19 +303,18 @@ struct MemorySettings: View {
     }
 
     private func graphLane(_ lane: MemoryGraphLane) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            self.graphNodeButton(lane.sectionNode)
+        WorkspaceSurfaceCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                self.graphNodeButton(lane.sectionNode)
 
-            ForEach(Array(lane.documentNodes.enumerated()), id: \.element.id) { index, node in
-                HStack(alignment: .top, spacing: 10) {
-                    self.graphConnector(isLast: index == lane.documentNodes.count - 1)
-                    self.graphNodeButton(node)
+                ForEach(Array(lane.documentNodes.enumerated()), id: \.element.id) { index, node in
+                    HStack(alignment: .top, spacing: 10) {
+                        self.graphConnector(isLast: index == lane.documentNodes.count - 1)
+                        self.graphNodeButton(node)
+                    }
                 }
             }
         }
-        .padding(12)
-        .background(Color.secondary.opacity(0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func graphNodeButton(_ node: MemoryGraphNode) -> some View {
@@ -342,11 +344,11 @@ struct MemorySettings: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
-            .background(node.isSelected ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.08))
+            .background(node.isSelected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.05))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(
-                        node.isSelected ? Color.accentColor.opacity(0.45) : Color.secondary.opacity(0.12),
+                        node.isSelected ? Color.accentColor.opacity(0.3) : Color.secondary.opacity(0.08),
                         lineWidth: 1)
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -378,11 +380,11 @@ struct MemorySettings: View {
 
     private func documentDetail(_ document: MemoryWorkspaceFileDocument) -> some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Label(document.item.title, systemImage: document.item.section.systemImage)
-                            .font(.title3.weight(.semibold))
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(document.item.title)
+                            .font(.system(size: 24, weight: .semibold))
                         Spacer()
                         if self.model.isLoadingSelectedDocument {
                             ProgressView()
@@ -390,16 +392,16 @@ struct MemorySettings: View {
                         }
                     }
 
+                    if let label = self.detailLabel(for: document.item).nonEmpty {
+                        Text(label)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
                     Text(document.item.path)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
-
-                    if let summary = self.detailSummary(for: document).nonEmpty {
-                        Text(summary)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                 }
 
                 Divider()
@@ -410,54 +412,16 @@ struct MemorySettings: View {
                         .foregroundStyle(.secondary)
                 } else {
                     Text(document.content)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.body)
+                        .lineSpacing(5)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 24)
         }
-    }
-
-    func stateCard(
-        title: String,
-        message: String,
-        systemImage: String,
-        tint: Color = .secondary,
-        showsProgress: Bool = false,
-        actionTitle: String? = nil,
-        action: (() -> Void)? = nil) -> some View
-    {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                if showsProgress {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(tint)
-                }
-
-                Text(title)
-                    .font(.headline)
-            }
-
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
-        .background(Color.secondary.opacity(0.06))
-        .cornerRadius(12)
     }
 
     private func scheduleSearch(_ query: String) {
@@ -469,27 +433,32 @@ struct MemorySettings: View {
         }
     }
 
-    private func metadataLine(for item: MemorySurfaceItem) -> String {
-        var parts = [item.path]
-        if let size = item.size {
-            parts.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+    private func sidebarSubtitle(for item: MemorySurfaceItem) -> String {
+        if let snippet = self.model.searchMatchesByItemID[item.id]?.snippet.nonEmpty {
+            return self.compactSnippet(snippet)
         }
-        if let updatedAtMs = item.updatedAtMs {
-            let date = Date(timeIntervalSince1970: Double(updatedAtMs) / 1000)
-            parts.append("Updated \(RelativeDateTimeFormatter().localizedString(for: date, relativeTo: .now))")
+
+        switch item.kind {
+        case "topic_note", "daily_note":
+            return item.kindTitle
+        case "agent_instructions", "agent_tools", "agent_heartbeat":
+            return item.path
+        default:
+            return ""
         }
-        return parts.joined(separator: " · ")
     }
 
-    private func detailSummary(for document: MemoryWorkspaceFileDocument) -> String {
-        var parts: [String] = []
-        if let size = document.size {
-            parts.append(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+    private func detailLabel(for item: MemorySurfaceItem) -> String {
+        let label = item.kindTitle
+        if label.caseInsensitiveCompare(item.title) == .orderedSame {
+            return ""
         }
-        if let updatedAtMs = document.updatedAtMs {
-            let date = Date(timeIntervalSince1970: Double(updatedAtMs) / 1000)
-            parts.append("Updated \(RelativeDateTimeFormatter().localizedString(for: date, relativeTo: .now))")
-        }
-        return parts.joined(separator: " · ")
+        return label
+    }
+
+    private func compactSnippet(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

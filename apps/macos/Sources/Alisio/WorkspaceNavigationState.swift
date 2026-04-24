@@ -68,9 +68,9 @@ final class WorkspaceNavigationState {
             case .capabilities:
                 "See what this Mac can do and what still needs setup."
             case .connections:
-                "See how this Mac reaches the runtime, whether health is passing, and which nodes are alive."
+                "See how this Mac connects, whether health checks pass, and which nodes are online."
             case .settings:
-                "Open the native Settings window for app-level preferences without duplicating them in the workspace."
+                "Open the native Settings window for app setup and preferences."
             }
         }
 

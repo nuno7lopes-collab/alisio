@@ -3,6 +3,16 @@ import SwiftUI
 
 import AlisioSupport
 extension CronJobEditor {
+    struct SchedulePreviewSnapshot {
+        let week: ScheduleCalendarProjection.JobCoverage
+        let month: ScheduleCalendarProjection.JobCoverage
+    }
+
+    enum SchedulePreviewState {
+        case ready(SchedulePreviewSnapshot)
+        case invalid(String)
+    }
+
     func gridLabel(_ text: String) -> some View {
         Text(text)
             .foregroundStyle(.secondary)
@@ -15,7 +25,7 @@ extension CronJobEditor {
         self.description = job.description ?? ""
         self.agentId = job.agentId ?? ""
         self.enabled = job.enabled
-        self.deleteAfterRun = job.deleteAfterRun ?? false
+        self.deleteAfterRun = job.effectiveDeleteAfterRun
         switch job.parsedSessionTarget {
         case let .predefined(target):
             self.sessionTarget = target
@@ -224,9 +234,31 @@ extension CronJobEditor {
     }
 
     func buildSchedule() throws -> [String: Any] {
+        switch try self.buildScheduleModel() {
+        case let .at(at):
+            return ["kind": "at", "at": at]
+        case let .every(everyMs, anchorMs):
+            var schedule: [String: Any] = ["kind": "every", "everyMs": everyMs]
+            if let anchorMs {
+                schedule["anchorMs"] = anchorMs
+            }
+            return schedule
+        case let .cron(expr, tz, staggerMs):
+            var schedule: [String: Any] = ["kind": "cron", "expr": expr]
+            if let tz, !tz.isEmpty {
+                schedule["tz"] = tz
+            }
+            if let staggerMs {
+                schedule["staggerMs"] = staggerMs
+            }
+            return schedule
+        }
+    }
+
+    func buildScheduleModel() throws -> CronSchedule {
         switch self.scheduleKind {
         case .at:
-            return ["kind": "at", "at": CronSchedule.formatIsoDate(self.atDate)]
+            return .at(at: CronSchedule.formatIsoDate(self.atDate))
         case .every:
             guard let ms = Self.parseDurationMs(self.everyText) else {
                 throw NSError(
@@ -234,11 +266,7 @@ extension CronJobEditor {
                     code: 0,
                     userInfo: [NSLocalizedDescriptionKey: "Invalid repeat interval. Use values such as 10m, 1h, or 1d."])
             }
-            var schedule: [String: Any] = ["kind": "every", "everyMs": ms]
-            if let everyAnchorMs = self.everyAnchorMs {
-                schedule["anchorMs"] = everyAnchorMs
-            }
-            return schedule
+            return .every(everyMs: ms, anchorMs: self.everyAnchorMs)
         case .cron:
             let expr = self.trimmed(self.cronExpr)
             if expr.isEmpty {
@@ -248,14 +276,10 @@ extension CronJobEditor {
                     userInfo: [NSLocalizedDescriptionKey: "The custom pattern is required."])
             }
             let tz = self.trimmed(self.cronTz)
-            var schedule: [String: Any] = ["kind": "cron", "expr": expr]
-            if !tz.isEmpty {
-                schedule["tz"] = tz
-            }
-            if let staggerMs = self.cronStaggerMs {
-                schedule["staggerMs"] = staggerMs
-            }
-            return schedule
+            return .cron(
+                expr: expr,
+                tz: tz.isEmpty ? nil : tz,
+                staggerMs: self.cronStaggerMs)
         }
     }
 
@@ -347,6 +371,104 @@ extension CronJobEditor {
         if !thinking.isEmpty { action["thinking"] = thinking }
         if let n = Int(self.timeoutSeconds), n > 0 { action["timeoutSeconds"] = n }
         return action
+    }
+
+    func schedulePreviewState(
+        referenceDate: Date = .init(),
+        calendar: Calendar = .current) -> SchedulePreviewState
+    {
+        do {
+            return .ready(try self.schedulePreviewSnapshot(referenceDate: referenceDate, calendar: calendar))
+        } catch {
+            return .invalid(error.localizedDescription)
+        }
+    }
+
+    func schedulePreviewSnapshot(
+        referenceDate: Date = .init(),
+        calendar: Calendar = .current) throws -> SchedulePreviewSnapshot
+    {
+        let previewJob = try self.schedulePreviewJob(referenceDate: referenceDate)
+        let weekProjection = ScheduleCalendarProjection.week(
+            containing: referenceDate,
+            jobs: [previewJob],
+            calendar: calendar)
+        let monthProjection = ScheduleCalendarProjection.month(
+            containing: referenceDate,
+            jobs: [previewJob],
+            calendar: calendar)
+        guard let week = weekProjection.coverage(for: previewJob.id),
+              let month = monthProjection.coverage(for: previewJob.id)
+        else {
+            throw NSError(
+                domain: "Cron",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "The calendar preview is not available yet."])
+        }
+        return SchedulePreviewSnapshot(week: week, month: month)
+    }
+
+    func schedulePreviewJob(referenceDate: Date = .init()) throws -> CronJob {
+        let schedule = try self.buildScheduleModel()
+        let nowMs = Int((referenceDate.timeIntervalSince1970 * 1_000).rounded(.down))
+        let previewName = self.trimmed(self.name).isEmpty ? "Schedule preview" : self.trimmed(self.name)
+        let agentId = self.trimmed(self.agentId)
+        let payload: CronPayload
+        if self.isIsolatedLikeSessionTarget || self.payloadKind == .agentTurn {
+            let message = self.trimmed(self.agentMessage)
+            payload = .agentTurn(
+                message: message.isEmpty ? "Preview" : message,
+                thinking: nil,
+                timeoutSeconds: nil,
+                deliver: nil,
+                channel: nil,
+                to: nil,
+                bestEffortDeliver: nil)
+        } else {
+            let note = self.trimmed(self.systemEventText)
+            payload = .systemEvent(text: note.isEmpty ? "Preview" : note)
+        }
+
+        return CronJob(
+            id: self.job?.id ?? "preview-schedule",
+            agentId: agentId.isEmpty ? nil : agentId,
+            name: previewName,
+            description: nil,
+            enabled: self.enabled,
+            deleteAfterRun: schedule.isOneShot ? self.deleteAfterRun : nil,
+            createdAtMs: self.job?.createdAtMs ?? nowMs,
+            updatedAtMs: self.job?.updatedAtMs ?? nowMs,
+            schedule: schedule,
+            sessionTarget: CronCustomSessionTarget.from(self.effectiveSessionTargetRaw),
+            wakeMode: self.wakeMode,
+            payload: payload,
+            delivery: nil,
+            state: CronJobState())
+    }
+
+    func schedulePreviewSummary(title: String, coverage: ScheduleCalendarProjection.JobCoverage) -> String {
+        switch coverage.state {
+        case .visible:
+            let count = coverage.occurrenceCount
+            let noun = count == 1 ? "run" : "runs"
+            if let first = coverage.firstOccurrence?.startAt {
+                return "\(title) shows \(count) \(noun). First run: \(first.formatted(date: .abbreviated, time: .shortened))."
+            }
+            return "\(title) shows \(count) \(noun)."
+        case .noOccurrencesInRange:
+            return "\(title) has no runs for this schedule."
+        case let .unsupported(reason):
+            return "\(title) cannot place this schedule on the calendar yet. \(reason)"
+        }
+    }
+
+    func schedulePreviewTint(for coverage: ScheduleCalendarProjection.JobCoverage) -> Color {
+        switch coverage.state {
+        case .visible, .noOccurrencesInRange:
+            .primary
+        case .unsupported:
+            .orange
+        }
     }
 
     static func parseDurationMs(_ input: String) -> Int? {

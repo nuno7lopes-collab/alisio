@@ -185,7 +185,7 @@ public enum AlisioChatSessionPresentation {
         }
 
         if self.isMain(session, mainSessionKey: mainSessionKey) {
-            return "Main chat"
+            return "Main"
         }
 
         let kind = session.kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
@@ -234,15 +234,15 @@ public enum AlisioChatSessionPresentation {
             return preview
         }
         if self.isMain(session, mainSessionKey: mainSessionKey) {
-            return "Your ongoing workspace conversation."
+            return "Workspace conversation."
         }
         if self.isCurrent(session, currentSessionKey: currentSessionKey, mainSessionKey: mainSessionKey),
            session.updatedAt == nil,
            session.sessionId == nil
         {
-            return "Start a fresh chat without losing your place."
+            return ""
         }
-        return "Pick up this chat where you left off."
+        return ""
     }
 
     public static func searchText(

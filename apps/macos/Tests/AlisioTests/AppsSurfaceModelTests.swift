@@ -102,17 +102,17 @@ struct AppsSurfaceModelTests {
         #expect(model.apps.map(\.title) == ["Gmail", "GitHub"])
 
         let gmail = try #require(model.apps.first(where: { $0.id == "gmail" }))
-        #expect(gmail.status == .needsAttention)
+        #expect(gmail.status == .partiallyConnected)
         #expect(gmail.capabilities.map(\.title) == ["Read", "Send"])
         #expect(gmail.capabilities.map(\.status) == [.connected, .disconnected])
-        #expect(gmail.detail == "1 of 2 access levels are connected.")
+        #expect(gmail.detail == "1 of 2 connected.")
         #expect(gmail.summary == "Email access split by real OAuth scopes.")
         #expect(gmail.systemImage == "envelope.badge")
         #expect(gmail.capabilities.map(\.displayTitle) == ["Gmail Read", "Gmail Send"])
     }
 
     @Test
-    func `surfaces auth error state without pretending the app is connected`() throws {
+    func `surfaces setup required state without pretending the app is connected`() throws {
         let response = providersResponse(
             catalog: [
                 catalogItem(
@@ -147,9 +147,47 @@ struct AppsSurfaceModelTests {
         let model = AppsSurfaceModel.build(from: response)
         let github = try #require(model.apps.first)
 
-        #expect(github.status == .authError)
-        #expect(github.capabilities.first?.status == .authError)
-        #expect(github.detail == "This app needs setup on this Mac before it can connect.")
+        #expect(github.status == .setupRequired)
+        #expect(github.capabilities.first?.status == .setupRequired)
+        #expect(github.detail == "Finish setup on this Mac before connecting.")
+    }
+
+    @Test
+    func `drops apps that are unavailable on this Mac even if stale surface data says ready`() throws {
+        let response = providersResponse(
+            catalog: [
+                catalogItem(
+                    id: "github",
+                    title: "GitHub",
+                    providerLabel: "GitHub",
+                    connectLabel: "Connect with GitHub",
+                    summary: "Repository and pull request workflows.",
+                    surface: surface(
+                        groupId: "github",
+                        groupTitle: "GitHub",
+                        capabilityTitle: "Repositories",
+                        systemImage: "chevron.left.forwardslash.chevron.right")),
+            ],
+            authorizations: [
+                authorization(
+                    connectorId: "github",
+                    state: .notConnected,
+                    health: .unavailable),
+            ],
+            apps: [
+                appItem(
+                    id: "connector:github",
+                    title: "GitHub",
+                    subtitle: "Repository and pull request workflows.",
+                    status: .ready,
+                    providerLabel: "GitHub",
+                    connectorId: "github",
+                    connectLabel: "Connect with GitHub"),
+            ])
+
+        let apps = AppsSurfaceModel.build(from: response).apps
+
+        #expect(apps.isEmpty)
     }
 
     @Test
@@ -351,7 +389,7 @@ struct AppsSurfaceModelTests {
         #expect(gmail.capabilities.map(\.title) == ["Read", "Organize", "Send"])
         #expect(gmail.capabilities.map(\.status) == [.connected, .needsReconnect, .disconnected])
         #expect(gmail.capabilities.map(\.displayTitle) == ["Gmail Read", "Gmail Organize", "Gmail Send"])
-        #expect(gmail.capabilities.map(\.status.label) == ["Connected", "Needs reconnect", "Disconnected"])
+        #expect(gmail.capabilities.map(\.status.label) == ["Connected", "Reconnect", "Not connected"])
         #expect(gmail.capabilities.map(\.status.actionTitle) == ["Disconnect", "Reconnect", "Connect"])
 
         let youtube = try #require(apps.first(where: { $0.id == "youtube" }))
@@ -361,10 +399,10 @@ struct AppsSurfaceModelTests {
         #expect(youtube.primaryCapability?.status.actionTitle == "Disconnect")
 
         let github = try #require(apps.first(where: { $0.id == "github" }))
-        #expect(github.status == .authError)
-        #expect(github.primaryCapability?.status.label == "Auth error")
-        #expect(github.primaryCapability?.status.actionTitle == "Open setup guide")
-        #expect(github.detail == "This app needs setup on this Mac before it can connect.")
+        #expect(github.status == .setupRequired)
+        #expect(github.primaryCapability?.status.label == "Setup")
+        #expect(github.primaryCapability?.status.actionTitle == "Open setup")
+        #expect(github.detail == "Finish setup on this Mac before connecting.")
 
         let calendar = try #require(apps.first(where: { $0.id == "google-calendar" }))
         #expect(calendar.status == .disconnected)
@@ -374,7 +412,7 @@ struct AppsSurfaceModelTests {
         let stripe = try #require(apps.first(where: { $0.id == "stripe" }))
         #expect(stripe.status == .disconnected)
         #expect(stripe.systemImage == "creditcard")
-        #expect(stripe.primaryCapability?.status.label == "Disconnected")
+        #expect(stripe.primaryCapability?.status.label == "Not connected")
     }
 
     @Test
@@ -496,7 +534,8 @@ struct AppsSurfaceModelTests {
         #expect(calls.revoked == [])
         #expect(opened.map(\.absoluteString) == ["https://auth.example/github"])
         #expect(store.apps.first?.status == .connected)
-        #expect(store.statusMessage == "GitHub connected.")
+        #expect(store.statusMessage == "GitHub is connected.")
+        #expect(store.statusMessageTone == .success)
     }
 
     @Test
@@ -518,11 +557,12 @@ struct AppsSurfaceModelTests {
         #expect(calls.revoked == ["github"])
         #expect(store.apps.first?.status == .disconnected)
         #expect(store.statusMessage == "GitHub disconnected.")
+        #expect(store.statusMessageTone == .success)
     }
 
     @Test
     @MainActor
-    func `auth error action opens setup guide and keeps auth state honest`() async throws {
+    func `setup required action opens setup and keeps state honest`() async throws {
         let gateway = RecordingAppsGatewayClient(
             overviews: [
                 githubResponse(state: .notConnected, health: .configMissing, itemStatus: .ready),
@@ -549,8 +589,9 @@ struct AppsSurfaceModelTests {
         #expect(calls.begun == ["github"])
         #expect(calls.revoked == [])
         #expect(opened.map(\.absoluteString) == ["https://docs.example/github-setup"])
-        #expect(store.apps.first?.status == .authError)
+        #expect(store.apps.first?.status == .setupRequired)
         #expect(store.statusMessage == "Set up GitHub on this Mac before you connect it.")
+        #expect(store.statusMessageTone == .warning)
         #expect(store.lastError == nil)
     }
 

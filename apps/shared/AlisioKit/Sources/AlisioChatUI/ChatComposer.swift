@@ -278,6 +278,9 @@ struct AlisioChatComposer: View {
             if self.showsAlisioModelBadge {
                 self.alisioBadge(systemName: "cpu", text: self.viewModel.activeModelLabel)
             }
+            if let usage = self.viewModel.currentSessionContextUsage {
+                self.alisioBadge(systemName: "circle.lefthalf.filled", text: usage.compactUsageLabel)
+            }
             if let status = self.alisioRuntimeStatus {
                 self.alisioBadge(systemName: status.icon, text: status.label, tint: status.tint)
             }
@@ -312,10 +315,10 @@ struct AlisioChatComposer: View {
         case .reconnecting:
             return ("wifi.exclamationmark", "Reconnecting", Color(chatHex: 0xE0A04B))
         case .firstMessage:
-            return ("hourglass", "Warming up", Color(chatHex: 0xE0A04B))
+            return ("hourglass", "Waiting", Color(chatHex: 0xE0A04B))
         case .ready:
             if self.viewModel.pendingRunCount > 0 {
-                return ("ellipsis.bubble", "Responding", Color(chatHex: 0x8F95A3))
+                return ("ellipsis.bubble", "Working", Color(chatHex: 0x8F95A3))
             }
             return nil
         }
@@ -359,8 +362,7 @@ struct AlisioChatComposer: View {
 
     private var showsAlisioModelBadge: Bool {
         let label = self.viewModel.activeModelLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !label.isEmpty else { return false }
-        return label.lowercased() != "default"
+        return !label.isEmpty
     }
 
     private static func thinkingLabel(for level: String) -> String {
@@ -381,7 +383,7 @@ struct AlisioChatComposer: View {
     private var editorOverlay: some View {
         ZStack(alignment: .topLeading) {
             if self.viewModel.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(self.style == .alisio ? "Ask Alisio anything" : "Message Alisio…")
+                Text(self.style == .alisio ? "Message Alisio" : "Message Alisio…")
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 4)

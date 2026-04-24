@@ -17,14 +17,12 @@ struct ConnectionsSurfaceTests {
                 token: "token-123",
                 password: nil),
             controlState: .connected,
-            authSourceLabel: "Auth: Device token")
+            authSource: .deviceToken)
 
-        #expect(overview.title == "Local runtime")
+        #expect(overview.title == "On this Mac")
         #expect(overview.status == ConnectionsSurfaceStatus.connected)
         #expect(overview.facts == [
-            ConnectionFact(label: "Route", value: "This Mac"),
-            ConnectionFact(label: "Gateway", value: "127.0.0.1:40705"),
-            ConnectionFact(label: "Auth", value: "Device token"),
+            ConnectionFact(label: "Access", value: "Paired device"),
         ])
     }
 
@@ -40,11 +38,12 @@ struct ConnectionsSurfaceTests {
                 detail: "Connecting to remote gateway…"),
             controlState: .connecting)
 
-        #expect(overview.title == "Connecting to remote runtime")
+        #expect(overview.title == "Remote runtime")
         #expect(overview.status == ConnectionsSurfaceStatus.connecting)
+        #expect(overview.summary == "Opening the remote connection.")
         #expect(overview.facts == [
-            ConnectionFact(label: "Route", value: "SSH tunnel"),
-            ConnectionFact(label: "Target", value: "gateway-host"),
+            ConnectionFact(label: "Transport", value: "SSH tunnel"),
+            ConnectionFact(label: "Remote", value: "gateway-host"),
         ])
     }
 
@@ -62,13 +61,32 @@ struct ConnectionsSurfaceTests {
                 password: nil),
             controlState: .disconnected)
 
-        #expect(overview.title == "Remote runtime disconnected")
-        #expect(overview.status == ConnectionsSurfaceStatus.attention)
+        #expect(overview.title == "Remote runtime")
+        #expect(overview.status == ConnectionsSurfaceStatus.disconnected)
         #expect(overview.facts == [
-            ConnectionFact(label: "Route", value: "Direct URL"),
-            ConnectionFact(label: "Target", value: "gateway.example.com:443"),
-            ConnectionFact(label: "Configured access", value: "Gateway token"),
+            ConnectionFact(label: "Transport", value: "Direct URL"),
+            ConnectionFact(label: "Remote", value: "gateway.example.com:443"),
+            ConnectionFact(label: "Access", value: "Connection token"),
         ])
+    }
+
+    @Test
+    func `remote auth failures use human setup copy`() {
+        let overview = InstancesSettings.resolveConnectionOverview(
+            mode: .remote,
+            remoteTransport: .ssh,
+            remoteTarget: "gateway-host",
+            remoteURL: "",
+            endpointState: .ready(
+                mode: .remote,
+                url: URL(string: "http://127.0.0.1:40705")!,
+                token: "token-123",
+                password: nil),
+            controlState: .degraded("Setup code expired or already used. Scan a fresh setup code, then try again."))
+
+        #expect(overview.status == ConnectionsSurfaceStatus.attention)
+        #expect(overview.summary == "Setup code expired.")
+        #expect(overview.detail == "Use a fresh setup code to reconnect this Mac.")
     }
 
     @Test
@@ -81,30 +99,41 @@ struct ConnectionsSurfaceTests {
             endpointState: nil,
             controlState: .disconnected)
 
-        #expect(overview.title == "Gateway not configured")
+        #expect(overview.title == "Not set up")
         #expect(overview.status == ConnectionsSurfaceStatus.attention)
         #expect(overview.facts.isEmpty)
     }
 
     @Test
     func `nodes surface stays loading until the first real round trip completes`() {
-        let view = InstancesSettings(
-            store: InstancesStore(isPreview: true),
-            state: AppState(preview: true))
-
-        #expect(view.nodesListState == .loading)
+        #expect(InstancesSettings.resolveNodesListState(
+            instanceCount: 0,
+            hasLoadedOnce: false,
+            isLoading: false,
+            lastError: nil,
+            emptyMessage: nil,
+            controlState: .connected,
+            mode: .local) == .loading("Checking for nodes…"))
     }
 
     @Test
     func `nodes surface exposes empty and error states honestly`() {
-        let store = InstancesStore(isPreview: true)
-        store.hasLoadedOnce = true
-        let view = InstancesSettings(store: store, state: AppState(preview: true))
+        #expect(InstancesSettings.resolveNodesListState(
+            instanceCount: 0,
+            hasLoadedOnce: true,
+            isLoading: false,
+            lastError: nil,
+            emptyMessage: "No nodes have checked in yet.",
+            controlState: .connected,
+            mode: .local) == .empty("No nodes have checked in yet."))
 
-        store.statusMessage = "No nodes have reported in yet."
-        #expect(view.nodesListState == .empty("No nodes have reported in yet."))
-
-        store.lastError = "Alisio is not connected to the runtime right now."
-        #expect(view.nodesListState == .error("Alisio is not connected to the runtime right now."))
+        #expect(InstancesSettings.resolveNodesListState(
+            instanceCount: 0,
+            hasLoadedOnce: true,
+            isLoading: false,
+            lastError: nil,
+            emptyMessage: nil,
+            controlState: .disconnected,
+            mode: .remote) == .error("Alisio is not connected to the runtime right now."))
     }
 }

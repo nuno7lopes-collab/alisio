@@ -182,16 +182,11 @@ public struct AlisioChatView: View {
                         .padding(.top, self.style == .alisio ? 6 : 0)
                 }
 
-                if self.showsCenteredHome {
-                    self.centeredHome
-                        .padding(.horizontal, self.outerPaddingHorizontal)
-                } else {
-                    self.messageList
-                        .padding(.horizontal, self.outerPaddingHorizontal)
-                    self.composer
-                        .frame(maxWidth: self.contentMaxWidth)
-                        .padding(.horizontal, self.composerPaddingHorizontal)
-                }
+                self.messageList
+                    .padding(.horizontal, self.outerPaddingHorizontal)
+                self.composer
+                    .frame(maxWidth: self.contentMaxWidth)
+                    .padding(.horizontal, self.composerPaddingHorizontal)
             }
             .padding(.vertical, self.outerPaddingVertical)
             .frame(maxWidth: .infinity)
@@ -221,13 +216,6 @@ public struct AlisioChatView: View {
 
     private var showsSessionHeader: Bool {
         self.style == .alisio
-    }
-
-    private var showsCenteredHome: Bool {
-        self.style == .alisio &&
-            !self.viewModel.isLoading &&
-            self.activeErrorText == nil &&
-            self.showsEmptyState
     }
 
     private var sessionHeader: some View {
@@ -261,75 +249,68 @@ public struct AlisioChatView: View {
                         .controlSize(.small)
                         .frame(width: 12, height: 12)
                 } else {
-                    Label("New chat", systemImage: "square.and.pencil")
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 13, weight: .semibold))
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.plain)
+            .foregroundStyle(self.viewModel.canCreateSession ? Color.accentColor : Color.secondary)
+            .frame(width: 30, height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(chatHex: 0x15171C))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
             .controlSize(.small)
             .disabled(!self.viewModel.canCreateSession)
+            .help("New chat")
             .keyboardShortcut("n", modifiers: [.command])
         }
         .frame(maxWidth: self.contentMaxWidth)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, self.style == .alisio ? 4 : 0)
-        .padding(.bottom, self.style == .alisio ? 8 : 0)
+        .padding(.bottom, self.style == .alisio ? 6 : 0)
     }
 
     private func sessionSummaryCard(showsDisclosure: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Current chat")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                Text(self.currentSessionTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
 
                 if let status = self.currentSessionStatus {
                     self.headerBadge(status.title, tint: status.tint)
                 }
-            }
-
-            HStack(alignment: .center, spacing: 10) {
-                Text(self.currentSessionTitle)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-
-                Spacer(minLength: 0)
 
                 if showsDisclosure {
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+
+                Spacer(minLength: 0)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(self.currentSessionSubtitle)
+            let subtitle = self.currentSessionSubtitle.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !subtitle.isEmpty {
+                Text(subtitle)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-
-                HStack(spacing: 8) {
-                    if self.isMainSession {
-                        self.headerBadge("Main", tint: Color.accentColor)
-                    } else if self.isFreshSession {
-                        self.headerBadge("Fresh", tint: Color.white.opacity(0.75))
-                    }
-
-                    if let usage = self.viewModel.currentSessionContextUsage {
-                        self.headerBadge("Context \(self.contextUsageLabel(usage))", tint: Color(chatHex: 0x7A8CFF))
-                    }
-                }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(chatHex: 0x15171C))
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(chatHex: 0x14161A))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
-        .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var centeredHome: some View {
@@ -498,12 +479,12 @@ public struct AlisioChatView: View {
 
     private var homeSubtitle: String {
         if self.resumeCandidates.contains(where: self.viewModel.isMainSession(_:)) {
-            return "Start something new in this chat, then jump back into your main context whenever you need it."
+            return "Start something new here, then jump back into your main chat whenever you need it."
         }
         if !self.resumeCandidates.isEmpty {
             return "Start fresh here or pick up a recent conversation without losing your place."
         }
-        return "Use this chat for a focused thread. Your main workspace conversation stays available when you need it."
+        return "Use this chat for a focused conversation. Your main workspace chat stays available when you need it."
     }
 
     private var homeResumeSection: some View {
@@ -626,7 +607,7 @@ public struct AlisioChatView: View {
             return ("Reconnecting", Color(chatHex: 0xF0A245))
         }
         if self.viewModel.connectionPhase == .firstMessage {
-            return ("Preparing reply", Color(chatHex: 0x7A8CFF))
+            return ("Waiting", Color(chatHex: 0x7A8CFF))
         }
         if !self.viewModel.pendingToolCalls.isEmpty || self.viewModel.pendingRunCount > 0 {
             return ("Working", Color(chatHex: 0x7A8CFF))
@@ -688,7 +669,7 @@ public struct AlisioChatView: View {
                 self.isPinnedToBottom = position == self.scrollerBottomID
             }
 
-            if self.viewModel.isLoading {
+            if self.showsLoadingOverlay {
                 ProgressView()
                     .controlSize(.large)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -810,7 +791,7 @@ public struct AlisioChatView: View {
 
     @ViewBuilder
     private var messageListOverlay: some View {
-        if self.viewModel.isLoading {
+        if self.showsLoadingOverlay {
             EmptyView()
         } else if let error = self.activeErrorText {
             let presentation = self.errorPresentation(for: error)
@@ -889,13 +870,19 @@ public struct AlisioChatView: View {
             self.viewModel.pendingToolCalls.isEmpty
     }
 
+    private var showsLoadingOverlay: Bool {
+        self.viewModel.isLoading &&
+            !self.hasVisibleMessageListContent &&
+            self.activeErrorText == nil
+    }
+
     private var emptyStateTitle: String {
-        self.style == .alisio ? "New chat" : "Start a conversation"
+        self.style == .alisio ? "No messages yet" : "Start a conversation"
     }
 
     private var emptyStateMessage: String {
         if self.style == .alisio {
-            return "Send a message below to start a focused conversation without touching your main workspace chat."
+            return "Send a message to start this chat."
         }
         #if os(macOS)
         return "Type a message below to get started.\nReturn sends • Shift-Return adds a line break."
@@ -905,28 +892,24 @@ public struct AlisioChatView: View {
     }
 
     private var alisioEmptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-
+        VStack(spacing: 8) {
             Text(self.emptyStateTitle)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.primary)
 
             Text(self.emptyStateMessage)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+                .frame(maxWidth: 340)
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(chatHex: 0x121419))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
     }
 
@@ -1098,18 +1081,10 @@ private struct ChatNoticeCard: View {
     let action: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(self.tint.opacity(0.16))
-                Image(systemName: self.systemImage)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(self.tint)
-            }
-            .frame(width: 52, height: 52)
-
-            Text(self.title)
+        VStack(alignment: .center, spacing: 10) {
+            Label(self.title, systemImage: self.systemImage)
                 .font(.headline)
+                .foregroundStyle(self.tint)
 
             Text(self.message)
                 .font(.callout)
@@ -1124,14 +1099,13 @@ private struct ChatNoticeCard: View {
                     .controlSize(.small)
             }
         }
-        .padding(18)
+        .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(AlisioChatTheme.subtleCard)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)))
-        .shadow(color: .black.opacity(0.14), radius: 18, y: 8)
     }
 }
 

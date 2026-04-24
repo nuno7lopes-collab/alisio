@@ -252,6 +252,42 @@ struct ScheduleCalendarProjectionTests {
         #expect(issue.nextRunAt == Self.date("2026-04-27T09:00:00Z"))
     }
 
+    @Test func `job coverage keeps visible empty and unsupported states aligned`() {
+        let calendar = Self.utcCalendar()
+        let projection = ScheduleCalendarProjection.month(
+            containing: Self.date("2026-04-15T12:00:00Z"),
+            jobs: [
+                self.makeJob(
+                    id: "visible",
+                    name: "Visible",
+                    schedule: .at(at: "2026-04-21T10:15:00Z")),
+                self.makeJob(
+                    id: "empty",
+                    name: "Empty",
+                    schedule: .at(at: "2026-05-01T09:00:00Z")),
+                self.makeJob(
+                    id: "unsupported",
+                    name: "Unsupported",
+                    schedule: .cron(expr: "not valid", tz: "UTC", staggerMs: 0)),
+            ],
+            calendar: calendar)
+
+        let visible = try! #require(projection.coverage(for: "visible"))
+        #expect(visible.occurrenceCount == 1)
+        #expect(visible.state == .visible)
+
+        let empty = try! #require(projection.coverage(for: "empty"))
+        #expect(empty.occurrenceCount == 0)
+        #expect(empty.state == .noOccurrencesInRange)
+
+        let unsupported = try! #require(projection.coverage(for: "unsupported"))
+        if case let .unsupported(reason) = unsupported.state {
+            #expect(!reason.isEmpty)
+        } else {
+            #expect(Bool(false))
+        }
+    }
+
     @Test func `projection ordering stays stable when names and timestamps match`() {
         let calendar = Self.utcCalendar()
         let jobs = [

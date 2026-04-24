@@ -67,6 +67,13 @@ enum HealthState: Equatable {
     }
 }
 
+struct HealthSurfacePresentation: Equatable {
+    let status: ConnectionsSurfaceStatus
+    let summary: String
+    let detail: String?
+    let lastKnownSummary: String?
+}
+
 @MainActor
 @Observable
 final class HealthStore {
@@ -118,7 +125,7 @@ final class HealthStore {
         self.loopTask = nil
     }
 
-    func refresh(onDemand: Bool = false) async {
+    func refresh(onDemand _: Bool = false) async {
         guard !self.isRefreshing else { return }
         self.isRefreshing = true
         defer {
@@ -138,7 +145,6 @@ final class HealthStore {
                 }
             } else {
                 self.lastError = "health output not JSON"
-                if onDemand { self.snapshot = nil }
                 if previousError != self.lastError {
                     Self.logger.warning("health refresh failed: output not JSON")
                 }
@@ -146,7 +152,6 @@ final class HealthStore {
         } catch {
             let desc = error.localizedDescription
             self.lastError = desc
-            if onDemand { self.snapshot = nil }
             if previousError != desc {
                 Self.logger.error("health refresh failed \(desc, privacy: .public)")
             }
@@ -162,19 +167,19 @@ final class HealthStore {
     private static func describeProbeFailure(_ probe: HealthSnapshot.ChannelSummary.Probe) -> String {
         let lower = probe.error?.lowercased() ?? ""
         if lower.contains("timeout") || probe.status == nil {
-            return "Health check timed out"
+            return "The linked service took too long to answer."
         }
         if lower.contains("unauthorized") ||
             lower.contains("forbidden") ||
             lower.contains("authentication") ||
             lower.contains("rejected token")
         {
-            return "Health check failed because sign-in needs attention"
+            return "The linked service needs you to sign in again."
         }
         if let status = probe.status, status >= 500 {
-            return "Health check failed because the runtime is unavailable"
+            return "The linked service is unavailable right now."
         }
-        return "Health check failed"
+        return "The linked service failed its health check."
     }
 
     private func resolveLinkChannel(
@@ -220,6 +225,16 @@ final class HealthStore {
 
     private static func healthHeadline(for error: String) -> String {
         let lower = error.lowercased()
+        if lower.contains("setup code") && (lower.contains("expired") || lower.contains("already used")) {
+            return "Setup code expired"
+        }
+        if lower.contains("pairing required") || lower.contains("/pair approve") || lower.contains("approve this device")
+        {
+            return "Pairing approval needed"
+        }
+        if lower.contains("token") || lower.contains("password auth") || lower.contains("unsupported auth") {
+            return "Access needs attention"
+        }
         if lower.contains("sign in") {
             return "Sign in required"
         }
@@ -242,6 +257,19 @@ final class HealthStore {
 
     private static func healthDetail(for error: String) -> String {
         let lower = error.lowercased()
+        if lower.contains("setup code") && (lower.contains("expired") || lower.contains("already used")) {
+            return "Use a fresh setup code to reconnect this Mac."
+        }
+        if lower.contains("pairing required") || lower.contains("/pair approve") || lower.contains("approve this device")
+        {
+            return "Approve this Mac from another paired Alisio client, then try again."
+        }
+        if lower.contains("token") {
+            return "Check the saved connection token for this runtime, then try again."
+        }
+        if lower.contains("password auth") || lower.contains("unsupported auth") {
+            return "Switch the runtime to token-based access before reconnecting this Mac."
+        }
         if lower.contains("sign in") {
             return "Sign in to Alisio to finish linking this Mac."
         }
@@ -261,47 +289,62 @@ final class HealthStore {
         return error
     }
 
+    private func snapshotPresentation() -> (state: HealthState, summary: String, detail: String?) {
+        guard let snap = self.snapshot else {
+            if self.isRefreshing && !self.hasLoadedOnce {
+                return (.unknown, "Checking health…", "Running a fresh health check.")
+            }
+            return (
+                .unknown,
+                self.hasLoadedOnce ? "Health unavailable" : "Health check pending",
+                self.isRefreshing ? "Running a fresh health check." : nil)
+        }
+
+        guard let link = self.resolveLinkChannel(snap) else {
+            if self.isRefreshing {
+                return (.unknown, "Checking health…", "Running a fresh health check.")
+            }
+            return (.unknown, "Health check pending", nil)
+        }
+
+        if link.summary.linked != true {
+            if let fallback = self.resolveFallbackChannel(snap, excluding: link.id) {
+                return (
+                    .degraded("This Mac still needs sign-in"),
+                    "This Mac still needs sign-in",
+                    "\(self.label(for: fallback.id, in: snap)) is available, but this Mac is not linked yet.")
+            }
+            return (.linkingNeeded, "Sign in required", "Sign in to Alisio to finish linking this Mac.")
+        }
+
+        if let probe = link.summary.probe, probe.ok == false {
+            return (
+                .degraded(Self.describeProbeFailure(probe)),
+                "\(self.label(for: link.id, in: snap)) needs attention",
+                Self.describeProbeFailure(probe))
+        }
+
+        if self.isRefreshing {
+            return (.ok, "Healthy", "Refreshing health status.")
+        }
+        if let authAge = link.summary.authAgeMs {
+            return (.ok, "Healthy", "\(self.label(for: link.id, in: snap)) linked · last sign-in \(msToAge(authAge)).")
+        }
+        return (.ok, "Healthy", nil)
+    }
+
     var state: HealthState {
         if let error = self.lastError, !error.isEmpty {
             return .degraded(error)
         }
-        guard let snap = self.snapshot else { return .unknown }
-        guard let link = self.resolveLinkChannel(snap) else { return .unknown }
-        if link.summary.linked != true {
-            // Linking is optional if any other channel is healthy; don't paint the whole app red.
-            let fallback = self.resolveFallbackChannel(snap, excluding: link.id)
-            return fallback != nil ? .degraded("Not linked") : .linkingNeeded
-        }
-        // A channel can be "linked" but still unhealthy (failed probe / cannot connect).
-        if let probe = link.summary.probe, probe.ok == false {
-            return .degraded(Self.describeProbeFailure(probe))
-        }
-        return .ok
+        return self.snapshotPresentation().state
     }
 
     var summaryLine: String {
         if let error = Self.trimmed(self.lastError) {
             return Self.healthHeadline(for: error)
         }
-        if self.isRefreshing, self.snapshot == nil {
-            return "Checking health…"
-        }
-        guard let snap = self.snapshot else {
-            return self.hasLoadedOnce ? "Health unavailable" : "Health check pending"
-        }
-        guard let link = self.resolveLinkChannel(snap) else {
-            return self.isRefreshing ? "Checking health…" : "Health check pending"
-        }
-        if link.summary.linked != true {
-            if let fallback = self.resolveFallbackChannel(snap, excluding: link.id) {
-                return "\(self.label(for: fallback.id, in: snap)) is working"
-            }
-            return "Sign in required"
-        }
-        if let probe = link.summary.probe, probe.ok == false {
-            return "\(self.label(for: link.id, in: snap)) needs attention"
-        }
-        return "Healthy"
+        return self.snapshotPresentation().summary
     }
 
     /// Short, human-friendly detail for the last failure, used in the UI.
@@ -309,28 +352,59 @@ final class HealthStore {
         if let error = Self.trimmed(self.lastError) {
             return Self.healthDetail(for: error)
         }
-        guard let snap = self.snapshot, let link = self.resolveLinkChannel(snap) else {
-            if self.isRefreshing {
-                return "Running a fresh health check."
+        return self.snapshotPresentation().detail
+    }
+
+    var lastKnownSummaryLine: String? {
+        guard self.snapshot != nil else { return nil }
+        return self.snapshotPresentation().summary
+    }
+
+    func surfacePresentation(controlState: ControlChannel.ConnectionState) -> HealthSurfacePresentation {
+        let preservedSummary = self.lastKnownSummaryLine
+
+        switch controlState {
+        case .connected:
+            let status: ConnectionsSurfaceStatus
+            switch self.state {
+            case .ok:
+                status = .connected
+            case .linkingNeeded, .degraded:
+                status = .attention
+            case .unknown:
+                status = (self.isRefreshing || !self.hasLoadedOnce) ? .connecting : .disconnected
             }
-            return nil
-        }
-        if link.summary.linked != true {
-            if let fallback = self.resolveFallbackChannel(snap, excluding: link.id) {
-                return "\(self.label(for: fallback.id, in: snap)) is available, but this Mac is not linked yet."
+            return HealthSurfacePresentation(
+                status: status,
+                summary: self.summaryLine,
+                detail: self.detailLine,
+                lastKnownSummary: self.lastError == nil ? nil : preservedSummary)
+        case .connecting:
+            if self.snapshot == nil && !self.hasLoadedOnce {
+                return HealthSurfacePresentation(
+                    status: .connecting,
+                    summary: "Checking health…",
+                    detail: "Trying to reach the runtime.",
+                    lastKnownSummary: nil)
             }
-            return "Sign in to Alisio to finish linking this Mac."
+            return HealthSurfacePresentation(
+                status: .connecting,
+                summary: "Waiting for the runtime",
+                detail: "A fresh health check will run as soon as the connection is back.",
+                lastKnownSummary: preservedSummary)
+        case .disconnected:
+            return HealthSurfacePresentation(
+                status: .disconnected,
+                summary: "Health unavailable",
+                detail: "This Mac is disconnected from the runtime.",
+                lastKnownSummary: preservedSummary)
+        case let .degraded(message):
+            return HealthSurfacePresentation(
+                status: .attention,
+                summary: Self.healthHeadline(for: message),
+                detail: Self.healthDetail(for: message),
+                lastKnownSummary: preservedSummary)
         }
-        if let probe = link.summary.probe, probe.ok == false {
-            return Self.describeProbeFailure(probe)
-        }
-        if self.isRefreshing {
-            return "Refreshing health status."
-        }
-        if let authAge = link.summary.authAgeMs {
-            return "\(self.label(for: link.id, in: snap)) linked · last sign-in \(msToAge(authAge))."
-        }
-        return nil
     }
 
     func describeFailure(from snap: HealthSnapshot, fallback: String?) -> String {

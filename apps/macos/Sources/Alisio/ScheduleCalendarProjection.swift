@@ -2,12 +2,41 @@ import CryptoKit
 import Foundation
 
 struct ScheduleCalendarProjection: Equatable {
+    enum CoverageState: Equatable {
+        case visible
+        case noOccurrencesInRange
+        case unsupported(String)
+    }
+
     struct Occurrence: Identifiable, Equatable {
         let id: String
         let jobId: String
         let jobName: String
         let startAt: Date
         let isEnabled: Bool
+    }
+
+    struct JobCoverage: Identifiable, Equatable {
+        var id: String { self.jobId }
+
+        let jobId: String
+        let jobName: String
+        let isEnabled: Bool
+        let nextRunAt: Date?
+        let state: CoverageState
+        let occurrences: [Occurrence]
+
+        var occurrenceCount: Int {
+            self.occurrences.count
+        }
+
+        var firstOccurrence: Occurrence? {
+            self.occurrences.first
+        }
+
+        var lastOccurrence: Occurrence? {
+            self.occurrences.last
+        }
     }
 
     struct UnsupportedSchedule: Identifiable, Equatable {
@@ -30,6 +59,7 @@ struct ScheduleCalendarProjection: Equatable {
     let interval: DateInterval
     let days: [Day]
     let occurrences: [Occurrence]
+    let jobCoverage: [JobCoverage]
     let unsupportedSchedules: [UnsupportedSchedule]
 
     private static let defaultMaximumOccurrencesPerJob = 300_000
@@ -72,12 +102,20 @@ struct ScheduleCalendarProjection: Equatable {
     {
         let dayStarts = self.dayStarts(in: interval, calendar: calendar)
         var occurrences: [Occurrence] = []
+        var coverage: [JobCoverage] = []
         var unsupported: [UnsupportedSchedule] = []
 
         for job in jobs {
             switch self.expand(job: job, in: interval, calendar: calendar, maximumOccurrences: maximumOccurrencesPerJob) {
             case let .occurrences(jobOccurrences):
                 occurrences.append(contentsOf: jobOccurrences)
+                coverage.append(JobCoverage(
+                    jobId: job.id,
+                    jobName: job.displayName,
+                    isEnabled: job.enabled,
+                    nextRunAt: job.nextRunDate,
+                    state: jobOccurrences.isEmpty ? .noOccurrencesInRange : .visible,
+                    occurrences: jobOccurrences))
             case let .unsupported(reason):
                 unsupported.append(UnsupportedSchedule(
                     jobId: job.id,
@@ -85,6 +123,13 @@ struct ScheduleCalendarProjection: Equatable {
                     reason: reason,
                     isEnabled: job.enabled,
                     nextRunAt: job.nextRunDate))
+                coverage.append(JobCoverage(
+                    jobId: job.id,
+                    jobName: job.displayName,
+                    isEnabled: job.enabled,
+                    nextRunAt: job.nextRunDate,
+                    state: .unsupported(reason),
+                    occurrences: []))
             }
         }
 
@@ -120,11 +165,24 @@ struct ScheduleCalendarProjection: Equatable {
             return $0.jobId < $1.jobId
         }
 
+        coverage.sort {
+            let nameOrder = $0.jobName.localizedCaseInsensitiveCompare($1.jobName)
+            if nameOrder != .orderedSame {
+                return nameOrder == .orderedAscending
+            }
+            return $0.jobId < $1.jobId
+        }
+
         return ScheduleCalendarProjection(
             interval: interval,
             days: days,
             occurrences: occurrences,
+            jobCoverage: coverage,
             unsupportedSchedules: unsupported)
+    }
+
+    func coverage(for jobId: String) -> JobCoverage? {
+        self.jobCoverage.first { $0.jobId == jobId }
     }
 
     private enum ExpansionResult {

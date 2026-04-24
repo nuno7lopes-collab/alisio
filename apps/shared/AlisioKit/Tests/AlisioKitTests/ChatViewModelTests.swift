@@ -1265,7 +1265,7 @@ extension TestChatTransportState {
         let titles = await MainActor.run {
             Dictionary(uniqueKeysWithValues: vm.sessionChoices.map { ($0.key, vm.sessionTitle(for: $0)) })
         }
-        #expect(titles["main"] == "Main chat")
+        #expect(titles["main"] == "Main")
         #expect(titles["agent:main:dashboard:new-chat"] == "Chat")
     }
 
@@ -1278,7 +1278,7 @@ extension TestChatTransportState {
         let summary = await MainActor.run { vm.sessionSummary(forKey: vm.sessionKey) }
 
         #expect(title == "New chat")
-        #expect(summary == "Start a fresh chat without losing your place.")
+        #expect(summary == "")
     }
 
     @Test func sessionChoicesHideInternalOnboardingSession() async throws {
@@ -1476,7 +1476,7 @@ extension TestChatTransportState {
         try await waitUntil("compact attempted") {
             await transport.compactSessionKeys() == ["main"]
         }
-        #expect(await MainActor.run { vm.errorText } == "Unable to compact the session. Please try again.")
+        #expect(await MainActor.run { vm.errorText } == "Couldn't compact this chat.")
     }
 
     @Test func compactSessionActionIgnoresConcurrentAndImmediateRepeatRequests() async throws {
@@ -1515,7 +1515,7 @@ extension TestChatTransportState {
 
         try await Task.sleep(for: .milliseconds(50))
         #expect(await transport.compactSessionKeys() == ["main"])
-        #expect(await MainActor.run { vm.errorText } == "Please wait before compacting this session again.")
+        #expect(await MainActor.run { vm.errorText } == "Please wait before compacting again.")
     }
 
     @Test func compactSessionActionAllowsImmediateRetryAfterFailure() async throws {
@@ -1539,7 +1539,7 @@ extension TestChatTransportState {
         try await waitUntil("first compact attempted") {
             await transport.compactSessionKeys() == ["main"]
         }
-        #expect(await MainActor.run { vm.errorText } == "Unable to compact the session. Please try again.")
+        #expect(await MainActor.run { vm.errorText } == "Couldn't compact this chat.")
 
         await MainActor.run { vm.compactSession() }
 
@@ -1666,7 +1666,7 @@ extension TestChatTransportState {
         #expect(await MainActor.run { vm.showsModelPicker })
         #expect(await MainActor.run { vm.modelSelectionID } == "anthropic/claude-opus-4-6")
         #expect(await MainActor.run { vm.activeModelLabel } == "anthropic/claude-opus-4-6")
-        #expect(await MainActor.run { vm.defaultModelLabel } == "Default: openai/gpt-4.1-mini")
+        #expect(await MainActor.run { vm.defaultModelLabel } == "Automatic · openai/gpt-4.1-mini")
     }
 
     @Test func selectingDefaultModelPatchesNilAndUpdatesSelection() async throws {
@@ -2329,7 +2329,7 @@ Hello?
 
         await MainActor.run { vm.abort() }
 
-        #expect(await MainActor.run { vm.errorText } == "There is no active reply to stop.")
+        #expect(await MainActor.run { vm.errorText } == "Nothing is running right now.")
     }
 
     @Test func renameSessionPersistsAndUpdatesVisibleTitle() async throws {

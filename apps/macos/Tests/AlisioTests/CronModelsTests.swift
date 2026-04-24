@@ -115,6 +115,26 @@ struct CronModelsTests {
         #expect(decoded.deleteAfterRun == true)
     }
 
+    @Test func `one shot jobs default delete after run when the field is missing`() {
+        let job = AppCronJob(
+            id: "job-1",
+            agentId: nil,
+            name: "One-shot",
+            description: nil,
+            enabled: true,
+            deleteAfterRun: nil,
+            createdAtMs: 0,
+            updatedAtMs: 0,
+            schedule: .at(at: "2026-02-03T18:00:00Z"),
+            sessionTarget: .main,
+            wakeMode: .now,
+            payload: .systemEvent(text: "ping"),
+            delivery: nil,
+            state: CronJobState())
+
+        #expect(job.effectiveDeleteAfterRun == true)
+    }
+
     @Test func `schedule decode rejects unknown kind`() {
         let json = """
         {"kind":"wat","at":"2026-02-03T18:00:00Z"}

@@ -2,6 +2,25 @@ import SwiftUI
 
 import AlisioSupport
 extension CronSettings {
+    var coverageDisplayMode: DisplayMode {
+        self.displayMode == .month ? .month : .week
+    }
+
+    func detailProjection(using calendar: Calendar) -> ScheduleCalendarProjection {
+        switch self.coverageDisplayMode {
+        case .list, .week:
+            ScheduleCalendarProjection.week(
+                containing: self.calendarReferenceDate,
+                jobs: self.store.jobs,
+                calendar: calendar)
+        case .month:
+            ScheduleCalendarProjection.month(
+                containing: self.calendarReferenceDate,
+                jobs: self.store.jobs,
+                calendar: calendar)
+        }
+    }
+
     var listState: ListState {
         if !self.store.jobs.isEmpty {
             return .list
@@ -41,6 +60,7 @@ extension CronSettings {
         case "skipped": .orange
         case "delivered": .green
         case "not-delivered": .red
+        case "unknown": .orange
         case "not-requested": .secondary
         default: .secondary
         }
@@ -60,6 +80,8 @@ extension CronSettings {
             "delivered"
         case "not-delivered":
             "send failed"
+        case "unknown":
+            "unknown"
         case "not-requested":
             "not sent"
         case "":
@@ -108,6 +130,80 @@ extension CronSettings {
             }
             return parts.joined(separator: " ")
         }
+    }
+
+    func rangeLabel(for mode: DisplayMode? = nil) -> String {
+        switch mode ?? self.coverageDisplayMode {
+        case .list, .week:
+            "This week"
+        case .month:
+            "This month"
+        }
+    }
+
+    func rangeCaption(for projection: ScheduleCalendarProjection, mode: DisplayMode? = nil) -> String {
+        switch mode ?? self.coverageDisplayMode {
+        case .list, .week:
+            let start = projection.interval.start.formatted(.dateTime.month(.abbreviated).day())
+            let end = projection.interval.end.addingTimeInterval(-1).formatted(.dateTime.month(.abbreviated).day().year())
+            return "\(start) - \(end)"
+        case .month:
+            return projection.interval.start.formatted(.dateTime.month(.wide).year())
+        }
+    }
+
+    func coverageSummary(_ coverage: ScheduleCalendarProjection.JobCoverage?) -> String {
+        guard let coverage else {
+            return "\(self.rangeLabel()) is not available yet."
+        }
+
+        switch coverage.state {
+        case .visible:
+            let count = coverage.occurrenceCount
+            let noun = count == 1 ? "run" : "runs"
+            if let first = coverage.firstOccurrence?.startAt {
+                return "\(self.rangeLabel()) shows \(count) \(noun). Next visible run: \(first.formatted(date: .abbreviated, time: .shortened))."
+            }
+            return "\(self.rangeLabel()) shows \(count) \(noun)."
+        case .noOccurrencesInRange:
+            return "\(self.rangeLabel()) has no runs for this schedule."
+        case let .unsupported(reason):
+            return "\(self.rangeLabel()) cannot place this schedule on the calendar yet. \(reason)"
+        }
+    }
+
+    func compactCoverageSummary(_ coverage: ScheduleCalendarProjection.JobCoverage?) -> String {
+        guard let coverage else { return "\(self.rangeLabel()) is not available yet." }
+
+        switch coverage.state {
+        case .visible:
+            let noun = coverage.occurrenceCount == 1 ? "run" : "runs"
+            return "\(self.rangeLabel()) · \(coverage.occurrenceCount) \(noun)"
+        case .noOccurrencesInRange:
+            return "\(self.rangeLabel()) · no runs"
+        case .unsupported:
+            return "\(self.rangeLabel()) · needs calendar review"
+        }
+    }
+
+    func visibleOccurrencePreview(
+        for coverage: ScheduleCalendarProjection.JobCoverage?,
+        limit: Int = 12) -> [ScheduleCalendarProjection.Occurrence]
+    {
+        guard let coverage else { return [] }
+        return Array(coverage.occurrences.prefix(limit))
+    }
+
+    func hiddenOccurrenceCount(
+        for coverage: ScheduleCalendarProjection.JobCoverage?,
+        previewLimit: Int = 12) -> Int
+    {
+        guard let coverage else { return 0 }
+        return max(0, coverage.occurrenceCount - previewLimit)
+    }
+
+    func occurrenceLabel(_ occurrence: ScheduleCalendarProjection.Occurrence) -> String {
+        occurrence.startAt.formatted(date: .abbreviated, time: .shortened)
     }
 
     func runStateLabel(_ job: CronJob) -> String {

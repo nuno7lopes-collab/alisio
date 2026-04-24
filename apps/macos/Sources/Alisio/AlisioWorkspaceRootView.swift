@@ -230,11 +230,11 @@ struct AlisioWorkspaceRootView: View {
     private var sidebarSummary: String {
         switch self.state.connectionMode {
         case .local:
-            "Native workspace ready on this Mac."
+            "Ready on this Mac."
         case .remote:
-            "Native workspace connected remotely."
+            "Connected remotely."
         case .unconfigured:
-            "Finish setup to open the full workspace."
+            "Finish setup to open the workspace."
         }
     }
 
@@ -271,22 +271,22 @@ struct AlisioWorkspaceRootView: View {
                 },
                 environment: self.chatEnvironment)
         case .memory:
-            MemorySettings()
+            MemorySettings(showsHeader: false)
                 .padding(compact ? 14 : 24)
         case .apps:
             AppsSettings()
                 .padding(compact ? 14 : 24)
         case .schedules:
-            CronSettings()
+            CronSettings(showsHeader: false)
                 .padding(compact ? 14 : 24)
         case .capabilities:
-            CapabilitiesSettings(state: self.state)
+            CapabilitiesSettings(state: self.state, showsHeader: false)
                 .padding(compact ? 14 : 24)
         case .connections:
-            InstancesSettings()
+            InstancesSettings(showsHeader: false)
                 .padding(compact ? 14 : 24)
         case .settings:
-            WorkspaceSettingsLauncherView(state: self.state)
+            WorkspaceSettingsLauncherView()
                 .id("settings-launcher")
                 .padding(compact ? 14 : 24)
         }
@@ -349,17 +349,6 @@ private struct WorkspaceChatStage: View {
 
     var body: some View {
         VStack(spacing: self.compact ? 0 : 14) {
-            if let status = self.bootstrapStatus {
-                WorkspaceStatusBanner(
-                    title: status.title,
-                    message: status.message,
-                    palette: self.palette,
-                    systemImage: status.systemImage,
-                    usesProgressView: status.usesProgressView,
-                    tint: status.tint)
-                    .padding(.horizontal, self.compact ? 8 : 22)
-            }
-
             Group {
                 if self.inspectorVisible, self.supportsInspector {
                     HSplitView {
@@ -369,12 +358,9 @@ private struct WorkspaceChatStage: View {
                             chatViewModel: self.chatViewModel,
                             computerStore: self.computerStore,
                             palette: self.palette,
-                            sessionKey: self.trackedSessionKey,
                             recentEvents: self.recentEvents,
-                            lastToolLabel: self.currentSessionToolActivity?.label,
-                            lastToolUpdatedAt: self.currentSessionToolActivity?.lastUpdate,
                             onClose: {
-                                self.inspectorVisibility.hide(autoPresent: self.inspectorShouldAutoPresent)
+                                self.inspectorVisibility.hide()
                             })
                             .frame(minWidth: 320, idealWidth: 360, maxWidth: 420)
                     }
@@ -393,9 +379,6 @@ private struct WorkspaceChatStage: View {
         .onDisappear {
             self.computerStore.deactivate()
         }
-        .onChange(of: self.inspectorShouldAutoPresent) { _, isAutoPresent in
-            self.inspectorVisibility.sync(autoPresent: isAutoPresent)
-        }
         .onChange(of: self.sessionKey) { _, nextSessionKey in
             self.syncPresentedSession(to: nextSessionKey)
         }
@@ -410,7 +393,8 @@ private struct WorkspaceChatStage: View {
     }
 
     private var chatHeaderAccessory: AnyView? {
-        nil
+        guard self.supportsInspector else { return nil }
+        return AnyView(self.chatDetailsButton)
     }
 
     private var chatOnlyStage: some View {
@@ -463,7 +447,7 @@ private struct WorkspaceChatStage: View {
     }
 
     private var shouldMonitorComputer: Bool {
-        !self.compact && self.state.connectionMode == .local
+        self.inspectorVisible && self.state.connectionMode == .local
     }
 
     private var supportsInspector: Bool {
@@ -471,27 +455,12 @@ private struct WorkspaceChatStage: View {
     }
 
     private var inspectorVisible: Bool {
-        self.inspectorVisibility.isVisible(
-            supportsInspector: self.supportsInspector,
-            autoPresent: self.inspectorShouldAutoPresent)
+        self.inspectorVisibility.isVisible(supportsInspector: self.supportsInspector)
     }
 
     private var trackedSessionKey: String {
         let trimmed = self.chatViewModel.sessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? self.sessionKey : trimmed
-    }
-
-    private var inspectorShouldAutoPresent: Bool {
-        if self.shouldPresentComputerInspector {
-            return true
-        }
-        return self.chatViewModel.activeErrorText != nil
-    }
-
-    private var shouldPresentComputerInspector: Bool {
-        guard self.shouldMonitorComputer else { return false }
-        guard self.matchesTrackedSession(sessionKey: self.computerStore.sessionKey) else { return false }
-        return self.computerStore.shouldAutoPresentPane
     }
 
     private func syncPresentedSession(to nextSessionKey: String) {
@@ -517,41 +486,6 @@ private struct WorkspaceChatStage: View {
         }
     }
 
-    private var bootstrapStatus: (
-        title: String,
-        message: String,
-        systemImage: String?,
-        usesProgressView: Bool,
-        tint: Color?
-    )? {
-        if self.state.connectionMode == .unconfigured {
-            return (
-                "Preparing Alisio",
-                "Finish setup before opening chat.",
-                "gearshape.2",
-                false,
-                self.palette.warning)
-        }
-
-        switch self.chatViewModel.connectionPhase {
-        case .bootstrapping:
-            return nil
-        case .loading:
-            return nil
-        case .reconnecting:
-            return (
-                "Reconnecting",
-                "Restoring the live connection before showing the latest state.",
-                "arrow.trianglehead.2.clockwise.rotate.90",
-                false,
-                self.palette.warning)
-        case .firstMessage:
-            return nil
-        case .ready:
-            return nil
-        }
-    }
-
     private var recentEvents: [ControlAgentEvent] {
         Array(self.eventStore.events.reversed().filter { event in
             self.matchesTrackedSession(event: event)
@@ -566,6 +500,43 @@ private struct WorkspaceChatStage: View {
         guard let activity = self.currentSessionActivity else { return nil }
         guard case .tool = activity.kind else { return nil }
         return activity
+    }
+
+    private var chatDetailsButton: some View {
+        Button {
+            if self.inspectorVisible {
+                self.inspectorVisibility.hide()
+            } else {
+                self.inspectorVisibility.show()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "sidebar.right")
+                    .font(.system(size: 12, weight: .semibold))
+                if self.showsInspectorSignal && !self.inspectorVisible {
+                    Circle()
+                        .fill(self.palette.accent)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .foregroundStyle(self.inspectorVisible ? self.palette.primaryText : self.palette.secondaryText)
+            .frame(width: 30, height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(self.palette.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(self.palette.border, lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
+        .help(self.inspectorVisible ? "Hide details" : "Show details")
+    }
+
+    private var showsInspectorSignal: Bool {
+        self.chatViewModel.activeErrorText != nil ||
+            self.chatViewModel.pendingRunCount > 0 ||
+            !self.chatViewModel.pendingToolCalls.isEmpty ||
+            self.currentSessionToolActivity != nil
     }
 
     private func matchesTrackedSession(event: ControlAgentEvent) -> Bool {
@@ -589,20 +560,16 @@ private struct WorkspaceInspectorPane: View {
     @Bindable var state: AppState
     @Bindable var chatViewModel: AlisioChatViewModel
     @Bindable var computerStore: MacDesktopComputerStore
-    @Bindable private var gatewayProcessManager = GatewayProcessManager.shared
 
     let palette: AlisioPalette
-    let sessionKey: String
     let recentEvents: [ControlAgentEvent]
-    let lastToolLabel: String?
-    let lastToolUpdatedAt: Date?
     let onClose: @MainActor () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Activity")
+                    Text("Details")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(self.palette.primaryText)
                     Text(self.chatViewModel.currentSessionTitle)
@@ -626,7 +593,7 @@ private struct WorkspaceInspectorPane: View {
                                         .strokeBorder(self.palette.border, lineWidth: 1)))
                 }
                 .buttonStyle(.plain)
-                .help("Hide activity")
+                .help("Hide details")
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
@@ -638,47 +605,26 @@ private struct WorkspaceInspectorPane: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     WorkspaceInspectorCard(
-                        title: "Chat",
-                        subtitle: self.chatSummary)
+                        title: "Status",
+                        subtitle: self.runStatusTitle)
                     {
-                        VStack(alignment: .leading, spacing: 8) {
-                            self.metaRow("Key", self.sessionKey)
-                            self.metaRow("Title", self.chatViewModel.currentSessionTitle)
-                            if let sessionId = self.chatViewModel.sessionId, !sessionId.isEmpty {
-                                self.metaRow("Session ID", sessionId)
-                            }
-                            self.metaRow("Runtime", self.runtimeLabel)
-                            self.metaRow("Surface", "Mac app")
-                            if let lastToolLabel, !lastToolLabel.isEmpty {
-                                self.metaRow("Last tool", lastToolLabel)
-                            }
-                            if let lastToolUpdatedAt {
-                                self.metaRow("Updated", lastToolUpdatedAt.formatted(date: .omitted, time: .standard))
-                            }
-                        }
-                    }
-
-                    WorkspaceInspectorCard(
-                        title: "Identity",
-                        subtitle: self.identitySummary)
-                    {
-                        VStack(alignment: .leading, spacing: 8) {
-                            self.metaRow("Assistant", "Alisio")
-                            self.metaRow("Operator", InstanceIdentity.displayName)
-                            if self.state.connectionMode == .remote {
-                                self.metaRow("Gateway", self.remoteGatewayLabel)
-                                if let sshIdentity = self.remoteIdentityLabel {
-                                    self.metaRow("SSH key", sshIdentity)
-                                }
-                            } else {
-                                self.metaRow("Gateway", self.gatewayProcessManager.status.label)
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text(self.statusDetailText)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(
+                                    self.chatViewModel.activeErrorText != nil
+                                        ? self.palette.danger
+                                        : self.palette.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let updatedAt = self.statusUpdatedAt {
+                                self.metaRow("Updated", updatedAt.formatted(date: .omitted, time: .standard))
                             }
                         }
                     }
 
                     WorkspaceInspectorCard(
                         title: "Memory",
-                        subtitle: self.memorySummary)
+                        subtitle: nil)
                     {
                         VStack(alignment: .leading, spacing: 12) {
                             if let contextUsage = self.chatViewModel.currentSessionContextUsage {
@@ -696,24 +642,24 @@ private struct WorkspaceInspectorPane: View {
                                         usedTokens: contextUsage.totalTokens,
                                         contextTokens: contextUsage.contextWindow,
                                         width: nil)
-                                    self.metaRow("Messages", "\(self.chatViewModel.messages.count)")
-                                    self.metaRow("Thinking", self.chatViewModel.activeThinkingLevelLabel)
-                                    self.metaRow("Model", self.chatViewModel.activeModelLabel)
                                 }
-                            } else {
-                                Text("Context usage appears here once the gateway reports token counts for this chat.")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(self.palette.secondaryText)
+                            }
+                            self.metaRow("Messages", "\(self.chatViewModel.messages.count)")
+                            self.metaRow("Thinking", self.chatViewModel.activeThinkingLevelLabel)
+                            let modelLabel = self.chatViewModel.activeModelLabel
+                                .trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !modelLabel.isEmpty {
+                                self.metaRow("Model", modelLabel)
                             }
 
                             HStack(spacing: 10) {
-                                Button("Compact memory") {
+                                Button("Compact") {
                                     self.chatViewModel.compactSession()
                                 }
                                 .buttonStyle(AlisioPrimaryButtonStyle(palette: self.palette))
                                 .disabled(!self.chatViewModel.canCompactSession)
 
-                                Button("Reset chat") {
+                                Button("Reset") {
                                     self.chatViewModel.resetSession()
                                 }
                                 .buttonStyle(AlisioGhostButtonStyle(palette: self.palette, isDanger: true))
@@ -722,65 +668,10 @@ private struct WorkspaceInspectorPane: View {
                         }
                     }
 
-                    WorkspaceInspectorCard(
-                        title: "Connection",
-                        subtitle: self.connectionSummary)
-                    {
-                        VStack(alignment: .leading, spacing: 8) {
-                            self.metaRow("Phase", self.connectionPhaseTitle)
-                            self.metaRow("Health", self.chatViewModel.healthOK ? "Healthy" : "Degraded")
-                            if let lastHistoryRefreshAt = self.chatViewModel.lastHistoryRefreshAt {
-                                self.metaRow("Last sync", lastHistoryRefreshAt.formatted(date: .omitted, time: .standard))
-                            }
-                            if let lastTransportEventAt = self.chatViewModel.lastTransportEventAt {
-                                self.metaRow("Last event", lastTransportEventAt.formatted(date: .omitted, time: .standard))
-                            }
-                            if let lastRecoveryAt = self.chatViewModel.lastRecoveryAt {
-                                self.metaRow("Recovered", lastRecoveryAt.formatted(date: .omitted, time: .standard))
-                            }
-                            if self.state.connectionMode == .local {
-                                self.metaRow("Gateway", self.gatewayProcessManager.status.label)
-                            } else {
-                                self.metaRow("Gateway", self.remoteGatewayLabel)
-                            }
-                        }
-                    }
-
-                    if self.shouldShowRunStatus {
-                        WorkspaceInspectorCard(
-                            title: "Run state",
-                            subtitle: self.runStatusTitle)
-                        {
-                            VStack(alignment: .leading, spacing: 10) {
-                                if let errorText = self.chatViewModel.activeErrorText {
-                                    Text(errorText)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(self.palette.danger)
-                                } else if self.chatViewModel.connectionPhase == .reconnecting {
-                                    Text("The workspace is resyncing after a dropped stream or failed health check.")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(self.palette.secondaryText)
-                                } else if self.chatViewModel.connectionPhase == .firstMessage {
-                                    Text("The first visible assistant turn is still warming up.")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(self.palette.secondaryText)
-                                } else if self.chatViewModel.pendingRunCount > 0 {
-                                    Text("Waiting for the assistant, tools, or both to start producing output.")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(self.palette.secondaryText)
-                                } else if !self.chatViewModel.pendingToolCalls.isEmpty {
-                                    Text("Tools are currently running for this session.")
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(self.palette.secondaryText)
-                                }
-                            }
-                        }
-                    }
-
                     if !self.chatViewModel.pendingToolCalls.isEmpty {
                         WorkspaceInspectorCard(
                             title: "Active tools",
-                            subtitle: "Live tool calls for this chat")
+                            subtitle: nil)
                         {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(self.chatViewModel.pendingToolCalls) { toolCall in
@@ -810,8 +701,8 @@ private struct WorkspaceInspectorPane: View {
 
                     if !self.recentEvents.isEmpty {
                         WorkspaceInspectorCard(
-                            title: "Recent activity",
-                            subtitle: "Latest runtime events routed to this chat")
+                            title: "Activity",
+                            subtitle: nil)
                         {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(self.recentEvents, id: \.id) { event in
@@ -851,112 +742,75 @@ private struct WorkspaceInspectorPane: View {
         }
     }
 
-    private var shouldShowRunStatus: Bool {
-        self.chatViewModel.connectionPhase != .ready ||
-            self.chatViewModel.pendingRunCount > 0 ||
-            !self.chatViewModel.pendingToolCalls.isEmpty ||
-            self.chatViewModel.activeErrorText != nil
-    }
-
     private var runStatusTitle: String {
         if self.chatViewModel.activeErrorText != nil {
-            return "Blocked"
+            return "Needs attention"
         }
         if self.chatViewModel.connectionPhase == .reconnecting {
             return "Reconnecting"
         }
         if self.chatViewModel.connectionPhase == .bootstrapping {
-            return "Bootstrapping"
+            return "Loading"
         }
         if self.chatViewModel.connectionPhase == .loading {
             return "Refreshing"
         }
         if self.chatViewModel.connectionPhase == .firstMessage {
-            return "First reply"
+            return "Waiting"
         }
         if !self.chatViewModel.pendingToolCalls.isEmpty {
-            return "Tools running"
+            return "Working"
         }
         if self.chatViewModel.pendingRunCount > 0 {
-            return "Response in progress"
+            return "Working"
         }
-        return "Idle"
+        return "Ready"
     }
 
-    private var chatSummary: String {
-        let subtitle = self.chatViewModel.currentSessionSubtitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !subtitle.isEmpty {
-            return subtitle
+    private var statusDetailText: String {
+        if let errorText = self.chatViewModel.activeErrorText {
+            return errorText
         }
-        if self.chatViewModel.connectionPhase == .reconnecting {
-            return "The native workspace is recovering this chat before it trusts live state again."
-        }
-        return "This pane keeps chat, identity, memory, and runtime state visible while you work."
-    }
-
-    private var identitySummary: String {
-        self.state.connectionMode == .local
-            ? "Who owns the chat and which local runtime is serving it."
-            : "Who owns the chat and which remote runtime is attached over SSH."
-    }
-
-    private var memorySummary: String {
-        "Chat context, model selection, and native memory controls."
-    }
-
-    private var connectionSummary: String {
         switch self.chatViewModel.connectionPhase {
         case .bootstrapping:
-            "Initial load before the workspace trusts the chat."
+            return "Loading this chat."
         case .loading:
-            "Refreshing native state from the gateway."
+            return "Refreshing this chat."
         case .reconnecting:
-            "Live transport degraded; the workspace is resyncing."
+            return "Reconnecting before you can send again."
         case .firstMessage:
-            "The first reply is still warming up."
+            return "Waiting for the first reply."
         case .ready:
-            "Current health and recency of the native data plane."
+            if !self.chatViewModel.pendingToolCalls.isEmpty {
+                return "Tools are still running."
+            }
+            if self.chatViewModel.pendingRunCount > 0 {
+                return "Working on the reply."
+            }
+            let summary = self.chatViewModel.currentSessionSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !summary.isEmpty {
+                return summary
+            }
+            return "Up to date."
         }
     }
 
-    private var runtimeLabel: String {
-        switch self.state.connectionMode {
-        case .local:
-            "This Mac"
-        case .remote:
-            "Remote"
-        case .unconfigured:
-            "Unconfigured"
+    private var statusUpdatedAt: Date? {
+        if self.chatViewModel.activeErrorText != nil {
+            return self.chatViewModel.lastTransportEventAt ?? self.chatViewModel.lastRecoveryAt
         }
-    }
-
-    private var remoteGatewayLabel: String {
-        let target = self.state.remoteTarget.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !target.isEmpty {
-            return target
-        }
-        let url = self.state.remoteUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-        return url.isEmpty ? "Remote gateway" : url
-    }
-
-    private var remoteIdentityLabel: String? {
-        let trimmed = self.state.remoteIdentity.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return URL(fileURLWithPath: trimmed).lastPathComponent
-    }
-
-    private var connectionPhaseTitle: String {
         switch self.chatViewModel.connectionPhase {
-        case .bootstrapping:
-            "Bootstrapping"
-        case .loading:
-            "Refreshing"
         case .reconnecting:
-            "Reconnecting"
+            return self.chatViewModel.lastRecoveryAt
         case .firstMessage:
-            "First reply"
+            return self.chatViewModel.lastTransportEventAt
+        case .bootstrapping, .loading:
+            return self.chatViewModel.lastBootstrapAt ?? self.chatViewModel.lastHistoryRefreshAt
         case .ready:
-            "Ready"
+            if !self.chatViewModel.pendingToolCalls.isEmpty || self.chatViewModel.pendingRunCount > 0 {
+                return self.chatViewModel.lastTransportEventAt
+            }
+            return self.chatViewModel.lastHistoryRefreshAt
         }
     }
 
@@ -978,16 +832,16 @@ private struct WorkspaceInspectorPane: View {
 
         switch event.stream {
         case "tool":
-            let phase = event.data["phase"]?.value as? String ?? "update"
-            let name = event.data["name"]?.value as? String ?? "tool"
-            return "\(name) · \(phase)"
+            let name = event.data["name"]?.value as? String
+            let args = event.data["args"].map(AnyCodable.init)
+            let summary = ToolDisplayRegistry.resolve(name: name, args: args, meta: event.summary)
+            return summary.summaryLine
         case "job":
-            let state = event.data["state"]?.value as? String ?? "update"
-            return "job · \(state)"
+            return "Chat update"
         case "assistant":
-            return "assistant"
+            return "Reply update"
         default:
-            return event.stream
+            return "Update"
         }
     }
 
@@ -1005,14 +859,27 @@ private struct WorkspaceInspectorPane: View {
                     return trimmed
                 }
             }
-            return "Assistant updated the current reply."
+            return "Reply updated."
         case "job":
             if let state = event.data["state"]?.value as? String {
-                return "Job state: \(state)"
+                switch state.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                case "queued", "accepted":
+                    return "Waiting to start."
+                case "running", "streaming":
+                    return "Working on the reply."
+                case "final", "completed":
+                    return "Reply finished."
+                case "aborted":
+                    return "Reply stopped."
+                case "error", "failed":
+                    return "Reply failed."
+                default:
+                    return "Chat updated."
+                }
             }
-            return "Job activity updated."
+            return "Chat updated."
         default:
-            return "Runtime event received."
+            return "Updated."
         }
     }
 
@@ -1266,50 +1133,6 @@ private struct WorkspaceInspectorCard<Content: View>: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)))
-    }
-}
-
-@MainActor
-private struct WorkspaceStatusBanner: View {
-    let title: String
-    let message: String
-    let palette: AlisioPalette
-    let systemImage: String?
-    let usesProgressView: Bool
-    let tint: Color?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Group {
-                if self.usesProgressView {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(self.tint ?? self.palette.accent)
-                } else if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(self.tint ?? self.palette.warning)
-                }
-            }
-            .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(self.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(self.palette.primaryText)
-                Text(self.message)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(self.palette.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(self.palette.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(self.palette.border, lineWidth: 1)))
     }
 }
 

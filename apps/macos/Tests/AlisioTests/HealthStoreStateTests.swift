@@ -50,7 +50,7 @@ struct HealthStoreStateTests {
         }
 
         #expect(store.summaryLine == "WhatsApp needs attention")
-        #expect(store.detailLine == "Health check failed because the runtime is unavailable")
+        #expect(store.detailLine == "The linked service is unavailable right now.")
     }
 
     @Test @MainActor func `health copy stays product level for transport failures`() {
@@ -89,7 +89,7 @@ struct HealthStoreStateTests {
         let store = HealthStore(autoStart: false)
         store.__setSnapshotForTest(snap, lastError: nil)
 
-        #expect(store.summaryLine == "Telegram is working")
+        #expect(store.summaryLine == "This Mac still needs sign-in")
         #expect(store.detailLine == "Telegram is available, but this Mac is not linked yet.")
     }
 
@@ -100,5 +100,34 @@ struct HealthStoreStateTests {
 
         #expect(store.summaryLine == "Checking health…")
         #expect(store.detailLine == "Running a fresh health check.")
+    }
+
+    @Test @MainActor func `health preserves last known result while disconnected`() {
+        let snap = self.makeSnapshot(
+            channels: [
+                "whatsapp": .init(
+                    configured: true,
+                    linked: true,
+                    authAgeMs: 1,
+                    probe: .init(
+                        ok: true,
+                        status: 200,
+                        error: nil,
+                        elapsedMs: 12,
+                        bot: nil,
+                        webhook: nil),
+                    lastProbeAt: 0),
+            ],
+            channelOrder: ["whatsapp"],
+            channelLabels: ["whatsapp": "WhatsApp"])
+
+        let store = HealthStore(autoStart: false)
+        store.__setSnapshotForTest(snap, lastError: nil)
+
+        let presentation = store.surfacePresentation(controlState: .disconnected)
+        #expect(presentation.status == .disconnected)
+        #expect(presentation.summary == "Health unavailable")
+        #expect(presentation.detail == "This Mac is disconnected from the runtime.")
+        #expect(presentation.lastKnownSummary == "Healthy")
     }
 }

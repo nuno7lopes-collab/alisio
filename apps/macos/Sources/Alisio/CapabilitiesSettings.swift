@@ -14,15 +14,18 @@ struct CapabilitiesSettings: View {
     }
 
     @Bindable var state: AppState
+    let showsHeader: Bool
     @State private var model = CapabilitiesSettingsModel()
     @State private var envEditor: EnvEditorState?
     @State private var filter: CapabilitiesFilter = .all
 
     init(
         state: AppState = AppStateStore.shared,
-        model: CapabilitiesSettingsModel = CapabilitiesSettingsModel())
+        model: CapabilitiesSettingsModel = CapabilitiesSettingsModel(),
+        showsHeader: Bool = true)
     {
         self.state = state
+        self.showsHeader = showsHeader
         self._model = State(initialValue: model)
     }
 
@@ -32,16 +35,14 @@ struct CapabilitiesSettings: View {
             self.content
             Spacer(minLength: 0)
         }
-        .task { await self.model.refresh() }
+        .task(id: self.state.connectionMode) { await self.model.refresh() }
         .sheet(item: self.$envEditor) { editor in
             EnvEditorView(editor: editor) { value in
-                Task {
-                    await self.model.updateEnv(
-                        skillKey: editor.skillKey,
-                        envKey: editor.envKey,
-                        value: value,
-                        isPrimary: editor.isPrimary)
-                }
+                await self.model.updateEnv(
+                    skillKey: editor.skillKey,
+                    envKey: editor.envKey,
+                    value: value,
+                    isPrimary: editor.isPrimary)
             }
         }
     }
@@ -51,8 +52,13 @@ struct CapabilitiesSettings: View {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private var trimmedStatusMessage: String? {
-        let trimmed = self.model.statusMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    private var trimmedEmptyMessage: String? {
+        let trimmed = self.model.emptyMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private var trimmedStaleMessage: String? {
+        let trimmed = self.model.staleMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed
     }
 
@@ -74,31 +80,31 @@ struct CapabilitiesSettings: View {
             return .error(error)
         }
 
-        return .empty(self.trimmedStatusMessage ?? "No capabilities are available yet.")
+        return .empty(self.trimmedEmptyMessage ?? CapabilitiesSettingsModel.emptyCapabilitiesMessage)
     }
 
     private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Capabilities")
-                    .font(.headline)
-                Text("See what is ready to use and what still needs setup.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if self.model.isLoading {
-                ProgressView()
-            } else {
+        WorkspaceRouteHeader(
+            title: "Capabilities",
+            subtitle: "See what is ready to use and what still needs setup.",
+            showsTitle: self.showsHeader)
+        {
+            HStack(spacing: 10) {
+                self.headerFilter
                 Button {
                     Task { await self.model.refresh() }
                 } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    HStack(spacing: 6) {
+                        if self.model.isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
                 }
                 .buttonStyle(.bordered)
-                .help("Refresh")
+                .disabled(self.model.isLoading)
             }
-            self.headerFilter
         }
     }
 
@@ -106,37 +112,37 @@ struct CapabilitiesSettings: View {
     private var content: some View {
         switch self.listState {
         case .loading:
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "Loading capabilities…",
-                message: "Checking what is available on this Mac.",
-                systemImage: "sparkles",
+                message: "Checking the current connection.",
+                systemImage: "arrow.triangle.2.circlepath",
                 showsProgress: true)
         case let .error(message):
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "Capabilities could not be loaded.",
                 message: message,
                 systemImage: "exclamationmark.triangle.fill",
-                tint: .orange,
-                actionTitle: "Try again")
+                tone: .caution,
+                actionTitle: "Refresh")
             {
                 Task { await self.model.refresh() }
             }
         case let .empty(message):
-            if message.hasPrefix("Sign in") {
-                self.stateCard(
+            if message == CapabilitiesSettingsModel.signedOutMessage {
+                WorkspaceStateCard(
                     title: message,
-                    message: "After you sign in, the available capabilities appear here.",
+                    message: "Capabilities appear here after you sign in.",
                     systemImage: "person.crop.circle.badge.exclamationmark")
             } else {
-                self.stateCard(
+                WorkspaceStateCard(
                     title: message,
-                    message: "When capabilities are available, they appear here.",
+                    message: "Refresh if you expect something to be available here.",
                     systemImage: "sparkles")
             }
         case .filteredEmpty:
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "No capabilities match this filter.",
-                message: "Change the filter to see the remaining capabilities.",
+                message: "Try another filter to see the remaining capabilities.",
                 systemImage: "line.3.horizontal.decrease.circle")
         case .list:
             self.capabilitiesList
@@ -146,22 +152,16 @@ struct CapabilitiesSettings: View {
     private var capabilitiesList: some View {
         VStack(alignment: .leading, spacing: 8) {
             if self.model.isLoading {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Refreshing…")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+                InlineMessage(
+                    message: "Checking the current state…",
+                    tone: .secondary,
+                    showsProgress: true)
+            } else if let staleMessage = self.trimmedStaleMessage {
+                InlineMessage(
+                    message: "Showing the last confirmed state. \(staleMessage)",
+                    tone: .warning)
             } else if let error = self.trimmedError {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if let message = self.trimmedStatusMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                InlineMessage(message: error, tone: .error)
             }
 
             List {
@@ -169,12 +169,18 @@ struct CapabilitiesSettings: View {
                     CapabilityRow(
                         skill: skill,
                         isBusy: self.model.isBusy(skill: skill),
+                        busyLabel: self.model.operationLabel(skill: skill),
+                        notice: self.model.feedback(skill: skill),
+                        isInteractive: self.model.canInteract && !self.model.isLoading,
                         connectionMode: self.state.connectionMode,
                         onToggleEnabled: { enabled in
                             Task { await self.model.setEnabled(skillKey: skill.skillKey, enabled: enabled) }
                         },
                         onInstall: { option, target in
                             Task { await self.model.install(skill: skill, option: option, target: target) }
+                        },
+                        onSwitchToLocal: {
+                            self.state.connectionMode = .local
                         },
                         onSetEnv: { envKey, isPrimary in
                             self.envEditor = EnvEditorState(
@@ -188,45 +194,6 @@ struct CapabilitiesSettings: View {
             }
             .listStyle(.inset)
         }
-    }
-
-    func stateCard(
-        title: String,
-        message: String,
-        systemImage: String,
-        tint: Color = .secondary,
-        showsProgress: Bool = false,
-        actionTitle: String? = nil,
-        action: (() -> Void)? = nil) -> some View
-    {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                if showsProgress {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: systemImage)
-                        .foregroundStyle(tint)
-                }
-
-                Text(title)
-                    .font(.headline)
-            }
-
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let actionTitle, let action {
-                Button(actionTitle, action: action)
-                    .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(16)
-        .background(Color.secondary.opacity(0.06))
-        .cornerRadius(12)
     }
 
     private var headerFilter: some View {
@@ -290,12 +257,217 @@ private enum InstallTarget: String, CaseIterable {
     case local
 }
 
+enum CapabilityNoticeTone: Equatable, Sendable {
+    case secondary
+    case success
+    case warning
+    case error
+
+    var color: Color {
+        switch self {
+        case .secondary, .success:
+            .secondary
+        case .warning:
+            .orange
+        case .error:
+            .red
+        }
+    }
+
+    var iconName: String? {
+        switch self {
+        case .secondary:
+            nil
+        case .success:
+            "checkmark.circle"
+        case .warning:
+            "exclamationmark.triangle"
+        case .error:
+            "xmark.circle"
+        }
+    }
+}
+
+struct CapabilityNotice: Equatable, Sendable {
+    let text: String
+    let tone: CapabilityNoticeTone
+}
+
+enum CapabilityRowStatus: Equatable {
+    case ready
+    case needsInstall
+    case needsSetup
+    case disabled
+
+    var title: String {
+        switch self {
+        case .ready:
+            "Ready"
+        case .needsInstall:
+            "Needs install"
+        case .needsSetup:
+            "Needs setup"
+        case .disabled:
+            "Disabled"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .ready:
+            .green
+        case .needsInstall, .needsSetup:
+            .orange
+        case .disabled:
+            .secondary
+        }
+    }
+}
+
+struct CapabilityRowPresentation: Equatable {
+    let status: CapabilityRowStatus
+    let summary: String
+    let installActionTitle: String?
+    let switchToLocalActionTitle: String?
+    let envActionTitle: String?
+    let guideActionTitle: String?
+    let showsToggle: Bool
+
+    init(skill: SkillStatus, connectionMode: AppState.ConnectionMode) {
+        let missingBins = skill.missing.bins
+        let missingEnv = skill.missing.env
+        let missingConfig = skill.missing.config
+        let installOptions = Self.installOptions(for: skill)
+        let missingPrimaryEnv = skill.primaryEnv.map(missingEnv.contains) ?? false
+        let hasRequirements = missingBins.isEmpty && missingEnv.isEmpty && missingConfig.isEmpty
+        let needsSetup = !hasRequirements || !skill.eligible
+
+        self.installActionTitle = installOptions.isEmpty
+            ? nil
+            : (connectionMode == .remote ? "Install on remote" : "Install")
+        self.switchToLocalActionTitle = installOptions.isEmpty || connectionMode != .remote ? nil : "Use This Mac"
+
+        if missingPrimaryEnv {
+            self.envActionTitle = "Add API key"
+        } else if !missingEnv.isEmpty {
+            self.envActionTitle = missingEnv.count > 1 || !missingConfig.isEmpty
+                ? "Continue setup"
+                : "Add required value"
+        } else {
+            self.envActionTitle = nil
+        }
+
+        let hasGuide = skill.homepage?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        self.guideActionTitle = self.envActionTitle == nil && hasGuide && needsSetup
+            ? "Open setup guide"
+            : nil
+
+        if skill.disabled {
+            self.status = .disabled
+            self.summary = Self.disabledSummary(
+                missingBins: missingBins,
+                missingEnv: missingEnv,
+                missingConfig: missingConfig,
+                installAvailable: !installOptions.isEmpty,
+                connectionMode: connectionMode,
+                missingPrimaryEnv: missingPrimaryEnv,
+                hasRequirements: hasRequirements)
+        } else if !missingBins.isEmpty {
+            self.status = .needsInstall
+            self.summary = Self.installSummary(
+                installAvailable: !installOptions.isEmpty,
+                connectionMode: connectionMode)
+        } else if needsSetup {
+            self.status = .needsSetup
+            self.summary = Self.setupSummary(
+                missingEnv: missingEnv,
+                missingConfig: missingConfig,
+                missingPrimaryEnv: missingPrimaryEnv)
+        } else {
+            self.status = .ready
+            self.summary = "Ready to use."
+        }
+
+        self.showsToggle = hasRequirements && installOptions.isEmpty
+    }
+
+    private static func installOptions(for skill: SkillStatus) -> [SkillInstallOption] {
+        guard !skill.missing.bins.isEmpty else { return [] }
+        let missing = Set(skill.missing.bins)
+        return skill.install.filter { option in
+            if option.bins.isEmpty { return true }
+            return !missing.isDisjoint(with: option.bins)
+        }
+    }
+
+    private static func installSummary(
+        installAvailable: Bool,
+        connectionMode: AppState.ConnectionMode) -> String
+    {
+        if installAvailable {
+            return connectionMode == .remote
+                ? "Install is still required on the current remote system."
+                : "Install is still required on this Mac."
+        }
+        return "This capability still needs software before it can run."
+    }
+
+    private static func setupSummary(
+        missingEnv: [String],
+        missingConfig: [String],
+        missingPrimaryEnv: Bool) -> String
+    {
+        if missingPrimaryEnv {
+            return "Add an API key to finish setup."
+        }
+        if !missingEnv.isEmpty {
+            return missingEnv.count == 1 && missingConfig.isEmpty
+                ? "Add the required value to finish setup."
+                : "More setup is still required before this can run."
+        }
+        if !missingConfig.isEmpty {
+            return "More setup is still required before this can run."
+        }
+        return "This capability still needs setup."
+    }
+
+    private static func disabledSummary(
+        missingBins: [String],
+        missingEnv: [String],
+        missingConfig: [String],
+        installAvailable: Bool,
+        connectionMode: AppState.ConnectionMode,
+        missingPrimaryEnv: Bool,
+        hasRequirements: Bool) -> String
+    {
+        guard !hasRequirements else { return "Disabled." }
+        if !missingBins.isEmpty {
+            return installAvailable
+                ? (connectionMode == .remote
+                    ? "Disabled. Install is still required on the current remote system."
+                    : "Disabled. Install is still required on this Mac.")
+                : "Disabled. This capability still needs software before it can be turned back on."
+        }
+        if missingPrimaryEnv {
+            return "Disabled. Add an API key before turning it back on."
+        }
+        if !missingEnv.isEmpty || !missingConfig.isEmpty {
+            return "Disabled. Finish setup before turning it back on."
+        }
+        return "Disabled."
+    }
+}
+
 private struct CapabilityRow: View {
     let skill: SkillStatus
     let isBusy: Bool
+    let busyLabel: String?
+    let notice: CapabilityNotice?
+    let isInteractive: Bool
     let connectionMode: AppState.ConnectionMode
     let onToggleEnabled: (Bool) -> Void
     let onInstall: (SkillInstallOption, InstallTarget) -> Void
+    let onSwitchToLocal: () -> Void
     let onSetEnv: (String, Bool) -> Void
 
     private var missingBins: [String] {
@@ -310,34 +482,39 @@ private struct CapabilityRow: View {
         self.skill.missing.config
     }
 
+    private var presentation: CapabilityRowPresentation {
+        CapabilityRowPresentation(skill: self.skill, connectionMode: self.connectionMode)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(self.skill.emoji ?? "✨")
                 .font(.title2)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(self.skill.name)
-                    .font(.headline)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(self.skill.name)
+                        .font(.headline)
+                    CapabilityStatusTag(status: self.presentation.status)
+                }
                 Text(self.skill.description)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                self.metaRow
+                Text(self.presentation.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                if self.skill.disabled {
-                    Text("Disabled in config")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if !self.requirementsMet, self.shouldShowMissingSummary {
-                    self.missingSummary
+                if let notice = self.notice {
+                    InlineMessage(message: notice.text, tone: notice.tone)
                 }
 
-                if !self.skill.configChecks.isEmpty {
-                    self.configChecksView
-                }
-
-                if !self.missingEnv.isEmpty {
-                    self.envActionRow
+                if self.isBusy {
+                    InlineMessage(
+                        message: self.busyLabel ?? "Updating…",
+                        tone: .secondary,
+                        showsProgress: true)
                 }
             }
 
@@ -345,38 +522,7 @@ private struct CapabilityRow: View {
 
             self.trailingActions
         }
-        .padding(.vertical, 6)
-    }
-
-    private var sourceLabel: String {
-        switch self.skill.source {
-        case "alisio-bundled":
-            "Bundled"
-        case "alisio-managed":
-            "Managed"
-        case "alisio-workspace":
-            "Workspace"
-        case "alisio-extra":
-            "Extra"
-        case "alisio-plugin":
-            "Plugin"
-        default:
-            self.skill.source
-        }
-    }
-
-    private var metaRow: some View {
-        HStack(spacing: 10) {
-            SkillTag(text: self.sourceLabel)
-            if let url = self.homepageUrl {
-                Link(destination: url) {
-                    Label("Site", systemImage: "link")
-                        .font(.caption2.weight(.semibold))
-                }
-                .buttonStyle(.link)
-            }
-            Spacer(minLength: 0)
-        }
+        .padding(.vertical, 8)
     }
 
     private var homepageUrl: URL? {
@@ -400,95 +546,38 @@ private struct CapabilityRow: View {
             set: { self.onToggleEnabled($0) })
     }
 
-    private var missingSummary: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if self.shouldShowMissingBins {
-                Text("Install required: \(self.missingBins.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if !self.missingEnv.isEmpty {
-                Text("Configuration required: \(self.missingEnv.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            if !self.missingConfig.isEmpty {
-                Text("Additional config required: \(self.missingConfig.joined(separator: ", "))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    private var nextEnvAction: (envKey: String, isPrimary: Bool)? {
+        if let primaryEnv = self.skill.primaryEnv, self.missingEnv.contains(primaryEnv) {
+            return (primaryEnv, true)
         }
-    }
-
-    private var configChecksView: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(self.skill.configChecks) { check in
-                HStack(spacing: 6) {
-                    Image(systemName: check.satisfied ? "checkmark.circle" : "xmark.circle")
-                        .foregroundStyle(check.satisfied ? .green : .secondary)
-                    Text(check.path)
-                        .font(.caption)
-                    Text(self.formatConfigValue(check.value))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private var envActionRow: some View {
-        HStack(spacing: 8) {
-            ForEach(self.missingEnv, id: \.self) { envKey in
-                let isPrimary = envKey == self.skill.primaryEnv
-                Button(isPrimary ? "Set API key" : "Set \(envKey)") {
-                    self.onSetEnv(envKey, isPrimary)
-                }
-                .buttonStyle(.bordered)
-                .disabled(self.isBusy)
-            }
-            Spacer(minLength: 0)
-        }
+        guard let envKey = self.missingEnv.first else { return nil }
+        return (envKey, false)
     }
 
     private var trailingActions: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            if !self.installOptions.isEmpty {
-                ForEach(self.installOptions, id: \.id) { (option: SkillInstallOption) in
-                    HStack(spacing: 6) {
-                        if self.showGatewayInstall {
-                            Button("Install on Gateway") { self.onInstall(option, .gateway) }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(self.isBusy)
-                        }
-                        if self.showGatewayInstall {
-                            Button("Install on this Mac") { self.onInstall(option, .local) }
-                                .buttonStyle(.bordered)
-                                .disabled(self.isBusy)
-                                .help(
-                                    self.localInstallNeedsSwitch
-                                        ? "Switch to Local mode to install on this Mac."
-                                        : "")
-                        } else {
-                            Button("Install on this Mac") { self.onInstall(option, .local) }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(self.isBusy)
-                                .help(
-                                    self.localInstallNeedsSwitch
-                                        ? "Switch to Local mode to install on this Mac."
-                                        : "")
-                        }
-                    }
-                }
-            } else {
+            if let installTitle = self.presentation.installActionTitle {
+                self.installAction(title: installTitle)
+            } else if self.presentation.showsToggle {
                 Toggle("", isOn: self.enabledBinding)
                     .toggleStyle(.switch)
                     .labelsHidden()
-                    .disabled(self.isBusy || !self.requirementsMet)
+                    .disabled(self.isBusy || !self.requirementsMet || !self.isInteractive)
             }
 
-            if self.isBusy {
-                ProgressView()
-                    .controlSize(.small)
+            if let envAction = self.nextEnvAction,
+               let envActionTitle = self.presentation.envActionTitle
+            {
+                Button(envActionTitle) {
+                    self.onSetEnv(envAction.envKey, envAction.isPrimary)
+                }
+                .buttonStyle(.bordered)
+                .disabled(self.isBusy || !self.isInteractive)
+            } else if let guideTitle = self.presentation.guideActionTitle,
+                      let homepageUrl = self.homepageUrl
+            {
+                Link(guideTitle, destination: homepageUrl)
+                    .buttonStyle(.link)
             }
         }
     }
@@ -506,51 +595,82 @@ private struct CapabilityRow: View {
         self.missingBins.isEmpty && self.missingEnv.isEmpty && self.missingConfig.isEmpty
     }
 
-    private var shouldShowMissingBins: Bool {
-        !self.missingBins.isEmpty && self.installOptions.isEmpty
+    private var currentInstallTarget: InstallTarget {
+        self.connectionMode == .remote ? .gateway : .local
     }
 
-    private var shouldShowMissingSummary: Bool {
-        self.shouldShowMissingBins ||
-            !self.missingEnv.isEmpty ||
-            !self.missingConfig.isEmpty
-    }
+    @ViewBuilder
+    private func installAction(title: String) -> some View {
+        if self.installOptions.count == 1, let option = self.installOptions.first {
+            VStack(alignment: .trailing, spacing: 8) {
+                Button(title) {
+                    self.onInstall(option, self.currentInstallTarget)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(self.isBusy || !self.isInteractive)
 
-    private var showGatewayInstall: Bool {
-        self.connectionMode == .remote
-    }
+                if let switchTitle = self.presentation.switchToLocalActionTitle {
+                    Button(switchTitle) {
+                        self.onSwitchToLocal()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(self.isBusy)
+                }
+            }
+        } else {
+            Menu(title) {
+                ForEach(self.installOptions, id: \.id) { option in
+                    Button(option.label) {
+                        self.onInstall(option, self.currentInstallTarget)
+                    }
+                }
+            }
+            .disabled(self.isBusy || !self.isInteractive)
 
-    private var localInstallNeedsSwitch: Bool {
-        self.connectionMode != .local
-    }
-
-    private func formatConfigValue(_ value: AnyCodable?) -> String {
-        guard let value else { return "" }
-        switch value.value {
-        case let bool as Bool:
-            return bool ? "true" : "false"
-        case let int as Int:
-            return String(int)
-        case let double as Double:
-            return String(double)
-        case let string as String:
-            return string
-        default:
-            return ""
+            if let switchTitle = self.presentation.switchToLocalActionTitle {
+                Button(switchTitle) {
+                    self.onSwitchToLocal()
+                }
+                .buttonStyle(.bordered)
+                .disabled(self.isBusy)
+            }
         }
     }
 }
 
-private struct SkillTag: View {
-    let text: String
+private struct InlineMessage: View {
+    let message: String
+    let tone: CapabilityNoticeTone
+    var showsProgress = false
 
     var body: some View {
-        Text(self.text)
+        HStack(spacing: 6) {
+            if self.showsProgress {
+                ProgressView()
+                    .controlSize(.small)
+            } else if let iconName = self.tone.iconName {
+                Image(systemName: iconName)
+                    .font(.caption)
+                    .foregroundStyle(self.tone.color)
+            }
+            Text(self.message)
+                .font(.caption)
+                .foregroundStyle(self.tone.color)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct CapabilityStatusTag: View {
+    let status: CapabilityRowStatus
+
+    var body: some View {
+        Text(self.status.title)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
             .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.12))
+            .padding(.vertical, 3)
+            .background(self.status.color.opacity(0.14))
+            .foregroundStyle(self.status.color)
             .clipShape(Capsule())
     }
 }
@@ -569,9 +689,11 @@ private struct EnvEditorState: Identifiable {
 
 private struct EnvEditorView: View {
     let editor: EnvEditorState
-    let onSave: (String) -> Void
+    let onSave: (String) async -> CapabilityNotice
     @Environment(\.dismiss) private var dismiss
     @State private var value: String = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -581,20 +703,23 @@ private struct EnvEditorView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if let homepageUrl = self.homepageUrl {
-                Link("Open key page →", destination: homepageUrl)
+                Link("Open setup guide", destination: homepageUrl)
                     .font(.caption)
             }
-            SecureField(self.editor.envKey, text: self.$value)
+            if let errorMessage {
+                InlineMessage(message: errorMessage, tone: .error)
+            }
+            SecureField(self.fieldTitle, text: self.$value)
                 .textFieldStyle(.roundedBorder)
             HStack {
                 Button("Cancel") { self.dismiss() }
+                    .disabled(self.isSaving)
                 Spacer()
                 Button("Save") {
-                    self.onSave(self.value)
-                    self.dismiss()
+                    Task { await self.save() }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(self.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(self.isSaving || self.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(20)
@@ -617,247 +742,427 @@ private struct EnvEditorView: View {
     }
 
     private var title: String {
-        self.editor.isPrimary ? "Set API key" : "Set environment variable"
+        self.editor.isPrimary ? "Add API key" : "Add required value"
     }
 
     private var subtitle: String {
         "Capability: \(self.editor.skillName)"
     }
+
+    private var fieldTitle: String {
+        self.editor.isPrimary ? "API key" : "Value"
+    }
+
+    private func save() async {
+        let trimmed = self.value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        self.isSaving = true
+        self.errorMessage = nil
+        let result = await self.onSave(trimmed)
+        self.isSaving = false
+        if result.tone == .error {
+            self.errorMessage = result.text
+            return
+        }
+        self.dismiss()
+    }
 }
+
+enum CapabilitiesAccountGate: Equatable, Sendable {
+    case authenticated
+    case signedOut
+    case unavailable(String)
+}
+
+private enum CapabilityOperationKind: Equatable, Sendable {
+    case install
+    case toggle
+    case save
+
+    var label: String {
+        switch self {
+        case .install:
+            "Installing…"
+        case .toggle:
+            "Updating…"
+        case .save:
+            "Saving…"
+        }
+    }
+}
+
+protocol CapabilitiesGatewayClient: Sendable {
+    func skillsStatus() async throws -> SkillsStatusReport
+    func skillsInstall(name: String, installId: String, timeoutMs: Int?) async throws -> SkillInstallResult
+    func skillsUpdate(
+        skillKey: String,
+        enabled: Bool?,
+        apiKey: String?,
+        env: [String: String]?) async throws -> SkillUpdateResult
+}
+
+extension GatewayConnection: CapabilitiesGatewayClient {}
 
 @MainActor
 @Observable
 final class CapabilitiesSettingsModel {
-    private enum AccountGate {
-        case authenticated
-        case signedOut
-        case unavailable(String)
-    }
+    static let signedOutMessage = "Sign in to view capabilities."
+    static let emptyCapabilitiesMessage = "No capabilities are available right now."
 
-    private static let emptyCapabilitiesMessage = "No capabilities are available yet."
+    @ObservationIgnored
+    private let gateway: any CapabilitiesGatewayClient
+    @ObservationIgnored
+    private let accountGateResolver: @Sendable (String) async -> CapabilitiesAccountGate
 
     var skills: [SkillStatus] = []
     var isLoading = false
     var hasLoadedOnce = false
     var error: String?
-    var statusMessage: String?
-    private var busyCapabilities: Set<String> = []
+    var emptyMessage: String?
+    var staleMessage: String?
+    private var busyCapabilities: [String: CapabilityOperationKind] = [:]
+    private var feedbackBySkill: [String: CapabilityNotice] = [:]
+
+    init(
+        gateway: any CapabilitiesGatewayClient = GatewayConnection.shared,
+        accountGate: (@Sendable (String) async -> CapabilitiesAccountGate)? = nil)
+    {
+        self.gateway = gateway
+        self.accountGateResolver = accountGate ?? { reason in
+            await Self.defaultAccountGate(reason: reason)
+        }
+    }
+
+    var canInteract: Bool {
+        !self.skills.isEmpty && self.staleMessage == nil
+    }
 
     func isBusy(skill: SkillStatus) -> Bool {
-        self.busyCapabilities.contains(skill.skillKey)
+        self.busyCapabilities[skill.skillKey] != nil
+    }
+
+    func operationLabel(skill: SkillStatus) -> String? {
+        self.busyCapabilities[skill.skillKey]?.label
+    }
+
+    func feedback(skill: SkillStatus) -> CapabilityNotice? {
+        self.feedbackBySkill[skill.skillKey]
     }
 
     func refresh() async {
         guard !self.isLoading else { return }
         self.isLoading = true
         self.error = nil
-        self.statusMessage = nil
+        self.staleMessage = nil
+        if self.skills.isEmpty {
+            self.emptyMessage = nil
+        }
         defer {
             self.isLoading = false
             self.hasLoadedOnce = true
         }
 
-        switch await self.accountGate(reason: "skills.status") {
+        switch await self.accountGateResolver("skills.status") {
         case .authenticated:
             break
         case .signedOut:
             self.skills = []
-            self.statusMessage = "Sign in to view capabilities."
+            self.feedbackBySkill.removeAll()
+            self.emptyMessage = Self.signedOutMessage
             return
         case let .unavailable(message):
-            self.skills = []
-            self.statusMessage = nil
-            self.error = Self.userFacingError(
-                message,
-                fallback: "Capabilities could not be loaded right now.")
+            self.applyRefreshFailure(
+                Self.userFacingError(
+                    message,
+                    fallback: "Capabilities could not be loaded right now."))
             return
         }
 
         do {
             self.applyLoadedSkills(try await self.fetchSkills())
         } catch {
-            self.statusMessage = nil
-            self.error = Self.userFacingError(
-                error.localizedDescription,
-                fallback: "Capabilities could not be loaded right now.")
+            self.applyRefreshFailure(
+                Self.userFacingError(
+                    error.localizedDescription,
+                    fallback: "Capabilities could not be loaded right now."))
         }
     }
 
-    fileprivate func install(skill: SkillStatus, option: SkillInstallOption, target: InstallTarget) async {
-        await self.withBusy(skill.skillKey) {
-            switch await self.accountGate(reason: "skills.install") {
-            case .authenticated:
-                break
-            case .signedOut:
-                self.statusMessage = "Sign in to change capabilities."
-                return
-            case let .unavailable(message):
-                self.statusMessage = nil
-                self.error = Self.userFacingError(
-                    message,
-                    fallback: "Capability install failed.")
-                return
+    @discardableResult
+    fileprivate func install(
+        skill: SkillStatus,
+        option: SkillInstallOption,
+        target: InstallTarget) async -> CapabilityNotice
+    {
+        await self.withBusy(skill.skillKey, operation: .install) {
+            if let blocked = await self.mutationGate(
+                skillKey: skill.skillKey,
+                reason: "skills.install",
+                fallback: "Install failed.")
+            {
+                return blocked
+            }
+
+            if target == .local, AppStateStore.shared.connectionMode != .local {
+                return self.setFeedback(
+                    skillKey: skill.skillKey,
+                    notice: CapabilityNotice(
+                        text: "Switch to This Mac before installing here.",
+                        tone: .error))
             }
 
             do {
-                self.error = nil
-                self.statusMessage = nil
-                if target == .local, AppStateStore.shared.connectionMode != .local {
-                    AppStateStore.shared.connectionMode = .local
-                }
-                let result = try await GatewayConnection.shared.skillsInstall(
+                let result = try await self.gateway.skillsInstall(
                     name: skill.name,
                     installId: option.id,
                     timeoutMs: 300_000)
 
                 if !result.ok {
-                    if let refreshedSkills = try? await self.fetchSkills() {
-                        self.skills = refreshedSkills
-                    }
-                    let trimmedMessage = result.message.trimmingCharacters(in: .whitespacesAndNewlines)
-                    self.statusMessage = trimmedMessage.isEmpty ? "The install failed." : trimmedMessage
-                    return
+                    _ = await self.refreshAfterMutation(skillKey: skill.skillKey)
+                    return self.setFeedback(
+                        skillKey: skill.skillKey,
+                        notice: CapabilityNotice(
+                            text: Self.userFacingOperationMessage(
+                                result.message,
+                                fallback: "Install failed."),
+                            tone: .error))
                 }
 
-                let refreshedSkills = try await self.fetchSkills()
-                self.skills = refreshedSkills
-
-                guard let refreshedSkill = self.skill(skillKey: skill.skillKey) else {
-                    self.error = "Install finished, but the updated capability list could not be confirmed."
-                    self.statusMessage = nil
-                    return
+                guard let refreshedSkill = await self.refreshAfterMutation(skillKey: skill.skillKey) else {
+                    return self.setFeedback(
+                        skillKey: skill.skillKey,
+                        notice: CapabilityNotice(
+                            text: "Install finished, but the current state could not be confirmed.",
+                            tone: .error))
                 }
 
                 let requestedBins = Set(option.bins)
                 if !requestedBins.isEmpty,
-                    !requestedBins.isDisjoint(with: refreshedSkill.missing.bins)
+                   !requestedBins.isDisjoint(with: refreshedSkill.missing.bins)
                 {
-                    self.error = "Install finished, but this capability still reports required tools as missing."
-                    self.statusMessage = nil
-                    return
+                    return self.setFeedback(
+                        skillKey: skill.skillKey,
+                        notice: CapabilityNotice(
+                            text: "Install finished, but this capability still needs software.",
+                            tone: .error))
                 }
 
-                self.statusMessage = refreshedSkill.eligible
-                    ? "Install completed."
-                    : "Install completed. This capability still needs setup."
-                self.error = nil
+                let notice = refreshedSkill.eligible
+                    ? CapabilityNotice(text: "Installed.", tone: .success)
+                    : CapabilityNotice(text: "Installed. More setup is still required.", tone: .warning)
+                return self.setFeedback(skillKey: skill.skillKey, notice: notice)
             } catch {
-                self.statusMessage = nil
-                self.error = Self.userFacingError(
-                    error.localizedDescription,
-                    fallback: "Capability install failed.")
+                return self.setFeedback(
+                    skillKey: skill.skillKey,
+                    notice: CapabilityNotice(
+                        text: Self.userFacingError(
+                            error.localizedDescription,
+                            fallback: "Install failed."),
+                        tone: .error))
             }
         }
     }
 
-    func setEnabled(skillKey: String, enabled: Bool) async {
-        await self.withBusy(skillKey) {
-            switch await self.accountGate(reason: "skills.update") {
-            case .authenticated:
-                break
-            case .signedOut:
-                self.statusMessage = "Sign in to change capabilities."
-                return
-            case let .unavailable(message):
-                self.statusMessage = nil
-                self.error = Self.userFacingError(
-                    message,
-                    fallback: "Capability update failed.")
-                return
+    @discardableResult
+    func setEnabled(skillKey: String, enabled: Bool) async -> CapabilityNotice {
+        await self.withBusy(skillKey, operation: .toggle) {
+            if let blocked = await self.mutationGate(
+                skillKey: skillKey,
+                reason: "skills.update",
+                fallback: "Capability update failed.")
+            {
+                return blocked
             }
 
             do {
-                self.error = nil
-                self.statusMessage = nil
-                _ = try await GatewayConnection.shared.skillsUpdate(
+                _ = try await self.gateway.skillsUpdate(
                     skillKey: skillKey,
-                    enabled: enabled)
-                self.skills = try await self.fetchSkills()
-                guard let refreshedSkill = self.skill(skillKey: skillKey) else {
-                    self.error = "Capability state could not be confirmed."
-                    self.statusMessage = nil
-                    return
+                    enabled: enabled,
+                    apiKey: nil,
+                    env: nil)
+
+                guard let refreshedSkill = await self.refreshAfterMutation(skillKey: skillKey) else {
+                    return self.setFeedback(
+                        skillKey: skillKey,
+                        notice: CapabilityNotice(
+                            text: "The new state could not be confirmed.",
+                            tone: .error))
                 }
+
                 guard refreshedSkill.disabled == !enabled else {
-                    self.error = "Capability state could not be confirmed. Refresh and try again."
-                    self.statusMessage = nil
-                    return
+                    return self.setFeedback(
+                        skillKey: skillKey,
+                        notice: CapabilityNotice(
+                            text: "The new state could not be confirmed.",
+                            tone: .error))
                 }
-                self.statusMessage = enabled ? "Capability enabled." : "Capability disabled."
+
+                return self.setFeedback(
+                    skillKey: skillKey,
+                    notice: CapabilityNotice(
+                        text: enabled ? "Enabled." : "Disabled.",
+                        tone: .success))
             } catch {
-                self.statusMessage = nil
-                self.error = Self.userFacingError(
-                    error.localizedDescription,
-                    fallback: "Capability update failed.")
+                return self.setFeedback(
+                    skillKey: skillKey,
+                    notice: CapabilityNotice(
+                        text: Self.userFacingError(
+                            error.localizedDescription,
+                            fallback: "Capability update failed."),
+                        tone: .error))
             }
         }
     }
 
-    func updateEnv(skillKey: String, envKey: String, value: String, isPrimary: Bool) async {
-        await self.withBusy(skillKey) {
-            switch await self.accountGate(reason: "skills.update") {
-            case .authenticated:
-                break
-            case .signedOut:
-                self.statusMessage = "Sign in to change capabilities."
-                return
-            case let .unavailable(message):
-                self.statusMessage = nil
-                self.error = Self.userFacingError(
-                    message,
-                    fallback: "Capability setup failed.")
-                return
+    @discardableResult
+    func updateEnv(skillKey: String, envKey: String, value: String, isPrimary: Bool) async -> CapabilityNotice {
+        await self.withBusy(skillKey, operation: .save) {
+            if let blocked = await self.mutationGate(
+                skillKey: skillKey,
+                reason: "skills.update",
+                fallback: "Capability setup failed.")
+            {
+                return blocked
             }
 
             do {
-                self.error = nil
-                self.statusMessage = nil
                 if isPrimary {
-                    _ = try await GatewayConnection.shared.skillsUpdate(
+                    _ = try await self.gateway.skillsUpdate(
                         skillKey: skillKey,
-                        apiKey: value)
+                        enabled: nil,
+                        apiKey: value,
+                        env: nil)
                 } else {
-                    _ = try await GatewayConnection.shared.skillsUpdate(
+                    _ = try await self.gateway.skillsUpdate(
                         skillKey: skillKey,
+                        enabled: nil,
+                        apiKey: nil,
                         env: [envKey: value])
                 }
 
-                self.skills = try await self.fetchSkills()
-                guard let refreshedSkill = self.skill(skillKey: skillKey) else {
-                    self.error = "Capability setup could not be confirmed."
-                    self.statusMessage = nil
-                    return
+                guard let refreshedSkill = await self.refreshAfterMutation(skillKey: skillKey) else {
+                    return self.setFeedback(
+                        skillKey: skillKey,
+                        notice: CapabilityNotice(
+                            text: "The saved value could not be confirmed.",
+                            tone: .error))
                 }
+
                 if refreshedSkill.missing.env.contains(envKey) {
-                    self.error = "The new value was sent, but this capability still reports \(envKey) as missing."
-                    self.statusMessage = nil
-                    return
+                    return self.setFeedback(
+                        skillKey: skillKey,
+                        notice: CapabilityNotice(
+                            text: "The saved value is still missing.",
+                            tone: .error))
                 }
-                let baseMessage = isPrimary ? "API key saved." : "\(envKey) saved."
-                self.statusMessage = refreshedSkill.eligible
-                    ? baseMessage
-                    : "\(baseMessage) This capability still needs setup."
+
+                let notice = refreshedSkill.eligible
+                    ? CapabilityNotice(
+                        text: isPrimary ? "API key saved." : "Value saved.",
+                        tone: .success)
+                    : CapabilityNotice(
+                        text: "Saved. More setup is still required.",
+                        tone: .warning)
+                return self.setFeedback(skillKey: skillKey, notice: notice)
             } catch {
-                self.statusMessage = nil
-                self.error = Self.userFacingError(
-                    error.localizedDescription,
-                    fallback: "Capability setup failed.")
+                return self.setFeedback(
+                    skillKey: skillKey,
+                    notice: CapabilityNotice(
+                        text: Self.userFacingError(
+                            error.localizedDescription,
+                            fallback: "Capability setup failed."),
+                        tone: .error))
             }
         }
     }
 
     private func fetchSkills() async throws -> [SkillStatus] {
-        let report = try await GatewayConnection.shared.skillsStatus()
+        let report = try await self.gateway.skillsStatus()
         return report.skills.sorted { $0.name < $1.name }
     }
 
     private func applyLoadedSkills(_ skills: [SkillStatus]) {
         self.skills = skills
-        self.statusMessage = skills.isEmpty ? Self.emptyCapabilitiesMessage : nil
+        self.error = nil
+        self.staleMessage = nil
+        self.emptyMessage = skills.isEmpty ? Self.emptyCapabilitiesMessage : nil
+    }
+
+    private func applyRefreshFailure(_ message: String) {
+        if self.skills.isEmpty {
+            self.error = message
+            self.emptyMessage = nil
+        } else {
+            self.error = nil
+            self.staleMessage = message
+        }
     }
 
     private func skill(skillKey: String) -> SkillStatus? {
         self.skills.first(where: { $0.skillKey == skillKey })
+    }
+
+    private func refreshAfterMutation(skillKey: String) async -> SkillStatus? {
+        do {
+            let refreshedSkills = try await self.fetchSkills()
+            self.applyLoadedSkills(refreshedSkills)
+            return self.skill(skillKey: skillKey)
+        } catch {
+            self.staleMessage = Self.userFacingError(
+                error.localizedDescription,
+                fallback: "Capabilities could not be refreshed right now.")
+            return self.skill(skillKey: skillKey)
+        }
+    }
+
+    private func mutationGate(
+        skillKey: String,
+        reason: String,
+        fallback: String) async -> CapabilityNotice?
+    {
+        self.error = nil
+        self.staleMessage = nil
+        self.feedbackBySkill.removeValue(forKey: skillKey)
+
+        switch await self.accountGateResolver(reason) {
+        case .authenticated:
+            return nil
+        case .signedOut:
+            return self.setFeedback(
+                skillKey: skillKey,
+                notice: CapabilityNotice(
+                    text: "Sign in to change capabilities.",
+                    tone: .error))
+        case let .unavailable(message):
+            return self.setFeedback(
+                skillKey: skillKey,
+                notice: CapabilityNotice(
+                    text: Self.userFacingError(message, fallback: fallback),
+                    tone: .error))
+        }
+    }
+
+    private func setFeedback(skillKey: String, notice: CapabilityNotice) -> CapabilityNotice {
+        self.feedbackBySkill[skillKey] = notice
+        return notice
+    }
+
+    private static func userFacingOperationMessage(_ raw: String?, fallback: String) -> String {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else { return fallback }
+
+        let lower = trimmed.lowercased()
+        if lower.contains("sign in") ||
+            lower.contains("timeout") ||
+            lower.contains("disconnected") ||
+            lower.contains("cannot reach gateway") ||
+            lower.contains("cannot connect") ||
+            lower.contains("connection refused") ||
+            lower.contains("network")
+        {
+            return Self.userFacingError(trimmed, fallback: fallback)
+        }
+        return fallback
     }
 
     private static func userFacingError(_ raw: String?, fallback: String) -> String {
@@ -882,7 +1187,7 @@ final class CapabilitiesSettingsModel {
         return trimmed
     }
 
-    private func accountGate(reason: String) async -> AccountGate {
+    private static func defaultAccountGate(reason: String) async -> CapabilitiesAccountGate {
         do {
             _ = try await AlisioAccountStore.shared.requireAuthenticated(reason: reason)
             return .authenticated
@@ -898,10 +1203,14 @@ final class CapabilitiesSettingsModel {
         }
     }
 
-    private func withBusy(_ id: String, _ work: @escaping () async -> Void) async {
-        self.busyCapabilities.insert(id)
-        defer { self.busyCapabilities.remove(id) }
-        await work()
+    private func withBusy<T>(
+        _ id: String,
+        operation: CapabilityOperationKind,
+        _ work: @escaping () async -> T) async -> T
+    {
+        self.busyCapabilities[id] = operation
+        defer { self.busyCapabilities.removeValue(forKey: id) }
+        return await work()
     }
 }
 

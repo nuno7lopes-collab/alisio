@@ -1,40 +1,40 @@
 import SwiftUI
 
 extension CronSettings {
-    var calendarContent: some View {
+    func calendarContent(projection: ScheduleCalendarProjection, calendar: Calendar) -> some View {
         HStack(spacing: 12) {
-            self.calendarPane
+            self.calendarPane(projection: projection, calendar: calendar)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             Divider()
 
-            self.detail
-                .frame(width: 380, alignment: .topLeading)
+            self.detail(projection: projection, calendar: calendar)
+                .frame(width: 400, alignment: .topLeading)
                 .frame(maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
     @ViewBuilder
-    var calendarPane: some View {
+    func calendarPane(projection: ScheduleCalendarProjection, calendar: Calendar) -> some View {
         switch self.listState {
         case .loading:
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "Loading schedules…",
                 message: "Checking what is configured on this Mac.",
                 systemImage: "calendar.badge.clock",
                 showsProgress: true)
         case let .error(message):
-            self.stateCard(
+            WorkspaceStateCard(
                 title: "Schedules could not be loaded.",
                 message: message,
                 systemImage: "exclamationmark.triangle.fill",
-                tint: .orange,
+                tone: .caution,
                 actionTitle: "Try again")
             {
                 Task { await self.store.refreshJobs() }
             }
         case let .empty(message):
-            self.stateCard(
+            WorkspaceStateCard(
                 title: message,
                 message: message.hasPrefix("Sign in")
                     ? "After you sign in, this account's schedules appear here."
@@ -48,8 +48,6 @@ extension CronSettings {
                 self.showEditor = true
             }
         case .list:
-            let calendar = Calendar.current
-            let projection = self.calendarProjection(using: calendar)
             VStack(alignment: .leading, spacing: 10) {
                 self.calendarControls(projection: projection)
 
@@ -59,8 +57,8 @@ extension CronSettings {
                         onSelectJob: self.openCalendarJob)
                 }
 
-                if projection.occurrences.isEmpty {
-                    Text("No renderable schedule occurrences in this range.")
+                if projection.occurrences.isEmpty, projection.unsupportedSchedules.isEmpty {
+                    Text("No runs fall inside this range.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -82,21 +80,6 @@ extension CronSettings {
                         onSelect: self.openCalendarOccurrence)
                 }
             }
-        }
-    }
-
-    func calendarProjection(using calendar: Calendar) -> ScheduleCalendarProjection {
-        switch self.displayMode {
-        case .list, .week:
-            ScheduleCalendarProjection.week(
-                containing: self.calendarReferenceDate,
-                jobs: self.store.jobs,
-                calendar: calendar)
-        case .month:
-            ScheduleCalendarProjection.month(
-                containing: self.calendarReferenceDate,
-                jobs: self.store.jobs,
-                calendar: calendar)
         }
     }
 
@@ -130,8 +113,8 @@ extension CronSettings {
             Spacer()
 
             let shownCount = projection.occurrences.count
-            let hiddenCount = projection.unsupportedSchedules.count
-            Text(hiddenCount == 0 ? "\(shownCount) shown" : "\(shownCount) shown · \(hiddenCount) not shown")
+            let reviewCount = projection.unsupportedSchedules.count
+            Text(reviewCount == 0 ? "\(shownCount) runs" : "\(shownCount) runs · \(reviewCount) need review")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -146,16 +129,7 @@ extension CronSettings {
     }
 
     func calendarTitle(for projection: ScheduleCalendarProjection) -> String {
-        switch self.displayMode {
-        case .list:
-            return ""
-        case .week:
-            let start = projection.interval.start.formatted(.dateTime.month(.abbreviated).day())
-            let end = projection.interval.end.addingTimeInterval(-1).formatted(.dateTime.month(.abbreviated).day().year())
-            return "\(start) - \(end)"
-        case .month:
-            return self.calendarReferenceDate.formatted(.dateTime.month(.wide).year())
-        }
+        self.rangeCaption(for: projection, mode: self.displayMode)
     }
 
     func openCalendarOccurrence(_ occurrence: ScheduleCalendarProjection.Occurrence) {
@@ -173,46 +147,49 @@ private struct ScheduleUnsupportedList: View {
     let onSelectJob: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Not shown on the calendar")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+        WorkspaceSurfaceCard(padding: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Calendar review")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text("These schedules stay available in the list, but the calendar cannot place them clearly in this range yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            ForEach(self.schedules) { schedule in
-                Button {
-                    self.onSelectJob(schedule.jobId)
-                } label: {
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.orange)
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
-                                Text(schedule.jobName)
-                                    .font(.caption.weight(.semibold))
-                                    .lineLimit(1)
-                                if !schedule.isEnabled {
-                                    StatusPill(text: "paused", tint: .secondary)
+                ForEach(self.schedules) { schedule in
+                    Button {
+                        self.onSelectJob(schedule.jobId)
+                    } label: {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text(schedule.jobName)
+                                        .font(.caption.weight(.semibold))
+                                        .lineLimit(1)
+                                    if !schedule.isEnabled {
+                                        StatusPill(text: "paused", tint: .secondary)
+                                    }
+                                }
+                                Text(schedule.reason)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                if let nextRunAt = schedule.nextRunAt {
+                                    Text("Next run: \(nextRunAt.formatted(date: .abbreviated, time: .standard))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
-                            Text(schedule.reason)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            if let nextRunAt = schedule.nextRunAt {
-                                Text("Next run: \(nextRunAt.formatted(date: .abbreviated, time: .standard))")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Spacer(minLength: 0)
                         }
-                        Spacer(minLength: 0)
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
-        .padding(8)
-        .background(Color.secondary.opacity(0.06))
-        .cornerRadius(8)
     }
 }
 

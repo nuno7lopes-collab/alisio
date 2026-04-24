@@ -294,9 +294,9 @@ public final class AlisioChatViewModel {
         }
         switch self.connectionPhase {
         case .firstMessage:
-            parts.append("First reply is warming up.")
+            parts.append("Waiting for the first reply.")
         case .reconnecting:
-            parts.append("Reconnecting.")
+            parts.append("Reconnecting")
         case .bootstrapping, .loading, .ready:
             break
         }
@@ -467,9 +467,9 @@ public final class AlisioChatViewModel {
 
     public var defaultModelLabel: String {
         guard let defaultModelID = self.normalizedModelSelectionID(self.sessionDefaults?.model) else {
-            return "Default"
+            return "Automatic"
         }
-        return "Default: \(self.modelLabel(for: defaultModelID))"
+        return "Automatic · \(self.modelLabel(for: defaultModelID))"
     }
 
     public var activeModelLabel: String {
@@ -478,7 +478,7 @@ public final class AlisioChatViewModel {
             return self.modelLabel(for: selectedModelID)
         }
         guard let defaultModelID = self.normalizedModelSelectionID(self.sessionDefaults?.model) else {
-            return "Default"
+            return ""
         }
         return self.modelLabel(for: defaultModelID)
     }
@@ -488,7 +488,7 @@ public final class AlisioChatViewModel {
             return self.sessionTitle(for: session)
         }
         if self.sessionKeysMatch(sessionKey, self.resolvedMainSessionKey) {
-            return "Main chat"
+            return "Main"
         }
         return "New chat"
     }
@@ -505,9 +505,9 @@ public final class AlisioChatViewModel {
             return self.sessionSummary(for: session)
         }
         if self.sessionKeysMatch(sessionKey, self.resolvedMainSessionKey) {
-            return "Your ongoing workspace conversation."
+            return "Workspace conversation."
         }
-        return "Start a fresh chat without losing your place."
+        return ""
     }
 
     public func sessionPreviewText(for session: AlisioChatSessionEntry) -> String? {
@@ -891,7 +891,7 @@ public final class AlisioChatViewModel {
         let sessionKey = self.sessionKey
 
         guard self.healthOK else {
-            self.errorText = "The chat is still connecting. Try again in a moment."
+            self.errorText = "Waiting for the connection to come back."
             return
         }
 
@@ -982,7 +982,7 @@ public final class AlisioChatViewModel {
             self.abortRequestedRunIDs.remove(runId)
             self.errorText = self.presentableErrorMessage(
                 for: error,
-                fallback: "Your message could not be sent. Try again.")
+                fallback: "Couldn't send that message.")
             chatUILogger.error("chat.send failed \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -990,7 +990,7 @@ public final class AlisioChatViewModel {
     private func performAbort() async {
         let activeRunIDs = Array(self.pendingRuns.union(self.dispatchingRunIDs)).sorted()
         guard !activeRunIDs.isEmpty else {
-            self.errorText = "There is no active reply to stop."
+            self.errorText = "Nothing is running right now."
             return
         }
         let requestedRunIDs = activeRunIDs.filter { !self.abortRequestedRunIDs.contains($0) }
@@ -1011,15 +1011,15 @@ public final class AlisioChatViewModel {
             }
         }
         if !stoppedAnyRun, abortableRunIDs.count == requestedRunIDs.count {
-            self.errorText = "The reply could not be stopped. Try again."
+            self.errorText = "Couldn't stop the reply."
         }
     }
 
     private func performNewChat() async {
         guard self.canCreateSession else {
             self.errorText = self.pendingRuns.isEmpty
-                ? "Wait for the current work to finish before starting a new chat."
-                : "Stop the current reply before starting a new chat."
+                ? "Wait for the current chat to finish first."
+                : "Stop the current reply first."
             return
         }
 
@@ -1039,7 +1039,7 @@ public final class AlisioChatViewModel {
             let created = try await self.transport.createSession(request: request)
             let newKey = created.key.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !newKey.isEmpty else {
-                self.errorText = "A new chat could not be created."
+                self.errorText = "Couldn't start a new chat."
                 return
             }
             if let entry = created.entry {
@@ -1060,7 +1060,7 @@ public final class AlisioChatViewModel {
         } catch {
             self.errorText = self.presentableErrorMessage(
                 for: error,
-                fallback: "A new chat could not be created.")
+                fallback: "Couldn't start a new chat.")
         }
     }
 
@@ -1082,7 +1082,7 @@ public final class AlisioChatViewModel {
             guard self.shouldApplySessionsRequestResponse(requestID: requestID) else { return }
             self.sessionListErrorText = self.presentableErrorMessage(
                 for: error,
-                fallback: "Chats are unavailable right now.")
+                fallback: "Couldn't load chats right now.")
         }
     }
 
@@ -1092,8 +1092,8 @@ public final class AlisioChatViewModel {
         guard !self.sessionKeysMatch(next, self.sessionKey) else { return }
         guard self.canSwitchSessions else {
             self.errorText = self.pendingRuns.isEmpty
-                ? "Wait for the current work to finish before switching chats."
-                : "Stop the current reply before switching chats."
+                ? "Wait for the current chat to finish first."
+                : "Stop the current reply first."
             return
         }
         await self.activateSession(next)
@@ -1368,7 +1368,7 @@ public final class AlisioChatViewModel {
         let sessionKey = rawSessionKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sessionKey.isEmpty else { return }
         guard self.canResetSession(key: sessionKey) else {
-            let message = "Wait for the current work to finish before resetting a chat."
+            let message = "Wait for the current reply to finish first."
             self.errorText = self.sessionKeysMatch(sessionKey, self.sessionKey) ? message : self.errorText
             self.sessionActionErrorText = message
             return
@@ -1393,7 +1393,7 @@ public final class AlisioChatViewModel {
         } catch {
             let message = self.presentableErrorMessage(
                 for: error,
-                fallback: "This chat could not be reset.")
+                fallback: "Couldn't reset this chat.")
             if isCurrentSession {
                 self.errorText = message
             }
@@ -1420,7 +1420,7 @@ public final class AlisioChatViewModel {
         guard !self.isCompacting else { return }
         guard !self.isMutatingSession(key: sessionKey) else { return }
         guard self.canCompactSession(key: sessionKey) else {
-            let message = "Wait for the current response before compacting the session."
+            let message = "Wait for the current reply to finish first."
             self.errorText = self.sessionKeysMatch(sessionKey, self.sessionKey) ? message : self.errorText
             self.sessionActionErrorText = message
             return
@@ -1430,7 +1430,7 @@ public final class AlisioChatViewModel {
         if let lastCompactAt = self.lastCompactAtsBySession[identity],
            Date().timeIntervalSince(lastCompactAt) < self.compactCooldown
         {
-            let message = "Please wait before compacting this session again."
+            let message = "Please wait before compacting again."
             self.errorText = self.sessionKeysMatch(sessionKey, self.sessionKey) ? message : self.errorText
             self.sessionActionErrorText = message
             return
@@ -1455,7 +1455,7 @@ public final class AlisioChatViewModel {
         do {
             try await self.transport.compactSession(sessionKey: sessionKey)
         } catch {
-            let message = "Unable to compact the session. Please try again."
+            let message = "Couldn't compact this chat."
             if isCurrentSession {
                 self.errorText = message
             }
@@ -1481,8 +1481,8 @@ public final class AlisioChatViewModel {
         let session = self.matchingSession(forKey: sessionKey) ?? self.placeholderSession(key: sessionKey)
         guard self.canDeleteSession(session) else {
             self.sessionActionErrorText = self.isMainSession(session)
-                ? "Main chat can't be deleted."
-                : "Wait for the current work to finish before deleting a chat."
+                ? "Main can't be deleted."
+                : "Wait for the current reply to finish first."
             return
         }
 
@@ -1499,7 +1499,7 @@ public final class AlisioChatViewModel {
         } catch {
             let message = self.presentableErrorMessage(
                 for: error,
-                fallback: "This chat could not be deleted.")
+                fallback: "Couldn't delete this chat.")
             if isCurrentSession {
                 self.errorText = message
             }
@@ -1524,8 +1524,8 @@ public final class AlisioChatViewModel {
         let session = self.matchingSession(forKey: sessionKey) ?? self.placeholderSession(key: sessionKey)
         guard self.canRenameSession(session) else {
             self.sessionActionErrorText = self.isMainSession(session)
-                ? "Main chat keeps its canonical title."
-                : "Wait for the current work to finish before renaming a chat."
+                ? "Main keeps its title."
+                : "Wait for the current reply to finish first."
             return false
         }
 
@@ -1555,7 +1555,7 @@ public final class AlisioChatViewModel {
         } catch {
             let message = self.presentableErrorMessage(
                 for: error,
-                fallback: "This chat title could not be updated.")
+                fallback: "Couldn't update the title.")
             if isCurrentSession {
                 self.errorText = message
             }
@@ -1970,7 +1970,19 @@ public final class AlisioChatViewModel {
         switch chat.state {
         case "final", "aborted", "error":
             if chat.state == "error" {
-                self.errorText = chat.errorMessage ?? "Chat failed"
+                let fallback = "Something went wrong in this chat."
+                if let errorMessage = chat.errorMessage,
+                   !errorMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                {
+                    self.errorText = self.presentableErrorMessage(
+                        for: NSError(
+                            domain: "AlisioChatRuntime",
+                            code: 1,
+                            userInfo: [NSLocalizedDescriptionKey: errorMessage]),
+                        fallback: fallback)
+                } else {
+                    self.errorText = fallback
+                }
             }
             if let runId = chat.runId {
                 self.clearPendingRun(runId)
@@ -2074,7 +2086,7 @@ public final class AlisioChatViewModel {
         } catch {
             self.abortRequestedRunIDs.remove(runId)
             if reportFailure {
-                self.errorText = "The reply could not be stopped. Try again."
+                self.errorText = "Couldn't stop the reply."
             }
             chatUILogger.error("chat.abort failed \(error.localizedDescription, privacy: .public)")
             return false
@@ -2154,7 +2166,7 @@ public final class AlisioChatViewModel {
                 guard self.pendingRuns.contains(runId) else { return }
                 self.clearPendingRun(runId)
                 self.clearTerminalTransientReplyState(for: runId)
-                self.errorText = "Timed out waiting for a reply; try again or refresh."
+                self.errorText = "The reply timed out. Refresh or try again."
             }
         }
     }
@@ -2227,13 +2239,13 @@ public final class AlisioChatViewModel {
             lower.contains("cannot connect") ||
             lower.contains("network")
         {
-            return "The chat could not reach the runtime. Try again."
+            return "Connection lost. Try again."
         }
         if lower.contains("timed out") || lower.contains("timeout") {
             return "The request timed out. Try again."
         }
         if lower.contains("message empty") {
-            return "Type a message before sending."
+            return "Type a message first."
         }
         return fallback
     }
@@ -2286,7 +2298,7 @@ public final class AlisioChatViewModel {
 
     private func addAttachment(url: URL?, data: Data, fileName: String, mimeType: String) async {
         if data.count > 5_000_000 {
-            self.errorText = "Attachment \(fileName) exceeds 5 MB limit"
+            self.errorText = "\(fileName) is larger than 5 MB."
             return
         }
 

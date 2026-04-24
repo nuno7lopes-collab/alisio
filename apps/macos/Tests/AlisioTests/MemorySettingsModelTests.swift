@@ -79,8 +79,8 @@ struct MemorySettingsModelTests {
 
         #expect(model.sections.map(\.section) == [
             .mainMemory,
-            .dailyNotes,
             .topicNotes,
+            .dailyNotes,
             .identity,
             .soul,
             .agentFiles,
@@ -116,6 +116,7 @@ struct MemorySettingsModelTests {
 
     @Test func `keeps unsupported canonical files out of the surface and search`() async {
         let recorder = FileGetRecorder()
+        let searchRecorder = SearchRecorder()
         let model = Self.makeModel(
             agents: [
                 MemoryAgentSummary(
@@ -135,6 +136,9 @@ struct MemorySettingsModelTests {
             ],
             onRead: { path in
                 await recorder.record(path)
+            },
+            onSearch: { query in
+                await searchRecorder.record(query)
             })
 
         await model.refresh()
@@ -146,10 +150,12 @@ struct MemorySettingsModelTests {
                     "No daily notes, topic notes, main memory, identity, soul, or agent files are available yet."))
         #expect(model.sections.isEmpty)
         #expect(await recorder.paths.isEmpty)
+        #expect(await searchRecorder.queries.isEmpty)
     }
 
-    @Test func `search reads canonical file content through gateway client`() async {
+    @Test func `search uses the gateway memory search contract`() async {
         let recorder = FileGetRecorder()
+        let searchRecorder = SearchRecorder()
         let model = Self.makeModel(
             agents: [
                 MemoryAgentSummary(
@@ -165,8 +171,24 @@ struct MemorySettingsModelTests {
                 "MEMORY.md": "# Memory\nShort notes.\n",
                 "memory/physics.md": "# Physics\nBoson summary.\n",
             ],
+            searchResults: [
+                "boson": MemorySearchToolResult(
+                    disabled: nil,
+                    error: nil,
+                    results: [
+                        MemorySearchToolMatch(
+                            path: "memory://profiles/profile/pages/page-1/projections/projection-1",
+                            displayPath: "memory/physics.md",
+                            snippet: "Boson summary.",
+                            pageId: "page-1",
+                            projectionId: "projection-1"),
+                    ]),
+            ],
             onRead: { path in
                 await recorder.record(path)
+            },
+            onSearch: { query in
+                await searchRecorder.record(query)
             })
 
         await model.refresh()
@@ -178,7 +200,9 @@ struct MemorySettingsModelTests {
         #expect(model.graphProjection.lanes.map(\.section) == [.topicNotes])
         #expect(model.graphProjection.lanes.flatMap(\.documentNodes).compactMap(\.relatedItemID) == ["memory/physics.md"])
         #expect(model.graphProjection.edges.count == 1)
-        #expect(await recorder.paths.contains("memory/physics.md"))
+        #expect(await recorder.paths == ["MEMORY.md", "memory/physics.md"])
+        #expect(await searchRecorder.queries == ["boson"])
+        #expect(model.searchMatchesByItemID["memory/physics.md"]?.snippet == "Boson summary.")
     }
 
     @Test func `switching agents rebuilds the canonical selection coherently`() async {
@@ -270,12 +294,53 @@ struct MemorySettingsModelTests {
                 },
                 readFile: { _, _ in
                     throw NSError(domain: "Tests", code: 2)
+                },
+                searchMemory: { _, _, _ in
+                    MemorySearchToolResult(disabled: nil, error: nil, results: [])
                 }),
             accountGate: { _ in .authenticated })
 
         await model.refresh()
 
         #expect(model.listState == .error("Gateway offline"))
+        #expect(model.sections.isEmpty)
+    }
+
+    @Test func `search exposes gateway failures honestly when there are no metadata hits`() async {
+        let model = MemorySettingsModel(
+            client: MemorySettingsClient(
+                listAgents: {
+                    MemoryAgentsListResult(agents: [
+                        MemoryAgentSummary(
+                            id: "main",
+                            name: "Main",
+                            identity: nil,
+                            personalContext: MemoryPersonalContextSummary(documents: [
+                                Self.document(path: "MEMORY.md", kind: "main_memory"),
+                            ])),
+                    ])
+                },
+                readFile: { _, path in
+                    MemoryAgentFilePayload(
+                        name: URL(fileURLWithPath: path).lastPathComponent,
+                        path: path,
+                        missing: false,
+                        size: 32,
+                        updatedAtMs: 1_713_830_400_000,
+                        content: "# Memory\nShort notes.\n")
+                },
+                searchMemory: { _, _, _ in
+                    throw NSError(
+                        domain: "Tests",
+                        code: 8,
+                        userInfo: [NSLocalizedDescriptionKey: "Memory search unavailable"])
+                }),
+            accountGate: { _ in .authenticated })
+
+        await model.refresh()
+        await model.search(query: "boson")
+
+        #expect(model.listState == .error("Memory search unavailable"))
         #expect(model.sections.isEmpty)
     }
 
@@ -287,10 +352,20 @@ struct MemorySettingsModelTests {
         }
     }
 
+    private actor SearchRecorder {
+        private(set) var queries: [String] = []
+
+        func record(_ query: String) {
+            self.queries.append(query)
+        }
+    }
+
     private static func makeClient(
         agents: [MemoryAgentSummary] = [],
         contents: [String: String] = [:],
-        onRead: (@Sendable (String) async -> Void)? = nil) -> MemorySettingsClient
+        searchResults: [String: MemorySearchToolResult] = [:],
+        onRead: (@Sendable (String) async -> Void)? = nil,
+        onSearch: (@Sendable (String) async -> Void)? = nil) -> MemorySettingsClient
     {
         MemorySettingsClient(
             listAgents: {
@@ -305,23 +380,38 @@ struct MemorySettingsModelTests {
                     size: contents[path]?.utf8.count,
                     updatedAtMs: 1_713_830_400_000,
                     content: contents[path] ?? "")
+            },
+            searchMemory: { _, query, _ in
+                await onSearch?(query)
+                return searchResults[query] ?? MemorySearchToolResult(
+                    disabled: nil,
+                    error: nil,
+                    results: [])
             })
     }
 
     private static func makeModel(
         agents: [MemoryAgentSummary] = [],
         contents: [String: String] = [:],
-        onRead: (@Sendable (String) async -> Void)? = nil) -> MemorySettingsModel
+        searchResults: [String: MemorySearchToolResult] = [:],
+        onRead: (@Sendable (String) async -> Void)? = nil,
+        onSearch: (@Sendable (String) async -> Void)? = nil) -> MemorySettingsModel
     {
         MemorySettingsModel(
-            client: Self.makeClient(agents: agents, contents: contents, onRead: onRead),
+            client: Self.makeClient(
+                agents: agents,
+                contents: contents,
+                searchResults: searchResults,
+                onRead: onRead,
+                onSearch: onSearch),
             accountGate: { _ in .authenticated })
     }
 
-    private static func document(
+    nonisolated private static func document(
         path: String,
         kind: String,
         group: String? = nil,
+        indexed: Bool? = nil,
         present: Bool = true,
         size: Int? = 128,
         updatedAtMs: Int? = 1_713_830_400_000) -> MemoryPersonalContextDocument
@@ -330,6 +420,7 @@ struct MemorySettingsModelTests {
             path: path,
             kind: kind,
             group: group,
+            indexed: indexed,
             present: present,
             size: size,
             updatedAtMs: updatedAtMs)

@@ -53,11 +53,11 @@ struct ChatSessionsSheet: View {
         var message: String {
             switch self {
             case let .reset(session):
-                return "Starts a fresh transcript for “\(Self.chatTitle(for: session))”."
+                return "Start over in “\(Self.chatTitle(for: session))”."
             case .compact:
-                return "Keeps the recent transcript and archives the older log."
+                return "Keep the latest context and collapse older history."
             case let .delete(session):
-                return "Deletes “\(Self.chatTitle(for: session))” and archives its transcript."
+                return "Delete “\(Self.chatTitle(for: session))”."
             }
         }
 
@@ -109,30 +109,30 @@ struct ChatSessionsSheet: View {
 
                             Menu {
                                 if !self.viewModel.isCurrentSession(session) {
-                                    Button("Open Chat") {
+                                    Button("Open") {
                                         self.activate(session)
                                     }
                                 }
 
                                 if !self.viewModel.isMainSession(session) {
-                                    Button("Rename Chat") {
+                                    Button("Rename") {
                                         self.beginRename(session)
                                     }
                                     .disabled(!self.viewModel.canRenameSession(session))
                                 }
 
-                                Button("Reset Chat") {
+                                Button("Reset") {
                                     self.pendingConfirmation = .reset(session)
                                 }
                                 .disabled(!self.viewModel.canResetSession(session))
 
-                                Button("Compact Chat") {
+                                Button("Compact") {
                                     self.pendingConfirmation = .compact(session)
                                 }
                                 .disabled(!self.viewModel.canCompactSession(session))
 
                                 if !self.viewModel.isMainSession(session) {
-                                    Button("Delete Chat", role: .destructive) {
+                                    Button("Delete", role: .destructive) {
                                         self.pendingConfirmation = .delete(session)
                                     }
                                     .disabled(!self.viewModel.canDeleteSession(session))
@@ -161,8 +161,8 @@ struct ChatSessionsSheet: View {
                     }
                 }
             }
-            .navigationTitle("Recent chats")
-            .searchable(text: self.$searchText, prompt: "Search chats")
+            .navigationTitle("Chats")
+            .searchable(text: self.$searchText, prompt: "Search")
             .toolbar {
                 #if os(macOS)
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -179,7 +179,7 @@ struct ChatSessionsSheet: View {
                         if self.viewModel.isCreatingSession {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label("New Chat", systemImage: "square.and.pencil")
+                            Label("New", systemImage: "square.and.pencil")
                         }
                     }
                     .disabled(!self.viewModel.canCreateSession)
@@ -303,7 +303,7 @@ struct ChatSessionsSheet: View {
 
     private var emptyStateMessage: String {
         if self.normalizedSearchText.isEmpty {
-            return "Start a new chat to keep separate threads and pick up past work later."
+            return "Start a chat when you need a separate thread."
         }
         return "Try a different search."
     }
@@ -368,12 +368,12 @@ struct ChatSessionsSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Rename chat")
                         .font(.title3.weight(.semibold))
-                    Text("Give this thread a clear title without changing the underlying session identity.")
+                    Text("Give this chat a clear name.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
 
-                TextField("Chat title", text: self.$renameDraft)
+                TextField("Title", text: self.$renameDraft)
                     .textFieldStyle(.roundedBorder)
 
                 if let actionMessage = self.viewModel.sessionActionErrorText,
@@ -398,7 +398,7 @@ struct ChatSessionsSheet: View {
                         .trimmingCharacters(in: .whitespacesAndNewlines),
                        !currentDisplayName.isEmpty
                     {
-                        Button("Clear custom title") {
+                        Button("Clear title") {
                             self.submitRename(for: session, displayName: nil)
                         }
                         .disabled(self.isSavingRename || !self.viewModel.canRenameSession(session))
@@ -447,7 +447,9 @@ private struct ChatSessionRowView: View {
                     .lineLimit(1)
 
                 if self.viewModel.isCurrentSession(self.session) {
-                    self.badge("Current", tint: .accentColor)
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
                 } else if self.viewModel.isMainSession(self.session) {
                     self.badge("Main", tint: .secondary)
                 }
@@ -464,10 +466,14 @@ private struct ChatSessionRowView: View {
                 }
             }
 
-            Text(self.viewModel.sessionSummary(for: self.session))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            let summary = self.viewModel.sessionSummary(for: self.session)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !summary.isEmpty {
+                Text(summary)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

@@ -40,6 +40,7 @@ final class InstancesStore {
     var statusMessage: String?
     var isLoading = false
     var hasLoadedOnce = false
+    var lastSuccess: Date?
 
     private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "instances")
     private var task: Task<Void, Never>?
@@ -112,7 +113,7 @@ final class InstancesStore {
                 self.applyRefreshFailure(
                     message: self.userFacingRefreshFailure(
                         raw: nil,
-                        fallback: "Couldn’t load nodes right now."))
+                        fallback: "The nodes list could not be loaded right now."))
                 return
             }
             let decoded = try JSONDecoder().decode([PresenceEntry].self, from: data)
@@ -127,7 +128,7 @@ final class InstancesStore {
             self.applyRefreshFailure(
                 message: self.userFacingRefreshFailure(
                     raw: error.localizedDescription,
-                    fallback: "Couldn’t load nodes right now."))
+                    fallback: "The nodes list could not be loaded right now."))
         }
     }
 
@@ -155,7 +156,7 @@ final class InstancesStore {
             self.applyRefreshFailure(
                 message: self.userFacingRefreshFailure(
                     raw: nil,
-                    fallback: "Received an invalid nodes update."))
+                    fallback: "The nodes list could not be refreshed."))
         }
     }
 
@@ -183,8 +184,9 @@ final class InstancesStore {
         self.notifyOnNodeLogin(withIDs)
         self.lastPresenceById = Dictionary(uniqueKeysWithValues: withIDs.map { ($0.id, $0) })
         self.instances = withIDs
-        self.statusMessage = withIDs.isEmpty ? "No nodes have reported in yet." : nil
+        self.statusMessage = withIDs.isEmpty ? "No nodes have checked in yet." : nil
         self.lastError = nil
+        self.lastSuccess = Date()
         self.hasLoadedOnce = true
     }
 
@@ -196,19 +198,19 @@ final class InstancesStore {
     private func userFacingRefreshFailure(raw: String?, fallback: String) -> String {
         let hasLastKnownNodes = !self.instances.isEmpty
         let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let suffix = hasLastKnownNodes ? " Showing the last known list." : ""
+        let suffix = hasLastKnownNodes ? " Showing the last known nodes." : ""
         let baseFallback = fallback + suffix
         guard !trimmed.isEmpty else { return baseFallback }
 
         let lower = trimmed.lowercased()
         if lower.contains("sign in") {
             return hasLastKnownNodes
-                ? "Sign in to refresh nodes. Showing the last known list."
-                : "Sign in to view nodes."
+                ? "Sign in to refresh nodes. Showing the last known nodes."
+                : "Sign in to load nodes."
         }
         if lower.contains("timeout") {
             return hasLastKnownNodes
-                ? "Nodes are taking longer than expected to refresh. Showing the last known list."
+                ? "Nodes are taking longer than expected to refresh. Showing the last known nodes."
                 : "Nodes are taking longer than expected to load."
         }
         if lower.contains("disconnected") ||
@@ -218,7 +220,7 @@ final class InstancesStore {
             lower.contains("network")
         {
             return hasLastKnownNodes
-                ? "Alisio is not connected to the runtime right now. Showing the last known list."
+                ? "Alisio is not connected to the runtime right now. Showing the last known nodes."
                 : "Alisio is not connected to the runtime right now."
         }
         return baseFallback
