@@ -94,7 +94,7 @@ jobs:
           swift --version
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@v4.35.3
         with:
           languages: ${{ matrix.language }}
           queries: security-and-quality
@@ -102,7 +102,7 @@ jobs:
 
       - name: Autobuild
         if: matrix.needs_autobuild
-        uses: github/codeql-action/autobuild@v4
+        uses: github/codeql-action/autobuild@v4.35.3
 
       - name: Build Swift for CodeQL
         if: matrix.language == 'swift'
@@ -111,6 +111,6 @@ jobs:
           swift build --package-path apps/macos --configuration release
 
       - name: Analyze
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@v4.35.3
         with:
           category: "/language:${{ matrix.language }}"
